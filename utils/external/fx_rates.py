@@ -141,12 +141,25 @@ rate). Year-end DKK/USD moves: +6.19% (2021->2022), -3.26% (2022->2023), +6.43% 
 than several currencies already on this list), well inside PHP's already-accepted ceiling.
 
 Same pass also found ERIC (Ericsson, Swedish, reports in SEK) with the identical zeroed-
-statement shape - checked SEK as a candidate and it does NOT clear the bar: year-over-year
-moves included -12.07% (2019->2020), +15.22% (2021->2022), a wider and higher band than
-every currency already accepted here (INR's 11.1% was the prior ceiling) - a genuine,
-freely-floating developed-market currency, but more volatile than this list's judgment
-threshold tolerates. Stays excluded, same discipline as the BRL/MXN rejections above, not
-a bug - re-verify with a longer window before reconsidering.
+statement shape - checked SEK as a candidate and at the time it did NOT clear the bar:
+year-over-year moves included -12.07% (2019->2020), +15.22% (2021->2022), a wider and higher
+band than every currency already accepted here (INR's 11.1% was the prior ceiling) - a
+genuine, freely-floating developed-market currency, but judged more volatile than this list's
+threshold tolerated at the time. See the 2026-09-06 re-evaluation below - this rejection did
+not survive the BRL policy reversal.
+
+FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, re-evaluating the SEK
+rejection above against the BRL precedent): SEK's own worst live-reconfirmed year-over-year
+move (`GET /2021-12-31?from=USD&to=SEK` vs `GET /2022-12-31?from=USD&to=SEK` = +15.22%) is
+LESS volatile than BRL's 28-29% swings that the 2026-09-04 policy decision explicitly chose
+to accept in exchange for real coverage over permanent NULL - the volatility-threshold
+rejection above predates that policy reversal and was never revisited against the new,
+looser bar it established, leaving SEK excluded for a reason weaker than one already accepted
+elsewhere on this list. ERIC (Ericsson, CIK 0000717826) is the live-confirmed case: real
+`ifrs-full:ProfitLoss`/`ifrs-full:Revenue` tagged every fiscal year, exclusively under
+unit="SEK" (SEK 28.714B FY2025 ProfitLoss, no USD-tagged alternative), silently zeroing
+annual_income_statement's entire row for every recent fiscal year. Frankfurter serves SEK
+(same live-reconfirmed rates above). Added.
 
 HKD, found via TDIC (a small HK-listed 20-F filer, same zeroed-statement shape), DOES clear
 the bar trivially: year-over-year moves +/-0.6% or less (2021-2024, live-checked) - Hong
@@ -275,6 +288,7 @@ MAJOR_CURRENCIES = frozenset(
         "HKD",
         "BRL",
         "ILS",
+        "SEK",
     }
     | _YFINANCE_ONLY_CURRENCIES
 )

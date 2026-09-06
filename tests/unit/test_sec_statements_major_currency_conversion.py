@@ -251,15 +251,17 @@ class TestFxRateCache:
         cache = _isolated_cache(_FakeSession(rate=None))
         assert cache.get_usd_rate("CLP", "2024-12-31") is None
 
-    def test_sek_stays_excluded_too_volatile(self):
-        # SEK was checked as a DKK/HKD-adjacent candidate (Ericsson reports in SEK, same
-        # zeroed-statement shape) and does NOT clear the bar - see fx_rates.py's module
-        # docstring: -12.07%/+15.22% year-over-year moves exceed every currency already
-        # accepted here (INR's 11.1% was the prior ceiling). Stays excluded, not a bug.
+    def test_sek_is_converted(self):
+        # FIXED 2026-09-06: SEK's original rejection (see fx_rates.py's module docstring:
+        # -12.07%/+15.22% year-over-year moves) predates the 2026-09-04 BRL policy reversal,
+        # which explicitly accepted BRL's larger 28-29% swings in exchange for real coverage
+        # over permanent NULL. SEK's worst move is well under that bar - re-evaluated and
+        # added (Ericsson/ERIC, CIK 0000717826, real ifrs-full:ProfitLoss/Revenue tagged
+        # exclusively under unit="SEK").
         session = _FakeSession(rate=11.03)
         cache = _isolated_cache(session)
-        assert cache.get_usd_rate("SEK", "2024-12-31") is None
-        assert session.calls == 0
+        assert cache.get_usd_rate("SEK", "2024-12-31") == 11.03
+        assert session.calls == 1
 
     def test_missing_historical_rate_fails_closed(self):
         session = _FakeSession(rate=None)  # simulates a 404 - date outside range
