@@ -736,7 +736,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
             open_trade_statuses = TradeStatus.all_open()
             cursor.execute(
                 """
-                SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity, at.trade_id AS exit_trade_id, ap.current_price
+                SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity, at.trade_id AS exit_trade_id, ap.current_price, ap.position_id
                 FROM algo_positions ap
                 CROSS JOIN LATERAL UNNEST(ap.trade_ids_arr) AS unnested_trade_id
                 JOIN algo_trades at ON at.trade_id::text = unnested_trade_id::text
@@ -758,12 +758,12 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                 acquire_advisory_lock(write_cursor, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                 try:
                     for row in closed_positions:
-                        if not isinstance(row, (tuple, list)) or len(row) < 7:
+                        if not isinstance(row, (tuple, list)) or len(row) < 8:
                             logger.error(
                                 f"[PHASE 9] Malformed row from closed_positions query: {row} (type={type(row).__name__}, len={len(row) if isinstance(row, (tuple, list)) else 'N/A'})"
                             )
                             raise RuntimeError(
-                                f"[PHASE 9 CRITICAL] Malformed closed position row returned from database. Expected 7 columns, got {len(row) if isinstance(row, (tuple, list)) else '?'}"
+                                f"[PHASE 9 CRITICAL] Malformed closed position row returned from database. Expected 8 columns, got {len(row) if isinstance(row, (tuple, list)) else '?'}"
                             )
                         try:
                             (
@@ -774,6 +774,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                 entry_qty,
                                 trade_id,
                                 current_price,
+                                position_id,
                             ) = row
                         except (ValueError, TypeError) as unpack_err:
                             logger.error(f"[PHASE 9] Failed to unpack row: {row}. Error: {unpack_err}")
@@ -1021,22 +1022,54 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                 )
                             # Try to update position, but don't fail if it's already closed
                             # (can happen if the position was closed between SELECT and UPDATE)
-                            write_cursor.execute(
-                                """
-                                UPDATE algo_positions
-                                SET status = 'closed', closed_at = CURRENT_TIMESTAMP, current_price = %s,
-                                    unrealized_pnl = NULL, profit_loss_dollars = %s, unrealized_pnl_pct = %s,
-                                    exit_reason = %s, updated_at = CURRENT_TIMESTAMP
-                                WHERE symbol = %s AND status = 'open'
-                            """,
-                                (
-                                    exit_price,
-                                    cumulative_pnl_dollars,
-                                    cumulative_pnl_pct,
-                                    f"Closed position recorded during reconciliation (from {price_source})",
-                                    symbol,
-                                ),
-                            )
+                            #
+                            # SAFETY (2026-09-06, real-money-readiness audit): scope by position_id
+                            # (the true unique key) rather than symbol alone whenever it's available.
+                            # algo_positions has no DB-level unique constraint on symbol (only on
+                            # position_id) - a symbol-only WHERE here would, in the rare case of two
+                            # open positions for the same symbol (a pyramiding/race edge case the
+                            # application-level dedup is the only guard against), close/misattribute
+                            # whichever row happened to match rather than the specific position this
+                            # trade actually belongs to. Falls back to symbol-only only for legacy
+                            # trades written before position_id linking existed.
+                            if position_id:
+                                write_cursor.execute(
+                                    """
+                                    UPDATE algo_positions
+                                    SET status = 'closed', closed_at = CURRENT_TIMESTAMP, current_price = %s,
+                                        unrealized_pnl = NULL, profit_loss_dollars = %s, unrealized_pnl_pct = %s,
+                                        exit_reason = %s, updated_at = CURRENT_TIMESTAMP
+                                    WHERE position_id = %s AND status = 'open'
+                                """,
+                                    (
+                                        exit_price,
+                                        cumulative_pnl_dollars,
+                                        cumulative_pnl_pct,
+                                        f"Closed position recorded during reconciliation (from {price_source})",
+                                        position_id,
+                                    ),
+                                )
+                            else:
+                                logger.warning(
+                                    f"[PHASE 9] Trade {symbol} (trade_id={trade_id}) has no position_id - "
+                                    "falling back to symbol-scoped position update (legacy trade)."
+                                )
+                                write_cursor.execute(
+                                    """
+                                    UPDATE algo_positions
+                                    SET status = 'closed', closed_at = CURRENT_TIMESTAMP, current_price = %s,
+                                        unrealized_pnl = NULL, profit_loss_dollars = %s, unrealized_pnl_pct = %s,
+                                        exit_reason = %s, updated_at = CURRENT_TIMESTAMP
+                                    WHERE symbol = %s AND status = 'open'
+                                """,
+                                    (
+                                        exit_price,
+                                        cumulative_pnl_dollars,
+                                        cumulative_pnl_pct,
+                                        f"Closed position recorded during reconciliation (from {price_source})",
+                                        symbol,
+                                    ),
+                                )
                             if write_cursor.rowcount == 0:
                                 # Position may already be closed (status='closed' in the SELECT but between
                                 # SELECT and UPDATE it was already finalized). This is OK - algo_trades

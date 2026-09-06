@@ -35,7 +35,7 @@ def test_db_error_recording_exit_raises_instead_of_silently_continuing():
     """A transient DB error on the exit-recording UPDATE must halt Phase 9, not be
     swallowed - swallowing it creates a permanent, un-retryable audit-trail gap."""
     # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity, trade_id, current_price
-    closed_row = ("AAPL", 150.0, 10, 145.0, 10, 123, 148.0)
+    closed_row = ("AAPL", 150.0, 10, 145.0, 10, 123, 148.0, "POS-1")
     read_cur = _make_read_cursor([closed_row])
 
     write_cur = MagicMock()
@@ -79,7 +79,7 @@ def test_algo_trades_zero_rowcount_gracefully_continues():
     so we just log and continue with position update. The trade/position is correctly
     finalized; we're just a second process attempting to finalize again."""
     # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity, trade_id, current_price
-    closed_row = ("AAPL", 150.0, 10, 145.0, 10, 123, 148.0)
+    closed_row = ("AAPL", 150.0, 10, 145.0, 10, 123, 148.0, "POS-1")
     read_cur = _make_read_cursor([closed_row])
 
     write_cur = MagicMock()

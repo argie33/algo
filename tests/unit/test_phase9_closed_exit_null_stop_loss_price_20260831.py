@@ -31,7 +31,7 @@ def _make_read_cursor(rows):
 
 def test_null_stop_loss_price_raises_before_any_write():
     # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity, trade_id, current_price
-    closed_row = ("AAPL", 150.0, 10, None, 10, 123, 148.0)
+    closed_row = ("AAPL", 150.0, 10, None, 10, 123, 148.0, "POS-1")
     read_cur = _make_read_cursor([closed_row])
     write_cur = MagicMock()
 
@@ -56,7 +56,7 @@ def test_null_stop_loss_price_raises_before_any_write():
 
 
 def test_zero_position_qty_raises_before_any_write():
-    closed_row = ("AAPL", 150.0, 0, 145.0, 10, 123, 148.0)
+    closed_row = ("AAPL", 150.0, 0, 145.0, 10, 123, 148.0, "POS-2")
     read_cur = _make_read_cursor([closed_row])
     write_cur = MagicMock()
 
@@ -82,7 +82,7 @@ def test_zero_position_qty_raises_before_any_write():
 def test_valid_row_with_populated_stop_loss_price_still_passes_through(monkeypatch):
     # Confirms the new guards don't false-positive on the ordinary, already-covered happy path
     # from test_phase9_exit_recording_db_failure.py's rowcount==0 case.
-    closed_row = ("AAPL", 150.0, 10, 145.0, 10, 123, 148.0)
+    closed_row = ("AAPL", 150.0, 10, 145.0, 10, 123, 148.0, "POS-3")
     read_cur = _make_read_cursor([closed_row])
     write_cur = MagicMock()
 
