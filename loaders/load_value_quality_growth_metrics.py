@@ -115,6 +115,12 @@ class ValueQualityGrowthMetricsLoader(
     # the percentile universe rather than forcing a floor/ceiling score.
     MIN_PLAUSIBLE_FORWARD_PE_RATIO = 0.05
 
+    # Same ceiling load_sec_valuations.py's own pe_ratio/pb_ratio/ps_ratio all use - forward_pe
+    # got the equivalent FLOOR (above) but was missing this equivalent CEILING, so a tiny
+    # (but real) forward_eps could inflate forward_pe to an implausible value with nothing
+    # rejecting it, the mirror-image gap of the one MIN_PLAUSIBLE_FORWARD_PE_RATIO already closes.
+    MAX_PLAUSIBLE_FORWARD_PE_RATIO = 10000
+
     # Matches load_sec_valuations.py's MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO - this file's TIER
     # 3/TIER 4 dividend_yield fallbacks must stay in sync with that file's primary computation.
     MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO = 0.30

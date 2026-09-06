@@ -62,6 +62,7 @@ class ValueMetricsMixin(SymbolGateMixin):
 
     if TYPE_CHECKING:
         MIN_PLAUSIBLE_FORWARD_PE_RATIO: float
+        MAX_PLAUSIBLE_FORWARD_PE_RATIO: float
         MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO: float
 
         def _unavailable_marker(self, table: str, symbol: str, reason: str | None = None) -> dict[str, Any]: ...
@@ -417,8 +418,15 @@ class ValueMetricsMixin(SymbolGateMixin):
             forward_eps = fe_row[0] if fe_row else None
             if forward_eps is not None and forward_eps > 0:
                 computed_forward_pe = float(current_price) / float(forward_eps)
-                if computed_forward_pe >= self.MIN_PLAUSIBLE_FORWARD_PE_RATIO:
+                if self.MIN_PLAUSIBLE_FORWARD_PE_RATIO <= computed_forward_pe <= self.MAX_PLAUSIBLE_FORWARD_PE_RATIO:
                     forward_pe = computed_forward_pe
+                elif computed_forward_pe > self.MAX_PLAUSIBLE_FORWARD_PE_RATIO:
+                    logger.warning(
+                        f"[VALUE_METRICS] {symbol}: forward_pe implausibly high "
+                        f"({computed_forward_pe:.0f} > {self.MAX_PLAUSIBLE_FORWARD_PE_RATIO}), "
+                        "excluding from Value scoring rather than storing a garbage value."
+                    )
+                    forward_pe_reason = "implausible_ratio"
                 else:
                     logger.warning(
                         f"[VALUE_METRICS] {symbol}: forward_pe implausibly low "
