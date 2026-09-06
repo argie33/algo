@@ -446,10 +446,24 @@ class IncomeStatementContextMixin:
         # gracefully per-field, and PB/EV/FCF-yield don't depend on either at all -
         # the only real requirement is SOME income-statement signal to work with.
         if ttm_revenue is None and ttm_eps_basic is None and _ttm_net_income is None:
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling of the
+            # `not income_rows` branch's own 2026-09-05 ETF fix above): live-confirmed IWM
+            # (iShares Russell 2000 ETF, stock_symbols.etf='true') has a stray
+            # annual_income_statement row that survives the `data_unavailable IS NOT TRUE`
+            # filter above but carries no real revenue/EPS/net_income - same underlying "this
+            # is a fund, not an operating company with a 10-K income statement" fact as the
+            # zero-rows case, just reached via a row that technically exists but is empty
+            # rather than truly absent. Same reason label, same category
+            # ("Legitimate / not applicable").
+            cur.execute("SELECT etf FROM stock_symbols WHERE symbol = %s", (symbol,))
+            etf_row = cur.fetchone()
+            reason = (
+                "etf_no_sec_filings" if etf_row and etf_row[0] == "true" else "income_statement_revenue_and_eps_null"
+            )
             return [
                 self._unavailable_marker(
                     symbol,
-                    "income_statement_revenue_and_eps_null",
+                    reason,
                     total_debt=total_debt,
                     total_cash=total_cash,
                     ebitda=ebitda,

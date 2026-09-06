@@ -88,7 +88,18 @@ class ValueMetricsMixin(SymbolGateMixin):
             # Propagate the specific reason load_sec_valuations.py already computed (e.g.
             # "shares_outstanding_unavailable") rather than a generic "missing_sec_data" -
             # falls back to the generic reason only when sec_valuations has no row at all.
-            marker = self._unavailable_marker("value_metrics", symbol, reason=row_dict.get("reason"))
+            #
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): `not row_dict`
+            # (sec_valuations has literally NO row for this symbol, not even a data_unavailable
+            # marker one) has no `reason` to propagate at all - live-confirmed SPY has zero
+            # sec_valuations rows (load_sec_valuations.py never even attempts a market-cap/EV
+            # computation for it) and was falling all the way to the generic "missing_sec_data"
+            # default, the same ETF-mislabeling class already fixed in vqg_quality.py/
+            # vqg_growth.py's own zero-row early returns. Only meaningful in the `not row_dict`
+            # branch - a real `data_unavailable=True` row already carries its own specific
+            # `reason` via row_dict.get("reason") above, unaffected by this.
+            fallback_reason = "etf_no_sec_filings" if not row_dict and symbol in self._get_etf_symbols() else None
+            marker = self._unavailable_marker("value_metrics", symbol, reason=row_dict.get("reason") or fallback_reason)
             # A preferred/subordinated-debenture ticker (see
             # _get_preferred_or_debt_security_symbols()'s docstring) never gets a
             # sec_valuations row at all (load_sec_valuations.py doesn't compute market-cap/EV
