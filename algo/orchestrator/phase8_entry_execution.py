@@ -2649,8 +2649,14 @@ def run(
                 continue
 
             # OPTIONAL ADVANCED-FILTERS GATE - see initialization above. Off unless explicitly
-            # enabled; fails open per-candidate too (a single symbol's evaluation error doesn't
-            # block it - logged and let through, matching the fail-open init behavior above).
+            # enabled. Per-candidate evaluation fails CLOSED (rejects just this one candidate) -
+            # unlike the one-time init-failure fail-open above (a reasoned choice: an optional
+            # new gate failing to load shouldn't halt all trading), a swallowed exception here
+            # would silently let an unvetted candidate through mid-loop, which is inconsistent
+            # with every other risk/quality gate in the system (pretrade_checks.py, circuit
+            # breakers) - all of which fail closed on error. Found during the 2026-09-06
+            # pre-real-money audit: fail-open-on-any-exception here meant a single candidate's
+            # evaluation bug could quietly defeat the gate for that trade with only a log line.
             if advanced_filters is not None:
                 try:
                     af_result = advanced_filters.evaluate_candidate(
@@ -2674,10 +2680,20 @@ def run(
                         skipped_count += 1
                         continue
                 except Exception as e:
+                    af_reason = f"advanced_filters_error: {e}"
                     logger.warning(
-                        f"[PHASE 8] {symbol}: AdvancedFilters gate errored, failing open "
-                        f"(not blocking this candidate): {e}"
+                        f"[PHASE 8] {symbol}: AdvancedFilters gate errored, failing closed (rejecting this candidate): {e}"
                     )
+                    _log_signal_rejection(
+                        symbol,
+                        "advanced_filters",
+                        af_reason,
+                        run_date,
+                        float(signal.get("entry_price", 0) or 0),
+                        None,
+                    )
+                    skipped_count += 1
+                    continue
 
             # Liquidity: ADV, dollar volume, price history age
 

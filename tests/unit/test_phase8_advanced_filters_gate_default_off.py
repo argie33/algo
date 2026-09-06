@@ -1,4 +1,5 @@
-"""Regression test: the optional AdvancedFilters gate in Phase 8 must default to OFF and fail open.
+"""Regression test: the optional AdvancedFilters gate in Phase 8 must default to OFF, fail open
+at initialization, and fail CLOSED per-candidate.
 
 AdvancedFilters.evaluate_candidate() was unwired dead code with real bugs (see
 advanced_filters_dead_code_investigation memory) - those bugs are now fixed and verified
@@ -6,11 +7,18 @@ exception-safe at scale (300 real candidates, 0 crashes). Wired in as an OPTIONA
 gate behind algo_config.enable_advanced_filters_gate, defaulting to False, so merging this
 does not change current behavior (paper or auto) unless someone explicitly enables it.
 
+Per-candidate evaluation was originally also fail-open (2026-08-31), but the 2026-09-06
+pre-real-money audit flagged that as inconsistent with every other risk/quality gate in the
+system (pretrade_checks.py, circuit breakers), which all fail closed on error - a swallowed
+exception mid-loop would silently let an unvetted candidate through with only a log line.
+Fixed same day to reject just that one candidate on error instead. Initialization failure
+(the gate can't even load market context) stays fail-open by design - an optional new gate
+failing to load shouldn't halt all trading.
+
 This is a source check, not a mocked run() call - run() has ~15 injected dependencies with no
 existing test harness (see test_phase8_duplicate_race_exception_handling.py's sibling note),
 so this pins the properties that matter: default-off, placed after the existing always-on
-health check (not replacing it), and fails open (never blocks/crashes on its own error) both
-at initialization and per-candidate.
+health check (not replacing it), fails open at initialization, and fails closed per-candidate.
 """
 
 import inspect
@@ -51,13 +59,21 @@ def test_gate_init_failure_does_not_raise():
     assert "advanced_filters = None" in init_section
 
 
-def test_gate_per_candidate_failure_does_not_raise():
+def test_gate_per_candidate_failure_fails_closed():
     source = inspect.getsource(p8.run)
     loop_section = source[source.index("for signal in qualified_trades:") :]
     gate_call_idx = loop_section.index("advanced_filters.evaluate_candidate(")
-    # The nearest enclosing except after the evaluate_candidate() call must not re-raise -
-    # it should log a warning and fall through, not `continue`/`raise` the candidate away
-    # on an infrastructure error (as opposed to a real af_result["pass"] is False rejection).
-    after_call = loop_section[gate_call_idx : gate_call_idx + 1500]
+    # The nearest enclosing except after the evaluate_candidate() call must not re-raise, but
+    # must also not silently let the candidate through - it should log, record a rejection, and
+    # `continue` (skip this candidate) rather than falling through to submit it, matching every
+    # other risk/quality gate in the system (pretrade_checks.py, circuit breakers).
+    after_call = loop_section[gate_call_idx : gate_call_idx + 2000]
     assert "except Exception as e:" in after_call
-    assert "failing open" in after_call.lower()
+    assert "failing closed" in after_call.lower()
+    except_idx = after_call.index("except Exception as e:")
+    except_section = after_call[except_idx:]
+    assert "continue" in except_section, (
+        "A per-candidate AdvancedFilters error must `continue` (skip/reject this candidate), "
+        "not fall through to submit it unvetted."
+    )
+    assert "skipped_count += 1" in except_section
