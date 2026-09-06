@@ -512,7 +512,7 @@
   "loaders/load_risk_metrics_daily.py": 960,
   "loaders/load_sec_segment_info.py": 634,
   "loaders/load_sec_segment_metrics.py": 183,
-  "loaders/load_sec_valuations.py": 2506,
+  "loaders/load_sec_valuations.py": 2558,
   "loaders/load_sector_industry_daily.py": 519,
   "loaders/load_short_interest_finra.py": 408,
   "loaders/load_signal_quality_scores.py": 1025,
