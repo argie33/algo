@@ -22,6 +22,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import boto3
 import psycopg2
@@ -166,90 +167,73 @@ def get_portfolio_pnl(max_attempts: int = 3):
     ) from last_err
 
 
-def _set_halt_flag_rds(halt: bool, reason: str, check_time: str) -> None:
-    creds = get_db_credentials()
-    conn = psycopg2.connect(
-        host=creds["host"],
-        port=creds["port"],
-        database=creds["database"],
-        user=creds["user"],
-        password=creds["password"],
-        sslmode="require",
-        connect_timeout=10,
-    )
-    cur = conn.cursor()
-    now_utc = datetime.now(timezone.utc)
-    cur.execute(
-        """
-        INSERT INTO algo_runtime_state (
-            state_key, state_value, halt_flag, halt_triggered_at,
-            halt_reason, halt_count, updated_by, expires_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (state_key) DO UPDATE SET
-            state_value = EXCLUDED.state_value,
-            halt_flag = EXCLUDED.halt_flag,
-            halt_triggered_at = EXCLUDED.halt_triggered_at,
-            halt_reason = EXCLUDED.halt_reason,
-            halt_count = EXCLUDED.halt_count,
-            last_updated_at = CURRENT_TIMESTAMP,
-            expires_at = EXCLUDED.expires_at
-    """,
-        (
-            "orchestrator_halt",
-            json.dumps(
-                {
-                    "halt_flag": halt,
-                    "triggered_at": now_utc.isoformat(),
-                    "reason": reason,
-                }
-            ),
-            halt,
-            now_utc.isoformat(),
-            reason,
-            1,
-            "circuit_breaker",
-            (now_utc.timestamp() + 86400),  # 24 hours from now
-        ),
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
-    logger.debug(f"[CIRCUIT_BREAKER] Set halt_flag={halt} in RDS: {reason}")
+class _NoOpAlerts:
+    """Minimal stand-in for the AlertManager HaltFlagManager expects - this Lambda has its
+    own SNS-based alerting (_send_alert below) for circuit-breaker-specific messages;
+    HaltFlagManager's own escalation alert (repeated-halt-in-one-day) is a nice-to-have,
+    not something this narrow caller needs to wire up, but it must not crash if
+    HaltFlagManager ever calls it (that call is best-effort/try-except'd internally, but
+    only against a narrow exception tuple - see set_halt_flag's own escalation block)."""
+
+    def send_position_alert(self, *args: Any, **kwargs: Any) -> None:
+        return None
 
 
-def _set_halt_flag_dynamodb(table, halt: bool, reason: str, check_time: str) -> None:
-    item = {
-        "key": "orchestrator_halt",
-        "halt_flag": halt,
-        "reason": reason,
-        "check_time": check_time,
-    }
-    ts_key = "triggered_at" if halt else "reset_at"
-    item[ts_key] = datetime.now(timezone.utc).isoformat()
-    table.put_item(Item=item)
-    logger.debug(f"[CIRCUIT_BREAKER] Set halt_flag={halt} in DynamoDB: {reason}")
+def _get_halt_flag_manager() -> Any:
+    from algo.orchestration.halt_flag_manager import HaltFlagManager
+
+    return HaltFlagManager(alerts=_NoOpAlerts(), log_phase_result=lambda *a, **k: None)
 
 
-def _set_halt(table, halt: bool, reason: str, check_time: str) -> None:
-    """Set halt flag atomically in RDS (source of truth) and DynamoDB (cache).
+def _set_halt(table, halt: bool, reason: str, check_time: str) -> bool:
+    """Set/clear the halt flag via HaltFlagManager - the same origin-aware primitive
+    every other halt source in this codebase uses (orchestrator.py's phases, the manual
+    operator kill switch).
 
-    RDS is the source of truth. DynamoDB write failure is tolerable since reads
-    fall back to RDS. This prevents split-brain where one store succeeds and the
-    other fails, causing inconsistent state across orchestrator runs.
+    SAFETY BUG FOUND (2026-09-06 real-money-readiness dig): this used to write halt_flag
+    directly to RDS/DynamoDB via raw UPSERTs (_set_halt_flag_rds/_set_halt_flag_dynamodb,
+    both now removed), unconditionally overwriting whatever halt state existed - including
+    an unrelated halt set by a completely different source (Phase 9's reconciliation-
+    governance halt, a manual operator halt, another phase's data-integrity halt). Every
+    scheduled run where THIS circuit breaker's own variance happened to look fine would
+    silently clear ANY active halt and send a "TRADING RESUMED" alert, regardless of why
+    trading was actually halted - exactly the "origin bug" halt_flag_manager.py's own
+    clear_halt_flag() docstring says its origin-check exists to prevent (see
+    halt_flag_cleared_by_unrelated_phase_fix_20260810), but this Lambda never adopted that
+    primitive in the first place.
 
-    Raises if RDS write fails (source of truth), optionally logs warning if DynamoDB fails.
+    For halt=True: always sets, tagged triggered_by="circuit_breaker" (sticky-to-first-
+    trigger semantics in set_halt_flag mean this never clobbers an already-active halt
+    from a different origin either).
+
+    For halt=False (the recovery/auto-clear path): only actually clears if the CURRENTLY
+    active halt's origin is "circuit_breaker" itself (or nothing is halted) - refuses
+    (returns False, halt stays exactly as-is) if some other origin is holding it. The
+    `table` parameter is now unused (kept so existing call sites don't all need touching)
+    - HaltFlagManager manages its own DynamoDB/RDS access internally.
+
+    Returns: True if the requested state was actually applied; False if a clear was
+    refused because a different origin holds the active halt (never raises for that
+    case - refusing to clear is always the safe direction, same contract clear_halt_flag
+    itself documents).
     """
-    try:
-        _set_halt_flag_rds(halt, reason, check_time)
-    except Exception as e:
-        logger.error(f"[CIRCUIT_BREAKER] Failed to set halt flag in RDS (source of truth): {e}")
-        raise
+    manager = _get_halt_flag_manager()
+    if halt:
+        manager.set_halt_flag(reason=reason, triggered_by="circuit_breaker")
+        logger.critical(f"[CIRCUIT_BREAKER] Halt flag set via HaltFlagManager: reason={reason}")
+        return True
 
-    try:
-        _set_halt_flag_dynamodb(table, halt, reason, check_time)
-        logger.critical(f"[CIRCUIT_BREAKER] Halt flag={halt} set: RDS=True, DynamoDB=True, reason={reason}")
-    except Exception as e:
-        logger.warning(f"[CIRCUIT_BREAKER] DynamoDB cache update failed (RDS succeeded): {e}")
+    current_trigger = manager.get_halt_triggered_by()
+    cleared = manager.clear_halt_flag(reason=reason, allowed_triggers=frozenset({"circuit_breaker", None}))
+    if cleared:
+        logger.critical(f"[CIRCUIT_BREAKER] Halt flag cleared via HaltFlagManager: reason={reason}")
+    else:
+        logger.warning(
+            f"[CIRCUIT_BREAKER] Variance back to safe range, but NOT auto-clearing - active halt was "
+            f"triggered_by={current_trigger!r}, not this circuit breaker. Refusing to resume trading "
+            "on an unrelated halt's behalf."
+        )
+    return cleared
 
 
 def _send_alert(action: str, reason: str, variance: float | None = None, threshold: float | None = None) -> None:
@@ -272,8 +256,12 @@ Portfolio Variance: {variance:.1%} (Threshold: {threshold:.1%})
 
 All trading activity has been suspended to protect the portfolio.
 
-To resume trading, manually clear the halt flag via AWS Console or Terraform.
-Contact the team for root cause analysis before resuming."""
+This circuit breaker will automatically resume trading on its own next scheduled
+check once variance returns below the threshold - it does NOT wait for manual
+clearance. If you need trading to stay halted regardless of variance (e.g. pending
+root-cause review), set an operator-triggered halt via scripts/manage_halt_flag.py
+instead of relying on this alert - a plain variance recovery will otherwise
+auto-resume as designed."""
         else:
             body = f"""Portfolio Circuit Breaker RESET
 
@@ -378,8 +366,20 @@ def lambda_handler(event, context):
             logger.info(f"Circuit breaker OK: variance {variance:.1%} < threshold {threshold:.1%}")
             reason = f"Circuit breaker reset: variance {variance:.1%} < {threshold:.1%}"
             try:
-                _set_halt(table, False, reason, check_time)
-                _send_alert("CONTINUE", reason, variance, threshold)
+                # _set_halt(False, ...) only actually clears if THIS circuit breaker is the
+                # active halt's origin (or nothing is halted) - see its own docstring. A
+                # different origin's halt (e.g. Phase 9 governance, a manual operator halt)
+                # is deliberately left in place: this check's own variance recovering must
+                # never be read as license to resume trading a human/another system halted
+                # for an unrelated reason.
+                cleared = _set_halt(table, False, reason, check_time)
+                if cleared:
+                    _send_alert("CONTINUE", reason, variance, threshold)
+                else:
+                    logger.info(
+                        "[CIRCUIT_BREAKER] Variance recovered but trading remains halted - "
+                        "active halt belongs to a different origin, not auto-clearing."
+                    )
             except (RuntimeError, Exception) as halt_err:
                 logger.critical(f"CRITICAL: Failed to reset halt flag: {halt_err}")
                 raise
@@ -387,7 +387,7 @@ def lambda_handler(event, context):
                 "statusCode": 200,
                 "body": json.dumps(
                     {
-                        "action": "CONTINUE",
+                        "action": "CONTINUE" if cleared else "VARIANCE_OK_HALT_UNRELATED_ORIGIN",
                         "variance": f"{variance:.1%}",
                         "current_pnl": f"{current_pnl:.2f}",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
