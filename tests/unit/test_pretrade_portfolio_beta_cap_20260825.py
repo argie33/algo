@@ -79,18 +79,22 @@ class TestPortfolioBetaCheck:
 
     def test_high_beta_entry_pushing_portfolio_over_cap_blocked(self):
         checks = PreTradeChecks(config=_config(max_portfolio_beta=2.0))
-        # Existing book: $10,000 at beta 1.0. Candidate: $10,000 at beta 4.0.
-        # Weighted avg after = (10000*1.0 + 10000*4.0) / 20000 = 2.5 > 2.0 cap.
+        # BUG FIX 2026-09-06: normalizes by portfolio_value (TOTAL account equity, cash
+        # included) - matching var.py's beta_exposure(), which this check's own docstring
+        # claims to reuse the "2.0 convention" from - NOT by existing_value+position_value
+        # (invested capital only), which the old (buggy) version of this test locked in.
+        # Existing book: $50,000 (100 sh @ $500) at beta 3.0. Candidate: $30,000 at beta 3.0.
+        # Weighted avg after = (50000*3.0 + 30000*3.0) / 100000 (portfolio_value) = 2.4 > 2.0.
         cur = _FakeCursor(
-            candidate_beta_row=(4.0,),
-            open_positions_rows=[("HELD", 100, 100.0)],
-            open_betas_rows=[("HELD", 1.0)],
+            candidate_beta_row=(3.0,),
+            open_positions_rows=[("HELD", 100, 500.0)],
+            open_betas_rows=[("HELD", 3.0)],
         )
-        ok, reason = checks._check_portfolio_beta("NEWSYM", Decimal("10000"), Decimal("100000"), cur)
+        ok, reason = checks._check_portfolio_beta("NEWSYM", Decimal("30000"), Decimal("100000"), cur)
         assert ok is False
         assert reason is not None
         assert "2.0" in reason
-        assert "2.5" in reason
+        assert "2.4" in reason
 
     def test_low_beta_entry_stays_under_cap_passes(self):
         checks = PreTradeChecks(config=_config(max_portfolio_beta=2.0))
@@ -135,3 +139,28 @@ class TestPortfolioBetaCheck:
             raise AssertionError("expected KeyError for missing max_portfolio_beta config")
         except KeyError:
             pass
+
+    def test_uninvested_cash_is_not_ignored_in_the_denominator(self):
+        """Regression for the 2026-09-06 fix: this check used to normalize by
+        existing_value+position_value (invested capital only), silently ignoring the
+        portfolio_value parameter - so a book sitting mostly in cash would compute a
+        portfolio_beta_after far higher than var.py's beta_exposure() would ever report for
+        the same account, needlessly blocking entries that could never breach the real 2.0
+        total-account threshold. Half the account in cash, invested book at beta 3.0 - the
+        true (portfolio_value-normalized) weighted beta is under the cap even though the
+        invested-only weighted beta would have breached it.
+        """
+        checks = PreTradeChecks(config=_config(max_portfolio_beta=2.0))
+        # Existing: $40,000 at beta 3.0. Candidate: $10,000 at beta 3.0. Total account
+        # equity: $100,000 (i.e. $50,000 of that is uninvested cash).
+        # Invested-only (the old, buggy denominator): (40000*3+10000*3)/50000 = 3.0 - WOULD
+        # have wrongly blocked. Portfolio-value-normalized (correct): (120000+30000)/100000
+        # = 1.5 - correctly passes.
+        cur = _FakeCursor(
+            candidate_beta_row=(3.0,),
+            open_positions_rows=[("HELD", 400, 100.0)],
+            open_betas_rows=[("HELD", 3.0)],
+        )
+        ok, reason = checks._check_portfolio_beta("NEWSYM", Decimal("10000"), Decimal("100000"), cur)
+        assert ok is True
+        assert reason is None
