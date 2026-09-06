@@ -10,6 +10,7 @@ auto-repairs a missing stop-loss leg instead of only alerting a human).
 """
 
 import logging
+import uuid
 from typing import Any, Literal
 
 from utils.db.context import DatabaseContext
@@ -117,8 +118,22 @@ def check_and_repair_one_position(
         )
         return "unrepairable"
 
+    # Unique per call (not a bare f"stoprepair-{pos_id}") - this position can legitimately
+    # need a SECOND standalone repair later in its lifetime (e.g. this repair order itself
+    # later expires/fills and a future cycle repairs again), and Alpaca does not release a
+    # client_order_id for reuse once assigned, even after that order closes. A permanently
+    # fixed id would make that later legitimate resubmission collide with the first one
+    # forever, and submit_standalone_protective_stop's ground-truth lookup would then
+    # wrongly report success by pointing at the OLD, no-longer-live order - silently
+    # leaving the position unprotected. Uniqueness here only needs to survive THIS call's
+    # own internal retry loop (crash mid-attempt reusing the same id) - see
+    # submit_standalone_protective_stop's own broker-side open-order preflight check for
+    # the cross-cycle (this whole call never returning at all) duplicate-prevention layer.
+    client_order_id = f"stoprepair-{pos_id}-{uuid.uuid4().hex[:12]}"
     try:
-        repair = order_mgr.submit_standalone_protective_stop(symbol, float(quantity), float(current_stop_price))
+        repair = order_mgr.submit_standalone_protective_stop(
+            symbol, float(quantity), float(current_stop_price), client_order_id=client_order_id
+        )
     except Exception as e:
         repair = {"success": False, "message": f"Exception during repair submission: {e}"}
 

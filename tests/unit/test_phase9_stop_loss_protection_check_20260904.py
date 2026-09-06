@@ -171,7 +171,10 @@ def test_missing_stop_loss_leg_auto_repairs_and_sends_warning_not_critical():
     ):
         _verify_open_position_stop_loss_protection_step(lambda *a: log_calls.append(a), config={})
 
-    mock_order_mgr.submit_standalone_protective_stop.assert_called_once_with("TSLA", 25.0, 210.50)
+    assert mock_order_mgr.submit_standalone_protective_stop.call_count == 1
+    call_args, call_kwargs = mock_order_mgr.submit_standalone_protective_stop.call_args
+    assert call_args == ("TSLA", 25.0, 210.50)
+    assert call_kwargs["client_order_id"].startswith("stoprepair-7-")
     mock_notify.assert_called_once()
     args, kwargs = mock_notify.call_args
     assert args[0] == "warning"

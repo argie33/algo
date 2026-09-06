@@ -1303,18 +1303,47 @@ def _verify_open_position_stop_loss_protection_step(log_phase_result_fn: Callabl
                 logger.warning(f"[PHASE 9] Failed to send auto-repair notification for {repaired}: {notify_err}")
 
         if unrepairable:
-            try:
-                from algo.reporting.notifications import notify
+            # REAL-MONEY-READINESS FIX (2026-09-05, ported from an unmerged WIP fix found
+            # while checking on flagged real-money-readiness gaps): this is the alert of last
+            # resort for a position confirmed to have NO stop-loss protection - the exact
+            # scenario this whole check was built to catch. It used to call notify() without
+            # strict=True, meaning notify()'s own blanket except (notifications.py) would
+            # swallow a genuine delivery failure (e.g. SMTP down/misconfigured - the only
+            # channel this codebase's notify() actually has, see notifications.py's
+            # _send_notification) and this function's own except below could never
+            # distinguish "delivered" from "silently failed to deliver" - both looked
+            # identical: a log line nobody may ever read. strict=True makes a real delivery
+            # failure raise NotificationError instead, which triggers one immediate retry
+            # (covers a transient SMTP blip) before falling through to the loudest failure
+            # signal available in this function's scope (log_phase_result_fn below still
+            # records "critical" phase-result status regardless, so a dashboard/monitoring
+            # check of phase results is a second, independent trace of this even if both
+            # notify attempts fail outright).
+            from algo.reporting.notifications import notify
+            from algo.trading.exceptions import NotificationError
 
-                notify(
-                    "critical",
-                    title="Open Position(s) Missing Stop-Loss Protection - AUTO-REPAIR FAILED",
-                    message=(
-                        f"{len(unrepairable)} open position(s) have NO live stop-loss leg AND "
-                        f"automatic repair failed: {', '.join(unrepairable)}. Do not assume these "
-                        "positions are protected - investigate and re-arm protection immediately."
-                    ),
+            alert_title = "Open Position(s) Missing Stop-Loss Protection - AUTO-REPAIR FAILED"
+            alert_message = (
+                f"{len(unrepairable)} open position(s) have NO live stop-loss leg AND "
+                f"automatic repair failed: {', '.join(unrepairable)}. Do not assume these "
+                "positions are protected - investigate and re-arm protection immediately."
+            )
+            try:
+                notify("critical", title=alert_title, message=alert_message, strict=True)
+            except NotificationError as first_err:
+                logger.critical(
+                    f"[PHASE 9 CRITICAL] Alert delivery failed for unrepairable positions "
+                    f"{unrepairable} - retrying once: {first_err}"
                 )
+                try:
+                    notify("critical", title=alert_title, message=alert_message, strict=True)
+                except NotificationError as retry_err:
+                    logger.critical(
+                        f"[PHASE 9 CRITICAL] Alert delivery failed TWICE for unrepairable positions "
+                        f"{unrepairable} - these positions have NO stop-loss protection and NO ALERT "
+                        f"WAS DELIVERED. Manual investigation required immediately: {retry_err}",
+                        exc_info=True,
+                    )
             except Exception as notify_err:
                 logger.critical(
                     f"[PHASE 9 CRITICAL] Failed to alert on unrepairable positions {unrepairable}: {notify_err}",

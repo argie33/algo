@@ -227,7 +227,7 @@
   "algo/trading/handler_context.py": 82,
   "algo/trading/helpers.py": 141,
   "algo/trading/order_manager.py": 1683,
-  "algo/trading/order_manager_stop_repair.py": 240,
+  "algo/trading/order_manager_stop_repair.py": 224,
   "algo/trading/position_sizer.py": 1668,
   "algo/trading/position_tracker.py": 231,
   "algo/trading/pretrade_checks.py": 789,

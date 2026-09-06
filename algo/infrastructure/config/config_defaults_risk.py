@@ -287,29 +287,43 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
         "Legacy: max new positions per day",
         "Risk Management",
     ),
-    # Pyramiding Configuration
+    # Pyramiding Configuration - REAL-MONEY-READINESS FINDING (2026-09-05): pyramid_enabled
+    # was previously seeded/defaulted "true" but is dead config - grepped the entire trading
+    # codebase (not just this file) for pyramid_enabled/pyramid_add_1_gain_pct/
+    # pyramid_add_2_gain_pct/pyramid_split_pct: zero references anywhere outside
+    # config_defaults/config_schema/migrations. There is no code path that reads these
+    # values to actually split an entry into multiple tranches - pretrade_checks.py
+    # hard-blocks any new entry order for a symbol that already has an open position, so
+    # multi-entry pyramiding cannot fire through the current entry path even in principle.
+    # An operator seeing pyramid_enabled=true in config would reasonably (and wrongly)
+    # believe multi-tranche position stacking is active and governed by these thresholds.
+    # Defaulted to "false" and labeled "NOT IMPLEMENTED" so the config stops asserting a
+    # capability that doesn't exist - fix if pyramiding is ever actually wired up, or
+    # remove these four keys entirely. NOTE: migrations 005/018 seed the LIVE algo_config
+    # DB with pyramid_enabled="true" - this code-default change does not retroactively fix
+    # already-seeded rows; that needs a separate one-time data migration/UPDATE.
     "pyramid_enabled": (
-        "true",
+        "false",
         "bool",
-        "Enable multi-entry pyramiding",
+        "NOT IMPLEMENTED - enable multi-entry pyramiding (no code path currently reads this)",
         "Position Management",
     ),
     "pyramid_add_1_gain_pct": (
         "2.0",
         "float",
-        "Gain threshold for first add (pyramiding)",
+        "NOT IMPLEMENTED - gain threshold for first add (pyramiding)",
         "Position Management",
     ),
     "pyramid_add_2_gain_pct": (
         "4.0",
         "float",
-        "Gain threshold for second add (pyramiding)",
+        "NOT IMPLEMENTED - gain threshold for second add (pyramiding)",
         "Position Management",
     ),
     "pyramid_split_pct": (
         "50.0",
         "float",
-        "Split position % per add (pyramiding)",
+        "NOT IMPLEMENTED - split position % per add (pyramiding)",
         "Position Management",
     ),
     "stale_order_alert_minutes": (

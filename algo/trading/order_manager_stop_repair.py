@@ -32,6 +32,40 @@ logger = logging.getLogger(__name__)
 class StopLossRepairMixin:
     """OrderManager methods for auto-repairing a missing stop-loss leg."""
 
+    def _find_open_sell_stop_order(self, symbol: str) -> dict[str, Any] | None:
+        """Does a resting (non-bracket) sell-stop order already exist for this symbol?
+
+        Ground-truth check used by submit_standalone_protective_stop before submitting a
+        new standalone repair stop - catches the case where an EARLIER repair call fully
+        succeeded at the broker but crashed before its caller could persist
+        standalone_stop_order_id, so this cycle has no record of it and would otherwise
+        submit a genuine second live stop for the same shares. Deliberately does not
+        filter by client_order_id (that id is unique per call and wouldn't match a prior
+        call's id) - this is a broker-state check, not a request-idempotency check.
+
+        Returns: the order dict for the first open stop-type sell order found, or None if
+        none exists / the lookup itself fails (fails open - see caller).
+        """
+        if not self.alpaca_key or not self.alpaca_secret:  # type: ignore[attr-defined]
+            return None
+        resp = requests.get(
+            f"{self.alpaca_base_url}/v2/orders",  # type: ignore[attr-defined]
+            params={"status": "open", "symbols": symbol},
+            headers={
+                "APCA-API-KEY-ID": self.alpaca_key,  # type: ignore[attr-defined]
+                "APCA-API-SECRET-KEY": self.alpaca_secret,  # type: ignore[attr-defined]
+            },
+            timeout=get_api_timeout(),
+        )
+        resp.raise_for_status()
+        orders = resp.json()
+        if not isinstance(orders, list):
+            return None
+        for order in orders:
+            if order.get("side") == "sell" and order.get("type") == "stop":
+                return order  # type: ignore[no-any-return]
+        return None
+
     def is_order_still_live(self, alpaca_order_id: str | None) -> bool | None:
         """Is this order (bracket leg or standalone) still resting/working at the broker?
 
@@ -83,6 +117,22 @@ class StopLossRepairMixin:
         if not self.alpaca_key or not self.alpaca_secret:  # type: ignore[attr-defined]
             return {"success": False, "message": "Cannot submit protective stop - Alpaca credentials missing"}
 
+        try:
+            existing_stop = self._find_open_sell_stop_order(symbol)
+        except Exception as e:
+            existing_stop = None
+            logger.warning(f"[PROTECTIVE_STOP] {symbol}: pre-submission existing-order check failed: {e}")
+        if existing_stop:
+            return {
+                "success": True,
+                "order_id": existing_stop.get("id"),
+                "message": (
+                    f"Standalone protective stop for {symbol} already resting at the broker "
+                    f"(id={existing_stop.get('id')}) from an earlier repair whose DB write was "
+                    "never confirmed - reusing it instead of submitting a duplicate."
+                ),
+            }
+
         order_data: dict[str, Any] = {
             "symbol": symbol,
             "qty": str(qty),
@@ -129,6 +179,18 @@ class StopLossRepairMixin:
                 # attempt landed first) covering these shares - not a transient failure,
                 # and retrying would either loop forever or oversell on a partial match.
                 last_error = f"Failed to submit protective stop: {resp.status_code} {resp.text[:300]}"
+                if client_order_id and resp.status_code not in (429, 503):
+                    existing = self._lookup_order_by_client_order_id(client_order_id)  # type: ignore[attr-defined]
+                    if existing:
+                        return {
+                            "success": True,
+                            "order_id": existing.get("id"),
+                            "message": (
+                                f"Standalone protective stop for {symbol} already existed at the broker "
+                                f"(client_order_id={client_order_id}, id={existing.get('id')}) - an earlier "
+                                "attempt's response was lost, not a new submission."
+                            ),
+                        }
                 if resp.status_code in (429, 503) and attempt < max_attempts - 1:
                     wait_time = 2**attempt
                     logger.warning(
@@ -144,6 +206,18 @@ class StopLossRepairMixin:
                 if attempt < max_attempts - 1:
                     time.sleep(1)
 
+        if client_order_id:
+            existing = self._lookup_order_by_client_order_id(client_order_id)  # type: ignore[attr-defined]
+            if existing:
+                return {
+                    "success": True,
+                    "order_id": existing.get("id"),
+                    "message": (
+                        f"Standalone protective stop for {symbol} already existed at the broker "
+                        f"(client_order_id={client_order_id}, id={existing.get('id')}) - an earlier "
+                        "attempt's response was lost, not a new submission."
+                    ),
+                }
         return {
             "success": False,
             "message": f"Failed to submit protective stop for {symbol} after {max_attempts} attempts: {last_error}",

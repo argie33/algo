@@ -78,6 +78,20 @@ class HaltFlagManager:
         LOCAL_MODE connects to the same shared production DB and Alpaca account,
         so halt flag enforcement is NON-NEGOTIABLE. If you want to skip safety checks,
         use dry_run=True instead of relying on LOCAL_MODE bypasses.
+
+        SPLIT-BRAIN FIX (2026-09-05, real-money-readiness): set_halt_flag() writes to RDS
+        only when DynamoDB's OWN write attempt fails (not on every write) - so a halt set
+        during a transient DynamoDB failure (throttle, brief network blip - a normal,
+        request-scoped failure shape, not a sustained outage) lands only in RDS. Previously,
+        this function returned DynamoDB's answer immediately whenever DynamoDB was reachable
+        for the READ, even a definitive "no item" - so the moment DynamoDB recovered (often
+        by the very next check), a genuinely active RDS-only halt became invisible and a
+        later phase could resume issuing entries under an active halt condition. Fix: when
+        DynamoDB is reachable and says "not halted," still check RDS and treat either
+        backend answering "halted" as authoritative - a false "not halted" from a moved-on
+        DynamoDB must never override a real halt recorded elsewhere. When DynamoDB itself
+        says "halted," it's already authoritative (no false-negative risk) and RDS is
+        skipped, keeping the common case's one extra read a Dynamo-halted path never pays.
         """
 
         # Try DynamoDB first (preferred)
@@ -85,7 +99,25 @@ class HaltFlagManager:
         if dynamodb_result is not None:
             if dynamodb_result:
                 self._alert_halt_detected("DynamoDB")
-            return dynamodb_result
+                return True
+            # DynamoDB says "not halted" - still authoritative for its OWN outages, but
+            # cannot rule out an RDS-only halt from set_halt_flag()'s failure-triggered
+            # fallback (see docstring above). Fails open on an RDS read error here (returns
+            # DynamoDB's False rather than blocking on a check-the-checker failure) since
+            # this is a defense-in-depth cross-check, not the primary read path.
+            try:
+                rds_cross_check = self._check_halt_flag_rds()
+            except Exception as cross_check_err:
+                logger.warning(f"[HALT_FLAG] RDS split-brain cross-check failed (non-fatal): {cross_check_err}")
+                rds_cross_check = None
+            if rds_cross_check:
+                logger.critical(
+                    "[HALT_FLAG] Split-brain detected: DynamoDB says not halted but RDS has an "
+                    "active halt (likely set during a transient DynamoDB failure) - honoring RDS."
+                )
+                self._alert_halt_detected("RDS split-brain cross-check")
+                return True
+            return False
 
         # Fall back to RDS if DynamoDB unavailable (log only once per run)
         if not self._dynamodb_unavailable_logged:
