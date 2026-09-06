@@ -1323,8 +1323,44 @@ class SecValuationsLoader(
             )
             result["data_unavailable"] = True
             result["reason"] = "all_valuation_metrics_null"
+            self._recategorize_blank_check_all_valuation_metrics_null_reason(symbol, result)
 
         return result
+
+    def _recategorize_blank_check_all_valuation_metrics_null_reason(self, symbol: str, result: dict[str, Any]) -> None:
+        """Overrides the generic "all_valuation_metrics_null" reason with the already-correctly-
+        bucketed "no_revenue_reported" ("Legitimate / not applicable") for a pre-merger SPAC
+        shell. Mutates `result` in place.
+
+        FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): a blank-check company
+        (SIC 6770) has no real operating business before its merger - trust-account interest
+        income only, no product/service revenue - so PE/PB/PS/FCF-yield are all structurally
+        undefined, not a data-extraction gap. Live-confirmed via a direct company_info_sec join:
+        28 of 61 active symbols hitting "all_valuation_metrics_null" (46%, by far the largest
+        single sic_description cluster) are SIC "Blank Checks" - same root fact and same
+        "no_revenue_reported" reason `_get_blank_check_symbols()` already uses elsewhere
+        (vqg_quality.py's roic_pct/gross_margin/ebitda_margin, vqg_value.py's ps_ratio/ev_revenue)
+        for this identical population, just never checked here since this whole-row fallback
+        propagates into every value_metrics field at once (pe_ratio/pb_ratio/ps_ratio/peg_ratio/
+        ev_ebitda/ev_revenue/market_cap/dividend_yield/fcf_yield/intrinsic_value/margin_of_
+        safety/held_percent_institutions - see _build_value_metrics's own "not row_dict or
+        row_dict.get('data_unavailable')" early return) before any of those fields' own,
+        already-correct per-field gates get a chance to run. This mixin has no access to
+        ValueQualityGrowthMetricsLoader's cached _get_blank_check_symbols() (different class
+        hierarchy, same reason _recategorize_ric_dcf_fcf_reason above uses its own inline query
+        rather than that gate) - a small inline query instead. Guarded the same way as
+        _recategorize_ric_dcf_fcf_reason above: only overrides the exact generic reason this
+        fix targets, never a real computed value or a different, already-specific reason.
+        """
+        if result.get("reason") != "all_valuation_metrics_null":
+            return
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT 1 FROM company_info_sec WHERE symbol = %s AND sic_description = 'Blank Checks'",
+                (symbol,),
+            )
+            if cur.fetchone() is not None:
+                result["reason"] = "no_revenue_reported"
 
     # FIXED 2026-08-20 (goal: finance-accuracy audit, part 2): yfinance_snapshot (the table
     # the cross-check below reads) has had no live writer since Session 275 and was frozen
