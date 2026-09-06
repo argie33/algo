@@ -302,9 +302,23 @@ class ValueMetricsMixin(SymbolGateMixin):
         # fcf_yield's own specific reason, computed once here so both fcf_yield_unavailable_reason
         # below and intrinsic_value_reason_from_fcf_yield() show the same real, already-categorized
         # cause instead of two different labels for one fact.
+        #
+        # ADDED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" sweep): the RIC/ETF-
+        # trust checks quality_metrics.fcf_margin's sibling chain already has (vqg_quality.py,
+        # ~line 2144/1676) were never wired into this value_metrics chain - same structural
+        # fact (a closed-end fund or physical commodity/crypto trust files no GAAP cash-flow
+        # statement at all), just missed in a different file. Live-sampled the "Missing SEC/
+        # XBRL data" fcf_yield bucket (146 symbols) and found real CEFs (ETO/EIC/BTT/KTF/GUT/
+        # TYG-class) and ETF trusts (SLV/IAU/GBTC, all confirmed present in etf_symbols) mixed
+        # in with genuine gaps - checked first, same priority order as the quality_metrics
+        # sibling.
         fcf_yield_reason_str = (
             (
-                "no_recent_free_cash_flow_reported"
+                "registered_investment_company_no_xbrl"
+                if symbol in self._get_registered_investment_company_symbols()
+                else "etf_trust_no_gaap_financials"
+                if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
+                else "no_recent_free_cash_flow_reported"
                 if symbol in self._get_no_recent_free_cash_flow_symbols()
                 or symbol in self._get_never_tagged_free_cash_flow_symbols()
                 else "capex_never_tagged_in_recent_filings"
