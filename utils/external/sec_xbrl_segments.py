@@ -1014,7 +1014,13 @@ class XBRLSegmentParser:
                 else None
             )
             if cross_tab is None and component_sum is None and alt_asset_manager_sum is None and ares_style_sum is None:
-                single = _extract_single_segment_revenue(root, symbol)
+                # require_explicit_count_tag=True: real segment-dimensioned contexts DO exist
+                # here (context_segment is non-empty - see the early-return branch above for
+                # the true zero-context case) but none of the reconciliation strategies
+                # matched them - see _extract_single_segment_revenue's own docstring
+                # ("BUG FOUND 2026-09-06") for why the relaxed no-count-tag-required rule
+                # must not apply at this call site.
+                single = _extract_single_segment_revenue(root, symbol, require_explicit_count_tag=True)
                 if single is not None:
                     _concept, revenue, single_end, single_duration = single
                     # Realty Income's FY2025 10-K tags the single segment's

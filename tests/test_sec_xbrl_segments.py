@@ -229,7 +229,13 @@ class TestExtractSegmentRevenueFromXbrlXml:
         total = 200_000_000 + 50_000_000
         assert result["largest_segment_revenue_pct"] == pytest.approx(200_000_000 / total * 100, abs=0.01)
 
-    def test_no_segment_dimensioned_contexts(self) -> None:
+    def test_no_segment_dimensioned_contexts_but_real_revenue_recovers_single_segment(self) -> None:
+        """UPDATED 2026-09-06 (commit 7108922a4): zero segment-dimensioned contexts anywhere
+        in the filing, with a real plain revenue fact and no NumberOfReportableSegments tag
+        at all, is exactly the Abeona Therapeutics shape this fix deliberately recovers as a
+        genuine single-reportable-segment result rather than a data gap - see
+        _extract_single_segment_revenue's docstring. This test used to assert the OLD
+        pre-fix "give up" behavior; renamed/updated to assert the new, correct one."""
         xml_content = """<?xml version="1.0"?>
 <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31">
     <context id="c1">
@@ -237,6 +243,24 @@ class TestExtractSegmentRevenueFromXbrlXml:
         <period><startDate>2024-01-01</startDate><endDate>2024-12-31</endDate></period>
     </context>
     <us-gaap:Revenues contextRef="c1">100000000</us-gaap:Revenues>
+</xbrl>
+"""
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 1
+        assert result["segments"][0]["revenue"] == 100_000_000.0
+        assert result["segments"][0]["segment_id"] == "single_reportable_segment"
+
+    def test_no_segment_dimensioned_contexts_and_no_revenue_stays_unavailable(self) -> None:
+        """The true "nothing to recover" case - no segment dims AND no plain revenue
+        concept anywhere - must still correctly report unavailable, not fabricate a value."""
+        xml_content = """<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31">
+    <context id="c1">
+        <entity><identifier scheme="http://www.sec.gov/CIK">0000789019</identifier></entity>
+        <period><startDate>2024-01-01</startDate><endDate>2024-12-31</endDate></period>
+    </context>
 </xbrl>
 """
         result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
