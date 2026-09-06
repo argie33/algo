@@ -2477,13 +2477,35 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         # test_financial_statements_custom_extension_capex_fallback.py) and never set
         # _bulk_insert_mgr - harmless to skip this guard for those, since they don't
         # exercise the real upsert path this guard protects anyway.
+        # FIXED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" / implausible-
+        # values audit, ALMR/MRLN live-confirmed): checking every preserve_on_missing_fields
+        # column (the original 2026-09-01 condition) let a cover-page/instant fact that's
+        # essentially always present regardless of whether this fiscal year has a real
+        # annual filing - entity_common_stock_shares_outstanding (-> shares_outstanding_dei)
+        # or the balance-sheet share-count facts (-> shares_outstanding_basic) - masquerade
+        # as "real data present," permanently defeating this guard for any symbol whose
+        # cover page keeps reporting a share count. Live-confirmed via a direct
+        # fetch_incremental("ALMR") call: fresh row was exactly
+        # {"fiscal_year": 2026, "fiscal_period": "FY",
+        # "entity_common_stock_shares_outstanding": 69392766, "data_source": "sec_audited"}
+        # - no revenue/cost_of_revenue/gross_profit/net_income at all - yet the DB's stale
+        # FY2026 revenue=$539K/cost_of_revenue=$11.578M/gross_profit=$14.457M (gross_profit
+        # exceeding revenue by 26x, a hard accounting impossibility) survived indefinitely
+        # via COALESCE because that one DEI field kept `any(...)` true. MRLN's fresh row
+        # similarly carried only common_stock_shares_issued/outstanding and the DEI field.
+        # Use _REQUIRED_STATEMENT_FIELDS (already the codebase's definition of "usable data"
+        # for this exact statement type - see post_run()'s flag-sync use of the same
+        # constant) instead of the full preserve_on_missing_fields set: a row missing every
+        # required field has no usable data regardless of what cover-page/share-count
+        # fields it also carries.
         bulk_insert_mgr = getattr(self, "_bulk_insert_mgr", None)
-        if self.period == "annual" and bulk_insert_mgr is not None:
+        required_fields = _REQUIRED_STATEMENT_FIELDS.get(self.statement_type, set())
+        if self.period == "annual" and bulk_insert_mgr is not None and required_fields:
             for row in rows:
                 if row.get("data_unavailable"):
                     continue
-                if any(row.get(field) is not None for field in bulk_insert_mgr.preserve_on_missing_fields):
-                    continue  # Real data present for at least one field - not the all-None case
+                if any(row.get(field) is not None for field in required_fields):
+                    continue  # Real data present for at least one required field
                 self._reject_stale_all_none_annual_row(symbol, row)
         return rows
 
