@@ -61,7 +61,7 @@ class SecValuationRatiosMixin:
                         """
                         SELECT earnings_per_share FROM annual_income_statement
                         WHERE symbol = %s AND earnings_per_share IS NOT NULL
-                          AND earnings_per_share > 0 AND data_unavailable = FALSE
+                          AND earnings_per_share > 0 AND data_unavailable IS NOT TRUE
                         ORDER BY fiscal_year DESC
                         """,
                         (symbol,),
@@ -130,7 +130,7 @@ class SecValuationRatiosMixin:
                             """
                             SELECT stockholders_equity FROM annual_balance_sheet
                             WHERE symbol = %s AND stockholders_equity IS NOT NULL
-                              AND stockholders_equity > 0 AND data_unavailable = FALSE
+                              AND stockholders_equity > 0 AND data_unavailable IS NOT TRUE
                             ORDER BY fiscal_year DESC
                             """,
                             (symbol,),
@@ -200,7 +200,7 @@ class SecValuationRatiosMixin:
                             """
                             SELECT revenue FROM annual_income_statement
                             WHERE symbol = %s AND revenue IS NOT NULL AND revenue > 0
-                              AND data_unavailable = FALSE
+                              AND data_unavailable IS NOT TRUE
                             ORDER BY fiscal_year DESC
                             """,
                             (symbol,),
@@ -283,7 +283,7 @@ class SecValuationRatiosMixin:
                             """
                             SELECT earnings_per_share FROM annual_income_statement
                             WHERE symbol = %s AND earnings_per_share IS NOT NULL
-                              AND earnings_per_share > 0 AND data_unavailable = FALSE
+                              AND earnings_per_share > 0 AND data_unavailable IS NOT TRUE
                             ORDER BY fiscal_year DESC
                             """,
                             (symbol,),

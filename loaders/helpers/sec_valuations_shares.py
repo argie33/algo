@@ -153,6 +153,7 @@ class SharesOutstandingResolutionMixin:
                     """
                     SELECT shares_outstanding_basic, fiscal_year FROM annual_income_statement
                     WHERE symbol = %s AND shares_outstanding_basic > %s AND shares_outstanding_basic < %s
+                    AND data_unavailable IS NOT TRUE
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
@@ -239,6 +240,7 @@ class SharesOutstandingResolutionMixin:
                     """
                     SELECT shares_outstanding_basic FROM annual_income_statement
                     WHERE symbol = %s AND shares_outstanding_basic > %s AND shares_outstanding_basic < %s
+                    AND data_unavailable IS NOT TRUE
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
@@ -299,6 +301,7 @@ class SharesOutstandingResolutionMixin:
                 """
                 SELECT shares_outstanding_diluted FROM annual_income_statement
                 WHERE symbol = %s AND shares_outstanding_diluted > %s AND shares_outstanding_diluted < %s
+                AND data_unavailable IS NOT TRUE
                 ORDER BY fiscal_year DESC LIMIT 1
                 """,
                 (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING, self.MAX_PLAUSIBLE_SHARES_OUTSTANDING),
@@ -373,7 +376,7 @@ class SharesOutstandingResolutionMixin:
                 """
                 SELECT shares_outstanding_dei, fiscal_year FROM annual_income_statement
                 WHERE symbol = %s AND shares_outstanding_dei > %s AND shares_outstanding_dei < %s
-                AND fiscal_year >= %s
+                AND fiscal_year >= %s AND data_unavailable IS NOT TRUE
                 ORDER BY fiscal_year DESC LIMIT 1
                 """,
                 (
