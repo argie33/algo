@@ -1836,3 +1836,53 @@ class SymbolGateMixin:
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
+
+    @_cached_symbols
+    def _get_structural_entity_type_exemptions(self) -> frozenset[str]:
+        """Symbols that are structurally unable to file 10-K/10-Q or have no traditional
+        financial statements due to entity type, not due to missing SEC data.
+
+        CEF (Closed-end funds), BDC (Business development companies), ETF (Exchange-traded
+        funds), and certain REIT structures file N-1A/N-2/N-CSR under the Investment Company
+        Act instead of 10-K/10-Q. Banks post-2024 also have regulatory filing exemptions.
+
+        ADDED 2026-09-06 (goal: "fix all XBRL issues the right way"): Creates a single gate
+        that captures all entity-type-based structural exemptions so they can be marked
+        "Legitimate / not applicable" rather than "missing_sec_data" across all metrics that
+        check SEC filing data.
+
+        Combines:
+        - etf_symbols table (active='true')
+        - company_profile.entity_type = 'fund', 'cef', 'bdc', 'trust'
+        - company_info_sec.entity_type = 'other' with blank SIC (post-2024 bank exemptions)
+
+        NOTE: This gate is comprehensive but somewhat redundant with existing gates
+        (_get_etf_symbols, _get_registered_investment_company_symbols,
+        _get_no_tax_concept_symbols for shipping/tax-exempt). Its value is in capturing
+        all entity-type bases in one place for new metrics that haven't yet wired
+        per-entity-type checks. Existing metrics already use specific gates.
+
+        Cached for the life of this loader instance; this query runs once per pipeline run.
+        """
+        with _database_context()("read") as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT s.symbol FROM stock_symbols s
+                WHERE s.active = TRUE
+                  AND (
+                    -- ETF symbols table
+                    s.symbol IN (SELECT symbol FROM etf_symbols)
+                    -- Fund-type entities in company_profile
+                    OR s.symbol IN (
+                      SELECT symbol FROM company_profile
+                      WHERE entity_type IN ('fund', 'cef', 'bdc', 'trust')
+                    )
+                    -- Post-2024 bank exemptions: entity_type='other' + no SIC
+                    OR s.symbol IN (
+                      SELECT symbol FROM company_info_sec
+                      WHERE entity_type = 'other' AND sic_code IS NULL
+                    )
+                  )
+                """
+            )
+            return frozenset(row[0] for row in cur.fetchall())

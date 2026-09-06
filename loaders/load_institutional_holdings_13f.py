@@ -133,6 +133,11 @@ _VERIFIED_BRAND_NAME_ALIASES: dict[str, str] = {
     # plausibility-gate issue as BCH above ("GRUPO AEROPORTUARIO PAC-ADR" vs our local
     # "Pacific Airport Group").
     "PAC": "GRUPO AEROPORTUARIO PAC-ADR",
+    # FIXED 2026-09-06 (same sweep, PAC's sister airport-group company): OMAB's (Grupo
+    # Aeroportuario del Centro Norte) raw ticker "G7A" is rescued to "OMAB" via
+    # _VERIFIED_RAW_TICKER_ALIASES below, same translation-mismatch plausibility-gate issue as
+    # PAC/BCH above ("GRUPO AEROPORTUARIO CEN-ADR" vs our local "Central North Airport Group").
+    "OMAB": "GRUPO AEROPORTUARIO CEN-ADR",
 }
 
 # FIXED 2026-08-30 (goal: full-data audit continuation): a DIFFERENT failure mode than the
@@ -206,6 +211,9 @@ _VERIFIED_RAW_TICKER_ALIASES: dict[tuple[str, str], str] = {
     # "G9N" is unrecognized, and its resolved_name "GRUPO AEROPORTUARIO PAC-ADR" shares zero
     # real tokens with our English local name, same translation-mismatch class as BCH above.
     ("G9N", "GRUPO AEROPORTUARIO PAC-ADR"): "PAC",
+    ("G7A", "GRUPO AEROPORTUARIO CEN-ADR"): "OMAB",
+    ("BFP", "BBVA ARGENTINA SA-ADR"): "BBAR",
+    ("SAJA", "CIA SANEAMENTO BASICO DE-ADR"): "SBS",
 }
 
 
