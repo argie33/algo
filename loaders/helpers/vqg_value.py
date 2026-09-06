@@ -313,7 +313,15 @@ class ValueMetricsMixin(SymbolGateMixin):
         # ebitda>0 present, enterprise_value missing or out of bounds: enterprise_value =
         # market_cap + total_debt - total_cash, so it fails whenever total_debt can't be
         # itemized - reuse the same gate quality_metrics.total_debt already uses.
-        elif symbol in self._get_no_recent_debt_components_symbols():
+        # FIXED 2026-09-06 (same sweep as ev_revenue's own fix just below in this file): the
+        # windowed (exactly-3-real-years) gate alone misses recent IPOs/SPAC-mergers with fewer
+        # real years where debt is nonetheless genuinely never itemized - OR in the full-history
+        # sibling gate, same pattern already used elsewhere in this codebase for net_income/
+        # current_assets/etc.
+        elif (
+            symbol in self._get_no_recent_debt_components_symbols()
+            or symbol in self._get_never_tagged_debt_components_symbols()
+        ):
             ev_ebitda_reason = "total_debt_not_itemized"
         elif _computed_ev_for_reason is not None and _computed_ev_for_reason <= 0:
             ev_ebitda_reason = "negative_enterprise_value"
@@ -988,8 +996,15 @@ class ValueMetricsMixin(SymbolGateMixin):
                     or symbol in self._get_never_tagged_revenue_symbols()
                     # enterprise_value = market_cap + total_debt - total_cash, so it fails
                     # whenever total_debt can't be itemized even when revenue is present.
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): only the
+                    # windowed (exactly-3-real-years) gate was checked here, missing the same
+                    # "recent IPO/SPAC-merger with fewer real years" population every other
+                    # never-tagged-sibling check in this file OR's in - live-verified 6
+                    # additional active-universe rows recovered from the generic
+                    # "missing_sec_data" catch-all.
                     else "total_debt_not_itemized"
                     if symbol in self._get_no_recent_debt_components_symbols()
+                    or symbol in self._get_never_tagged_debt_components_symbols()
                     # Net cash exceeds market_cap + total_debt - see _computed_ev_for_reason.
                     else "negative_enterprise_value"
                     if _computed_ev_for_reason is not None and _computed_ev_for_reason <= 0

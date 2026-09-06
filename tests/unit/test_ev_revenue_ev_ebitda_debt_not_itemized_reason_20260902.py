@@ -72,6 +72,73 @@ def _run(monkeypatch, no_recent_debt_symbols=frozenset(), **sec_val_fields):
         return loader._build_value_metrics("NODEBT", _FakeSecValRow(sec_val_fields))
 
 
+class _NeverTaggedOnlyCursor:
+    """Distinguishes the windowed (COUNT(*) = 3) gate from the full-history (COUNT(*) >= 1)
+    sibling gate by their distinct HAVING clauses, so a symbol can be placed in one but not the
+    other - unlike _RecordingCursor above, which can't distinguish them (both queries match its
+    "annual_balance_sheet" + "long_term_debt" substring check and return the same fixture)."""
+
+    def __init__(self, never_tagged_only_symbols):
+        self._never_tagged_only = never_tagged_only_symbols
+        self._last_query = ""
+
+    def execute(self, query, params=None):
+        self._last_query = query
+
+    def fetchone(self):
+        return None
+
+    def fetchall(self):
+        if "annual_balance_sheet" in self._last_query and "long_term_debt" in self._last_query:
+            if "COUNT(*) >= 1" in self._last_query:
+                return [(s,) for s in self._never_tagged_only]
+            return []  # windowed COUNT(*) = 3 gate: never matches this symbol
+        return []
+
+
+class TestEvRevenueEvEbitdaTotalDebtFullHistoryGateFix20260906:
+    """FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): the windowed-only gate
+    above missed recent IPOs/SPAC-mergers with fewer than 3 real fiscal years where debt is
+    nonetheless genuinely never itemized - live-verified 6 additional active-universe
+    ev_revenue rows recovered from the generic "missing_sec_data" bucket by also checking
+    _get_never_tagged_debt_components_symbols()."""
+
+    def test_never_tagged_only_symbol_still_gets_total_debt_not_itemized(self, monkeypatch):
+        import loaders.load_value_quality_growth_metrics as mod
+
+        cursor = _NeverTaggedOnlyCursor(frozenset({"NEWIPO"}))
+
+        class _FakeDatabaseContext:
+            def __enter__(self):
+                return cursor
+
+            def __exit__(self, *exc):
+                return False
+
+        monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext())
+        loader = _make_loader()
+        with patch.object(loader, "_get_analyst_forward_eps", return_value=None):
+            result = loader._build_value_metrics(
+                "NEWIPO",
+                _FakeSecValRow(
+                    {
+                        "pe_ratio": 15.0,
+                        "pb_ratio": 2.0,
+                        "ps_ratio": 3.0,
+                        "ev_revenue": None,
+                        "ev_ebitda": None,
+                        "ebitda": 200_000_000.0,
+                        "enterprise_value": None,
+                        "market_cap": 1_000_000_000.0,
+                        "fcf_yield": 6.0,
+                    }
+                ),
+            )
+
+        assert result["ev_revenue_unavailable_reason"] == "total_debt_not_itemized"
+        assert result["ev_ebitda_unavailable_reason"] == "total_debt_not_itemized"
+
+
 class TestEvRevenueEvEbitdaDebtNotItemizedReason:
     def test_ev_revenue_propagates_total_debt_not_itemized_reason(self, monkeypatch):
         result = _run(
