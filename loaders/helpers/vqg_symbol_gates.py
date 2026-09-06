@@ -73,12 +73,21 @@ class SymbolGateMixin:
         than the permanent accounting-model difference it actually is. Live-confirmed 49 symbols
         in this "used to report classified, now doesn't" bucket. Cached for the life of this
         loader instance; this query runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same bug class across
+        every `rn <= 3` gate in this file): a `data_unavailable = TRUE` row can carry a leftover
+        non-NULL value in its data columns (never nulled when the row was flagged unavailable),
+        which silently counted as "reported" here. `CASE WHEN data_unavailable THEN NULL...`
+        sanitizes the field before counting so a stray leftover value can't masquerade as real
+        data. Live-verified this recovers XRTX (3 most recent years all `data_unavailable=TRUE`
+        but carrying stray non-NULL current_assets) with zero symbols lost.
         """
         with _database_context()("read") as cur:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, current_assets,
+                    SELECT symbol,
+                           CASE WHEN data_unavailable THEN NULL ELSE current_assets END AS current_assets,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
                     WHERE fiscal_year > 0
@@ -118,12 +127,19 @@ class SymbolGateMixin:
         ALL explicitly marked unavailable invisible to this gate. `fiscal_year > 0` keeps the
         ranking free of `_unavailable_marker` sentinel rows while including real-fiscal-year
         unavailable ones. Live-confirmed 109 additional symbols recovered. Label-only.
+
+        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same fix as
+        _get_unclassified_balance_sheet_symbols above): sanitize both fields to NULL when their
+        row is `data_unavailable` so a leftover stray value can't count as "reported". Live-
+        verified 5 additional symbols recovered (ASR/BBAR/CEPU/ENIC/LOMA), zero lost.
         """
         with _database_context()("read") as cur:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, pretax_income, income_tax_expense,
+                    SELECT symbol,
+                           CASE WHEN data_unavailable THEN NULL ELSE pretax_income END AS pretax_income,
+                           CASE WHEN data_unavailable THEN NULL ELSE income_tax_expense END AS income_tax_expense,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
                     WHERE fiscal_year > 0
@@ -162,12 +178,18 @@ class SymbolGateMixin:
         so a symbol whose 3 most recent fiscal years are ALL explicitly marked unavailable
         isn't invisible to this gate. Live-confirmed 142 additional symbols recovered.
         Label-only.
+
+        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same fix as
+        _get_unclassified_balance_sheet_symbols above): sanitize pretax_income to NULL when its
+        row is `data_unavailable` so a leftover stray value can't count as "reported". Live-
+        verified 6 additional symbols recovered, zero lost.
         """
         with _database_context()("read") as cur:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, pretax_income,
+                    SELECT symbol,
+                           CASE WHEN data_unavailable THEN NULL ELSE pretax_income END AS pretax_income,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
                     WHERE fiscal_year > 0
@@ -204,12 +226,18 @@ class SymbolGateMixin:
         recent X" gate. `fiscal_year > 0` keeps the ranking free of `_unavailable_marker`
         sentinel rows (456 confirmed live) while including real-fiscal-year unavailable ones.
         Label-only - never feeds a computed VALUE, only a reason string.
+
+        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same fix as
+        _get_unclassified_balance_sheet_symbols above): sanitize interest_expense to NULL when
+        its row is `data_unavailable` so a leftover stray value can't count as "reported".
+        Live-verified 9 additional symbols recovered, zero lost.
         """
         with _database_context()("read") as cur:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, interest_expense,
+                    SELECT symbol,
+                           CASE WHEN data_unavailable THEN NULL ELSE interest_expense END AS interest_expense,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
                     WHERE fiscal_year > 0
@@ -253,6 +281,12 @@ class SymbolGateMixin:
         heavily-indebted borrowers (AAPL, TSLA, T, VZ, F, GE) - none matched. Cached for the
         life of this loader instance; this query runs once per pipeline run, not once per
         symbol.
+
+        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same fix as
+        _get_unclassified_balance_sheet_symbols above): a stray non-NULL interest_expense
+        leftover on a `data_unavailable = TRUE` row counted as "reported" in this FILTER,
+        wrongly excluding the symbol. Sanitize to NULL first. Live-verified 9 additional
+        symbols recovered (AEVA/AVLN/EMAT/HAWK/HDRN/HYPR/MAZE/RKTO/WYFI), zero lost.
         """
         with _database_context()("read") as cur:
             cur.execute(
@@ -261,7 +295,10 @@ class SymbolGateMixin:
                 WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
-                   AND COUNT(*) FILTER (WHERE interest_expense IS NOT NULL AND interest_expense != 0) = 0
+                   AND COUNT(*) FILTER (
+                       WHERE (CASE WHEN data_unavailable THEN NULL ELSE interest_expense END) IS NOT NULL
+                         AND (CASE WHEN data_unavailable THEN NULL ELSE interest_expense END) != 0
+                   ) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
@@ -287,13 +324,21 @@ class SymbolGateMixin:
         mechanism, same fix applied identically here): `fiscal_year > 0` replaces
         `data_unavailable = FALSE` so a symbol whose 3 most recent fiscal years are ALL
         explicitly marked unavailable isn't invisible to this gate. Label-only.
+
+        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same fix as
+        _get_unclassified_balance_sheet_symbols above): sanitize each field to NULL when its
+        row is `data_unavailable` so a leftover stray value can't count as "reported".
+        Live-verified 7 additional symbols recovered, zero lost.
         """
         with _database_context()("read") as cur:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, long_term_debt, short_term_debt,
-                           operating_lease_liability, finance_lease_liability,
+                    SELECT symbol,
+                           CASE WHEN data_unavailable THEN NULL ELSE long_term_debt END AS long_term_debt,
+                           CASE WHEN data_unavailable THEN NULL ELSE short_term_debt END AS short_term_debt,
+                           CASE WHEN data_unavailable THEN NULL ELSE operating_lease_liability END AS operating_lease_liability,
+                           CASE WHEN data_unavailable THEN NULL ELSE finance_lease_liability END AS finance_lease_liability,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
                     WHERE fiscal_year > 0
@@ -329,6 +374,11 @@ class SymbolGateMixin:
         [[interest_coverage_and_pe_ratio_reason_gates_fixed_20260902]] for the fuller trace of
         why EV's real blocker is elsewhere and not yet safely diagnosed). Cached for the life
         of this loader instance; this query runs once per pipeline run, not once per symbol.
+
+        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same fix as
+        _get_unclassified_balance_sheet_symbols above): sanitize each field to NULL when its
+        row is `data_unavailable` so a leftover stray value can't count as "reported".
+        Live-verified 10 additional symbols recovered, zero lost.
         """
         with _database_context()("read") as cur:
             cur.execute(
@@ -337,8 +387,10 @@ class SymbolGateMixin:
                 WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
-                   AND COUNT(long_term_debt) = 0 AND COUNT(short_term_debt) = 0
-                   AND COUNT(operating_lease_liability) = 0 AND COUNT(finance_lease_liability) = 0
+                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE long_term_debt END) = 0
+                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE short_term_debt END) = 0
+                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE operating_lease_liability END) = 0
+                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE finance_lease_liability END) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
@@ -375,12 +427,17 @@ class SymbolGateMixin:
         mechanism, same fix applied identically here): `fiscal_year > 0` replaces
         `data_unavailable = FALSE` so a symbol whose 3 most recent fiscal years are ALL
         explicitly marked unavailable isn't invisible to this gate. Label-only.
+
+        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep, same fix as
+        _get_unclassified_balance_sheet_symbols above): sanitize revenue to NULL when its row
+        is `data_unavailable` so a leftover stray value can't count as "reported". Live-
+        verified 8 additional symbols recovered, zero lost.
         """
         with _database_context()("read") as cur:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, revenue,
+                    SELECT symbol, CASE WHEN data_unavailable THEN NULL ELSE revenue END AS revenue,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
                     WHERE fiscal_year > 0
@@ -648,7 +705,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, total_assets,
+                    SELECT symbol, CASE WHEN data_unavailable THEN NULL ELSE total_assets END AS total_assets,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
                     WHERE fiscal_year > 0
@@ -709,7 +766,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, current_assets,
+                    SELECT symbol, CASE WHEN data_unavailable THEN NULL ELSE current_assets END AS current_assets,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
                     WHERE fiscal_year > 0
@@ -756,7 +813,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, current_liabilities,
+                    SELECT symbol, CASE WHEN data_unavailable THEN NULL ELSE current_liabilities END AS current_liabilities,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
                     WHERE fiscal_year > 0
@@ -809,7 +866,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, cash_and_equivalents,
+                    SELECT symbol, CASE WHEN data_unavailable THEN NULL ELSE cash_and_equivalents END AS cash_and_equivalents,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
                     WHERE fiscal_year > 0
@@ -834,7 +891,10 @@ class SymbolGateMixin:
                 WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
-                   AND COUNT(*) FILTER (WHERE cash_and_equivalents IS NOT NULL AND cash_and_equivalents > 0) = 0
+                   AND COUNT(*) FILTER (
+                       WHERE (CASE WHEN data_unavailable THEN NULL ELSE cash_and_equivalents END) IS NOT NULL
+                         AND (CASE WHEN data_unavailable THEN NULL ELSE cash_and_equivalents END) > 0
+                   ) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
@@ -865,7 +925,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, net_income,
+                    SELECT symbol, CASE WHEN data_unavailable THEN NULL ELSE net_income END AS net_income,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
                     WHERE fiscal_year > 0
@@ -993,7 +1053,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, operating_income,
+                    SELECT symbol, CASE WHEN data_unavailable THEN NULL ELSE operating_income END AS operating_income,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_income_statement
                     WHERE fiscal_year > 0
@@ -1024,7 +1084,9 @@ class SymbolGateMixin:
                 WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
-                   AND COUNT(*) FILTER (WHERE operating_income IS NOT NULL) = 0
+                   AND COUNT(*) FILTER (
+                       WHERE (CASE WHEN data_unavailable THEN NULL ELSE operating_income END) IS NOT NULL
+                   ) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
@@ -1050,7 +1112,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, total_liabilities,
+                    SELECT symbol, CASE WHEN data_unavailable THEN NULL ELSE total_liabilities END AS total_liabilities,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
                     WHERE fiscal_year > 0
@@ -1124,7 +1186,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, operating_cash_flow,
+                    SELECT symbol, CASE WHEN data_unavailable THEN NULL ELSE operating_cash_flow END AS operating_cash_flow,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_cash_flow
                     WHERE fiscal_year > 0
@@ -1175,7 +1237,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, free_cash_flow,
+                    SELECT symbol, CASE WHEN data_unavailable THEN NULL ELSE free_cash_flow END AS free_cash_flow,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_cash_flow
                     WHERE fiscal_year > 0
@@ -1214,7 +1276,9 @@ class SymbolGateMixin:
                 WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
-                   AND COUNT(*) FILTER (WHERE free_cash_flow IS NOT NULL) = 0
+                   AND COUNT(*) FILTER (
+                       WHERE (CASE WHEN data_unavailable THEN NULL ELSE free_cash_flow END) IS NOT NULL
+                   ) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
@@ -1591,7 +1655,7 @@ class SymbolGateMixin:
             cur.execute(
                 """
                 WITH recent AS (
-                    SELECT symbol, stockholders_equity,
+                    SELECT symbol, CASE WHEN data_unavailable THEN NULL ELSE stockholders_equity END AS stockholders_equity,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fiscal_year DESC) AS rn
                     FROM annual_balance_sheet
                     WHERE fiscal_year > 0
