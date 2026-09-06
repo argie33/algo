@@ -634,6 +634,23 @@ class AlpacaSyncManager:
                 except Exception as notify_err:
                     logger.error(f"[POSITION_SYNC] Failed to send alert: {notify_err}")
 
+                # ORPHANED BRACKET LEG FIX (2026-09-06, real-money-readiness dig): a position
+                # closed entirely outside the algo (manual close via Alpaca's own dashboard/
+                # API, or any other out-of-band exit) never runs executor_exit_handler.py's
+                # normal cancel-sibling-legs step. The bracket's stop-loss/take-profit leg(s)
+                # are then left resting live at the broker for a symbol the account no longer
+                # holds - harmless today (a long-only account can't fill a sell against zero
+                # shares), but if the algo re-enters this exact symbol later, that stale,
+                # DB-unlinked order can fire against the NEW position without the algo ever
+                # knowing it exists. Cancelling here is a pure risk-reduction action (removes
+                # a stale order, never touches algo_positions/algo_trades) - it does NOT
+                # change the deliberate alert-and-manually-review decision above about the
+                # DB-side "should this be marked closed" question, which stays untouched.
+                # Split into its own function (not inlined here) to keep
+                # _sync_alpaca_positions_impl's own cyclomatic complexity under the repo's
+                # C901 limit.
+                self._cancel_stale_orders_for_missing_positions(missing_positions)
+
             closed_count = 0  # No longer auto-closing, only alerting
 
         except Exception as e:
@@ -678,3 +695,31 @@ class AlpacaSyncManager:
             "untracked_count": untracked_count,
             "untracked_closed_count": untracked_closed_count,
         }
+
+    def _cancel_stale_orders_for_missing_positions(self, missing_positions: list[str]) -> None:
+        """Cancel any resting broker orders for symbols confirmed closed at Alpaca but still
+        marked 'open' in algo_positions - see the ORPHANED BRACKET LEG FIX comment at this
+        method's call site in _sync_alpaca_positions_impl for the full rationale. Split out
+        of that function to keep its own cyclomatic complexity under the repo's C901 limit.
+        """
+        if not (self.alpaca_key and self.alpaca_secret and self.alpaca_base_url):
+            return
+
+        from algo.trading.order_manager import OrderManager
+
+        cleanup_order_mgr = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
+        for missing_symbol in missing_positions:
+            try:
+                cleanup_result = cleanup_order_mgr.cancel_all_open_orders_for_symbol(missing_symbol)
+                if cleanup_result.get("cancelled_order_ids"):
+                    logger.warning(f"[POSITION_SYNC] {missing_symbol}: {cleanup_result.get('message')}")
+                elif not cleanup_result.get("success"):
+                    logger.error(
+                        f"[POSITION_SYNC] {missing_symbol}: stale-order cleanup failed - "
+                        f"{cleanup_result.get('message')}"
+                    )
+            except Exception as cleanup_err:
+                logger.error(
+                    f"[POSITION_SYNC] {missing_symbol}: stale-order cleanup raised unexpectedly: {cleanup_err}",
+                    exc_info=True,
+                )

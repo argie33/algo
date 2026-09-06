@@ -66,6 +66,79 @@ class StopLossRepairMixin:
                 return order  # type: ignore[no-any-return]
         return None
 
+    def cancel_all_open_orders_for_symbol(self, symbol: str) -> dict[str, Any]:
+        """Cancel every open order resting at the broker for a symbol - used when a
+        position has been confirmed CLOSED at the broker (Alpaca's own /v2/positions no
+        longer lists it) but local reconciliation has no record of why (manual close via
+        the Alpaca dashboard/API, or any other out-of-band exit) and so never ran the
+        normal exit path that would have cancelled the bracket's sibling legs.
+
+        REAL-MONEY-READINESS FINDING (2026-09-06 dig): a bracket's stop-loss/take-profit
+        legs are only ever cancelled by this codebase's own exit path (executor_exit_
+        handler.py) or by check_and_repair_one_position's take-profit-leg-cancel step
+        (phase9_stop_loss_repair.py) after a standalone repair. Neither runs for a
+        position closed entirely outside the algo. The stale leg then rests indefinitely
+        - for a long-only account it can't fill against zero shares today, but if the
+        algo re-enters this exact symbol later, that leftover sell order (sized/priced
+        from the OLD position, never linked in DB to the new one) can fire against the
+        new position without the algo's knowledge. Cancelling here is a pure risk-
+        reduction action (removes a stale resting order) and deliberately does NOT touch
+        algo_positions/algo_trades - it must never be used as a substitute for the
+        alert-and-manually-review path callers already have for the DB-side question of
+        whether to mark the position closed.
+
+        Returns: {"success": bool, "cancelled_order_ids": list[str], "message": str}.
+        Best-effort per order - one order's cancel failing does not stop the others.
+        """
+        if not self.alpaca_key or not self.alpaca_secret:  # type: ignore[attr-defined]
+            return {"success": False, "cancelled_order_ids": [], "message": "Alpaca credentials missing"}
+
+        try:
+            resp = requests.get(
+                f"{self.alpaca_base_url}/v2/orders",  # type: ignore[attr-defined]
+                params={"status": "open", "symbols": symbol},
+                headers={
+                    "APCA-API-KEY-ID": self.alpaca_key,  # type: ignore[attr-defined]
+                    "APCA-API-SECRET-KEY": self.alpaca_secret,  # type: ignore[attr-defined]
+                },
+                timeout=get_api_timeout(),
+            )
+            resp.raise_for_status()
+            open_orders = resp.json()
+        except (requests.RequestException, requests.Timeout, ValueError) as e:
+            return {
+                "success": False,
+                "cancelled_order_ids": [],
+                "message": f"Could not list open orders for {symbol}: {e}",
+            }
+        if not isinstance(open_orders, list) or not open_orders:
+            return {"success": True, "cancelled_order_ids": [], "message": f"No open orders for {symbol}"}
+
+        cancelled: list[str] = []
+        failures: list[str] = []
+        for order in open_orders:
+            order_id = order.get("id")
+            if not order_id:
+                continue
+            try:
+                result = self.cancel_bracket_orders(order_id)  # type: ignore[attr-defined]
+            except Exception as e:
+                failures.append(f"{order_id}: {e}")
+                continue
+            if result.get("success"):
+                cancelled.append(order_id)
+            else:
+                failures.append(f"{order_id}: {result.get('message')}")
+
+        return {
+            "success": not failures,
+            "cancelled_order_ids": cancelled,
+            "message": (
+                f"Cancelled {len(cancelled)} stale order(s) for {symbol}"
+                + (f"; {len(failures)} failed: {'; '.join(failures)}" if failures else "")
+            ),
+        }
+
     def is_order_still_live(self, alpaca_order_id: str | None) -> bool | None:
         """Is this order (bracket leg or standalone) still resting/working at the broker?
 
