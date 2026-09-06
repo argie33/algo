@@ -160,7 +160,9 @@ def test_missing_stop_loss_leg_auto_repairs_and_sends_warning_not_critical():
     }
 
     open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, None)]
-    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-xyz",)])
+    fake_db = _make_db_context(
+        fetchall_result=open_positions, fetchone_results=[("order-xyz",), ("open", 25.0, 210.50)]
+    )
 
     with (
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
@@ -205,7 +207,9 @@ def test_auto_repair_failure_triggers_critical_alert():
     }
 
     open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, None)]
-    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-xyz",)])
+    fake_db = _make_db_context(
+        fetchall_result=open_positions, fetchone_results=[("order-xyz",), ("open", 25.0, 210.50)]
+    )
 
     with (
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
@@ -316,7 +320,9 @@ def test_stale_prior_repair_falls_through_to_recheck_original_bracket():
     }
 
     open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, "stale-repair-order")]
-    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-xyz",)])
+    fake_db = _make_db_context(
+        fetchall_result=open_positions, fetchone_results=[("order-xyz",), ("open", 25.0, 210.50)]
+    )
 
     with (
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
@@ -356,7 +362,9 @@ def test_notify_failure_does_not_crash_the_check():
     }
 
     open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, None)]
-    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-xyz",)])
+    fake_db = _make_db_context(
+        fetchall_result=open_positions, fetchone_results=[("order-xyz",), ("open", 25.0, 210.50)]
+    )
 
     with (
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),

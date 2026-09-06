@@ -131,6 +131,44 @@ def check_and_repair_one_position(
         )
         return "unrepairable"
 
+    # REAL-MONEY-READINESS FIX (2026-09-05 audit): `quantity`/`current_stop_price` are
+    # whatever the caller's batch SELECT read at the START of this whole reconciliation
+    # cycle - by this point, several live Alpaca round-trips (each with its own
+    # retry/backoff, up to a few seconds) have already happened in
+    # check_stop_loss_leg_live above. A concurrent execute_exit (full or partial) closing
+    # or resizing this exact position in that window would otherwise submit a brand-new
+    # standalone GTC sell-stop sized off STALE data - for a full exit, a naked resting
+    # sell order on a symbol the account no longer holds, able to fire later against a
+    # completely unrelated future position in the same symbol (the same failure class the
+    # take-profit-leg-cancel fix below this function already guards against, from a
+    # different direction). Re-read immediately before submission - the narrowest window
+    # achievable without holding a lock across the entire check-and-repair call.
+    with DatabaseContext("read") as fresh_cur:
+        fresh_cur.execute(
+            "SELECT status, quantity, current_stop_price FROM algo_positions WHERE id = %s",
+            (pos_id,),
+        )
+        fresh_row = fresh_cur.fetchone()
+    if fresh_row is None or fresh_row[0] != "open" or not fresh_row[1] or fresh_row[1] <= 0:
+        logger.warning(
+            f"[PHASE 9] {symbol} (position {pos_id}): position closed or emptied since this "
+            f"cycle's batch read - skipping stale-data repair, nothing to protect."
+        )
+        return "skipped"
+    if fresh_row[1] != quantity or fresh_row[2] != current_stop_price:
+        logger.warning(
+            f"[PHASE 9] {symbol} (position {pos_id}): quantity/stop changed since this cycle's "
+            f"batch read (qty {quantity}->{fresh_row[1]}, stop {current_stop_price}->{fresh_row[2]}) "
+            f"- using the fresh values for repair."
+        )
+    quantity, current_stop_price = fresh_row[1], fresh_row[2]
+    if not current_stop_price:
+        logger.critical(
+            f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}): cannot auto-repair - "
+            f"fresh re-read has no current_stop_price (qty={quantity})"
+        )
+        return "unrepairable"
+
     # Unique per call (not a bare f"stoprepair-{pos_id}") - this position can legitimately
     # need a SECOND standalone repair later in its lifetime (e.g. this repair order itself
     # later expires/fills and a future cycle repairs again), and Alpaca does not release a

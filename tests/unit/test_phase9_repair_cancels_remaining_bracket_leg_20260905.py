@@ -15,9 +15,28 @@ repair, collapsing the position to stop-only protection with no live sibling ord
 AFTER the repair succeeds so a cancel failure here never leaves the position unprotected.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from algo.orchestrator.phase9_stop_loss_repair import check_and_repair_one_position
+
+
+def _patch_db(quantity, stop_price):
+    """Queues DatabaseContext results for the two reads check_and_repair_one_position makes
+    on the repair path: (1) the alpaca_order_id lookup for the trade, (2) the 2026-09-05
+    fresh re-check of position status/quantity/stop immediately before submitting a repair
+    (added to close a TOCTOU window - see phase9_stop_loss_repair.py's own comment). Both
+    hit the real test DB otherwise, which has no seeded row for these synthetic pos_ids."""
+    contexts = [MagicMock(), MagicMock(), MagicMock()]
+    contexts[0].__enter__.return_value.fetchone.return_value = ("order-abc",)
+    contexts[0].__exit__.return_value = False
+    contexts[1].__enter__.return_value.fetchone.return_value = ("open", quantity, stop_price)
+    contexts[1].__exit__.return_value = False
+    contexts[2].__enter__.return_value = MagicMock()  # the post-repair UPDATE write
+    contexts[2].__exit__.return_value = False
+    return patch(
+        "algo.orchestrator.phase9_stop_loss_repair.DatabaseContext",
+        side_effect=list(contexts),
+    )
 
 
 def _order_mgr(cancel_result=None):
@@ -41,15 +60,16 @@ class TestRepairCancelsRemainingBracketLeg:
     def test_successful_repair_cancels_original_bracket_leg(self):
         order_mgr = _order_mgr()
 
-        outcome = check_and_repair_one_position(
-            order_mgr,
-            pos_id=1,
-            symbol="TSLA",
-            trade_ids_arr=["trade-1"],
-            quantity=25.0,
-            current_stop_price=210.50,
-            standalone_stop_order_id=None,
-        )
+        with _patch_db(25.0, 210.50):
+            outcome = check_and_repair_one_position(
+                order_mgr,
+                pos_id=1,
+                symbol="TSLA",
+                trade_ids_arr=["trade-1"],
+                quantity=25.0,
+                current_stop_price=210.50,
+                standalone_stop_order_id=None,
+            )
 
         assert outcome == "repaired"
         order_mgr.cancel_bracket_orders.assert_called_once()
@@ -69,15 +89,16 @@ class TestRepairCancelsRemainingBracketLeg:
         )
         order_mgr.cancel_bracket_orders.side_effect = lambda *a, **k: calls.append("cancel") or {"success": True}
 
-        check_and_repair_one_position(
-            order_mgr,
-            pos_id=1,
-            symbol="TSLA",
-            trade_ids_arr=["trade-1"],
-            quantity=25.0,
-            current_stop_price=210.50,
-            standalone_stop_order_id=None,
-        )
+        with _patch_db(25.0, 210.50):
+            check_and_repair_one_position(
+                order_mgr,
+                pos_id=1,
+                symbol="TSLA",
+                trade_ids_arr=["trade-1"],
+                quantity=25.0,
+                current_stop_price=210.50,
+                standalone_stop_order_id=None,
+            )
 
         assert calls == ["submit", "cancel"]
 
@@ -87,15 +108,16 @@ class TestRepairCancelsRemainingBracketLeg:
         stop regardless of whether the stale leg was successfully cleaned up."""
         order_mgr = _order_mgr(cancel_result={"success": False, "message": "already filled"})
 
-        outcome = check_and_repair_one_position(
-            order_mgr,
-            pos_id=1,
-            symbol="TSLA",
-            trade_ids_arr=["trade-1"],
-            quantity=25.0,
-            current_stop_price=210.50,
-            standalone_stop_order_id=None,
-        )
+        with _patch_db(25.0, 210.50):
+            outcome = check_and_repair_one_position(
+                order_mgr,
+                pos_id=1,
+                symbol="TSLA",
+                trade_ids_arr=["trade-1"],
+                quantity=25.0,
+                current_stop_price=210.50,
+                standalone_stop_order_id=None,
+            )
 
         assert outcome == "repaired"
 
@@ -103,14 +125,15 @@ class TestRepairCancelsRemainingBracketLeg:
         order_mgr = _order_mgr()
         order_mgr.cancel_bracket_orders.side_effect = RuntimeError("network error")
 
-        outcome = check_and_repair_one_position(
-            order_mgr,
-            pos_id=1,
-            symbol="TSLA",
-            trade_ids_arr=["trade-1"],
-            quantity=25.0,
-            current_stop_price=210.50,
-            standalone_stop_order_id=None,
-        )
+        with _patch_db(25.0, 210.50):
+            outcome = check_and_repair_one_position(
+                order_mgr,
+                pos_id=1,
+                symbol="TSLA",
+                trade_ids_arr=["trade-1"],
+                quantity=25.0,
+                current_stop_price=210.50,
+                standalone_stop_order_id=None,
+            )
 
         assert outcome == "repaired"
