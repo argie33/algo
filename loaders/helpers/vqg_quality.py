@@ -1431,7 +1431,9 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # dollar dividends_paid figure - same recency window, same "a confirmed real
                     # payer deserves a real attempt before falling back to the generic label"
                     # reasoning.
+                    _sgr_ttm_attempted = False
                     if shares_outstanding is not None and shares_outstanding > 0:
+                        _sgr_ttm_attempted = True
                         with _owner().DatabaseContext("read") as cur:
                             cur.execute(
                                 """
@@ -1446,7 +1448,18 @@ class QualityMetricsMixin(SymbolGateMixin):
                             ttm_dividend_per_share = ttm_row[0] if ttm_row else None
                         if ttm_dividend_per_share is not None and ttm_dividend_per_share > 0:
                             sgr_dividends_paid = float(ttm_dividend_per_share) * shares_outstanding
-                    if sgr_dividends_paid is None:
+                    if sgr_dividends_paid is None and _sgr_ttm_attempted:
+                        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero"
+                        # follow-up, same fix as value_metrics.dividend_yield's identical gap):
+                        # a real payment inside the 2-year has_real_dividend_history window but
+                        # outside the 370-day TTM window just used is genuine recent data, too
+                        # stale to compute a confident current dividends_paid figure from - a
+                        # real fact, not a missing SEC concept, same "Legitimate / not
+                        # applicable" class as a confirmed non-payer. Only applies when the TTM
+                        # attempt actually ran (shares_outstanding was available) - no
+                        # shares_outstanding at all stays the genuine "missing_sec_data" gap.
+                        sgr_reason = "dividend_lapsed_beyond_ttm_window"
+                    elif sgr_dividends_paid is None:
                         sgr_reason = "missing_sec_data"
                 else:
                     sgr_dividends_paid = 0.0

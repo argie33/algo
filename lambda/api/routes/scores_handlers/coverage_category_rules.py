@@ -613,6 +613,12 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
         "Legitimate / not applicable",
         {
             "non_dividend_paying_stock",
+            # ADDED 2026-09-05 (SEC/XBRL missing-data sweep, dividend_yield TTM-fallback
+            # follow-up): a real, confirmed dividend payment inside the 2-year non-payer
+            # window but outside the 370-day TTM window - genuine recent data, just too
+            # stale to compute a confident current yield from. Real fact, not an extraction
+            # gap, same "Legitimate / not applicable" class as non_dividend_paying_stock.
+            "dividend_lapsed_beyond_ttm_window",
             "unprofitable_stock",
             # ADDED 2026-09-02 (SEC/XBRL missing-data sweep, load_value_quality_growth_
             # metrics.py commits 7cfb8e7ae/e29d475a1): same "the ratio is mathematically
