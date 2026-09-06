@@ -100,7 +100,7 @@
   "algo/orchestrator/phase1_data_freshness.py": 1309,
   "algo/orchestrator/phase1_failsafe_retry.py": 1642,
   "algo/orchestrator/phase1_price_freshness.py": 636,
-  "algo/orchestrator/phase1_readiness_checks.py": 322,
+  "algo/orchestrator/phase1_readiness_checks.py": 324,
   "algo/orchestrator/phase1_table_freshness.py": 313,
   "algo/orchestrator/phase2_circuit_breakers.py": 513,
   "algo/orchestrator/phase3_position_monitor.py": 939,
