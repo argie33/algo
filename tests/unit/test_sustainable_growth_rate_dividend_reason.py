@@ -170,8 +170,13 @@ class TestSustainableGrowthRateDividendDataRecovery:
 
     def test_real_payer_with_no_ttm_dividend_data_keeps_missing_sec_data(self):
         # has_real_dividend_history is true (some row exists in the 2-year window) but the
-        # tighter 370-day TTM sum finds nothing real - recovery correctly declines, unchanged
-        # generic label.
+        # tighter 370-day TTM sum finds nothing real - recovery correctly declines.
+        #
+        # FIXED 2026-09-05 (same-day follow-up): this used to assert the generic
+        # "missing_sec_data" label - but a real payment inside the 2-year window, just outside
+        # the 370-day TTM window, is genuine recent data, not an extraction gap. Same
+        # "Legitimate / not applicable" reclassification as value_metrics.dividend_yield's own
+        # identical fix.
         loader = _make_loader()
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
             cur = _RoutingCursor(dividend_history_exists=True)
@@ -184,4 +189,4 @@ class TestSustainableGrowthRateDividendDataRecovery:
                 ),
             )
         assert metrics["sustainable_growth_rate"] is None
-        assert metrics["sustainable_growth_rate_unavailable_reason"] == "missing_sec_data"
+        assert metrics["sustainable_growth_rate_unavailable_reason"] == "dividend_lapsed_beyond_ttm_window"

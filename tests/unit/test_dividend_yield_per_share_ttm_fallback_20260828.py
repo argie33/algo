@@ -114,3 +114,41 @@ class TestDividendYieldPerShareTtmFallback:
 
         assert metrics["dividend_yield"] is None
         assert metrics["dividend_yield_unavailable_reason"] == "implausible_ratio"
+
+    def test_lapsed_dividend_beyond_ttm_window_gets_specific_reason(self):
+        """FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" follow-up). A real
+        payment inside the 2-year has_dividend_history window but outside the 370-day TTM
+        window used to fall through to the generic "missing_sec_data" - genuine recent data,
+        just too stale to compute a confident current yield from, same "Legitimate / not
+        applicable" class as a confirmed non-payer. Live-confirmed NHP: 46 real dividend_data
+        rows on file, most recent ~568 days before this fix - within the 2-year window, outside
+        the 370-day one.
+        """
+
+        class _LapsedDividendCursor:
+            def __init__(self):
+                self.last_query = None
+
+            def execute(self, query, params=None):
+                self.last_query = query
+
+            def fetchone(self):
+                if self.last_query and "SUM(dividend_per_share)" in self.last_query:
+                    return (None,)  # TTM (370-day) window: nothing real
+                if self.last_query and "INTERVAL '2 years'" in self.last_query:
+                    return (1,)  # 2-year window: a real payment exists
+                return None
+
+            def fetchall(self):
+                return []
+
+        loader = _make_loader()
+        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = _LapsedDividendCursor()
+            metrics = loader._build_value_metrics(
+                "NHP",
+                _FakeSecValRow({"pe_ratio": 15.0, "dividend_yield": None, "market_cap": None, "current_price": 16.20}),
+            )
+
+        assert metrics["dividend_yield"] is None
+        assert metrics["dividend_yield_unavailable_reason"] == "dividend_lapsed_beyond_ttm_window"
