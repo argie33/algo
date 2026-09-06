@@ -484,7 +484,7 @@
   "loaders/helpers/sec_dual_class_eps.py": 270,
   "loaders/helpers/sec_segment_debt.py": 193,
   "loaders/helpers/sec_valuations_checks.py": 572,
-  "loaders/helpers/sec_valuations_dcf.py": 629,
+  "loaders/helpers/sec_valuations_dcf.py": 644,
   "loaders/helpers/sec_valuations_income_context.py": 552,
   "loaders/helpers/sec_valuations_ratios.py": 314,
   "loaders/helpers/sec_valuations_shares.py": 525,
