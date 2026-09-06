@@ -95,14 +95,18 @@ class TestAllCoreRatiosMissingRowLevelReason:
         assert metrics["roe_unavailable_reason"] == "missing_sec_data"
 
     def test_real_zero_total_assets_gets_specific_reason_not_generic(self, monkeypatch):
-        """FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" follow-up). A real,
+        """FIXED 2026-09-05 (goal session: "implausible values" sweep follow-up). A real,
         reported $0.00 total_assets/stockholders_equity (a blank-check/shell company
         pre-merger) makes every core ratio genuinely undefined (division by zero) - the
         row-level early return's own reason derivation only checked `stockholders_equity is
         None`, missing this "real zero" case entirely and defaulting to generic
-        "missing_sec_data" even though a real, knowable cause was available. Live-confirmed
-        OBX: real total_assets=$0.00/stockholders_equity=$0.00 (2026 anchor row, not
-        data_unavailable).
+        "missing_sec_data" even though a real, knowable cause was available. Uses its own
+        distinct reason string ("zero_total_assets_reported_shell_entity", mapped to
+        "Legitimate / not applicable") rather than reusing
+        "no_recent_balance_sheet_data_reported" - that string stays a genuine "Missing
+        SEC/XBRL data" fact for its own (never-tagged, not real-zero) population. Live-
+        confirmed OBX: real total_assets=$0.00/stockholders_equity=$0.00 (2026 anchor row,
+        not data_unavailable).
         """
         loader = _make_loader(monkeypatch, never_tagged_total_assets_symbols=frozenset({"OBX"}))
         row = _empty_quality_row()
@@ -112,4 +116,4 @@ class TestAllCoreRatiosMissingRowLevelReason:
         metrics = loader._compute_quality_metrics("OBX", row, ev_metrics=None)
 
         assert metrics["data_unavailable"] is True
-        assert metrics["reason"] == "no_recent_balance_sheet_data_reported"
+        assert metrics["reason"] == "zero_total_assets_reported_shell_entity"
