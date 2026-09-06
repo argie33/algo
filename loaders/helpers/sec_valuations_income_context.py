@@ -47,6 +47,39 @@ class IncomeStatementContextMixin:
         @staticmethod
         def _compute_multi_year_eps_cagr(income_rows: list[tuple[Any, ...]]) -> float | None: ...
 
+    @staticmethod
+    def _reclassify_fpi_zero_row_currency_gap(cur: Any, symbol: str, reason: str) -> str:
+        """ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling to
+        9e26b3d02/6111c0b4f's has_unsupported_currency_only_fact fix): annual_income_statement
+        having ZERO rows for a foreign private issuer (as opposed to a row existing but all-NULL,
+        the case those two commits cover) means every fact _aggregate_concepts found for
+        revenue/net_income was in a rejected currency, so no row was ever created at all (see
+        _aggregate_concepts: a currency-skipped unit never touches `rows.setdefault`).
+        Live-confirmed GGAL/BSAC/TKC/EDN/SUPV/TGS/TEO hitting this exact shape (ifrs-full
+        Revenue/ProfitLoss only under unit="ARS"). This mixin has no SecEdgarClient instance to
+        reuse a cache from (unlike load_financial_statements.py, mid-extraction) and there's no
+        DB row to cross-reference either (that's the whole gap - zero rows exist), so this is the
+        one call site that genuinely needs a fresh live check - scoped to the rare "FPI with
+        literally zero income-statement rows" path only (caller only invokes this when
+        reason == "no_income_statement").
+        """
+        cur.execute(
+            "SELECT is_foreign_private_issuer FROM company_info_sec WHERE symbol = %s",
+            (symbol,),
+        )
+        fpi_row = cur.fetchone()
+        if not (fpi_row and fpi_row[0]):
+            return reason
+
+        from utils.external.sec_edgar_client import SecEdgarClient
+        from utils.external.sec_statements_shared import has_unsupported_currency_only_fact
+
+        if has_unsupported_currency_only_fact(
+            SecEdgarClient(), symbol, ["Revenues", "NetIncomeLoss"], ["Revenue", "ProfitLoss"]
+        ):
+            return "unsupported_currency_no_fx_rate"
+        return reason
+
     def _fetch_income_statement_context(self, cur: Any, symbol: str) -> Any:
         """Fetch the latest annual_income_statement row(s) for `symbol` and derive every
         income-statement-sourced value fetch_incremental needs before it can resolve
@@ -161,6 +194,8 @@ class IncomeStatementContextMixin:
             cur.execute("SELECT etf FROM stock_symbols WHERE symbol = %s", (symbol,))
             etf_row = cur.fetchone()
             reason = "etf_no_sec_filings" if etf_row and etf_row[0] == "true" else "no_income_statement"
+            if reason == "no_income_statement":
+                reason = self._reclassify_fpi_zero_row_currency_gap(cur, symbol, reason)
             return [self._unavailable_marker(symbol, reason, total_cash=total_cash, total_debt=total_debt)]
 
         # len() guard: pre-existing tests mock income_rows as plain 10-element
