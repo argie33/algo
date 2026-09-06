@@ -2243,6 +2243,29 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
         # Growth rate: (TTM EPS - EPS from prior fiscal year) / EPS from prior fiscal year
         # NOTE: Annual (fiscal-year over fiscal-year), not quarterly - full quarterly
         # lookback would require quarterly history this loader doesn't fetch.
+        #
+        # ADDED same day (goal session: "implausible values" sweep): a real but anomalously
+        # LOW prior_year_eps (a one-off trough year, e.g. a litigation/impairment charge) makes
+        # growth_rate mathematically enormous, which DEFLATES peg_ratio toward zero instead of
+        # inflating it past the 10000 ceiling - the opposite failure direction from pe/pb/ps
+        # ratio's immaterial-denominator bugs, so that ceiling never catches it, and a fixed-
+        # dollar floor (like pe_ratio's $0.10) doesn't either, since the trough EPS isn't
+        # necessarily tiny in absolute terms. Live-confirmed via GILD: FY2024 EPS=$0.38 (real,
+        # litigation-charge trough year) vs FY2021-2023's $4.96/$3.66/$4.54 (GILD's real normal
+        # range) and FY2025's $6.84 recovery - growth_rate=1700%, peg=22.08/1700=0.01, while
+        # yfinance's own real trailingPegRatio for GILD is 2.03 (live-checked directly, not
+        # assumed) - confirming this is a genuine bug, not an industry-standard artifact. Same
+        # pattern independently confirmed for AA/Alcoa (FY2024 EPS=$0.26 vs FY2018-2021's
+        # $1.34-$2.30 range) via a live DB scan finding 30+ real large/mid-caps with peg_ratio
+        # exactly 0.01.
+        #
+        # Rather than invent an arbitrary magnitude cutoff (no such threshold is established
+        # anywhere in this codebase or verifiable against real PEG methodology), this uses the
+        # company's OWN multi-year EPS history as ground truth: prior_year_eps must be at least
+        # 25% of the median of its other real, positive fiscal years on file (same "genuinely
+        # anomalous relative to this filer's own history" reasoning as the cross-year fallback
+        # fixes above, just detecting the inverse problem - an anomalous LOW anchor, not an
+        # anomalous HIGH one).
         if (
             result["pe_ratio"]
             and prior_year_eps is not None
@@ -2252,11 +2275,45 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
         ):
             growth_rate = ((ttm_eps - prior_year_eps) / abs(prior_year_eps)) * 100 if prior_year_eps != 0 else None
             if growth_rate and growth_rate > 0 and result["pe_ratio"] > 0:
-                peg = result["pe_ratio"] / growth_rate
-                if peg <= 10000:  # Reasonable PEG bounds
-                    result["peg_ratio"] = round(peg, 2)
+                # Cheap pre-filter before the extra DB round-trip below: real, organic YoY EPS
+                # growth essentially never exceeds a few hundred percent (GILD/AA's trough-year
+                # artifacts were 1700%/1592%) - only pay for the history query on the rare
+                # symbols with unusually explosive growth, not every symbol with positive
+                # growth (same "only reached on the rare implausible path" discipline as the
+                # pe/pb/ps cross-year fallback queries above).
+                prior_year_eps_is_trough = False
+                if growth_rate > 300:
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT earnings_per_share FROM annual_income_statement
+                            WHERE symbol = %s AND earnings_per_share IS NOT NULL
+                              AND earnings_per_share > 0 AND data_unavailable = FALSE
+                            ORDER BY fiscal_year DESC
+                            """,
+                            (symbol,),
+                        )
+                        other_eps_rows = [float(r[0]) for r in cur.fetchall() if float(r[0]) != prior_year_eps]
+                    if len(other_eps_rows) >= 2:
+                        sorted_eps = sorted(other_eps_rows)
+                        mid = len(sorted_eps) // 2
+                        median_eps = (
+                            sorted_eps[mid] if len(sorted_eps) % 2 else (sorted_eps[mid - 1] + sorted_eps[mid]) / 2
+                        )
+                        if median_eps > 0 and prior_year_eps < 0.25 * median_eps:
+                            prior_year_eps_is_trough = True
+                if prior_year_eps_is_trough:
+                    logger.debug(
+                        f"[{symbol}] PEG ratio prior_year_eps={prior_year_eps} is a trough year "
+                        f"relative to its own EPS history - growth_rate={growth_rate:.0f}% is a "
+                        f"low-base artifact, marking peg_ratio as NULL"
+                    )
                 else:
-                    logger.debug(f"[{symbol}] PEG ratio out of bounds ({peg:.0f}), marking as NULL")
+                    peg = result["pe_ratio"] / growth_rate
+                    if peg <= 10000:  # Reasonable PEG bounds
+                        result["peg_ratio"] = round(peg, 2)
+                    else:
+                        logger.debug(f"[{symbol}] PEG ratio out of bounds ({peg:.0f}), marking as NULL")
 
         # FCF Yield = Free Cash Flow ÷ Market Cap
         # FCF = Operating Cash Flow - Capital Expenditures - Stock-Based Compensation
