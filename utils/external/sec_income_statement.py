@@ -714,6 +714,7 @@ def get_income_statement(
     rows = _aggregate_concepts(
         client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES, dei_aliases=_INCOME_DEI_ALIASES
     )
+    _detect_misextracted_cogs_from_gross_profit_mismatch(rows)
     _fill_earnings_per_share_from_continuing_discontinued_split(rows)
     _fill_income_tax_expense_from_current_deferred_split(rows)
     _fill_pretax_income_from_domestic_foreign_split(rows)

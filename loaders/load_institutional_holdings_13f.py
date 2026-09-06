@@ -120,6 +120,19 @@ _VERIFIED_BRAND_NAME_ALIASES: dict[str, str] = {
     # company as our tracked WAB (CUSIP 929740108, local entity_name "WESTINGHOUSE AIR BRAKE
     # TECHNOLOGIES CORP") under its public brand/trade name.
     "WAB": "WABTEC CORP",
+    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): BCH's (Bank of Chile)
+    # raw OpenFIGI ticker "G4RA" is rescued to "BCH" via _VERIFIED_RAW_TICKER_ALIASES below,
+    # but that alias alone isn't sufficient - names_plausibly_match() still runs afterward and
+    # correctly rejects "BANCO DE CHILE-ADR" (OpenFIGI's Spanish legal name) against our local
+    # entity_name "BANK OF CHILE" (an English translation, zero shared tokens) - the exact
+    # reason the name-index rescue couldn't find it in the first place. Needed alongside the
+    # raw-ticker alias, not instead of it.
+    "BCH": "BANCO DE CHILE-ADR",
+    # FIXED 2026-09-06 (same sweep): PAC's (Grupo Aeroportuario del Pacifico) raw ticker "G9N"
+    # is rescued to "PAC" via _VERIFIED_RAW_TICKER_ALIASES below, same translation-mismatch
+    # plausibility-gate issue as BCH above ("GRUPO AEROPORTUARIO PAC-ADR" vs our local
+    # "Pacific Airport Group").
+    "PAC": "GRUPO AEROPORTUARIO PAC-ADR",
 }
 
 # FIXED 2026-08-30 (goal: full-data audit continuation): a DIFFERENT failure mode than the
