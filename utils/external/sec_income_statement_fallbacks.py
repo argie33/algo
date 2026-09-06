@@ -253,45 +253,6 @@ def _fill_pretax_income_from_domestic_foreign_split(rows: list[dict[str, Any]]) 
             row["pretax_income"] = candidate
 
 
-def _detect_misextracted_cogs_from_gross_profit_mismatch(rows: list[dict[str, Any]]) -> None:
-    """Fallback-only: detect and null cost_of_revenue when gross_profit identity fails by >2%.
-
-    ADDED 2026-09-06 (goal session: "fix pharma gross_profit understatement" investigation):
-    ABBV/GILD/AMGN/ABT all show gross_profit consistently ~19% when pharma should be ~70% -
-    the revenue - cost_of_revenue identity holds mathematically, but the picked cost_of_revenue
-    is wrong (dimensioned/segment/subsidiary figure, not consolidated). Detecting this mismatch
-    and force-nulling cost_of_revenue allows the extraction to use a fallback path or leave it
-    null for downstream logic to handle. Same "detect wrong-context via identity" approach as
-    _fill_pretax_income_from_domestic_foreign_split above.
-
-    Tolerance: 2% of revenue (tighter than most checks because gross_profit IS the
-    revenue - COGS formula per GAAP, not an independently-reported figure).
-    """
-    for row in rows:
-        revenue = row.get("revenue")
-        cost_of_revenue = row.get("cost_of_revenue")
-        gross_profit = row.get("gross_profit")
-
-        if revenue is None or cost_of_revenue is None or gross_profit is None:
-            continue
-
-        revenue_f = float(revenue)
-        cogs_f = float(cost_of_revenue)
-        gp_f = float(gross_profit)
-
-        if revenue_f <= 0:
-            continue
-
-        implied_gp = revenue_f - cogs_f
-        gp_mismatch = abs(implied_gp - gp_f)
-        tolerance = max(250_000, abs(revenue_f) * 0.02)  # 2% of revenue, $250K floor
-
-        if gp_mismatch > tolerance:
-            # This COGS is clearly wrong - null it so downstream logic re-extracts
-            row.pop("cost_of_revenue", None)
-            row.pop("gross_profit", None)
-
-
 def _fill_operating_income_from_revenue_minus_costs_and_expenses(rows: list[dict[str, Any]]) -> None:
     """Fallback-only: operating_income = Revenues - CostsAndExpenses, for single-step-format
     filers that report both totals but never tag OperatingIncomeLoss at all.
