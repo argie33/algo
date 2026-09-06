@@ -489,7 +489,7 @@
   "loaders/helpers/vqg_quality.py": 3144,
   "loaders/helpers/vqg_shared.py": 130,
   "loaders/helpers/vqg_symbol_gates.py": 1713,
-  "loaders/helpers/vqg_value.py": 1003,
+  "loaders/helpers/vqg_value.py": 1014,
   "loaders/load_aaii_sentiment.py": 373,
   "loaders/load_algo_metrics_daily.py": 173,
   "loaders/load_analyst_earnings_estimates.py": 180,
