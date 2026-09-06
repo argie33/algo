@@ -1483,6 +1483,48 @@ class OrderManager(StopLossRepairMixin):
             logger.error(f"[SEND_EXIT] {symbol}: Failed to parse response. Error: {type(e).__name__}: {e}. Retrying...")
         return ("fallthrough", None)
 
+    @staticmethod
+    def _validate_exit_shares(symbol: str, shares: float, max_abs_shares: float = 10_000_000.0) -> str | None:
+        """Returns an error message if `shares` is not a finite, positive, sane quantity to
+        submit as a real sell order - None if it's fine. Split out of send_market_exit purely
+        to keep that method's cyclomatic complexity under the repo's C901 threshold; behavior
+        unchanged."""
+        if (
+            shares is None
+            or (isinstance(shares, float) and (math.isnan(shares) or math.isinf(shares)))
+            or shares <= 0
+            or abs(shares) > max_abs_shares
+        ):
+            error_msg = (
+                f"[SEND_EXIT CRITICAL] {symbol}: Cannot send exit order with invalid shares={shares!r}. "
+                f"Must be a finite positive number no larger than {max_abs_shares:,.0f}. "
+                f"Refusing to submit a real order with corrupted data."
+            )
+            logger.critical(error_msg)
+            return error_msg
+        return None
+
+    def _handle_exit_422(self, symbol: str, resp: requests.Response, client_order_id: str | None) -> dict[str, Any]:
+        """Handles a 422 (unprocessable) response from an exit order submission. Split out of
+        send_market_exit purely to keep that method's cyclomatic complexity under the repo's
+        C901 threshold; behavior unchanged."""
+        logger.error(f"[SEND_EXIT] {symbol}: Alpaca 422 (unprocessable) - {resp.text[:200]}")
+        # Before reporting failure: this client_order_id may have been rejected because an
+        # EARLIER attempt already succeeded at the broker (the response was lost to a
+        # timeout/crash, and this call is the crash-recovery retry - see
+        # _lookup_order_by_client_order_id's docstring). Ground-truth check, not error-text
+        # guessing: falls through to the original failure unchanged if no such order exists.
+        if client_order_id:
+            existing = self._lookup_order_by_client_order_id(client_order_id)
+            if existing:
+                return self._exit_result_from_order_data(symbol, existing)
+        return {
+            "success": False,
+            "order_id": None,
+            "filled_price": None,
+            "message": f"Alpaca 422 unprocessable: {resp.text[:200]}",
+        }
+
     def send_market_exit(
         self,
         symbol: str,
@@ -1552,24 +1594,13 @@ class OrderManager(StopLossRepairMixin):
         # from float's), and "probably fine" was exactly the wrong call on the entry side
         # until it was actually fuzzed. Cheap, same-shape guard at the literal broker-
         # submission boundary regardless of what upstream corruption might look like.
-        max_abs_shares = 10_000_000.0
-        if (
-            shares is None
-            or (isinstance(shares, float) and (math.isnan(shares) or math.isinf(shares)))
-            or shares <= 0
-            or abs(shares) > max_abs_shares
-        ):
-            error_msg = (
-                f"[SEND_EXIT CRITICAL] {symbol}: Cannot send exit order with invalid shares={shares!r}. "
-                f"Must be a finite positive number no larger than {max_abs_shares:,.0f}. "
-                f"Refusing to submit a real order with corrupted data."
-            )
-            logger.critical(error_msg)
+        shares_error = self._validate_exit_shares(symbol, shares)
+        if shares_error is not None:
             return {
                 "success": False,
                 "order_id": None,
                 "filled_price": None,
-                "message": error_msg,
+                "message": shares_error,
             }
 
         # Same NaN/Infinity/non-positive guard discipline as _build_bracket_order_payload's
@@ -1625,23 +1656,7 @@ class OrderManager(StopLossRepairMixin):
                         }
                     return self._exit_result_from_order_data(symbol, data)
                 elif resp.status_code == 422:
-                    logger.error(f"[SEND_EXIT] {symbol}: Alpaca 422 (unprocessable) - {resp.text[:200]}")
-                    # Before reporting failure: this client_order_id may have been rejected
-                    # because an EARLIER attempt already succeeded at the broker (the response
-                    # was lost to a timeout/crash, and this call is the crash-recovery retry -
-                    # see _lookup_order_by_client_order_id's docstring). Ground-truth check,
-                    # not error-text guessing: falls through to the original failure unchanged
-                    # if no such order actually exists.
-                    if client_order_id:
-                        existing = self._lookup_order_by_client_order_id(client_order_id)
-                        if existing:
-                            return self._exit_result_from_order_data(symbol, existing)
-                    return {
-                        "success": False,
-                        "order_id": None,
-                        "filled_price": None,
-                        "message": f"Alpaca 422 unprocessable: {resp.text[:200]}",
-                    }
+                    return self._handle_exit_422(symbol, resp, client_order_id)
                 elif resp.status_code == 403:
                     action, payload = self._handle_insufficient_qty(symbol, resp, shares, attempt, max_attempts)
                     if action == "retry":
@@ -1653,6 +1668,22 @@ class OrderManager(StopLossRepairMixin):
                     logger.warning(f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt + 1}/{max_attempts})")
                 else:
                     last_error = f"Alpaca {resp.status_code}: {resp.text[:200]}"
+                    # REAL-MONEY-READINESS FIX (2026-09-05 audit): unlike every other retry
+                    # loop in this file (send_bracket_order, cancel_bracket_orders,
+                    # replace_order_stop_price, submit_standalone_protective_stop), this
+                    # branch fell straight through to the next loop iteration with no
+                    # backoff at all - a 429/503 on an EXIT order (the one order-critical
+                    # call where a real-money account is most likely to already be rate-
+                    # limited, e.g. mid-circuit-breaker-triggered mass exit) busy-looped 3
+                    # attempts back-to-back instead of backing off.
+                    if resp.status_code in (429, 503) and attempt < max_attempts - 1:
+                        wait_time = 2**attempt
+                        logger.warning(
+                            f"[SEND_EXIT] {symbol}: {last_error} - transient, retrying in {wait_time}s "
+                            f"(attempt {attempt + 1}/{max_attempts})"
+                        )
+                        time.sleep(wait_time)
+                        continue
                     logger.warning(f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt + 1}/{max_attempts})")
             except (
                 requests.RequestException,
