@@ -298,6 +298,13 @@ def _categorize_reason(reason: str) -> str:
     # Live-confirmed 64 active rows stuck in "Other (errors / excluded)" for this alone.
     if "insufficient_returns" in reason:
         return "Insufficient history"
+    # ADDED 2026-09-06: same file's beta-only branch prefixes the real beta_reason with
+    # "beta: " (f"beta: {beta_reason}", e.g. "beta: extreme_beta: -10.67") - `base` comes out
+    # "beta", unmatched, even though "extreme_beta"/"spy_price_data_insufficient" alone
+    # already categorize correctly. Recurse on the part after "beta: " instead of duplicating
+    # the whole ruleset. Live-confirmed 23 active rows stuck in "Other" for this alone.
+    if reason.startswith("beta: "):
+        return _categorize_reason(reason[len("beta: ") :])
     # ADDED 2026-08-20: loaders/helpers/sec_base.py builds this reason dynamically as
     # f"no_{period}_{statement_type}_data_in_sec_edgar_reit_or_special_entity" (6 period x
     # statement_type combinations) for REITs/SPAC-shells/other entities SEC EDGAR
