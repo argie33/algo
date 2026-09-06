@@ -22,7 +22,7 @@ def _make_loader():
     return ValueQualityGrowthMetricsLoader.__new__(ValueQualityGrowthMetricsLoader)
 
 
-def _quality_row(stockholders_equity=1000.0, net_income=100.0, dividends_paid=None):
+def _quality_row(stockholders_equity=1000.0, net_income=100.0, dividends_paid=None, shares_outstanding=None):
     """34-element quality_row (index 33 = prior_year_gross_profit, added after this fixture was
     written) matching _compute_quality_metrics' index layout. current_assets/
     current_liabilities are always populated so current_ratio computes and the function
@@ -34,6 +34,7 @@ def _quality_row(stockholders_equity=1000.0, net_income=100.0, dividends_paid=No
     row[3] = net_income
     row[6] = 500.0  # current_assets
     row[7] = 100.0  # current_liabilities
+    row[11] = shares_outstanding
     row[15] = dividends_paid
     return row
 
@@ -52,6 +53,8 @@ class _RoutingCursor:
         self._last_query = query
 
     def fetchone(self):
+        if "SUM(dividend_per_share)" in self._last_query:
+            return (getattr(self, "_ttm_dividend_per_share", None),)
         if "dividend_data" in self._last_query:
             return (1,) if self._dividend_history_exists else None
         return None
@@ -116,6 +119,69 @@ class TestSustainableGrowthRateNonPayer:
             mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(dividend_history_exists=False)
             metrics = loader._compute_quality_metrics(
                 "NOEQ", _quality_row(stockholders_equity=None, net_income=100.0, dividends_paid=None)
+            )
+        assert metrics["sustainable_growth_rate"] is None
+        assert metrics["sustainable_growth_rate_unavailable_reason"] == "missing_sec_data"
+
+
+class TestSustainableGrowthRateDividendDataRecovery:
+    """FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit).
+    annual_cash_flow.dividends_paid is unpopulated for many real, confirmed payers (live-
+    confirmed SPG/RS/CNK - the same root cause value_metrics.dividend_yield's own TIER 4
+    fallback already recovers from) - a confirmed real payer used to go straight to
+    "missing_sec_data" the instant has_real_dividend_history was true, never attempting the
+    same dividend_data.dividend_per_share TTM recovery TIER 4 already uses. Live-confirmed
+    SPG: real stockholders_equity ($5.2B)/net_income ($5.36B) on file, dividends_paid None -
+    sustainable_growth_rate came back null/"missing_sec_data" pre-fix, a real computed 47.85
+    post-fix.
+    """
+
+    def test_real_payer_with_shares_outstanding_recovers_sgr_from_dividend_data(self):
+        loader = _make_loader()
+        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
+            cur = _RoutingCursor(dividend_history_exists=True)
+            cur._ttm_dividend_per_share = 2.0
+            mock_db_ctx.return_value.__enter__.return_value = cur
+            metrics = loader._compute_quality_metrics(
+                "REALPAY",
+                _quality_row(
+                    stockholders_equity=1000.0, net_income=100.0, dividends_paid=None, shares_outstanding=10.0
+                ),
+            )
+        # Recovered dividends_paid = 2.0/share * 10.0 shares = 20.0.
+        # ROE = 100/1000 = 10%, retention_ratio = 1 - 20/100 = 0.8 -> SGR = 8.0
+        assert metrics["sustainable_growth_rate"] == 8.0
+        assert metrics.get("sustainable_growth_rate_unavailable_reason") is None
+
+    def test_real_payer_without_shares_outstanding_keeps_missing_sec_data(self):
+        # No shares_outstanding on the row means the per-share recovery can't convert to a
+        # dollar figure - must fall back to the pre-fix generic label, unchanged.
+        loader = _make_loader()
+        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
+            cur = _RoutingCursor(dividend_history_exists=True)
+            cur._ttm_dividend_per_share = 2.0
+            mock_db_ctx.return_value.__enter__.return_value = cur
+            metrics = loader._compute_quality_metrics(
+                "REALPAY_NOSHARES",
+                _quality_row(stockholders_equity=1000.0, net_income=100.0, dividends_paid=None),
+            )
+        assert metrics["sustainable_growth_rate"] is None
+        assert metrics["sustainable_growth_rate_unavailable_reason"] == "missing_sec_data"
+
+    def test_real_payer_with_no_ttm_dividend_data_keeps_missing_sec_data(self):
+        # has_real_dividend_history is true (some row exists in the 2-year window) but the
+        # tighter 370-day TTM sum finds nothing real - recovery correctly declines, unchanged
+        # generic label.
+        loader = _make_loader()
+        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
+            cur = _RoutingCursor(dividend_history_exists=True)
+            cur._ttm_dividend_per_share = None
+            mock_db_ctx.return_value.__enter__.return_value = cur
+            metrics = loader._compute_quality_metrics(
+                "STALEPAYER",
+                _quality_row(
+                    stockholders_equity=1000.0, net_income=100.0, dividends_paid=None, shares_outstanding=10.0
+                ),
             )
         assert metrics["sustainable_growth_rate"] is None
         assert metrics["sustainable_growth_rate_unavailable_reason"] == "missing_sec_data"
