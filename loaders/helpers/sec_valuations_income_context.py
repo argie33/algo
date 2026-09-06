@@ -330,6 +330,7 @@ class IncomeStatementContextMixin:
                 """
                 SELECT fiscal_year, earnings_per_share FROM annual_income_statement
                 WHERE symbol = %s AND fiscal_year < %s AND earnings_per_share IS NOT NULL
+                AND data_unavailable IS NOT TRUE
                 ORDER BY fiscal_year DESC LIMIT 1
                 """,
                 (symbol, ttm_eps_fiscal_year),

@@ -182,6 +182,7 @@ class ValueMetricsMixin(SymbolGateMixin):
                         SELECT dividends_paid FROM annual_cash_flow
                         WHERE symbol = %s AND dividends_paid IS NOT NULL AND dividends_paid > 0
                           AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
+                          AND data_unavailable IS NOT TRUE
                         ORDER BY fiscal_year DESC
                         """,
                         (symbol,),
@@ -233,6 +234,7 @@ class ValueMetricsMixin(SymbolGateMixin):
                         WHERE symbol = %s
                           AND (COALESCE(dividends_paid, 0) > 0 OR COALESCE(common_stock_repurchased, 0) != 0)
                           AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
+                          AND data_unavailable IS NOT TRUE
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
                         (symbol,),
@@ -560,6 +562,7 @@ class ValueMetricsMixin(SymbolGateMixin):
                         WHERE symbol = %s
                           AND COALESCE(common_stock_repurchased, 0) != 0
                           AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
+                          AND data_unavailable IS NOT TRUE
                         LIMIT 1
                         """,
                         (symbol,),
