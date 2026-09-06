@@ -981,6 +981,8 @@ class SecValuationsLoader(
 
             self._sanity_check_market_cap(symbol, valuation_row, yf_market_cap, yf_market_cap_is_live)
             self._sanity_check_pe_ratio(symbol, valuation_row, yf_pe_ratio, yf_market_cap_is_live)
+            self._recategorize_ric_dcf_fcf_reason(symbol, valuation_row)
+
             return [valuation_row]
 
         except TimeoutError as e:
@@ -998,6 +1000,45 @@ class SecValuationsLoader(
             # Try to classify and handle, or fail-fast if truly unexpected
             marker = handle_exception(symbol, e, "computing valuations")
             return [marker]
+
+    def _recategorize_ric_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
+        """Overrides a generic dcf_fcf_unavailable_reason with a specific one for a registered
+        investment company. Mutates `valuation_row` in place.
+
+        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" follow-up): a registered
+        investment company (closed-end fund/investment trust) files a "Statement of Changes in
+        Net Assets" with no conventional cash-flow-statement concepts to tag at all, so
+        dcf_fcf_base always comes back None and _compute_yield_and_dcf_fields's own generic
+        "missing_cash_flow_data" fallback fires - same root fact already established for
+        fcf_margin/fcf_yield/accruals_ratio/ocf_to_net_income/roic_pct/debt_to_equity in
+        loaders/helpers/vqg_quality.py and vqg_value.py, just not recognized here since this
+        mixin has no access to ValueQualityGrowthMetricsLoader's
+        _get_registered_investment_company_symbols() gate (different class hierarchy) - a small
+        inline query instead. Live-confirmed EVN/BSTZ/CEV/BTX/BUI/JHI/PMO (7 universe symbols).
+        Only overrides the generic fallback reason, never a real computed value or a more
+        specific reason (negative_free_cash_flow/implausible_dcf_result).
+        """
+        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
+            return
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT 1
+                FROM company_info_sec c
+                WHERE c.symbol = %s AND c.entity_type = 'other' AND c.sic_code IS NULL
+                  AND EXISTS (
+                      SELECT 1 FROM annual_balance_sheet b
+                      WHERE b.symbol = c.symbol AND b.data_unavailable = FALSE
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM annual_cash_flow f
+                      WHERE f.symbol = c.symbol AND f.free_cash_flow IS NOT NULL
+                  )
+                """,
+                (symbol,),
+            )
+            if cur.fetchone() is not None:
+                valuation_row["dcf_fcf_unavailable_reason"] = "registered_investment_company_no_xbrl"
 
     def _compute_valuations(
         self,
