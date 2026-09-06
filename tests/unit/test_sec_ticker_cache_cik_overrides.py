@@ -69,6 +69,31 @@ class TestCikOverrides:
 
         assert cache.symbol_to_cik("HOS") == "0000866829"
 
+    def test_gv_ftrk_sgrx_overridden_to_verified_ciks(self):
+        # Added 2026-09-06 (coverage campaign continuation: dividend_data/
+        # current_reports_8k/company_info_sec.shares_outstanding "cik_not_found"/
+        # "symbol_not_found" buckets). Same root cause as GV/HOS above - SEC's own bulk
+        # company_tickers.json AND company_tickers_exchange.json list only a stale/
+        # secondary ticker per CIK (checked both files directly). Each verified against
+        # its own submissions.json for both an exact name match to our
+        # stock_symbols.security_name AND a real, recent (2026) 10-K/6-K filing (a name
+        # match alone isn't sufficient - this same session's search also surfaced
+        # NBN/HIFS name-matches whose CIKs turned out to be stale shells with no recent
+        # filings, deliberately NOT added here): GV=1892274 (own tickers=["GV","GVHGF"],
+        # latest 10-K 2026-01-28), FTRK=2027262 (own tickers are the pre-uplisting OTC
+        # classes ["FTRKF","FTRKD"], but exact unambiguous name match with no
+        # formerNames history, latest 10-K 2026-06-30), SGRX=1735556 (own ticker still
+        # "BTOG" pre-rename, but name="SANGRIX INC." with formerNames showing "BIT
+        # ORIGIN Ltd" ending 2026-08-26, latest 10-K 2025-10-31).
+        cache = TickerCache.__new__(TickerCache)
+        cache._ticker_cache = {}  # would raise ValueError if the override didn't short-circuit
+        cache._ticker_cache_time = 0.0
+        cache._cache_ttl = 86400
+
+        assert cache.symbol_to_cik("GV") == "0001892274"
+        assert cache.symbol_to_cik("FTRK") == "0002027262"
+        assert cache.symbol_to_cik("SGRX") == "0001735556"
+
     def test_override_does_not_affect_unrelated_symbols(self):
         cache = TickerCache.__new__(TickerCache)
         cache._ticker_cache = {"AAPL": "0000320193"}

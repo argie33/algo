@@ -85,12 +85,44 @@ DEFAULT_TIMEOUT = 10.0
 # flagging HOS as a suspected phantom-symbol case; confirmed directly against
 # submissions.json rather than assumed. Same self-healing caveat as DMC/SHOE/GRSD above
 # once SEC's snapshot catches up with the rename - safe to remove this entry then.
+#
+# GV/FTRK/SGRX: found 2026-09-06 (coverage campaign continuation, dividend_data/
+# current_reports_8k/shares_outstanding "cik_not_found"/"symbol_not_found" buckets).
+# Same root cause as the GV/HOS-shaped pattern above - SEC's own bulk company_tickers.json
+# AND company_tickers_exchange.json (checked both) list only a STALE/secondary ticker per
+# CIK, not the symbol's current primary listing, even though the per-company
+# submissions.json (or, for SGRX, its own formerNames rename trail) confirms the right
+# one. Each individually live-verified against submissions.json for (a) exact company-name
+# match to our stock_symbols.security_name and (b) a real, recent (2026) 10-K/6-K filing -
+# not just a name match, since a name match alone can be a dead/unrelated entity (this
+# session's own search also surfaced NBN/HIFS name-matches whose CIKs turned out to be
+# stale shells with no filings since 2019 / no 10-K ever - deliberately NOT added here,
+# see this session's memory for the full rejection trail):
+# - GV (Visionary Holdings Inc., Nasdaq): CIK 1892274's own submissions.json tickers
+#   array is ['GV', 'GVHGF'] - GV is directly self-confirmed - but both SEC bulk ticker
+#   files only carry the OTC-era 'GVHGF' for this CIK. Latest 10-K 2026-01-28, most
+#   recent filing (6-K) 2026-09-03 - clearly live.
+# - FTRK (Fast Track Group, Nasdaq): CIK 2027262's submissions.json tickers are
+#   ['FTRKF', 'FTRKD'] (pre-uplisting OTC classes), not the current Nasdaq ticker FTRK
+#   itself, but the entity name is an exact, unambiguous match with no formerNames
+#   history (a brand-new registrant, consistent with a recent uplisting). Latest 10-K
+#   2026-06-30, most recent filing (6-K) 2026-09-03 - clearly live.
+# - SGRX (SANGRIX INC., Nasdaq): CIK 1735556's submissions.json ticker is still 'BTOG'
+#   (its pre-rename ticker) but `name`="SANGRIX INC." and formerNames shows "BIT ORIGIN
+#   Ltd" ending 2026-08-26 - i.e. this is the exact same "renamed very recently, SEC's
+#   ticker field hasn't caught up" shape as HOS above. Latest 10-K 2025-10-31, most
+#   recent filing (6-K) 2026-09-03 - clearly live.
+# Same self-healing caveat as the entries above: safe to remove once SEC's own ticker
+# snapshot catches up with each rename/uplisting.
 CIK_OVERRIDES: dict[str, str] = {
     "XOM": "0000034088",  # EXXON MOBIL CORP (real 10-K filer) - see comment above
     "DMC": "0001047340",  # DEL MONTE CORP (NYSE) - see DMC/SHOE/GRSD comment above
     "SHOE": "0000895447",  # SHOE STATION GROUP INC (Nasdaq) - see comment above
     "GRSD": "0001839799",  # GRANDSTAND Ltd (Nasdaq) - see comment above
     "HOS": "0000866829",  # HORNBECK OFFSHORE SERVICES INC (formerly Helix Energy Solutions Group) - see HOS comment above
+    "GV": "0001892274",  # Visionary Holdings Inc. (Nasdaq) - see GV/FTRK/SGRX comment above
+    "FTRK": "0002027262",  # Fast Track Group (Nasdaq) - see GV/FTRK/SGRX comment above
+    "SGRX": "0001735556",  # SANGRIX INC. (formerly BIT ORIGIN Ltd) - see GV/FTRK/SGRX comment above
 }
 
 # Ensure socket timeout is configured globally
