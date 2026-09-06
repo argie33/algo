@@ -64,11 +64,14 @@ class TestFxRateCache:
         assert session.calls == 1
 
     def test_non_major_currency_never_calls_network(self):
-        # CLP: still deliberately excluded (Frankfurter doesn't cover it at all, unlike
-        # KRW which moved onto MAJOR_CURRENCIES 2026-08-18 - see fx_rates.py's docstring).
-        session = _FakeSession(rate=1234.5)  # would be a plausible CLP-style rate
+        # ARS: still deliberately excluded (real currency volatility fails the volatility bar
+        # on its own merits regardless of data source - see fx_rates.py's 2026-09-06 docstring
+        # entry re-checking ARS against yfinance and rejecting it again). CLP moved onto the
+        # yfinance-only major-currency set 2026-09-06 - see
+        # test_clp_is_a_major_currency_and_converts_via_yfinance below.
+        session = _FakeSession(rate=1234.5)  # would be a plausible ARS-style rate
         cache = _isolated_cache(session)
-        assert cache.get_usd_rate("CLP", "2025-12-31") is None
+        assert cache.get_usd_rate("ARS", "2025-12-31") is None
         assert session.calls == 0
 
     def test_krw_is_a_major_currency_and_converts_via_historical_rate(self):
@@ -164,14 +167,89 @@ class TestFxRateCache:
 
     def test_ars_stays_excluded_no_frankfurter_coverage(self):
         # ARS was evaluated alongside BRL in the same 2026-09-04 session and stays
-        # excluded: unlike BRL, this is a structural source-availability gap, not a
+        # excluded: unlike BRL, this was a structural source-availability gap, not a
         # volatility judgment - Frankfurter returns {"message": "not found"} for ARS
-        # (live-confirmed `GET /2024-12-31?from=USD&to=ARS`), same as CLP/COP/TWD/KZT.
-        # No policy decision can fix a data source that doesn't exist.
+        # (live-confirmed `GET /2024-12-31?from=USD&to=ARS`), same as COP/TWD (CLP/KZT
+        # were the same Frankfurter gap but moved onto MAJOR_CURRENCIES 2026-09-06 via a
+        # yfinance fallback - see test_clp_is_a_major_currency_and_converts_via_yfinance
+        # below; ARS itself was separately re-checked against yfinance that same day and
+        # rejected again on volatility grounds instead - see fx_rates.py's docstring).
+        # No Frankfurter policy decision can fix a data source that doesn't exist.
         session = _FakeSession(rate=1000.0)
         cache = _isolated_cache(session)
         assert cache.get_usd_rate("ARS", "2024-12-31") is None
         assert session.calls == 0
+
+    def test_clp_is_a_major_currency_and_converts_via_yfinance(self, monkeypatch):
+        # FIX 2026-09-06: CLP added via yfinance (Frankfurter has no CLP listing at all,
+        # confirmed via `GET /v1/currencies` - see fx_rates.py's module docstring for the
+        # live BCH verification behind this). Routes through _fetch_rate_yfinance, not the
+        # Frankfurter _session path, so this must mock yfinance.Ticker directly rather than
+        # _FakeSession - without this, get_usd_rate("CLP", ...) falls through to a REAL
+        # network call to Yahoo Finance (live-observed during this session's own test run).
+        import pandas as pd
+
+        from utils.external import fx_rates as fx_rates_module
+
+        history = pd.DataFrame(
+            {"Close": [1004.13]},
+            index=pd.DatetimeIndex([pd.Timestamp("2024-12-31")]),
+        )
+
+        class _FakeTicker:
+            def __init__(self, symbol):
+                self.symbol = symbol
+
+            def history(self, start, end):
+                return history
+
+        monkeypatch.setattr(fx_rates_module.yfinance, "Ticker", _FakeTicker)
+        cache = _isolated_cache(_FakeSession(rate=None))
+        rate = cache.get_usd_rate("CLP", "2024-12-31")
+        assert rate == 1004.13
+
+    def test_kzt_is_a_major_currency_and_converts_via_yfinance(self, monkeypatch):
+        # Same yfinance-fallback path as CLP above - see fx_rates.py's module docstring
+        # for the live KSPI verification behind adding KZT.
+        import pandas as pd
+
+        from utils.external import fx_rates as fx_rates_module
+
+        history = pd.DataFrame(
+            {"Close": [521.98]},
+            index=pd.DatetimeIndex([pd.Timestamp("2024-12-31")]),
+        )
+
+        class _FakeTicker:
+            def __init__(self, symbol):
+                self.symbol = symbol
+
+            def history(self, start, end):
+                return history
+
+        monkeypatch.setattr(fx_rates_module.yfinance, "Ticker", _FakeTicker)
+        cache = _isolated_cache(_FakeSession(rate=None))
+        rate = cache.get_usd_rate("KZT", "2024-12-31")
+        assert rate == 521.98
+
+    def test_yfinance_currency_empty_history_fails_closed(self, monkeypatch):
+        # A date outside the ticker's published range (or a yfinance outage/empty
+        # response) must never be silently guessed at - same fail-closed discipline as
+        # the Frankfurter 404 path.
+        import pandas as pd
+
+        from utils.external import fx_rates as fx_rates_module
+
+        class _FakeTicker:
+            def __init__(self, symbol):
+                self.symbol = symbol
+
+            def history(self, start, end):
+                return pd.DataFrame({"Close": []}, index=pd.DatetimeIndex([]))
+
+        monkeypatch.setattr(fx_rates_module.yfinance, "Ticker", _FakeTicker)
+        cache = _isolated_cache(_FakeSession(rate=None))
+        assert cache.get_usd_rate("CLP", "2024-12-31") is None
 
     def test_sek_stays_excluded_too_volatile(self):
         # SEK was checked as a DKK/HKD-adjacent candidate (Ericsson reports in SEK, same

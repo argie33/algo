@@ -201,25 +201,82 @@ controls - not meaningfully more volatile than KRW, already on this list. Conver
 real FY2024 total_assets (ILS 23.818M) at that fiscal year-end's real rate (0.27422)
 produces ~$6.53M, a plausible total-assets figure for a real micro-cap Israeli medical-
 device/tech company - no magnitude red flag.
+
+FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, user-pushed re-investigation
+of the ARS/KZT/CLP "structural source-availability gap" closed earlier this campaign): found
+a second real historical-FX source - yfinance's `f"{currency}=X"` tickers (already a project
+dependency, used elsewhere in this codebase) - and re-ran the SAME live-verification
+discipline against it before touching MAJOR_CURRENCIES.
+
+ARS re-checked first, NOT added: yfinance does serve real ARS/USD history, but real year-end
+year-over-year moves 2019-2025 (live-computed) are +58.9%, +40.5%, +22.0%, +72.2%, **+356.9%
+(2023, the Milei devaluation)**, +27.6%, +41.3% - decisively worse than TRY's already-rejected
+81.1% single-year record (see above), let alone BRL's 28-29% accepted ceiling. This was never
+actually a source-availability-only gap that a new source could close - Argentina's real
+currency volatility fails the volatility bar on its own merits, independent of which vendor
+supplies the rate. Stays excluded; do not re-add without a materially different Argentine
+currency regime (a hypothetical future currency board/dollarization, not the case as of this
+writing).
+
+KZT and CLP, by contrast, ARE genuinely stable and WERE excluded purely for lack of a Frankfurter
+listing (confirmed via `GET /v1/currencies` - neither appears in Frankfurter's ~30-currency
+list at all) - added here via yfinance. Real year-end year-over-year moves, yfinance-computed
+2019-2025: KZT +2.2%, +10.4%, +3.7%, +5.5%, -1.1%, +15.0%, -4.2% (15.0% high-water mark,
+comparable to ZAR/PHP/DKK's already-accepted band); CLP +5.6%, -2.9%, +19.8%, +0.5%, +3.3%,
++12.3%, -8.0% (19.8% high-water mark, comparable to CNY/ZAR territory, well inside BRL's
+ceiling). Live-verified against real filers: KSPI (Kaspi.kz, CIK 0001985487) FY2024
+ifrs-full:ProfitLoss = KZT 1,056,834,000,000 converts to ~$2.02B at that fiscal year-end's
+real rate (521.98) - plausible for a ~$18-20B-market-cap fintech (implied P/E ~9-10). BCH
+(Bank of Chile, CIK 0001161125) FY2024 ifrs-full:ProfitLoss = CLP 1,248,476,000,000 converts
+to ~$1.24B at that fiscal year-end's real rate (1004.13) - plausible for a large Chilean bank
+(implied P/E ~8-10 against its real market cap). Both pass the same "no magnitude red flag"
+bar as every other addition to this list.
 """
 
 import json
 import logging
 import tempfile
 import time
+from datetime import date, timedelta
 from pathlib import Path
 
 import requests
+import yfinance
 
 logger = logging.getLogger(__name__)
 
 FRANKFURTER_URL = "https://api.frankfurter.app"
 
+# Currencies Frankfurter (an ECB-rate mirror) doesn't publish at all - confirmed via
+# `GET /v1/currencies` - but which DO clear the same volatility bar as every currency above,
+# using yfinance's `f"{currency}=X"` tickers as the real historical-rate source instead. See
+# this module's 2026-09-06 docstring entry for the live verification (KSPI/BCH) each one is
+# based on. Kept as a separate set (not merged into MAJOR_CURRENCIES's own iteration order)
+# so `_fetch_rate` knows which provider to route to without a second live probe per call.
+_YFINANCE_ONLY_CURRENCIES = frozenset({"KZT", "CLP"})
+
 # Liquid, developed-market currencies only - see module docstring for why this list is
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
 # same live-verification discipline as the currencies already on this list.
 MAJOR_CURRENCIES = frozenset(
-    {"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR", "PHP", "DKK", "HKD", "BRL", "ILS"}
+    {
+        "CAD",
+        "GBP",
+        "EUR",
+        "AUD",
+        "CHF",
+        "JPY",
+        "KRW",
+        "CNY",
+        "ZAR",
+        "INR",
+        "PHP",
+        "DKK",
+        "HKD",
+        "BRL",
+        "ILS",
+    }
+    | _YFINANCE_ONLY_CURRENCIES
 )
 
 
@@ -278,6 +335,8 @@ class FxRateCache:
         return rate
 
     def _fetch_rate(self, currency: str, date_str: str) -> float | None:
+        if currency in _YFINANCE_ONLY_CURRENCIES:
+            return self._fetch_rate_yfinance(currency, date_str)
         max_retries = 2
         for attempt in range(max_retries):
             try:
@@ -317,3 +376,37 @@ class FxRateCache:
                 logger.warning(f"FX rate response parse failure for {currency}/{date_str}: {e}")
                 return None
         return None
+
+    def _fetch_rate_yfinance(self, currency: str, date_str: str) -> float | None:
+        """Real historical USD/{currency} rate via yfinance's `f"{currency}=X"` ticker, for
+        the currencies in `_YFINANCE_ONLY_CURRENCIES` that Frankfurter doesn't publish at all.
+
+        yfinance has no single-date lookup (unlike Frankfurter's `/YYYY-MM-DD` endpoint) - it
+        only serves a daily OHLC history. Fetches a small trailing window ending the day after
+        `date_str` (yfinance's `end` is exclusive) and takes the LAST close on or before
+        `date_str` - the same "weekends/holidays fall back to the prior business day" behavior
+        Frankfurter provides natively, implemented here by hand. A window with zero rows means
+        a genuine gap (date outside the ticker's published range, or too far in the future) -
+        never guessed at, same fail-closed discipline as the Frankfurter path.
+        """
+        try:
+            target = date.fromisoformat(date_str)
+        except ValueError:
+            return None
+        # 10 calendar days covers even a long holiday cluster (e.g. Kazakh Nauryz, Chilean
+        # Fiestas Patrias) while staying a cheap, bounded fetch.
+        window_start = (target - timedelta(days=10)).isoformat()
+        window_end = (target + timedelta(days=1)).isoformat()
+        try:
+            hist = yfinance.Ticker(f"{currency}=X").history(start=window_start, end=window_end)
+        except Exception as e:
+            logger.warning(f"yfinance FX rate fetch failed for {currency}/{date_str}: {type(e).__name__}: {e}")
+            return None
+        if hist.empty:
+            return None
+        closes = hist["Close"]
+        on_or_before = closes[closes.index.date <= target]
+        if on_or_before.empty:
+            return None
+        rate = float(on_or_before.iloc[-1])
+        return rate if rate > 0 else None

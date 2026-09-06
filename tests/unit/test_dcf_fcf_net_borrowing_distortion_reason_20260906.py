@@ -66,6 +66,10 @@ class TestDcfFcfNetBorrowingDistortionReason:
 
     def test_genuinely_missing_cash_flow_still_reports_generic_reason(self):
         loader = _make_loader()
+        # entity_shares_out is real (not None) here so this exercises the sic_code/
+        # missing_cash_flow_data branch specifically - entity_shares_out=None would instead
+        # hit the earlier shares_outstanding_unavailable_reason branch (see the sibling test
+        # module's other coverage for that case), never reaching the code under test here.
         with patch("loaders.helpers.sec_valuations_yield_dcf.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value.fetchone.return_value = (2834,)
             result = loader._compute_yield_and_dcf_fields(
@@ -84,7 +88,7 @@ class TestDcfFcfNetBorrowingDistortionReason:
                 avg_fcf_fallback=None,
                 beta=None,
                 risk_free_rate=None,
-                entity_shares_out=None,
+                entity_shares_out=1_000_000.0,
                 stock_based_compensation=None,
                 dcf_eps_cagr_pct=None,
                 equity_risk_premium=None,

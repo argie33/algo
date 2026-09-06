@@ -3053,6 +3053,19 @@ class QualityMetricsMixin(SymbolGateMixin):
                     _reason_key = f"{_field}_unavailable_reason"
                     if metrics.get(_field) is None and metrics.get(_reason_key) == "stockholders_equity_not_reported":
                         metrics[_reason_key] = "etf_trust_no_gaap_financials"
+                # total_debt's own ternary chain (unlike the fields above) is gated on debt
+                # concepts, not stockholders_equity, so it never lands on
+                # "stockholders_equity_not_reported" - it falls to the broader "missing_sec_data"/
+                # "total_debt_not_itemized" reasons instead (same reasons the RIC block below
+                # reuses for the same field). ADDED 2026-09-06 (goal: "SEC/XBRL missing data to
+                # zero" sweep) - live-confirmed GLDM (SPDR Gold MiniShares Trust) has no
+                # total_debt concept at all (a physical-commodity trust holds gold, not debt)
+                # and was falling to generic "missing_sec_data".
+                if metrics.get("total_debt") is None and metrics.get("total_debt_unavailable_reason") in (
+                    "missing_sec_data",
+                    "total_debt_not_itemized",
+                ):
+                    metrics["total_debt_unavailable_reason"] = "etf_trust_no_gaap_financials"
 
             # Same recategorization pattern as the ETF-trust block above, for registered
             # investment companies (closed-end funds/investment trusts - same root fact
@@ -3083,6 +3096,14 @@ class QualityMetricsMixin(SymbolGateMixin):
                     "roic_pct",
                     "roce_pct",
                     "sustainable_growth_rate",
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep):
+                    # total_debt's own ternary chain never had a RIC check at all, unlike its
+                    # roic_pct/roce_pct/debt_to_equity dependents above - live-confirmed 82
+                    # active-universe RIC symbols (GGN, BLW, BGY and siblings) report
+                    # "total_debt_not_itemized" for the same structural "no debt concept in a
+                    # Statement of Changes in Net Assets" fact already recategorized for those
+                    # dependents.
+                    "total_debt",
                 )
                 _ric_source_reasons = {
                     "missing_sec_data",
