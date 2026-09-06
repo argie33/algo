@@ -34,7 +34,17 @@ class _FakeCursor:
         self._last_query = query
 
     def fetchall(self):
-        if "annual_balance_sheet" in self._last_query and "stockholders_equity" in self._last_query:
+        # FIX 2026-09-05 (real-money-readiness audit): must exclude "etf_symbols" - a newer
+        # sibling gate (_get_etf_trust_no_stockholders_equity_symbols, vqg_symbol_gates.py)
+        # also queries annual_balance_sheet+stockholders_equity (joined against etf_symbols)
+        # and was otherwise indistinguishable from this test's own no-recent-equity query,
+        # so this fixture started returning {"AAT"} for BOTH queries once that gate landed -
+        # incorrectly making the test's synthetic "AAT" register as an ETF/trust symbol too.
+        if (
+            "annual_balance_sheet" in self._last_query
+            and "stockholders_equity" in self._last_query
+            and "etf_symbols" not in self._last_query
+        ):
             return [(s,) for s in self._no_recent_equity]
         return []
 

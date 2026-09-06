@@ -64,7 +64,16 @@ class _FakeCursor:
             return []
         if "annual_income_statement" in q and "net_income" in q:
             return [(s,) for s in self._never_tagged_net_income]
-        if "annual_balance_sheet" in q and "stockholders_equity" in q and "cash_and_equivalents" not in q:
+        # "etf_symbols" excluded 2026-09-05 (real-money-readiness audit): a newer sibling gate
+        # (_get_etf_trust_no_stockholders_equity_symbols, vqg_symbol_gates.py) also queries
+        # annual_balance_sheet+stockholders_equity (joined against etf_symbols) and was
+        # otherwise indistinguishable from this fixture's own never-tagged-equity query.
+        if (
+            "annual_balance_sheet" in q
+            and "stockholders_equity" in q
+            and "cash_and_equivalents" not in q
+            and "etf_symbols" not in q
+        ):
             return [(s,) for s in self._never_tagged_equity]
         return []
 

@@ -44,7 +44,16 @@ class _FakeCursor:
         q = self._last_query
         if "annual_balance_sheet" in q and "short_term_debt" in q:
             return [(s,) for s in self._no_recent_debt]
-        if "annual_balance_sheet" in q and "stockholders_equity" in q and "cash_and_equivalents" not in q:
+        # "etf_symbols" excluded 2026-09-05 (real-money-readiness audit): a newer sibling gate
+        # (_get_etf_trust_no_stockholders_equity_symbols, vqg_symbol_gates.py) also queries
+        # annual_balance_sheet+stockholders_equity (joined against etf_symbols) and was
+        # otherwise indistinguishable from this fixture's own no-recent-equity query.
+        if (
+            "annual_balance_sheet" in q
+            and "stockholders_equity" in q
+            and "cash_and_equivalents" not in q
+            and "etf_symbols" not in q
+        ):
             return [(s,) for s in self._no_recent_equity]
         return []
 
