@@ -60,10 +60,12 @@ genuine non-NULL converted value, which overwrites the stale wrong one normally 
 blocking involved when the new value is real, only when it's NULL).
 
 Deliberately NOT extended to other volatile/emerging-market currencies (ARS, BRL, CLP,
-COP, MXN, PEN, TRY, TWD, VND and similar) - those can move far more than developed-
+COP, MXN, TRY, TWD, VND and similar) - those can move far more than developed-
 market FX pairs even within a single fiscal year, and Frankfurter itself doesn't cover
 several of them at all (CLP, COP, TWD live-confirmed 404). Those stay behind the
-original blanket-reject guard, unconverted. Do not add another currency to
+original blanket-reject guard, unconverted. (PEN was originally lumped into this list too,
+without its own live check - see this file's 2026-09-06 "PEN" fix entry below for why it was
+moved out and added via the yfinance-only path instead.) Do not add another currency to
 MAJOR_CURRENCIES without the same live-verification discipline: (1) confirm Frankfurter
 actually serves it, (2) sanity-check the converted USD figure against at least one real
 filer's known public financials.
@@ -244,6 +246,26 @@ real rate (521.98) - plausible for a ~$18-20B-market-cap fintech (implied P/E ~9
 to ~$1.24B at that fiscal year-end's real rate (1004.13) - plausible for a large Chilean bank
 (implied P/E ~8-10 against its real market cap). Both pass the same "no magnitude red flag"
 bar as every other addition to this list.
+
+FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, re-investigation of the "PEN"
+entry in this file's own "deliberately NOT extended" list above): that listing lumped PEN in
+with ARS/BRL/CLP/COP/MXN/TRY/TWD/VND without an individual live check, unlike every other
+currency actually added above - re-ran the same discipline against it and it does NOT belong
+with that group. Found via AUNA (AUNA S.A., a Peru/Mexico/Colombia hospital-network operator,
+CIK 0001799207) and IFS (Intercorp Financial Services, CIK 0001615903): both real, current
+20-F filers with ifrs-full:Revenue/ProfitLoss/Assets/Equity tagged exclusively in PEN, zero
+USD-tagged alternative - the blanket guard was zeroing their entire quality_metrics/
+growth_metrics balance-sheet AND income-statement rows despite complete, extractable filings.
+Frankfurter doesn't list PEN (`GET /v1/currencies` 404s it, same structural gap as KZT/CLP) but
+yfinance's `PEN=X` does, with a full history. Real year-end year-over-year moves, yfinance-
+computed 2019-2025: -1.5%, +9.2%, +10.2%, -5.1%, -2.2%, -0.9%, -8.4% - 10.2% high-water mark,
+comparable to KZT's already-accepted 15.0% and narrower than CLP's 19.8%, decisively unlike
+ARS's 356.9% single-year record just above. Peru has run an inflation-targeting, freely-
+floating sol since 2002 with routine BCRP smoothing intervention, not a peg or capital-control
+regime - the same "managed float, not crisis-prone" profile as CNY/KZT, not ARS/TRY. Converting
+AUNA's real FY2024 ifrs-full:Revenue (PEN 4,386,112,000) at that fiscal year-end's real rate
+(~3.75) produces ~$1.17B, consistent with AUNA's known real hospital-network scale (a 2024
+SPAC-merger IPO with public revenue guidance in the same range) - no magnitude red flag.
 """
 
 import json
@@ -263,10 +285,11 @@ FRANKFURTER_URL = "https://api.frankfurter.app"
 # Currencies Frankfurter (an ECB-rate mirror) doesn't publish at all - confirmed via
 # `GET /v1/currencies` - but which DO clear the same volatility bar as every currency above,
 # using yfinance's `f"{currency}=X"` tickers as the real historical-rate source instead. See
-# this module's 2026-09-06 docstring entry for the live verification (KSPI/BCH) each one is
-# based on. Kept as a separate set (not merged into MAJOR_CURRENCIES's own iteration order)
-# so `_fetch_rate` knows which provider to route to without a second live probe per call.
-_YFINANCE_ONLY_CURRENCIES = frozenset({"KZT", "CLP"})
+# this module's 2026-09-06 docstring entries for the live verification (KSPI/BCH for KZT/CLP,
+# AUNA/IFS for PEN) each one is based on. Kept as a separate set (not merged into
+# MAJOR_CURRENCIES's own iteration order) so `_fetch_rate` knows which provider to route to
+# without a second live probe per call.
+_YFINANCE_ONLY_CURRENCIES = frozenset({"KZT", "CLP", "PEN"})
 
 # Liquid, developed-market currencies only - see module docstring for why this list is
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
