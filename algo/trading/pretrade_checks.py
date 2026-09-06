@@ -389,27 +389,35 @@ class PreTradeChecks:
         # catch concentration within GICS-style taxonomy - two names in different sectors can
         # still move nearly in lockstep (e.g. high-beta growth names across sectors during a
         # risk-off day), so a book could clear every sector/industry check while still holding
-        # several near-duplicate return streams. This is a supplementary check (fails OPEN on
-        # insufficient price history, unlike the sector/industry check above), not a
-        # replacement for the primary taxonomy-based control.
+        # several near-duplicate return streams. This is a supplementary check, not a
+        # replacement for the primary taxonomy-based control - but it now fails CLOSED like
+        # every other check here on a genuine DB error (fixed 2026-09-05, real-money-readiness
+        # audit). Only the internal "insufficient price history" case still passes cleanly
+        # (returns True, None from inside _check_correlation_concentration() itself, not this
+        # except block) - a real DB error is a different, more serious failure mode than a data
+        # gap and must not be treated the same way.
         try:
             with DatabaseContext("read") as cur:
                 corr_ok, corr_reason = self._check_correlation_concentration(symbol, cur)
                 if not corr_ok:
                     return (False, corr_reason)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(
-                f"[PRE-TRADE] {symbol}: correlation-diversification check unavailable ({e}) - "
-                f"failing open (sector/industry caps above remain the primary control)."
-            )
+            # BUG FOUND 2026-09-05 (real-money-readiness audit): this used to log a warning and
+            # fail OPEN on a genuine DB error, inconsistent with every other check in this
+            # function (sector/industry, duplicate-position, symbol-validation all raise
+            # ValueError above) - a real DB error means we cannot verify this check, not that it
+            # passed.
+            logger.critical(f"[PRE-TRADE] {symbol}: correlation-diversification check DB error: {e}")
+            raise ValueError(f"Cannot validate correlation-diversification limit for {symbol}: {e}") from e
 
         # PORTFOLIO-BETA CAP (2026-08-25 fix): algo/risk/var.py's beta_exposure() already
         # documents "Beta exposure > 2.0 -> WARNING" as this system's own convention, but it
         # only ever fired as a Phase 9 (end-of-cycle) REPORT - nothing previously stopped an
-        # entry from being the one that pushes the book over that exact threshold. Same
-        # fail-open shape as the correlation check above (stability_metrics.beta coverage is
-        # still filling in for some symbols) and reuses var.py's own 2.0 convention rather than
-        # inventing a new number.
+        # entry from being the one that pushes the book over that exact threshold. Reuses var.py's
+        # own 2.0 convention rather than inventing a new number. Fails closed on a genuine DB
+        # error like the correlation check above (fixed 2026-09-05); insufficient beta coverage
+        # for a symbol is a separate, internal data-availability case handled inside
+        # _check_portfolio_beta() itself, not by this except block.
         try:
             with DatabaseContext("read") as cur:
                 beta_ok, beta_reason = self._check_portfolio_beta(
@@ -418,7 +426,11 @@ class PreTradeChecks:
                 if not beta_ok:
                     return (False, beta_reason)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"[PRE-TRADE] {symbol}: portfolio-beta check unavailable ({e}) - failing open.")
+            # BUG FOUND 2026-09-05 (real-money-readiness audit): fail closed like every other
+            # check in this function - a DB error means the beta cap cannot be verified, not
+            # that the trade is safe. See the correlation-check fix above for the same class.
+            logger.critical(f"[PRE-TRADE] {symbol}: portfolio-beta check DB error: {e}")
+            raise ValueError(f"Cannot validate portfolio-beta limit for {symbol}: {e}") from e
 
         # TOP-5 CONCENTRATION CAP (2026-08-25 fix): algo/risk/var.py's concentration_report()
         # already documents "Concentration > 30% in top 5 holdings -> WARNING" as this system's
@@ -434,7 +446,10 @@ class PreTradeChecks:
                 if not top5_ok:
                     return (False, top5_reason)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"[PRE-TRADE] {symbol}: top-5 concentration check unavailable ({e}) - failing open.")
+            # BUG FOUND 2026-09-05 (real-money-readiness audit): fail closed like every other
+            # check in this function - see the correlation-check fix above for the same class.
+            logger.critical(f"[PRE-TRADE] {symbol}: top-5 concentration check DB error: {e}")
+            raise ValueError(f"Cannot validate top-5 concentration limit for {symbol}: {e}") from e
 
         # SIMULATED CURRENT-WEIGHTS VAR CAP (real-money-readiness push, 2026-09-04): algo/risk/
         # var.py's historical_var() already documents "Daily VaR > 2% -> WARNING" as this
@@ -451,7 +466,10 @@ class PreTradeChecks:
                 if not var_ok:
                     return (False, var_reason)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"[PRE-TRADE] {symbol}: simulated portfolio-VaR check unavailable ({e}) - failing open.")
+            # BUG FOUND 2026-09-05 (real-money-readiness audit): fail closed like every other
+            # check in this function - see the correlation-check fix above for the same class.
+            logger.critical(f"[PRE-TRADE] {symbol}: simulated portfolio-VaR check DB error: {e}")
+            raise ValueError(f"Cannot validate simulated portfolio-VaR limit for {symbol}: {e}") from e
 
         logger.info(
             f"[PRE-TRADE] {symbol}: position ${position_value:.2f}, "
@@ -623,10 +641,12 @@ class PreTradeChecks:
         share. Uses each open position's current dollar value (quantity * current_price) plus
         this candidate's position_value, ranks the top 5 by value, and compares their sum
         against portfolio_value (total equity, same denominator every other check in this
-        file uses). Fails OPEN only on a data error (via run_all's except clause) - unlike the
-        correlation/beta checks above, every input here (algo_positions.quantity/current_price)
-        is already required, non-optional data for any open position, so there is no
-        legitimate "insufficient data" case to fail open on.
+        file uses). Fails CLOSED on a DB error (via run_all's except clause, fixed 2026-09-05) -
+        unlike the correlation/beta checks above, every input here
+        (algo_positions.quantity/current_price) is already required, non-optional data for any
+        open position, so there was never a legitimate "insufficient data" case to fail open on
+        in the first place - the old fail-open behavior here was pure bug, not a considered
+        tradeoff.
         """
         cur.execute(
             "SELECT quantity, current_price FROM algo_positions WHERE status = %s AND symbol != %s",
