@@ -120,4 +120,5 @@ def test_quantity_changed_since_batch_read_uses_fresh_value_for_repair():
         10.0,
         210.50,
         client_order_id=order_mgr.submit_standalone_protective_stop.call_args.kwargs["client_order_id"],
+        pos_id=1,
     )

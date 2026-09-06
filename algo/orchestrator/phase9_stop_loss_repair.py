@@ -183,7 +183,7 @@ def check_and_repair_one_position(
     client_order_id = f"stoprepair-{pos_id}-{uuid.uuid4().hex[:12]}"
     try:
         repair = order_mgr.submit_standalone_protective_stop(
-            symbol, float(quantity), float(current_stop_price), client_order_id=client_order_id
+            symbol, float(quantity), float(current_stop_price), client_order_id=client_order_id, pos_id=pos_id
         )
     except Exception as e:
         repair = {"success": False, "message": f"Exception during repair submission: {e}"}

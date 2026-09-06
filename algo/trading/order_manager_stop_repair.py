@@ -32,19 +32,33 @@ logger = logging.getLogger(__name__)
 class StopLossRepairMixin:
     """OrderManager methods for auto-repairing a missing stop-loss leg."""
 
-    def _find_open_sell_stop_order(self, symbol: str) -> dict[str, Any] | None:
+    def _find_open_sell_stop_order(self, symbol: str, pos_id: int | None = None) -> dict[str, Any] | None:
         """Does a resting (non-bracket) sell-stop order already exist for this symbol?
 
         Ground-truth check used by submit_standalone_protective_stop before submitting a
         new standalone repair stop - catches the case where an EARLIER repair call fully
         succeeded at the broker but crashed before its caller could persist
         standalone_stop_order_id, so this cycle has no record of it and would otherwise
-        submit a genuine second live stop for the same shares. Deliberately does not
-        filter by client_order_id (that id is unique per call and wouldn't match a prior
-        call's id) - this is a broker-state check, not a request-idempotency check.
+        submit a genuine second live stop for the same shares.
 
-        Returns: the order dict for the first open stop-type sell order found, or None if
-        none exists / the lookup itself fails (fails open - see caller).
+        REAL-MONEY-READINESS FIX (2026-09-06): this used to match the FIRST open sell-stop
+        order for the symbol, full stop - a broker-level query has no concept of this
+        codebase's own position_id, so a leftover resting stop from a DIFFERENT, unrelated
+        position in the same symbol (e.g. an earlier position that closed without its stop
+        being cancelled - see alpaca_sync_manager.py's own orphaned-leg cleanup for that
+        exact gap) would be misidentified as "this position is already protected," reusing
+        its order_id/qty/stop_price for a position it has nothing to do with and skipping
+        the real repair this position actually needs.
+        phase9_stop_loss_repair.py's own client_order_id for a repair order is always
+        f"stoprepair-{pos_id}-{uuid}" (unique per call, but always prefixed with the exact
+        position_id it was submitted for) - when the caller passes pos_id, only an order
+        whose client_order_id carries THAT position's prefix counts as "already resting for
+        this position." Falls back to the old symbol-only match only when no pos_id is
+        given (there is currently no such caller, but this keeps the broker-state-check
+        semantics from before pos_id-awareness for any future direct caller).
+
+        Returns: the matching order dict, or None if none exists / the lookup itself fails
+        (fails open - see caller).
         """
         if not self.alpaca_key or not self.alpaca_secret:  # type: ignore[attr-defined]
             return None
@@ -61,10 +75,15 @@ class StopLossRepairMixin:
         orders = resp.json()
         if not isinstance(orders, list):
             return None
-        for order in orders:
-            if order.get("side") == "sell" and order.get("type") == "stop":
-                return order  # type: ignore[no-any-return]
-        return None
+        sell_stop_orders = [o for o in orders if o.get("side") == "sell" and o.get("type") == "stop"]
+        if pos_id is not None:
+            prefix = f"stoprepair-{pos_id}-"
+            for order in sell_stop_orders:
+                client_order_id = order.get("client_order_id") or ""
+                if client_order_id.startswith(prefix):
+                    return order  # type: ignore[no-any-return]
+            return None
+        return sell_stop_orders[0] if sell_stop_orders else None
 
     def cancel_all_open_orders_for_symbol(self, symbol: str) -> dict[str, Any]:
         """Cancel every open order resting at the broker for a symbol - used when a
@@ -164,7 +183,12 @@ class StopLossRepairMixin:
         return order.get("status") in _LIVE_LEG_STATUSES
 
     def submit_standalone_protective_stop(
-        self, symbol: str, qty: float, stop_price: float, client_order_id: str | None = None
+        self,
+        symbol: str,
+        qty: float,
+        stop_price: float,
+        client_order_id: str | None = None,
+        pos_id: int | None = None,
     ) -> dict[str, Any]:
         """Auto-remediation for check_stop_loss_leg_live finding a position with no live
         stop-loss protection: submit a plain (non-bracket) sell stop order directly.
@@ -174,6 +198,13 @@ class StopLossRepairMixin:
         order id themselves (algo_positions.standalone_stop_order_id) so a future cycle
         recognizes protection already exists instead of submitting a duplicate stop every
         cycle forever.
+
+        `pos_id`: threaded through to _find_open_sell_stop_order's own pre-submission
+        ground-truth check (2026-09-06 real-money-readiness fix - see that method's
+        docstring) so the "already resting" check can never reuse a stale order that
+        actually belongs to a different, unrelated position in the same symbol. Optional
+        only for backward compatibility with any caller that doesn't yet track pos_id;
+        phase9_stop_loss_repair.py (the only current caller) always has it.
 
         Uses time_in_force=gtc, deliberately different from the bracket entry's day TIF -
         this repair exists specifically because a day-TIF leg may have already expired
@@ -191,7 +222,7 @@ class StopLossRepairMixin:
             return {"success": False, "message": "Cannot submit protective stop - Alpaca credentials missing"}
 
         try:
-            existing_stop = self._find_open_sell_stop_order(symbol)
+            existing_stop = self._find_open_sell_stop_order(symbol, pos_id=pos_id)
         except Exception as e:
             existing_stop = None
             logger.warning(f"[PROTECTIVE_STOP] {symbol}: pre-submission existing-order check failed: {e}")
