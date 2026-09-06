@@ -122,6 +122,22 @@ _DEPOSITORY_INSTITUTION_SIC_CODES = (6020, 6021, 6022, 6029, 6035, 6036, 6712)
 # known to have this same structural exception.
 _FINANCIAL_INTERMEDIARY_SIC_CODES = (6200, 6211, 6221)
 
+# Individually-verified symbols with the identical "embedded fintech float dwarfs the parent's
+# own cash flow" shape as _FINANCIAL_INTERMEDIARY_SIC_CODES above, but whose SIC code doesn't
+# reflect it (SIC classifies the parent's primary/legacy business, not a large embedded
+# fintech segment) - same "curated allowlist, not SIC-derivable" pattern already established
+# for _INSURANCE_CAPEX_EXEMPT_SYMBOLS in loaders/helpers/sec_base.py. Add here only after
+# individually confirming via SEC's own companyconcept API (not by SIC-code guessing) that the
+# real, SEC-tagged cash-flow figure genuinely produces this shape.
+#
+# MELI (MercadoLibre, SIC 7389 "business services" - e-commerce, not finance): live-confirmed
+# 2026-09-06 that its real, SEC-tagged NetCashProvidedByUsedInOperatingActivities for FY2025
+# genuinely is $12.116B - driven by Mercado Pago's embedded-fintech credit-portfolio/payments
+# float, the same "operations dwarf retained cash" shape as a broker-dealer, just under an
+# e-commerce SIC code that a blanket 7389 exclusion would be far too broad to safely add (that
+# code covers many unrelated ordinary "business services" filers).
+_CASHFLOW_INTERMEDIARY_SYMBOL_ALLOWLIST = frozenset({"MELI"})
+
 
 class TieOutChecker(BaseCheck):
     def run(self, cur: Any) -> list[CheckResult]:
@@ -211,8 +227,9 @@ class TieOutChecker(BaseCheck):
         """prior_year cash_and_equivalents + OCF + ICF + FCF ~= current_year cash_and_equivalents.
 
         Excludes depository institutions and financial intermediaries (exchanges/clearinghouses/
-        broker-dealers) - see _DEPOSITORY_INSTITUTION_SIC_CODES and
-        _FINANCIAL_INTERMEDIARY_SIC_CODES comments above.
+        broker-dealers), plus individually-verified embedded-fintech exceptions - see
+        _DEPOSITORY_INSTITUTION_SIC_CODES, _FINANCIAL_INTERMEDIARY_SIC_CODES, and
+        _CASHFLOW_INTERMEDIARY_SYMBOL_ALLOWLIST comments above.
         """
         try:
             cur.execute(
@@ -245,8 +262,12 @@ class TieOutChecker(BaseCheck):
                     SELECT 1 FROM company_info_sec ci
                     WHERE ci.symbol = cf.symbol AND ci.sic_code = ANY(%s)
                 )
+                AND NOT (cf.symbol = ANY(%s))
                 """,
-                (list(_DEPOSITORY_INSTITUTION_SIC_CODES + _FINANCIAL_INTERMEDIARY_SIC_CODES),),
+                (
+                    list(_DEPOSITORY_INSTITUTION_SIC_CODES + _FINANCIAL_INTERMEDIARY_SIC_CODES),
+                    list(_CASHFLOW_INTERMEDIARY_SYMBOL_ALLOWLIST),
+                ),
             )
             flagged = []
             for row in cur.fetchall():
