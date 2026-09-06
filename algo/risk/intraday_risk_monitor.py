@@ -91,15 +91,23 @@ def check_intraday_risk(config: Any, alerts: AlertManager | None = None) -> dict
     # Same convention as pretrade_checks.py._check_portfolio_beta/var.py.beta_exposure:
     # weighted by each position's live dollar value over TOTAL account equity (cash
     # included), not invested-capital-only - see that check's 2026-09-06 fix for why this
-    # denominator choice matters. A symbol with no known beta is excluded from the weighted
-    # sum (its dollar value is real, but there is no real beta to weight it by) - reported
-    # separately via symbols_missing_beta rather than silently assumed to be beta=0 or
-    # beta=1, either of which would misstate the true exposure.
+    # denominator choice matters.
+    #
+    # REAL-MONEY-READINESS FIX (2026-09-06 audit): a symbol with no known beta used to be
+    # excluded entirely from the weighted sum - its full dollar value still counted in the
+    # portfolio_value denominator but contributed NOTHING to the numerator, which is
+    # mathematically identical to assuming beta=0.0 for it. A newly-entered high-beta
+    # position without beta history yet could push true portfolio beta well past
+    # max_portfolio_beta while this monitor kept reporting a comfortably low number and
+    # never breaching - defeating the exact drift this check exists to catch. Weight a
+    # missing-beta position at a conservative beta=1.0 (market-average assumption) instead
+    # of silently zero-weighting it; symbols_missing_beta below still reports which
+    # positions are on an assumed rather than measured beta.
+    missing_beta_conservative_assumption = 1.0
     weighted_beta_sum = Decimal("0")
     for p in positions:
-        beta = beta_by_symbol.get(p["symbol"])
-        if beta is not None:
-            weighted_beta_sum += Decimal(str(p["market_value"])) * Decimal(str(beta))
+        beta = beta_by_symbol.get(p["symbol"], missing_beta_conservative_assumption)
+        weighted_beta_sum += Decimal(str(p["market_value"])) * Decimal(str(beta))
     portfolio_beta = float(weighted_beta_sum / portfolio_value)
 
     position_values = sorted((Decimal(str(p["market_value"])) for p in positions), reverse=True)
@@ -118,8 +126,9 @@ def check_intraday_risk(config: Any, alerts: AlertManager | None = None) -> dict
     if symbols_missing_beta:
         logger.warning(
             f"[INTRADAY_RISK_MONITOR] {len(symbols_missing_beta)} open position(s) have no "
-            f"stability_metrics.beta on file, excluded from the weighted beta calc: "
-            f"{symbols_missing_beta}. Reported portfolio_beta may understate true exposure."
+            f"stability_metrics.beta on file, weighted at an assumed beta="
+            f"{missing_beta_conservative_assumption} in the calc below: {symbols_missing_beta}. "
+            f"Reported portfolio_beta may not reflect their true (unknown) exposure."
         )
 
     if beta_breach or concentration_breach:

@@ -984,7 +984,39 @@ class ExitHandler:
                                     f"Using verified fill quantity."
                                 )
                             shares_to_exit = verified_filled_qty
-                            full_exit = shares_to_exit >= current_qty
+
+                    # REAL-MONEY-READINESS FIX (2026-09-06 audit): raced_filled_qty (the bracket
+                    # leg that filled during the cancel race above) was subtracted from the
+                    # replacement order's requested size but never added back anywhere below -
+                    # shares_to_exit here only reflects the REPLACEMENT order's own fill, so
+                    # full_exit/new_qty/pnl_dollars all silently dropped the raced leg's shares
+                    # and dollars whenever this replacement order's fill didn't happen to exactly
+                    # equal current_qty on its own. Fold it back in now: blend the raced fill's
+                    # price with this order's fill price (quantity-weighted) and roll the raced
+                    # quantity into shares_to_exit so every downstream calculation reflects the
+                    # TOTAL shares actually sold this call, not just the replacement leg's slice.
+                    if raced_filled_qty and not raced_fill_closed_position:
+                        if actual_fill_price is None:
+                            raise RuntimeError(
+                                f"[EXIT_HANDLER CRITICAL] {trade_id} {symbol}: raced_filled_qty="
+                                f"{raced_filled_qty} but actual_fill_price is None - cannot blend "
+                                f"the raced leg's fill into this call's P&L/quantity accounting."
+                            )
+                        total_qty_dec = Decimal(str(shares_to_exit)) + Decimal(str(raced_filled_qty))
+                        blended_price_dec = (
+                            Decimal(str(actual_fill_price)) * Decimal(str(shares_to_exit))
+                            + Decimal(str(raced_fill_price)) * Decimal(str(raced_filled_qty))
+                        ) / total_qty_dec
+                        logger.info(
+                            f"[EXIT_HANDLER] {trade_id} {symbol}: folding raced fill "
+                            f"{raced_filled_qty}sh @ ${raced_fill_price} into replacement order's "
+                            f"{shares_to_exit}sh @ ${actual_fill_price} -> total {total_qty_dec}sh "
+                            f"@ blended ${blended_price_dec}"
+                        )
+                        shares_to_exit = float(total_qty_dec)
+                        actual_fill_price = float(blended_price_dec)
+
+                    full_exit = shares_to_exit >= current_qty
             else:
                 # Explicit message handling - log if missing instead of defaulting
                 error_message = exit_order_result.get("message")

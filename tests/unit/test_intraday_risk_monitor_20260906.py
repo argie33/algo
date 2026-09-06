@@ -103,7 +103,13 @@ class TestIntradayRiskMonitor:
         assert result["concentration_breach"] is False
         alerts.send_position_alert.assert_not_called()
 
-    def test_missing_beta_symbol_excluded_from_weighted_calc_and_reported(self):
+    def test_missing_beta_symbol_conservatively_assumed_and_reported(self):
+        # REAL-MONEY-READINESS FIX (2026-09-06 audit): a missing-beta position used to be
+        # excluded entirely from the weighted sum - its dollar value still counted in the
+        # denominator but contributed nothing to the numerator, equivalent to silently
+        # assuming beta=0.0 for it and understating true portfolio beta. It's now weighted at
+        # a conservative assumed beta=1.0 instead, while still being reported separately via
+        # symbols_missing_beta.
         alerts = MagicMock()
         positions = [
             {"symbol": "KNOWN", "qty": 100.0, "market_value": 50_000.0, "current_price": 500.0},
@@ -114,8 +120,9 @@ class TestIntradayRiskMonitor:
         p1, p2 = _patched(positions, account, beta_rows)
         with p1, p2:
             result = check_intraday_risk(_config(), alerts=alerts)
-        # Only KNOWN contributes: (50000*1.0)/100000 = 0.5, NOT further diluted/assumed for UNKNOWN
-        assert abs(result["portfolio_beta"] - 0.5) < 1e-9
+        # KNOWN contributes 50000*1.0, UNKNOWN conservatively assumed at beta=1.0 contributes
+        # 50000*1.0 too: (50000*1.0 + 50000*1.0)/100000 = 1.0
+        assert abs(result["portfolio_beta"] - 1.0) < 1e-9
         assert result["symbols_missing_beta"] == ["UNKNOWN"]
 
     def test_non_positive_portfolio_value_with_open_positions_raises(self):

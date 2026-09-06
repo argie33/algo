@@ -220,6 +220,7 @@ module "loaders" {
   alert_email_to              = var.alert_email_to
   alert_webhook_url           = var.alert_webhook_url
   db_security_group_id        = module.vpc.rds_security_group_id
+  enable_trade_update_listener = var.enable_trade_update_listener
 }
 
 module "lambda_layers" {
@@ -292,6 +293,7 @@ module "services" {
   enable_morning_orchestrator            = var.enable_morning_orchestrator
   enable_stop_loss_guardian              = var.enable_stop_loss_guardian
   enable_intraday_risk_monitor           = var.enable_intraday_risk_monitor
+  enable_unified_risk_monitor            = var.enable_unified_risk_monitor
   sns_alerts_enabled                     = var.sns_alerts_enabled
   sns_alert_email                        = var.sns_alert_email
   cloudwatch_log_retention_days          = var.cloudwatch_log_retention_days

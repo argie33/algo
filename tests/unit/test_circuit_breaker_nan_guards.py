@@ -87,7 +87,7 @@ class TestIntradayMarketHealthRejectsNaN:
             (455.0, False, None),
             (450.0, False, None),
         ]
-        cb = _cb()
+        cb = _cb(intraday_prior_day_drop_halt_pct="-2.0")
         result = cb._check_intraday_market_health(date(2026, 8, 10), cur)
         assert result["halted"] is False
 

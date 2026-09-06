@@ -229,7 +229,6 @@ class ProfitTargetStrategy(ExitStrategy):
     """Base class for profit target exits (T1, T2, T3)."""
 
     target_level: int
-    default_fraction: float
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         from algo.trading.exit_engine import ExitEngine
@@ -261,21 +260,18 @@ class T1Strategy(ProfitTargetStrategy):
     """Exit 50% at target 1 (1.5R), raise stop to entry."""
 
     target_level = 1
-    default_fraction = 0.5
 
 
 class T2Strategy(ProfitTargetStrategy):
     """Exit 25% at target 2 (3R), raise stop to T1 area."""
 
     target_level = 2
-    default_fraction = 0.25
 
 
 class T3Strategy(ProfitTargetStrategy):
     """Exit final 25% at target 3 (4R)."""
 
     target_level = 3
-    default_fraction = 0.25
 
 
 class ChandelierTrailStrategy(ExitStrategy):

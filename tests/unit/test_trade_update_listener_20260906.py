@@ -22,35 +22,28 @@ def _config(**overrides):
 
 class TestHandleTradeUpdate:
     def test_fill_event_triggers_reconciliation(self):
-        data = MagicMock()
-        data.event = "fill"
-        data.order = {"symbol": "AAPL"}
+        message = {"stream": "trade_updates", "data": {"event": "fill", "order": {"symbol": "AAPL"}}}
         with patch("algo.execution.trade_update_listener._run_reconciliation_now") as mock_run:
-            asyncio.run(listener._handle_trade_update(_config(), data))
+            asyncio.run(listener._handle_trade_update(_config(), message))
         mock_run.assert_called_once_with(_config(), "fill", "AAPL")
 
     def test_partial_fill_event_triggers_reconciliation(self):
-        data = MagicMock()
-        data.event = "partial_fill"
-        data.order = {"symbol": "MSFT"}
+        message = {"stream": "trade_updates", "data": {"event": "partial_fill", "order": {"symbol": "MSFT"}}}
         with patch("algo.execution.trade_update_listener._run_reconciliation_now") as mock_run:
-            asyncio.run(listener._handle_trade_update(_config(), data))
+            asyncio.run(listener._handle_trade_update(_config(), message))
         mock_run.assert_called_once()
 
     def test_irrelevant_event_type_does_not_trigger_reconciliation(self):
-        data = MagicMock()
-        data.event = "new"  # order accepted, not a fill/cancel/reject - nothing to reconcile
-        data.order = {"symbol": "AAPL"}
+        # order accepted, not a fill/cancel/reject - nothing to reconcile
+        message = {"stream": "trade_updates", "data": {"event": "new", "order": {"symbol": "AAPL"}}}
         with patch("algo.execution.trade_update_listener._run_reconciliation_now") as mock_run:
-            asyncio.run(listener._handle_trade_update(_config(), data))
+            asyncio.run(listener._handle_trade_update(_config(), message))
         mock_run.assert_not_called()
 
     def test_missing_order_data_does_not_crash(self):
-        data = MagicMock()
-        data.event = "fill"
-        data.order = None
+        message = {"stream": "trade_updates", "data": {"event": "fill", "order": None}}
         with patch("algo.execution.trade_update_listener._run_reconciliation_now") as mock_run:
-            asyncio.run(listener._handle_trade_update(_config(), data))
+            asyncio.run(listener._handle_trade_update(_config(), message))
         mock_run.assert_called_once_with(_config(), "fill", None)
 
 
@@ -146,7 +139,8 @@ class TestRunForeverReconnectLoop:
     def test_reconnects_with_backoff_on_repeated_failures(self):
         call_count = {"n": 0}
 
-        def _fail_then_stop(config):
+        def _fail_then_stop(coro):
+            coro.close()  # avoid "coroutine was never awaited" warning
             call_count["n"] += 1
             if call_count["n"] >= 3:
                 raise KeyboardInterrupt("stop test loop")
@@ -154,7 +148,7 @@ class TestRunForeverReconnectLoop:
 
         with (
             patch("algo.execution.trade_update_listener.get_config", return_value=_config()),
-            patch("algo.execution.trade_update_listener._build_stream", side_effect=_fail_then_stop),
+            patch("algo.execution.trade_update_listener.asyncio.run", side_effect=_fail_then_stop),
             patch("algo.execution.trade_update_listener.time.sleep") as mock_sleep,
         ):
             try:
@@ -173,18 +167,16 @@ class TestRunForeverReconnectLoop:
     def test_successful_run_resets_backoff(self):
         call_count = {"n": 0}
 
-        def _stream_run_side_effect():
+        def _run_side_effect(coro):
+            coro.close()  # avoid "coroutine was never awaited" warning
             call_count["n"] += 1
             if call_count["n"] >= 2:
                 raise KeyboardInterrupt("stop test loop")
-            return None  # first call "succeeds" (stream.run() returned normally)
-
-        mock_stream = MagicMock()
-        mock_stream.run.side_effect = _stream_run_side_effect
+            return None  # first call "succeeds" (_run_stream_once returned normally)
 
         with (
             patch("algo.execution.trade_update_listener.get_config", return_value=_config()),
-            patch("algo.execution.trade_update_listener._build_stream", return_value=mock_stream),
+            patch("algo.execution.trade_update_listener.asyncio.run", side_effect=_run_side_effect),
             patch("algo.execution.trade_update_listener.time.sleep") as mock_sleep,
         ):
             try:

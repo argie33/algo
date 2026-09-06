@@ -1665,7 +1665,13 @@ def _backfill_orphaned_signal_scores() -> None:
         else:
             logger.debug("[PHASE 7 BACKFILL] No orphaned signals to backfill")
     except RuntimeError as rt_e:
-        raise RuntimeError(f"[PHASE 7 BACKFILL] Backfill process critical error: {rt_e}") from rt_e
+        logger.critical(
+            f"[PHASE 7 BACKFILL] Backfill process critical error: {rt_e} "
+            f"This is a secondary/optional process to score orphaned signals that weren't scored during initial "
+            f"generation. Logging for investigation but allowing Phase 7 to continue - primary score computation "
+            f"already ran, and Phase 9 must still run to write this run's portfolio snapshot.",
+            exc_info=True,
+        )
     except Exception as bf_outer_e:
         msg = (
             f"[PHASE 7 BACKFILL] Backfill process failed: {type(bf_outer_e).__name__}: {bf_outer_e} "

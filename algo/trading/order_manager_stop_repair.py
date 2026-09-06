@@ -221,11 +221,29 @@ class StopLossRepairMixin:
         if not self.alpaca_key or not self.alpaca_secret:  # type: ignore[attr-defined]
             return {"success": False, "message": "Cannot submit protective stop - Alpaca credentials missing"}
 
+        # REAL-MONEY-READINESS FIX (2026-09-06 audit): a failed pre-submission lookup used to
+        # be swallowed and treated as "no existing stop", falling through to submit a brand-new
+        # standalone stop with a fresh client_order_id every call - so the client_order_id-based
+        # dedup below can never catch a genuine duplicate either (it only matches a RETRY of the
+        # same id). This left duplicate-order prevention resting entirely on Alpaca's own 422
+        # qty-reservation rejection, in exactly the failure mode (broker API instability) where
+        # that backstop is least trustworthy. Treat "can't verify" as "unknown - skip this cycle"
+        # instead: the next repair pass will re-check once the broker is reachable again, and a
+        # position that already has a resting stop stays protected in the meantime.
         try:
             existing_stop = self._find_open_sell_stop_order(symbol, pos_id=pos_id)
         except Exception as e:
-            existing_stop = None
-            logger.warning(f"[PROTECTIVE_STOP] {symbol}: pre-submission existing-order check failed: {e}")
+            logger.warning(
+                f"[PROTECTIVE_STOP] {symbol}: pre-submission existing-order check failed: {e}. "
+                f"Skipping this repair cycle rather than risking a duplicate stop submission."
+            )
+            return {
+                "success": False,
+                "message": (
+                    f"Cannot verify whether {symbol} already has a resting protective stop "
+                    f"(broker lookup failed: {e}). Skipping submission this cycle."
+                ),
+            }
         if existing_stop:
             return {
                 "success": True,

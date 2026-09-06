@@ -486,7 +486,16 @@ def check_unified_risk(config: Any, alerts: AlertManager | None = None) -> dict[
     # 4. True live intraday SPY move (new)
     try:
         market_result = _check_live_intraday_spy_move(config)
-        threshold_pct = float(config.get("intraday_spy_drop_halt_pct", -2.0))
+        # REAL-MONEY-READINESS FIX (2026-09-06 audit): this threshold used to be a hardcoded
+        # `.get(..., -2.0)` fallback for a config key that was never registered in
+        # CONFIG_DEFAULTS_RISK/VALIDATION_SCHEMA - invisible to any admin config UI (which
+        # enumerates those registries) and unvalidated (no type/range check, no fail-closed
+        # value) even though a raw algo_config DB row for it would technically still be picked
+        # up. Now registered like every other threshold in this file (portfolio_variance_
+        # threshold, and circuit_breaker_market_conditions.py's sibling
+        # intraday_prior_day_drop_halt_pct), so `config["..."]` is sufficient - AlgoConfig's own
+        # DEFAULTS/critical-value machinery handles the fallback and fail-closed behavior.
+        threshold_pct = float(config["intraday_spy_drop_halt_pct"])
         change = market_result["intraday_change_pct"]
         breached = change <= threshold_pct
         verdict = _apply_risk_verdict(

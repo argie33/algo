@@ -199,6 +199,20 @@ VALIDATION_SCHEMA = {
     "max_weekly_loss_pct": ("float", 0.1, 100.0, False, 5.0),
     "max_data_staleness_days": ("int", 0, 30, False, 3),
     "daily_profit_cap_pct": ("float", 0.0, 100.0, False, 2.0),
+    "intraday_prior_day_drop_halt_pct": (
+        "float",
+        -100.0,
+        -0.1,
+        True,
+        -2.0,
+    ),  # Must be negative; halts new entries if SPY fell more than this the prior trading day
+    "intraday_spy_drop_halt_pct": (
+        "float",
+        -100.0,
+        -0.1,
+        True,
+        -2.0,
+    ),  # Must be negative; unified_risk_monitor's live intraday (vs. prior close) SPY move breach
     "sector_drawdown_halt_pct": (
         "float",
         -100.0,

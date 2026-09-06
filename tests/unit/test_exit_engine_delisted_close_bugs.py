@@ -148,7 +148,12 @@ def test_delisted_branch_close_update_is_valid_sql_and_covers_live_statuses(mock
     )
     assert exits_executed == 1
     assert trade_errors == 0
-    assert forced_closes_no_price == 0
+    # REAL-MONEY-READINESS FIX (2026-09-06 audit): forced_closes_no_price used to never be
+    # incremented anywhere (always reported 0), silently defeating the operator-visibility
+    # signal for exactly this case - a position force-closed with an unknown fill price. The
+    # delisted/unavailable close-out branch this test exercises is the one place that counter
+    # exists to track, so it must be 1 here, not 0.
+    assert forced_closes_no_price == 1
     _assert_close_updates_are_valid(mock_cur)
 
 

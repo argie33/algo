@@ -3036,12 +3036,19 @@ def run(
             # CRITICAL DEFENSIVE CHECK: Verify no open/pending positions exist for this symbol
             # FIXED (Session 381): Using serializable isolation level to prevent race condition.
             # Previously: Two concurrent runs could both pass the check, then both create positions.
-            # SOLUTION: Check within a SERIALIZABLE transaction so conflicts are detected.
-            # This is PostgreSQL's strictest isolation level - concurrent transactions that
-            # read/write the same data will conflict, and one will fail with a serialization error.
-            # This converts the race condition from "silent duplicate" to "explicit retry needed".
-            # BACKSTOP: UNIQUE constraint on algo_trades(symbol) WHERE status IN (open/filled/...)
-            # (migration 1158) still provides final safety if isolation level check is bypassed.
+            # NOTE (corrected 2026-09-06 real-money-readiness audit): this read-only SERIALIZABLE
+            # check commits and closes BEFORE execute_trade()'s later insert transaction even
+            # opens - Postgres SERIALIZABLE only detects conflicts between transactions that are
+            # concurrently LIVE, so a committed, closed read-only transaction provides no
+            # serialization guarantee against a future transaction. This check is a same-run
+            # early-exit convenience only (skips obviously-duplicate work sooner), NOT what
+            # actually prevents a real duplicate entry.
+            # REAL PROTECTION: the UNIQUE constraint on algo_trades(symbol) WHERE status IN
+            # (open/filled/...) (migration 1158, enforced via the
+            # algo_trades_symbol_live_status_idx partial index) is what actually converts a
+            # genuine concurrent-insert race into a caught duplicate-key violation at insert time
+            # - see execute_trade()'s handling of that violation as a benign "already executed"
+            # outcome. Do not rely on the SERIALIZABLE check above for correctness.
             try:
                 open_statuses = TradeStatus.all_open()
                 # Use read isolation level - PostgreSQL will detect conflicts at commit time

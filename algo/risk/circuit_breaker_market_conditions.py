@@ -429,8 +429,25 @@ class CircuitBreakerMarketConditionsMixin:
 
             prior_day_change = (latest - prior) / prior * 100.0
 
-            # Halt if SPY dropped >2% yesterday - significant sell-off, wait for stability
-            if prior_day_change <= -2.0:
+            # REAL-MONEY-READINESS FIX (2026-09-06 audit): this threshold was a bare literal,
+            # unlike every sibling check in this file (vix_max_threshold, max_daily_loss_pct,
+            # sector_drawdown_halt_pct, etc.) which all pull from _get_required_config - changing
+            # it required a code deploy instead of an algo_config row update. Now config-driven,
+            # consistent with the rest of this file's checks.
+            drop_halt_pct_raw = self._get_required_config(
+                "intraday_prior_day_drop_halt_pct", "in intraday market health check"
+            )
+            drop_halt_pct = _cb._float(drop_halt_pct_raw, None, context="intraday_prior_day_drop_halt_pct")
+            if drop_halt_pct is None:
+                _cb.logger.error(
+                    "CRITICAL: intraday_prior_day_drop_halt_pct is invalid (NaN/Inf). "
+                    "Cannot enforce intraday market health circuit breaker."
+                )
+                return {"halted": True, "reason": "CRITICAL: intraday_prior_day_drop_halt_pct invalid"}
+
+            # Halt if SPY dropped more than the configured threshold yesterday - significant
+            # sell-off, wait for stability.
+            if prior_day_change <= drop_halt_pct:
                 return {
                     "halted": True,
                     "reason": f"Market down {prior_day_change:.2f}% yesterday (await stability)",

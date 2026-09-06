@@ -562,15 +562,25 @@ class PreTradeChecks:
         max_portfolio_beta, reusing the same 2.0 convention var.py's beta_exposure() already
         documents for its (previously report-only) WARNING threshold.
 
-        Fails OPEN (never blocks) when the candidate's own beta is unavailable, or when ANY
-        currently open position lacks a beta reading - deliberately does not silently drop
-        unknown-beta positions from a partial weighted average, since that could understate or
-        overstate the true portfolio beta in either direction depending on which positions
-        happen to be missing data. stability_metrics.beta coverage, like the correlation
-        check's price-history requirement, is still filling in for some symbols (this
-        codebase's own documented data-maturity gap - position_sizer.py's
-        get_data_maturity_multiplier).
+        Fails OPEN (never blocks) only when the candidate's own beta is unavailable - a
+        genuinely low-beta candidate whose beta simply hasn't been computed yet shouldn't be
+        assumed risky by this check alone (position_sizer.py's get_data_maturity_multiplier
+        already penalizes sizing for data immaturity independently).
+
+        REAL-MONEY-READINESS FIX (2026-09-06 audit): an existing open position missing a beta
+        reading used to fail this ENTIRE check open (skip it, return True) rather than just
+        excluding that one position - meaning a single stale/not-yet-computed beta row anywhere
+        in the book disabled this cap for every new entry, at exactly the moment (a recently
+        added, not-yet-fully-scored position sitting in the book) this system's own documented
+        data-maturity gap makes it most likely to happen. Matches
+        intraday_risk_monitor.py's identical 2026-09-06 fix: weight a missing-beta existing
+        position at a conservative beta=1.0 (market-average) instead of dropping it from the
+        weighted sum entirely (mathematically equivalent to assuming beta=0.0, understating
+        real exposure) or skipping the whole check (equivalent to assuming the position poses
+        zero risk of tipping the portfolio over the cap - strictly worse than a market-average
+        guess).
         """
+        missing_beta_conservative_assumption = 1.0
         cur.execute("SELECT beta FROM stability_metrics WHERE symbol = %s AND data_unavailable IS NOT TRUE", (symbol,))
         row = cur.fetchone()
         if row is None or row[0] is None:
@@ -601,10 +611,16 @@ class PreTradeChecks:
 
         missing = [p[0] for p in open_positions if p[0] not in beta_by_symbol]
         if missing:
-            return True, None
+            logger.warning(
+                f"[PRETRADE_CHECKS] {len(missing)} open position(s) have no stability_metrics.beta "
+                f"on file, weighted at an assumed beta={missing_beta_conservative_assumption} for this "
+                f"portfolio-beta check: {missing}."
+            )
 
         existing_weighted_beta = sum(
-            Decimal(str(qty)) * Decimal(str(price)) * Decimal(str(beta_by_symbol[pos_symbol]))
+            Decimal(str(qty))
+            * Decimal(str(price))
+            * Decimal(str(beta_by_symbol.get(pos_symbol, missing_beta_conservative_assumption)))
             for pos_symbol, qty, price in open_positions
         )
         # BUG FOUND (2026-09-06 real-money-readiness dig): this used to normalize by

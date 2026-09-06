@@ -193,6 +193,20 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
     ),
     "max_weekly_loss_pct": ("5.0", "float", "Max weekly loss % before halt", "Risk Management"),
     "daily_profit_cap_pct": ("2.0", "float", "Daily profit cap %", "Position Sizing"),
+    "intraday_prior_day_drop_halt_pct": (
+        "-2.0",
+        "float",
+        "Prior-day SPY drop % that halts new entries (must be negative)",
+        "Drawdown Defense",
+    ),
+    "intraday_spy_drop_halt_pct": (
+        "-2.0",
+        "float",
+        "Live intraday SPY move % (vs. prior close) that unified_risk_monitor treats as a "
+        "market-health breach (must be negative) - distinct from "
+        "intraday_prior_day_drop_halt_pct, which compares yesterday's close to the day before",
+        "Drawdown Defense",
+    ),
     "sector_drawdown_halt_pct": (
         "-12.0",
         "float",

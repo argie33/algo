@@ -498,6 +498,15 @@ class ExitEngine:
                                     ),
                                 )
                                 exits_executed += 1
+                                # REAL-MONEY-READINESS FIX (2026-09-06 audit): this dedicated counter
+                                # was declared, logged, and returned but never incremented anywhere -
+                                # always reported 0 regardless of how many positions actually got
+                                # force-closed with an unknown fill price here. That silently defeated
+                                # the operator-visibility signal for exactly the case (force-closed,
+                                # NULL P&L, needs manual reconciliation) that most needs a human to
+                                # notice - phase6_exit_execution.py's run summary and the
+                                # EXIT_CHECK_FAILURES alert payload both surface this value.
+                                forced_closes_no_price += 1
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")
                                 continue
                             else:

@@ -206,6 +206,19 @@ class OrderManager(StopLossRepairMixin):
                 "limit_price": _quantize_price(take_profit_price),
             }
         else:
+            # REAL-MONEY-READINESS FIX (2026-09-06 audit): every other invalid-input case in
+            # this function (bad entry/stop/shares) fails loud with an operator alert - a
+            # caller-supplied take_profit_price that's positive/finite but not > entry_price
+            # used to fail this condition silently and fall through to the 1.5R fallback with
+            # no signal at all, inconsistent with that fail-loud discipline. The fallback is
+            # still a reasonable target, so this only warns rather than raising - but a caller
+            # passing a nonsensical take-profit should not go unnoticed.
+            if take_profit_price is not None:
+                logger.warning(
+                    f"[BRACKET_ORDER] {symbol}: caller-supplied take_profit_price="
+                    f"{take_profit_price} is not above entry_price={entry_price} - ignoring it "
+                    f"and computing the take-profit from the standard 1.5R fallback instead."
+                )
             risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
             if risk_dec > 0:
                 tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)

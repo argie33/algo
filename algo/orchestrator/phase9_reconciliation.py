@@ -811,6 +811,15 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                             )
                             logger.critical(error_msg)
                             raise RuntimeError(error_msg)
+                        if entry_qty is None or entry_qty <= 0:
+                            error_msg = (
+                                f"[PHASE 9 CRITICAL] Trade {symbol} (trade_id={trade_id}) has invalid "
+                                f"entry_quantity ({entry_qty}) on algo_trades. Cannot calculate this leg's "
+                                f"P&L without its own share count. Halting Phase 9 to prevent audit trail "
+                                f"corruption."
+                            )
+                            logger.critical(error_msg)
+                            raise RuntimeError(error_msg)
                         if stop_loss_price is None:
                             error_msg = (
                                 f"[PHASE 9 CRITICAL] Trade {symbol} (trade_id={trade_id}) has NULL "
@@ -884,9 +893,21 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                 f"Cannot calculate R-multiple with corrupted stop price."
                             )
 
-                        # P&L on this leg's quantity (position may have been reduced by partial exits)
+                        # P&L on THIS TRADE LEG's own share count (entry_qty), not the position's
+                        # aggregate quantity. BUG FOUND 2026-09-06 (real-money-readiness audit): a
+                        # pyramided position (built from 2+ entries, one algo_trades row per entry,
+                        # all sharing algo_positions.trade_ids_arr) unnests to one row per trade_id
+                        # here, and every row shares the SAME ap.quantity (the position's full
+                        # aggregate size). Using position_qty as the per-leg multiplier wrote the
+                        # full aggregate P&L into EACH leg's algo_trades row instead of that leg's
+                        # own slice of it, overstating total recorded realized P&L roughly Nx for
+                        # this catch-up path (fires when the normal exit-recording flow was bypassed
+                        # by a broker-side close). entry_qty is correct here specifically because
+                        # this branch is scoped to `at.exit_date IS NULL` - a leg that already had a
+                        # partial exit recorded through the normal path would have exit_date set and
+                        # be excluded, so an untouched leg's full entry_quantity is still open.
                         pnl_per_share_dec = Decimal(str(exit_price)) - Decimal(str(entry_price))
-                        pnl_dollars_dec = (pnl_per_share_dec * Decimal(str(position_qty))).quantize(
+                        pnl_dollars_dec = (pnl_per_share_dec * Decimal(str(entry_qty))).quantize(
                             Decimal("0.01"), ROUND_HALF_UP
                         )
                         pnl_pct_dec = (pnl_per_share_dec / Decimal(str(entry_price)) * Decimal(100)).quantize(
