@@ -127,6 +127,7 @@ BASE_CONFIG: dict[str, Any] = {
     "position_halt_flag_count": 2,
     "max_reentries_per_name": 2,
     "min_days_before_reentry_same_symbol": 5,
+    "wash_sale_cooldown_days": 31,
     # Economic Calendar
     "halt_entries_before_major_release_minutes": 60,
     # Earnings Blackout

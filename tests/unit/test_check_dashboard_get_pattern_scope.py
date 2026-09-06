@@ -7,6 +7,7 @@ dashboard/error_boundary.py and only applies to the dashboard/ package - scoped 
 """
 
 import importlib.util
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -54,6 +55,17 @@ def test_nested_dashboard_package_path_is_scoped_in():
     history already documents fixing twice). Use a synthetic fixture with a real violation
     instead, so this test verifies scope inclusion independent of any real file's current
     violation state.
+
+    FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, incidental full-suite
+    regression sweep): check_dashboard_patterns anchors scope to the path's FIRST segment
+    (see its own 2026-09-05 "BUG FOUND" comment - `filepath.split("/", 1)[0] != "dashboard"`),
+    which assumes a repo-relative path, exactly how pre-commit always invokes it in practice.
+    This test instead built an ABSOLUTE tmp path (`str(fixture)`, e.g.
+    "C:/Users/.../Temp/tmpXXXX/dashboard/fake_panel.py") whose first segment is the drive/tmp
+    root, never "dashboard" - so the real scope check (working exactly as intended) always
+    returned [] here, an unrelated false failure in this test, not a scope-check regression.
+    chdir into tmp and pass a real repo-relative-shaped path ("dashboard/fake_panel.py") so
+    this exercises the same input shape check_dashboard_patterns is actually anchored to.
     """
     with tempfile.TemporaryDirectory() as tmp:
         pkg_dir = Path(tmp) / "dashboard"
@@ -68,5 +80,10 @@ def test_nested_dashboard_package_path_is_scoped_in():
             "    e = data.get('e')\n"
             "    return a, b, c, d, e\n"
         )
-        violations = check_dashboard_get_pattern.check_dashboard_patterns(str(fixture))
+        cwd = os.getcwd()
+        try:
+            os.chdir(tmp)
+            violations = check_dashboard_get_pattern.check_dashboard_patterns("dashboard/fake_panel.py")
+        finally:
+            os.chdir(cwd)
     assert violations != [], "files directly under dashboard/ must remain in scope"

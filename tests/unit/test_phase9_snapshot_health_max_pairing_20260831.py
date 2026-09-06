@@ -1,5 +1,5 @@
 """Regression test: the Phase 9 portfolio-snapshot health check
-(lambda/api/routes/algo_handlers/market.py's `_get_data_status`) used
+(lambda/api/routes/algo_handlers/market/data_status.py's `_get_data_status`) used
 `MAX(snapshot_date)` and `MAX(total_portfolio_value)` as independent aggregates over the
 whole `algo_portfolio_snapshots` table with no pairing to the same row. After any drawdown
 from a prior peak (routine, not an edge case), this silently returned the all-time HIGHEST
@@ -22,7 +22,7 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MARKET_PY = REPO_ROOT / "lambda" / "api" / "routes" / "algo_handlers" / "market.py"
+MARKET_PY = REPO_ROOT / "lambda" / "api" / "routes" / "algo_handlers" / "market" / "data_status.py"
 
 
 def _phase9_query_block() -> str:

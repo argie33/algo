@@ -66,4 +66,8 @@ def test_reentry_cooldown_uses_et_date_not_utc_near_day_boundary():
         f"Expected re-entry to be BLOCKED (only 7 ET-days since stop-out, need 8) but got "
         f"is_valid={is_valid}, message={message!r} - this is the UTC-date bug reappearing"
     )
-    assert message is not None and "7d since stop-out" in message
+    # Wording changed from "since stop-out" to "since exit" by the 2026-09-06 wash-sale-
+    # cooldown fix (trade_validator.py's check_reentry_rules now also covers non-stop-out
+    # loss exits under the same message) - this test only cares about the day-count math,
+    # not the exact wording.
+    assert message is not None and "7d since exit" in message

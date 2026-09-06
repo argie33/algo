@@ -54,6 +54,7 @@ def mock_config():
         "t3_target_r_multiple": 4.0,
         "max_reentries_per_name": 2,
         "min_days_before_reentry_same_symbol": 5,
+        "wash_sale_cooldown_days": 31,
     }
 
 
