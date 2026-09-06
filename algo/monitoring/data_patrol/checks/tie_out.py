@@ -126,6 +126,23 @@ class TieOutChecker(BaseCheck):
         stockholders_equity whenever a filer never tags "Liabilities" directly - those rows
         tie out by construction (0 residual) and are harmlessly uninformative here, not a
         false pass of a check that was never really performed for them.
+
+        NOTE (2026-09-06, goal: "SEC/XBRL missing data to zero" / tie-out sweep): a real,
+        currently-unresolvable population of ex-SPAC/Up-C-structure filers (live-verified via
+        SEC's own companyfacts API: PROK/ProKidney Corp - FY2025 LiabilitiesAndStockholdersEquity
+        = $335,574,000 exactly matches this table's total_assets, and BOTH total_liabilities
+        ($34,781,000) and stockholders_equity (-$1,011,197,000) are individually the correct,
+        real SEC-tagged values - but they only sum to -$976,416,000, a ~$1.31B gap) carries a
+        real "temporary/mezzanine equity" balance-sheet component (Up-C pre-IPO holder units,
+        redeemable NCI, etc.) between Liabilities and permanent StockholdersEquity that this
+        schema has no column for at all (StockholdersEquityIncludingPortionAttributableTo
+        NoncontrollingInterest and MinorityInterest both don't exist for this filer either, so
+        it isn't a simple missing-concept-mapping fix). ATTO/FAC/LTGO/SCTX show the identical
+        shape (modest assets/liabilities, huge negative equity) and are likely the same
+        explanation. This flags as a genuine WARN here - not a false positive of extraction,
+        but a structural gap in this two-term identity for this capital-structure class. Don't
+        spend time trying to "fix" this population via extraction changes without first adding
+        a real mezzanine-equity column and loader support.
         """
         try:
             cur.execute(
