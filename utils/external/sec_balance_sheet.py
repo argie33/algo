@@ -449,6 +449,30 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # long_term_debt). Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS) - generic enough a
         # name that a filer reporting a real, more specific debt concept must keep that value.
         "LineOfCredit",
+        # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" continuation,
+        # total_debt_not_itemized investigation): ACHV (Achieve Life Sciences) and BENF
+        # (Beneficient) - both real, active filers with real interest expense on file but
+        # zero long_term_debt/short_term_debt ever - live-confirmed via real SEC
+        # companyfacts JSON tagging their real convertible-note debt under the BARE
+        # "ConvertibleDebt"/"ConvertibleDebtCurrent"/"ConvertibleDebtNoncurrent" concepts,
+        # a DIFFERENT XBRL element from the already-fetched "ConvertibleNotesPayable"/
+        # "ConvertibleLongTermNotesPayable" above: ACHV ConvertibleDebt $16.66M FY2023,
+        # ConvertibleDebtCurrent $3.70M + ConvertibleDebtNoncurrent $11.19M FY2025 (split
+        # reported starting FY2024). Bare "ConvertibleDebt" (no split) is a single-figure
+        # fallback like NotesPayable/SeniorNotes above (target: long_term_debt); the
+        # Current/Noncurrent pair follows the SeniorNotes/SeniorNotesCurrent convention
+        # (targets: short_term_debt/long_term_debt respectively) since a filer reporting
+        # the split never also reports the bare concept for the same fiscal year (same
+        # non-collision reasoning as LongTermDebtCurrent's own comment above).
+        "ConvertibleDebt",
+        "ConvertibleDebtCurrent",
+        "ConvertibleDebtNoncurrent",
+        # BENF also tags a separate, larger real long-term debt instrument under this
+        # concept - live-confirmed $117.9M FY2025/$96.8M FY2026, continuous and consistent
+        # with Beneficient's real, publicly known debt scale; not tagged under any other
+        # concept already fetched above for this filer (no overwrite-collision risk).
+        # Single-figure fallback, same convention as NotesPayable/SeniorNotes.
+        "OtherLongTermDebt",
         # ADDED 2026-08-26 (Quality pillar literature audit): needed for Altman Z''-Score's
         # Retained Earnings/Total Assets term (the one term not derivable from concepts
         # already fetched above). Standard, near-universal US-GAAP concept - every filer with

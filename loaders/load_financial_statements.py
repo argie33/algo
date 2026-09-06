@@ -825,6 +825,14 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # comment on "InventoryNetOfAllowancesCustomerAdvancesAndProgressBillings"
         # (BA/Boeing, HII/Huntington Ingalls live evidence).
         "inventory_net_of_allowances_customer_advances_and_progress_billings",
+        # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" continuation): ACHV/BENF
+        # real convertible-debt/other-long-term-debt concepts - see sec_statements.py's
+        # get_balance_sheet() comment on "ConvertibleDebt"/"OtherLongTermDebt" for the live
+        # evidence. Must never win over a real value the standard concepts already found.
+        "convertible_debt",
+        "convertible_debt_current",
+        "convertible_debt_noncurrent",
+        "other_long_term_debt",
     }
 )
 
@@ -1037,6 +1045,20 @@ _BALANCE_FIELD_MAPPING = {
     # comment on "LineOfCredit" for the live evidence. Same fallback-only, single-figure
     # convention as notes_payable/subordinated_debt above.
     "line_of_credit": "long_term_debt",
+    # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" continuation,
+    # total_debt_not_itemized investigation): ACHV/BENF real convertible-note debt - see
+    # sec_statements.py's get_balance_sheet() comment on "ConvertibleDebt" for the live
+    # evidence ($16.66M ACHV FY2023; split into Current/Noncurrent starting FY2024). Same
+    # either/or-alternative convention as senior_notes/senior_notes_current above - a
+    # filer reporting the split never also reports the bare concept for the same year.
+    "convertible_debt": "long_term_debt",
+    "convertible_debt_current": "short_term_debt",
+    "convertible_debt_noncurrent": "long_term_debt",
+    # FIXED 2026-09-05 (same sweep): BENF (Beneficient) real long-term debt - see
+    # sec_statements.py's get_balance_sheet() comment on "OtherLongTermDebt" for the live
+    # evidence ($117.9M FY2025/$96.8M FY2026). Fallback-only, single-figure convention as
+    # notes_payable/subordinated_debt above.
+    "other_long_term_debt": "long_term_debt",
     # FIXED 2026-08-17 (migration 1205): post-ASC 842 capitalized lease liabilities -
     # see sec_statements.py's get_balance_sheet() comment for why these use the combined
     # (not Current/Noncurrent split) XBRL tags. Included in load_sec_valuations.py's
