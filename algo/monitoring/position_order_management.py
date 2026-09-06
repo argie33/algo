@@ -63,7 +63,7 @@ class PositionOrderManagementMixin:
             try:
                 cur.execute(
                     """
-                    SELECT trade_id, symbol, entry_price, entry_quantity, created_at
+                    SELECT trade_id, symbol, entry_price, entry_quantity, created_at, alpaca_order_id
                     FROM algo_trades
                     WHERE status = 'pending'
                       AND created_at < CURRENT_TIMESTAMP - INTERVAL %s
@@ -87,7 +87,7 @@ class PositionOrderManagementMixin:
                     filtered_stale = []
                     halted_orders = []
                     for row in stale_orders:
-                        trade_id, symbol, price, qty, created_at = row
+                        trade_id, symbol, price, qty, created_at, alpaca_order_id = row
 
                         # Check Alpaca API for halt status
                         alpaca_halt = False
@@ -134,7 +134,7 @@ class PositionOrderManagementMixin:
                     audit_entries = []
 
                     for row in stale_orders:
-                        trade_id, symbol, price, qty, created_at = row
+                        trade_id, symbol, price, qty, created_at, alpaca_order_id = row
                         # algo_trades.created_at is a `timestamp without time zone` column
                         # written via SQL CURRENT_TIMESTAMP, so a naive value here is in the
                         # DB session's local wall-clock timezone (utils/bulk_insert_manager.py's
@@ -159,7 +159,7 @@ class PositionOrderManagementMixin:
                         if age_minutes >= auto_cancel_threshold:
                             # Fail fast on Alpaca cancellation - don't mark DB as cancelled if API call fails
                             try:
-                                self._cancel_on_alpaca(trade_id)
+                                self._cancel_on_alpaca(trade_id, alpaca_order_id)
                             except (ValueError, ZeroDivisionError, TypeError) as api_e:
                                 logger.critical(
                                     f"[STALE_ORDER] Could not cancel {trade_id} on Alpaca: {api_e}. "
@@ -247,12 +247,28 @@ class PositionOrderManagementMixin:
                     }
             return {"status": "OK", "count": 0}
 
-    def _cancel_on_alpaca(self, trade_id: str) -> None:
+    def _cancel_on_alpaca(self, trade_id: str, alpaca_order_id: str | None) -> None:
         """Cancel a stale pending order on Alpaca API only.
+
+        `trade_id` (our internal `TRD-<uuid>` id) is never a valid Alpaca order id - Alpaca
+        orders are addressed by `alpaca_order_id`, the id echoed back on submission and stored
+        in `algo_trades.alpaca_order_id`. Calling DELETE /v2/orders/<our trade_id> 404s on
+        every real order; that 404 was previously treated as "already closed" (see the 200/204/404
+        branch below), which silently marked the DB row cancelled while the real GTC order stayed
+        live and resting at the broker indefinitely - a stale entry could fill days later at a
+        stale price, or the system could re-enter the same symbol believing no order was open,
+        doubling the position. Found 2026-09-06 during the pre-real-money order-execution audit.
 
         Raises:
             RuntimeError: If cancellation cannot be verified (fail-fast to prevent state divergence)
         """
+        if not alpaca_order_id:
+            # Order was never confirmed at the broker (submission failed/timed out before an id
+            # was persisted) - there is nothing live at Alpaca to cancel, so it's safe to mark
+            # the DB row cancelled without a broker round-trip.
+            logger.info(f"Trade {trade_id} has no alpaca_order_id on file; nothing to cancel at broker.")
+            return
+
         creds = _pm.get_alpaca_credentials()
         base_url = _pm.get_alpaca_base_url(self.config.get("execution_mode"))
         alpaca_key = creds.get("key")
@@ -260,11 +276,12 @@ class PositionOrderManagementMixin:
 
         if not alpaca_key or not alpaca_secret:
             raise RuntimeError(
-                f"Cannot cancel stale order {trade_id}: Alpaca credentials unavailable. "
-                f"Cannot proceed without ability to verify cancellation at broker."
+                f"Cannot cancel stale order {trade_id} (alpaca_order_id={alpaca_order_id}): "
+                f"Alpaca credentials unavailable. Cannot proceed without ability to verify "
+                f"cancellation at broker."
             )
 
-        url = f"{base_url}/v2/orders/{trade_id}"
+        url = f"{base_url}/v2/orders/{alpaca_order_id}"
         headers = {
             "APCA-API-KEY-ID": alpaca_key,
             "APCA-API-SECRET-KEY": alpaca_secret,
@@ -311,11 +328,14 @@ class PositionOrderManagementMixin:
             ) from last_error
 
         if resp.status_code == 204 or resp.status_code == 200:
-            logger.info(f"Successfully cancelled order {trade_id} on Alpaca")
+            logger.info(f"Successfully cancelled order {trade_id} (alpaca_order_id={alpaca_order_id}) on Alpaca")
         elif resp.status_code == 404:
-            logger.info(f"Order {trade_id} not found on Alpaca (already closed/cancelled)")
+            logger.info(
+                f"Order {trade_id} (alpaca_order_id={alpaca_order_id}) not found on Alpaca (already closed/cancelled)"
+            )
         else:
             raise RuntimeError(
-                f"Alpaca cancel failed for {trade_id} (unexpected status {resp.status_code}): {resp.text}. "
+                f"Alpaca cancel failed for {trade_id} (alpaca_order_id={alpaca_order_id}, "
+                f"unexpected status {resp.status_code}): {resp.text}. "
                 f"Cannot mark order as cancelled in DB without broker confirmation."
             )

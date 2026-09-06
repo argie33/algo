@@ -30,7 +30,7 @@ def _config():
 def _mock_db(created_at_naive, session_tz_name="America/Chicago"):
     mock_cur = MagicMock()
     mock_cur.fetchall.return_value = [
-        ("trade-1", "AAPL", 150.0, 10, created_at_naive),
+        ("trade-1", "AAPL", 150.0, 10, created_at_naive, "alpaca-order-1"),
     ]
     mock_cur.fetchone.return_value = (session_tz_name,)  # SHOW timezone
 
@@ -92,6 +92,6 @@ class TestStaleOrderAgeUsesRealSessionTimezone:
         ):
             result = monitor.check_stale_orders()
 
-        mock_cancel.assert_called_once_with("trade-1")
+        mock_cancel.assert_called_once_with("trade-1", "alpaca-order-1")
         assert result["status"] == "AUTO_CANCELLED"
         assert result["count"] == 1

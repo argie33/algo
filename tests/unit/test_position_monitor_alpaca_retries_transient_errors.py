@@ -46,7 +46,7 @@ class TestCancelOnAlpacaRetriesTransientErrors:
             ),
             patch("algo.monitoring.position_monitor.time.sleep") as mock_sleep,
         ):
-            monitor._cancel_on_alpaca("trade-1")  # must not raise
+            monitor._cancel_on_alpaca("trade-1", "alpaca-order-1")  # must not raise
 
         mock_sleep.assert_called_once()
 
@@ -67,12 +67,53 @@ class TestCancelOnAlpacaRetriesTransientErrors:
             patch("algo.monitoring.position_monitor.time.sleep"),
         ):
             try:
-                monitor._cancel_on_alpaca("trade-1")
+                monitor._cancel_on_alpaca("trade-1", "alpaca-order-1")
                 raise AssertionError("expected RuntimeError")
             except RuntimeError as e:
                 assert "503" in str(e)
 
         assert mock_delete.call_count == 3
+
+
+class TestCancelOnAlpacaUsesRealBrokerOrderId:
+    """Regression for the 2026-09-06 pre-real-money audit finding: the cancel URL was built
+    from our internal trade_id (format TRD-<uuid>), which is never a valid Alpaca order id.
+    Alpaca 404s on every such call, and a 404 was treated as "already closed" - silently
+    marking the DB row cancelled while the real GTC order stayed live at the broker.
+    """
+
+    def test_cancel_url_uses_alpaca_order_id_not_trade_id(self):
+        monitor = _monitor()
+        cancelled = MagicMock(status_code=204)
+
+        with (
+            patch(
+                "algo.monitoring.position_monitor.get_alpaca_credentials",
+                return_value={"key": "k", "secret": "s"},
+            ),
+            patch(
+                "algo.monitoring.position_monitor.get_alpaca_base_url",
+                return_value="https://paper-api.alpaca.markets",
+            ),
+            patch(
+                "algo.monitoring.position_monitor.requests.delete",
+                return_value=cancelled,
+            ) as mock_delete,
+            patch("algo.monitoring.position_monitor.time.sleep"),
+        ):
+            monitor._cancel_on_alpaca("TRD-internal-uuid", "alpaca-broker-order-id")
+
+        called_url = mock_delete.call_args[0][0]
+        assert "alpaca-broker-order-id" in called_url
+        assert "TRD-internal-uuid" not in called_url
+
+    def test_missing_alpaca_order_id_skips_broker_call(self):
+        monitor = _monitor()
+
+        with patch("algo.monitoring.position_monitor.requests.delete") as mock_delete:
+            monitor._cancel_on_alpaca("TRD-internal-uuid", None)  # must not raise
+
+        mock_delete.assert_not_called()
 
 
 class TestFetchAlpacaQtyRetriesTransientErrors:
