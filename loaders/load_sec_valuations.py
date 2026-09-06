@@ -982,6 +982,29 @@ class SecValuationsLoader(
                 # per-filer XBRL scale-tagging error on reported_shares_outstanding itself,
                 # unrelated to the dual-class issue this fix targets) - a real combined entity
                 # total can never be smaller than any single class's own share count.
+                # ADDED 2026-09-06 (goal: "implausible values" audit, live regression of the
+                # fix above): reported_shares_outstanding comes from THIS symbol's OWN
+                # annual_income_statement.shares_outstanding_basic, which is None for any
+                # dual-class filer that tags fully separate per-class EPS/share figures
+                # rather than one blended entity-wide count - unlike BRK.A/BRK.B (one
+                # blended A-equivalent share count, satisfies the check below directly),
+                # Molson Coors (TAP/TAP.A) tags distinct "Basic EPS - Class A"/"...Class B"
+                # facts with no combined figure ever reported, so reported_shares_outstanding
+                # is unconditionally None for TAP.A and the override below never fires.
+                # Live-confirmed: TAP.A's fcf_yield was 840.20% and intrinsic_value_per_share
+                # $15,181.55 (vs a real $47.96 price) from dividing TAP/TAP.A's shared
+                # entity-wide FCF by TAP.A's own 2,563,034-share class-specific market cap.
+                # Extracted to _resolve_separate_class_entity_shares (below) to keep this
+                # method's cyclomatic complexity under the ruff C901 cap.
+                reported_shares_outstanding = self._resolve_separate_class_entity_shares(
+                    cur,
+                    symbol,
+                    has_dual_class_sibling,
+                    reported_shares_outstanding,
+                    shares_out,
+                    ttm_fiscal_year,
+                )
+
                 entity_shares_out_for_fcf = shares_out
                 if (
                     has_dual_class_sibling
@@ -1285,6 +1308,103 @@ class SecValuationsLoader(
             # Try to classify and handle, or fail-fast if truly unexpected
             marker = handle_exception(symbol, e, "computing valuations")
             return [marker]
+
+    def _resolve_separate_class_entity_shares(
+        self,
+        cur: Any,
+        symbol: str,
+        has_dual_class_sibling: bool,
+        reported_shares_outstanding: float | None,
+        shares_out: float,
+        ttm_fiscal_year: int,
+    ) -> float | None:
+        """Fallback source for reported_shares_outstanding when the primary path (this
+        symbol's own annual_income_statement.shares_outstanding_basic) comes up empty.
+
+        ADDED 2026-09-06 (goal: "implausible values" audit): the 2026-08-25 dual-class
+        entity-wide-FCF fix (see fetch_incremental's call site) pairs entity-wide FCF with
+        an entity-wide share count via reported_shares_outstanding - this works for filers
+        like BRK.A/BRK.B that tag one blended A-equivalent share count, but is
+        unconditionally NULL for filers that tag fully separate per-class EPS/share figures
+        with no combined figure ever reported (Molson Coors TAP/TAP.A: distinct "Basic EPS -
+        Class A"/"...Class B" XBRL facts). For those, the override's own precondition was
+        never met, so it silently never fired.
+
+        Live-confirmed real, financially material impact before this fix: TAP.A fcf_yield
+        840.20%, intrinsic_value_per_share $15,181.55 vs a real $47.96 price; GTN.A 260.79%/
+        $829.25 vs $5.97; HVT.A 73.03% vs HVT's 6.02%; BH.A 18.81% vs BH's ~5-10% range.
+
+        Falls back to this symbol's own resolved shares_out PLUS its sibling's own
+        class-specific shares_outstanding_basic for the nearest fiscal year at or before the
+        anchor year (not an exact-year match: live-confirmed GTN.A's own anchor fiscal_year,
+        2026, is a placeholder row with revenue/shares_outstanding_basic both NULL - GTN's
+        own most recent REAL row is FY2025, one year back, same "latest year can be an empty
+        placeholder" shape _fetch_income_statement_context's own ORDER BY already works
+        around for this symbol's own income_rows). Summing is only safe here (not
+        double-counting) because this fallback exclusively targets the
+        separate-class-reporting case - BRK-style blended reporting already succeeds via the
+        untouched primary path, so this fallback never runs for it.
+
+        Live-verified via SecValuationsLoader.fetch_incremental called directly (not mocked):
+        TAP.A fcf_yield 840.20% -> 10.68%, intrinsic $15,181.55 -> $192.95 (TAP itself:
+        12.81%, broadly consistent); GTN.A 260.79% -> 24.84% (GTN: 16.86%); HVT.A 73.03% ->
+        3.2% (HVT: 2.18%); BH.A 18.81% -> 1.74% (BH: 4.81%). Regression check: BRK.A/BRK.B
+        unchanged at 2.29% both, AAPL/OZK (no dual-class sibling) unaffected.
+        """
+        if (
+            reported_shares_outstanding
+            and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
+            < reported_shares_outstanding
+            < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
+            and float(reported_shares_outstanding) >= shares_out
+        ) or not has_dual_class_sibling:
+            return reported_shares_outstanding
+
+        sibling_base_root = symbol.split(".")[0]
+        sibling_no_sep_root = next(
+            (r for r in DUAL_CLASS_NO_SEPARATOR_ROOTS if symbol.startswith(r) and len(symbol) == len(r) + 1),
+            None,
+        )
+        cur.execute(
+            """
+            SELECT ais.shares_outstanding_basic
+            FROM annual_income_statement ais
+            JOIN stock_symbols s ON s.symbol = ais.symbol AND s.active = TRUE
+            WHERE ais.symbol != %s
+              AND (
+                ais.symbol = %s OR ais.symbol LIKE %s
+                OR (%s::text IS NOT NULL AND ais.symbol LIKE %s AND length(ais.symbol) = %s)
+              )
+              AND ais.fiscal_year <= %s
+              AND ais.shares_outstanding_basic IS NOT NULL
+            ORDER BY ais.fiscal_year DESC
+            LIMIT 1
+            """,
+            (
+                symbol,
+                sibling_base_root,
+                f"{sibling_base_root}.%",
+                sibling_no_sep_root,
+                f"{sibling_no_sep_root}%" if sibling_no_sep_root else "__no_such_root__",
+                len(symbol),
+                ttm_fiscal_year,
+            ),
+        )
+        sibling_row = cur.fetchone()
+        if not (sibling_row and sibling_row[0]):
+            return reported_shares_outstanding
+
+        combined_shares = float(sibling_row[0]) + shares_out
+        if not (self.MIN_PLAUSIBLE_SHARES_OUTSTANDING < combined_shares < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING):
+            return reported_shares_outstanding
+
+        logger.debug(
+            f"[{symbol}] No blended reported_shares_outstanding available - combining own "
+            f"shares_out ({shares_out:,.0f}) with sibling's class-specific "
+            f"shares_outstanding_basic ({float(sibling_row[0]):,.0f}) for FY{ttm_fiscal_year} "
+            f"= {combined_shares:,.0f} entity-wide total."
+        )
+        return combined_shares
 
     def _recategorize_ric_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
         """Overrides a generic dcf_fcf_unavailable_reason with a specific one for a registered
