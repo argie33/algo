@@ -2650,6 +2650,16 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if no_recent_interest_expense
                     else "reit_special_entity"
                     if no_operating_income_concept_ic
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same
+                    # sibling gate operating_profitability/operating_margin already have for
+                    # operating_income_for_margin - interest_coverage_operating_income is the
+                    # same EBIT-fallback-aware value, just computed separately for this field
+                    # (see its own comment above), and was never given the matching anchor-year
+                    # check. Label-only: the anchor year's income statement can lack operating
+                    # income (and its EBIT fallback) even when the symbol reports it elsewhere.
+                    else "operating_income_absent_from_anchor_year"
+                    if interest_coverage_operating_income is None
+                    and symbol in self._get_operating_income_available_elsewhere_symbols()
                     else "operating_income_not_itemized"
                     if symbol in self._get_no_recent_operating_income_symbols()
                     or symbol in self._get_never_tagged_operating_income_symbols()
@@ -2718,6 +2728,14 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # Label-only, no value recomputed.
                     else "revenue_absent_from_anchor_year"
                     if revenue is None and symbol in self._get_revenue_available_elsewhere_symbols()
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same
+                    # sibling gate operating_profitability/operating_margin already have for
+                    # operating_income_for_margin - ebitda_margin shares that exact variable
+                    # (EBITDA = OperatingIncome + D&A) but was never given the matching
+                    # anchor-year check. Label-only, no value recomputed.
+                    else "operating_income_absent_from_anchor_year"
+                    if operating_income_for_margin is None
+                    and symbol in self._get_operating_income_available_elsewhere_symbols()
                     # ebitda_margin also depends on operating_income via EBITDA = OperatingIncome
                     # + D&A - same operating_income_not_itemized case as operating_margin/
                     # interest_coverage above.
@@ -3013,6 +3031,14 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # REIT/tonnage-tax-exempt population.
                     "reit_special_entity"
                     if no_operating_income_concept
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same
+                    # sibling gate operating_profitability/operating_margin/ebitda_margin
+                    # already have for operating_income_for_margin - ebitda shares that exact
+                    # variable (EBITDA = OperatingIncome + D&A) but was never given the
+                    # matching anchor-year check. Label-only, no value recomputed.
+                    else "operating_income_absent_from_anchor_year"
+                    if operating_income_for_margin is None
+                    and symbol in self._get_operating_income_available_elsewhere_symbols()
                     # ebitda = OperatingIncome + D&A, so a real filer that never itemizes a
                     # distinct operating income subtotal fails here too.
                     else "operating_income_not_itemized"
