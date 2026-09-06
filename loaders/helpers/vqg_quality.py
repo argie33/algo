@@ -2305,6 +2305,13 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # same priority as fcf_margin/fcf_yield's identical RIC check elsewhere.
                     else "registered_investment_company_no_xbrl"
                     if accruals_ratio is None and symbol in self._get_registered_investment_company_symbols()
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same
+                    # ETF-trust sibling-wiring gap ocf_to_net_income/fcf_to_net_income already
+                    # closed (an ETF/commodity/currency trust files no cash-flow statement at
+                    # all, same as a RIC) - accruals_ratio shares operating_cash_flow as an
+                    # input but was never given the matching ETF check.
+                    else "etf_trust_no_gaap_financials"
+                    if operating_cash_flow is None and symbol in self._get_etf_trust_no_stockholders_equity_symbols()
                     # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): OR in the
                     # full-history sibling gate - see _get_never_tagged_operating_cash_flow_symbols()'s
                     # docstring for why this was a real, unmirrored gap versus free_cash_flow's
@@ -2326,6 +2333,21 @@ class QualityMetricsMixin(SymbolGateMixin):
                         symbol in self._get_no_recent_total_assets_symbols()
                         or symbol in self._get_never_tagged_total_assets_symbols()
                     )
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): accruals_ratio
+                    # = (net_income - operating_cash_flow) / total_assets - the OCF numerator and
+                    # total_assets denominator were both already gated above, but the net_income
+                    # numerator never was, so a symbol with real net_income missing only for this
+                    # anchor year (or never tagged at all) fell straight to the generic fallback.
+                    # Same fcf_to_net_income/ocf_to_net_income sibling gate pair just above in this
+                    # file.
+                    else "net_income_not_reported"
+                    if net_income is None
+                    and (
+                        symbol in self._get_no_recent_net_income_symbols()
+                        or symbol in self._get_never_tagged_net_income_symbols()
+                    )
+                    else "net_income_absent_from_anchor_year"
+                    if net_income is None and symbol in self._get_net_income_available_elsewhere_symbols()
                     else "missing_sec_data"
                 )
                 if accruals_ratio is None
