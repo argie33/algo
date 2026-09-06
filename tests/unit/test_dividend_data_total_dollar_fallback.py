@@ -80,14 +80,15 @@ class TestTotalDollarFallback:
         assert results == []
 
     def test_non_major_currency_unit_rejected(self):
-        # CLP/COP-style emerging-market currencies (no Frankfurter coverage at all) stay
-        # behind the fail-closed guard, same discipline as the per-share extraction and
-        # sec_statements.py's FX handling. BRL moved onto MAJOR_CURRENCIES 2026-09-04 (see
-        # fx_rates.py's module docstring) - see test_brl_currency_unit_converted below for
-        # its new behavior.
+        # ARS-style emerging-market currencies (real currency volatility fails the volatility
+        # bar even with yfinance as a source - see fx_rates.py's 2026-09-06 docstring entry)
+        # stay behind the fail-closed guard, same discipline as the per-share extraction and
+        # sec_statements.py's FX handling. BRL moved onto MAJOR_CURRENCIES 2026-09-04, CLP/KZT
+        # moved on 2026-09-06 via yfinance (see fx_rates.py's module docstring) - see
+        # test_brl_currency_unit_converted below for BRL's converted behavior.
         ifrs = {
             "DividendsPaid": {
-                "units": {"CLP": [{"start": "2025-01-01", "end": "2025-12-31", "val": 5000000, "filed": "2026-03-01"}]}
+                "units": {"ARS": [{"start": "2025-01-01", "end": "2025-12-31", "val": 5000000, "filed": "2026-03-01"}]}
             }
         }
         results = _loader()._extract_total_dividends_from_xbrl_concept("X", ifrs, "DividendsPaid")

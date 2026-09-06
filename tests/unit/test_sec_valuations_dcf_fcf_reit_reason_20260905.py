@@ -10,6 +10,11 @@ instead.
 
 Live-confirmed 27 universe symbols (MFA/SKT/SELF and siblings, all SIC 6798) hitting this exact
 shape.
+
+entity_shares_out is a real value (not None) below - kept isolated from the separate
+missing_shares_outstanding gap fixed 2026-09-06 (see
+test_dcf_fcf_net_borrowing_distortion_reason_20260906.py's own sibling), which takes priority
+over this REIT/insurance check whenever shares are genuinely unavailable.
 """
 
 from unittest.mock import patch
@@ -59,7 +64,7 @@ class TestSecValuationsDcfFcfReitReason:
                 avg_fcf_fallback=None,
                 beta=None,
                 risk_free_rate=None,
-                entity_shares_out=None,
+                entity_shares_out=50_000_000.0,
                 stock_based_compensation=None,
                 dcf_eps_cagr_pct=None,
                 equity_risk_premium=None,
@@ -89,7 +94,7 @@ class TestSecValuationsDcfFcfReitReason:
                 avg_fcf_fallback=None,
                 beta=None,
                 risk_free_rate=None,
-                entity_shares_out=None,
+                entity_shares_out=50_000_000.0,
                 stock_based_compensation=None,
                 dcf_eps_cagr_pct=None,
                 equity_risk_premium=None,
@@ -119,7 +124,7 @@ class TestSecValuationsDcfFcfReitReason:
                 avg_fcf_fallback=None,
                 beta=None,
                 risk_free_rate=None,
-                entity_shares_out=None,
+                entity_shares_out=50_000_000.0,
                 stock_based_compensation=None,
                 dcf_eps_cagr_pct=None,
                 equity_risk_premium=None,

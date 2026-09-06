@@ -76,21 +76,22 @@ class TestEpsCurrencyConversion:
         assert by_year[2025]["earnings_per_share_basic"] == 4.52 / 1.386
 
     def test_non_major_currency_eps_rejected_not_passed_through_raw(self) -> None:
-        # CLP: still outright rejected (Frankfurter doesn't cover it at all). KRW moved
-        # onto MAJOR_CURRENCIES 2026-08-18 - see test_krw_eps_converted_to_usd below and
-        # fx_rates.py's docstring for the live-verification behind that move.
+        # ARS: still outright rejected (real currency volatility fails the volatility bar even
+        # via yfinance - see fx_rates.py's 2026-09-06 docstring entry). CLP itself moved onto
+        # MAJOR_CURRENCIES that same day; KRW moved on 2026-08-18 - see test_krw_eps_converted_to_usd
+        # below and fx_rates.py's docstring for the live-verification behind both moves.
         facts = {
             "us-gaap": {
-                "EarningsPerShareBasic": {"units": {"CLP/shares": [_entry(2025, 15000.0, "2026-02-15")]}},
+                "EarningsPerShareBasic": {"units": {"ARS/shares": [_entry(2025, 15000.0, "2026-02-15")]}},
             },
             "ifrs-full": {},
         }
         client = _FakeClient(facts)
 
-        rows = get_income_statement(client, "BCH", period="annual")
+        rows = get_income_statement(client, "BAFI", period="annual")
         by_year = {r["fiscal_year"]: r for r in rows}
 
-        # Pre-fix: this silently stored the raw CLP magnitude as if USD.
+        # Pre-fix: this silently stored the raw ARS magnitude as if USD.
         assert 2025 not in by_year or "earnings_per_share_basic" not in by_year[2025]
 
     def test_krw_eps_converted_to_usd(self, monkeypatch) -> None:

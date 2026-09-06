@@ -21,9 +21,11 @@ shape and are unaffected.
 UPDATED 2026-08-18: KRW moved onto fx_rates.py's MAJOR_CURRENCIES (real historical-rate
 conversion, not outright rejection) as a follow-up to the currency-poisoning cleanup - see
 that module's docstring for the live-verification behind it. The illustrative currency below
-is now CLP (still outright rejected: Frankfurter doesn't cover it at all, unlike KRW) so this
-test keeps covering the "unconverted foreign-currency unit" path; KRW's new converted behavior
-is covered by test_sec_statements_major_currency_conversion.py and
+was CLP until 2026-09-06, when CLP itself moved onto MAJOR_CURRENCIES via yfinance (see
+fx_rates.py's module docstring) - swapped to ARS (real currency volatility fails the
+volatility bar on its own merits, stays outright rejected even with yfinance as a source) so
+this test keeps covering the "unconverted foreign-currency unit" path; KRW's/CLP's converted
+behavior is covered by test_sec_statements_major_currency_conversion.py and
 test_sec_statements_eps_currency_conversion.py instead.
 """
 
@@ -48,19 +50,19 @@ def _entry(year: int, val: float, filed: str, form: str = "20-F") -> dict[str, A
 
 
 class TestNonUsdCurrencyUnitRejected:
-    def test_clp_only_assets_produces_no_fabricated_row(self) -> None:
+    def test_ars_only_assets_produces_no_fabricated_row(self) -> None:
         facts = {
             "us-gaap": {
-                "Assets": {"units": {"CLP": [_entry(2024, 739_764_256_000_000.0, "2025-03-01")]}},
+                "Assets": {"units": {"ARS": [_entry(2024, 739_764_256_000_000.0, "2025-03-01")]}},
             },
             "ifrs-full": {},
         }
         client = _FakeClient(facts)
 
-        rows = get_balance_sheet(client, "BCH", period="annual")
+        rows = get_balance_sheet(client, "BAFI", period="annual")
         by_year = {r["fiscal_year"]: r for r in rows}
 
-        # The bug: this used to be the raw CLP magnitude (739.76 trillion) masquerading as USD.
+        # The bug: this used to be the raw ARS magnitude (739.76 trillion) masquerading as USD.
         assert 2024 not in by_year or "assets" not in by_year[2024]
 
     def test_usd_fact_still_accepted_alongside_a_rejected_foreign_currency_fact(self) -> None:
@@ -69,7 +71,7 @@ class TestNonUsdCurrencyUnitRejected:
                 "Assets": {
                     "units": {
                         "USD": [_entry(2010, 219_060_641_000.0, "2011-03-01", form="20-F")],
-                        "CLP": [_entry(2024, 739_764_256_000_000.0, "2025-03-01")],
+                        "ARS": [_entry(2024, 739_764_256_000_000.0, "2025-03-01")],
                     }
                 },
             },
@@ -77,7 +79,7 @@ class TestNonUsdCurrencyUnitRejected:
         }
         client = _FakeClient(facts)
 
-        rows = get_balance_sheet(client, "BCH", period="annual")
+        rows = get_balance_sheet(client, "BAFI", period="annual")
         by_year = {r["fiscal_year"]: r for r in rows}
 
         assert by_year[2010]["assets"] == 219_060_641_000.0
