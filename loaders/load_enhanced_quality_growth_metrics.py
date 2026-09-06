@@ -546,6 +546,14 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             # Exclude data_unavailable placeholder rows for the current, not-yet-filed fiscal
             # year, or income_rows[0] below is treated as "current year" when it's really an
             # all-NULL placeholder, silently no-op'ing every metric for that symbol.
+            #
+            # FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep): the anchor table
+            # `i` was correctly filtered, but the LEFT JOINs to `b`/`c` were not - a real income-
+            # statement year could join to a `data_unavailable = TRUE` balance-sheet/cash-flow
+            # row for the same fiscal year, and that row's leftover stray non-NULL values fed
+            # straight into asset_growth_yoy/fcf_growth_yoy/ocf_growth_yoy. Live-confirmed 317
+            # affected (symbol, fiscal_year) rows, e.g. AKO.A/AKO.B 2024-2025 operating_cash_flow
+            # of $357B-$461B (an obvious currency-scale artifact) came from disclaimed rows.
             cur.execute(
                 """
                 SELECT i.fiscal_year, i.revenue, i.operating_income, i.net_income,
@@ -553,7 +561,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                        c.operating_cash_flow, c.financing_cash_flow
                 FROM annual_income_statement i
                 LEFT JOIN annual_balance_sheet b ON b.symbol = i.symbol AND b.fiscal_year = i.fiscal_year
+                    AND b.data_unavailable IS NOT TRUE
                 LEFT JOIN annual_cash_flow c ON c.symbol = i.symbol AND c.fiscal_year = i.fiscal_year
+                    AND c.data_unavailable IS NOT TRUE
                 WHERE i.symbol = %s AND i.data_unavailable IS NOT TRUE
                 ORDER BY i.fiscal_year DESC
                 LIMIT 5

@@ -1903,6 +1903,12 @@ class QualityMetricsMixin(SymbolGateMixin):
                 # _find_plausible_cross_year_ratio, fixed 2026-09-05 - this metric has its own
                 # inline cross-table (cash_flow+income_statement) query instead of reusing that
                 # helper because it needs a join those single-table lookups don't).
+                #
+                # FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" sweep): neither side of
+                # this JOIN filtered `data_unavailable`, so a disclaimed row's leftover stray
+                # non-NULL free_cash_flow/revenue value could feed fcf_margin directly. Live-
+                # confirmed 147 affected rows, e.g. BRK.A/BRK.B 2026 (free_cash_flow=$5.452B,
+                # revenue=$63.137B, both flagged data_unavailable=TRUE) and CEG 2026.
                 with _owner().DatabaseContext("read") as cur:
                     cur.execute(
                         """
@@ -1911,6 +1917,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                         JOIN annual_income_statement ais
                           ON ais.symbol = acf.symbol AND ais.fiscal_year = acf.fiscal_year
                         WHERE acf.symbol = %s AND acf.free_cash_flow IS NOT NULL AND ais.revenue IS NOT NULL
+                          AND acf.data_unavailable IS NOT TRUE AND ais.data_unavailable IS NOT TRUE
                           AND acf.fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
                         ORDER BY acf.fiscal_year DESC
                         """,
@@ -1925,6 +1932,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                             JOIN annual_income_statement ais
                               ON ais.symbol = acf.symbol AND ais.fiscal_year = acf.fiscal_year
                             WHERE acf.symbol = %s AND acf.free_cash_flow IS NOT NULL AND ais.revenue IS NOT NULL
+                              AND acf.data_unavailable IS NOT TRUE AND ais.data_unavailable IS NOT TRUE
                             ORDER BY acf.fiscal_year DESC
                             """,
                             (symbol,),
