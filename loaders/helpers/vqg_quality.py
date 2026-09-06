@@ -3094,6 +3094,49 @@ class QualityMetricsMixin(SymbolGateMixin):
                 ):
                     metrics["total_debt_unavailable_reason"] = "etf_trust_no_gaap_financials"
 
+                # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                # follow-up): the narrow loop above only catches "stockholders_equity_not_
+                # reported" for its 6 fields - but a physical/commodity/currency trust (GLD/
+                # GLDM/GBTC/ETHE/BITB/the FX*-class currency trusts/the commodity-pool ETFs)
+                # files ONLY total_assets/total_liabilities (see this gate's own docstring), so
+                # every field below this comment structurally has no revenue/net_income/
+                # operating_income/debt/cash/interest-expense concept to tag either, the exact
+                # same "Statement of Assets and Liabilities" shape the RIC/royalty-trust blocks
+                # already handle with their own broader reason set - just never extended to this
+                # population. Reusing the identical reason set (not a new name) since the
+                # underlying SEC filing gap is the same across all three trust/fund shapes.
+                _etf_trust_broad_recategorize_fields = (
+                    "payout_ratio",
+                    "gross_profitability",
+                    "asset_turnover",
+                    "roa",
+                    "operating_margin",
+                    "net_margin",
+                    "current_ratio",
+                    "quick_ratio",
+                    "interest_coverage",
+                    "debt_to_assets",
+                    "gross_margin",
+                    "ebitda_margin",
+                    "accruals_ratio",
+                    "total_cash",
+                    "cash_per_share",
+                    "ebitda",
+                )
+                _etf_trust_broad_source_reasons = {
+                    "missing_sec_data",
+                    "total_debt_not_itemized",
+                    "no_recent_cash_reported",
+                    "interest_expense_not_itemized",
+                    "stockholders_equity_not_reported",
+                    "operating_income_not_itemized",
+                    "total_liabilities_not_reported",
+                }
+                for _field in _etf_trust_broad_recategorize_fields:
+                    _reason_key = f"{_field}_unavailable_reason"
+                    if metrics.get(_field) is None and metrics.get(_reason_key) in _etf_trust_broad_source_reasons:
+                        metrics[_reason_key] = "etf_trust_no_gaap_financials"
+
             # Same recategorization pattern as the ETF-trust block above, for registered
             # investment companies (closed-end funds/investment trusts - same root fact
             # already established for fcf_margin/fcf_yield/accruals_ratio/ocf_to_net_income
