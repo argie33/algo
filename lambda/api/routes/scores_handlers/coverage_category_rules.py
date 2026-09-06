@@ -129,13 +129,14 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # capex gap, not a computation error) - same unmapped-fallthrough bug as
             # no_recent_balance_sheet_data_reported above.
             "no_recent_free_cash_flow_reported",
-            # ADDED 2026-09-02 (same sweep, ev_revenue/ps_ratio anchor-year trace): load_value_
-            # quality_growth_metrics.py's reason when a symbol's SEC-selected anchor fiscal
-            # year has no tagged revenue even though a real, nonzero revenue exists in an
-            # earlier year (deliberately NOT computed from that stale figure - see
-            # _get_revenue_absent_from_anchor_year_symbols()'s docstring) - same "the SEC data
-            # we have can't be used for this specific period" class as the other reasons here.
-            "revenue_absent_from_anchor_year",
+            # REMOVED 2026-09-06 (tie-out-checker follow-up; found while chasing an unrelated
+            # test failure this same duplicate caused): "revenue_absent_from_anchor_year" used
+            # to have its own entry here, but the 2026-09-06 "MOVED" fix below re-added it to
+            # the "Legitimate / not applicable" bucket as one of six anchor-year-mismatch
+            # sibling reasons - leaving BOTH entries in place made this bucket win first-match
+            # (this list is checked in order), silently no-oping that move for this one key
+            # while its five siblings moved correctly. See the "Legitimate / not applicable"
+            # bucket's own 2026-09-06 comment for the full rationale.
             # ADDED 2026-09-02 (same sweep, static cross-check of every reason-string literal
             # in the SEC/XBRL loader files against this map - not just live DB counts, which
             # can't see a reason string that hasn't fired yet in the current data): 7 more

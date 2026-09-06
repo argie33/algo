@@ -12,6 +12,7 @@ current+deferred split, validated pretax-income promotion, and derived operating
 from typing import Any
 
 from utils.external.sec_income_statement_fallbacks import (
+    _detect_misextracted_cogs_from_gross_profit_mismatch,
     _fill_earnings_per_share_from_continuing_discontinued_split,
     _fill_eps_shares_from_dual_class_dimensional_facts,
     _fill_income_tax_expense_from_current_deferred_split,
@@ -600,6 +601,17 @@ def get_income_statement(
         # after it so any filer with the more complete "Net" variant keeps that value
         # instead.
         "InterestPaid",
+        # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" - real extraction bug found):
+        # CHKP (Check Point, $1.97B debt FY2025) and ~350 symbols have interest_expense=NULL
+        # despite having real debt, because they report interest under non-standard concepts.
+        # Live-confirmed CHKP has operating_income=$831M + pretax_income=$945M but interest_expense
+        # is NULL across all 5 fiscal years - the ~$114M gap is a real extraction miss, not
+        # a data absence. Added these additional fallback concepts to catch alternative
+        # reporting patterns (software/tech companies, alternative accounting methods).
+        "OtherInterestExpense",
+        "InterestExpenseOther",
+        "OperatingFinanceCosts",
+        "DebtServiceExpense",
         # Session 398: For EBITDA calculation = OperatingIncomeLoss + Depreciation + Amortization
         # FIXED 2026-07-28: was "DepreciationExpense", which is not a real us-gaap XBRL
         # concept at all (live-confirmed absent from both AAPL's and MSFT's companyfacts) -

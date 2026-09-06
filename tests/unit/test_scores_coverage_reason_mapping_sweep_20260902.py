@@ -68,8 +68,13 @@ def test_zero_revenue_reported_this_period_categorizes_as_legitimate_not_applica
     assert scores_mod._categorize_reason("zero_revenue_reported_this_period") == "Legitimate / not applicable"
 
 
-def test_revenue_absent_from_anchor_year_categorizes_as_missing_sec_xbrl():
-    assert scores_mod._categorize_reason("revenue_absent_from_anchor_year") == "Missing SEC/XBRL data"
+def test_revenue_absent_from_anchor_year_categorizes_as_legitimate_not_applicable():
+    # UPDATED 2026-09-06 (tie-out-checker follow-up): coverage_category_rules.py's 2026-09-06
+    # "MOVED" fix moved this reason (and 5 anchor-year-mismatch siblings) from "Missing
+    # SEC/XBRL data" to "Legitimate / not applicable" - the data genuinely exists in SEC
+    # filings, we deliberately just don't use a stale anchor year's figure. A stale duplicate
+    # entry left this key's own move a no-op until that duplicate was removed the same day.
+    assert scores_mod._categorize_reason("revenue_absent_from_anchor_year") == "Legitimate / not applicable"
 
 
 # ADDED 2026-09-02 (same goal session, later same-day sweep): a second live cross-check
@@ -109,8 +114,10 @@ def test_capex_never_tagged_in_recent_filings_categorizes_as_missing_sec_xbrl():
 # live-confirmed OBX/FTW/XLAB and 342 active-universe symbols total.
 
 
-def test_net_income_absent_from_anchor_year_categorizes_as_missing_sec_xbrl():
-    assert scores_mod._categorize_reason("net_income_absent_from_anchor_year") == "Missing SEC/XBRL data"
+def test_net_income_absent_from_anchor_year_categorizes_as_legitimate_not_applicable():
+    # UPDATED 2026-09-06 (tie-out-checker follow-up): see the revenue_absent_from_anchor_year
+    # test above for the full "MOVED 2026-09-06" rationale - same sibling reason, same move.
+    assert scores_mod._categorize_reason("net_income_absent_from_anchor_year") == "Legitimate / not applicable"
 
 
 # ADDED 2026-09-02 (same goal session, continuation of the anchor-year sweep): operating_
@@ -118,12 +125,16 @@ def test_net_income_absent_from_anchor_year_categorizes_as_missing_sec_xbrl():
 # fcf_to_net_income/ocf_to_net_income/operating_cash_flow/free_cash_flow_unavailable_reason.
 
 
-def test_operating_cash_flow_absent_from_anchor_year_categorizes_as_missing_sec_xbrl():
-    assert scores_mod._categorize_reason("operating_cash_flow_absent_from_anchor_year") == "Missing SEC/XBRL data"
+def test_operating_cash_flow_absent_from_anchor_year_categorizes_as_legitimate_not_applicable():
+    # UPDATED 2026-09-06 (tie-out-checker follow-up): see the revenue_absent_from_anchor_year
+    # test above for the full "MOVED 2026-09-06" rationale - same sibling reason, same move.
+    assert scores_mod._categorize_reason("operating_cash_flow_absent_from_anchor_year") == "Legitimate / not applicable"
 
 
-def test_free_cash_flow_absent_from_anchor_year_categorizes_as_missing_sec_xbrl():
-    assert scores_mod._categorize_reason("free_cash_flow_absent_from_anchor_year") == "Missing SEC/XBRL data"
+def test_free_cash_flow_absent_from_anchor_year_categorizes_as_legitimate_not_applicable():
+    # UPDATED 2026-09-06 (tie-out-checker follow-up): see the revenue_absent_from_anchor_year
+    # test above for the full "MOVED 2026-09-06" rationale - same sibling reason, same move.
+    assert scores_mod._categorize_reason("free_cash_flow_absent_from_anchor_year") == "Legitimate / not applicable"
 
 
 # ADDED 2026-09-02 (same goal session, static sweep): cross-checked every reason-string
