@@ -317,7 +317,18 @@ class ValueMetricsMixin(SymbolGateMixin):
             and ebitda_raw > 0
             and _computed_ev_for_reason is not None
             and _computed_ev_for_reason > 0
-            and not (0 < (_computed_ev_for_reason / ebitda_raw) <= 10000)
+            and (
+                not (0 < (_computed_ev_for_reason / ebitda_raw) <= 10000)
+                # FIXED 2026-09-05 (goal: "implausible values" sweep, same-day follow-up):
+                # mirrors load_sec_valuations.py's own ev_ebitda EBITDA-per-share floor - a
+                # real, positive EBITDA that's immaterial in absolute dollar terms (EBITDA/
+                # share below $0.10, the same convention already established for EPS/BVPS/
+                # RPS) implies an economically meaningless multiple even when the bare ratio
+                # is technically under 10000. Live-confirmed HYNE: real $8,921 EBITDA
+                # ($0.0012/share) against a real $76.3M enterprise value - ev_ebitda=8555.07,
+                # in-bounds by the ceiling alone, correctly rejected by the floor.
+                or (row_dict.get("shares_outstanding") and (ebitda_raw / row_dict["shares_outstanding"]) < 0.10)
+            )
         ):
             ev_ebitda_reason = "implausible_ratio"
         else:

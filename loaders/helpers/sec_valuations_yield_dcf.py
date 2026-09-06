@@ -222,9 +222,22 @@ class SecValuationYieldDcfMixin:
                 logger.debug(f"[{symbol}] Enterprise value non-positive or implausible ({ev:.0f}), marking as NULL")
 
         # EV / EBITDA Ratio
+        #
+        # FIXED 2026-09-05 (goal session: "implausible values" sweep, same bug class as
+        # ev_revenue/pe_ratio/pb_ratio/ps_ratio just below/above): the bare 0..10000 ceiling
+        # doesn't catch a real, positive EBITDA that's simply immaterial in absolute dollar
+        # terms - unlike revenue/book-value/EPS, EBITDA has no natural "per-something"
+        # denominator of its own, but a real company's EBITDA-per-share below the same $0.10
+        # floor already established for EPS/BVPS/RPS is exactly as economically meaningless a
+        # multiple. Live-confirmed HYNE: real $8,921 EBITDA (EBITDA/share=$0.0012) against a
+        # real $76.3M enterprise value - ev_ebitda=8555.07, technically under 10000, accepted
+        # as valid. Same shape confirmed for MAGH/QRHC/MCTA/WYFI/MAMK/EVN/GORO/OIO (all real
+        # EBITDA-per-share well under $0.01). Reuses the established $0.10 convention rather
+        # than inventing a new threshold.
         if result["enterprise_value"] and ebitda and ebitda > 0:
             ev_ebitda = result["enterprise_value"] / ebitda
-            if 0 < ev_ebitda <= 10000:  # Reasonable bounds
+            _ev_ebitda_per_share_ok = entity_shares_out is None or (ebitda / entity_shares_out) >= 0.10
+            if 0 < ev_ebitda <= 10000 and _ev_ebitda_per_share_ok:
                 result["ev_ebitda"] = round(ev_ebitda, 2)
             else:
                 logger.debug(f"[{symbol}] EV/EBITDA out of bounds ({ev_ebitda:.0f}), marking as NULL")
