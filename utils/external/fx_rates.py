@@ -184,6 +184,23 @@ financials at these rates would produce USD figures whose year-over-year swings 
 entirely currency noise, not real business performance - clearly fails the same volatility bar
 that excluded BRL/MXN/SEK, more decisively than any of them. Confirmed correct to exclude, not
 an oversight - do not re-add without a materially different Turkish-lira stabilization regime.
+
+FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): ILS (Israeli New Shekel)
+added. Found via SVRE (SaverOne 2014 Ltd., CIK 0001894693) - live-confirmed real
+companyfacts JSON shows `ifrs-full:Assets`/`ifrs-full:Equity` tagged every fiscal year
+2024-2025, exclusively under unit="ILS", no USD-tagged alternative - the blanket guard was
+silently zeroing SVRE's entire quality_metrics/growth_metrics balance-sheet row
+(`no_recent_balance_sheet_data_reported`) despite complete, extractable 20-F filings on
+file. Frankfurter serves ILS (live-confirmed: `GET /2024-12-31?from=USD&to=ILS` returns a
+real rate); year-end USD/ILS year-over-year moves 2018-2024: -7.9%, -7.0%, -3.4%, +13.4%,
++2.8%, +0.75% - the +13.4% high-water mark (2021->2022, the same broad EM-currency-stress
+year that produced INR's 11.1% and ZAR's 8.6% peaks) is comparable to INR's already-accepted
+ceiling and far inside BRL/MXN's rejected 20%+ band. Israel is a developed, OECD-member
+economy (joined 2010) with a freely-floating, fully convertible currency and no capital
+controls - not meaningfully more volatile than KRW, already on this list. Converting SVRE's
+real FY2024 total_assets (ILS 23.818M) at that fiscal year-end's real rate (0.27422)
+produces ~$6.53M, a plausible total-assets figure for a real micro-cap Israeli medical-
+device/tech company - no magnitude red flag.
 """
 
 import json
@@ -202,7 +219,7 @@ FRANKFURTER_URL = "https://api.frankfurter.app"
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
 # same live-verification discipline as the currencies already on this list.
 MAJOR_CURRENCIES = frozenset(
-    {"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR", "PHP", "DKK", "HKD", "BRL"}
+    {"CAD", "GBP", "EUR", "AUD", "CHF", "JPY", "KRW", "CNY", "ZAR", "INR", "PHP", "DKK", "HKD", "BRL", "ILS"}
 )
 
 

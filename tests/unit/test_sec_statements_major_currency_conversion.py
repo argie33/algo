@@ -149,6 +149,19 @@ class TestFxRateCache:
         assert rate == 6.1847
         assert session.calls == 1
 
+    def test_ils_is_a_major_currency_and_converts_via_historical_rate(self):
+        # FIX 2026-09-06: ILS added - see fx_rates.py's module docstring for the full
+        # live-verification (SVRE/SaverOne 2014's real ifrs-full Assets/Equity facts,
+        # tagged exclusively in ILS, unlocking a real quality_metrics/growth_metrics
+        # balance-sheet row for the first time). Frankfurter covers ILS and its
+        # year-over-year moves (-7.9% to +13.4%, 2018-2024 live-checked) are comparable
+        # to INR's/ZAR's already-accepted band, well inside BRL/MXN's rejected 20%+ band.
+        session = _FakeSession(rate=3.6466)
+        cache = _isolated_cache(session)
+        rate = cache.get_usd_rate("ILS", "2024-12-31")
+        assert rate == 3.6466
+        assert session.calls == 1
+
     def test_ars_stays_excluded_no_frankfurter_coverage(self):
         # ARS was evaluated alongside BRL in the same 2026-09-04 session and stays
         # excluded: unlike BRL, this is a structural source-availability gap, not a
