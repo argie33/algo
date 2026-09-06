@@ -2122,13 +2122,19 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
 
         # PB Ratio = Price ÷ Book Value Per Share (bound to MIN_PLAUSIBLE_PB_RATIO..1000 -
         # see that constant's docstring for the VCIG-driven lower-bound addition)
+        # ADDED same day (goal session: "implausible values" sweep, follow-up to the pe_ratio
+        # immaterial-EPS fix - see test_sec_valuations_pe_pb_ratio_implausible_anchor_cross_
+        # year_fallback_20260905.py's ICUI case for the full mechanism): a live DB scan found
+        # 67 universe symbols with a real but near-zero book-value-per-share (< $0.10) driving
+        # a pb_ratio technically under the 1000 ceiling but practically meaningless, same class
+        # as pe_ratio's 143-symbol population.
         if book_value and book_value > 0:
             bvps = book_value / shares_out
             if bvps > 0:
                 pb = current_price / bvps
-                if pb <= 1000 and pb >= self.MIN_PLAUSIBLE_PB_RATIO:  # Reasonable PB bounds
+                if pb <= 1000 and pb >= self.MIN_PLAUSIBLE_PB_RATIO and bvps >= 0.10:
                     result["pb_ratio"] = round(pb, 2)
-                elif pb > 1000:
+                elif pb > 1000 or bvps < 0.10:
                     # FIXED 2026-09-05 (goal session: "implausible values" sweep) - same
                     # missing-cross-year-fallback gap as pe_ratio/ps_ratio just above and
                     # fcf_margin (loaders/helpers/vqg_quality.py): the anchor year's book_value
@@ -2151,7 +2157,9 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
                         older_equity_rows = cur.fetchall()
                     for (older_equity,) in older_equity_rows:
                         older_bvps = float(older_equity) / shares_out
-                        if older_bvps <= 0:
+                        # Same anchor-year-included-in-query guard as pe_ratio's fallback -
+                        # a near-zero anchor bvps must not just re-select itself.
+                        if older_bvps < 0.10:
                             continue
                         candidate_pb = current_price / older_bvps
                         if self.MIN_PLAUSIBLE_PB_RATIO <= candidate_pb <= 1000:
@@ -2171,13 +2179,18 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
 
         # PS Ratio = Price ÷ Revenue Per Share (bound to MIN_PLAUSIBLE_PS_RATIO..10000 -
         # see MIN_PLAUSIBLE_PB_RATIO's docstring for the VCIG-driven lower-bound addition)
+        #
+        # ADDED same day (goal session: "implausible values" sweep, follow-up to the pe_ratio
+        # immaterial-EPS fix): a live DB scan found 301 universe symbols with a real but
+        # near-zero revenue-per-share (< $0.10) driving a ps_ratio technically under the 10000
+        # ceiling but practically meaningless, same class as pe_ratio's 143-symbol population.
         if ttm_revenue and ttm_revenue > 0:
             rps = ttm_revenue / shares_out
             if rps > 0:
                 ps = current_price / rps
-                if ps <= 10000 and ps >= self.MIN_PLAUSIBLE_PS_RATIO:  # Reasonable PS bounds
+                if ps <= 10000 and ps >= self.MIN_PLAUSIBLE_PS_RATIO and rps >= 0.10:
                     result["ps_ratio"] = round(ps, 2)
-                elif ps > 10000:
+                elif ps > 10000 or rps < 0.10:
                     # FIXED 2026-09-05 (goal session: "implausible values" sweep, same gap class
                     # as fcf_margin's cross-year fallback - see
                     # test_fcf_margin_implausible_anchor_cross_year_fallback_20260905.py): the
@@ -2206,7 +2219,9 @@ class SecValuationsLoader(OptimalLoader, DcfValuationMixin, ValuationSanityCheck
                         older_revenue_rows = cur.fetchall()
                     for (older_revenue,) in older_revenue_rows:
                         older_rps = float(older_revenue) / shares_out
-                        if older_rps <= 0:
+                        # Same anchor-year-included-in-query guard as pe_ratio's fallback -
+                        # a near-zero anchor rps must not just re-select itself.
+                        if older_rps < 0.10:
                             continue
                         candidate_ps = current_price / older_rps
                         if self.MIN_PLAUSIBLE_PS_RATIO <= candidate_ps <= 10000:

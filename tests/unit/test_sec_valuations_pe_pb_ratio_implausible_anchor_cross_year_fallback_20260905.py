@@ -187,3 +187,52 @@ class TestPbRatioImplausibleAnchorCrossYearFallback:
         )
 
         assert result["pb_ratio"] is None
+
+    def test_immaterial_bvps_under_1000_ceiling_still_falls_back(self, monkeypatch):
+        # Same day, same sweep, follow-up (see pe_ratio's ICUI case): the 1000 ceiling alone
+        # doesn't catch every near-zero-per-share blowup. current_price=10, shares_out=
+        # 1_000_000, book_value=50_000 -> bvps=0.05 -> pb=200 (UNDER 1000, accepted outright
+        # pre-fix). An older year has stockholders_equity=$5,000,000 -> bvps=5.0 -> pb=2.0,
+        # plausible.
+        loader = _make_loader(monkeypatch, [(Decimal("5000000.00"),)])
+
+        result = loader._compute_valuations(
+            symbol="SYM",
+            current_price=10.0,
+            shares_out=1_000_000.0,
+            ttm_eps=None,
+            ttm_revenue=None,
+            book_value=50_000.0,
+            ocf=None,
+            capex=None,
+            prior_year_eps=None,
+            dividends_paid=None,
+            total_debt=None,
+            total_cash=None,
+            ebitda=None,
+        )
+
+        assert result["pb_ratio"] == 2.0
+
+    def test_immaterial_bvps_fallback_skips_another_immaterial_year(self, monkeypatch):
+        # The fallback query includes the anchor year itself - a near-zero anchor bvps must
+        # not just re-select itself.
+        loader = _make_loader(monkeypatch, [(Decimal("50000.00"),), (Decimal("5000000.00"),)])
+
+        result = loader._compute_valuations(
+            symbol="SYM",
+            current_price=10.0,
+            shares_out=1_000_000.0,
+            ttm_eps=None,
+            ttm_revenue=None,
+            book_value=50_000.0,
+            ocf=None,
+            capex=None,
+            prior_year_eps=None,
+            dividends_paid=None,
+            total_debt=None,
+            total_cash=None,
+            ebitda=None,
+        )
+
+        assert result["pb_ratio"] == 2.0
