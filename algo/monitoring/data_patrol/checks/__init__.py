@@ -11,6 +11,7 @@ from .specialized import SpecializedChecker
 from .staleness import StalenessChecker
 from .statistical_anomaly import StatisticalAnomalyChecker
 from .tie_out import TieOutChecker
+from .xbrl_concept_continuity import XbrlConceptContinuityChecker
 from .xbrl_new_concepts import NewXbrlConceptChecker
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "StalenessChecker",
     "StatisticalAnomalyChecker",
     "TieOutChecker",
+    "XbrlConceptContinuityChecker",
 ]

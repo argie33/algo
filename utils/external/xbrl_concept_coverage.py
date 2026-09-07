@@ -26,6 +26,22 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 # full rationale. Checked into git, shared across both the manual script and the automated check.
 DISMISSED_FILE = REPO_ROOT / "scripts" / "xbrl_concept_coverage_dismissed.json"
 
+# Separate triage log for find_continuity_gaps() below - a different failure mode from the
+# above (a concept we've never fetched at all) so it gets its own dismiss log rather than
+# overloading DISMISSED_FILE's "namespace:Concept" keys with a second, incompatible key shape
+# ("CIK:Concept", since a continuity gap is filer-specific, not concept-wide).
+CONTINUITY_DISMISSED_FILE = REPO_ROOT / "scripts" / "xbrl_concept_continuity_dismissed.json"
+
+# Concepts virtually every operating 10-K filer tags every single fiscal year, regardless of
+# industry (financials/REITs/insurers included) - deliberately a short, conservative list.
+# Anything broader (e.g. a specific debt or lease concept) legitimately appears/disappears
+# for ordinary business reasons (a company pays off its only debt, adopts a new accounting
+# standard, etc.) and would make this check noisy rather than high-signal. These three are the
+# closest thing to "if this stops being tagged, something is wrong" for any going concern -
+# either the filer switched to a synonym/renamed taxonomy tag (the actual "taxonomy migration"
+# case this check exists for) or a real discontinuation (bankruptcy, going-private, final 10-K).
+CORE_CONTINUITY_CONCEPTS = ["Assets", "Liabilities", "NetIncomeLoss"]
+
 # Every place a real (non-test, non-fallback-table) concept list lives today.
 CONCEPT_SOURCE_FILES = [
     "utils/external/sec_income_statement.py",
@@ -161,6 +177,110 @@ def iter_companyfacts_cache() -> list[Path]:
         # distinguish this from "scanned and found nothing" check this function themselves.
         return []
     return sorted(cache_dir.glob("*.json"))
+
+
+def load_continuity_dismissed() -> dict[str, str]:
+    if not CONTINUITY_DISMISSED_FILE.exists():
+        return {}
+    try:
+        return cast(dict[str, str], json.loads(CONTINUITY_DISMISSED_FILE.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_continuity_dismissed(dismissed: dict[str, str]) -> None:
+    CONTINUITY_DISMISSED_FILE.write_text(json.dumps(dict(sorted(dismissed.items())), indent=2) + "\n", encoding="utf-8")
+
+
+def _annual_end_dates(fact_entries: list[dict[str, object]]) -> set[str]:
+    """Distinct fiscal-period-end dates ('end') this concept has an annual (10-K/10-K/A) fact
+    for, in ANY unit (USD covers the three CORE_CONTINUITY_CONCEPTS; a filer using a non-USD
+    reporting currency still tags Assets/Liabilities/NetIncomeLoss, just under a different unit
+    key, so this checks every unit rather than assuming "USD").
+    """
+    ends: set[str] = set()
+    for entry in fact_entries:
+        form = cast(str, entry.get("form") or "")
+        end = entry.get("end")
+        if form.startswith("10-K") and isinstance(end, str):
+            ends.add(end)
+    return ends
+
+
+def find_continuity_gaps(min_prior_years: int = 3) -> list[dict[str, object]]:
+    """Find filers where a CORE_CONTINUITY_CONCEPTS concept was tagged every year for at least
+    `min_prior_years` straight prior annual filings but is absent from the most recent one -
+    the "taxonomy migration" / "filer switched tags" gap that find_gaps() above cannot see
+    (find_gaps() only catches a concept appearing for the FIRST time anywhere in the universe;
+    this catches one disappearing for a SPECIFIC filer that used to report it every year).
+
+    A concept that was never tagged by a filer at all is not a continuity gap (that is either
+    a genuine business difference - e.g. a REIT with no NetIncomeLoss concept some year - or
+    the plain coverage gap find_gaps() already handles) - only "had it consistently, then
+    suddenly didn't" counts here.
+
+    Uses each filer's OWN reporting history as the anchor timeline (the union of annual end-
+    dates across all three core concepts), not a global fiscal calendar - avoids false positives
+    for non-calendar fiscal years and filers that report late/early relative to peers.
+    """
+    files = iter_companyfacts_cache()
+    if not files:
+        return []
+    dismissed = load_continuity_dismissed()
+
+    gaps: list[dict[str, object]] = []
+    for fp in files:
+        try:
+            payload = json.loads(fp.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        data = payload.get("data") or {}
+        entity_name = data.get("entityName", fp.stem)
+        usgaap = (data.get("facts") or {}).get("us-gaap") or {}
+
+        per_concept_ends: dict[str, set[str]] = {}
+        anchor_ends: set[str] = set()
+        for concept in CORE_CONTINUITY_CONCEPTS:
+            concept_data = usgaap.get(concept)
+            if not concept_data:
+                per_concept_ends[concept] = set()
+                continue
+            entries: list[dict[str, object]] = []
+            for unit_entries in (concept_data.get("units") or {}).values():
+                entries.extend(unit_entries)
+            ends = _annual_end_dates(entries)
+            per_concept_ends[concept] = ends
+            anchor_ends.update(ends)
+
+        if len(anchor_ends) < min_prior_years + 1:
+            continue  # Not enough of this filer's own history to judge "used to report every year"
+
+        sorted_ends = sorted(anchor_ends, reverse=True)
+        latest = sorted_ends[0]
+        prior_window = sorted_ends[1 : min_prior_years + 1]
+
+        for concept in CORE_CONTINUITY_CONCEPTS:
+            own_ends = per_concept_ends[concept]
+            if not own_ends:
+                continue  # Never tagged at all - a coverage gap, not a continuity regression
+            if latest in own_ends:
+                continue  # Still present this year - no gap
+            if not all(p in own_ends for p in prior_window):
+                continue  # Wasn't consistently present before either - not a new regression
+            key = f"{fp.stem}:{concept}"
+            if key in dismissed:
+                continue
+            gaps.append(
+                {
+                    "cik": fp.stem,
+                    "entity_name": entity_name,
+                    "concept": f"us-gaap:{concept}",
+                    "latest_expected_end": latest,
+                    "prior_years_present": prior_window,
+                }
+            )
+    gaps.sort(key=lambda g: (cast(str, g["concept"]), cast(str, g["entity_name"])))
+    return gaps
 
 
 def scan_cache(namespaces: list[str]) -> tuple[Counter[str], dict[str, str]]:
