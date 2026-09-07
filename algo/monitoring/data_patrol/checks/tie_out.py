@@ -158,6 +158,15 @@ _NET_CHANGE_CASH_TOLERANCE_FLOOR = _CASHFLOW_TOLERANCE_FLOOR
 # check in this file there is no legitimate measurement-difference source for a violation; a
 # tiny slack is kept only for float rounding, not real-world noise.
 _QUICK_RATIO_TOLERANCE = 0.0001
+# current_assets <= total_assets and current_liabilities <= total_liabilities are strict
+# structural inequalities (current is a subset/category of total, same row, same table,
+# same loader call) - no legitimate measurement-difference source for a violation, same
+# reasoning as _SHARE_COUNT_TOLERANCE_PCT and _QUICK_RATIO_TOLERANCE above. Live feasibility
+# check against the local DB (2026-09-07) found this is genuinely rare: 1/4,180 symbols for
+# current_assets vs total_assets (SSL, a real magnitude-swap bug - current_assets tagged at
+# $130.2B vs total_assets $20.2B, a ~6.4x mismatch) and 8/4,171 for current_liabilities vs
+# total_liabilities, both far below the noise floor of the loosest checks in this file.
+_CURRENT_VS_TOTAL_TOLERANCE_PCT = 0.001
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
@@ -225,6 +234,8 @@ class TieOutChecker(BaseCheck):
         self.check_free_cash_flow_identity(cur)
         self.check_cashflow_activities_sum_to_net_change(cur)
         self.check_quick_ratio_le_current_ratio(cur)
+        self.check_current_assets_le_total_assets(cur)
+        self.check_current_liabilities_le_total_liabilities(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -1031,5 +1042,128 @@ class TieOutChecker(BaseCheck):
                 "quick_ratio_le_current_ratio",
                 ERROR,
                 "quality_metrics",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_current_assets_le_total_assets(self, cur: Any) -> None:
+        """current_assets <= total_assets (both from annual_balance_sheet, same row).
+
+        ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit + tie-out CI
+        completeness review). Strict structural inequality: current_assets is a GAAP subtotal
+        of total_assets (cash/receivables/inventory/other short-term items), never the whole
+        balance sheet or more - a violation is a strong signal of a swapped-concept or
+        wrong-magnitude extraction bug (e.g. current_assets picking up a total-assets-scale
+        fact), not filer-side measurement noise, same reasoning as
+        check_diluted_ge_basic_shares. Live feasibility check against the local DB (2026-09-07)
+        found this genuinely rare - 1 violation out of 4,180 comparable symbol/years (SSL).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.total_assets, b.current_assets
+                FROM annual_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.total_assets IS NOT NULL
+                  AND b.current_assets IS NOT NULL
+                  AND b.total_assets != 0
+                ORDER BY b.symbol, b.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                total_assets, current_assets = (
+                    float(row["total_assets"]),
+                    float(row["current_assets"]),
+                )
+                residual = current_assets - total_assets
+                tolerance = abs(total_assets) * _CURRENT_VS_TOTAL_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "total_assets": total_assets,
+                            "current_assets": current_assets,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "current_assets_le_total_assets",
+                    WARN,
+                    "annual_balance_sheet",
+                    f"{len(flagged)} symbol(s) fail current_assets <= total_assets beyond "
+                    f"{_CURRENT_VS_TOTAL_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] current_assets_le_total_assets failed: {e}", exc_info=True)
+            self.log(
+                "current_assets_le_total_assets",
+                ERROR,
+                "annual_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_current_liabilities_le_total_liabilities(self, cur: Any) -> None:
+        """current_liabilities <= total_liabilities (both from annual_balance_sheet, same row).
+
+        ADDED 2026-09-07, mirrors check_current_assets_le_total_assets above exactly but for
+        the liabilities side of the same subtotal-vs-total structural relationship. Live
+        feasibility check against the local DB (2026-09-07) found 8 violations out of 4,171
+        comparable symbol/years - still far below the noise floor of the loosest checks in
+        this file (cashflow_reconciliation, retained_earnings_rollforward).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.total_liabilities, b.current_liabilities
+                FROM annual_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.total_liabilities IS NOT NULL
+                  AND b.current_liabilities IS NOT NULL
+                  AND b.total_liabilities != 0
+                ORDER BY b.symbol, b.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                total_liabilities, current_liabilities = (
+                    float(row["total_liabilities"]),
+                    float(row["current_liabilities"]),
+                )
+                residual = current_liabilities - total_liabilities
+                tolerance = abs(total_liabilities) * _CURRENT_VS_TOTAL_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "total_liabilities": total_liabilities,
+                            "current_liabilities": current_liabilities,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "current_liabilities_le_total_liabilities",
+                    WARN,
+                    "annual_balance_sheet",
+                    f"{len(flagged)} symbol(s) fail current_liabilities <= total_liabilities "
+                    f"beyond {_CURRENT_VS_TOTAL_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] current_liabilities_le_total_liabilities failed: {e}", exc_info=True)
+            self.log(
+                "current_liabilities_le_total_liabilities",
+                ERROR,
+                "annual_balance_sheet",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
             )

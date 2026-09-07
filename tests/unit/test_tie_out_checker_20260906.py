@@ -611,10 +611,203 @@ class TestCashflowActivitiesSumToNetChange:
         assert checker.results[0].severity == ERROR
 
 
+class TestQuickRatioLeCurrentRatio:
+    """Covers check_quick_ratio_le_current_ratio, which had no dedicated test class despite
+    being wired into run() - a pre-existing coverage gap in this file (the check itself landed
+    in `56d7a2fd5`, this worktree's test file was never updated to match). Added 2026-09-07
+    alongside the current_assets/current_liabilities checks below."""
+
+    def test_flags_quick_ratio_above_current_ratio(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADQR",
+                        "current_ratio": 1.5,
+                        "quick_ratio": 2.0,  # structurally impossible - quick excludes inventory
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quick_ratio_le_current_ratio(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quick_ratio_le_current_ratio"
+        assert checker.results[0].details["examples"][0]["symbol"] == "BADQR"
+
+    def test_does_not_flag_quick_ratio_within_current_ratio(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODQR",
+                        "current_ratio": 1.5,
+                        "quick_ratio": 1.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quick_ratio_le_current_ratio(cur)
+        assert checker.results == []
+
+    def test_does_not_flag_equal_ratios(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "NOINVCO",
+                        "current_ratio": 1.5,
+                        "quick_ratio": 1.5,  # no inventory - quick == current is legitimate
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quick_ratio_le_current_ratio(cur)
+        assert checker.results == []
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quick_ratio_le_current_ratio(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quick_ratio_le_current_ratio"
+        assert checker.results[0].severity == ERROR
+
+
+class TestCurrentAssetsLeTotalAssets:
+    def test_flags_current_assets_above_total_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADCA",
+                        "fiscal_year": 2025,
+                        "total_assets": 20_000_000_000.0,
+                        "current_assets": 130_000_000_000.0,  # far exceeds total_assets
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_current_assets_le_total_assets(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "current_assets_le_total_assets"
+        assert checker.results[0].details["examples"][0]["symbol"] == "BADCA"
+
+    def test_does_not_flag_current_assets_within_total_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODCA",
+                        "fiscal_year": 2025,
+                        "total_assets": 1_000_000_000.0,
+                        "current_assets": 400_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_current_assets_le_total_assets(cur)
+        assert checker.results == []
+
+    def test_does_not_flag_current_assets_equal_total_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "ALLCURR",
+                        "fiscal_year": 2025,
+                        "total_assets": 1_000_000_000.0,
+                        "current_assets": 1_000_000_000.0,  # no non-current assets - legitimate
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_current_assets_le_total_assets(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_current_assets_le_total_assets(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_current_assets_le_total_assets(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "current_assets_le_total_assets"
+        assert checker.results[0].severity == ERROR
+
+
+class TestCurrentLiabilitiesLeTotalLiabilities:
+    def test_flags_current_liabilities_above_total_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADCL",
+                        "fiscal_year": 2025,
+                        "total_liabilities": 11_000_000_000.0,
+                        "current_liabilities": 69_000_000_000.0,  # far exceeds total_liabilities
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_current_liabilities_le_total_liabilities(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "current_liabilities_le_total_liabilities"
+        assert checker.results[0].details["examples"][0]["symbol"] == "BADCL"
+
+    def test_does_not_flag_current_liabilities_within_total_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODCL",
+                        "fiscal_year": 2025,
+                        "total_liabilities": 1_000_000_000.0,
+                        "current_liabilities": 300_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_current_liabilities_le_total_liabilities(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_current_liabilities_le_total_liabilities(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_current_liabilities_le_total_liabilities(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "current_liabilities_le_total_liabilities"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_ten_checks(self) -> None:
-        cur = _mock_cursor([[], [], [], [], [], [], [], [], [], []])
+    def test_run_calls_all_thirteen_checks(self) -> None:
+        cur = _mock_cursor([[], [], [], [], [], [], [], [], [], [], [], [], []])
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 10
+        assert cur.execute.call_count == 13
