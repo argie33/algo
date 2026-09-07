@@ -40,6 +40,7 @@ setup_imports()
 
 import json  # noqa: E402
 import logging  # noqa: E402
+import math  # noqa: E402
 from collections.abc import Iterable  # noqa: E402
 from datetime import date, datetime, timezone  # noqa: E402
 from typing import Any  # noqa: E402
@@ -658,14 +659,21 @@ class StockScoresLoader(
             momentum_score = self._score_momentum(momentum, symbol)
 
             # Extract numeric scores for computation, track unavailability reasons
+            # REAL-MONEY-READINESS FIX (2026-09-07): isinstance(nan, float) is True, so a
+            # NaN/Inf score used to pass this check as "real data" - a data-quality bug
+            # anywhere upstream (e.g. an unguarded 0/0 ratio) would silently count as an
+            # available pillar instead of being excluded. math.isfinite() rejects both
+            # nan and +/-inf so a non-finite score is treated the same as a marker dict.
             def is_real_score(result: float | dict[str, Any] | None) -> bool:
-                return isinstance(result, float)
+                return isinstance(result, float) and math.isfinite(result)
 
             def get_marker_reason(result: float | dict[str, Any] | None) -> str:
                 if isinstance(result, dict) and result.get("data_unavailable"):
                     reason = result.get("reason")
                     if isinstance(reason, str):
                         return reason
+                if isinstance(result, float) and not math.isfinite(result):
+                    return "non_finite_score_nan_or_inf"
                 return "unknown_reason"
 
             # Count data completeness: only float scores count as "real data"
@@ -866,6 +874,14 @@ class StockScoresLoader(
             # Clamp scores to 0-100, keep markers for missing data
             def clamp_score(score: float | dict[str, Any] | None) -> float | dict[str, Any] | None:
                 if isinstance(score, float):
+                    # REAL-MONEY-READINESS FIX (2026-09-07): min(100.0, nan) evaluates to
+                    # 100.0 in Python (nan comparisons are always False, so the replacement
+                    # never happens) - a NaN/Inf score used to silently clamp to a *perfect*
+                    # 100.0 instead of being rejected, and that 100.0 would then be stored
+                    # directly in the DB column via extract_score_value(). Convert to a
+                    # marker dict instead, matching is_real_score's non-finite rejection above.
+                    if not math.isfinite(score):
+                        return {"data_unavailable": True, "reason": "non_finite_score_nan_or_inf"}
                     return max(0.0, min(100.0, score))
                 # Return marker dicts as-is; don't silence them with None
                 return score if isinstance(score, dict) else None

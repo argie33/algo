@@ -32,6 +32,9 @@ import argparse
 import logging
 import sys
 
+import requests
+
+from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
 from algo.infrastructure.config import AlgoConfig
 from algo.orchestration.halt_flag_manager import HaltFlagManager
 from algo.reporting import AlertManager
@@ -62,6 +65,65 @@ def _fetch_open_trades() -> list[tuple[int, str, str]]:
         return [(row[0], row[1], row[2]) for row in cur.fetchall()]
 
 
+def _fetch_broker_only_symbols(config: AlgoConfig, db_tracked_symbols: set[str]) -> list[tuple[str, float]]:
+    """(symbol, qty) for every broker position NOT covered by open_trades.
+
+    REAL-MONEY-READINESS FIX (2026-09-07 audit): this script used to decide "nothing to
+    flatten" purely from algo_trades - exactly the wrong source of truth for an emergency
+    flatten, whose whole reason for existing is "something is badly wrong" (which very much
+    includes "the DB and the broker have diverged"). circuit_breaker.py's own orphan-cleanup
+    path can delete an algo_positions row for an open/null-stop/no-trade_ids position before
+    this script ever sees it, and any other DB/broker desync (crash mid-entry before the
+    trade row commits, a manual broker-side action, a sync bug) has the same effect: a real
+    broker position that this script would otherwise report as "0 positions, nothing to
+    flatten" while it sits fully exposed. Always cross-check against Alpaca's own
+    /v2/positions directly - the actual ground truth - not just internal bookkeeping.
+    """
+    positions = AlpacaBrokerAdapter(config).fetch_positions()
+    return [(p["symbol"], p["qty"]) for p in positions if p["symbol"] not in db_tracked_symbols and p["qty"] != 0]
+
+
+def _close_untracked_broker_position(executor: TradeExecutor, symbol: str, reason: str) -> dict[str, object]:
+    """Full close via Alpaca's DELETE /v2/positions/{symbol} (no qty = close entirely).
+
+    Used only for positions the DB has no record of at all - there is no trade_id to route
+    through the normal exit_trade() path, so this goes straight to the broker's own
+    close-position endpoint (the same one order_manager.py's _try_close_position_fallback
+    already uses elsewhere in this codebase for the qty-restricted partial case).
+    """
+    om = executor.order_manager
+    try:
+        resp = requests.delete(
+            f"{om.alpaca_base_url}/v2/positions/{symbol}",
+            headers={"APCA-API-KEY-ID": om.alpaca_key, "APCA-API-SECRET-KEY": om.alpaca_secret},
+            timeout=30,
+        )
+    except requests.RequestException as e:
+        return {"success": False, "message": f"close-position request failed: {type(e).__name__}: {e}"}
+    if resp.status_code not in (200, 201):
+        return {"success": False, "message": f"close-position endpoint returned {resp.status_code}: {resp.text[:500]}"}
+    logger.info(f"[FLATTEN_ALL] {symbol}: untracked broker position closed ({reason})")
+    return {"success": True, "message": f"Closed via broker close-position endpoint (order {resp.json().get('id')})"}
+
+
+def _flatten_untracked_broker_positions(
+    executor: TradeExecutor, broker_only: list[tuple[str, float]], reason: str
+) -> tuple[list[str], list[tuple[str, str]]]:
+    closed: list[str] = []
+    failed: list[tuple[str, str]] = []
+    for symbol, qty in broker_only:
+        result = _close_untracked_broker_position(
+            executor, symbol, reason=f"MANUAL_EMERGENCY_FLATTEN_UNTRACKED: {reason}"
+        )
+        if result.get("success"):
+            closed.append(symbol)
+            print(f"  CLOSED untracked broker position {symbol} (qty={qty}): {result.get('message')}")
+        else:
+            failed.append((symbol, str(result.get("message"))))
+            print(f"  FAILED to close untracked broker position {symbol} (qty={qty}): {result.get('message')}")
+    return closed, failed
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Emergency: close every open position immediately")
     parser.add_argument("--status", action="store_true", help="List open positions without closing anything")
@@ -75,18 +137,44 @@ def main() -> int:
         parser.error("--confirm requires --reason - this is a destructive action, always record why")
 
     open_trades = _fetch_open_trades()
+    config = AlgoConfig()
+
+    # Always cross-check against the broker directly - see _fetch_broker_only_symbols'
+    # docstring for why algo_trades alone is not trustworthy for an emergency flatten.
+    # Fails closed: if we can't reach the broker to verify, we refuse to report "nothing to
+    # flatten" on DB state alone.
+    try:
+        broker_only = _fetch_broker_only_symbols(config, {symbol for _, symbol, _ in open_trades})
+    except Exception as e:
+        print(
+            f"ERROR: Could not verify against broker's actual positions ({type(e).__name__}: {e}). "
+            "Refusing to report position status from DB alone - the DB and broker can diverge, "
+            "which is exactly the scenario this tool exists for.",
+            file=sys.stderr,
+        )
+        return 1
 
     if args.status:
-        print(f"Open positions: {len(open_trades)}")
+        print(f"Open positions (DB-tracked): {len(open_trades)}")
         for trade_id, symbol, status in open_trades:
             print(f"  trade_id={trade_id} symbol={symbol} status={status}")
+        if broker_only:
+            print(f"UNTRACKED broker-only positions (no DB record): {len(broker_only)}")
+            for symbol, qty in broker_only:
+                print(f"  symbol={symbol} qty={qty} <-- broker has this, DB does not")
         return 0
 
-    if not open_trades:
-        print("No open positions - nothing to flatten.")
+    if not open_trades and not broker_only:
+        print("No open positions (DB or broker) - nothing to flatten.")
         return 0
 
-    print(f"FLATTENING {len(open_trades)} open position(s). Reason: {args.reason}")
+    if broker_only:
+        print(f"WARNING: {len(broker_only)} broker position(s) have NO DB record: {[s for s, _ in broker_only]}")
+
+    print(
+        f"FLATTENING {len(open_trades)} DB-tracked position(s) + {len(broker_only)} untracked broker "
+        f"position(s). Reason: {args.reason}"
+    )
 
     halt_manager = HaltFlagManager(AlertManager(), _noop_log_phase_result)
     halt_result = halt_manager.set_halt_flag(
@@ -101,12 +189,10 @@ def main() -> int:
         return 1
     print("Halt flag set - no new entries will be opened while flattening.")
 
-    config = AlgoConfig()
     executor = TradeExecutor(config)
     execution_mode = str(config["execution_mode"]).lower()
 
-    closed: list[str] = []
-    failed: list[tuple[str, str]] = []
+    closed, failed = _flatten_untracked_broker_positions(executor, broker_only, args.reason)
 
     # REAL-MONEY-READINESS FIX (2026-09-06 audit): trades in PENDING/OPEN status have been
     # submitted to Alpaca (or queued to be) but have NOT filled yet - there is no position

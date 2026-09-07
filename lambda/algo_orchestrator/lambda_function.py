@@ -183,30 +183,62 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 }
             return {"statusCode": 200, "body": json.dumps({"status": "success", "mode": "unified_risk_monitor"})}
 
-        # DEPRECATED ALIASES (remove in a follow-up cleanup once no schedule still sends the
-        # old mode strings - kept for one deploy cycle so an in-flight EventBridge schedule
-        # using the old payload shape during cutover doesn't hard-fail).
-        if event.get("mode") in ("stop_loss_guardian", "intraday_risk_monitor"):
-            logger.warning(
-                f"[UNIFIED_RISK_MONITOR] Received deprecated mode={event.get('mode')!r} - "
-                "forwarding to unified_risk_monitor. Update the caller's payload."
-            )
+        # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): these two modes used to
+        # forward to the new consolidated check_unified_risk() - which, unlike either mode's
+        # own original narrow behavior, can automatically HALT trading and automatically
+        # FLATTEN/reduce real positions on a confirmed portfolio-variance or beta/
+        # concentration breach (see unified_risk_monitor.py's escalation ladder). That
+        # forwarding was introduced by the same commit that added check_unified_risk, with
+        # NO new terraform sign-off - it silently upgraded whatever schedule already sends
+        # these mode strings to the new aggressive behavior. `enable_stop_loss_guardian =
+        # true` in terraform/prod.tfvars was explicitly approved (2026-09-06) for the OLD,
+        # narrow stop-loss verify/repair-only behavior - self-healing only, never a halt or
+        # a flatten - months before check_unified_risk existed. Meanwhile
+        # `enable_unified_risk_monitor = false` is deliberately kept off with an explicit
+        # "deploy disabled first, soak in paper mode... before enabling" rollout plan
+        # specifically because of that automated halt/flatten behavior. Forwarding here
+        # means an operator reading prod.tfvars (unified_risk_monitor disabled, soak not yet
+        # done) would have no way to know the *already-enabled* stop_loss_guardian schedule
+        # was silently invoking the exact same automated-halt-and-flatten logic - a real
+        # bypass of the documented staged rollout, not a bug in the ladder logic itself.
+        # Each mode now runs ONLY its own original, already-approved, narrower check again.
+        if event.get("mode") == "stop_loss_guardian":
             from algo.infrastructure import get_config
-            from algo.risk.unified_risk_monitor import check_unified_risk
+            from algo.orchestrator.phase9_reconciliation import _verify_open_position_stop_loss_protection_step
+
+            def _log_guardian_result(*args: Any, **kwargs: Any) -> None:
+                logger.info(f"[STOP_LOSS_GUARDIAN] phase_result: args={args} kwargs={kwargs}")
 
             try:
-                result = check_unified_risk(get_config())
-                logger.info(f"[UNIFIED_RISK_MONITOR] result={result}")
+                _verify_open_position_stop_loss_protection_step(_log_guardian_result, get_config())
+            except Exception as guardian_err:
+                logger.critical(
+                    f"[STOP_LOSS_GUARDIAN CRITICAL] Guardian run failed unexpectedly: {guardian_err}",
+                    exc_info=True,
+                )
+                return {
+                    "statusCode": 500,
+                    "body": json.dumps({"status": "error", "message": str(guardian_err)}),
+                }
+            return {"statusCode": 200, "body": json.dumps({"status": "success", "mode": "stop_loss_guardian"})}
+
+        if event.get("mode") == "intraday_risk_monitor":
+            from algo.infrastructure import get_config
+            from algo.risk.intraday_risk_monitor import check_intraday_risk
+
+            try:
+                result = check_intraday_risk(get_config())
+                logger.info(f"[INTRADAY_RISK_MONITOR] result={result}")
             except Exception as monitor_err:
                 logger.critical(
-                    f"[UNIFIED_RISK_MONITOR CRITICAL] Check failed unexpectedly: {monitor_err}",
+                    f"[INTRADAY_RISK_MONITOR CRITICAL] Check failed unexpectedly: {monitor_err}",
                     exc_info=True,
                 )
                 return {
                     "statusCode": 500,
                     "body": json.dumps({"status": "error", "message": str(monitor_err)}),
                 }
-            return {"statusCode": 200, "body": json.dumps({"status": "success", "mode": "unified_risk_monitor"})}
+            return {"statusCode": 200, "body": json.dumps({"status": "success", "mode": "intraday_risk_monitor"})}
 
         # FIXED Issue #1: Parse event execution_mode BEFORE validation
         # EventBridge scheduler passes execution_mode in payload, not as Lambda env var
