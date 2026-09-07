@@ -1,0 +1,3 @@
+{
+  "us-gaap:LiabilitiesAndStockholdersEquity": "Mathematically identical to total_assets by balance-sheet definition (Assets = Liabilities + Equity) - every filer tags this as the bottom-line check figure. We already fetch TotalAssets/Assets for total_assets; adding this as a separate column would be a pure duplicate, not a new metric. Confirmed our own tie_out.py check_balance_sheet_identity docstring already treats this exact concept as the well-known cross-check total, not a novel data point."
+}
