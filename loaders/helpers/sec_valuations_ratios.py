@@ -47,6 +47,14 @@ class SecValuationRatiosMixin:
         if ttm_eps and ttm_eps > 0:
             pe = current_price / ttm_eps
             if pe <= 10000 and pe >= self.MIN_PLAUSIBLE_PE_RATIO and ttm_eps >= 0.10:
+                if self._pe_earnings_too_volatile(symbol):
+                    logger.warning(
+                        f"[{symbol}] PE ratio {pe:.2f} computed off a single profitable year "
+                        "immediately following 2+ net-loss years - excluding from Value scoring "
+                        "as an earnings-stability-driven distortion, not a genuine bargain "
+                        "(see _pe_earnings_too_volatile)."
+                    )
+                    return None
                 return round(pe, 2)
             elif pe > 10000 or ttm_eps < 0.10:
                 # FIXED 2026-09-05 (goal session: "implausible values" sweep) - same
@@ -96,6 +104,53 @@ class SecValuationRatiosMixin:
         else:
             logger.warning(f"[{symbol}] TTM EPS missing or invalid, PE ratio unavailable")
             return None
+
+    @staticmethod
+    def _pe_earnings_too_volatile(symbol: str) -> bool:
+        """True when 2+ of the last 3 reported fiscal years' net_income were losses.
+
+        ADDED 2026-09-07 (goal: "digging into scores" audit - "why are distressed companies
+        topping the Value leaderboard"). A single profitable year immediately after a run of
+        losses can produce a mathematically valid but statistically meaningless "cheap" PE -
+        live-confirmed RILY (B. Riley Financial): FY2025 net_income +$307.4M/EPS $9.80 right
+        after FY2024 -$764.3M, FY2023 -$99.9M, FY2022 -$159.8M, computing pe_ratio=0.72 and
+        ranking #3 on the entire Value factor leaderboard - a company whose earnings swing by
+        $1B+ year to year has no business looking "cheap for good reason" off one quarter's
+        (Q1 FY2026 alone was $213M of that $307.4M) worth of what reads like a non-recurring
+        gain, not durable earnings power. Universe-wide: 82 symbols show this exact "2+
+        consecutive loss years then a profit year, now showing a suspiciously cheap PE" shape
+        (live query, not assumed).
+
+        Deliberately does NOT try to match the exact fiscal year that produced `ttm_eps` (which
+        this class's other same-file fallbacks track carefully via income_rows indices) -
+        checking the last 3 REPORTED fiscal years' net_income sign, independent of which one
+        backs ttm_eps, is a simpler and more robust earnings-stability signal that only ever
+        makes this guard MORE conservative (exclude more), never fabricates a wrong number, in
+        the rare case ttm_eps came from an older/substituted row.
+
+        Same "exclude rather than fabricate" convention as MIN_PLAUSIBLE_PE_RATIO/
+        GROWTH_INPUT_IMPLAUSIBLE_PCT elsewhere in this codebase (see growth_scoring.py's
+        GROWTH_INPUT_IMPLAUSIBLE_PCT docstring for the sibling Growth-pillar version of this
+        same principle) - an unstable-earnings PE isn't wrong data, it's just not a reliable
+        value signal, so it's excluded from ranking rather than clipped or smoothed.
+
+        Requires 3 real (non-NULL) fiscal years on file - a symbol with less history returns
+        False (doesn't block a genuinely short-lived filer's PE on incomplete grounds).
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT net_income FROM annual_income_statement
+                WHERE symbol = %s AND net_income IS NOT NULL AND data_unavailable IS NOT TRUE
+                ORDER BY fiscal_year DESC LIMIT 3
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
+        if len(rows) < 3:
+            return False
+        negative_years = sum(1 for (net_income,) in rows if net_income < 0)
+        return negative_years >= 2
 
     def _compute_pb_ratio(
         self, symbol: str, current_price: float, book_value: float | None, shares_out: float
