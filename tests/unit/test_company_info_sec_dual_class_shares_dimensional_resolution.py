@@ -157,3 +157,56 @@ class TestTargetClassLetter:
         """Defensive: something like a ".R" (rights) suffix isn't a single-letter class -
         must not be misread as a class letter."""
         assert CompanyInfoSECLoader._target_class_letter("XYZ.WS") is None
+
+    def test_security_name_missing_class_letter_override_resolves_without_db_lookup(self):
+        """WLY/WLYB (John Wiley & Sons) both carry the identical generic security_name "John
+        Wiley & Sons, Inc. Common Stock" - live-confirmed neither has "Class A"/"Class B" text,
+        unlike every other dual-class family sampled in the same sweep. The curated override
+        must resolve both without ever needing the (unhelpful) security_name lookup."""
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            assert CompanyInfoSECLoader._target_class_letter("WLY") == "A"
+            assert CompanyInfoSECLoader._target_class_letter("WLYB") == "B"
+            mock_db_ctx.assert_not_called()
+
+
+class TestWileyClassLetterOverrideDimensionalResolution:
+    """End-to-end: WLY/WLYB's real current 10-Q (jwa-20260731.htm, CIK 107140) tags both
+    classes with standard dimensions - live-confirmed us-gaap:CommonClassAMember=41,925,511
+    (WLY) and us-gaap:CommonClassBMember=8,758,419 (WLYB). Before the override, both fell
+    through target_letter=None into the ambiguous-reject path despite this being fully
+    resolvable, identical bug shape to BRK.A/BRK.B before that fix landed."""
+
+    _WLY_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-4" name="dei:EntityCommonStockSharesOutstanding">'
+        "41,925,511</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-5" name="dei:EntityCommonStockSharesOutstanding">'
+        "8,758,419</ix:nonFraction>"
+        '<xbrli:context id="c-4"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-5"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassBMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_wly_resolves_to_its_own_class_a_value(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._WLY_FILING_TEXT
+
+        result = loader._fetch_shares_outstanding_from_filing_text(
+            "WLY", "107140", _submissions_with_10k(tickers=["WLY", "WLYB"])
+        )
+
+        assert result == 41_925_511
+
+    def test_wlyb_resolves_to_its_own_class_b_value_not_its_siblings(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._WLY_FILING_TEXT
+
+        result = loader._fetch_shares_outstanding_from_filing_text(
+            "WLYB", "107140", _submissions_with_10k(tickers=["WLY", "WLYB"])
+        )
+
+        assert result == 8_758_419

@@ -509,6 +509,23 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # "Series {LETTER}" it lines up correctly with the same class-letter matching used for
     # Class-labeled filers.
     _CLASS_LETTER_FROM_SECURITY_NAME_RE = re.compile(r"\b(?:Class|Series)\s+([A-Z])\b")
+    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, shares_outstanding_not_in_
+    # xbrl_or_filing_text investigation): WLY/WLYB (John Wiley & Sons) both have the IDENTICAL,
+    # generic `stock_symbols.security_name` "John Wiley & Sons, Inc. Common Stock" - live-checked,
+    # neither ticker's recorded name carries "Class A"/"Class B" text at all, unlike every other
+    # dual-class family sampled in this sweep (FOX/FOXA, UA/UAA, NWS/NWSA, RDI/RDIB, LILA/LILAK,
+    # METC/METCB, UONE/UONEK, CENT/CENTA all correctly carry "Class X" in both tickers' names).
+    # This is a vendor/master-data gap in `stock_symbols` (populated by load_market_constituents.py
+    # from an external listing feed), not something this loader can fix at its source - so
+    # `_target_class_letter` has no text to parse for either ticker. Live-confirmed via Wiley's
+    # real current 10-Q (CIK 107140, jwa-20260731.htm): the cover page cleanly tags TWO standard-
+    # dimensioned contexts, `us-gaap:CommonClassAMember`=41,925,511 and
+    # `us-gaap:CommonClassBMember`=8,758,419 - fully resolvable, just missing the security_name
+    # signal this method otherwise relies on. A small, explicit, individually-verified override
+    # (same discipline as DUAL_CLASS_NO_SEPARATOR_ROOTS/CIK_OVERRIDES elsewhere in this codebase)
+    # rather than any ticker-suffix-shape inference, which this method's own docstring already
+    # rejects as unsafe (many bare siblings correctly have no determinable letter at all).
+    _SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES: dict[str, str] = {"WLY": "A", "WLYB": "B"}
     # FIXED 2026-09-04 (same sweep): some filers (Liberty Media family, via Workiva-style
     # generators) embed the full dimension/member name directly in the contextRef id string
     # itself (e.g. "As_Of_1_31_2026_us-gaap_StatementClassOfStockAxis_lmca_
@@ -784,7 +801,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
     def _target_class_letter(symbol: str) -> str | None:
         """This symbol's own share class letter, if determinable with confidence.
 
-        Two sources, both conservative (return None rather than guess):
+        Three sources, all conservative (return None rather than guess):
         1. A single-letter dot suffix (BRK.A -> "A", LEN.B -> "B") - the internal symbol
            convention already encodes the class directly, no lookup needed.
         2. For a BARE ticker (no dot) with a dual-class sibling, `stock_symbols.security_name`
@@ -793,12 +810,18 @@ class CompanyInfoSECLoader(SecLoaderBase):
            trusted when that exact "Class {LETTER}" text is present, never inferred from
            context (many bare siblings, e.g. BRK's peers AGM/GTN/HVT/WSO, carry no class text
            in security_name at all and correctly stay unresolved here).
+        3. `_SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES` - a small, explicit, individually-
+           verified allowlist for the rare case where security_name itself is a vendor-data gap
+           (missing "Class X" text a company genuinely has) rather than a true default-class
+           ticker - see that constant's own comment (WLY/WLYB).
         """
         if "." in symbol:
             suffix = symbol.rsplit(".", 1)[-1]
             if len(suffix) == 1 and suffix.isalpha():
                 return suffix.upper()
             return None
+        if symbol in CompanyInfoSECLoader._SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES:
+            return CompanyInfoSECLoader._SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES[symbol]
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT security_name FROM stock_symbols WHERE symbol = %s", (symbol,))
