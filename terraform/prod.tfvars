@@ -198,6 +198,19 @@ alert_smtp_user     = ""                      # Set via GitHub Actions secrets
 alert_smtp_password = ""                      # Set via GitHub Actions secrets
 alert_smtp_from     = ""                      # Set via GitHub Actions secrets
 
+# Critical-alert PAGING (2026-09-06 real-money-readiness audit): email/SNS above are fine
+# for business-hours monitoring but nothing pages a human outside that window - an
+# overnight/weekend halt or a failed stop-loss repair would sit in an inbox unseen for
+# hours. Leaving both unset here (paging stays disabled, matching the app-code default) is
+# a real gap before trading real money, not a placeholder to ignore - set at least one
+# channel via TF_VAR_pagerduty_routing_key or TF_VAR_twilio_*/TF_VAR_alert_sms_to in CI/CD
+# before going live. Both channels are independently optional.
+pagerduty_routing_key = "" # Set via TF_VAR_pagerduty_routing_key in CI/CD
+twilio_account_sid    = "" # Set via TF_VAR_twilio_account_sid in CI/CD
+twilio_auth_token     = "" # Set via TF_VAR_twilio_auth_token in CI/CD
+twilio_from_number    = "" # Set via TF_VAR_twilio_from_number in CI/CD
+alert_sms_to          = "" # Set via TF_VAR_alert_sms_to in CI/CD (comma-separated E.164 numbers)
+
 # ============================================================
 # LAMBDA CONFIGURATION (PRODUCTION)
 # ============================================================

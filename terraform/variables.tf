@@ -807,6 +807,42 @@ variable "alert_smtp_from" {
   default     = ""
 }
 
+# PagerDuty/Twilio critical-alert paging (2026-09-06 real-money-readiness fix) - see
+# modules/services/variables.tf's identical declarations for full rationale. Both
+# channels independently optional; empty defaults leave paging disabled.
+variable "pagerduty_routing_key" {
+  description = "PagerDuty Events API v2 routing key for critical-alert paging. Empty disables PagerDuty paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_account_sid" {
+  description = "Twilio Account SID for SMS critical-alert paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_auth_token" {
+  description = "Twilio Auth Token for SMS critical-alert paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_from_number" {
+  description = "Twilio phone number (E.164) to send critical-alert SMS from."
+  type        = string
+  default     = ""
+}
+
+variable "alert_sms_to" {
+  description = "Comma-separated E.164 phone numbers to receive critical-alert SMS. Empty disables SMS paging even if Twilio credentials are set."
+  type        = string
+  default     = ""
+}
+
 # ============================================================
 # Alpaca Trading Configuration
 # ============================================================

@@ -311,6 +311,18 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         # process_events() calls this method directly with no such outer catch - currently
         # dead code (never invoked anywhere in the repo), but exactly the kind of latent bug
         # that bites the moment someone wires it up.
+        # PAGING (2026-09-06 real-money-readiness audit): notify()/_send_notification is the
+        # chokepoint most call sites across the codebase actually use for a "CRITICAL"
+        # severity alert (halt triggers, failed stop-loss repairs, reconciliation drift) -
+        # previously only email/SNS, nothing that would page a human outside business hours.
+        # Best-effort like AlertManager.page_critical's own contract: a paging failure must
+        # not prevent email delivery below or convert into this method's own RuntimeError.
+        if severity.upper() == "CRITICAL":
+            try:
+                self.alert_manager.page_critical(subject, message)
+            except Exception as e:
+                logger.error(f"[NOTIF] Paging failed (non-blocking): {e}")
+
         try:
             if self.alert_manager.email_to:
                 self.alert_manager._send_email(subject=f"[ALGO] {subject}", body=message)

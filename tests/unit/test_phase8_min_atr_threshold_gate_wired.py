@@ -42,7 +42,9 @@ def test_concentration_prefilter_atr_check_uses_the_documented_threshold() -> No
 
 def test_module_imports_min_atr_threshold() -> None:
     module_source = inspect.getsource(p8)
-    import_line = [
-        line for line in module_source.splitlines() if "from algo.orchestrator.validation_thresholds import" in line
-    ][0]
-    assert "MIN_ATR_THRESHOLD" in import_line
+    # The import may be wrapped across multiple lines (ruff-format wraps once the name
+    # list exceeds the line-length limit) - join from the "import" keyword through the
+    # statement's closing paren so the check isn't tied to a single-line layout.
+    import_start = module_source.index("from algo.orchestrator.validation_thresholds import")
+    import_stmt = module_source[import_start : import_start + 300].split(")")[0]
+    assert "MIN_ATR_THRESHOLD" in import_stmt

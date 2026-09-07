@@ -8,6 +8,15 @@ Configuration via environment variables:
   ALERT_EMAIL_TO: comma-separated recipients
   ALERT_SMTP_HOST, ALERT_SMTP_PORT, ALERT_SMTP_USER, ALERT_SMTP_PASSWORD
   ALERTS_SNS_TOPIC: optional SNS topic ARN for alerts
+  PAGERDUTY_ROUTING_KEY: optional PagerDuty Events API v2 routing key for critical paging
+  TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, ALERT_SMS_TO: optional
+    Twilio SMS paging for critical events (ALERT_SMS_TO is comma-separated E.164 numbers)
+
+PAGING (2026-09-06 real-money-readiness audit): email/SNS are fine for business-hours
+monitoring but nothing before this reached a human outside that window - a halt triggered
+overnight/weekend, or a failed stop-loss repair, would sit in an inbox unseen for hours.
+PagerDuty/SMS are opt-in and no-op silently when unconfigured, matching the existing
+email/SNS pattern - see AlertManager.page_critical().
 """
 
 import json
@@ -81,6 +90,32 @@ class AlertManager:
 
         self.sns_topic = os.getenv("ALERTS_SNS_TOPIC", "")
         self._sns_client = None
+
+        # PAGERDUTY_ROUTING_KEY/TWILIO_AUTH_TOKEN are secrets - routed through
+        # get_paging_credentials() (Secrets Manager in AWS, env vars for local dev), same
+        # reasoning and pattern as the SMTP password fetch above: raw Lambda env vars are
+        # visible to anyone with lambda:GetFunction permission.
+        try:
+            paging_creds = get_credential_manager().get_paging_credentials()
+        except (ValueError, RuntimeError) as e:
+            logger.warning(f"[ALERT CONFIG] Paging credential lookup failed: {e}. Paging disabled.")
+            paging_creds = None
+        paging_creds = paging_creds or {}
+        self.pagerduty_routing_key = paging_creds.get("pagerduty_routing_key", "")
+        self.sms_to = [n.strip() for n in paging_creds.get("sms_to", "").split(",") if n.strip()]
+        self.twilio_account_sid = paging_creds.get("twilio_account_sid", "")
+        self.twilio_auth_token = paging_creds.get("twilio_auth_token", "")
+        self.twilio_from_number = paging_creds.get("twilio_from_number", "")
+        self.paging_configured = bool(self.pagerduty_routing_key) or bool(
+            self.sms_to and self.twilio_account_sid and self.twilio_auth_token and self.twilio_from_number
+        )
+        if not self.paging_configured:
+            logger.warning(
+                "[ALERT CONFIG] No paging channel configured (PagerDuty/SMS) - critical alerts "
+                "will only reach email/SNS/DB/file, nothing will page a human outside business "
+                "hours. Configure PAGERDUTY_ROUTING_KEY or TWILIO_* + ALERT_SMS_TO before "
+                "trading real money."
+            )
 
         # Allow no-op mode if no alert channels configured (for paper trading / testing).
         # CRITICAL: "no-op" only applies to EXTERNAL delivery (email/SNS) - every alert is
@@ -259,6 +294,9 @@ class AlertManager:
             except Exception as e:
                 send_errors.append(f"SNS: {e}")
 
+        if severity == "CRITICAL":
+            self.page_critical(subject, body_text)
+
         if send_errors:
             raise RuntimeError(
                 f"[CRITICAL] Data patrol alert send failed for run {patrol_run_id}: {'; '.join(send_errors)}. "
@@ -412,6 +450,70 @@ class AlertManager:
                 self._publish_sns(subject, body_text)
             except Exception as e:
                 logger.error(f"Critical alert SNS failed (non-blocking): {e}")
+
+        self.page_critical(subject, message)
+
+    def page_critical(self, subject: str, message: str) -> None:
+        """Page a human for a truly critical event via PagerDuty and/or SMS (Twilio),
+        independent of email/SNS delivery.
+
+        REAL-MONEY-READINESS FINDING (2026-09-06 audit): critical alerts (a halt trigger,
+        a failed stop-loss repair, reconciliation drift) previously only reached email/SNS
+        - fine during business hours with someone watching an inbox, but nothing would
+        actually wake a human for an overnight/weekend event. Both channels are opt-in via
+        env var and no-op silently when unconfigured (same pattern as email/SNS), so paper
+        trading/testing needs no external paging infrastructure. Best-effort: a paging
+        failure must not prevent the alert from reaching its other channels (already-called
+        email/SNS/DB/file by the caller) or block the caller's own control flow.
+        """
+        if self.pagerduty_routing_key:
+            try:
+                self._page_pagerduty(subject, message)
+            except Exception as e:
+                logger.error(f"[ALERTS] PagerDuty paging failed (non-blocking): {e}")
+
+        if self.sms_to and self.twilio_account_sid and self.twilio_auth_token and self.twilio_from_number:
+            try:
+                self._page_sms(subject, message)
+            except Exception as e:
+                logger.error(f"[ALERTS] SMS paging failed (non-blocking): {e}")
+
+    def _page_pagerduty(self, subject: str, message: str) -> None:
+        import requests
+
+        resp = requests.post(
+            "https://events.pagerduty.com/v2/enqueue",
+            json={
+                "routing_key": self.pagerduty_routing_key,
+                "event_action": "trigger",
+                # dedup_key intentionally omitted - each critical event should page fresh
+                # rather than being silently deduplicated against an unrelated prior one.
+                "payload": {
+                    "summary": subject[:1024],
+                    "source": "algo-trading-system",
+                    "severity": "critical",
+                    "custom_details": {"message": message[:2000]},
+                },
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        logger.info(f"PagerDuty page sent: {subject}")
+
+    def _page_sms(self, subject: str, message: str) -> None:
+        import requests
+
+        body = f"{subject}: {message}"[:1600]
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{self.twilio_account_sid}/Messages.json"
+        for to_number in self.sms_to:
+            resp = requests.post(
+                url,
+                data={"From": self.twilio_from_number, "To": to_number, "Body": body},
+                auth=(self.twilio_account_sid, self.twilio_auth_token),
+                timeout=10,
+            )
+            resp.raise_for_status()
+        logger.info(f"SMS page sent to {len(self.sms_to)} recipient(s): {subject}")
 
     def _send_email(self, subject: str, body: str) -> None:
         """Send email via SMTP."""

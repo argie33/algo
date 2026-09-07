@@ -52,6 +52,57 @@ resource "aws_iam_role_policy" "algo_lambda_read_smtp_secret" {
   })
 }
 
+# ============================================================
+# Secrets Management - Paging (PagerDuty/Twilio) Credentials
+# ============================================================
+
+# REAL-MONEY-READINESS FIX (2026-09-06 audit): critical alerts previously only reached
+# email/SNS - nothing would actually page a human outside business hours (an overnight/
+# weekend halt, a failed stop-loss repair). PAGERDUTY_ROUTING_KEY and TWILIO_AUTH_TOKEN
+# are secrets (a leaked routing key lets anyone trigger phantom pages; a leaked Twilio
+# token lets anyone send SMS billed to this account) - same Secrets Manager pattern as
+# algo_smtp above, for the same reason (raw Lambda env vars are visible via
+# lambda:GetFunction). Both channels are independently optional - AlertManager itself
+# no-ops per-channel when that channel's fields are incomplete, so this can be deployed
+# with only one of PagerDuty/Twilio configured, or neither (paging simply stays disabled
+# until var.pagerduty_routing_key/var.twilio_auth_token are actually set).
+resource "aws_secretsmanager_secret" "algo_paging" {
+  name                    = "${var.project_name}-algo-paging-${var.environment}"
+  description             = "PagerDuty/Twilio credentials for algo trading system critical-alert paging"
+  recovery_window_in_days = 7
+
+  tags = var.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "algo_paging" {
+  secret_id = aws_secretsmanager_secret.algo_paging.id
+  secret_string = jsonencode({
+    pagerduty_routing_key = var.pagerduty_routing_key
+    twilio_account_sid    = var.twilio_account_sid
+    twilio_auth_token     = var.twilio_auth_token
+    twilio_from_number    = var.twilio_from_number
+    sms_to                = var.alert_sms_to
+  })
+}
+
+resource "aws_iam_role_policy" "algo_lambda_read_paging_secret" {
+  name = "${var.project_name}-algo-lambda-read-paging-secret-${var.environment}"
+  role = element(split("/", var.algo_lambda_role_arn), length(split("/", var.algo_lambda_role_arn)) - 1)
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = aws_secretsmanager_secret.algo_paging.arn
+      }
+    ]
+  })
+}
+
 locals {
   api_lambda_name  = "${var.project_name}-api-${var.environment}"
   algo_lambda_name = "${var.project_name}-algo-${var.environment}"
@@ -910,6 +961,9 @@ resource "aws_lambda_function" "algo" {
       # Credentials fetched from Secrets Manager via Lambda execution role at startup
       ALERT_SMTP_SECRET_ARN = aws_secretsmanager_secret.algo_smtp.arn
       ALERT_SMTP_FROM       = var.alert_smtp_from
+      # PagerDuty/Twilio critical-alert paging (2026-09-06 real-money-readiness fix) - loaded
+      # from Secrets Manager at runtime, same pattern/reasoning as ALERT_SMTP_SECRET_ARN above.
+      PAGING_SECRET_ARN = aws_secretsmanager_secret.algo_paging.arn
       # ECS/Fargate configuration for failsafe loader trigger (Phase 1 stale data recovery)
       ECS_CLUSTER_ARN     = var.ecs_cluster_arn
       ECS_SUBNETS         = join(",", var.private_subnet_ids)

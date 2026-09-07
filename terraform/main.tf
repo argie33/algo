@@ -332,6 +332,11 @@ module "services" {
   alert_smtp_user                        = var.alert_smtp_user
   alert_smtp_password                    = var.alert_smtp_password
   alert_smtp_from                        = var.alert_smtp_from
+  pagerduty_routing_key                  = var.pagerduty_routing_key
+  twilio_account_sid                     = var.twilio_account_sid
+  twilio_auth_token                      = var.twilio_auth_token
+  twilio_from_number                     = var.twilio_from_number
+  alert_sms_to                           = var.alert_sms_to
   task_execution_role_arn                = module.iam.ecs_task_execution_role_arn
   task_role_arn                          = module.iam.ecs_task_role_arn
   api_lambda_layer_enabled               = false # Layers built but NOT published to AWS (would need separate publish step)

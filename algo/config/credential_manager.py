@@ -759,6 +759,71 @@ class CredentialManager:
             "port": smtp_port,
         }
 
+    def get_paging_credentials(self) -> dict[str, Any] | None:
+        """Get PagerDuty/Twilio paging credentials. Returns None if not configured.
+
+        Mirrors get_smtp_credentials()'s exact pattern and rationale: PAGERDUTY_ROUTING_KEY
+        and TWILIO_AUTH_TOKEN are secrets (a leaked routing key lets anyone trigger phantom
+        pages; a leaked Twilio auth token lets anyone send SMS/make calls billed to this
+        account) and must not be raw Lambda environment variables, which are visible to
+        anyone with lambda:GetFunction permission - the same security lesson this codebase
+        already learned once for the SMTP password (see that function's own docstring).
+
+        Fields, all optional independently (unlike SMTP, PagerDuty and Twilio are two
+        independent optional channels - AlertManager.page_critical() no-ops per-channel
+        when a channel's fields are incomplete):
+        - PAGING_SECRET_ARN (AWS: fetches all fields together from Secrets Manager)
+        - or PAGERDUTY_ROUTING_KEY / TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN /
+          TWILIO_FROM_NUMBER / ALERT_SMS_TO env vars (local dev)
+        """
+        secret_arn = os.getenv("PAGING_SECRET_ARN")
+        if secret_arn and self._is_aws:
+            cache_key = "__paging_credentials__"
+            if cache_key in self._cache:
+                cached_paging: dict[str, Any]
+                paging_timestamp: float
+                cached_paging, paging_timestamp = self._cache[cache_key]
+                if time.time() - paging_timestamp < CREDENTIAL_CACHE_TTL_SECONDS:
+                    return cached_paging
+
+            client = self._get_secrets_client()
+            if not client:
+                raise RuntimeError(
+                    "PAGING_SECRET_ARN is set but Secrets Manager client is unavailable. "
+                    "Cannot fall back to environment variables for paging credentials in AWS environment."
+                )
+            import json as _json
+
+            response = client.get_secret_value(SecretId=secret_arn)
+            secret_string = response.get("SecretString")
+            if not secret_string:
+                raise ValueError(f"PAGING_SECRET_ARN '{secret_arn}' exists but contains no SecretString")
+            try:
+                creds = _json.loads(secret_string)
+            except _json.JSONDecodeError as e:
+                raise ValueError(f"Paging secret contains invalid JSON: {e}") from e
+
+            paging_result: dict[str, Any] = {
+                "pagerduty_routing_key": creds.get("pagerduty_routing_key", ""),
+                "twilio_account_sid": creds.get("twilio_account_sid", ""),
+                "twilio_auth_token": creds.get("twilio_auth_token", ""),
+                "twilio_from_number": creds.get("twilio_from_number", ""),
+                "sms_to": creds.get("sms_to", ""),
+            }
+            self._cache[cache_key] = (paging_result, time.time())
+            return paging_result
+
+        # Local dev fallback: plain env vars. Each channel (PagerDuty vs Twilio) is
+        # independently optional, unlike SMTP's all-or-nothing - AlertManager itself
+        # decides per-channel whether enough fields are present to actually page.
+        return {
+            "pagerduty_routing_key": os.getenv("PAGERDUTY_ROUTING_KEY", ""),
+            "twilio_account_sid": os.getenv("TWILIO_ACCOUNT_SID", ""),
+            "twilio_auth_token": os.getenv("TWILIO_AUTH_TOKEN", ""),
+            "twilio_from_number": os.getenv("TWILIO_FROM_NUMBER", ""),
+            "sms_to": os.getenv("ALERT_SMS_TO", ""),
+        }
+
     def clear_cache(self) -> None:
         """Clear credential cache (useful for testing or forcing a refresh)."""
         self._cache.clear()
