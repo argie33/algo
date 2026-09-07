@@ -1393,6 +1393,64 @@ class TestQuarterlyGrossProfitIdentity:
         assert checker.results[0].severity == ERROR
 
 
+class TestFreeCashFlowIdentity:
+    def test_flags_row_beyond_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "FCFBAD",
+                        "fiscal_year": 2025,
+                        "operating_cash_flow": 1_000_000.0,
+                        "capex": 200_000.0,
+                        "free_cash_flow": 100_000.0,  # implied 800,000, way off
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_free_cash_flow_identity(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "free_cash_flow_identity"
+        assert checker.results[0].details["examples"][0]["symbol"] == "FCFBAD"
+
+    def test_does_not_flag_within_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "FCFGOOD",
+                        "fiscal_year": 2025,
+                        "operating_cash_flow": 1_000_000.0,
+                        "capex": 200_000.0,
+                        "free_cash_flow": 800_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_free_cash_flow_identity(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_free_cash_flow_identity(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (symbol)" in executed_sql
+        assert "ORDER BY symbol, fiscal_year DESC" in executed_sql
+        assert "annual_cash_flow" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_free_cash_flow_identity(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "free_cash_flow_identity"
+        assert checker.results[0].severity == ERROR
+
+
 class TestQuarterlyFreeCashFlowIdentity:
     def test_flags_row_beyond_tolerance(self) -> None:
         cur = _mock_cursor(
