@@ -83,6 +83,13 @@ but is not the same as full coverage - a future session should investigate why s
 `LongTermDebt` don't make it from SEC XBRL into `annual_balance_sheet` despite the concept being
 fetched.
 
+**UPDATE 2026-09-07:** the GOOGL-specific complaint above is resolved - GOOGL now has
+`long_term_debt` populated for every fiscal year 2015-2025 (only FY2012-2014, the
+pre-mature-XBRL-adoption era, and the current-year stub row still lack it, both plausibly
+legitimate). Universe-wide coverage is now 68.8% (3,519/5,118), up from the 58% figure above -
+see `googl_long_term_debt_gap_resolved_20260907` in memory. Not re-diagnosed whether 68.8% is
+now near the practical ceiling (some companies genuinely carry zero long-term debt).
+
 ---
 
 ## Full loader/XBRL audit, 2026-07-28 (loader-review goal continuation)
