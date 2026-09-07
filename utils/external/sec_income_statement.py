@@ -541,6 +541,21 @@ def get_income_statement(
         "CostsAndExpenses",
         "GrossProfit",
         "OperatingIncomeLoss",
+        # ADDED 2026-09-07 (goal: SEC/XBRL missing-data audit, migration 1264, found via
+        # scripts/xbrl_concept_coverage_scan.py's systematic gap scan): 2,820+ real filers tag
+        # this concept and it was never fetched at all - no operating_expenses/SG&A-shaped
+        # column existed anywhere in the schema before migration 1264. This is a DIFFERENT,
+        # standalone-usable concept from "OperatingExpenses" above (which is only a narrower
+        # non-COGS remainder for single-step filers - see that concept's comment) -
+        # SellingGeneralAndAdministrativeExpense is the standard combined SG&A total most
+        # filers tag directly. Live-confirmed via real SEC companyfacts JSON: WMT FY2026 =
+        # $147,943,000,000 (~21.7% of revenue), TGT FY2026 = $21,535,000,000, AAR CORP FY2026 =
+        # $349,300,000, Abbott Labs FY2025 = $12,332,000,000 (~27.8% of revenue) - all single,
+        # real, sane SG&A figures. No known taxonomy-variant/IFRS fallback verified yet (none
+        # of the 4 filers checked tag "GeneralAndAdministrativeExpense" as a separate line) -
+        # add one only with the same live-evidence standard as every other fallback in this
+        # file, not by guessing a plausible-sounding concept name.
+        "SellingGeneralAndAdministrativeExpense",
         # ADDED 2026-08-27 (goal: close the R&D intensity/Mohanram G-Score literature-checklist
         # gap - see MEMORY.md growth_missing_metrics_swept_20260827, which had incorrectly
         # marked these permanently blocked on "no research_development column exists anywhere").

@@ -418,6 +418,12 @@ _INCOME_FIELD_MAPPING = {
     # file's concepts list, so it wins on overwrite for filers reporting both).
     "research_and_development_expense_excluding_acquired_in_process_cost": "research_development_expense",
     "research_and_development_expense": "research_development_expense",
+    # ADDED 2026-09-07 (goal: SEC/XBRL missing-data audit, migration 1264): see
+    # sec_income_statement.py's get_income_statement() comment on
+    # "SellingGeneralAndAdministrativeExpense" for the live WMT/TGT/AAR/ABT evidence. Not
+    # fallback-only - this is the only concept fetched for this column, same single-concept
+    # convention as accounts_payable/accounts_receivable.
+    "selling_general_and_administrative_expense": "operating_expenses",
     "operating_income_loss": "operating_income",
     "net_income_loss": "net_income",
     # FIXED 2026-08-17 (goal: "no SEC data" audit): "ProfitLoss" added to sec_statements.py's
@@ -1369,6 +1375,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "cost_of_revenue",
                     "gross_profit",
                     "operating_income",
+                    "operating_expenses",
                     "net_income",
                     "earnings_per_share",
                     "diluted_eps",
@@ -1405,6 +1412,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "cost_of_revenue",
                     "gross_profit",
                     "operating_income",
+                    "operating_expenses",
                     "net_income",
                     "earnings_per_share",
                     "diluted_eps",
