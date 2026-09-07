@@ -3209,6 +3209,56 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                 row["shares_outstanding_diluted"] = None
                 self._record_explicit_null_rejection(row, "shares_outstanding_diluted", "diluted_below_basic_shares")
 
+    def _reject_shares_outstanding_basic_diluted_dei_same_row_mismatch(self, transformed: list[dict[str, Any]]) -> None:
+        """Reject shares_outstanding_basic/diluted when they disagree by >5x with the SAME
+        row's shares_outstanding_dei. Mutates `transformed` in place.
+
+        FOUND 2026-09-07 (goal session: stock_scores factor/composite sanity sweep, live-
+        confirmed via SOAR): unlike _reject_implausible_shares_outstanding's company_info_sec
+        cross-check (an independent, possibly stale/different-dated reference the 20x
+        threshold is deliberately generous about) or _reject_diluted_shares_below_basic's
+        basic-vs-diluted check (which legitimately differ due to dilutive securities), basic/
+        diluted and dei come from the SAME filing/row here - dei is the cover-page share count
+        as of the filing date, basic/diluted are the weighted-average share count for the
+        fiscal period the same filing covers. These can differ moderately from real buybacks/
+        issuances during the year, but not by many multiples.
+
+        SOAR FY2025: shares_outstanding_basic=shares_outstanding_diluted=4,386,829 against the
+        SAME row's shares_outstanding_dei=38,895,663 (~8.87x) and the independent
+        company_info_sec.shares_outstanding=53,633,248 (~12.2x, under
+        _reject_implausible_shares_outstanding's 20x threshold and so not caught there) -
+        diluted_eps computed from the understated share count came out $1.18 instead of a
+        real ~$0.13, crushing pe_ratio to 0.20 and making SOAR the single most "undervalued"
+        name in the whole universe (value_score=100.0) on a confidently-wrong share count.
+        Cross-checked the rest of the same live 0<PE<1 cluster (31 symbols) this same-session
+        sweep surfaced: every other symbol's basic/diluted-vs-dei ratio was under 2.5x (real
+        reporting-date variance), SOAR alone at 12.23x - an isolated same-filing tagging
+        error, not evidence the existing 20x cross-check threshold itself needs lowering.
+        """
+        max_plausible_ratio = 5.0
+        for row in transformed:
+            dei = row.get("shares_outstanding_dei")
+            if dei is None or dei <= 0:
+                continue
+            for field in ("shares_outstanding_basic", "shares_outstanding_diluted"):
+                val = row.get(field)
+                if val is None or val <= 0:
+                    continue
+                ratio = dei / float(val) if val < dei else float(val) / dei
+                if ratio > max_plausible_ratio:
+                    logger.warning(
+                        f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                        f"{field}={val:,.0f} disagrees with the SAME row's "
+                        f"shares_outstanding_dei={dei:,.0f} by {ratio:.1f}x - too large a gap "
+                        "for a same-filing cover-page-vs-weighted-average difference to "
+                        "explain. Likely a filer/filing-agent XBRL tagging error. Rejecting "
+                        "rather than storing a confidently-wrong share count."
+                    )
+                    row[field] = None
+                    self._record_explicit_null_rejection(
+                        row, field, "shares_outstanding_basic_diluted_dei_same_row_mismatch"
+                    )
+
     def _fill_derived_eps(self, transformed: list[dict[str, Any]]) -> None:
         """Fill earnings_per_share when the filer never tagged EarningsPerShareBasic/Diluted
         at all, using data this same row already carries. Mutates `transformed` in place.
@@ -3947,6 +3997,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         # load_company_info_sec.py.
         self._reject_implausible_shares_outstanding(transformed)
         self._reject_diluted_shares_below_basic(transformed)
+        self._reject_shares_outstanding_basic_diluted_dei_same_row_mismatch(transformed)
         self._reject_implausible_debt_field(transformed, "long_term_debt")
         self._reject_implausible_debt_field(transformed, "short_term_debt")
         self._reject_implausible_goodwill(transformed)
