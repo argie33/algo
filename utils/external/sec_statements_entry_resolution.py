@@ -416,11 +416,24 @@ def _aggregate_concepts_should_replace_entry(
     start_date: Any,
     end_date: Any,
     period: str,
+    concept: str | None = None,
 ) -> tuple[bool, int, bool]:
     """Decide whether ``entry`` should replace the currently-stored value for ``col``.
 
     Extracted from _aggregate_concepts (mechanical extraction, no behavior change).
     Returns (should_replace, entry_rank, is_instant).
+
+    FIXED 2026-09-07 (CVE FY2022 current_assets=0.0 live-confirmed): a secondary/fallback
+    IFRS alias concept for the same target column (e.g. sec_balance_sheet.py's
+    _BALANCE_IFRS_ALIASES CurrentAssetsOtherThan...HeldForSale fallback) could overwrite an
+    already-populated PRIMARY concept's value via the frame-preference tiebreak (added for
+    PMT/IPAR, designed for same-concept multi-fact collisions, not cross-concept ones).
+    CVE's primary CurrentAssets concept correctly reports $12.43B CAD with no frame key;
+    the fallback concept's same-accn/same-filed/same-end_date fact reports 0 but DOES carry
+    SEC's frame tag, so it wrongly won. Fix: track which concept last populated each column
+    and require a concept match before falling through to the frame/end-date tiebreak -
+    first-populated-wins for cross-concept collisions, same-concept PMT/IPAR/RIGL/LADR
+    tiebreaks unaffected.
     """
     # FIXED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, live SEC
     # EDGAR verification): _PRIMARY_STATEMENT_FORMS ranks 10-K and 10-Q equally
@@ -487,6 +500,12 @@ def _aggregate_concepts_should_replace_entry(
         # this branch is a no-op there and only fires on a real conflict like
         # LADR's.
         should_replace = bool(row.get(f"_is_instant_{col}"))
+    elif concept is not None and row.get(f"_concept_{col}") not in (None, concept):
+        # FIXED 2026-09-07: same rank AND same instant-ness, but a DIFFERENT concept than
+        # the one that already populated this column - never let the tiebreak refinements
+        # below hand a fallback/secondary alias concept priority over an already-populated
+        # primary concept's fact. First-populated-wins for cross-concept collisions.
+        should_replace = False
     else:
         # FIXED 2026-08-18 (live-verified RIGL): instant/point-in-time balance-
         # sheet facts (no "start" - see this loop's is_instant-equivalent comment
@@ -656,6 +675,7 @@ def _aggregate_concepts_apply_entry_value(
     period: str,
     is_major_currency: bool,
     _currency_code: str,
+    concept: str | None = None,
 ) -> None:
     """Write ``entry``'s value (with FX conversion if needed) into ``row[col]``.
 
@@ -678,6 +698,7 @@ def _aggregate_concepts_apply_entry_value(
     row[f"_rank_{col}"] = entry_rank
     row[f"_frame_{col}"] = bool(entry.get("frame"))
     row[f"_is_instant_{col}"] = is_instant
+    row[f"_concept_{col}"] = concept
     if period == "quarterly" and start_date and end_date:
         try:
             row[f"_span_{col}"] = (datetime.date.fromisoformat(end_date) - datetime.date.fromisoformat(start_date)).days

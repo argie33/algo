@@ -161,6 +161,7 @@ def _aggregate_concepts(
                     start_date,
                     end_date,
                     period,
+                    concept,
                 )
                 if should_replace:
                     _aggregate_concepts_apply_entry_value(
@@ -174,6 +175,7 @@ def _aggregate_concepts(
                         period,
                         is_major_currency,
                         _currency_code,
+                        concept,
                     )
 
     # period_end/filed/form are row bookkeeping set unconditionally above (not XBRL
