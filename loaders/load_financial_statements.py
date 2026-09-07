@@ -3536,7 +3536,26 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
     # _PARTIAL_SEGMENT_GROSS_PROFIT_MANAGED_CARE_SYMBOLS above) - only cost_of_revenue is
     # nulled here, NOT gross_profit, since GrossProfit is the reliable, complete figure in
     # this case (opposite of CNC/ELV, where GrossProfit itself was the partial concept).
-    _PARTIAL_COST_OF_REVENUE_SYMBOLS = frozenset({"MO"})
+    # ADDED 2026-09-07 (same goal, gross_profit_identity live re-check continuation - see
+    # [[gross_profit_identity_184_live_triage_20260907]] in memory): TTEK (Tetra Tech, an
+    # engineering/environmental-consulting firm) is the same MO-pattern bug, live-confirmed
+    # via real SEC companyfacts JSON: `GrossProfit` (CIK 0000831641) is real and consistent -
+    # FY2019-2025 gross margin against TTEK's real headline revenue runs a plausible 55-72%
+    # (FY2025: $961.344M / $5.4426B = 17.7%... - actually the relevant check is Revenue -
+    # CostOfGoodsAndServicesSold vs GrossProfit, not a standalone margin ratio) while
+    # `CostOfGoodsAndServicesSold` implies a wildly larger, implausible "cost" only $825.230M
+    # against $5.4426B FY2025 revenue (leaving $4.6174B of implied gross profit vs the real,
+    # filer-tagged $961.344M - a $3.656B gap, exactly this pipeline's own gross_profit_identity
+    # tie-out residual). TTEK's real business model - billing clients for subcontractor costs
+    # with minimal markup on a large share of contracts - makes CostOfGoodsAndServicesSold a
+    # narrow direct-labor-only concept, not the full cost of revenue their real GrossProfit
+    # already nets out. Peer-checked AECOM (ACM, CIK 0000868857, a comparable engineering/
+    # construction-services firm with a similar subcontractor-heavy revenue model): ACM
+    # doesn't tag CostOfGoodsAndServicesSold AT ALL (real GrossProfit alone, $1.217B FY2025 on
+    # $16.14B revenue, ~7.5% - a plausible low margin for this business model) - ruling out an
+    # industry-wide reconciliation convention as the explanation and confirming this is a
+    # per-filer tagging-completeness gap, same discipline as the MO peer-check against PM.
+    _PARTIAL_COST_OF_REVENUE_SYMBOLS = frozenset({"MO", "TTEK"})
 
     def _reject_partial_cost_of_revenue(self, transformed: list[dict[str, Any]]) -> None:
         """Force-null cost_of_revenue (keeping gross_profit) for the curated symbols above -
