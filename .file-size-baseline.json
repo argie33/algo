@@ -115,7 +115,7 @@
   "algo/orchestrator/phase7_candidate_builder.py": 249,
   "algo/orchestrator/phase7_run_steps.py": 771,
   "algo/orchestrator/phase7_signal_generation.py": 1681,
-  "algo/orchestrator/phase8_entry_execution.py": 3740,
+  "algo/orchestrator/phase8_entry_execution.py": 3734,
   "algo/orchestrator/phase8_guards.py": 274,
   "algo/orchestrator/phase8_preentry_health_check.py": 231,
   "algo/orchestrator/phase9_reconciliation.py": 1932,

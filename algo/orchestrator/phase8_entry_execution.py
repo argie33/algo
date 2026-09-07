@@ -2649,9 +2649,16 @@ def run(
             logger.critical(error_msg)
             raise RuntimeError(error_msg) from db_test_err
 
-        # Pre-flight validation pass: test position sizing and pretrade checks
-        # for all trades before executing any. This catches issues upfront that would
-        # cause partial execution if discovered mid-loop.
+        # Pre-flight validation pass (2026-09-07 doc fix, real-money-readiness audit -
+        # comment previously overstated this): checks candidate DATA COMPLETENESS only
+        # (symbol present, entry_price positive, required technical fields present) - it
+        # does NOT call the real position sizer or pretrade_checks.run_all(). Those still
+        # run individually per-trade in the main loop below, exactly as designed; a normal
+        # pretrade rejection there (duplicate position, concentration cap, correlation,
+        # etc.) is an expected safe outcome, not the "unrecoverable partial execution"
+        # scenario this block exists to prevent. What THIS preflight actually prevents is
+        # a malformed/incomplete candidate causing an unhandled exception mid-loop after
+        # earlier trades in the same batch have already been submitted to the broker.
         validation_failures = []
         for preflight_signal in qualified_trades:
             preflight_symbol = preflight_signal.get("symbol")
