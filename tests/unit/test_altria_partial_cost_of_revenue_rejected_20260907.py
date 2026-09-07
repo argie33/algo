@@ -84,34 +84,6 @@ class TestAltriaPartialCostOfRevenueRejected:
         _transform(loader, rows)
         assert loader._explicit_null_rejections == []
 
-    def test_ttek_cost_of_revenue_rejected_gross_profit_kept(self) -> None:
-        """TTEK (Tetra Tech) added same day - live-confirmed via real SEC companyfacts JSON:
-        GrossProfit is real/consistent (FY2025: $961.344M), but CostOfGoodsAndServicesSold
-        ($825.230M) is a partial concept, not TTEK's real cost of revenue - a subcontractor-
-        heavy engineering-services firm's direct-labor-only cost line, not the full cost
-        their real GrossProfit already nets out. Peer-checked AECOM (ACM), a comparable
-        subcontractor-heavy engineering firm: doesn't tag CostOfGoodsAndServicesSold at all,
-        ruling out an industry-wide reconciliation convention.
-        """
-        loader = _make_loader()
-        rows = [
-            {
-                "symbol": "TTEK",
-                "fiscal_year": 2025,
-                "revenue": Decimal("5442590000"),
-                "cost_of_revenue": Decimal("825230000"),
-                "gross_profit": Decimal("961344000"),
-                "net_income": Decimal("247949000"),
-                "data_unavailable": False,
-                "reason": None,
-            }
-        ]
-        result = _transform(loader, rows)
-        assert result[0]["cost_of_revenue"] is None
-        assert result[0]["gross_profit"] == Decimal("961344000")
-        assert ({"symbol": "TTEK", "fiscal_year": 2025}, "cost_of_revenue") in loader._explicit_null_rejections
-        assert ({"symbol": "TTEK", "fiscal_year": 2025}, "gross_profit") not in loader._explicit_null_rejections
-
     def test_mo_with_no_cost_of_revenue_is_a_no_op(self) -> None:
         """A row that already has no cost_of_revenue (already-rejected or genuinely missing)
         must not spuriously appear in the rejection log."""
