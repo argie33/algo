@@ -478,10 +478,26 @@ class DailyReconciliation(
                             f"Position value drift: Alpaca ${float(alpaca_portfolio_value_dec):,.2f} vs "
                             f"DB-computed ${float(total_equity_db_dec):,.2f} ({float(drift_pct):+.1f}%)"
                         )
-                        logger.warning(drift_message)
+                        # REAL-MONEY-READINESS FIX (2026-09-07 audit): this check was pure
+                        # log-only regardless of magnitude - a systematic valuation bug (mispriced
+                        # position, missed corporate action, wrong FX conversion) could persist for
+                        # days as a "warning"-severity notify nobody acts on, since phase4's own
+                        # success flag is deliberately never flipped by drift (see
+                        # phase4_reconciliation.py's docstring on that decision). Quantity-level
+                        # drift already auto-corrects+alerts (alpaca_sync_manager.py); this is the
+                        # matching escalation for value-level drift once it's large enough that
+                        # "transient timing noise" (unsettled cash, pending dividend) stops being a
+                        # plausible innocent explanation. Does NOT change halted/success - whether
+                        # large sustained value drift should halt trading is a risk-tolerance policy
+                        # decision, not something to bake in unilaterally.
+                        drift_severity = "critical" if abs(drift_pct) > Decimal("5.0") else "warning"
+                        if drift_severity == "critical":
+                            logger.critical(drift_message)
+                        else:
+                            logger.warning(drift_message)
                         try:
                             notify(
-                                "warning",
+                                drift_severity,
                                 title="Broker/DB Equity Drift",
                                 message=drift_message,
                             )
