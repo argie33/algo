@@ -168,6 +168,26 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "Default stop loss % for imported positions",
         "Exit Rules",
     ),
+    # REAL-MONEY-READINESS (2026-09-07 audit): an orphaned broker position (found at Alpaca,
+    # no matching algo_trades/algo_positions row - e.g. a manual trade placed directly at the
+    # broker) previously got a critical alert but literally zero stop-loss protection, because
+    # algo_untracked_positions is deliberately kept out of algo_positions (migration 1118: "to
+    # avoid circuit breaker conflicts" - it may be a deliberate manual/external holding the
+    # operator does not want the algo's signal-driven exit logic touching). The fix attaches a
+    # standalone (non-bracket) broker-side protective stop directly to the position - real
+    # downside protection without enrolling it in algo-managed targets/Minervini-break/etc
+    # exits. Reuses imported_position_default_stop_loss_pct as the stop distance below current
+    # price. Defaults true (protect capital by default) but is an explicit off-switch for an
+    # operator who has a specific, deliberately-unprotected manual holding at the same broker
+    # account this system trades from.
+    "untracked_position_auto_protective_stop_enabled": (
+        "true",
+        "bool",
+        "Auto-submit a standalone protective stop-loss for orphaned broker positions "
+        "(detected at Alpaca, not in algo_positions). Does NOT enroll the position in "
+        "algo-managed exits - only attaches downside protection. Set false to disable.",
+        "Exit Rules",
+    ),
     "imported_position_default_target_1_pct": (
         "5.0",
         "float",

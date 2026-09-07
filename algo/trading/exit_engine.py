@@ -626,23 +626,16 @@ class ExitEngine:
                                 "exit_price_override": float(exit_price_for_stop),  # Use stop price as fill
                             }
                         else:
-                            # Get min_hold_days from config
-                            # Hard stop-loss above already checked and not triggered
-                            min_hold_val = self.config.get("min_hold_days")
-                            if min_hold_val is None:
-                                raise ValueError(
-                                    "CRITICAL: min_hold_days config missing. Cannot enforce minimum holding period."
-                                )
-                            min_hold_days_check = int(min_hold_val)
-
-                            if days_held < min_hold_days_check:
-                                if self.verbose:
-                                    logger.info(
-                                        f"  {symbol}: hold (minimum hold period not met: {days_held}d held < {min_hold_days_check}d required)"
-                                    )
-                                cur.execute(f"RELEASE SAVEPOINT {_sp}")
-                                continue
-
+                            # BUG FIX: This used to gate the entire ExitStrategyChain (targets,
+                            # trailing/active stop, Minervini/RS breaks, distribution de-risking)
+                            # behind min_hold_days, blocking `_evaluate_position` from ever being
+                            # reached during the hold window. That made _evaluate_position's own
+                            # "SESSION 41" fix (which documents removing exactly this blanket gate
+                            # and delegating min_hold_days enforcement to check_time_exit for
+                            # time-based exits only) dead code - the min_hold_days config is still
+                            # read and enforced, just inside check_time_exit (exit_position_context.py)
+                            # and the active_stop/hard-stop checks at the top of _evaluate_position,
+                            # not here. Hard stop-loss above already checked and not triggered.
                             exit_signal = self._evaluate_position(
                                 cur,
                                 symbol,

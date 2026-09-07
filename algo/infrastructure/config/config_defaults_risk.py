@@ -237,17 +237,23 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
         "explicit operator decision to enable live automated remediation.",
         "Risk Management",
     ),
-    # Same rationale as unified_risk_monitor_shadow_mode above: reconciliation.py's
-    # sustained (2-consecutive-run) broker/DB equity-drift auto-halt observes and alerts
-    # but does NOT call set_halt_flag while true. Defaults true so this automated
-    # real-money halt never goes live without a deliberate, explicit operator decision.
+    # REAL-MONEY-READINESS (2026-09-07, deliberate operator decision): unlike
+    # unified_risk_monitor_shadow_mode above (auto-flatten/reduce - real, irreversible
+    # trades, stays shadow-mode until separately soak-tested), this check's only action is
+    # set_halt_flag - it blocks new entries, never touches or exits an existing position
+    # (verified: Phase 6 exits, Phase 3/4/5/7 all always_run=True regardless of halt state).
+    # A halt is cheap to be wrong about and expensive to be missing: >5% confirmed broker-
+    # vs-DB equity drift, sustained across 2 consecutive reconciliation runs (not a single
+    # noisy snapshot), means the algo's own books may be materially wrong about what it
+    # holds - exactly the condition that should stop new risk-taking before real capital is
+    # on the line, not just alert. Flipped to live enforcement ahead of go-live; flip back
+    # to "true" only if live operation shows this debounce is still too sensitive.
     "reconciliation_drift_halt_shadow_mode": (
-        "true",
+        "false",
         "bool",
-        "reconciliation.py's sustained broker/DB equity-drift halt observes and alerts on "
-        "confirmed 2-consecutive-run critical drift but does NOT auto-halt while true. Set "
-        "false only after a deliberate, explicit operator decision to enable live automated "
-        "halting.",
+        "reconciliation.py's sustained broker/DB equity-drift halt observes, alerts, AND "
+        "auto-halts (new entries only, never touches existing positions) on confirmed "
+        "2-consecutive-run critical (>5%) drift. Set true to return to observe-only mode.",
         "Risk Management",
     ),
     # Position Monitoring & Re-entry

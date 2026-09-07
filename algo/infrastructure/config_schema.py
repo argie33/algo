@@ -156,6 +156,7 @@ VALIDATION_SCHEMA = {
     "t3_target_r_multiple": ("float", 0.5, 10.0, False, 4.0),
     # Imported Position Defaults
     "imported_position_default_stop_loss_pct": ("float", 0.1, 50.0, False, 5.0),
+    "untracked_position_auto_protective_stop_enabled": ("bool", None, None, False, None),
     "imported_position_default_target_1_pct": ("float", 0.1, 50.0, False, 5.0),
     "imported_position_default_target_2_pct": ("float", 0.1, 50.0, False, 10.0),
     "imported_position_default_target_3_pct": ("float", 0.1, 50.0, False, 15.0),

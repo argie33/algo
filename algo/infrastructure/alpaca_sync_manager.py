@@ -223,10 +223,11 @@ class AlpacaSyncManager:
 
                 try:
                     cur.execute(
-                        "SELECT id FROM algo_untracked_positions WHERE symbol = %s LIMIT 1",
+                        "SELECT id, protective_stop_order_id FROM algo_untracked_positions WHERE symbol = %s LIMIT 1",
                         (symbol,),
                     )
                     existing = cur.fetchone()
+                    existing_stop_order_id = existing[1] if existing and len(existing) > 1 else None
 
                     if existing:
                         cur.execute(
@@ -293,6 +294,13 @@ class AlpacaSyncManager:
                         f"Alpaca and database position state must remain synchronized."
                     ) from e
 
+                # REAL-MONEY-READINESS FIX (2026-09-07 audit): attach a standalone broker-side
+                # protective stop to any orphaned position that doesn't already have one -
+                # best-effort, never raises (a submission failure must not abort the rest of
+                # reconciliation; the "Untracked Broker Position(s) Detected" alert above/below
+                # already covers the human-notification obligation for this gap either way).
+                self._attach_protective_stop_if_missing(cur, symbol, qty_float, current_price, existing_stop_order_id)
+
         if newly_detected:
             try:
                 from algo.reporting.notifications import notify
@@ -342,6 +350,126 @@ class AlpacaSyncManager:
             )
 
         return untracked_count, untracked_closed_count
+
+    def _attach_protective_stop_if_missing(
+        self,
+        cur: Any,
+        symbol: str,
+        qty: float,
+        current_price: float | None,
+        existing_stop_order_id: str | None,
+    ) -> None:
+        """Best-effort: submit a standalone (non-bracket) protective sell-stop for an
+        orphaned broker position that doesn't already have one live. Real-money-readiness
+        fix (2026-09-07 audit) - see the comment at this method's call site for the full
+        rationale (algo_untracked_positions is deliberately kept out of algo_positions, so
+        this attaches downside protection without enrolling the position in algo-managed
+        signal-driven exits).
+
+        Never raises: a failure here must not abort the rest of untracked-position sync or
+        the reconciliation run - the existing "Untracked Broker Position(s) Detected"
+        critical alert already covers the human-notification obligation for this gap.
+        """
+        try:
+            enabled = self.config.get("untracked_position_auto_protective_stop_enabled")
+            if enabled is None:
+                enabled = True  # fail toward protecting capital, not toward silently skipping it
+            if not enabled:
+                return
+
+            if not (self.alpaca_key and self.alpaca_secret and self.alpaca_base_url):
+                logger.warning(
+                    f"[UNTRACKED_STOP] {symbol}: Alpaca credentials/base URL not configured - "
+                    "skipping protective stop submission."
+                )
+                return
+
+            from algo.trading.order_manager import OrderManager
+
+            order_mgr = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
+
+            if existing_stop_order_id:
+                try:
+                    still_live = order_mgr.is_order_still_live(existing_stop_order_id)
+                except Exception as e:
+                    logger.warning(
+                        f"[UNTRACKED_STOP] {symbol}: could not verify existing protective stop "
+                        f"{existing_stop_order_id} is still live ({e}) - skipping this cycle "
+                        "rather than risking a duplicate submission."
+                    )
+                    return
+                if still_live:
+                    return
+                if still_live is None:
+                    # Paper/local mode, or the order id is no longer resolvable - neither
+                    # confirms nor rules out protection. Skip rather than guess; a real
+                    # broker order id in auto mode always resolves to True/False here.
+                    return
+                logger.warning(
+                    f"[UNTRACKED_STOP] {symbol}: previously-submitted protective stop "
+                    f"{existing_stop_order_id} is no longer live (filled/cancelled) - "
+                    "attempting to submit a new one."
+                )
+
+            if current_price is None or current_price <= 0 or qty <= 0:
+                logger.warning(
+                    f"[UNTRACKED_STOP] {symbol}: cannot compute a protective stop without a "
+                    f"valid current_price/qty (price={current_price}, qty={qty}) - skipping."
+                )
+                return
+
+            stop_pct = self.config.get("imported_position_default_stop_loss_pct")
+            if stop_pct is None:
+                logger.warning(
+                    "[UNTRACKED_STOP] imported_position_default_stop_loss_pct config missing - "
+                    "skipping protective stop submission this cycle."
+                )
+                return
+            stop_price = round(current_price * (1 - float(stop_pct) / 100.0), 4)
+            if stop_price <= 0:
+                logger.warning(
+                    f"[UNTRACKED_STOP] {symbol}: computed stop_price={stop_price} is not positive - skipping."
+                )
+                return
+
+            import uuid
+
+            client_order_id = (
+                f"untracked-stop-{symbol}-{uuid.uuid5(uuid.NAMESPACE_DNS, f'{symbol}-{qty}-{stop_price}')}"
+            )
+            result = order_mgr.submit_standalone_protective_stop(
+                symbol=symbol,
+                qty=qty,
+                stop_price=stop_price,
+                client_order_id=client_order_id,
+                pos_id=None,
+            )
+            if result.get("success"):
+                cur.execute(
+                    """
+                    UPDATE algo_untracked_positions
+                    SET protective_stop_order_id = %s,
+                        protective_stop_price = %s,
+                        protective_stop_submitted_at = CURRENT_TIMESTAMP
+                    WHERE symbol = %s
+                    """,
+                    (result.get("order_id"), stop_price, symbol),
+                )
+                logger.critical(
+                    f"[UNTRACKED_STOP] {symbol}: attached protective stop @ ${stop_price:.4f} "
+                    f"({qty} shares, order id {result.get('order_id')}): {result.get('message')}"
+                )
+            else:
+                logger.critical(
+                    f"[UNTRACKED_STOP] {symbol}: FAILED to attach protective stop - this "
+                    f"position remains unprotected: {result.get('message')}"
+                )
+        except Exception as e:
+            logger.critical(
+                f"[UNTRACKED_STOP] {symbol}: unexpected error attaching protective stop "
+                f"(position remains unprotected): {e}",
+                exc_info=True,
+            )
 
     def sync_alpaca_positions(self, cur: Any) -> dict[str, Any]:
         """Sync Alpaca positions to database - advisory-lock-guarded wrapper.

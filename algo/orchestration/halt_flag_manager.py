@@ -868,6 +868,22 @@ class HaltFlagManager:
                     logger.critical(f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})")
                 else:
                     logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
+                # BUG FIX (real-money-readiness audit): DynamoDB is the authoritative store the
+                # orchestrator itself gates on (check_halt_flag), but the dashboard/API
+                # (lambda/api/routes/algo_handlers/market/data_status.py) and TUI read
+                # algo_runtime_state in RDS directly - which was previously ONLY written on the
+                # RDS-fallback path (DynamoDB unreachable). A halt that succeeded via DynamoDB
+                # (the normal case) never touched RDS, so operators could see a stale "READY TO
+                # TRADE" dashboard while trading was genuinely halted. Best-effort mirror: never
+                # let an RDS write failure affect the halt's success (DynamoDB already committed
+                # it) or raise - this is dashboard-visibility sync, not the safety-critical write.
+                try:
+                    self._set_halt_flag_rds(reason, now_utc, now_et, triggered_by, force)
+                except Exception as rds_mirror_err:
+                    logger.warning(
+                        f"[HALT_FLAG] Best-effort RDS mirror of DynamoDB halt failed (dashboard may show "
+                        f"stale status until the next halt/clear write): {rds_mirror_err}"
+                    )
                 self._cancel_pending_entry_orders_on_halt(reason, triggered_by)
                 return True
             except Exception as e:
@@ -1375,6 +1391,16 @@ class HaltFlagManager:
                 logger.info(
                     f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}"
                 )
+                # BUG FIX (real-money-readiness audit): mirror to RDS for the dashboard/API's
+                # benefit - see the matching comment in set_halt_flag above. Best-effort only;
+                # DynamoDB already committed the authoritative clear.
+                try:
+                    self._clear_halt_flag_rds(reason)
+                except Exception as rds_mirror_err:
+                    logger.warning(
+                        f"[HALT_FLAG] Best-effort RDS mirror of DynamoDB clear failed (dashboard may show "
+                        f"stale halted status until the next halt/clear write): {rds_mirror_err}"
+                    )
                 return True
             except Exception as e:
                 last_error = e
