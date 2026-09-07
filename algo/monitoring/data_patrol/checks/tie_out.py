@@ -81,12 +81,17 @@ successive reasons found across two sessions:
    file. Don't naively raise the tolerance to "fix" this - a residual this large is a real
    double-counting bug in the underlying data, not measurement noise to paper over.
 
-Income-statement chain (revenue - total operating expenses ~= operating_income) was also
-considered and NOT added: there is no single "total operating expenses" column in
-annual_income_statement to subtract - it would require assembling cost_of_revenue + opex
-sub-line-items whose completeness varies by filer (R&D/SG&A tagged inconsistently), and
-gross_profit_identity above already covers the cleanest slice of this chain (revenue vs.
-cost_of_revenue) without that assembly problem.
+Income-statement chain (revenue - total operating expenses ~= operating_income) was
+reconsidered and PARTIALLY added 2026-09-07 once `operating_expenses` (SG&A) extraction
+landed (see check_operating_income_upper_bound below) - but it remains a one-directional
+upper-bound sanity check, not a full identity: `operating_expenses` covers SG&A only, not
+R&D/D&A-when-broken-out/restructuring/impairments/other opex lines, all of which also
+reduce operating_income further but aren't tracked as separate summable columns here. The
+original objection (no single "total operating expenses" column to assemble a strict
+identity) still holds - what changed is that a partial term is now enough to build a
+one-sided bound (operating_income can only be LOWER than gross_profit - operating_expenses,
+never higher, since further real expenses only subtract more) rather than a two-sided
+identity.
 """
 
 import logging
@@ -180,6 +185,28 @@ _CURRENT_VS_TOTAL_TOLERANCE_PCT = 0.001
 # long-term debt under both concepts, the same double-counting risk this file's own O&G capex
 # dual-concept-sum fix and the rejected operating_income=gross_profit-opex check ran into.
 _LONG_TERM_DEBT_TOLERANCE_PCT = 0.001
+# operating_income <= gross_profit - operating_expenses + tolerance is a one-directional
+# bound, not a two-sided identity (see this file's module docstring for why): operating_expenses
+# (SG&A) is only one of several real expense lines between gross_profit and operating_income
+# (R&D, D&A-when-broken-out, restructuring, impairments also apply), so operating_income
+# legitimately falls BELOW gross_profit - operating_expenses for almost every filer that reports
+# any of those other lines - a violation in that direction is not flaggable noise. Only a
+# violation in the mathematically-impossible direction (operating_income exceeding what SG&A
+# alone would allow) is a real data problem. operating_expenses was only just wired up
+# (2026-09-07) and is not backfilled yet - this tolerance is a placeholder based on this file's
+# other loose-tolerance checks (cashflow/retained-earnings), not a live-data percentile check
+# like gross_profit_identity's; re-derive from real post-reload data if this proves noisy.
+_OPERATING_INCOME_BOUND_TOLERANCE_PCT = 0.10
+_OPERATING_INCOME_BOUND_TOLERANCE_FLOOR = 500_000.0
+# goodwill <= total_assets is the same subset/category structural inequality as
+# current_assets/current_liabilities/long_term_debt above - goodwill is one asset line item,
+# never the whole asset side. Live feasibility check against the local DB (2026-09-07) found
+# 9/3,355 comparable symbol/years beyond a 0.1% slack, a clean noise floor (0.27%) comparable
+# to current_assets_le_total_assets's. Spot-checked 3 of the 9 via a fresh get_balance_sheet()
+# call (not just the stale DB row) to confirm these are live bugs, not pending-reload noise:
+# ILLR FY2024 (goodwill $1.0058B vs real total_assets $50.578M, ~20x mismatch), BTCT FY2022,
+# and MTC FY2025 all still reproduce with current extraction code.
+_GOODWILL_TOLERANCE_PCT = 0.001
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
@@ -250,6 +277,8 @@ class TieOutChecker(BaseCheck):
         self.check_current_assets_le_total_assets(cur)
         self.check_current_liabilities_le_total_liabilities(cur)
         self.check_long_term_debt_le_total_liabilities(cur)
+        self.check_operating_income_upper_bound(cur)
+        self.check_goodwill_le_total_assets(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -1238,6 +1267,145 @@ class TieOutChecker(BaseCheck):
             logger.error(f"[TieOutChecker] long_term_debt_le_total_liabilities failed: {e}", exc_info=True)
             self.log(
                 "long_term_debt_le_total_liabilities",
+                ERROR,
+                "annual_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_operating_income_upper_bound(self, cur: Any) -> None:
+        """operating_income <= gross_profit - operating_expenses (+ tolerance).
+
+        ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit + "make sure we
+        have all the right tie outs" sweep). See this file's module docstring and
+        _OPERATING_INCOME_BOUND_TOLERANCE_PCT for why this is a one-directional bound, not a
+        two-sided identity like gross_profit_identity: operating_expenses (SG&A, added this
+        same session) is only one of several real expense lines between gross_profit and
+        operating_income (R&D, D&A-when-broken-out, restructuring, impairments), so
+        operating_income legitimately runs BELOW gross_profit - operating_expenses for most
+        filers that report any of those other lines - only flags the mathematically-impossible
+        direction (operating_income exceeding what SG&A alone would allow), which indicates a
+        real extraction bug (e.g. a swapped/duplicated concept), not a missing-line-item gap.
+
+        operating_expenses was only wired up this same session and is not backfilled yet - this
+        will find ~0 non-NULL rows to evaluate until the next reload, same as
+        check_cashflow_activities_sum_to_net_change's first run when net_change_cash was new.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (i.symbol)
+                    i.symbol, i.fiscal_year, i.gross_profit, i.operating_expenses, i.operating_income
+                FROM annual_income_statement i
+                JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
+                WHERE i.data_unavailable = FALSE
+                  AND i.gross_profit IS NOT NULL
+                  AND i.operating_expenses IS NOT NULL
+                  AND i.operating_income IS NOT NULL
+                  AND i.gross_profit != 0
+                ORDER BY i.symbol, i.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                gross_profit, operating_expenses, operating_income = (
+                    float(row["gross_profit"]),
+                    float(row["operating_expenses"]),
+                    float(row["operating_income"]),
+                )
+                implied_ceiling = gross_profit - operating_expenses
+                residual = operating_income - implied_ceiling
+                tolerance = max(
+                    _OPERATING_INCOME_BOUND_TOLERANCE_FLOOR,
+                    abs(gross_profit) * _OPERATING_INCOME_BOUND_TOLERANCE_PCT,
+                )
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "gross_profit": gross_profit,
+                            "operating_expenses": operating_expenses,
+                            "operating_income": operating_income,
+                            "implied_ceiling": implied_ceiling,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "operating_income_upper_bound",
+                    WARN,
+                    "annual_income_statement",
+                    f"{len(flagged)} symbol(s) fail operating_income <= gross_profit - "
+                    f"operating_expenses beyond max(${_OPERATING_INCOME_BOUND_TOLERANCE_FLOOR:,.0f}, "
+                    f"{_OPERATING_INCOME_BOUND_TOLERANCE_PCT:.0%} of gross_profit)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] operating_income_upper_bound failed: {e}", exc_info=True)
+            self.log(
+                "operating_income_upper_bound",
+                ERROR,
+                "annual_income_statement",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_goodwill_le_total_assets(self, cur: Any) -> None:
+        """goodwill <= total_assets (both from annual_balance_sheet, same row).
+
+        ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit + tie-out CI
+        completeness review), same subset/category structural inequality as
+        check_current_assets_le_total_assets/check_long_term_debt_le_total_liabilities above -
+        goodwill is one asset line item, never the whole asset side. See
+        _GOODWILL_TOLERANCE_PCT's own comment for the live-feasibility numbers (9/3,355) and
+        confirmation that this catches live bugs, not stale/pending-reload data.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.total_assets, b.goodwill
+                FROM annual_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.total_assets IS NOT NULL
+                  AND b.goodwill IS NOT NULL
+                  AND b.total_assets != 0
+                ORDER BY b.symbol, b.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                total_assets, goodwill = (
+                    float(row["total_assets"]),
+                    float(row["goodwill"]),
+                )
+                residual = goodwill - total_assets
+                tolerance = abs(total_assets) * _GOODWILL_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "total_assets": total_assets,
+                            "goodwill": goodwill,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "goodwill_le_total_assets",
+                    WARN,
+                    "annual_balance_sheet",
+                    f"{len(flagged)} symbol(s) fail goodwill <= total_assets beyond "
+                    f"{_GOODWILL_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] goodwill_le_total_assets failed: {e}", exc_info=True)
+            self.log(
+                "goodwill_le_total_assets",
                 ERROR,
                 "annual_balance_sheet",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",

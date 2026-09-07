@@ -876,10 +876,141 @@ class TestLongTermDebtLeTotalLiabilities:
         assert checker.results[0].severity == ERROR
 
 
+class TestOperatingIncomeUpperBound:
+    def test_flags_operating_income_exceeding_bound(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADOI",
+                        "fiscal_year": 2025,
+                        "gross_profit": 1_000_000_000.0,
+                        "operating_expenses": 400_000_000.0,
+                        # ceiling is 600M; 900M is far beyond even the 10%/floor tolerance
+                        "operating_income": 900_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_operating_income_upper_bound(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "operating_income_upper_bound"
+        assert checker.results[0].details["examples"][0]["symbol"] == "BADOI"
+
+    def test_does_not_flag_operating_income_below_bound(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODOI",
+                        "fiscal_year": 2025,
+                        "gross_profit": 1_000_000_000.0,
+                        "operating_expenses": 400_000_000.0,
+                        # ceiling is 600M; 350M is well below - other opex lines (R&D etc) explain it
+                        "operating_income": 350_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_operating_income_upper_bound(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_operating_income_upper_bound(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (i.symbol)" in executed_sql
+        assert "ORDER BY i.symbol, i.fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_operating_income_upper_bound(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "operating_income_upper_bound"
+        assert checker.results[0].severity == ERROR
+
+
+class TestGoodwillLeTotalAssets:
+    def test_flags_goodwill_above_total_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADGW",
+                        "fiscal_year": 2024,
+                        "total_assets": 50_578_000.0,
+                        "goodwill": 1_005_778_000.0,  # far exceeds total_assets
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_goodwill_le_total_assets(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "goodwill_le_total_assets"
+        assert checker.results[0].details["examples"][0]["symbol"] == "BADGW"
+
+    def test_does_not_flag_goodwill_within_total_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODGW",
+                        "fiscal_year": 2025,
+                        "total_assets": 1_000_000_000.0,
+                        "goodwill": 200_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_goodwill_le_total_assets(cur)
+        assert checker.results == []
+
+    def test_does_not_flag_goodwill_equal_total_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "ALLGW",
+                        "fiscal_year": 2025,
+                        "total_assets": 1_000_000_000.0,
+                        "goodwill": 1_000_000_000.0,  # no other assets - legitimate
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_goodwill_le_total_assets(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_goodwill_le_total_assets(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_goodwill_le_total_assets(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "goodwill_le_total_assets"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_fourteen_checks(self) -> None:
-        cur = _mock_cursor([[], [], [], [], [], [], [], [], [], [], [], [], [], []])
+    def test_run_calls_all_sixteen_checks(self) -> None:
+        cur = _mock_cursor([[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []])
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 14
+        assert cur.execute.call_count == 16
