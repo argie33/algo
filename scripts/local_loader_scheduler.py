@@ -537,7 +537,13 @@ LOADER_DEPENDENCIES = {
     "profile": ["company_info"],
     # SESSION 88 FIX: valuations depends on company_info for symbol and metadata lookups
     # (if company_info fails, valuations should be skipped rather than cascading failure)
-    "valuations": ["company_info"],
+    # FIXED 2026-09-07 (goal: XBRL data confidence): financial_statements was missing here -
+    # sec_valuations reads annual_income_statement/annual_balance_sheet directly (see
+    # loaders/helpers/sec_valuations_income_context.py). A same-day financial_statements
+    # reload racing an unguarded valuations run hit annual_income_statement mid-DELETE/INSERT
+    # for ~2,248 symbols (44% of universe), permanently writing data_unavailable=True/
+    # reason="no_income_statement" for symbols with real, complete SEC data present.
+    "valuations": ["company_info", "financial_statements"],
     # earnings_sec requires company_info for CIK lookups (SESSION 89 FIX - missing dependency)
     "earnings_sec": ["company_info"],
     # SESSION 92 FIX: positioning_metrics reads company_info_sec shares_outstanding
