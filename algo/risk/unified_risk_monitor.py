@@ -284,18 +284,60 @@ def _apply_risk_verdict(
         )
         return {"check": check_key, "breached": True, "streak": streak, "action": "warn"}
 
-    manager = _get_halt_manager(alerts)
-    manager.set_halt_flag(reason=f"[UNIFIED_RISK_MONITOR:{check_key}] {reason}", triggered_by="unified_risk_monitor")
-    alerts.send_position_alert(
-        "PORTFOLIO",
-        "RISK_BREACH_HALTED",
-        f"{check_key} breach CONFIRMED across {streak} consecutive live-reconfirmed runs - "
-        f"new entries halted automatically: {reason}",
-        result,
-    )
+    # SHADOW MODE (2026-09-07, real-money-readiness): defaults True (see
+    # unified_risk_monitor_shadow_mode's own config-registry docstring) - runs the FULL
+    # detection/escalation ladder below (every check, every streak, every alert) so this can
+    # be soak-tested against a live paper account with zero trading impact, but never calls
+    # set_halt_flag or the automated exit path while shadow mode is on. Enabling the monitor
+    # itself (enable_unified_risk_monitor in terraform) does NOT implicitly enable live
+    # auto-remediation - that is this separate, explicit config flag, off by default.
+    shadow_mode = bool(config.get("unified_risk_monitor_shadow_mode", True))
+
+    if shadow_mode:
+        alerts.send_position_alert(
+            "PORTFOLIO",
+            "RISK_BREACH_HALT_SHADOW_MODE",
+            f"{check_key} breach CONFIRMED across {streak} consecutive live-reconfirmed runs - "
+            f"SHADOW MODE: would have halted new entries, no real action taken: {reason}",
+            result,
+        )
+    else:
+        manager = _get_halt_manager(alerts)
+        manager.set_halt_flag(
+            reason=f"[UNIFIED_RISK_MONITOR:{check_key}] {reason}", triggered_by="unified_risk_monitor"
+        )
+        alerts.send_position_alert(
+            "PORTFOLIO",
+            "RISK_BREACH_HALTED",
+            f"{check_key} breach CONFIRMED across {streak} consecutive live-reconfirmed runs - "
+            f"new entries halted automatically: {reason}",
+            result,
+        )
 
     if streak < CONSECUTIVE_BREACH_RUNS_TO_ACT:
-        return {"check": check_key, "breached": True, "streak": streak, "action": "halt"}
+        return {
+            "check": check_key,
+            "breached": True,
+            "streak": streak,
+            "action": "halt" if not shadow_mode else "shadow_halt",
+        }
+
+    if shadow_mode:
+        alerts.send_position_alert(
+            "PORTFOLIO",
+            "RISK_BREACH_ACT_SHADOW_MODE",
+            f"{check_key}: breach still confirmed after the halt-confirmation window - "
+            f"SHADOW MODE: would have automatically reduced/flattened offending position(s) "
+            f"now, no real action taken: {reason}",
+            {"offending_symbols": offending_symbols or [], **result},
+        )
+        return {
+            "check": check_key,
+            "breached": True,
+            "streak": streak,
+            "action": "shadow_reduce_or_flatten",
+            "detail": {"offending_symbols": offending_symbols or []},
+        }
 
     action_detail = _act_reduce_or_flatten(config, alerts, check_key, reason, offending_symbols)
     if action_detail.get("failed"):
