@@ -3507,6 +3507,57 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                 row[field] = None
                 self._record_explicit_null_rejection(row, field, "managed_care_partial_segment_cost_not_total")
 
+    def _reject_scale_mismatched_revenue(self, transformed: list[dict[str, Any]]) -> None:
+        """Reject `revenue` when it's a clean power-of-10 multiple (100x/1000x/10000x, within
+        1%) of (cost_of_revenue + gross_profit) - the same magic-ratio detection already
+        proven safe in sec_statements_entry_resolution.py's frame_magnitude_scale_guard (the
+        IPAR fix), applied to this pipeline's own concept-priority chain instead of SEC's
+        frame-preference tiebreak.
+
+        FOUND 2026-09-06 (goal: score/tie-out sanity audit, gross_profit_identity's current
+        top-flagged-by-magnitude non-CNC/ELV offender). Live-confirmed via TYGO's (Tigo
+        Energy) real SEC companyfacts JSON: the filer's OWN XBRL genuinely mistags
+        RevenueFromContractWithCustomerExcludingAssessedTax at exactly 1000x the correct value
+        for every single fiscal year on record (2022: $81.323B tagged vs. $81.323M real;
+        2023/2024/2025 same shape) - NOT an extraction-side wrong-context bug like the tie-out
+        checker's other gross_profit_identity leads (CNC/ELV, ABBV/GILD/AMGN/ABT): TYGO's own
+        "Revenues" concept for the identical periods is correctly tagged every time, and
+        _INCOME_FIELD_MAPPING's documented "ExcludingAssessedTax must win when both are
+        present" priority (correct for the overwhelming majority of filers, where
+        ExcludingAssessedTax is the more precise net-revenue figure) picks the corrupted one
+        for this filer specifically. cost_of_revenue/gross_profit are unaffected (both come
+        from separate, correctly-tagged concepts), so their sum is the independent, trustworthy
+        anchor to validate revenue against - exactly the same role gross_profit_identity's
+        `implied_gross_profit` plays in algo/monitoring/data_patrol/checks/tie_out.py, just run
+        pre-storage instead of as a post-hoc read-only WARN. DB-wide live scan confirmed this
+        exact 1000x pattern currently affects only TYGO (4 rows total, all its own fiscal
+        years) - not a systemic bug, so this guard is expected to fire rarely; a legitimate
+        filer's revenue vs. cost_of_revenue+gross_profit will essentially never land within 1%
+        of an exact power of 10 by chance.
+        """
+        for row in transformed:
+            revenue = row.get("revenue")
+            cost_of_revenue = row.get("cost_of_revenue")
+            gross_profit = row.get("gross_profit")
+            if revenue is None or cost_of_revenue is None or gross_profit is None:
+                continue
+            implied_revenue = float(cost_of_revenue) + float(gross_profit)
+            if implied_revenue == 0 or revenue == 0:
+                continue
+            ratio = abs(float(revenue)) / abs(implied_revenue)
+            if ratio < 1:
+                ratio = 1 / ratio
+            if any(abs(ratio - power) / power < 0.01 for power in (100, 1000, 10000)):
+                logger.warning(
+                    f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                    f"revenue={revenue:,.0f} is a {ratio:.0f}x-scaled outlier vs. "
+                    f"cost_of_revenue+gross_profit={implied_revenue:,.0f} - likely a filer-side "
+                    "XBRL tagging error on the higher-priority revenue concept, not a real "
+                    "business figure. Rejecting rather than storing a confidently-wrong value."
+                )
+                row["revenue"] = None
+                self._record_explicit_null_rejection(row, "revenue", "revenue_scale_mismatch_vs_cogs_plus_gp")
+
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Transform to schema format and add data_unavailable/reason flags.
 
@@ -3539,6 +3590,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
             self._fill_derived_eps(transformed)
             self._reject_implausible_eps(transformed)
             self._reject_scale_mismatched_net_income(transformed)
+            self._reject_scale_mismatched_revenue(transformed)
             self._reject_implausible_gross_profit(transformed)
             self._reject_stale_gross_profit_without_fresh_concept(transformed)
             self._reject_partial_segment_gross_profit_for_managed_care_insurers(transformed)
