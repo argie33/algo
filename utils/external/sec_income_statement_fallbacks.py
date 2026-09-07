@@ -133,6 +133,39 @@ def _fill_eps_shares_from_dual_class_dimensional_facts(
             if row.get(dest_key) is None and src_key in result:
                 row[dest_key] = result[src_key]
                 filled.append(dest_key)
+
+        # FIXED 2026-09-07 (goal session: scores-review, CWEN live-confirmed): the "never
+        # overwrite a real value" guard above left a pre-existing shares_diluted value alone
+        # even when that value came from a BARE (non-dimensional) tag belonging to a
+        # different class/context than the one just dimensionally resolved for shares_basic -
+        # live-confirmed via CWEN's real companyfacts: bare WeightedAverageNumberOfDiluted
+        # SharesOutstanding=35,000,000 identical for FY2023/2024/2025 (a real per-class
+        # diluted count tracking a growing company should move, not freeze for 3 straight
+        # years), while the dimensionally-resolved Class C shares_basic correctly varies and
+        # is much larger (84,000,000 for FY2025) - diluted < basic is a hard accounting
+        # impossibility (shares_outstanding_diluted must be >= shares_outstanding_basic,
+        # already enforced by tie_out.py's check_diluted_ge_basic_shares), proving the bare
+        # tag is the wrong class's figure, not a real number for the class this row now
+        # represents. Only fires when accepting it would create that impossibility - a bare
+        # diluted value that's merely close to (or above) basic is left untouched, since nothing
+        # then proves it's wrong.
+        basic_key = "weighted_average_number_of_shares_outstanding_basic"
+        diluted_key = "weighted_average_number_of_diluted_shares_outstanding"
+        if (
+            diluted_key not in filled
+            and "shares_diluted" in result
+            and row.get(basic_key) is not None
+            and row.get(diluted_key) is not None
+            and row[diluted_key] < row[basic_key]
+        ):
+            logger.info(
+                f"[DUAL_CLASS_EPS] {symbol} FY{row['fiscal_year']}: replacing implausible bare "
+                f"{diluted_key}={row[diluted_key]} (< basic {row[basic_key]}, wrong class/context) "
+                f"with class '{class_letter}' dimensional match {result['shares_diluted']}"
+            )
+            row[diluted_key] = result["shares_diluted"]
+            filled.append(diluted_key)
+
         if filled:
             logger.info(
                 f"[DUAL_CLASS_EPS] {symbol} FY{row['fiscal_year']}: recovered {filled} via class "
