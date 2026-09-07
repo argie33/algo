@@ -363,6 +363,17 @@ def _check_pdt_limit_breach(account_data: dict[str, Any]) -> tuple[bool, str | N
             "[PHASE 8] Account data missing required 'pattern_day_trader' field. "
             "Cannot verify PDT status before submitting live entries."
         )
+    # EQUITY-AWARE FIX (2026-09-06 real-money-readiness audit): FINRA Rule 4210's PDT
+    # restriction (90-day day-trading lockout after a 4th day-trade in 5 business days)
+    # applies ONLY to accounts with equity under $25,000 - an account at or above that
+    # threshold cannot be PDT-restricted at all, regardless of daytrade_count. This check
+    # previously blocked new entries purely on daytrade_count>=3 with no equity awareness,
+    # needlessly halting a well-capitalized account's real trading on a restriction that
+    # genuinely cannot apply to it. Not a regulatory-exposure bug (it was over-conservative,
+    # never under), but a real correctness gap worth closing before real-money trading.
+    equity = account_data.get("equity")
+    if equity is not None and float(equity) >= 25_000:
+        return False, None
     daytrade_count = account_data.get("daytrade_count")
     if daytrade_count is None or int(daytrade_count) < 3:
         return False, None
