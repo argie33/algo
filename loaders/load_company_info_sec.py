@@ -932,10 +932,26 @@ class CompanyInfoSECLoader(SecLoaderBase):
         member_match = self._CLASS_OF_STOCK_MEMBER_RE.search(context_match.group(0))
         if not member_match:
             return None
+        member_name = member_match.group(1).rsplit(":", 1)[-1].lower()
+        # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, PGY investigation):
+        # `_CLASS_LETTER_FROM_MEMBER_RE` (r"Class([A-Z])(?:Member)?\b") matches the LETTER
+        # anywhere the "Class{X}[Member]" shape appears in the member name - it doesn't check
+        # what comes BEFORE "Class", so a filer whose preferred stock happens to share a common
+        # class's letter (`PreferredClassAMember` alongside `CommonClassAMember`) makes this
+        # method return "A" for BOTH contexts even though only one is actually common stock.
+        # Live-confirmed via Pagaya Technologies (PGY, CIK 1883085): its real current 10-K tags
+        # `us-gaap:CommonClassAMember`=71,237,859 (PGY's real Class A ordinary shares) AND
+        # `us-gaap:PreferredClassAMember`=2,027,147 (an unrelated preferred series) - both
+        # matched target_letter="A", so the caller's "exactly one dimensional match" check saw
+        # 2 matches and fell through to the ambiguous reject despite the common-class value
+        # being fully, unambiguously resolvable. A member tagging PREFERRED stock is never a
+        # valid answer for dei:EntityCommonStockSharesOutstanding's class - reject before ever
+        # running the letter regex, not just here for PGY but for any filer with this shape.
+        if member_name.startswith("preferred"):
+            return None
         letter_match = self._CLASS_LETTER_FROM_MEMBER_RE.search(member_match.group(1))
         if letter_match:
             return letter_match.group(1).upper()
-        member_name = member_match.group(1).rsplit(":", 1)[-1].lower()
         overrides = self._VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES.get(symbol or "", {})
         return overrides.get(member_name)
 

@@ -463,3 +463,48 @@ class TestFwonaLetterlessClassMemberOverride:
             )
 
         assert result is None
+
+
+class TestPreferredClassMemberDoesNotCollideWithCommonClassLetter:
+    """PGY (Pagaya Technologies) - real current 10-K (CIK 1883085) tags THREE contexts:
+    us-gaap:CommonClassAMember (71,237,859, PGY's real Class A ordinary shares),
+    us-gaap:CommonClassBMember (11,288,577), and us-gaap:PreferredClassAMember (2,027,147, an
+    unrelated preferred series that merely happens to share the letter "A"). Before the fix,
+    _class_letter_for_context's letter-extraction regex matched "A" for BOTH the common and
+    preferred Class A contexts, so target_letter="A" (from security_name's "Class A Ordinary
+    Shares") found 2 dimensional matches instead of exactly 1 and fell through to the
+    ambiguous reject despite the common-class value being fully resolvable."""
+
+    _PGY_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-4" name="dei:EntityCommonStockSharesOutstanding">'
+        "71,237,859</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-5" name="dei:EntityCommonStockSharesOutstanding">'
+        "11,288,577</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-6" name="dei:EntityCommonStockSharesOutstanding">'
+        "2,027,147</ix:nonFraction>"
+        '<xbrli:context id="c-4"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-5"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassBMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-6"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:PreferredClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_pgy_resolves_to_its_own_common_class_a_value_not_the_preferred_class_a(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._PGY_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Pagaya Technologies Ltd. - Class A Ordinary Shares",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "PGY", "1883085", _submissions_with_10k(tickers=["PGY", "PGYWW"])
+            )
+
+        assert result == 71_237_859
