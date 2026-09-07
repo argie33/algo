@@ -3507,6 +3507,41 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                 row[field] = None
                 self._record_explicit_null_rejection(row, field, "managed_care_partial_segment_cost_not_total")
 
+    # ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit + tie-out CI sweep,
+    # gross_profit_identity live re-check after the CNC/ELV/TYGO fixes): live-confirmed via
+    # real SEC companyfacts JSON that Altria (MO) is the MIRROR IMAGE of CNC/ELV's bug - here
+    # `GrossProfit` is the real, complete, filer-tagged total (matches Revenue exactly minus
+    # Altria's true cost of sales), but `CostOfGoodsAndServicesSold` is the PARTIAL concept:
+    # every single fiscal year 2016-2025 (`data.sec.gov/api/xbrl/companyconcept/
+    # CIK0000764180/us-gaap/CostOfGoodsAndServicesSold.json` vs `.../GrossProfit.json` vs
+    # `.../RevenueFromContractWithCustomerExcludingAssessedTax.json`), Revenue - COGS !=
+    # GrossProfit by a large, growing margin (FY2025: $23.279B - $5.597B = $17.682B tagged-
+    # COGS-implied gross profit vs. the real, filer-tagged GrossProfit of only $14.542B - a
+    # $3.14B gap, this pipeline's own `gross_profit_identity` tie-out check's residual).
+    # Peer-checked to confirm this is Altria-specific, NOT a tobacco/excise-tax-industry-wide
+    # pattern: Philip Morris International (PM, CIK 0001413329) reconciles EXACTLY for the
+    # same FY2025 period ($40.648B revenue - $13.366B COGS = $27.282B GrossProfit, to the
+    # dollar) - a real, comparable filer in the same industry with the identical excise-tax-
+    # exclusion revenue concept shows no such gap, ruling out an industry-wide accounting
+    # convention as the explanation. Curated single-symbol rejection (same discipline as
+    # _PARTIAL_SEGMENT_GROSS_PROFIT_MANAGED_CARE_SYMBOLS above) - only cost_of_revenue is
+    # nulled here, NOT gross_profit, since GrossProfit is the reliable, complete figure in
+    # this case (opposite of CNC/ELV, where GrossProfit itself was the partial concept).
+    _PARTIAL_COST_OF_REVENUE_SYMBOLS = frozenset({"MO"})
+
+    def _reject_partial_cost_of_revenue(self, transformed: list[dict[str, Any]]) -> None:
+        """Force-null cost_of_revenue (keeping gross_profit) for the curated symbols above -
+        see that constant's own comment for the live SEC-data verification."""
+        if self.statement_type != "income":
+            return
+        for row in transformed:
+            if row.get("symbol") not in self._PARTIAL_COST_OF_REVENUE_SYMBOLS:
+                continue
+            if row.get("cost_of_revenue") is None:
+                continue
+            row["cost_of_revenue"] = None
+            self._record_explicit_null_rejection(row, "cost_of_revenue", "cost_of_revenue_partial_concept_not_total")
+
     def _reject_scale_mismatched_revenue(self, transformed: list[dict[str, Any]]) -> None:
         """Reject `revenue` when it's a clean power-of-10 multiple (100x/1000x/10000x, within
         1%) of (cost_of_revenue + gross_profit) - the same magic-ratio detection already
@@ -3594,6 +3629,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
             self._reject_implausible_gross_profit(transformed)
             self._reject_stale_gross_profit_without_fresh_concept(transformed)
             self._reject_partial_segment_gross_profit_for_managed_care_insurers(transformed)
+            self._reject_partial_cost_of_revenue(transformed)
 
         # Get REQUIRED metrics for current statement type (see module-level
         # _REQUIRED_STATEMENT_FIELDS docstring - shared with post_run()'s flag sync).
