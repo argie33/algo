@@ -104,7 +104,10 @@ def _load_or_build_pillar_panel(
 ) -> list[tuple[pd.Timestamp, pd.DataFrame]]:
     if cache_path.exists():
         logger.info(f"Loading cached pillar-proxy panel from {cache_path}")
-        return cast("list[tuple[pd.Timestamp, pd.DataFrame]]", pickle.loads(cache_path.read_bytes()))
+        # cache_path is written only by cache_path.write_bytes(pickle.dumps(...)) below, by
+        # this same script - a local self-written cache file, not externally-sourced/untrusted
+        # data, so bandit's untrusted-deserialization warning doesn't apply here.
+        return cast("list[tuple[pd.Timestamp, pd.DataFrame]]", pickle.loads(cache_path.read_bytes()))  # nosec B301
     logger.info("Building pillar-proxy panel (reused from fama_macbeth_composite_weights.py)")
     _partial, _complete, records_raw = build_pillar_proxy_records(start_date, end_date, min_cross_section=300)
     cache_path.write_bytes(pickle.dumps(records_raw))
@@ -114,7 +117,9 @@ def _load_or_build_pillar_panel(
 def _load_or_fetch_finra_history(cache_path: Path) -> dict[date, dict[str, float]]:
     if cache_path.exists():
         logger.info(f"Loading cached FINRA history from {cache_path}")
-        return cast("dict[date, dict[str, float]]", pickle.loads(cache_path.read_bytes()))
+        # Same self-written local cache as _load_or_build_pillar_panel() above - see that
+        # function's comment.
+        return cast("dict[date, dict[str, float]]", pickle.loads(cache_path.read_bytes()))  # nosec B301
     logger.info("Fetching real FINRA short-interest history (2018-01 to 2026-07)")
     finra_hist = fetch_finra_history(date(2018, 1, 1), date(2026, 7, 31))
     cache_path.write_bytes(pickle.dumps(finra_hist))
