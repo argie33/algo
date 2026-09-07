@@ -124,6 +124,15 @@ _PRETAX_NET_INCOME_TOLERANCE_FLOOR = 500_000.0
 # genuine same-period rounding where a filer's diluted and basic counts are reported equal
 # because there were no dilutive securities outstanding that period.
 _SHARE_COUNT_TOLERANCE_PCT = 0.001
+# prior_retained_earnings + net_income - |dividends_paid| ~= curr_retained_earnings ignores
+# share buybacks, stock-comp-driven equity reclasses, and OCI items (none tracked as separate
+# columns here) - live feasibility check against the local DB (2026-09-07) found this genuinely
+# clean at the median (p50=0%, p75=3.3% relative error) unlike the segment-sum-to-consolidated
+# check that was rejected for being noisy even at p90 (see this file's docstring) - a much
+# looser tolerance than gross_profit/balance_sheet's tight identities, similar to cashflow's,
+# since buybacks/OCI are real and common enough to not be pure noise.
+_RETAINED_EARNINGS_TOLERANCE_PCT = 0.25
+_RETAINED_EARNINGS_TOLERANCE_FLOOR = 1_000_000.0
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
@@ -187,6 +196,7 @@ class TieOutChecker(BaseCheck):
         self.check_gross_profit_identity(cur)
         self.check_pretax_to_net_income(cur)
         self.check_diluted_ge_basic_shares(cur)
+        self.check_retained_earnings_rollforward(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -697,5 +707,104 @@ class TieOutChecker(BaseCheck):
                 "diluted_ge_basic_shares",
                 ERROR,
                 "annual_income_statement",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_retained_earnings_rollforward(self, cur: Any) -> None:
+        """prior_year retained_earnings + net_income - |dividends_paid| ~= curr_year retained_earnings.
+
+        ADDED 2026-09-07 (goal: "make sure we have all the right tie outs" sweep, CI tie-out
+        coverage audit's #2 recommendation). Ignores share buybacks, stock-comp equity reclasses,
+        and OCI items - none tracked as separate columns here, same class of untracked noise as
+        cashflow_reconciliation's FX effects - hence the loose tolerance, looser than every other
+        check here except cashflow's. dividends_paid is treated as 0 when NULL/absent (a symbol
+        that never tagged it may simply pay none, not have missing data) rather than excluding
+        the row - narrower exclusion than the other checks' "all fields must be present" pattern
+        because dividends_paid's absence is itself informative, not a data gap.
+
+        Live feasibility check against the local DB (2026-09-07) found this genuinely clean at
+        the median - p50=0%, p75=3.3% relative error - unlike the segment-sum-to-consolidated
+        check above that was rejected for being noisy even at p90 (55%).
+        """
+        try:
+            cur.execute(
+                """
+                WITH re AS (
+                    SELECT DISTINCT ON (symbol)
+                        symbol, fiscal_year, retained_earnings
+                    FROM annual_balance_sheet
+                    WHERE data_unavailable = FALSE AND retained_earnings IS NOT NULL
+                    ORDER BY symbol, fiscal_year DESC
+                ),
+                re_prior AS (
+                    SELECT symbol, fiscal_year, retained_earnings
+                    FROM annual_balance_sheet
+                    WHERE data_unavailable = FALSE AND retained_earnings IS NOT NULL
+                ),
+                ni AS (
+                    SELECT symbol, fiscal_year, net_income
+                    FROM annual_income_statement
+                    WHERE data_unavailable = FALSE AND net_income IS NOT NULL
+                ),
+                div AS (
+                    SELECT symbol, fiscal_year, dividends_paid
+                    FROM annual_cash_flow
+                    WHERE data_unavailable = FALSE
+                )
+                SELECT
+                    curr.symbol, curr.fiscal_year,
+                    prior.retained_earnings AS prior_retained_earnings,
+                    curr.retained_earnings AS curr_retained_earnings,
+                    ni.net_income,
+                    div.dividends_paid
+                FROM re curr
+                JOIN stock_symbols s ON s.symbol = curr.symbol AND s.active = true
+                JOIN re_prior prior ON prior.symbol = curr.symbol AND prior.fiscal_year = curr.fiscal_year - 1
+                JOIN ni ON ni.symbol = curr.symbol AND ni.fiscal_year = curr.fiscal_year
+                LEFT JOIN div ON div.symbol = curr.symbol AND div.fiscal_year = curr.fiscal_year
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                prior_re, curr_re, net_income = (
+                    float(row["prior_retained_earnings"]),
+                    float(row["curr_retained_earnings"]),
+                    float(row["net_income"]),
+                )
+                dividends_paid = abs(float(row["dividends_paid"])) if row["dividends_paid"] is not None else 0.0
+                implied_curr_re = prior_re + net_income - dividends_paid
+                residual = implied_curr_re - curr_re
+                tolerance = max(_RETAINED_EARNINGS_TOLERANCE_FLOOR, abs(curr_re) * _RETAINED_EARNINGS_TOLERANCE_PCT)
+                if abs(residual) > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "prior_retained_earnings": prior_re,
+                            "curr_retained_earnings": curr_re,
+                            "net_income": net_income,
+                            "dividends_paid": dividends_paid,
+                            "implied_curr_retained_earnings": implied_curr_re,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                self.log(
+                    "retained_earnings_rollforward",
+                    WARN,
+                    "annual_balance_sheet",
+                    f"{len(flagged)} symbol(s) fail prior_retained_earnings + net_income - "
+                    f"|dividends_paid| ~= curr_retained_earnings beyond max("
+                    f"${_RETAINED_EARNINGS_TOLERANCE_FLOOR:,.0f}, "
+                    f"{_RETAINED_EARNINGS_TOLERANCE_PCT:.0%} of curr_retained_earnings)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] retained_earnings_rollforward failed: {e}", exc_info=True)
+            self.log(
+                "retained_earnings_rollforward",
+                ERROR,
+                "annual_balance_sheet",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
             )

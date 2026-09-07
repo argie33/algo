@@ -475,10 +475,87 @@ class TestDilutedGeBasicShares:
         assert checker.results[0].severity == ERROR
 
 
+class TestRetainedEarningsRollforward:
+    def test_flags_row_beyond_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADRE",
+                        "fiscal_year": 2025,
+                        "prior_retained_earnings": 1_000_000_000.0,
+                        "curr_retained_earnings": 1_100_000_000.0,
+                        "net_income": 500_000_000.0,  # implied 1.5B vs tagged 1.1B, way off
+                        "dividends_paid": None,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_retained_earnings_rollforward(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "retained_earnings_rollforward"
+
+    def test_does_not_flag_within_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODRE",
+                        "fiscal_year": 2025,
+                        "prior_retained_earnings": 1_000_000_000.0,
+                        "curr_retained_earnings": 1_300_000_000.0,
+                        "net_income": 500_000_000.0,
+                        "dividends_paid": -200_000_000.0,  # exact tie-out: 1B + 500M - 200M = 1.3B
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_retained_earnings_rollforward(cur)
+        assert checker.results == []
+
+    def test_null_dividends_paid_treated_as_zero(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "NODIVCO",
+                        "fiscal_year": 2025,
+                        "prior_retained_earnings": 1_000_000_000.0,
+                        "curr_retained_earnings": 1_500_000_000.0,
+                        "net_income": 500_000_000.0,  # exact tie-out with no dividends
+                        "dividends_paid": None,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_retained_earnings_rollforward(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_retained_earnings_rollforward(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (symbol)" in executed_sql
+        assert "ORDER BY symbol, fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_retained_earnings_rollforward(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "retained_earnings_rollforward"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_seven_checks(self) -> None:
-        cur = _mock_cursor([[], [], [], [], [], [], []])
+    def test_run_calls_all_eight_checks(self) -> None:
+        cur = _mock_cursor([[], [], [], [], [], [], [], []])
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 7
+        assert cur.execute.call_count == 8
