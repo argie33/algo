@@ -338,22 +338,25 @@ def _fill_operating_income_from_revenue_minus_cogs_and_opex(rows: list[dict[str,
 
 
 def _fill_cost_of_revenue_from_other_operating_cost(rows: list[dict[str, Any]]) -> None:
-    """Add OtherCostOfOperatingRevenue into cost_of_goods_and_services_sold - see that
-    concept's own comment in get_income_statement() (TTEK live-verification detail).
+    """Add OtherCostOfOperatingRevenue and/or ExciseAndSalesTaxes into
+    cost_of_goods_and_services_sold - see each concept's own comment in
+    get_income_statement() (TTEK/TAP live-verification detail respectively).
 
-    Only fires when a filer tags BOTH concepts (verified live: this is additive real cost,
-    not a replacement - most filers never tag OtherCostOfOperatingRevenue at all, and this
-    function is a no-op for them). Mutates "cost_of_goods_and_services_sold" in place so
-    load_financial_statements.py's ordinary field_mapping still maps the corrected total to
-    "cost_of_revenue" for every filer, same technique as the CASY D&A fallback above. Always
-    strips the raw "other_cost_of_operating_revenue" key (never mapped to a DB column on its
-    own) whether or not it fired.
+    Only fires when a filer tags BOTH a real cost_of_goods_and_services_sold AND at least one
+    of these extra concepts (verified live: each is additive real cost, not a replacement -
+    most filers never tag either concept, and this function is a no-op for them). Mutates
+    "cost_of_goods_and_services_sold" in place so load_financial_statements.py's ordinary
+    field_mapping still maps the corrected total to "cost_of_revenue" for every filer, same
+    technique as the CASY D&A fallback above. Always strips both raw keys (never mapped to a
+    DB column on their own) whether or not either fired.
     """
     for row in rows:
         other_cost = row.pop("other_cost_of_operating_revenue", None)
-        if other_cost is None:
+        excise_tax = row.pop("excise_and_sales_taxes", None)
+        extra = sum(v for v in (other_cost, excise_tax) if v is not None)
+        if extra == 0:
             continue
         cogs = row.get("cost_of_goods_and_services_sold")
         if cogs is None:
             continue
-        row["cost_of_goods_and_services_sold"] = cogs + other_cost
+        row["cost_of_goods_and_services_sold"] = cogs + extra

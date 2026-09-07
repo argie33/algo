@@ -463,6 +463,22 @@ def get_income_statement(
         # directly to "cost_of_revenue" via field_mapping, same discipline as CASY's D&A
         # component above - a filer without this concept is completely unaffected.
         "OtherCostOfOperatingRevenue",
+        # ADDED 2026-09-07 (same goal session, gross_profit_identity live triage continuation):
+        # Molson Coors (TAP/TAP.A, CIK 0000024545, $13.04B FY2025 revenue brewer) tags real
+        # beer excise/sales tax under this concept ($1.8995B FY2025) that must be subtracted
+        # (like a cost, not added to revenue) between its RevenueFromContractWithCustomer
+        # ExcludingAssessedTax figure and its real, filer-tagged GrossProfit - live-confirmed
+        # via real SEC companyfacts JSON: $13.0403B revenue - $6.8662B CostOfGoodsAndServices
+        # Sold - $1.8995B ExciseAndSalesTaxes = $4.2746B, exact match to TAP's own tagged
+        # GrossProfit. Peer-checked Boston Beer (SAM, CIK 0000949870): its own Revenues
+        # ($1.965B) - CostOfGoodsAndServicesSold ($1.0124B) already reconciles EXACTLY with its
+        # GrossProfit with no excise-tax adjustment needed at all (SAM's "Revenues" concept is
+        # apparently already net of excise tax, unlike TAP's ExcludingAssessedTax concept) -
+        # ruling out a blanket alcoholic-beverage-industry pattern; this is TAP-specific. Same
+        # additive-fallback discipline as OtherCostOfOperatingRevenue above (see
+        # _fill_cost_of_revenue_from_other_operating_cost() below, extended to also sum this
+        # concept in) - a filer without ExciseAndSalesTaxes is completely unaffected.
+        "ExciseAndSalesTaxes",
         # FIXED 2026-08-31 (same sweep): live-events/venue-based filers tag their pass-through
         # artist/venue/ticketing costs under this concept instead of any concept above - live-
         # confirmed Live Nation Entertainment (LYV, $23B market cap): zero data under every

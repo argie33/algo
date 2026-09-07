@@ -5,6 +5,13 @@ costs under "OtherCostOfOperatingRevenue" ($3,656,016,000 FY2025) SEPARATE from 
 "CostOfGoodsAndServicesSold" ($825,230,000) - live-confirmed via real SEC companyfacts JSON:
 only their SUM ($4,481,246,000) reconciles with TTEK's own filed GrossProfit ($961,344,000 =
 $5,442,590,000 revenue - $4,481,246,000, exact to the dollar).
+
+Extended same-day (same goal session continuation) to also sum "ExciseAndSalesTaxes" for
+Molson Coors (TAP/TAP.A, CIK 0000024545, $13.04B FY2025 revenue brewer): $13,040,300,000
+revenue - $6,866,200,000 CostOfGoodsAndServicesSold - $1,899,500,000 ExciseAndSalesTaxes =
+$4,274,600,000, exact match to TAP's own tagged GrossProfit. Peer-checked Boston Beer (SAM):
+its Revenues - CostOfGoodsAndServicesSold already reconciles exactly with no excise-tax
+adjustment needed, ruling out a blanket alcoholic-beverage-industry pattern.
 """
 
 from utils.external.sec_income_statement_fallbacks import (
@@ -57,3 +64,43 @@ class TestTtekCostOfRevenueFromOtherOperatingCost:
         _fill_cost_of_revenue_from_other_operating_cost(rows)
 
         assert rows[0] == {"revenues": 100.0}
+
+    def test_tap_style_excise_tax_summed_in(self) -> None:
+        rows = [
+            {
+                "revenue_from_contract_with_customer_excluding_assessed_tax": 13_040_300_000.0,
+                "cost_of_goods_and_services_sold": 6_866_200_000.0,
+                "excise_and_sales_taxes": 1_899_500_000.0,
+                "gross_profit": 4_274_600_000.0,
+            }
+        ]
+
+        _fill_cost_of_revenue_from_other_operating_cost(rows)
+
+        assert rows[0]["cost_of_goods_and_services_sold"] == 8_765_700_000.0
+        implied_gp = (
+            rows[0]["revenue_from_contract_with_customer_excluding_assessed_tax"]
+            - rows[0]["cost_of_goods_and_services_sold"]
+        )
+        assert implied_gp == rows[0]["gross_profit"]
+        assert "excise_and_sales_taxes" not in rows[0]
+
+    def test_both_extra_concepts_summed_together(self) -> None:
+        rows = [
+            {
+                "cost_of_goods_and_services_sold": 100.0,
+                "other_cost_of_operating_revenue": 10.0,
+                "excise_and_sales_taxes": 5.0,
+            }
+        ]
+
+        _fill_cost_of_revenue_from_other_operating_cost(rows)
+
+        assert rows[0]["cost_of_goods_and_services_sold"] == 115.0
+
+    def test_does_not_fire_when_excise_tax_absent(self) -> None:
+        rows = [{"cost_of_goods_and_services_sold": 6_866_200_000.0}]
+
+        _fill_cost_of_revenue_from_other_operating_cost(rows)
+
+        assert rows[0]["cost_of_goods_and_services_sold"] == 6_866_200_000.0
