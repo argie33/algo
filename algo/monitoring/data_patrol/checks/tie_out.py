@@ -52,13 +52,34 @@ building session) - flagging both as WARN here is exactly the mechanism to surfa
 follow-up, not a claim that the root cause is already found.
 
 Segment-sum-to-consolidated (revenue rolled up from sec_segment_info's operating segments vs.
-annual_income_statement.revenue) was investigated and deliberately NOT added: spot-checking it
-against the live DB showed 100x-1,400x magnitude errors concentrated in foreign filers (AKO.A/
-AKO.B/KWM/LGPS/MRM/LFS/LRE/PDC/PAYP) - sec_segment_info's segment_revenue appears to not go
-through the same USD-normalization step annual_income_statement.revenue does, so summing the
-two is comparing different currencies for any non-USD-functional-currency filer. This needs an
-FX-normalization fix in the segment loader first, not a tolerance tweak - a distinct, larger
-piece of work than any check added here.
+annual_income_statement.revenue) was investigated and deliberately NOT added, for two
+successive reasons found across two sessions:
+
+1. (2026-09-06) Spot-checking it against the live DB showed 100x-1,400x magnitude errors
+   concentrated in foreign filers (AKO.A/AKO.B/KWM/LGPS/MRM/LFS/LRE/PDC/PAYP) -
+   sec_segment_info's segment_revenue wasn't going through the same USD-normalization step
+   annual_income_statement.revenue does. FIXED 2026-09-07 (commit `5bc20eb11`,
+   utils/external/sec_xbrl_segments.py's XBRLSegmentParser now reuses the same
+   _fx_rate_cache.get_usd_rate() pattern as the income-statement loader) - live-reverified
+   AKO.A/KWM/LGPS/MRM/LFS/LRE/PDC/PAYP all now show plausibly-scaled segment_revenue.
+
+2. (2026-09-07, same-day follow-up after the FX fix above) Still NOT viable as a simple sum,
+   for a DIFFERENT, more fundamental reason: a live DB-wide scan (1,841 comparable symbol/years)
+   found the segment-sum-vs-consolidated relative error is nowhere near noise-level even for
+   well-known, correctly-FX-normalized USD domestic filers - p90=55%, p95=~100%, p99=154%. Root
+   cause, confirmed via EA's raw sec_segment_info rows (FY2026): the parser tags BOTH true ASC
+   280 reportable-segment facts AND ASC 606 revenue-disaggregation-by-product-type facts
+   (StatementBusinessSegmentsAxis vs. a ProductOrServiceAxis-style disaggregation) as
+   segment_type='operating' with no way to distinguish which axis a row came from - EA's rows
+   include "Reportable Segment" ($7.531B, the correct, real total) ALONGSIDE "Mobile Net
+   Revenue"/"Full Game Net Revenue"/"Total Consoles Net Revenue"/etc. (a full, separate
+   disaggregation-by-category breakdown that ALSO sums to ~$7.5B on its own) - summing every row
+   double-counts the same revenue under two different reporting dimensions. This is a parser/
+   schema gap (sec_xbrl_segments.py needs to identify and tag which XBRL axis each segment row
+   came from, then this check would need to sum only true business-segment-axis rows) - not a
+   tolerance-tuning problem, and a distinct, larger piece of work than anything else in this
+   file. Don't naively raise the tolerance to "fix" this - a residual this large is a real
+   double-counting bug in the underlying data, not measurement noise to paper over.
 
 Income-statement chain (revenue - total operating expenses ~= operating_income) was also
 considered and NOT added: there is no single "total operating expenses" column in
