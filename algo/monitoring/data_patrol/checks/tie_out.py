@@ -232,6 +232,30 @@ _ACCOUNTS_PAYABLE_TOLERANCE_PCT = 0.001
 # by a concurrent session as of this check), not a live extraction bug.
 _CASH_TOLERANCE_PCT = 0.001
 
+# inventory <= current_assets: same subset/category structural inequality as
+# cash_le_current_assets above - inventory is one current-asset line item, never the whole
+# current-asset side. Live feasibility check against the local DB (2026-09-07) found
+# 14/2,754 comparable symbol/years beyond a 0.1% slack. Unlike the other structural-
+# inequality checks' false-positive population (stale rows pending a routine reload), the
+# top hit here is a genuine, permanent data-integrity bug, not staleness: PARA's
+# annual_balance_sheet carries current_assets/total_assets correctly re-pulled from the
+# CIK SEC EDGAR's ticker file currently resolves "PARA" to (Banzai International, Inc. -
+# our own stock_symbols.security_name already says so: "Banzai International, Inc. -
+# Class A Common Stock"), but FY2020-2022's inventory ($1.5-1.8B) is frozen at a huge
+# stale value left over from whichever much larger company held the "PARA" ticker before
+# it was recycled - Banzai's real filings apparently never tag InventoryNet at all, so
+# preserve_on_missing_fields' COALESCE has nothing to overwrite that stale value with and
+# it survives indefinitely. Confirmed via a fresh SEC EDGAR company_tickers.json pull
+# (CIK 0001826011, entityName "Banzai International, Inc.") and a fresh
+# fetch_incremental("PARA") call, whose FY2022 row has assets_current=1,021,603 matching
+# the DB's current stale-free current_assets exactly, with no inventory concept present
+# in the raw fetch at all. preserve_on_missing_fields' "financial facts are immutable once
+# real" assumption holds within one continuously-existing company but breaks the moment a
+# ticker is recycled to an unrelated entity - out of scope to fix generally this session
+# (would need a ticker-recycling/entity-discontinuity detector, not attempted), but this
+# check at least surfaces the resulting impossibility going forward.
+_INVENTORY_TOLERANCE_PCT = 0.001
+
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
 # means what it means for an industrial filer - their real cash position sits mostly in
 # interest-earning deposits/securities the balance-sheet field this schema tracks doesn't
@@ -304,6 +328,7 @@ class TieOutChecker(BaseCheck):
         self.check_goodwill_le_total_assets(cur)
         self.check_accounts_payable_le_current_liabilities(cur)
         self.check_cash_le_current_assets(cur)
+        self.check_inventory_le_current_assets(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -1576,6 +1601,65 @@ class TieOutChecker(BaseCheck):
             logger.error(f"[TieOutChecker] cash_le_current_assets failed: {e}", exc_info=True)
             self.log(
                 "cash_le_current_assets",
+                ERROR,
+                "annual_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_inventory_le_current_assets(self, cur: Any) -> None:
+        """inventory <= current_assets (both from annual_balance_sheet, same row).
+
+        ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit + tie-out CI
+        completeness review). See _INVENTORY_TOLERANCE_PCT's own comment for the
+        live-feasibility numbers (14/2,754) and the PARA ticker-recycling root cause found
+        for the top hit.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.current_assets, b.inventory
+                FROM annual_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.current_assets IS NOT NULL
+                  AND b.inventory IS NOT NULL
+                  AND b.current_assets != 0
+                ORDER BY b.symbol, b.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                current_assets, inventory = (
+                    float(row["current_assets"]),
+                    float(row["inventory"]),
+                )
+                residual = inventory - current_assets
+                tolerance = abs(current_assets) * _INVENTORY_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "current_assets": current_assets,
+                            "inventory": inventory,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "inventory_le_current_assets",
+                    WARN,
+                    "annual_balance_sheet",
+                    f"{len(flagged)} symbol(s) fail inventory <= current_assets "
+                    f"beyond {_INVENTORY_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] inventory_le_current_assets failed: {e}", exc_info=True)
+            self.log(
+                "inventory_le_current_assets",
                 ERROR,
                 "annual_balance_sheet",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
