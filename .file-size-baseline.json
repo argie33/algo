@@ -513,7 +513,7 @@
   "loaders/load_financial_statements.py": 3757,
   "loaders/load_insider_transaction_velocity.py": 218,
   "loaders/load_institutional_holdings_13f.py": 1042,
-  "loaders/load_market_constituents.py": 1394,
+  "loaders/load_market_constituents.py": 1413,
   "loaders/load_market_status_daily.py": 999,
   "loaders/load_naaim.py": 187,
   "loaders/load_positioning_metrics.py": 467,
