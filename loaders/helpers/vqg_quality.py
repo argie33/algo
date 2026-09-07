@@ -1905,11 +1905,30 @@ class QualityMetricsMixin(SymbolGateMixin):
                 # meaningless. Floors to worst score rather than inverting into a spuriously
                 # high one, same treatment as debt_to_equity_score below for the same reason.
                 roe_score = 0.0
-            roa_score = (
-                self._margin_curve(metrics["roa"], [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
-                if metrics["roa"] is not None
-                else None
-            )
+            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, JPM/BAC/WFC/C/GS
+            # live-confirmed): same industrial-curve-applied-to-every-sector bug class as
+            # debt_to_equity_score below, for a DIFFERENT input - ROA (net_income/total_assets)
+            # is structurally deflated for depository banks by their huge deposit-funded balance
+            # sheet (a healthy bank's ROA is ~1-1.5%; the (3.0,40)/(8.0,80)/(15.0,100) industrial
+            # curve, calibrated for asset-light industrial/services margins, floors JPM's real
+            # ROA=1.29% to a ~17 score, WFC's 0.99% to ~13, etc.) - not a quality problem, the same
+            # leverage-by-design fact the debt_to_equity bank/insurer curve fix already accounts
+            # for on the liability side. Insurers get their own, less extreme curve: P&C
+            # underwriters (PGR/TRV/ALL live-confirmed ROA 4.4-9.2%) run meaningfully higher than
+            # life insurers (MET/PRU live-confirmed ROA ~0.45%) whose reserve-heavy balance sheets
+            # behave more bank-like - INSURANCE_UNDERWRITER_INDUSTRIES lumps both (same precedent
+            # as debt_to_equity_score's single blended insurer curve just below), hand-calibrated
+            # to credit P&C-typical ROA highly without being so generous it validates a genuinely
+            # weak life-insurer ROA. Thresholds hand-set (not FM-backtested), same as every other
+            # curve in this function.
+            _symbol_industry_for_roa = self._get_symbol_industry(symbol)
+            if _symbol_industry_for_roa in _owner().DEPOSITORY_BANK_INDUSTRIES:
+                _roa_breakpoints = [(0.5, 40.0), (1.0, 75.0), (1.5, 100.0)]
+            elif _symbol_industry_for_roa in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
+                _roa_breakpoints = [(1.0, 40.0), (2.5, 75.0), (5.0, 100.0)]
+            else:
+                _roa_breakpoints = [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)]
+            roa_score = self._margin_curve(metrics["roa"], _roa_breakpoints) if metrics["roa"] is not None else None
             if total_assets is not None and total_assets <= 0:
                 roa_score = 0.0
             # operating_margin_score/net_margin_score are not scored - operating_margin and
@@ -2129,9 +2148,22 @@ class QualityMetricsMixin(SymbolGateMixin):
                     implausible_ratio_metrics.append("fcf_margin")
                 else:
                     fcf_margin = float(computed_fcf_margin)
+            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, JPM/GS/WFC/C
+            # live-confirmed): fcf_margin_score is excluded (not scored) for depository banks -
+            # their free_cash_flow (operating_cash_flow - capex) is dominated by loan
+            # origination/deposit-balance swings unrelated to real operating profitability
+            # (JPM live-confirmed fcf_margin=-81.00%, GS=-81.02%, WFC=-22.70%, C=-87.01% in the
+            # same period BAC=+11.15% - the sign/magnitude is balance-sheet noise, not a real
+            # profitability signal), the identical root cause tie_out.py's cashflow_reconciliation
+            # check already exempts depository institutions from (see that check's own
+            # _DEPOSITORY_INSTITUTION_SIC_CODES comment). metrics["fcf_margin"] itself is left
+            # untouched (still computed/persisted/displayed) - only its contribution to
+            # profitability_cluster_score is removed, same "raw value kept, not scored" treatment
+            # asset_turnover_score already gets for Financial Services/Real Estate above.
             fcf_margin_score = (
                 self._margin_curve(fcf_margin, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
                 if fcf_margin is not None
+                and self._get_symbol_industry(symbol) not in _owner().DEPOSITORY_BANK_INDUSTRIES
                 else None
             )
             # Asset Turnover (Revenue / Total Assets, x100 - same "ratio-as-percentage" storage
