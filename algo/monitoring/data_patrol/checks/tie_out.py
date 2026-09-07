@@ -151,6 +151,13 @@ _FREE_CASH_FLOW_TOLERANCE_FLOOR = 250_000.0
 # data to sample yet; re-derive tolerance from real post-reload data if this proves noisy.
 _NET_CHANGE_CASH_TOLERANCE_PCT = _CASHFLOW_TOLERANCE_PCT
 _NET_CHANGE_CASH_TOLERANCE_FLOOR = _CASHFLOW_TOLERANCE_FLOOR
+# quick_ratio <= current_ratio is a strict structural inequality by construction (quick_ratio's
+# numerator is current_assets minus inventory, a subset of current_ratio's numerator, over the
+# same denominator) - both are computed by the SAME loader call from the SAME current_assets/
+# current_liabilities/inventory inputs (loaders/helpers/vqg_quality.py), so unlike every other
+# check in this file there is no legitimate measurement-difference source for a violation; a
+# tiny slack is kept only for float rounding, not real-world noise.
+_QUICK_RATIO_TOLERANCE = 0.0001
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
@@ -217,6 +224,7 @@ class TieOutChecker(BaseCheck):
         self.check_retained_earnings_rollforward(cur)
         self.check_free_cash_flow_identity(cur)
         self.check_cashflow_activities_sum_to_net_change(cur)
+        self.check_quick_ratio_le_current_ratio(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -966,5 +974,62 @@ class TieOutChecker(BaseCheck):
                 "cashflow_activities_sum_to_net_change",
                 ERROR,
                 "annual_cash_flow",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quick_ratio_le_current_ratio(self, cur: Any) -> None:
+        """quick_ratio <= current_ratio (both from quality_metrics, one row per symbol).
+
+        ADDED 2026-09-07 (goal: "make sure we have all the right tie outs" sweep, CI tie-out
+        coverage audit's #2 recommendation). Live feasibility check against the local DB
+        (2026-09-07, 4,448 rows) found zero violations currently - this is a pure regression
+        guard against loaders/helpers/vqg_quality.py's current_ratio/quick_ratio computation
+        drifting apart (e.g. a future change computing one from a different current_assets/
+        current_liabilities snapshot than the other), not an active bug hunt. quality_metrics
+        is keyed one row per symbol (no fiscal_year/as_of_date column), unlike the annual_*
+        tables the other checks in this file query.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT symbol, current_ratio, quick_ratio
+                FROM quality_metrics
+                WHERE data_unavailable = FALSE
+                  AND current_ratio IS NOT NULL
+                  AND quick_ratio IS NOT NULL
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                current_ratio, quick_ratio = (
+                    float(row["current_ratio"]),
+                    float(row["quick_ratio"]),
+                )
+                residual = quick_ratio - current_ratio
+                if residual > _QUICK_RATIO_TOLERANCE:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "current_ratio": current_ratio,
+                            "quick_ratio": quick_ratio,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "quick_ratio_le_current_ratio",
+                    WARN,
+                    "quality_metrics",
+                    f"{len(flagged)} symbol(s) have quick_ratio > current_ratio "
+                    f"(structurally impossible - quick_ratio excludes inventory)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quick_ratio_le_current_ratio failed: {e}", exc_info=True)
+            self.log(
+                "quick_ratio_le_current_ratio",
+                ERROR,
+                "quality_metrics",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
             )
