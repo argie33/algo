@@ -399,6 +399,23 @@ DEPOSITARY_SHARES_PATTERN = re.compile(r"\bdepositary shares?\b|\bdep shs?\b", r
 # "Global" either.
 AMERICAN_DEPOSITARY_PATTERN = re.compile(r"\b(american|global)\s+depositary\s+(shares?|receipts?)\b", re.IGNORECASE)
 
+# GOVERNANCE 2026-09-07 (goal: stock_scores factor/composite sanity audit - checking BDC/REIT
+# universe coverage): EXCLUSION_PATTERNS' \bfund\b entry (meant to catch real mutual/closed-end
+# funds) false-positived on BXSL ("Blackstone Secured Lending Fund") - a real, actively-traded
+# business development company (BDC) that happens to carry "Fund" in its legal name despite
+# being an operating lending business, not a pooled investment fund in the excluded sense. Found
+# by spot-checking a list of well-known BDCs against stock_symbols: ARCC/FSK/PSEC/HTGC/OBDC/
+# GBDC/TSLX/GSBD/BXSL/TPVG - live `should_exclude()` confirmed BXSL is the only one of these
+# actually caught by a name pattern (the other 3 gaps found the same pass - ARCC/PSEC/GBDC - are
+# NOT should_exclude() false positives; should_exclude() returns False for all three real names,
+# so their absence from stock_symbols is the same unresolved "missing upstream of should_exclude"
+# bug class already documented for BK/FDP/MASI/SNBR/SLNO/AIFC/GIG, not this function's fault -
+# see stock_symbols_membership_gap_7_real_tickers_20260903 in memory, not chased further here).
+# Individually-verified symbol-level override, not a broader regex change - "Fund" legitimately
+# marks a real excluded closed-end/mutual fund in the vast majority of cases, so narrowing the
+# regex itself risks reopening that larger, correctly-excluded population.
+KNOWN_FUND_NAME_MISCLASSIFICATIONS = {"BXSL"}
+
 
 def should_exclude(name: str) -> bool:
     if any(re.search(p, name, flags=re.IGNORECASE) for p in EXCLUSION_PATTERNS):
@@ -411,13 +428,15 @@ def should_exclude(name: str) -> bool:
 
 
 def _is_excluded(symbol: str, name: str) -> bool:
-    """should_exclude() plus the KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS override - the
-    single source of truth for exclusion decisions used by fetch_global's initial
-    write path AND both deactivate/reactivate reconciliation methods, so a symbol-level
-    override applies consistently everywhere `should_exclude` would otherwise be called
-    directly on stored/fetched text alone."""
+    """should_exclude() plus the KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS/
+    KNOWN_FUND_NAME_MISCLASSIFICATIONS overrides - the single source of truth for exclusion
+    decisions used by fetch_global's initial write path AND both deactivate/reactivate
+    reconciliation methods, so a symbol-level override applies consistently everywhere
+    `should_exclude` would otherwise be called directly on stored/fetched text alone."""
     if symbol in KNOWN_SPAC_MISCLASSIFICATIONS:
         return True
+    if symbol in KNOWN_FUND_NAME_MISCLASSIFICATIONS:
+        return False
     return should_exclude(name) and symbol not in KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS
 
 

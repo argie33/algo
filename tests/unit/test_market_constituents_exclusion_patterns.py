@@ -14,6 +14,7 @@ a bare `\\bpfd\\b` pattern would have wrongly excluded it.
 
 from loaders.load_market_constituents import (
     CORP_SPONSOR_PATTERN,
+    KNOWN_FUND_NAME_MISCLASSIFICATIONS,
     KNOWN_SPAC_MISCLASSIFICATIONS,
     _is_excluded,
     should_exclude,
@@ -457,3 +458,33 @@ class TestAdsWarrantAbbreviationExcluded:
 
     def test_psny_common_ads_not_excluded(self):
         assert not should_exclude("Polestar Automotive Holding UK Limited - Class A ADS")
+
+
+class TestBdcFundNameMisclassificationExcluded:
+    """GOVERNANCE 2026-09-07 (goal: stock_scores factor/composite sanity audit - BDC/REIT
+    universe coverage check): BXSL ("Blackstone Secured Lending Fund") is a real, actively-
+    traded business development company (BDC), not a pooled investment fund - but its legal
+    name contains "Fund", so the bare `\\bfund\\b` EXCLUSION_PATTERNS entry (correctly
+    meant to catch real mutual/closed-end funds) caught it too. Found by spot-checking
+    ARCC/FSK/PSEC/HTGC/OBDC/GBDC/TSLX/GSBD/BXSL/TPVG against stock_symbols - BXSL was the
+    only one of these actually caught by should_exclude(); ARCC/PSEC/GBDC's separate
+    absence is NOT a should_exclude() false positive (see the KNOWN_FUND_NAME_
+    MISCLASSIFICATIONS comment - same unresolved "missing upstream of should_exclude" bug
+    class as stock_symbols_membership_gap_7_real_tickers_20260903 in memory).
+    """
+
+    def test_bxsl_fund_name_false_positive_excluded_by_bare_pattern(self):
+        """Confirms the bug: without the override, the real BDC's name alone matches."""
+        assert should_exclude("Blackstone Secured Lending Fund")
+
+    def test_bxsl_not_excluded_via_is_excluded_override(self):
+        assert not _is_excluded("BXSL", "Blackstone Secured Lending Fund")
+
+    def test_bxsl_in_known_fund_name_misclassifications(self):
+        assert "BXSL" in KNOWN_FUND_NAME_MISCLASSIFICATIONS
+
+    def test_real_closed_end_funds_still_excluded(self):
+        """The override must be scoped to BXSL alone - a real closed-end/mutual fund
+        without a symbol-level override must still be excluded."""
+        assert should_exclude("Blackrock Multi-Sector Income Trust Fund")
+        assert _is_excluded("BXFAKE", "Blackrock Multi-Sector Income Trust Fund")
