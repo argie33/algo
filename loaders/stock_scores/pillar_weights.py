@@ -181,6 +181,52 @@ from loaders.load_stock_scores and must keep working unchanged.
 # aggregation's use of it. No production change from this result - it's further confirmation
 # the existing architecture is not something to abandon for a flatter one, not new evidence for
 # a different one.
+# ============================================================================================
+# WEIGHT-REVISION GOVERNANCE POLICY (added 2026-09-07, goal session: "find all the stupid
+# shit... figure out the best right way"). Read this before changing any weight below.
+#
+# The docstring history above (and value_score.py's own, longer one) is a real audit finding,
+# not just color commentary: this file's weights were repeatedly changed, tested, reversed, and
+# re-reversed WITHIN THE SAME SESSION, sometimes multiple times in one day, each time citing a
+# fresh re-run of the same backtest that contradicted the immediately-prior "robust,
+# independently re-verified" conclusion (see e.g. "PE-vs-PB/PS RANKING - REVERSED", then
+# "INDEPENDENT RE-VERIFICATION", then reversed AGAIN in value_score.py the same day). Repeatedly
+# re-mining the same in-sample window until a different number comes out is the textbook setup
+# for overfitting to noise, not evidence-based iteration - re-verified numbers were only ever
+# re-verified against the SAME data already used to motivate the change.
+#
+# This is exactly the discipline institutional multi-factor shops (Barra/Axioma/MSCI/AQR)
+# enforce and this repo did not: factor weights get re-estimated on a FIXED SCHEDULE (typically
+# quarterly/annually), never same-session, and validated with a TRUE held-out period that was
+# never touched during fitting - not an overlapping half-split re-used for both "discovery" and
+# "confirmation" the way multiple passes above did. See algo/research/
+# barra_style_neutralized_composite_20260907.py for a worked example of the honest version of
+# this: fit period 2017-2021, holdout 2022-2026, holdout NEVER touched while iterating on the
+# method.
+#
+# GOING FORWARD:
+#   1. A weight in this file may only be changed based on a test that reports BOTH a fit-period
+#      AND a genuinely disjoint, never-previously-examined holdout-period result - not a
+#      same-window half-split re-used across multiple same-day passes.
+#   2. If a proposed change doesn't clear this repo's own stated bar (|t|>=2, same sign, in
+#      both periods) OR the improvement is marginal (a few tenths of a t-stat) relative to the
+#      noise level already documented in this file's own history (pre-2020 sub-periods are
+#      consistently the noisiest), DO NOT ship it - document the finding and leave the
+#      production weight alone, the same restraint already correctly applied to margin_of_safety
+#      and dividend_yield's own "kept, not acted on further" verdicts above.
+#   3. Don't re-run the identical test a second time in the same session hoping for a different
+#      number "to be sure" - if the first honest run doesn't clear the bar, that IS the answer,
+#      not a reason to keep trying until it does.
+#   4. Routine hand-calibrated fixes to a SCORING CURVE (not a pillar weight) - e.g. the
+#      2026-09-07 bank/insurer/utility ROA/ROCE/debt-to-equity curves in
+#      loaders/helpers/vqg_quality.py - are lower-stakes than a top-level pillar weight change
+#      but still deserve at minimum a live-distribution sanity check (does the new curve's
+#      breakpoint land near the REAL cross-sectional median/percentile for that peer group, not
+#      just "looks right" on a handful of spot-checked symbols) before landing, per this same
+#      session's own bank ROA calibration check (median bank ROA 1.04% vs. the new curve's
+#      1.0%->75 breakpoint - that's how you'd catch an overly generous or overly harsh curve
+#      BEFORE it ships, not after a leaderboard looks wrong).
+# ============================================================================================
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
     "quality": 0.20,
     "growth": 0.24,
