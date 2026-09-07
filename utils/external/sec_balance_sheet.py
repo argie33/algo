@@ -17,8 +17,53 @@ _BALANCE_IFRS_ALIASES = [
     # (IFRS concept name, target key = _to_snake() of the equivalent GAAP concept)
     ("Assets", "assets"),
     ("CurrentAssets", "assets_current"),
+    # FIXED 2026-09-07 (tie-out check_current_assets_le_total_assets, SSL/Sasol live-
+    # confirmed): a filer that reclassifies part of its balance sheet under IFRS 5
+    # ("non-current assets/disposal groups held for sale") splits the plain "CurrentAssets"
+    # concept above into two: this concept (current assets EXCLUDING the held-for-sale
+    # reclassification) plus "NoncurrentAssetsOrDisposalGroupsClassifiedAsHeldForSale"
+    # (assets originally non-current but presented WITHIN current assets per IFRS 5 -
+    # "Noncurrent" in the name refers to their original classification, not their balance-
+    # sheet presentation). Live-confirmed via SSL's real companyfacts JSON (CIK 0000314590):
+    # plain ifrs-full:CurrentAssets has ZERO facts after FY2020 (last: 2020-06-30) - Sasol
+    # switched to this split style from FY2021 onward - so the bare alias above has silently
+    # returned nothing for 5 straight fiscal years while SSL's DB rows for FY2022-2025 sat on
+    # a STALE raw-ZAR (unconverted) current_assets value from some earlier extraction,
+    # preserved indefinitely by preserve_on_missing_fields' COALESCE. FY2025:
+    # CurrentAssetsOtherThan...=ZAR 130,101,000,000 + NoncurrentAssetsOrDisposalGroups...=
+    # ZAR 53,000,000 = ZAR 130,154,000,000, exactly matching the stale unconverted DB value -
+    # confirming this concept pairing IS the real "current assets" figure, just never
+    # FX-converted because nothing was fetching it. Listed AFTER the bare "CurrentAssets"
+    # alias, deliberately - NOT this file's usual "fallback listed first" convention.
+    # Live-verified via _aggregate_concepts_should_replace_entry's actual instant-fact
+    # tiebreak (utils/external/sec_statements_entry_resolution.py): when two DIFFERENT
+    # concepts for the same column collide on an identical (end_date, filed_date) - which
+    # genuinely happens for SSL's own FY2020, where BOTH "CurrentAssets" ($177,969,000,000)
+    # and this concept ($93,701,000,000) are tagged in the same 20-F - the FIRST-listed
+    # concept wins the tie (a strict `>` comparison, not `>=`), matching this file's own
+    # "first-populated-wins" terminology already used for the SubordinatedDebt/
+    # JuniorSubordinatedDebenture pair further below. SSL's real, currently-correct FY2020
+    # DB row uses the bare CurrentAssets concept ($177.969B ZAR / 17.3625 2020-06-30 rate =
+    # $10.25B, live-confirmed matching the DB) - listing the fallback second preserves that
+    # already-correct year; only fiscal years where the bare concept has NO fact at all
+    # (FY2021+ for SSL) ever reach this fallback. Not summed with the held-for-sale
+    # component (this loader's transform() has no summing mechanism for two concepts mapped
+    # to the same column - see the DebtCurrent/SecuredDebt comment below) - capturing the
+    # larger, near-total figure alone is strictly better than the prior stale/wrong value,
+    # same accepted-partial-figure precedent as elsewhere in this file.
+    (
+        "CurrentAssetsOtherThanAssetsOrDisposalGroupsClassifiedAsHeldForSaleOrAsHeldForDistributionToOwners",
+        "assets_current",
+    ),
     ("Liabilities", "liabilities"),
     ("CurrentLiabilities", "liabilities_current"),
+    # FIXED 2026-09-07 (same SSL fix): paired liabilities-side concept for the same IFRS 5
+    # split - SSL's plain ifrs-full:CurrentLiabilities also has zero facts after FY2020.
+    # FY2025 CurrentLiabilitiesOtherThan...=ZAR 69,436,000,000 exactly matches the stale
+    # unconverted DB current_liabilities value (SSL had no held-for-sale liabilities that
+    # year, so no summing gap here). Listed AFTER the bare concept for the same first-
+    # populated-wins reasoning as the assets-side fallback above.
+    ("CurrentLiabilitiesOtherThanLiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale", "liabilities_current"),
     ("Equity", "stockholders_equity"),
     ("EquityAttributableToOwnersOfParent", "stockholders_equity"),
     ("CashAndCashEquivalents", "cash_and_cash_equivalents_at_carrying_value"),
