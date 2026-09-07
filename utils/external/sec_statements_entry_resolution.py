@@ -535,6 +535,46 @@ def _aggregate_concepts_should_replace_entry(
                 row_has_frame = bool(row.get(f"_frame_{col}"))
                 if entry_has_frame != row_has_frame:
                     should_replace = entry_has_frame
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, tie-out
+                    # audit follow-up): SEC's own "frame" assignment is normally trusted
+                    # unconditionally as the canonical-value signal (see the PMT case above),
+                    # but it is itself just an index over whatever facts filers submitted -
+                    # live-confirmed via Inter Parfums (IPAR) FY2021 CashAndCashEquivalentsAt
+                    # CarryingValue: the ORIGINAL FY2021 10-K (filed 2022-03-01) and three later
+                    # 10-Qs/one 10-K comparative period all agree on ~$159-168M with NO frame
+                    # key at all, but IPAR's FY2023 10-K (filed 2024-02-27) re-cites the same
+                    # 2021-12-31 period as $159,613,000,000 - a filer-side 1000x decimals-tag
+                    # error on their part - and THAT corrupted entry is the one SEC's frames API
+                    # happened to tag "CY2021Q4I", so the existing frame-preference rule
+                    # confidently replaced the correct ~$159.6M figure with a bogus $159.6B one.
+                    # A frame-tagged replacement whose value differs from unanimous prior
+                    # agreement by a ratio suspiciously close to a clean power of 10 (100x/
+                    # 1000x/10000x, within 1%) is far more likely a decimals-tag error than a
+                    # real business change - real restatements essentially never move a balance
+                    # by an exact round factor of 10. Only overrides the frame-preference in
+                    # this narrow, high-confidence shape; every other frame-vs-no-frame case
+                    # (the overwhelming majority) is unaffected.
+                    if entry_has_frame and col in row:
+                        _existing_val = row.get(col)
+                        _entry_val = entry.get("val")
+                        if (
+                            isinstance(_existing_val, int | float)
+                            and isinstance(_entry_val, int | float)
+                            and _existing_val != 0
+                            and _entry_val != 0
+                        ):
+                            _ratio = abs(_entry_val) / abs(_existing_val)
+                            if _ratio < 1:
+                                _ratio = 1 / _ratio
+                            if any(abs(_ratio - _power) / _power < 0.01 for _power in (100, 1000, 10000)):
+                                logger.warning(
+                                    f"[frame_magnitude_scale_guard] Rejecting frame-tagged "
+                                    f"replacement for {col} (accn {entry.get('accn')}): "
+                                    f"{_entry_val} is a {_ratio:.0f}x-scaled outlier vs the "
+                                    f"already-agreed {_existing_val} - likely a filer decimals-"
+                                    f"tag error, not a real restatement."
+                                )
+                                should_replace = False
                 else:
                     should_replace = row_filed is None or entry_filed > row_filed
         elif period == "quarterly":
