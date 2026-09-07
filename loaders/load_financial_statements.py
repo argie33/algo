@@ -418,11 +418,8 @@ _INCOME_FIELD_MAPPING = {
     # file's concepts list, so it wins on overwrite for filers reporting both).
     "research_and_development_expense_excluding_acquired_in_process_cost": "research_development_expense",
     "research_and_development_expense": "research_development_expense",
-    # ADDED 2026-09-07 (goal: SEC/XBRL missing-data audit, migration 1264): see
-    # sec_income_statement.py's get_income_statement() comment on
-    # "SellingGeneralAndAdministrativeExpense" for the live WMT/TGT/AAR/ABT evidence. Not
-    # fallback-only - this is the only concept fetched for this column, same single-concept
-    # convention as accounts_payable/accounts_receivable.
+    # ADDED 2026-09-07 (migration 1264): see sec_income_statement.py's comment on
+    # "SellingGeneralAndAdministrativeExpense" for the live WMT/TGT/AAR/ABT evidence.
     "selling_general_and_administrative_expense": "operating_expenses",
     "operating_income_loss": "operating_income",
     "net_income_loss": "net_income",
@@ -439,6 +436,9 @@ _INCOME_FIELD_MAPPING = {
     # AttributableToNoncontrollingInterest" for the live evidence. Same target column as
     # "net_income_loss"/"profit_loss" above; fallback-only via _REVENUE_FALLBACK_ONLY_FIELDS.
     "income_loss_from_continuing_operations_including_portion_attributable_to_noncontrolling_interest": "net_income",
+    # ADDED 2026-09-07 (migration 1270): see sec_income_statement.py's comment on these concepts.
+    "net_income_loss_available_to_common_stockholders_basic": "net_income_attributable_to_common",
+    "net_income_loss_available_to_common_stockholders_diluted": "net_income_attributable_to_common",
     "earnings_per_share_basic": "earnings_per_share",
     # FIXED 2026-07-28: EarningsPerShareDiluted (GAAP) and DilutedEarningsLossPerShare
     # (IFRS alias, both target this same key - see sec_statements.py's _INCOME_IFRS_ALIASES)
