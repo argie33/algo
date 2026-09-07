@@ -3059,11 +3059,26 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         under 100B even for the most heavily-diluted real filers. 500B leaves ~7x headroom
         above the largest genuine value in this table while still catching NMR's (and any
         similar) many-orders-of-magnitude tagging error.
+
+        FIXED 2026-09-07 (goal: "run all the tie-outs" sweep): `shares_outstanding_dei`
+        added as a third guarded field - it sits in this exact same fallback chain (see
+        transform()'s `shares = diluted or basic or dei`) but was never covered by this
+        guard, so a filer/filing-agent tagging error on the DEI cover-page concept could
+        sail straight through into EPS derivation whenever basic/diluted were both missing.
+        Live-confirmed via EEFT's (Euronet Worldwide) own filed 10-K XBRL (CIK 0001029199,
+        accn 0001213900-21-010724): dei:EntityCommonStockSharesOutstanding tagged as
+        52,752,851,000,000,000 for FY2020 - the filer's own three FY2020 10-Qs on file all
+        show a real ~52.2-52.3M share count, so this is the exact same "many-orders-of-
+        magnitude tagging error" class as NMR's diluted-shares case above, just on a
+        different concept. 1,313 annual rows found beyond a 3x/0.33x ratio vs
+        shares_outstanding_basic in a live DB scan, several within noise of an exact
+        ~1,000,000x multiple (EEFT/EIX/PRTS/FOSL/NNBR/PNNT) - the same systematic shape as
+        the "reported in thousands, squared" pattern this guard already exists for.
         """
         min_plausible_shares_outstanding = 100_000
         max_plausible_shares_outstanding = 500_000_000_000
         for row in transformed:
-            for field in ("shares_outstanding_basic", "shares_outstanding_diluted"):
+            for field in ("shares_outstanding_basic", "shares_outstanding_diluted", "shares_outstanding_dei"):
                 val = row.get(field)
                 if val is not None and 0 < val < min_plausible_shares_outstanding:
                     logger.warning(
@@ -3107,7 +3122,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
             reference = reference_shares.get(symbol) if symbol else None
             if not reference:
                 continue
-            for field in ("shares_outstanding_basic", "shares_outstanding_diluted"):
+            for field in ("shares_outstanding_basic", "shares_outstanding_diluted", "shares_outstanding_dei"):
                 val = row.get(field)
                 if val is None or val <= 0:
                     continue
@@ -4095,6 +4110,25 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                     # for them.
                     if self.statement_type == "cashflow" and row.get("dividends_paid") is not None:
                         row["dividends_paid"] = abs(row["dividends_paid"])
+
+                    # FIXED 2026-09-07 (goal: "run all the tie-outs" sweep, live-verified via
+                    # real SEC companyfacts JSON): stock_based_compensation/
+                    # common_stock_repurchased have the EXACT same debit-balance sign-flip
+                    # bug as dividends_paid above, just never extended to them. AAMI's own
+                    # filed 10-K (CIK 0001748824, accn 0001628280-26-012856) tags
+                    # AllocatedShareBasedCompensationExpense as -$23.2M (FY2024) and -$47.7M
+                    # (FY2025) - a real non-cash compensation addback reported negative by the
+                    # filer, not an extraction bug. JCTC's own filed 10-K/10-K/A (CIK
+                    # 0000885307) tags PaymentsForRepurchaseOfCommonStock as -$3,075,559/
+                    # -$7,188 for FY2012/2013 the same way. Both are always cash-flow-statement
+                    # magnitudes (non-cash addback / cash outflow respectively), same as
+                    # dividends_paid - live DB scan found 264+1,370 (annual+quarterly) negative
+                    # stock_based_compensation rows and 99+477 negative common_stock_repurchased
+                    # rows before this fix, all real filer-tagged negatives of this same shape.
+                    if self.statement_type == "cashflow":
+                        for _sign_flip_field in ("stock_based_compensation", "common_stock_repurchased"):
+                            if row.get(_sign_flip_field) is not None:
+                                row[_sign_flip_field] = abs(row[_sign_flip_field])
                 result.append(row)
 
         return result
