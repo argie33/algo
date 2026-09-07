@@ -3378,8 +3378,21 @@ def run(
                                 break
 
                         else:
-                            message = trade_result["message"]
-                            status = trade_result["status"]
+                            # CRITICAL FIX (real-money-readiness audit, found 2026-09-06):
+                            # this used to bare-index trade_result for its status field.
+                            # executor_entry_handler.py's _validate_entry_phase returns
+                            # error_details={} for several real validation failures (missing
+                            # stop_loss_price, NaN/Infinite entry or stop, stop <= 0, stop >=
+                            # entry) - in every one of those cases the returned dict has NO
+                            # "status" key at all, only "success"/"trade_id"/"message". The
+                            # outer per-signal exception handler below does not catch
+                            # KeyError, so a validation failure of this shape raised
+                            # unhandled, terminating the `for signal in qualified_trades`
+                            # loop entirely and silently skipping every remaining candidate
+                            # in the run with no per-symbol isolation - the exact failure
+                            # mode this loop's own exception handling exists to prevent.
+                            message = trade_result.get("message", "Unknown error (no message field)")
+                            status = trade_result.get("status", "unknown")
                             if status in _POLICY_REJECTION_STATUSES:
                                 logger.info(f"[PHASE 8] {symbol}: SKIPPED (policy) - {message} (status={status})")
                                 _log_signal_rejection(symbol, status, message, run_date, entry_price, risk_pct)
