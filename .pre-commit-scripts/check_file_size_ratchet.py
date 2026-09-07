@@ -10,6 +10,21 @@ in .file-size-baseline.json and auto-tightens whenever a file shrinks.
 Baselines are read from git HEAD (the last commit), never from the working
 tree - a bump to a file's cap and the growth it excuses cannot land in the
 same commit. See load_baseline()'s comment for why that matters.
+
+HARD_CEILING exists because the per-.py-file check above was never the whole
+story: a commit that edits ONLY .file-size-baseline.json touches no .py file,
+so it never appeared in `entries` at all and sailed through with zero
+validation - the documented "raise the cap in a separate prior commit"
+escape hatch had no upper bound. That's exactly how this went wrong in
+practice: files kept getting a fresh baseline bump every time a feature
+needed a few more lines, so "frozen at whatever size it happened to be" kept
+sliding upward instead of ever forcing a split (see CLAUDE.md's
+bloater-decomposition note and MEMORY.md - a 2026-09-05 decision to split one
+bloater per session went unenforced and several of the named worst offenders
+grew by hundreds of lines afterward instead of shrinking). Past HARD_CEILING,
+raising a file's baseline is refused outright, in any commit, no override -
+the only way to add code to a file already this large is to extract a module
+first and shrink it back under the ceiling.
 """
 
 import json
@@ -19,6 +34,7 @@ from pathlib import Path
 
 BASELINE_PATH = Path(".file-size-baseline.json")
 NEW_FILE_CAP = 800
+HARD_CEILING = 2000
 
 EXCLUDE_PREFIXES = (
     "tests/",
@@ -115,17 +131,44 @@ def check_diff(entries: list[tuple[str, str | None]], baseline: dict, current_li
             else:
                 updated[rel] = current
         elif current > prior:
-            failures.append(
-                f"  GROWN  {rel}: {current} lines (was {prior}). Already-oversized legacy "
-                f"debt - growth is blocked, extract a module instead. If this growth is "
-                f"truly deliberate (e.g. a generated file or data table), raise the value "
-                f"for this path in .file-size-baseline.json with a one-line reason in a "
-                f"SEPARATE prior commit that touches no other code - baselines are read from "
-                f"git HEAD, so a same-commit bump no longer bypasses this check."
-            )
+            if prior >= HARD_CEILING:
+                failures.append(
+                    f"  GROWN  {rel}: {current} lines (was {prior}, already past the "
+                    f"{HARD_CEILING}-line hard ceiling). No baseline raise will be accepted "
+                    f"for this file - extract a module and shrink it back down first."
+                )
+            else:
+                failures.append(
+                    f"  GROWN  {rel}: {current} lines (was {prior}). Already-oversized legacy "
+                    f"debt - growth is blocked, extract a module instead. If this growth is "
+                    f"truly deliberate (e.g. a generated file or data table), raise the value "
+                    f"for this path in .file-size-baseline.json with a one-line reason in a "
+                    f"SEPARATE prior commit that touches no other code - baselines are read "
+                    f"from git HEAD, so a same-commit bump no longer bypasses this check. That "
+                    f"raise itself is checked against the {HARD_CEILING}-line hard ceiling."
+                )
         elif current < prior:
             updated[rel] = current
     return failures, updated
+
+
+def check_baseline_raise(old: dict, new: dict) -> list[str]:
+    """Validates the baseline file's OWN diff, independent of whether any .py file also
+    changed in the same commit. Without this, a commit that edits only
+    .file-size-baseline.json - exactly what every "raise the baseline" commit does - never
+    appears in check_diff()'s .py-only `entries` list and was never checked at all."""
+    failures = []
+    for rel, new_val in new.items():
+        old_val = old.get(rel)
+        if old_val is None or new_val <= old_val:
+            continue
+        if new_val > HARD_CEILING:
+            failures.append(
+                f"  BASELINE-RAISE  {rel}: {old_val} -> {new_val} exceeds the "
+                f"{HARD_CEILING}-line hard ceiling. Split the file before raising its cap "
+                f"further - no override."
+            )
+    return failures
 
 
 def main_local() -> int:
@@ -139,18 +182,38 @@ def main_local() -> int:
         text=True,
         check=True,
     ).stdout.splitlines()
+    staged_paths = {rel for rel, _ in parse_staged(staged)}
 
     entries = [(rel, old) for rel, old in parse_staged(staged) if rel.endswith(".py") and not is_excluded(rel)]
-    if not entries:
-        return 0
 
     baseline = load_baseline()
-    current_lines = {rel: count_lines(Path(rel)) for rel, _ in entries if Path(rel).exists()}
-    failures, updated = check_diff(entries, baseline, current_lines)
+    failures: list[str] = []
+    updated = dict(baseline)
+
+    if entries:
+        current_lines = {rel: count_lines(Path(rel)) for rel, _ in entries if Path(rel).exists()}
+        diff_failures, updated = check_diff(entries, baseline, current_lines)
+        failures.extend(diff_failures)
+
+    # Checked unconditionally, independent of `entries` - a commit that edits only the
+    # baseline file (no .py changes) must still be validated. See check_baseline_raise().
+    if str(BASELINE_PATH.as_posix()) in staged_paths:
+        staged_baseline = json.loads(
+            subprocess.run(
+                ["git", "show", f":{BASELINE_PATH.as_posix()}"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout
+        )
+        failures.extend(check_baseline_raise(baseline, staged_baseline))
 
     if updated != baseline:
         BASELINE_PATH.write_text(json.dumps(dict(sorted(updated.items())), indent=2) + "\n", encoding="utf-8")
         subprocess.run(["git", "add", str(BASELINE_PATH)], check=True)
+
+    if not entries and not failures:
+        return 0
 
     if failures:
         print("File-size ratchet failed:\n" + "\n".join(failures), file=sys.stderr)
@@ -183,14 +246,24 @@ def main_ci_range(base_sha: str, head_sha: str) -> int:
             text=True,
             check=True,
         ).stdout.splitlines()
+        changed_paths = {rel for rel, _ in parse_staged(diff_lines)}
         entries = [(rel, old) for rel, old in parse_staged(diff_lines) if rel.endswith(".py") and not is_excluded(rel)]
-        if not entries:
-            continue
 
-        baseline = load_baseline_at(parent)
-        current_lines = {rel: file_lines_at(commit, rel) for rel, _ in entries}
-        failures, _ = check_diff(entries, baseline, current_lines)
-        all_failures.extend(f"{f}  [commit {commit[:8]}]" for f in failures)
+        commit_failures: list[str] = []
+        if entries:
+            baseline = load_baseline_at(parent)
+            current_lines = {rel: file_lines_at(commit, rel) for rel, _ in entries}
+            diff_failures, _ = check_diff(entries, baseline, current_lines)
+            commit_failures.extend(diff_failures)
+
+        # Same unconditional check as main_local() - a baseline-only commit (no .py files
+        # in `entries`) must still be validated against the hard ceiling.
+        if str(BASELINE_PATH.as_posix()) in changed_paths:
+            old_baseline = load_baseline_at(parent)
+            new_baseline = load_baseline_at(commit)
+            commit_failures.extend(check_baseline_raise(old_baseline, new_baseline))
+
+        all_failures.extend(f"{f}  [commit {commit[:8]}]" for f in commit_failures)
 
     if all_failures:
         print("File-size ratchet failed:\n" + "\n".join(all_failures), file=sys.stderr)
