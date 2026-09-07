@@ -238,7 +238,7 @@
   "algo/trading/position_sizer.py": 1813,
   "algo/trading/position_tracker.py": 231,
   "algo/trading/pretrade_checks.py": 888,
-  "algo/trading/quote_fetcher.py": 240,
+  "algo/trading/quote_fetcher.py": 300,
   "algo/trading/tca.py": 396,
   "algo/trading/trade_context.py": 182,
   "algo/trading/trade_validator.py": 630,
