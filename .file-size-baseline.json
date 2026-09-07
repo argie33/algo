@@ -667,7 +667,7 @@
   "utils/external/sec_income_statement_fallbacks.py": 395,
   "utils/external/sec_statements.py": 100,
   "utils/external/sec_statements_aggregate.py": 407,
-  "utils/external/sec_statements_entry_resolution.py": 706,
+  "utils/external/sec_statements_entry_resolution.py": 718,
   "utils/external/sec_statements_shared.py": 129,
   "utils/external/sec_statements_unit_context.py": 301,
   "utils/external/sec_ticker_cache.py": 419,
