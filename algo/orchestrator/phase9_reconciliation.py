@@ -939,13 +939,38 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                         cumulative_pnl_dollars = float(
                             (prior_partial_pnl + pnl_dollars_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)
                         )
+                        # FIXED 2026-09-07 (same bug class/fix as executor_exit_handler.py's
+                        # _compute_cumulative_pnl - see 8e0c0ccec/4735a8bc4 - THIRD independent
+                        # copy of this logic found by grepping for "cumulative_pnl" repo-wide):
+                        # entry_qty here is this ONE leg's own entry_quantity (correct for
+                        # pnl_dollars_dec above, since this branch is scoped to untouched legs -
+                        # see the comment above pnl_per_share_dec) but understates the true cost
+                        # basis/risk denominator when prior_partial_pnl != 0 - i.e. this position
+                        # is BOTH pyramided (2+ legs) AND was exited via multiple partial legs.
+                        # Sum entry_quantity across every leg on the position instead of trusting
+                        # this one row's own quantity, same trade_ids_arr sum as the other two
+                        # fixes.
+                        total_entry_qty = entry_qty
+                        if prior_partial_pnl != 0 and position_id is not None:
+                            write_cursor.execute(
+                                """
+                                SELECT SUM(t2.entry_quantity)
+                                FROM algo_trades t2
+                                JOIN algo_positions p2 ON t2.trade_id::text = ANY(p2.trade_ids_arr::text[])
+                                WHERE p2.position_id = %s
+                                """,
+                                (position_id,),
+                            )
+                            total_entry_qty_row = write_cursor.fetchone()
+                            if total_entry_qty_row and total_entry_qty_row[0] is not None:
+                                total_entry_qty = total_entry_qty_row[0]
                         cumulative_pnl_pct = (
                             float(pnl_pct_dec)
                             if prior_partial_pnl == 0
                             else float(
                                 (
                                     Decimal(str(cumulative_pnl_dollars))
-                                    / (Decimal(str(entry_price)) * Decimal(str(entry_qty)))
+                                    / (Decimal(str(entry_price)) * Decimal(str(total_entry_qty)))
                                     * Decimal(100)
                                 ).quantize(Decimal("0.01"), ROUND_HALF_UP)
                             )
@@ -956,7 +981,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                             else float(
                                 (
                                     Decimal(str(cumulative_pnl_dollars))
-                                    / (Decimal(str(risk_per_share)) * Decimal(str(entry_qty)))
+                                    / (Decimal(str(risk_per_share)) * Decimal(str(total_entry_qty)))
                                 ).quantize(Decimal("0.01"), ROUND_HALF_UP)
                             )
                         )
