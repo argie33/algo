@@ -787,6 +787,36 @@ class XBRLSegmentParser:
             if axis and member and end_str:
                 context_segment[ctx_id] = (axis, member, end_str, start_str, is_boilerplate_paired)
 
+        # FIXED 2026-09-07 (goal: stock_scores/tie-out sanity audit, segment-sum-to-consolidated
+        # investigation): "ReportableSegmentMember" (singular - the ASU 2023-07 generic member a
+        # single-reportable-segment filer tags on its own aggregate total) is AMBIGUOUS in a way
+        # the always-a-subtotal plural "ReportableSegmentsMember" isn't - live-confirmed two
+        # opposite real shapes for the exact same member name:
+        #   - Electronic Arts (EA) FY2026 10-K: StatementBusinessSegmentsAxis=ReportableSegmentMember
+        #     tags $7.531B (the real, correct total) ALONGSIDE separate real disaggregation-by-
+        #     category members (Mobile/Live Services/Full Game/etc.) under the SAME axis -
+        #     counting it as an additional peer segment roughly doubles the true total.
+        #   - Realty Income's FY2025 10-K: this is the filer's ONLY segment-dimensioned member at
+        #     all (a genuinely single-segment company) - dropping it unconditionally (an earlier,
+        #     REVERTED version of this fix added it to _NON_SEGMENT_SUBTOTAL_MEMBERS directly)
+        #     broke the single-segment fallback path further down that needs this exact member
+        #     present in context_segment to correctly label/value the one real segment.
+        # Distinguishing factor: EA's shape has 2+ OTHER distinct real members sharing the axis;
+        # Realty Income's shape has none. Only drop this specific member when 2+ siblings exist -
+        # a sole "ReportableSegmentMember" with no siblings is genuinely the one real segment, not
+        # a redundant subtotal.
+        for axis_with_member in {info[0] for info in context_segment.values()}:
+            members_on_axis = {info[1] for info in context_segment.values() if info[0] == axis_with_member}
+            if "ReportableSegmentMember" not in members_on_axis:
+                continue
+            sibling_members = members_on_axis - {"ReportableSegmentMember"}
+            if len(sibling_members) >= 2:
+                context_segment = {
+                    cid: info
+                    for cid, info in context_segment.items()
+                    if not (info[0] == axis_with_member and info[1] == "ReportableSegmentMember")
+                }
+
         return context_segment
 
     @staticmethod

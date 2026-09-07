@@ -954,6 +954,52 @@ class TestExtractSegmentRevenueFromXbrlXml:
         }
         assert result["segment_count"] == 2
 
+    def test_reportable_segment_member_singular_dropped_only_with_2plus_siblings(self) -> None:
+        """FIXED 2026-09-07 (goal: stock_scores/tie-out sanity audit, segment-sum-to-
+        consolidated investigation): us-gaap:ReportableSegmentMember (SINGULAR) is ambiguous -
+        live-confirmed against Electronic Arts' (EA) real FY2026 10-K instance:
+        StatementBusinessSegmentsAxis=ReportableSegmentMember tags $7.531B (EA's real, correct
+        total net revenue) alongside 2+ separate real segment-shaped members - summing every
+        member including this one roughly doubles the true total. Only dropped when 2+ OTHER
+        distinct members share the axis (see the single-segment fallback tests elsewhere in
+        this file for the case where it must NOT be dropped)."""
+        contexts = (
+            _multi_dim_context(
+                "c1",
+                [("StatementBusinessSegmentsAxis", "MobileMember")],
+                "2026-01-01",
+                "2026-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("StatementBusinessSegmentsAxis", "LiveServicesMember")],
+                "2026-01-01",
+                "2026-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [("StatementBusinessSegmentsAxis", "ReportableSegmentMember")],
+                "2026-01-01",
+                "2026-12-31",
+            )
+        )
+        facts = """
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="c1">1091000000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="c2">5383000000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="c3">7531000000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "MobileMember": 1_091_000_000.0,
+            "LiveServicesMember": 5_383_000_000.0,
+        }
+        assert result["segment_count"] == 2
+
     def test_filer_specific_net_sales_of_reportable_segments_concept_recognized(self) -> None:
         """FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR
         verification): Corning's (GLW) own filer-specific extension concept for
