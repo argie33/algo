@@ -1921,11 +1921,17 @@ class QualityMetricsMixin(SymbolGateMixin):
             # to credit P&C-typical ROA highly without being so generous it validates a genuinely
             # weak life-insurer ROA. Thresholds hand-set (not FM-backtested), same as every other
             # curve in this function.
+            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, 10-electric-
+            # utility + water/gas-distribution live-confirmed): same bug class again, for
+            # regulated rate-base utilities - see UTILITY_INDUSTRIES's own comment for the full
+            # live-verified evidence (ROA clustered 2.26-3.67% across 16 symbols).
             _symbol_industry_for_roa = self._get_symbol_industry(symbol)
             if _symbol_industry_for_roa in _owner().DEPOSITORY_BANK_INDUSTRIES:
                 _roa_breakpoints = [(0.5, 40.0), (1.0, 75.0), (1.5, 100.0)]
             elif _symbol_industry_for_roa in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
                 _roa_breakpoints = [(1.0, 40.0), (2.5, 75.0), (5.0, 100.0)]
+            elif _symbol_industry_for_roa in _owner().UTILITY_INDUSTRIES:
+                _roa_breakpoints = [(2.0, 40.0), (3.0, 75.0), (4.5, 100.0)]
             else:
                 _roa_breakpoints = [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)]
             roa_score = self._margin_curve(metrics["roa"], _roa_breakpoints) if metrics["roa"] is not None else None
@@ -2043,12 +2049,19 @@ class QualityMetricsMixin(SymbolGateMixin):
             # function. Financial Services/Real Estate's two-cluster branch is the only consumer
             # of roce_score, and update_quality_roe_roce_percentiles() already explicitly skips
             # those sectors (see its own docstring) - no reconciliation-math interaction here.
+            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, same
+            # utility evidence as roa_score/debt_to_equity_score): capital_employed for a
+            # regulated utility is ~its entire rate-base-financed balance sheet, same structural
+            # compression as banks/insurers - live-confirmed ROCE 3.96-7.23% across the same
+            # 16-symbol utility set (see UTILITY_INDUSTRIES's own comment).
             roce_pct_val = metrics.get("roce_pct")
             _symbol_industry_for_roce = self._get_symbol_industry(symbol)
             if _symbol_industry_for_roce in _owner().DEPOSITORY_BANK_INDUSTRIES:
                 _roce_breakpoints = [(3.0, 40.0), (6.0, 75.0), (10.0, 100.0)]
             elif _symbol_industry_for_roce in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
                 _roce_breakpoints = [(2.0, 40.0), (5.0, 75.0), (10.0, 100.0)]
+            elif _symbol_industry_for_roce in _owner().UTILITY_INDUSTRIES:
+                _roce_breakpoints = [(3.0, 40.0), (6.0, 75.0), (9.0, 100.0)]
             else:
                 _roce_breakpoints = [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)]
             roce_score = self._margin_curve(roce_pct_val, _roce_breakpoints) if roce_pct_val is not None else None
@@ -2184,10 +2197,15 @@ class QualityMetricsMixin(SymbolGateMixin):
             # untouched (still computed/persisted/displayed) - only its contribution to
             # profitability_cluster_score is removed, same "raw value kept, not scored" treatment
             # asset_turnover_score already gets for Financial Services/Real Estate above.
+            # ADDED 2026-09-07: same exclusion, extended to regulated utilities - continuous
+            # grid/generation capex routinely drives FCF margin deeply negative (NEE -42%,
+            # XEL -46%, D -44% live-confirmed) even for fundamentally healthy, dividend-growing
+            # utilities. See UTILITY_INDUSTRIES's own comment for the full evidence.
             fcf_margin_score = (
                 self._margin_curve(fcf_margin, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
                 if fcf_margin is not None
                 and self._get_symbol_industry(symbol) not in _owner().DEPOSITORY_BANK_INDUSTRIES
+                and self._get_symbol_industry(symbol) not in _owner().UTILITY_INDUSTRIES
                 else None
             )
             # Asset Turnover (Revenue / Total Assets, x100 - same "ratio-as-percentage" storage
@@ -2225,6 +2243,13 @@ class QualityMetricsMixin(SymbolGateMixin):
             # Separate curves below, scaled to each sector's typical deposit/reserve-inclusive
             # range (banks ~8-15x, insurers ~2.5-11.5x per the override comment's live-verified
             # figures) rather than the industrial 0.5/1.0/2.0x scale.
+            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, 16-utility
+            # live-confirmed): regulated rate-base utilities run 1.11-1.91x debt_to_equity by
+            # design (regulators set allowed ROE against a rate base partly debt-financed) - see
+            # UTILITY_INDUSTRIES's own comment. Unlike the bank/insurer overrides above, this
+            # uses the SAME debt_to_equity value (long_term_debt-based, not total_liabilities) -
+            # utilities don't get the deposit/reserve-style debt_for_roic override, so no
+            # separate inflated-input caveat applies here, just a rescaled curve.
             debt_to_equity_val = metrics.get("debt_to_equity")
             _symbol_industry_for_de = self._get_symbol_industry(symbol)
             if debt_to_equity_val is None:
@@ -2235,6 +2260,8 @@ class QualityMetricsMixin(SymbolGateMixin):
                 debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 20.0) * 100.0))
             elif _symbol_industry_for_de in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
                 debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 12.0) * 100.0))
+            elif _symbol_industry_for_de in _owner().UTILITY_INDUSTRIES:
+                debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 4.0) * 100.0))
             else:
                 debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 2.0) * 100.0))
             # Margin volatility (QMJ 2013 Safety leg proxy): precomputed by the caller from
@@ -2283,11 +2310,18 @@ class QualityMetricsMixin(SymbolGateMixin):
             #
             # update_quality_roe_roce_percentiles() (further below) assumes every symbol was
             # scored via the flat 8-input structure - it does NOT reconcile through this
-            # two-cluster structure, so it explicitly SKIPS Financial Services/Real Estate
-            # symbols (see its own SQL filter); those symbols keep the Pass-1 curve-based
-            # ROE/ROCE scores rather than the cross-sectional-percentile correction.
+            # two-cluster structure, so it explicitly SKIPS Financial Services/Real Estate/
+            # Utilities symbols (see its own SQL filter); those symbols keep the Pass-1
+            # curve-based ROE/ROCE scores rather than the cross-sectional-percentile correction.
+            #
+            # ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit): Utilities
+            # joins this branch for the same reason as Financial Services/Real Estate -
+            # asset_turnover_score is equally incoherent for a regulated utility's enormous
+            # rate-base asset structure (live-confirmed 0.13-0.23x turnover across the same
+            # 16-symbol utility set, see UTILITY_INDUSTRIES's own comment) as it is for a bank's
+            # loan book or a REIT's portfolio.
             sector = self._get_symbol_sector(symbol)
-            if sector in ("Financial Services", "Real Estate"):
+            if sector in ("Financial Services", "Real Estate", "Utilities"):
                 profitability_cluster_score = self._weighted_avg(
                     [
                         (roe_score, 1.0),
@@ -2329,7 +2363,7 @@ class QualityMetricsMixin(SymbolGateMixin):
             # quality_score to 100.00 even though data_completeness/GOVERNANCE's eligibility
             # floor should treat this as thin data. Only applies to the universal (non-FS/RE)
             # branch - the sector-conditional branch sets its own proportional floor inline.
-            if sector not in ("Financial Services", "Real Estate"):
+            if sector not in ("Financial Services", "Real Estate", "Utilities"):
                 min_quality_weight_pct = 40.0
             available_quality_weight = sum(w for v, w in quality_components if v is not None)
             weighted_score = self._weighted_avg(quality_components, min_weight_pct=min_quality_weight_pct)

@@ -138,6 +138,34 @@ INSURANCE_UNDERWRITER_INDUSTRIES = frozenset(
     }
 )
 
+# SIC-derived company_profile.industry values covering regulated rate-base utilities - same bug
+# class as DEPOSITORY_BANK_INDUSTRIES/INSURANCE_UNDERWRITER_INDUSTRIES above, found the same
+# session while sanity-checking Quality scores across a broader known-symbol set (goal: stock_scores
+# factor/composite sanity audit). A regulated utility's enormous rate-base asset structure
+# structurally compresses ROA/ROCE and requires more leverage than a typical industrial by design
+# (regulators set allowed ROE against a rate base financed partly by debt) - live-verified across
+# 10 electric utilities (NEE/DUK/SO/D/AEP/EXC/XEL/WEC/ED/PEG): ROA clustered 2.37-3.67% (industrial
+# curve's (3.0,40)/(8.0,80)/(15.0,100) floors nearly all of them near the bottom), debt_to_equity
+# clustered 1.11-1.91x (industrial curve's 2.0-floors-to-0 crushes every one of them toward zero),
+# ROCE clustered 3.96-7.23%. Water/gas distribution utilities (CWT/OGS/WTRG/YORW/ARTNA/NGG)
+# independently confirmed the same 2.26-3.17% ROA/0.71-1.42x D/E range - same regulated-rate-base
+# economics, included here; midstream/pipeline gas transmission names (WMB/AROC) were spot-checked
+# and show materially different (healthier, unregulated-economics) ROA/quality already, deliberately
+# excluded pending their own evidence. fcf_margin_score is also excluded for this group (same
+# "raw value kept, not scored" treatment as DEPOSITORY_BANK_INDUSTRIES) - heavy, continuous grid/
+# generation capex routinely drives utility FCF margin deeply negative (NEE -42%, XEL -46%, D -44%
+# live-confirmed) even for fundamentally healthy, dividend-growing utilities, the same "raw ratio
+# reflects an unrelated structural cash-flow pattern, not real operating profitability" problem
+# fcf_margin has for depository banks.
+UTILITY_INDUSTRIES = frozenset(
+    {
+        "Electric Services",
+        "Electric & Other Services Combined",
+        "Water Supply",
+        "Natural Gas Distribution",
+    }
+)
+
 
 def _mirror_shared_trend_fields(quality_dict: dict[str, Any], growth_dict: dict[str, Any]) -> None:
     """Copy _SHARED_TREND_FIELDS values/reasons from quality_dict into growth_dict in place.
@@ -2454,9 +2482,11 @@ class ValueQualityGrowthMetricsLoader(
         Raises on failure, same as every other post_run() batch pass - an inconsistent
         quality_score is a live-trading-relevant correctness issue.
 
-        Skips Financial Services/Real Estate: those sectors' quality_score uses a two-cluster
-        (profitability + safety) structure, not the flat 8-input weighted average this method
-        recomputes: reconciling ROE/ROCE through that structure needs its own derivation.
+        Skips Financial Services/Real Estate/Utilities: those sectors' quality_score uses a
+        two-cluster (profitability + safety) structure, not the flat 8-input weighted average
+        this method recomputes: reconciling ROE/ROCE through that structure needs its own
+        derivation. Utilities added 2026-09-07 alongside that sector's own ROA/ROCE/D-E curve
+        fixes (see UTILITY_INDUSTRIES's own comment) - same structural reason.
         """
         try:
             with DatabaseContext("write") as cur:
@@ -2467,7 +2497,7 @@ class ValueQualityGrowthMetricsLoader(
                     LEFT JOIN company_profile cp ON cp.symbol = qm.symbol
                     WHERE qm.quality_score IS NOT NULL
                       AND COALESCE(qm.data_unavailable, false) = false
-                      AND COALESCE(cp.sector, '') NOT IN ('Financial Services', 'Real Estate')
+                      AND COALESCE(cp.sector, '') NOT IN ('Financial Services', 'Real Estate', 'Utilities')
                 """)
                 rows = cur.fetchall()
 
