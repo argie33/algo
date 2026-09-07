@@ -552,10 +552,69 @@ class TestRetainedEarningsRollforward:
         assert checker.results[0].severity == ERROR
 
 
+class TestCashflowActivitiesSumToNetChange:
+    def test_flags_row_beyond_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADCF",
+                        "fiscal_year": 2025,
+                        "operating_cash_flow": 100_000_000.0,
+                        "investing_cash_flow": -20_000_000.0,
+                        "financing_cash_flow": -10_000_000.0,
+                        # implied 70M vs tagged 40M - way beyond 10%/$1M tolerance
+                        "net_change_cash": 40_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_cashflow_activities_sum_to_net_change(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "cashflow_activities_sum_to_net_change"
+
+    def test_does_not_flag_within_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODCF",
+                        "fiscal_year": 2025,
+                        "operating_cash_flow": 100_000_000.0,
+                        "investing_cash_flow": -20_000_000.0,
+                        "financing_cash_flow": -10_000_000.0,
+                        "net_change_cash": 70_000_000.0,  # exact: 100 - 20 - 10 = 70
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_cashflow_activities_sum_to_net_change(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_cashflow_activities_sum_to_net_change(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (symbol)" in executed_sql
+        assert "ORDER BY symbol, fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_cashflow_activities_sum_to_net_change(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "cashflow_activities_sum_to_net_change"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_eight_checks(self) -> None:
-        cur = _mock_cursor([[], [], [], [], [], [], [], []])
+    def test_run_calls_all_ten_checks(self) -> None:
+        cur = _mock_cursor([[], [], [], [], [], [], [], [], [], []])
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 8
+        assert cur.execute.call_count == 10

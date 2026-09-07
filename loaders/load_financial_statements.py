@@ -1293,6 +1293,15 @@ _CASHFLOW_FIELD_MAPPING = {
     # figure downstream.
     "dividends_common_stock_cash": "dividends_paid",
     "dividends_common_stock": "dividends_paid",
+    # ADDED 2026-09-07 (goal: "SEC/XBRL missing data" + tie-out sweep): net_change_cash was
+    # a declared schema column with zero rows ever populated (0/66,580) - fetched by none of
+    # sec_cash_flow.py's concepts and mapped by no entry here. See that file's get_cash_flow()
+    # comment on these 4 concepts for the live AMZN evidence (pre- and post-ASU-2016-18
+    # generations, each with an ExcludingExchangeRateEffect sibling).
+    "cash_and_cash_equivalents_period_increase_decrease_excluding_exchange_rate_effect": "net_change_cash",
+    "cash_and_cash_equivalents_period_increase_decrease": "net_change_cash",
+    "cash_cash_equivalents_restricted_cash_and_restricted_cash_equivalents_period_increase_decrease_excluding_exchange_rate_effect": "net_change_cash",
+    "cash_cash_equivalents_restricted_cash_and_restricted_cash_equivalents_period_increase_decrease_including_exchange_rate_effect": "net_change_cash",
     **_MARKER_FIELDS,
 }
 

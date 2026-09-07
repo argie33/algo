@@ -559,6 +559,29 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "ShareBasedCompensation",
         "PaymentsForRepurchaseOfEquity",
         "PaymentsForRepurchaseOfCommonStock",
+        # ADDED 2026-09-07 (goal: "SEC/XBRL missing data" + tie-out sweep): net_change_cash
+        # has been a real, declared schema column on annual_cash_flow/quarterly_cash_flow/
+        # ttm_cash_flow since this loader's creation, but NO concept was ever fetched for
+        # it and no field_mapping entry ever targeted it - live-confirmed via direct DB
+        # query, 0 of 66,580 annual_cash_flow rows have net_change_cash populated, for
+        # every symbol, ever. Standard XBRL concept for "cash flow statement's total
+        # change in cash for the period" comes in two generations: the plain pre-ASU-
+        # 2016-18 concept (live-confirmed via AMZN's real companyfacts JSON: real values
+        # FY2015-2017, e.g. $1,188,000,000 FY2017) and the post-ASU-2016-18 restricted-
+        # cash-inclusive concept most large filers switched to afterward (live-confirmed
+        # via AMZN again: real values every year since, e.g. $7,794,000,000 FY2025) - most
+        # filers use exactly one of the two for any given fiscal year, not both, so listing
+        # the modern concept last (this file's "last-listed wins on overwrite" convention)
+        # lets it take priority for filers who report both in a transition year without
+        # ever losing the plain concept's value for filers who never switched. Each has an
+        # "ExcludingExchangeRateEffect" sibling for filers with no material FX translation
+        # effect on cash - same target column, listed immediately before its "Including"
+        # counterpart so the fuller (higher-priority, present-when-tagged) figure still
+        # wins when a filer tags both.
+        "CashAndCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+        "CashAndCashEquivalentsPeriodIncreaseDecrease",
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect",
     ]
     # REMOVED 2026-07-28: "Depreciation"/"DepreciationAndAmortization" (and the matching
     # ("DepreciationExpense", "depreciation") IFRS alias) used to be fetched here too, but

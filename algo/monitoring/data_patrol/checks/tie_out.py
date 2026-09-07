@@ -140,6 +140,17 @@ _RETAINED_EARNINGS_TOLERANCE_FLOOR = 1_000_000.0
 # identity, so a tolerance this tight has near-zero false-positive risk.
 _FREE_CASH_FLOW_TOLERANCE_PCT = 0.02
 _FREE_CASH_FLOW_TOLERANCE_FLOOR = 250_000.0
+# operating_cash_flow + investing_cash_flow + financing_cash_flow ~= net_change_cash omits the
+# real filing's own "effect of exchange rate changes on cash" line (not tracked as a separate
+# column here) - same missing-FX-effect gap check_cashflow_reconciliation already documents, so
+# reuses that check's tolerance rather than a new number. Unlike that check, this one needs no
+# cross-year balance-sheet join (no risk of colliding cash-concept definitions between
+# "cash_and_equivalents" and the cash-flow statement's own reconciliation figure) and needs no
+# live feasibility percentile check against the local DB - net_change_cash was a fully unfetched
+# column (0 rows anywhere) until the 2026-09-07 fix that wired it up, so there is no existing
+# data to sample yet; re-derive tolerance from real post-reload data if this proves noisy.
+_NET_CHANGE_CASH_TOLERANCE_PCT = _CASHFLOW_TOLERANCE_PCT
+_NET_CHANGE_CASH_TOLERANCE_FLOOR = _CASHFLOW_TOLERANCE_FLOOR
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
@@ -205,6 +216,7 @@ class TieOutChecker(BaseCheck):
         self.check_diluted_ge_basic_shares(cur)
         self.check_retained_earnings_rollforward(cur)
         self.check_free_cash_flow_identity(cur)
+        self.check_cashflow_activities_sum_to_net_change(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -879,6 +891,79 @@ class TieOutChecker(BaseCheck):
             logger.error(f"[TieOutChecker] free_cash_flow_identity failed: {e}", exc_info=True)
             self.log(
                 "free_cash_flow_identity",
+                ERROR,
+                "annual_cash_flow",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_cashflow_activities_sum_to_net_change(self, cur: Any) -> None:
+        """operating_cash_flow + investing_cash_flow + financing_cash_flow ~= net_change_cash.
+
+        ADDED 2026-09-07 (goal: "SEC/XBRL missing data" + tie-out sweep). net_change_cash is a
+        real, standard XBRL concept (SEC's "total change in cash for the period" line - see
+        load_financial_statements.py's field_mapping comment for the live AMZN evidence) that was
+        never fetched or mapped anywhere until this same session - a declared schema column with
+        0/66,580 rows populated across its entire history. Once populated, this is a clean,
+        self-contained identity: unlike check_cashflow_reconciliation (which cross-checks against
+        a DIFFERENT statement's cash concept, one fiscal year apart, and can be thrown off by a
+        genuine concept-definition mismatch between "cash_and_equivalents" and the cash-flow
+        statement's own reconciliation figure - e.g. restricted cash treatment), this one only
+        ever compares four numbers from the SAME cash-flow-statement row, so it isolates a real
+        activities-sum extraction bug from that other check's cross-statement noise sources.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (symbol)
+                    symbol, fiscal_year, operating_cash_flow, investing_cash_flow,
+                    financing_cash_flow, net_change_cash
+                FROM annual_cash_flow
+                WHERE data_unavailable = FALSE
+                  AND operating_cash_flow IS NOT NULL
+                  AND investing_cash_flow IS NOT NULL
+                  AND financing_cash_flow IS NOT NULL
+                  AND net_change_cash IS NOT NULL
+                ORDER BY symbol, fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                ocf, icf, fcf, net_change = (
+                    float(row["operating_cash_flow"]),
+                    float(row["investing_cash_flow"]),
+                    float(row["financing_cash_flow"]),
+                    float(row["net_change_cash"]),
+                )
+                implied_net_change = ocf + icf + fcf
+                residual = implied_net_change - net_change
+                tolerance = max(_NET_CHANGE_CASH_TOLERANCE_FLOOR, abs(net_change) * _NET_CHANGE_CASH_TOLERANCE_PCT)
+                if abs(residual) > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "operating_cash_flow": ocf,
+                            "investing_cash_flow": icf,
+                            "financing_cash_flow": fcf,
+                            "net_change_cash": net_change,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                self.log(
+                    "cashflow_activities_sum_to_net_change",
+                    WARN,
+                    "annual_cash_flow",
+                    f"{len(flagged)} symbol(s) fail OCF + ICF + FCF ~= net_change_cash beyond "
+                    f"max(${_NET_CHANGE_CASH_TOLERANCE_FLOOR:,.0f}, "
+                    f"{_NET_CHANGE_CASH_TOLERANCE_PCT:.0%} of net_change_cash)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] cashflow_activities_sum_to_net_change failed: {e}", exc_info=True)
+            self.log(
+                "cashflow_activities_sum_to_net_change",
                 ERROR,
                 "annual_cash_flow",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
