@@ -1353,11 +1353,18 @@ class ExitHandler:
         if not (full_exit or new_qty <= 0) and alpaca_order_id:
             resize_result = self.context._sync_bracket_stop_loss(alpaca_order_id, effective_stop, new_qty)
             if not resize_result.get("success"):
-                logger.error(
-                    f"[EXIT_HANDLER] {symbol}: partial exit succeeded but failed to resize the "
+                # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): this was logger.error,
+                # invisible to any monitoring tier that only watches CRITICAL-level logs (the
+                # convention this same file uses elsewhere - see lines 135/492/827/1453 - for
+                # exactly this "needs a human to notice" severity). The only other backstop is
+                # the NEXT Phase 9 reconciliation cycle's own qty-mismatch check, which can be
+                # hours away - this closes the visibility gap for that window, where the
+                # resting stop-loss leg is stale/oversized relative to the actual position.
+                logger.critical(
+                    f"[EXIT_HANDLER CRITICAL] {symbol}: partial exit succeeded but failed to resize the "
                     f"resting bracket stop-loss leg to {new_qty} shares @ ${effective_stop:.2f} - "
                     f"{resize_result.get('message')}. The broker's stop-loss order may still be "
-                    f"sized for the pre-partial-exit quantity until the next stop-raise corrects it."
+                    f"sized for the pre-partial-exit quantity until the next Phase 9 cycle corrects it."
                 )
 
         # A position auto-repaired onto a standalone stop (Phase 9) needs the SAME resize -
