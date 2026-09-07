@@ -169,9 +169,15 @@ def _validate_pnl_step(
                     "Reconciliation succeeded but missing portfolio_value (required for P&L validation). "
                     f"Available keys: {list(result.keys())}"
                 )
-            local_equity = result["portfolio_value"]
+            # NAMING FIX (2026-09-07, real-money-readiness audit): this is Alpaca's own
+            # portfolio_value (reconciliation.py's sync_positions always uses Alpaca's live
+            # value here, never a DB-computed one - see validate_pnl's docstring), not a
+            # locally/DB-computed equity. validate_pnl cross-checks two Alpaca-reported
+            # fields against each other; it is NOT the broker-vs-DB drift detector (that's
+            # reconciliation.py's _track_and_maybe_halt_on_sustained_drift).
+            broker_portfolio_value = result["portfolio_value"]
 
-            pnl_check = recon.validate_pnl(broker_equity, local_equity)
+            pnl_check = recon.validate_pnl(broker_equity, broker_portfolio_value)
             pnl_validation_status = pnl_check["status"]
             pnl_validation_summary = pnl_check["message"]
 
@@ -181,11 +187,12 @@ def _validate_pnl_step(
                 logger.warning(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
             else:  # critical
                 logger.critical(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
-                # GOVERNANCE: a critical P&L divergence is, per validate_pnl()'s own
-                # docstring, real data corruption between broker and local state. Every
-                # other critical branch in this file surfaces via notify(); this one only
-                # logged, so a >1% divergence could go unnoticed unless someone was
-                # watching logs at the moment it happened.
+                # GOVERNANCE: a critical divergence between Alpaca's own `equity` and
+                # `portfolio_value` fields (see validate_pnl()'s docstring - this is NOT a
+                # broker-vs-DB check) is still worth surfacing. Every other critical branch
+                # in this file surfaces via notify(); this one only logged, so a >1%
+                # divergence could go unnoticed unless someone was watching logs at the
+                # moment it happened.
                 try:
                     from algo.reporting import notify
 
@@ -193,7 +200,7 @@ def _validate_pnl_step(
                         severity="critical",
                         title="Phase 9 P&L Divergence",
                         message=pnl_check["message"],
-                        details={"broker_equity": broker_equity, "local_equity": local_equity},
+                        details={"broker_equity": broker_equity, "broker_portfolio_value": broker_portfolio_value},
                     )
                 except (ValueError, TypeError, RuntimeError) as notify_err:
                     logger.error(f"Failed to send P&L divergence notification: {notify_err}")
