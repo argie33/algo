@@ -3291,6 +3291,18 @@ class QualityMetricsMixin(SymbolGateMixin):
                     "total_cash",
                     "cash_per_share",
                     "ebitda",
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                    # follow-up): fcf_margin/fcf_to_net_income were never added to this loop,
+                    # unlike the sibling royalty-trust block below (which already includes
+                    # both) - a physical commodity/currency trust has no CapitalExpenditures
+                    # concept either (it holds bullion/currency/crypto, not PP&E), so
+                    # free_cash_flow's capex dependency fails the same "no such concept exists"
+                    # way total_cash/interest_coverage/etc already correctly recategorize.
+                    # Live-confirmed BITW/GLDM/TAGS/WEAT stuck on "capex_never_tagged_in_recent_
+                    # filings" (Missing SEC/XBRL data) instead of "etf_trust_no_gaap_financials"
+                    # (Legitimate / not applicable).
+                    "fcf_margin",
+                    "fcf_to_net_income",
                 )
                 _etf_trust_broad_source_reasons = {
                     "missing_sec_data",
@@ -3300,6 +3312,10 @@ class QualityMetricsMixin(SymbolGateMixin):
                     "stockholders_equity_not_reported",
                     "operating_income_not_itemized",
                     "total_liabilities_not_reported",
+                    # ADDED 2026-09-06 (same fix as above): the reason fcf_margin/
+                    # fcf_to_net_income actually carry for this population - see the fields
+                    # tuple's own comment just above.
+                    "capex_never_tagged_in_recent_filings",
                 }
                 for _field in _etf_trust_broad_recategorize_fields:
                     _reason_key = f"{_field}_unavailable_reason"
