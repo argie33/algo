@@ -14,6 +14,12 @@ from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
 
+# Symbols individually live-verified (2026-09-07, via SEC's own companyfacts API) to have
+# zero real us-gaap/ifrs-full XBRL facts ever filed - only `ffd` (fee-disclosure,
+# registration-statement-only) facts, or no companyfacts entry at all (BIOT). See the
+# reason-assignment call site below for the full rationale.
+_NO_REAL_XBRL_FACTS_SYMBOLS = frozenset({"AIIR", "WATR", "RPGL", "VRXA", "PSQL", "IMC", "BIOT"})
+
 
 class IncomeStatementContextMixin:
     """Income-statement fetch/derivation (revenue/EPS anchor-row fallbacks, EBITDA,
@@ -519,7 +525,27 @@ class IncomeStatementContextMixin:
             cur.execute("SELECT etf FROM stock_symbols WHERE symbol = %s", (symbol,))
             etf_row = cur.fetchone()
             reason = (
-                "etf_no_sec_filings" if etf_row and etf_row[0] == "true" else "income_statement_revenue_and_eps_null"
+                "etf_no_sec_filings"
+                if etf_row and etf_row[0] == "true"
+                # FIXED 2026-09-07 (goal: "SEC/XBRL missing data to zero" sweep, follow-up to
+                # sec_xbrl_pen_currency_and_verification_pass_20260906's verification-only
+                # finding): live-reconfirmed via SEC's own companyfacts API today - each of
+                # these symbols' real SEC filing has NO us-gaap/ifrs-full XBRL facts at all,
+                # only `ffd` (fee-disclosure, registration-statement-only) facts (AIIR/WATR/
+                # RPGL/VRXA/PSQL/IMC, 5 ffd facts each and nothing else) or no companyfacts
+                # entry whatsoever (BIOT, 404). This is the exact same "real, permanent,
+                # non-SEC-XBRL-reporting entity" fact "no_xbrl_filings" already exists for
+                # (see its own definition in coverage_category_rules.py) - the generic
+                # "income_statement_revenue_and_eps_null" below wrongly implied a fixable
+                # extraction gap for a filer that structurally has nothing to extract.
+                # Deliberately a static, individually-verified symbol set (not a live
+                # companyfacts-emptiness check per fetch, which would be a network call added
+                # to the hot loader path) - same "individually-verified symbol-level
+                # override" discipline as KNOWN_ETF_MISCLASSIFICATIONS elsewhere in this
+                # codebase, re-verify before adding a new symbol here.
+                else "no_xbrl_filings"
+                if symbol in _NO_REAL_XBRL_FACTS_SYMBOLS
+                else "income_statement_revenue_and_eps_null"
             )
             return [
                 self._unavailable_marker(
