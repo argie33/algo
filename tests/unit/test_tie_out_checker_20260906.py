@@ -608,6 +608,7 @@ class TestRetainedEarningsRollforward:
                         "curr_retained_earnings": 1_100_000_000.0,
                         "net_income": 500_000_000.0,  # implied 1.5B vs tagged 1.1B, way off
                         "dividends_paid": None,
+                        "common_stock_repurchased": None,
                     }
                 ]
             ]
@@ -628,6 +629,7 @@ class TestRetainedEarningsRollforward:
                         "curr_retained_earnings": 1_300_000_000.0,
                         "net_income": 500_000_000.0,
                         "dividends_paid": -200_000_000.0,  # exact tie-out: 1B + 500M - 200M = 1.3B
+                        "common_stock_repurchased": None,
                     }
                 ]
             ]
@@ -647,6 +649,7 @@ class TestRetainedEarningsRollforward:
                         "curr_retained_earnings": 1_500_000_000.0,
                         "net_income": 500_000_000.0,  # exact tie-out with no dividends
                         "dividends_paid": None,
+                        "common_stock_repurchased": None,
                     }
                 ]
             ]
@@ -662,6 +665,52 @@ class TestRetainedEarningsRollforward:
         executed_sql = cur.execute.call_args[0][0]
         assert "DISTINCT ON (symbol)" in executed_sql
         assert "ORDER BY symbol, fiscal_year DESC" in executed_sql
+
+    def test_constructive_retirement_buyback_explains_gap_not_flagged(self) -> None:
+        """FIXED 2026-09-07: AAPL-style filer that charges buybacks against retained earnings
+        (constructive retirement method) - real numbers, AAPL FY2025 (see this check's own
+        docstring for the full evidence)."""
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "AAPL",
+                        "fiscal_year": 2025,
+                        "prior_retained_earnings": -19_154_000_000.0,
+                        "curr_retained_earnings": -14_264_000_000.0,
+                        "net_income": 112_010_000_000.0,
+                        "dividends_paid": 15_421_000_000.0,
+                        "common_stock_repurchased": 90_711_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_retained_earnings_rollforward(cur)
+        assert checker.results == []
+
+    def test_buyback_present_but_gap_still_unexplained_still_flagged(self) -> None:
+        """A buyback figure that DOESN'T close the gap must still flag - OR-logic, not a blind
+        override."""
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "STILLBAD",
+                        "fiscal_year": 2025,
+                        "prior_retained_earnings": 1_000_000_000.0,
+                        "curr_retained_earnings": 1_100_000_000.0,
+                        "net_income": 500_000_000.0,  # implied 1.5B vs tagged 1.1B
+                        "dividends_paid": None,
+                        "common_stock_repurchased": 10_000_000.0,  # far too small to explain 400M gap
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_retained_earnings_rollforward(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "retained_earnings_rollforward"
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()

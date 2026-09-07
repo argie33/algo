@@ -1146,7 +1146,8 @@ class TieOutChecker(BaseCheck):
             )
 
     def check_retained_earnings_rollforward(self, cur: Any) -> None:
-        """prior_year retained_earnings + net_income - |dividends_paid| ~= curr_year retained_earnings.
+        """prior_year retained_earnings + net_income - |dividends_paid| ~= curr_year retained_earnings,
+        OR (when that fails) the same identity with common_stock_repurchased also subtracted.
 
         ADDED 2026-09-07 (goal: "make sure we have all the right tie outs" sweep, CI tie-out
         coverage audit's #2 recommendation). Ignores share buybacks, stock-comp equity reclasses,
@@ -1160,6 +1161,24 @@ class TieOutChecker(BaseCheck):
         Live feasibility check against the local DB (2026-09-07) found this genuinely clean at
         the median - p50=0%, p75=3.3% relative error - unlike the segment-sum-to-consolidated
         check above that was rejected for being noisy even at p90 (55%).
+
+        FIXED 2026-09-07 (goal session: score-review sweep, live tie-out run against production
+        DB): AAPL/NVDA/META/etc. all failed this check by amounts matching their own
+        common_stock_repurchased almost exactly (AAPL FY2025: residual $91.699B vs real
+        buyback $90.711B; NVDA FY2026: residual $40.158B vs real buyback $40.086B; consistent
+        across all 10 years of AAPL history checked, residual-with-buyback-subtracted stays
+        under ~$2.5B every year vs $30-97B without). A filer using the constructive-retirement
+        method for treasury stock charges repurchases in excess of par directly against
+        retained earnings - AAPL's persistently negative retained earnings (a well-known real
+        fact, not a bug - see load_stock_scores.py's own comment on quarterly_retained_
+        earnings_column) is a direct consequence of this. Not every filer uses this method
+        (some use cost-method treasury stock, which doesn't touch retained earnings at all) -
+        a live population check found unconditionally subtracting buybacks for EVERY symbol
+        makes MORE rows fail, not fewer, so this uses OR-logic instead: flag only when BOTH
+        the original identity AND the buyback-adjusted identity fail tolerance. This can only
+        reduce false positives relative to the original single-path check, never introduce new
+        ones - a symbol that already passed the original identity still passes exactly as
+        before.
         """
         try:
             cur.execute(
@@ -1182,7 +1201,7 @@ class TieOutChecker(BaseCheck):
                     WHERE data_unavailable = FALSE AND net_income IS NOT NULL
                 ),
                 div AS (
-                    SELECT symbol, fiscal_year, dividends_paid
+                    SELECT symbol, fiscal_year, dividends_paid, common_stock_repurchased
                     FROM annual_cash_flow
                     WHERE data_unavailable = FALSE
                 )
@@ -1191,7 +1210,8 @@ class TieOutChecker(BaseCheck):
                     prior.retained_earnings AS prior_retained_earnings,
                     curr.retained_earnings AS curr_retained_earnings,
                     ni.net_income,
-                    div.dividends_paid
+                    div.dividends_paid,
+                    div.common_stock_repurchased
                 FROM re curr
                 JOIN stock_symbols s ON s.symbol = curr.symbol AND s.active = true
                 JOIN re_prior prior ON prior.symbol = curr.symbol AND prior.fiscal_year = curr.fiscal_year - 1
@@ -1207,10 +1227,17 @@ class TieOutChecker(BaseCheck):
                     float(row["net_income"]),
                 )
                 dividends_paid = abs(float(row["dividends_paid"])) if row["dividends_paid"] is not None else 0.0
+                buybacks = (
+                    abs(float(row["common_stock_repurchased"])) if row["common_stock_repurchased"] is not None else 0.0
+                )
                 implied_curr_re = prior_re + net_income - dividends_paid
                 residual = implied_curr_re - curr_re
                 tolerance = max(_RETAINED_EARNINGS_TOLERANCE_FLOOR, abs(curr_re) * _RETAINED_EARNINGS_TOLERANCE_PCT)
                 if abs(residual) > tolerance:
+                    implied_curr_re_with_buybacks = implied_curr_re - buybacks
+                    residual_with_buybacks = implied_curr_re_with_buybacks - curr_re
+                    if buybacks > 0 and abs(residual_with_buybacks) <= tolerance:
+                        continue  # Constructive-retirement filer: buybacks explain the gap, not a real bug
                     flagged.append(
                         {
                             "symbol": row["symbol"],
