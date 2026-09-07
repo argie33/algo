@@ -526,6 +526,50 @@ class ValuationSanityCheckMixin:
 
         return total_cash, total_debt
 
+    def _get_market_cap_without_income_statement(
+        self, cur: Any, symbol: str
+    ) -> tuple[float | None, float | None, float | None]:
+        """Pure price * shares_outstanding lookup - no income-statement dependency, so
+        callable even before annual_income_statement has any usable row.
+
+        FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling to
+        _get_total_cash_and_debt's 2026-09-02 fix): market_cap only needs a live price
+        (price_daily) and a share count (company_info_sec.shares_outstanding - the same
+        tier _resolve_shares_outstanding itself falls back to when the income-statement
+        tiers are unavailable) - neither depends on annual_income_statement having any
+        rows. Live-confirmed 19/22 symbols hitting the "no_income_statement" early return
+        (AADX, DPC, SIND, PBLS, ADBT, ADIG, BSEM, AIB, KARD, AVEX, SSMR, CSQR, LFTO, FCBM,
+        HMH, LCLN, LIME, SECZ, SUJA) have a real, current (2026-09-04) price_daily row and
+        a real company_info_sec.shares_outstanding, both nulled out purely because this
+        early return ran before fetch_incremental ever reached its own price/shares_out
+        queries - the exact same "these fields don't need X" gap total_cash/total_debt
+        already had fixed here.
+
+        Returns (current_price, shares_outstanding, market_cap) - any/all None when either
+        input is missing (a company_info_sec shares_outstanding_unavailable_reason, no
+        recent price_daily row, etc.).
+        """
+        cur.execute(
+            """
+            SELECT close FROM price_daily
+            WHERE symbol = %s AND close IS NOT NULL AND close > 0
+            ORDER BY date DESC LIMIT 1
+            """,
+            (symbol,),
+        )
+        price_row = cur.fetchone()
+        current_price = float(price_row[0]) if price_row and price_row[0] else None
+
+        cur.execute(
+            "SELECT shares_outstanding FROM company_info_sec WHERE symbol = %s AND shares_outstanding IS NOT NULL AND shares_outstanding > 0",
+            (symbol,),
+        )
+        shares_row = cur.fetchone()
+        shares_outstanding = float(shares_row[0]) if shares_row else None
+
+        market_cap = current_price * shares_outstanding if current_price and shares_outstanding else None
+        return current_price, shares_outstanding, market_cap
+
     def _unavailable_marker(
         self,
         symbol: str,
@@ -533,16 +577,18 @@ class ValuationSanityCheckMixin:
         total_debt: float | None = None,
         total_cash: float | None = None,
         ebitda: float | None = None,
+        current_price: float | None = None,
+        shares_outstanding: float | None = None,
+        market_cap: float | None = None,
     ) -> dict[str, Any]:
         """Return data_unavailable marker for symbol.
 
-        total_debt/total_cash/ebitda are optional overrides (2026-08-19, goal session
-        continuation): these three are pure balance-sheet/income-statement dollar figures
-        that don't need shares_outstanding or current_price to compute, unlike every other
-        field this marker nulls out - see fetch_incremental's "MOVED 2026-08-19" comment for
-        why they're now computed before the gates that produce this marker. Callers that
-        genuinely have nothing yet (e.g. "no_income_statement", before any balance-sheet
-        query has even run) simply omit them and get the same all-NULL behavior as before.
+        total_debt/total_cash/ebitda/current_price/shares_outstanding/market_cap are
+        optional overrides (2026-08-19, extended 2026-09-06 for the latter three): these
+        are pure balance-sheet/price/share-count figures that don't need every other
+        field this marker nulls out - see fetch_incremental's "MOVED 2026-08-19" comment
+        and _get_market_cap_without_income_statement's docstring. Callers that genuinely
+        have nothing yet simply omit them and get the same all-NULL behavior as before.
         """
         return {
             "symbol": symbol,
@@ -550,10 +596,10 @@ class ValuationSanityCheckMixin:
             "data_unavailable": True,
             "reason": reason,
             "data_source": "none",
-            # All metrics NULL except the three overridable ones above
-            "current_price": None,
-            "shares_outstanding": None,
-            "market_cap": None,
+            # All metrics NULL except the overridable ones above
+            "current_price": current_price,
+            "shares_outstanding": shares_outstanding,
+            "market_cap": market_cap,
             "total_debt": total_debt,
             "total_cash": total_cash,
             "enterprise_value": None,

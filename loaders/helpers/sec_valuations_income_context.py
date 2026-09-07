@@ -35,6 +35,10 @@ class IncomeStatementContextMixin:
 
         def _get_total_cash_and_debt(self, cur: Any, symbol: str) -> tuple[float | None, float | None]: ...
 
+        def _get_market_cap_without_income_statement(
+            self, cur: Any, symbol: str
+        ) -> tuple[float | None, float | None, float | None]: ...
+
         def _unavailable_marker(
             self,
             symbol: str,
@@ -42,6 +46,9 @@ class IncomeStatementContextMixin:
             total_debt: float | None = None,
             total_cash: float | None = None,
             ebitda: float | None = None,
+            current_price: float | None = None,
+            shares_outstanding: float | None = None,
+            market_cap: float | None = None,
         ) -> dict[str, Any]: ...
 
         @staticmethod
@@ -183,6 +190,11 @@ class IncomeStatementContextMixin:
             # the live-confirmed AADX evidence this was silently losing both to this
             # exact early return.
             total_cash, total_debt = self._get_total_cash_and_debt(cur, symbol)
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same "these
+            # fields don't need X" gap as total_cash/total_debt above - see
+            # _get_market_cap_without_income_statement's own docstring for the 19/22
+            # live-confirmed AADX/DPC/SIND/etc. symbols this recovers.
+            current_price, shares_outstanding, market_cap = self._get_market_cap_without_income_statement(cur, symbol)
             # FIXED 2026-09-05 (goal session: "implausible values" sweep follow-up): an ETF
             # (stock_symbols.etf = 'true') genuinely has zero annual_income_statement rows -
             # it files N-1A/N-CSR under the Investment Company Act, not a 10-K, so there is no
@@ -196,7 +208,17 @@ class IncomeStatementContextMixin:
             reason = "etf_no_sec_filings" if etf_row and etf_row[0] == "true" else "no_income_statement"
             if reason == "no_income_statement":
                 reason = self._reclassify_fpi_zero_row_currency_gap(cur, symbol, reason)
-            return [self._unavailable_marker(symbol, reason, total_cash=total_cash, total_debt=total_debt)]
+            return [
+                self._unavailable_marker(
+                    symbol,
+                    reason,
+                    total_cash=total_cash,
+                    total_debt=total_debt,
+                    current_price=current_price,
+                    shares_outstanding=shares_outstanding,
+                    market_cap=market_cap,
+                )
+            ]
 
         # len() guard: pre-existing tests mock income_rows as plain 10-element
         # tuples (this method's own pre-2026-08-19 shape) - default to False

@@ -116,6 +116,18 @@ class ValueMetricsMixin(SymbolGateMixin):
                 for field in ("pe_ratio", "pb_ratio", "ps_ratio", "peg_ratio"):
                     if marker.get(f"{field}_unavailable_reason") is not None:
                         marker[f"{field}_unavailable_reason"] = "preferred_or_debt_security_no_common_equity_ratio"
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling to
+            # sec_valuations_income_context.py's _get_market_cap_without_income_statement):
+            # sec_valuations' own "no_income_statement"/etc. data_unavailable marker can
+            # still carry a real market_cap (price * shares_outstanding needs neither an
+            # income statement nor this method's other tiers) - this method's own all-NULL
+            # `_unavailable_marker("value_metrics", ...)` above discarded it unconditionally.
+            # Live-confirmed AADX/DPC/SIND/PBLS/ADBT/ADIG/BSEM/AIB/KARD/AVEX/SSMR/CSQR/LFTO/
+            # FCBM/HMH/LCLN/LIME/SECZ/SUJA all have a real row_dict["market_cap"] here despite
+            # data_unavailable=True.
+            if row_dict.get("market_cap") is not None:
+                marker["market_cap"] = row_dict["market_cap"]
+                marker["market_cap_unavailable_reason"] = None
             return marker
 
         pe = row_dict.get("pe_ratio")
