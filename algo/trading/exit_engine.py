@@ -231,15 +231,35 @@ class ExitEngine:
                     # If we fetch positions without lock, another transaction can modify them in the gap
                     # between this SELECT and the FOR UPDATE recheck at line 625. This causes duplicate
                     # exits or exits on wrong positions under concurrent load. Lock positions here.
+                    # BUG FOUND 2026-09-07 (goal session: pre-live-trading order-execution/
+                    # stop-loss audit, 4th independent copy of the pyramided-position
+                    # entry-price bug class - see the entry_price/entry_qty fixes in
+                    # executor_exit_handler.py, _compute_cumulative_pnl, and
+                    # phase9_reconciliation.py's _record_closed_positions_exits). Two
+                    # problems from joining on `ANY(p.trade_ids_arr)` instead of the
+                    # established "trade_ids_arr[0] is THE trade for this position"
+                    # convention every other consumer uses (phase9_stop_loss_repair.py,
+                    # phase6_exit_execution.py, position_monitor.py): (1) a position with
+                    # 2+ entries in trade_ids_arr would join to MULTIPLE rows here and get
+                    # evaluated for exit/trailing-stop-raise once per leg per cycle instead
+                    # of once, each time anchored to a DIFFERENT leg's own entry_price
+                    # rather than the position's actual blended cost basis; (2) even for a
+                    # single matched row, t.entry_price is that one trade's own entry price,
+                    # not the (COALESCE-guarded, same pattern as the already-fixed P&L bugs)
+                    # blended p.avg_entry_price - so a pyramided position's trailing-stop
+                    # raise/lock-in-gain logic would anchor to the wrong cost basis. Match
+                    # exactly one row per position (the array's first/original trade, same
+                    # as every other consumer) and use the position's blended entry price.
                     cur.execute(
-                        f"""SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
+                        f"""SELECT t.trade_id, t.symbol, COALESCE(p.avg_entry_price, t.entry_price) AS entry_price,
+                                  t.stop_loss_price,
                                   t.target_1_price, t.target_2_price, t.target_3_price,
                                   t.trade_date,
                                   p.position_id, p.quantity, p.target_levels_hit,
                                   p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time,
                                   t.last_partial_exit_date, t.partial_exits_log
                            FROM algo_trades t
-                           JOIN algo_positions p ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
+                           JOIN algo_positions p ON t.trade_id::text = p.trade_ids_arr[1]::text
                            WHERE t.status IN ({status_placeholders}) AND p.status = %s AND p.quantity > 0
                            ORDER BY t.trade_date ASC
                            FOR UPDATE OF p""",
