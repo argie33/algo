@@ -1246,10 +1246,206 @@ class TestInventoryLeCurrentAssets:
         assert checker.results[0].severity == ERROR
 
 
+class TestQuarterlyGrossProfitIdentity:
+    def test_flags_row_beyond_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QBAD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "revenue": 100_000_000.0,
+                        "cost_of_revenue": 90_000_000.0,
+                        "gross_profit": 50_000_000.0,  # implied 10M, off by 40M (40% of revenue)
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_gross_profit_identity(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_gross_profit_identity"
+        assert checker.results[0].details["examples"][0]["symbol"] == "QBAD"
+
+    def test_does_not_flag_within_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QGOOD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "revenue": 1000.0,
+                        "cost_of_revenue": 600.0,
+                        "gross_profit": 400.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_gross_profit_identity(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_gross_profit_identity(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (i.symbol)" in executed_sql
+        assert "ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC" in executed_sql
+        assert "quarterly_income_statement" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_gross_profit_identity(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_gross_profit_identity"
+        assert checker.results[0].severity == ERROR
+
+
+class TestQuarterlyFreeCashFlowIdentity:
+    def test_flags_row_beyond_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QFCFBAD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "operating_cash_flow": 1_000_000.0,
+                        "capex": 200_000.0,
+                        "free_cash_flow": 100_000.0,  # implied 800,000, way off
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_free_cash_flow_identity(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_free_cash_flow_identity"
+        assert checker.results[0].details["examples"][0]["symbol"] == "QFCFBAD"
+
+    def test_does_not_flag_within_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QFCFGOOD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "operating_cash_flow": 1_000_000.0,
+                        "capex": 200_000.0,
+                        "free_cash_flow": 800_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_free_cash_flow_identity(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_free_cash_flow_identity(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (symbol)" in executed_sql
+        assert "ORDER BY symbol, fiscal_year DESC, fiscal_quarter DESC" in executed_sql
+        assert "quarterly_cash_flow" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_free_cash_flow_identity(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_free_cash_flow_identity"
+        assert checker.results[0].severity == ERROR
+
+
+class TestQuarterlyDilutedGeBasicShares:
+    def test_flags_diluted_below_basic(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QSHAREBAD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "shares_outstanding_basic": 1_000_000.0,
+                        "shares_outstanding_diluted": 900_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_diluted_ge_basic_shares(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_diluted_ge_basic_shares"
+        assert checker.results[0].details["examples"][0]["symbol"] == "QSHAREBAD"
+
+    def test_does_not_flag_diluted_above_basic(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QSHAREGOOD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "shares_outstanding_basic": 1_000_000.0,
+                        "shares_outstanding_diluted": 1_050_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_diluted_ge_basic_shares(cur)
+        assert checker.results == []
+
+    def test_does_not_flag_equal_counts(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QSHAREEQ",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "shares_outstanding_basic": 1_000_000.0,
+                        "shares_outstanding_diluted": 1_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_diluted_ge_basic_shares(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_diluted_ge_basic_shares(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (i.symbol)" in executed_sql
+        assert "ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC" in executed_sql
+        assert "quarterly_income_statement" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_diluted_ge_basic_shares(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_diluted_ge_basic_shares"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_nineteen_checks(self) -> None:
-        cur = _mock_cursor([[]] * 19)
+    def test_run_calls_all_twenty_two_checks(self) -> None:
+        cur = _mock_cursor([[]] * 22)
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 19
+        assert cur.execute.call_count == 22

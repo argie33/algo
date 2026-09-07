@@ -329,6 +329,9 @@ class TieOutChecker(BaseCheck):
         self.check_accounts_payable_le_current_liabilities(cur)
         self.check_cash_le_current_assets(cur)
         self.check_inventory_le_current_assets(cur)
+        self.check_quarterly_gross_profit_identity(cur)
+        self.check_quarterly_free_cash_flow_identity(cur)
+        self.check_quarterly_diluted_ge_basic_shares(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -1665,5 +1668,206 @@ class TieOutChecker(BaseCheck):
                 "inventory_le_current_assets",
                 ERROR,
                 "annual_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_gross_profit_identity(self, cur: Any) -> None:
+        """revenue - cost_of_revenue ~= gross_profit, quarterly_income_statement.
+
+        ADDED 2026-09-07 (goal: "make sure we have all the right tie outs in CI" sweep -
+        every existing check in this file only ever reads annual_* tables; quarterly_income_
+        statement/quarterly_balance_sheet/quarterly_cash_flow feed sec_valuations_checks.py's
+        TTM/valuation metrics with zero tie-out coverage of their own). Mirrors
+        check_gross_profit_identity exactly (same tolerance - this is a strict GAAP
+        definitional identity regardless of period length) but reads the quarterly table.
+
+        Dedup is DISTINCT ON (symbol) ORDER BY fiscal_year DESC, fiscal_quarter DESC - a
+        simpler heuristic than migration 1256's period_end-based true-chronological-order fix
+        for non-December-fiscal-year-end filers (see load_financial_statements.py's
+        _QUARTERLY_INCOME_EXTRA comment). That precision matters for picking THE single most
+        recent quarter; it doesn't matter here since this identity must hold for any given
+        row regardless of which quarter is picked, so an occasional off-by-one-quarter
+        selection doesn't affect this check's correctness, only which quarter's residual
+        (if any) gets surfaced first.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (i.symbol)
+                    i.symbol, i.fiscal_year, i.fiscal_quarter, i.revenue, i.cost_of_revenue, i.gross_profit
+                FROM quarterly_income_statement i
+                JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
+                WHERE i.data_unavailable = FALSE
+                  AND i.revenue IS NOT NULL
+                  AND i.cost_of_revenue IS NOT NULL
+                  AND i.gross_profit IS NOT NULL
+                  AND i.revenue != 0
+                ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                revenue, cost_of_revenue, gross_profit = (
+                    float(row["revenue"]),
+                    float(row["cost_of_revenue"]),
+                    float(row["gross_profit"]),
+                )
+                implied_gross_profit = revenue - cost_of_revenue
+                residual = implied_gross_profit - gross_profit
+                tolerance = max(_GROSS_PROFIT_TOLERANCE_FLOOR, abs(revenue) * _GROSS_PROFIT_TOLERANCE_PCT)
+                if abs(residual) > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "fiscal_quarter": row["fiscal_quarter"],
+                            "revenue": revenue,
+                            "cost_of_revenue": cost_of_revenue,
+                            "gross_profit": gross_profit,
+                            "implied_gross_profit": implied_gross_profit,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                self.log(
+                    "quarterly_gross_profit_identity",
+                    WARN,
+                    "quarterly_income_statement",
+                    f"{len(flagged)} symbol(s) fail revenue - cost_of_revenue ~= gross_profit "
+                    f"beyond max(${_GROSS_PROFIT_TOLERANCE_FLOOR:,.0f}, "
+                    f"{_GROSS_PROFIT_TOLERANCE_PCT:.0%} of revenue)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quarterly_gross_profit_identity failed: {e}", exc_info=True)
+            self.log(
+                "quarterly_gross_profit_identity",
+                ERROR,
+                "quarterly_income_statement",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_free_cash_flow_identity(self, cur: Any) -> None:
+        """operating_cash_flow - capex ~= free_cash_flow, quarterly_cash_flow.
+
+        ADDED 2026-09-07 (same sweep as check_quarterly_gross_profit_identity above). Mirrors
+        check_free_cash_flow_identity - free_cash_flow is derived at load time from
+        operating_cash_flow/capex the same way for quarterly rows as annual, so this is a
+        regression guard on that same derivation, not an XBRL-extraction-bug hunt.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (symbol)
+                    symbol, fiscal_year, fiscal_quarter, operating_cash_flow, capex, free_cash_flow
+                FROM quarterly_cash_flow
+                WHERE data_unavailable = FALSE
+                  AND operating_cash_flow IS NOT NULL
+                  AND capex IS NOT NULL
+                  AND free_cash_flow IS NOT NULL
+                ORDER BY symbol, fiscal_year DESC, fiscal_quarter DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                ocf, capex, fcf = (
+                    float(row["operating_cash_flow"]),
+                    float(row["capex"]),
+                    float(row["free_cash_flow"]),
+                )
+                implied_fcf = ocf - capex
+                residual = implied_fcf - fcf
+                tolerance = max(_FREE_CASH_FLOW_TOLERANCE_FLOOR, abs(fcf) * _FREE_CASH_FLOW_TOLERANCE_PCT)
+                if abs(residual) > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "fiscal_quarter": row["fiscal_quarter"],
+                            "operating_cash_flow": ocf,
+                            "capex": capex,
+                            "free_cash_flow": fcf,
+                            "implied_free_cash_flow": implied_fcf,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                self.log(
+                    "quarterly_free_cash_flow_identity",
+                    WARN,
+                    "quarterly_cash_flow",
+                    f"{len(flagged)} symbol(s) fail operating_cash_flow - capex ~= free_cash_flow "
+                    f"beyond max(${_FREE_CASH_FLOW_TOLERANCE_FLOOR:,.0f}, "
+                    f"{_FREE_CASH_FLOW_TOLERANCE_PCT:.0%} of free_cash_flow)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quarterly_free_cash_flow_identity failed: {e}", exc_info=True)
+            self.log(
+                "quarterly_free_cash_flow_identity",
+                ERROR,
+                "quarterly_cash_flow",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_diluted_ge_basic_shares(self, cur: Any) -> None:
+        """shares_outstanding_diluted >= shares_outstanding_basic, quarterly_income_statement.
+
+        ADDED 2026-09-07 (same sweep as the two checks above). Mirrors
+        check_diluted_ge_basic_shares - same strict structural GAAP inequality, same tight
+        tolerance, just read from the quarterly table.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (i.symbol)
+                    i.symbol, i.fiscal_year, i.fiscal_quarter,
+                    i.shares_outstanding_basic, i.shares_outstanding_diluted
+                FROM quarterly_income_statement i
+                JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
+                WHERE i.data_unavailable = FALSE
+                  AND i.shares_outstanding_basic IS NOT NULL
+                  AND i.shares_outstanding_diluted IS NOT NULL
+                  AND i.shares_outstanding_basic > 0
+                ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                basic_shares, diluted_shares = (
+                    float(row["shares_outstanding_basic"]),
+                    float(row["shares_outstanding_diluted"]),
+                )
+                residual = basic_shares - diluted_shares
+                tolerance = basic_shares * _SHARE_COUNT_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "fiscal_quarter": row["fiscal_quarter"],
+                            "shares_outstanding_basic": basic_shares,
+                            "shares_outstanding_diluted": diluted_shares,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "quarterly_diluted_ge_basic_shares",
+                    WARN,
+                    "quarterly_income_statement",
+                    f"{len(flagged)} symbol(s) fail shares_outstanding_diluted >= "
+                    f"shares_outstanding_basic beyond {_SHARE_COUNT_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quarterly_diluted_ge_basic_shares failed: {e}", exc_info=True)
+            self.log(
+                "quarterly_diluted_ge_basic_shares",
+                ERROR,
+                "quarterly_income_statement",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
             )
