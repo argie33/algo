@@ -5,6 +5,7 @@ from .alignment import AlignmentChecker
 from .coverage import CoverageChecker
 from .price_sanity import PriceSanityChecker
 from .quality import QualityChecker
+from .score_ratio_outliers import ScoreRatioOutlierChecker
 from .specialized import SpecializedChecker
 from .staleness import StalenessChecker
 from .statistical_anomaly import StatisticalAnomalyChecker
@@ -17,6 +18,7 @@ __all__ = [
     "NewXbrlConceptChecker",
     "PriceSanityChecker",
     "QualityChecker",
+    "ScoreRatioOutlierChecker",
     "SpecializedChecker",
     "StalenessChecker",
     "StatisticalAnomalyChecker",

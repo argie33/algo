@@ -124,6 +124,7 @@ class DataPatrol:
             NewXbrlConceptChecker,
             PriceSanityChecker,
             QualityChecker,
+            ScoreRatioOutlierChecker,
             SpecializedChecker,
             StalenessChecker,
             StatisticalAnomalyChecker,
@@ -149,6 +150,7 @@ class DataPatrol:
                 TieOutChecker(self.config),
                 NewXbrlConceptChecker(self.config),
                 StatisticalAnomalyChecker(self.config),
+                ScoreRatioOutlierChecker(self.config),
             ]
 
             for checker in checkers:

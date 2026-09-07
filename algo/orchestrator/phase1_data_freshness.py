@@ -847,14 +847,44 @@ def _check_data_patrol_results(
                 f"({latest_run_id}): {summary}. Halting rather than trade on unverified data.",
             )
     except Exception as e:
-        # Same fail-safe posture as _validate_dependency_freshness's exception handler: don't
-        # let a transient query problem here masquerade as "no issues found".
+        # BUG FIX (2026-09-07, real-money-readiness audit, personally re-verified against the
+        # live code + this file's own test suite rather than trusted from memory): this used to
+        # `return None` here (comment claimed "same fail-safe posture as
+        # _validate_dependency_freshness's exception handler" - but that comparison doesn't
+        # hold: that sibling function is explicitly documented, by this same file's own header
+        # docstring, as an enrichment-only/never-halting check, so its exception path matching
+        # its own non-blocking findings path is consistent. THIS function's entire purpose,
+        # per its own docstring above, is to be a hard blocking gate on CRITICAL/ERROR data-
+        # quality findings - its two other failure modes (no patrol rows, stale patrol data)
+        # both correctly halt by default. An exception while querying data_patrol_log is the
+        # same "cannot verify data quality" situation as those two - not a different, safer-
+        # to-ignore one - so treating it as "no issues found" directly contradicted this
+        # function's own "CLOSES the fail-open half" docstring claim: an exception IS exactly
+        # "patrol itself errors... Phase 1 passes vacuously", just from Phase 1's query side
+        # instead of the patrol job's run side. Same allow_missing_patrol opt-out as the other
+        # two "cannot verify" cases now applies here too, for consistency.
         logger.warning(f"[PHASE 1] Could not check DataPatrol results: {e}")
         try:
             cur.connection.rollback()
         except Exception as rollback_err:
             logger.warning(f"[PHASE 1] Rollback after failed DataPatrol check also failed: {rollback_err}")
-        return None
+        msg = f"could not query data_patrol_log to verify data quality: {e}"
+        if allow_missing_patrol:
+            logger.warning(f"[PHASE 1] DataPatrol WARNING: {msg}. Not halting (ALLOW_MISSING_DATA_PATROL=true).")
+            log_phase_result_fn(1, "data_patrol_check", "warning", msg)
+            return None
+        logger.error(f"[PHASE 1] DataPatrol HALT: {msg}.")
+        log_phase_result_fn(1, "data_patrol_check", "halt", msg)
+        return PhaseResult(
+            1,
+            "data_patrol_check",
+            "halted",
+            {"reason": "patrol_check_query_failed"},
+            True,
+            f"{msg}. Halting rather than trade with unverified data quality. Run "
+            "`python algo/algo_data_patrol.py` first, or set ALLOW_MISSING_DATA_PATROL=true "
+            "for local/dev testing only.",
+        )
 
     logger.info("[PHASE 1] DataPatrol check: OK (no CRITICAL/ERROR findings in latest run)")
     return None

@@ -318,6 +318,22 @@ FPI_EPS_ADS_RATIO_OVERRIDES: dict[str, tuple[float, date | None]] = {
     "FEDU": (10.0, date(2022, 6, 21)),  # Four Seasons Education - ratio changed from 1:2
     "LITB": (12.0, date(2024, 9, 5)),  # LightInTheBox - ratio changed
     "TOUR": (30.0, date(2026, 4, 22)),  # Tuniu - ratio changed from 1:3
+    # ADDED 2026-09-07 (goal session: leaderboard sanity audit, ads_ratio_eps_pe_mismatch
+    # investigation). Each ratio confirmed via a real SEC filing/press release search, then
+    # corroborated against this file's own DB data. WB (Weibo) checked, confirmed 1:1, no
+    # entry needed.
+    "VIPS": (0.2, None),  # Vipshop - 1 ADS = 0.2 ordinary shares (5 ADS = 1 share), eff. 2014-11-03
+    "BABA": (8.0, None),  # Alibaba - 1 ADS = 8 ordinary shares, eff. 2019-07 ADS ratio change
+    "JD": (2.0, None),  # JD.com - 1 ADS = 2 Class A ordinary shares
+    "NTES": (5.0, date(2020, 10, 1)),  # NetEase - ratio changed from 1:25 to 1:5, eff. 2020-10-01
+    # TAL (TAL Education) investigated, DELIBERATELY NOT ADDED: source-confirmed ratio is 3
+    # ADS = 1 Class A share (eff. 2017-08-16, TAL IR press release), but live data fails this
+    # dict's own required cross-validation - sec_valuations.shares_outstanding (407.2M) /
+    # annual_income_statement diluted ordinary shares (192.9M) = 2.11x, not ~3x, and the
+    # ratio-adjusted PE (~13.5) doesn't converge with the independent true PE
+    # (market_cap/net_income = 9.51, ~30%+ off) the way VIPS/BABA/JD/NTES's cross-checks did.
+    # Same "ratio confirmed but cross-validation failed, don't add" outcome as JFU/KRKR/TC
+    # above - TAL's own eps_scale_mismatch (if any) has some other or unconfirmed cause.
 }
 
 

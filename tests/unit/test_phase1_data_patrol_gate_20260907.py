@@ -125,11 +125,28 @@ class TestCheckDataPatrolResults:
         assert result is not None
         assert result.halted is True
 
-    def test_query_exception_does_not_halt(self):
+    def test_query_exception_halts_by_default(self):
+        """BUG FIX (2026-09-07, real-money-readiness audit): this used to assert result is
+        None (no halt) - i.e. an exception while querying data_patrol_log was treated as no
+        issues found. That directly contradicted this function's own docstring claim of
+        closing the fail-open gap. Fixed to halt like the sibling no-rows/stale-data cases,
+        with the same allow_missing_patrol opt-out for local/dev testing."""
         cur = MagicMock()
         cur.execute.side_effect = RuntimeError("connection reset")
         log_fn = _make_log_fn()
 
         result = _check_data_patrol_results(cur, log_fn)
 
+        assert result is not None
+        assert result.halted is True
+        assert result.data["reason"] == "patrol_check_query_failed"
+
+    def test_query_exception_warns_when_allowed(self):
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("connection reset")
+        log_fn = _make_log_fn()
+
+        result = _check_data_patrol_results(cur, log_fn, allow_missing_patrol=True)
+
         assert result is None
+        assert any("connection reset" in str(call).lower() for call in log_fn.calls)

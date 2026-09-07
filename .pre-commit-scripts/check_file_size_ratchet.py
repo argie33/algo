@@ -30,6 +30,7 @@ first and shrink it back under the ceiling.
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 BASELINE_PATH = Path(".file-size-baseline.json")
@@ -210,7 +211,22 @@ def main_local() -> int:
 
     if updated != baseline:
         BASELINE_PATH.write_text(json.dumps(dict(sorted(updated.items())), indent=2) + "\n", encoding="utf-8")
-        subprocess.run(["git", "add", str(BASELINE_PATH)], check=True)
+        # RETRY 2026-09-07 (goal session: heavy concurrent-session churn made this repo's
+        # .git/index.lock transiently held often enough that a bare `git add` here crashed
+        # the whole hook - not a real file-size violation, just lock contention from another
+        # session's git process. Same "verify/wait, don't force" discipline as this session's
+        # manual git-lock handling: a few retries with backoff, no --force, no skipping the add.
+        last_error: subprocess.CalledProcessError | None = None
+        for attempt in range(15):
+            try:
+                subprocess.run(["git", "add", str(BASELINE_PATH)], check=True)
+                last_error = None
+                break
+            except subprocess.CalledProcessError as exc:
+                last_error = exc
+                time.sleep(4)
+        if last_error is not None:
+            raise last_error
 
     if not entries and not failures:
         return 0

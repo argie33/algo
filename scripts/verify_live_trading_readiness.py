@@ -346,9 +346,7 @@ def check_paper_trading_track_record() -> tuple[list[str], list[str]]:
         stdev = statistics.stdev(r_values)
         if stdev > 0:
             t_stat = avg_r / (stdev / (n**0.5))
-            print(
-                f"    t-stat (avg_R vs 0) = {t_stat:.2f} (informational - see docstring on why this doesn't hard-fail)"
-            )
+            print(f"    t-stat (avg_R vs 0) = {t_stat:.2f} (informational - see docstring on why this doesn't hard-fail)")
 
     if n < MIN_PAPER_TRADES:
         failures.append(
