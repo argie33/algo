@@ -121,6 +121,7 @@ class DataPatrol:
         from .checks import (
             AlignmentChecker,
             CoverageChecker,
+            NewXbrlConceptChecker,
             PriceSanityChecker,
             QualityChecker,
             SpecializedChecker,
@@ -145,6 +146,7 @@ class DataPatrol:
                 AlignmentChecker(self.config),
                 SpecializedChecker(self.config),
                 TieOutChecker(self.config),
+                NewXbrlConceptChecker(self.config),
             ]
 
             for checker in checkers:

@@ -792,3 +792,4 @@ _.validate_and_sanitize  # unused method (utils\validation\response_validators.p
 validate_row_data_types  # unused function (utils\validation\schema.py:171)
 FinancialValidator  # unused class (utils\validation\validator_pruner.py:15)
 _.read_from_db  # unused method (utils\watermark_manager.py:34)
+save_dismissed  # unused function (utils\external\xbrl_concept_coverage.py:92) - called from scripts\xbrl_concept_coverage_scan.py's --dismiss/--undismiss CLI flags, which vulture doesn't trace into

@@ -8,10 +8,12 @@ from .quality import QualityChecker
 from .specialized import SpecializedChecker
 from .staleness import StalenessChecker
 from .tie_out import TieOutChecker
+from .xbrl_new_concepts import NewXbrlConceptChecker
 
 __all__ = [
     "AlignmentChecker",
     "CoverageChecker",
+    "NewXbrlConceptChecker",
     "PriceSanityChecker",
     "QualityChecker",
     "SpecializedChecker",
