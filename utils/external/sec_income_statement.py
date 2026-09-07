@@ -596,6 +596,15 @@ def get_income_statement(
         # value - only fills the gap for a filer like ESOA that stops tagging either. Maps to
         # the same "net_income" column via _INCOME_FIELD_MAPPING's matching key.
         "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+        # ADDED 2026-09-07 (goal session: continuing the EPS-side NCI gap documented in memory
+        # as eps_reconciliation_post_reload_nci_attributable_income_gap_20260907 - EPS-side
+        # twin of migration 1265's balance-sheet noncontrolling_interest fix). Diluted (nets
+        # out preferred dividends too, not just NCI) listed before Basic so it wins on
+        # overwrite when a filer tags both, same last-listed-wins convention as every other
+        # concept in this list. Maps to "net_income_attributable_to_common" via
+        # _INCOME_FIELD_MAPPING - see migration 1270's docstring.
+        "NetIncomeLossAvailableToCommonStockholdersBasic",
+        "NetIncomeLossAvailableToCommonStockholdersDiluted",
         "EarningsPerShareBasic",
         "EarningsPerShareDiluted",
         # FIXED 2026-08-03: live-confirmed against real companyfacts JSON that several
