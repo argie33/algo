@@ -79,6 +79,31 @@ work" (which currently has no backtest coverage at all). There is also no live-v
 performance drift detector anywhere in this codebase - nothing would alert if live trading
 started deviating from what backtest predicted, even for the parts backtest does simulate.
 
+BIAS DIRECTION (real-money-readiness audit, 2026-09-07, reasoned but not empirically measured -
+flagging the expected direction is more useful than leaving it purely "unknown" for a reader
+deciding how much to trust a given run's numbers): the mismatch does not bias this backtest
+uniformly optimistic or pessimistic - it pulls in OPPOSITE directions on winners vs. losers/
+round-trips, because live's tiered exits are specifically a risk-adjusted-return improvement
+over a single fixed target:
+  - On a "spikes up, pulls back, stops out" round-trip: live raises its stop to breakeven after
+    T1 fires (see exit_position_context.py's check_target_t1), so a real trade in this shape
+    exits near breakeven or with 50% already banked at a profit. This backtest's single stop-
+    loss has no such raise - it rides the full static stop-loss distance down on the same price
+    path. This backtest therefore likely OVERSTATES how much live would actually lose on this
+    trade shape (worse max_drawdown_pct/avg_loss_pct/worst_trade_pct than live's real exposure).
+  - On a strong sustained trend that blows well past this backtest's fixed --profit-target: live
+    only takes 50%/25% off at T1/T2, leaving 25% running behind a trailing stop that keeps
+    riding the trend. This backtest closes/caps the ENTIRE position at the fixed target. This
+    backtest therefore likely UNDERSTATES live's upside capture on its biggest winners
+    (best_trade_pct/avg_win_pct capped below what live's runner would have achieved).
+  - Net effect on Sharpe/total_return is not simply "backtest is optimistic" or "backtest is
+    pessimistic" - both directions push toward this backtest UNDERSTATING live's real risk-
+    adjusted return (tiered partial-exit-with-trailing-stop is a standard risk-adjusted-return
+    improvement over all-or-nothing for exactly these reasons), but the exact magnitude depends
+    on the empirical mix of trade shapes (round-trips vs. sustained trends) in the sampled
+    period and is NOT quantified here. Extending this backtest to simulate T1/T2/T3 remains the
+    only way to actually measure this rather than reason about its direction.
+
 Usage:
     python -m algo.backtest.run_backtest [options]
 

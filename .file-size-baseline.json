@@ -16,7 +16,7 @@
   "algo/algo_data_patrol.py": 48,
   "algo/algo_orchestrator.py": 31,
   "algo/backtest/__init__.py": 0,
-  "algo/backtest/run_backtest.py": 1190,
+  "algo/backtest/run_backtest.py": 1184,
   "algo/config/__init__.py": 197,
   "algo/config/api_endpoints.py": 95,
   "algo/config/config_monitoring.py": 63,
