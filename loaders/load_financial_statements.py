@@ -3230,6 +3230,28 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         only implies-basically-no-real-float cases like the ones above trip it.
         """
         min_plausible_implied_shares = 10_000
+        # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep, eps_
+        # reconciliation follow-up): the implied-shares floor above only catches the
+        # "eps==net_income" extreme (implies basically zero real shares) - it does NOT catch
+        # a filer-side decimal/scale error that lands on a still-plausible-looking implied
+        # share count. Live-confirmed via NRC (National Research Corporation, CIK 0000070487):
+        # FY2025 10-K tags EarningsPerShareDiluted=$50.00 against real NetIncomeLoss=
+        # $11,600,000 - implied_shares = 232,000, comfortably above the 10,000 floor (so the
+        # check above never fires), but NRC's OWN real weighted-average diluted share count
+        # for the SAME row is 22,396,000 - a ~96x gap, and $50/share is obviously wrong for a
+        # company whose real diluted EPS is ~$0.52 (a real, filed 10-K/Q shows the correct
+        # scale in adjacent periods: FY2024 diluted_eps=$1.04 against 23,743,000 shares, an
+        # entirely normal-looking figure). Unlike the shares_outstanding guard above, this
+        # row already carries its own real share count from the SAME extraction - a much
+        # tighter, symbol-specific cross-check than the earlier absolute floor, so a generous
+        # 10x tolerance (well outside any real dilution/NCI/preferred-dividend spread, which
+        # tie_out.py's own eps_reconciliation check already tolerates at 15%) still leaves no
+        # room for a genuine EPS to trip it while catching this exact scale-error shape.
+        eps_shares_field = {
+            "earnings_per_share": "shares_outstanding_basic",
+            "diluted_eps": "shares_outstanding_diluted",
+        }
+        max_implied_vs_reported_shares_ratio = 10.0
         # BUG FOUND 2026-08-31 (goal session: "let's check the logs" sweep of live loader
         # output): SWK/UAMY quarterly rows hit the raw NUMERIC(12,4) column-overflow guard in
         # sec_base.py instead of this smarter rejection (e.g. "earnings_per_share=150330000")
@@ -3267,6 +3289,26 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                         row[field] = None
                         self._record_explicit_null_rejection(row, field, "implausible_eps_filer_tagging_error")
                         continue
+                    reported_shares = row.get(eps_shares_field[field])
+                    if reported_shares is not None and float(reported_shares) > 0:
+                        shares_ratio = max(implied_shares, float(reported_shares)) / min(
+                            implied_shares, float(reported_shares)
+                        )
+                        if shares_ratio > max_implied_vs_reported_shares_ratio:
+                            logger.warning(
+                                f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                                f"{field}={eps} implies {implied_shares:,.0f} shares against "
+                                f"net_income={net_income:,.0f}, but this row's own "
+                                f"{eps_shares_field[field]}={float(reported_shares):,.0f} - a "
+                                f"{shares_ratio:,.0f}x gap. Filer-side decimal/scale tagging error "
+                                "(NRC-shaped: a plausible-looking implied share count that still "
+                                "disagrees with this row's own real share count), not a currency/"
+                                "scale issue. Rejecting rather than storing a confidently-wrong "
+                                "per-share value."
+                            )
+                            row[field] = None
+                            self._record_explicit_null_rejection(row, field, "implausible_eps_filer_tagging_error")
+                            continue
                 if abs(float(eps)) > max_plausible_abs_eps:
                     logger.warning(
                         f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
