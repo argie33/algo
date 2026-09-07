@@ -16,7 +16,8 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
-from loaders.stock_scores.pillar_weights import _value_risk_adjusted_weights
+from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
+from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT
 from utils.type_conversion import safe_float
 
 logger = logging.getLogger("loaders.load_stock_scores")
@@ -271,7 +272,7 @@ class ValueMetricsMixin:
         return result
 
     @staticmethod
-    def _components_with_corrected_value(components_old: Any, value_score_new: float) -> str:
+    def _components_with_corrected_value(components_old: Any, value_score_new: float | None) -> str:
         """Return components (the Pass-1 JSON breakdown dict) re-serialized with its 'value'
         key set to value_score_new, every other pillar untouched.
 
@@ -489,7 +490,7 @@ class ValueMetricsMixin:
                            vm.pe_ratio, vm.pb_ratio, vm.ps_ratio, vm.forward_pe,
                            vm.dividend_yield,
                            vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason,
-                           ss.components, cp.sector
+                           ss.components, cp.sector, ss.data_completeness, ss.data_unavailable
                     FROM stock_scores ss
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
@@ -551,13 +552,21 @@ class ValueMetricsMixin:
                 f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast) symbols"
             )
 
-            updates: list[tuple[str, float, float, str | None]] = []
+            # Same configurable completeness gate load_stock_scores.py's Pass 1 uses (default
+            # 70.0) - needed below so a value_score this pass withholds is reflected in
+            # data_completeness/data_unavailable too, not just left at Pass 1's stale (higher)
+            # reading (2026-09-07 real-money-readiness audit).
+            min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
+
+            updates: list[tuple[str, float | None, float, str | None, float, bool]] = []
             for row in rows:
                 symbol, value_score_old, composite_score_old, risk_score = row[0], row[1], row[2], row[3]
                 quality_score, growth_score, momentum_score = row[4], row[5], row[6]
                 pe, pb, ps, fwd_pe, dividend_yield = row[7], row[8], row[9], row[10], row[11]
                 pe_reason, fwd_pe_reason = row[12], row[13]
                 components_old = row[14]
+                data_completeness_old = float(row[16]) if row[16] is not None else None
+                data_unavailable_old = bool(row[17]) if row[17] is not None else False
                 value_score_old = float(value_score_old)
                 composite_score_old = float(composite_score_old)
 
@@ -604,7 +613,28 @@ class ValueMetricsMixin:
                     # total_weight > 0 to compute in the first place), but never divide by zero.
                     continue
 
-                value_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
+                # VALUE_MIN_WEIGHT gate (2026-09-07 real-money-readiness audit): this pass fully
+                # recomputes value_score every run but never re-applied _score_value's own
+                # VALUE_MIN_WEIGHT gate (loaders/stock_scores/value_score.py) - so a symbol that
+                # cleared Pass 1 off a thicker component set, but loses components by the time
+                # THIS batch pass runs (e.g. PE excluded by _pe_earnings_too_volatile with no PB
+                # available), could end up with total_weight as low as 0.27 - a single multiple -
+                # and since _percent_rank_cheap_high_sector_relative has no winsorization, that
+                # one raw percentile became the entire value_score verbatim. Live-confirmed RILY
+                # (B. Riley Financial): PE excluded, PB missing, only PS available (ratio 0.22) -
+                # value_score=97.61, #1 in the whole 5,047-symbol universe off a single metric
+                # with no PE/PB cross-check. Same "insufficient data, don't fabricate a score"
+                # treatment as Pass 1 (see test_value_score_min_weight_gate_percentile_pass_
+                # 20260907.py).
+                if total_weight < VALUE_MIN_WEIGHT:
+                    logger.warning(
+                        f"[STOCK_SCORES] {symbol} value_score withheld in percentile pass: only "
+                        f"{total_weight:.2f}/1.00 nominal weight available, below "
+                        f"VALUE_MIN_WEIGHT={VALUE_MIN_WEIGHT}."
+                    )
+                    value_score_new = None
+                else:
+                    value_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
 
                 # Pure recompute of composite_score from the 5 pillar scores as they currently
                 # stand in stock_scores (quality/growth/risk/momentum are untouched by this
@@ -625,13 +655,48 @@ class ValueMetricsMixin:
                         composite_val += float(pillar_score) * weights[pillar_name]
                 composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
 
-                if value_score_new != value_score_old or composite_score_new != composite_score_old:
+                # data_completeness/data_unavailable resync (2026-09-07, same audit as the
+                # VALUE_MIN_WEIGHT gate above): nulling value_score here without also updating
+                # these two columns would leave a stale (too-high) data_completeness and
+                # data_unavailable=False from Pass 1 sitting next to a now-NULL value_score - the
+                # exact inconsistency Pass 1's own "CRITICAL FIX...Enforce completeness
+                # threshold" block (load_stock_scores.py) exists to prevent, just reintroduced by
+                # this second write path. Mirrors that same available_weight-of-BASE_PILLAR_
+                # WEIGHTS formula exactly (quality/growth/value/risk/momentum).
+                all_scores_new: dict[str, float | None] = {
+                    "quality": float(quality_score) if quality_score is not None else None,
+                    "growth": float(growth_score) if growth_score is not None else None,
+                    "value": value_score_new,
+                    "risk": float(risk_score) if risk_score is not None else None,
+                    "momentum": float(momentum_score) if momentum_score is not None else None,
+                }
+                available_weight = sum(
+                    BASE_PILLAR_WEIGHTS[pillar] for pillar, score in all_scores_new.items() if score is not None
+                )
+                data_completeness_new = min(99.99, round(available_weight * 100, 2))
+                data_unavailable_new = data_completeness_new < min_completeness_threshold
+
+                if (
+                    value_score_new != value_score_old
+                    or composite_score_new != composite_score_old
+                    or data_completeness_new != data_completeness_old
+                    or data_unavailable_new != data_unavailable_old
+                ):
                     # BUG FIX 2026-08-29 (goal-mode composite-score validation pass): components
                     # must be kept in sync with the corrected value_score here, or it silently
                     # drifts from the real composite_score math - see
                     # _components_with_corrected_value's own docstring for the full evidence.
                     components_json = self._components_with_corrected_value(components_old, value_score_new)
-                    updates.append((symbol, value_score_new, composite_score_new, components_json))
+                    updates.append(
+                        (
+                            symbol,
+                            value_score_new,
+                            composite_score_new,
+                            components_json,
+                            data_completeness_new,
+                            data_unavailable_new,
+                        )
+                    )
 
             if not updates:
                 logger.info(
@@ -649,12 +714,15 @@ class ValueMetricsMixin:
                     SET value_score = v.value_score,
                         composite_score = v.composite_score,
                         components = v.components::jsonb,
+                        data_completeness = v.data_completeness,
+                        data_unavailable = v.data_unavailable,
                         updated_at = CURRENT_TIMESTAMP
-                    FROM (VALUES %s) AS v(symbol, value_score, composite_score, components)
+                    FROM (VALUES %s) AS v(symbol, value_score, composite_score, components,
+                                           data_completeness, data_unavailable)
                     WHERE ss.symbol = v.symbol
                     """,
                     updates,
-                    template="(%s, %s, %s, %s)",
+                    template="(%s, %s, %s, %s, %s, %s)",
                 )
             logger.info(
                 f"[STOCK_SCORES] Value multiples cross-sectional percentile pass corrected "
