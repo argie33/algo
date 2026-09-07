@@ -63,10 +63,30 @@ def _row(symbol: str, d) -> dict:
 
 
 def _fake_db_context(max_dates_by_symbol: dict):
+    # BUG FOUND 2026-09-07 (real-money-readiness audit, test-flakiness class): a later,
+    # unrelated commit (90c6d300b, "block silent overwrites of already-recorded historical
+    # price_daily closes") added a SECOND DatabaseContext query inside _load_batch's own
+    # write path (_guard_against_historical_price_revision, a 3-column `sym, d, close`
+    # SELECT). Every DatabaseContext(...) call in _load_batch shares this same factory, so
+    # that second query got the SAME 2-column (symbol, MAX(date)) fetchall return value this
+    # fixture was originally built for the desync-correction query alone - unpacking 2
+    # values into 3 targets crashed. Route by the executed SQL's shape instead of returning
+    # one fixed shape for every query on this fixture.
     def factory(mode, **kwargs):
         ctx = MagicMock()
         cur = MagicMock()
-        cur.fetchall.return_value = list(max_dates_by_symbol.items())
+
+        def fake_execute(query, *args, **kwargs):
+            # query is a psycopg2.sql.Composed object here, not a plain str - `in` on a
+            # Composed iterates its sub-Composable parts (SQL('...'), Identifier(...)) and
+            # compares each by identity/equality, so a substring check against the raw text
+            # silently always returns False. str() first to get the actual rendered SQL text.
+            if "MAX(date)" in str(query):
+                cur.fetchall.return_value = list(max_dates_by_symbol.items())
+            else:
+                cur.fetchall.return_value = []
+
+        cur.execute.side_effect = fake_execute
         ctx.__enter__.return_value = cur
         ctx.__exit__.return_value = False
         return ctx
@@ -78,21 +98,33 @@ class TestWatermarkDesyncSelfHeal:
     def test_watermark_ahead_of_real_data_is_capped_and_symbol_gets_refetched(self):
         """The core bug: SPY's watermark claims "today" (matching the live-reproduced
         incident, where the bogus watermark exactly equalled the current date - which is
-        WHY the pre-existing >2-day-staleness deadlock-breaker never caught it, it doesn't
-        look stale by that check) but the real table lags 5 days behind. Without this fix,
-        the per-symbol write-trim would discard every freshly-fetched row forever."""
+        WHY the pre-existing >2-TRADING-day-staleness deadlock-breaker never caught it, it
+        doesn't look stale by that check) but the real table lags well behind. Without this
+        fix, the per-symbol write-trim would discard every freshly-fetched row forever.
+
+        BUG FOUND 2026-09-07 (real-money-readiness audit, test-flakiness class): this used to
+        gap the real_max_date by 5 CALENDAR days, which is only >2 TRADING days stale when
+        the 5-day window happens to span at most one weekend day - since load_prices.py's own
+        staleness check was switched to trading-day-aware (2026-08-11 fix, same file), the
+        deadlock-breaker legitimately does NOT fire on a run where those 5 calendar days
+        contain only 1-2 trading days (e.g. today=Monday, gap=Wed-Sun), making this test's
+        pass/fail depend on which real-world weekday it happened to run on. 10 calendar days
+        guarantees at least 6 trading days elapsed regardless of weekend alignment, so the
+        deadlock-breaker fires deterministically every day of the week.
+        """
         loader = _make_loader()
         today = datetime.now(EASTERN_TZ).date()
         bogus_watermark_equal_to_today = today  # exactly matches the live incident
-        real_max_date = today - timedelta(days=5)
+        real_max_date = today - timedelta(days=10)
         loader._watermark.get_watermarks_bulk.return_value = {"SPY": bogus_watermark_equal_to_today}
 
-        fresh_row = _row("SPY", today - timedelta(days=4))
+        fresh_row = _row("SPY", today - timedelta(days=9))
 
         def fake_fetch(symbols, since, **kwargs):
-            # After correction, the watermark (today-5) is itself >2 days stale, so the
-            # pre-existing SESSION 297 deadlock-breaker also fires and further widens the
-            # window to today-7 - composed behavior, not a value this fix invents alone.
+            # After correction, the watermark (today-10) is itself far more than 2 trading
+            # days stale, so the pre-existing SESSION 297 deadlock-breaker also fires and
+            # further widens the window to today-7 - composed behavior, not a value this fix
+            # invents alone.
             assert since == today - timedelta(days=7), f"Expected today-7, got {since}"
             return {"SPY": [dict(fresh_row)]}
 
