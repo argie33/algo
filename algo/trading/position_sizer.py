@@ -836,6 +836,47 @@ class PositionSizer:
             logger.error(f"Database error fetching position values: {e}")
             raise DataUnavailableError(f"Portfolio value unavailable due to database error: {e}") from e
 
+    def get_symbol_position_value(self, symbol: str) -> Decimal:
+        """Sum of position_value across all open positions for one symbol.
+
+        REAL-MONEY-READINESS FIX (2026-09-07 audit): max_position_size_pct and
+        max_concentration_pct were both being checked against ONLY the new candidate
+        trade's own position_value, never added to any EXISTING open position(s) in the
+        same symbol. max_reentries_per_name allows pyramiding into a symbol across
+        multiple entries (each individually capped at max_position_size_pct), so a fully
+        pyramided position could reach several times the intended single-symbol
+        concentration ceiling while every individual leg's own check still passed. This
+        getter lets both caps be checked against the symbol's TOTAL exposure (existing +
+        candidate), restoring the invariant those caps were designed to enforce, without
+        changing any config value.
+        """
+
+        def fetch_symbol_position_value(cur: PsycopgCursor[Any]) -> Decimal:
+            cur.execute(
+                "SELECT SUM(position_value) FROM algo_positions WHERE status = 'open' AND symbol = %s",
+                (symbol,),
+            )
+            result = cur.fetchone()
+            if result is None or result[0] is None:
+                # SUM() with no matching rows / NULL means no open positions for this
+                # symbol - a genuine zero, not missing/ambiguous data.
+                return Decimal(0)
+            return Decimal(str(result[0]))
+
+        try:
+            result: Decimal | int | float = self._with_cursor(fetch_symbol_position_value)
+            return cast(Decimal, result) if result is not None else Decimal(0)
+        except (RuntimeError, ValueError) as e:
+            logger.error(f"Could not fetch existing position value for {symbol}: {e}")
+            raise DataUnavailableError(
+                f"Existing position value for {symbol} unavailable - cannot safely size a pyramided entry: {e}"
+            ) from e
+        except DatabaseError as e:
+            logger.error(f"Database error fetching existing position value for {symbol}: {e}")
+            raise DataUnavailableError(
+                f"Existing position value for {symbol} unavailable due to database error: {e}"
+            ) from e
+
     def get_position_count(self) -> int:
         """Get count of active positions (Issue #26: Now checks capital, not just count).
 
@@ -1120,6 +1161,14 @@ class PositionSizer:
             )
 
         position_value = Decimal(shares) * Decimal(str(entry_price))
+
+        # REAL-MONEY-READINESS FIX (2026-09-07 audit): fold in any EXISTING open
+        # position value for this same symbol (prior pyramid legs) so the per-symbol
+        # caps below bound the symbol's TOTAL exposure, not just this one candidate
+        # trade in isolation - see get_symbol_position_value's docstring for the bug
+        # this closes.
+        existing_symbol_value = self.get_symbol_position_value(symbol)
+
         max_pos_pct_val = self.config.get("max_position_size_pct")
         if max_pos_pct_val is None:
             raise ValueError("CRITICAL: max_position_size_pct config missing. Cannot enforce position size cap.")
@@ -1133,12 +1182,25 @@ class PositionSizer:
             ) from None
         max_position_value = pv_dec * max_position_pct
 
-        if position_value > max_position_value:
+        if existing_symbol_value + position_value > max_position_value:
             # ROUND_DOWN, not ROUND_HALF_UP: this caps position_value to a hard ceiling
             # (max_position_size_pct), so rounding the share count up can let the capped
             # position_value exceed max_position_value by up to half a share's value,
             # silently breaching the limit this branch exists to enforce.
-            shares = int((max_position_value / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_DOWN))
+            room_left = max_position_value - existing_symbol_value
+            if room_left <= 0:
+                return {
+                    "shares": 0,
+                    "position_size_pct": 0,
+                    "risk_dollars": 0,
+                    "status": "no_room",
+                    "reason": (
+                        f"{symbol}: existing position(s) already at/over max_position_size_pct "
+                        f"(${float(existing_symbol_value):,.2f} existing vs "
+                        f"${float(max_position_value):,.2f} cap) - no room for another pyramid leg"
+                    ),
+                }
+            shares = int((room_left / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_DOWN))
             position_value = Decimal(shares) * Decimal(str(entry_price))
             risk_dollars = risk_per_share * Decimal(shares)
 
@@ -1303,7 +1365,9 @@ class PositionSizer:
                 f"Position sizing requires current portfolio value > 0."
             )
         try:
-            position_pct_of_portfolio = position_value / pv_dec * Decimal(100)
+            # Includes existing_symbol_value (prior pyramid legs) - see get_symbol_position_value's
+            # docstring - so this reflects the symbol's TOTAL concentration, not just this trade.
+            position_pct_of_portfolio = (existing_symbol_value + position_value) / pv_dec * Decimal(100)
         except (ValueError, TypeError, decimal.InvalidOperation) as e:
             raise ValueError(
                 f"CRITICAL: Position value calculation failed ({position_value}): {e}. "
@@ -1393,10 +1457,13 @@ class PositionSizer:
 
         if position_pct_of_portfolio > effective_limit:
             # Scale down the position instead of rejecting it
-            # Calculate maximum allowed position value at effective limit
-            max_position_value_at_limit = pv_dec * (effective_limit / Decimal(100))
-            scaled_shares = int(
-                (max_position_value_at_limit / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_DOWN)
+            # Calculate maximum allowed NEW position value at effective limit, net of any
+            # existing same-symbol exposure already counted toward that limit above.
+            max_position_value_at_limit = pv_dec * (effective_limit / Decimal(100)) - existing_symbol_value
+            scaled_shares = (
+                int((max_position_value_at_limit / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_DOWN))
+                if max_position_value_at_limit > 0
+                else 0
             )
 
             if scaled_shares < 1:
