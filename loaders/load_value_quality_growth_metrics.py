@@ -1206,38 +1206,30 @@ class ValueQualityGrowthMetricsLoader(
                     "insufficient_year_over_year_quarterly_history"
                 )
 
-            # Phase 3A: Earnings surprise and beat rate
-            # Use last quarter EPS vs current analyst forward EPS as proxy for surprise
-            last_eps = last_4q[-1]["eps"]
-            forward_eps = self._get_analyst_forward_eps(symbol)
-
-            if last_eps is not None and forward_eps is not None and last_eps != 0:
-                # Earnings surprise: (last reported - forward estimate) / |forward estimate| * 100
-                # Bounded like quarterly_growth_momentum above - a near-zero forward_eps estimate
-                # (common for turnaround/recovery names) can otherwise divide this into a
-                # meaningless, orders-of-magnitude "surprise" percentage.
-                if forward_eps != 0:
-                    surprise = ((last_eps - forward_eps) / abs(forward_eps)) * 100
-                    if abs(surprise) < MAX_PLAUSIBLE_GROWTH_PCT:
-                        metrics["earnings_surprise_avg"] = float(round(surprise, 2))
-                    else:
-                        metrics["earnings_surprise_avg_unavailable_reason"] = (
-                            "garbage_metric_value_implausible_growth_rate"
-                        )
-
-                # Earnings beat rate: % of recent quarters with positive EPS growth (proxy for beats)
-                if len(eps_growth_rates) > 0:
-                    beat_count = sum(1 for rate in eps_growth_rates if rate > 0)
-                    beat_rate = (beat_count / len(eps_growth_rates)) * 100
-                    metrics["earnings_beat_rate"] = float(round(beat_rate, 2))
-            else:
-                # Set unavailable reasons for earnings metrics when analyst data missing
-                if forward_eps is None:
-                    metrics["earnings_surprise_avg_unavailable_reason"] = "no_analyst_estimates"
-                    metrics["earnings_beat_rate_unavailable_reason"] = "no_analyst_estimates"
-                elif last_eps is None:
-                    metrics["earnings_surprise_avg_unavailable_reason"] = "insufficient_quarterly_history"
-                    metrics["earnings_beat_rate_unavailable_reason"] = "insufficient_quarterly_history"
+            # Phase 3A: Earnings surprise and beat rate - REMOVED 2026-09-07 (goal-mode score
+            # sanity audit). This block computed both fields as a crude proxy: "surprise" was
+            # (last quarter's TRAILING actual EPS - CURRENT FORWARD full-year analyst estimate)
+            # / |forward estimate|, and "beat rate" was really "% of recent quarters with
+            # positive EPS growth", not an actual consensus-vs-actual beat count. For any
+            # genuinely high-growth company (quarterly EPS structurally well below a forward
+            # full-year estimate), this proxy is negative almost by construction regardless of
+            # real quarterly beats - live-confirmed for NVDA: this proxy produced
+            # earnings_surprise_avg=-84.02% for a stock whose real, per-quarter actual-vs-
+            # consensus surprises (load_earnings_calendar.py's own eps_estimate/actual_eps/
+            # surprise_pct, ground truth) were all POSITIVE (+3.46% to +8.02%, matching this
+            # same file's own earnings_beat_rate=100% exactly) the last 4 quarters. Found via
+            # the mathematically-impossible combination this block could produce
+            # (earnings_beat_rate=100 with earnings_surprise_avg<0, or the reverse) - confirmed
+            # at population scale: 931 of ~5,140 symbols showed this exact impossible combo
+            # live. load_enhanced_quality_growth_metrics.py's _compute_earnings_surprise_metrics
+            # already computes the correct version (real per-quarter consensus-estimate-vs-
+            # actual surprise from yfinance earnings_dates, matching load_earnings_calendar.py's
+            # independently-sourced ground truth) and is now the sole writer of both columns to
+            # growth_metrics too (see that loader's growth_fields list - already wired for
+            # quality_metrics, growth_metrics wiring added the same session). Removing the
+            # proxy here rather than relabeling it: no valid definition of "surprise" should mix
+            # a trailing single-quarter actual with a forward multi-quarter estimate, so there's
+            # no smaller fix that keeps this computation while making it correct.
 
         except Exception as e:
             logger.debug(f"[{symbol}] Failed to compute quarterly metrics: {type(e).__name__}: {e}")

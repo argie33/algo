@@ -793,3 +793,4 @@ validate_row_data_types  # unused function (utils\validation\schema.py:171)
 FinancialValidator  # unused class (utils\validation\validator_pruner.py:15)
 _.read_from_db  # unused method (utils\watermark_manager.py:34)
 save_dismissed  # unused function (utils\external\xbrl_concept_coverage.py:92) - called from scripts\xbrl_concept_coverage_scan.py's --dismiss/--undismiss CLI flags, which vulture doesn't trace into
+_._get_analyst_forward_eps  # unused method (loaders\load_value_quality_growth_metrics.py:912) - its only production call site (the flawed earnings_surprise_avg proxy) was removed 2026-09-07; kept (not deleted) because several tests still monkeypatch it defensively (test_ev_ebitda_etf_trust_royalty_trust_recategorize_20260906.py etc.) via patch.object, which requires the attribute to exist
