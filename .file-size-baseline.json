@@ -663,7 +663,7 @@
   "utils/external/sec_form345_transaction_velocity.py": 353,
   "utils/external/sec_form345_transaction_velocity_cached.py": 128,
   "utils/external/sec_income_statement.py": 786,
-  "utils/external/sec_income_statement_fallbacks.py": 332,
+  "utils/external/sec_income_statement_fallbacks.py": 337,
   "utils/external/sec_statements.py": 100,
   "utils/external/sec_statements_aggregate.py": 393,
   "utils/external/sec_statements_entry_resolution.py": 645,
