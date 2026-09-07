@@ -337,21 +337,39 @@ class ValueMetricsMixin(SymbolGateMixin):
             if market_cap is not None
             else None
         )
-        if ebitda_raw is not None and ebitda_raw <= 0:
-            ev_ebitda_reason = "unprofitable_stock"
-        elif ebitda_raw is None:
-            ev_ebitda_reason = "ebitda_not_extracted"
         # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, comprehensive RIC-gap
         # scan): a registered investment company (see _get_registered_investment_company_
         # symbols()' docstring) has no debt concept to tag at all, same structural fact already
         # recategorized for quality_metrics.total_debt/roic_pct/roce_pct/debt_to_equity - this
-        # chain reused the "total_debt_not_itemized" branch below (same root gate,
-        # _get_no_recent_debt_components_symbols()) without ever checking RIC first. Live-
-        # confirmed CEV (a real ebitda>0 but no debt concept RIC) was falling to the generic
-        # "total_debt_not_itemized" ("Missing SEC/XBRL data") instead of
-        # "registered_investment_company_no_xbrl" ("Legitimate / not applicable").
+        # chain used to reuse the "total_debt_not_itemized" branch below (same root gate,
+        # _get_no_recent_debt_components_symbols()) without ever checking RIC first, and was
+        # ALSO placed after the ebitda_raw None/<=0 checks below - a RIC's own EBITDA concept is
+        # equally absent (no GAAP income statement at all), so it was silently outranked by
+        # "ebitda_not_extracted"/"unprofitable_stock" whenever ebitda_raw happened to be None or
+        # 0 instead of ever reaching this check. Live-confirmed CEV (a real ebitda>0 but no debt
+        # concept RIC) was falling to the generic "total_debt_not_itemized" ("Missing SEC/XBRL
+        # data") instead of "registered_investment_company_no_xbrl" ("Legitimate / not
+        # applicable"). Moved to the front of this chain so it wins regardless of ebitda_raw's
+        # own state, mirroring fcf_yield_reason_str's own RIC/etf-trust/royalty-trust priority
+        # order just above in this file.
+        #
+        # FIXED same sweep, same-day follow-up: a physical commodity/currency/crypto trust
+        # (etf_trust) or royalty trust has no EBITDA concept either (no operating business to
+        # report income/expenses for) - same structural fact, added as siblings to the RIC check
+        # here since neither was ever wired into this specific chain (fcf_yield/total_debt/
+        # quality_metrics.ebitda already have all three). Live-confirmed 37 active etf_symbols
+        # tickers (GLDM/BITW/CPER/USCI-class) stuck on "missing_sec_data"/"ebitda_not_extracted"
+        # for ev_ebitda.
+        if symbol in self._ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS:
+            ev_ebitda_reason = "reit_special_entity"
         elif symbol in self._get_registered_investment_company_symbols():
             ev_ebitda_reason = "registered_investment_company_no_xbrl"
+        elif symbol in self._get_etf_trust_no_stockholders_equity_symbols():
+            ev_ebitda_reason = "etf_trust_no_gaap_financials"
+        elif ebitda_raw is not None and ebitda_raw <= 0:
+            ev_ebitda_reason = "unprofitable_stock"
+        elif ebitda_raw is None:
+            ev_ebitda_reason = "ebitda_not_extracted"
         # ebitda>0 present, enterprise_value missing or out of bounds: enterprise_value =
         # market_cap + total_debt - total_cash, so it fails whenever total_debt can't be
         # itemized - reuse the same gate quality_metrics.total_debt already uses.
