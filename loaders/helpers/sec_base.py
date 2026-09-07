@@ -393,6 +393,15 @@ class SecEdgarStatementLoader(SecLoaderBase):
     # retry-trigger fields - live-confirmed this session's own `4bb8d3d6b`/`0e7051e9a`/09-03
     # interest_expense fixes were each blocked by this exact gap (AIG/ORC/RRC/CNS/PKG all
     # have real primary fields on file with a watermark already past their latest year).
+    #
+    # FIXED 2026-09-07 (goal: "run all the tie-outs" sweep): `retained_earnings` (balance)
+    # added as a further retry-trigger field. Live-confirmed: quarterly_balance_sheet's
+    # retained_earnings column (migration 1266, extraction landed `c72e7e007` this session)
+    # sat at 0/212,531 populated even on rows this session's own reload freshly wrote,
+    # because every other balance core field (stockholders_equity/long_term_debt/
+    # short_term_debt) was already non-NULL for those symbols - the exact same
+    # already-processed-year gap the fields above were added to close, just newly
+    # introduced by this session's own column addition instead of an older one.
     _CORE_FIELD_BY_STATEMENT_TYPE: dict[str, tuple[str, ...]] = {
         "income": (
             "net_income",
@@ -402,7 +411,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
             "interest_expense",
             "pretax_income",
         ),
-        "balance": ("stockholders_equity", "long_term_debt", "short_term_debt"),
+        "balance": ("stockholders_equity", "long_term_debt", "short_term_debt", "retained_earnings"),
         "cashflow": ("operating_cash_flow", "capex"),
     }
 
