@@ -404,10 +404,81 @@ class TestPretaxToNetIncome:
         assert checker.results[0].severity == ERROR
 
 
+class TestDilutedGeBasicShares:
+    def test_flags_diluted_below_basic(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADSH",
+                        "fiscal_year": 2025,
+                        "shares_outstanding_basic": 100_000_000.0,
+                        "shares_outstanding_diluted": 90_000_000.0,  # diluted < basic
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_diluted_ge_basic_shares(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "diluted_ge_basic_shares"
+
+    def test_does_not_flag_equal_counts(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODSH",
+                        "fiscal_year": 2025,
+                        "shares_outstanding_basic": 100_000_000.0,
+                        "shares_outstanding_diluted": 100_000_000.0,  # no dilutive securities
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_diluted_ge_basic_shares(cur)
+        assert checker.results == []
+
+    def test_does_not_flag_diluted_above_basic(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "OKSH",
+                        "fiscal_year": 2025,
+                        "shares_outstanding_basic": 100_000_000.0,
+                        "shares_outstanding_diluted": 105_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_diluted_ge_basic_shares(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_diluted_ge_basic_shares(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (i.symbol)" in executed_sql
+        assert "ORDER BY i.symbol, i.fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_diluted_ge_basic_shares(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "diluted_ge_basic_shares"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_six_checks(self) -> None:
-        cur = _mock_cursor([[], [], [], [], [], []])
+    def test_run_calls_all_seven_checks(self) -> None:
+        cur = _mock_cursor([[], [], [], [], [], [], []])
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 6
+        assert cur.execute.call_count == 7

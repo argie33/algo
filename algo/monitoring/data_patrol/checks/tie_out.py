@@ -118,6 +118,12 @@ _GROSS_PROFIT_TOLERANCE_FLOOR = 250_000.0
 # rounding EPS reconciliation compounds.
 _PRETAX_NET_INCOME_TOLERANCE_PCT = 0.10
 _PRETAX_NET_INCOME_TOLERANCE_FLOOR = 500_000.0
+# diluted shares >= basic shares is a strict structural inequality (dilution can only add
+# share-count, never remove it) - no measurement-noise tolerance is conceptually justified the
+# way it is for the other checks here, but a small slack is kept anyway to avoid flagging
+# genuine same-period rounding where a filer's diluted and basic counts are reported equal
+# because there were no dilutive securities outstanding that period.
+_SHARE_COUNT_TOLERANCE_PCT = 0.001
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
@@ -180,6 +186,7 @@ class TieOutChecker(BaseCheck):
         self.check_basic_eps_reconciliation(cur)
         self.check_gross_profit_identity(cur)
         self.check_pretax_to_net_income(cur)
+        self.check_diluted_ge_basic_shares(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -624,6 +631,70 @@ class TieOutChecker(BaseCheck):
             logger.error(f"[TieOutChecker] pretax_to_net_income failed: {e}", exc_info=True)
             self.log(
                 "pretax_to_net_income",
+                ERROR,
+                "annual_income_statement",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_diluted_ge_basic_shares(self, cur: Any) -> None:
+        """shares_outstanding_diluted >= shares_outstanding_basic.
+
+        ADDED 2026-09-07 (goal: "make sure we have all the right tie outs" sweep, follow-up to
+        the CI tie-out coverage audit that flagged this as missing). Structural GAAP inequality,
+        not a measurement identity: dilutive securities (options/RSUs/converts) can only ever
+        add to the diluted count via the treasury-stock/if-converted method, never subtract from
+        it - a filer with zero dilutive securities reports diluted == basic, never diluted <
+        basic. A violation here is a strong signal of a swapped-column or wrong-concept-priority
+        bug in the extraction chain (the exact bug class this whole checker exists to catch),
+        not filer-side measurement noise - hence the much tighter tolerance than every other
+        check in this file.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (i.symbol)
+                    i.symbol, i.fiscal_year, i.shares_outstanding_basic, i.shares_outstanding_diluted
+                FROM annual_income_statement i
+                JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
+                WHERE i.data_unavailable = FALSE
+                  AND i.shares_outstanding_basic IS NOT NULL
+                  AND i.shares_outstanding_diluted IS NOT NULL
+                  AND i.shares_outstanding_basic > 0
+                ORDER BY i.symbol, i.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                basic_shares, diluted_shares = (
+                    float(row["shares_outstanding_basic"]),
+                    float(row["shares_outstanding_diluted"]),
+                )
+                residual = basic_shares - diluted_shares
+                tolerance = basic_shares * _SHARE_COUNT_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "shares_outstanding_basic": basic_shares,
+                            "shares_outstanding_diluted": diluted_shares,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "diluted_ge_basic_shares",
+                    WARN,
+                    "annual_income_statement",
+                    f"{len(flagged)} symbol(s) fail shares_outstanding_diluted >= "
+                    f"shares_outstanding_basic beyond {_SHARE_COUNT_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] diluted_ge_basic_shares failed: {e}", exc_info=True)
+            self.log(
+                "diluted_ge_basic_shares",
                 ERROR,
                 "annual_income_statement",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
