@@ -400,21 +400,41 @@ DEPOSITARY_SHARES_PATTERN = re.compile(r"\bdepositary shares?\b|\bdep shs?\b", r
 AMERICAN_DEPOSITARY_PATTERN = re.compile(r"\b(american|global)\s+depositary\s+(shares?|receipts?)\b", re.IGNORECASE)
 
 # GOVERNANCE 2026-09-07 (goal: stock_scores factor/composite sanity audit - checking BDC/REIT
-# universe coverage): EXCLUSION_PATTERNS' \bfund\b entry (meant to catch real mutual/closed-end
-# funds) false-positived on BXSL ("Blackstone Secured Lending Fund") - a real, actively-traded
-# business development company (BDC) that happens to carry "Fund" in its legal name despite
-# being an operating lending business, not a pooled investment fund in the excluded sense. Found
-# by spot-checking a list of well-known BDCs against stock_symbols: ARCC/FSK/PSEC/HTGC/OBDC/
-# GBDC/TSLX/GSBD/BXSL/TPVG - live `should_exclude()` confirmed BXSL is the only one of these
-# actually caught by a name pattern (the other 3 gaps found the same pass - ARCC/PSEC/GBDC - are
-# NOT should_exclude() false positives; should_exclude() returns False for all three real names,
-# so their absence from stock_symbols is the same unresolved "missing upstream of should_exclude"
-# bug class already documented for BK/FDP/MASI/SNBR/SLNO/AIFC/GIG, not this function's fault -
-# see stock_symbols_membership_gap_7_real_tickers_20260903 in memory, not chased further here).
-# Individually-verified symbol-level override, not a broader regex change - "Fund" legitimately
-# marks a real excluded closed-end/mutual fund in the vast majority of cases, so narrowing the
-# regex itself risks reopening that larger, correctly-excluded population.
-KNOWN_FUND_NAME_MISCLASSIFICATIONS = {"BXSL"}
+# universe coverage): EXCLUSION_PATTERNS' \bfund\b and \bclosed[- ]end\b entries (meant to catch
+# real mutual/closed-end funds) false-positive on business development companies (BDCs) - real,
+# actively-traded operating lending businesses that are nonetheless legally organized as closed-
+# end investment companies under the Investment Company Act of 1940, so NASDAQ's own listing
+# feed literally tags many of them "<Name> - Closed End Fund" (nasdaqlisted.txt) or includes
+# "Fund" directly in the legal name (otherlisted.txt).
+#
+# Found by spot-checking well-known BDCs against stock_symbols: ARCC/FSK/PSEC/HTGC/OBDC/GBDC/
+# TSLX/GSBD/BXSL/TPVG - 4 missing (ARCC/PSEC/GBDC/BXSL). CORRECTION to this comment's first
+# version: an initial check tested should_exclude() against GUESSED plain legal names ("Ares
+# Capital Corporation") for ARCC/PSEC/GBDC and wrongly concluded they weren't should_exclude()
+# false positives - re-checked against the REAL raw nasdaqlisted.txt row text (live-fetched
+# 2026-09-07: "Ares Capital Corporation - Closed End Fund", "Prospect Capital Corporation -
+# Closed End Fund", "Golub Capital BDC, Inc. - Closed End Fund") and should_exclude() returns
+# True for all three via \bclosed[- ]end\b - same false-positive bug class as BXSL, not a
+# separate "missing upstream of should_exclude" mystery. Each of the 4 individually verified as
+# a genuine operating company (not a pooled fund) via SEC's own live submissions API
+# (data.sec.gov/submissions/CIK<n>.json): entityType="operating" (not "investment"/"other" -
+# the exact classification migration 1213's stock_scores cleanup already uses to distinguish
+# real BDCs like MAIN/OZK from genuine garbage-shaped funds/ETNs like ASA/BSTZ/GRN) and real,
+# recent 10-K filings (ARCC CIK 1287750, PSEC CIK 1287032, GBDC CIK 1476765 - each filing
+# annually through 2025/2026).
+#
+# The raw NASDAQ feed's "- Closed End Fund" suffix is NOT unique to BDCs - a live full-feed
+# scan (2026-09-07) found 34 symbols carrying it, a genuine MIX of real BDCs (this override's 4,
+# plus others not individually verified here: BCIC/CGBD/FDUS/GECC/GLAD/MFIC/OCSL/OFS/OXSQ/RAND/
+# SLRC/TCPC/WHF) and real traditional closed-end mutual funds we correctly want excluded
+# (Calamos's CCD/CGO/CHI/CHW/CHY/CPZ/CSQ, Nuveen's QQQX, Thornburg's TBLD, Herzfeld's HERZ,
+# OFS Credit's OCCI) - narrowing \bfund\b/\bclosed[- ]end\b themselves would reopen that larger,
+# correctly-excluded population, so this stays an individually-verified symbol-level override
+# (same convention as KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS/KNOWN_SPAC_MISCLASSIFICATIONS above),
+# not a general BDC-detection pattern. The other 30 "Closed End Fund"-tagged symbols not listed
+# here are UNVERIFIED either way - don't assume they're all safe to add, or all correctly
+# excluded, without individually checking each one's own SEC entityType/filing history first.
+KNOWN_FUND_NAME_MISCLASSIFICATIONS = {"ARCC", "BXSL", "GBDC", "PSEC"}
 
 
 def should_exclude(name: str) -> bool:
