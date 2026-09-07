@@ -290,6 +290,68 @@ class TestMarkerPropagation(unittest.TestCase):
         self.assertIn("unavailable_metrics", response)
         self.assertIn("data_completeness", response)
 
+    def test_nan_pillar_score_is_rejected_not_clamped_to_100(self) -> None:
+        """REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): isinstance(nan, float) is
+        True, and Python's min(100.0, nan) evaluates to 100.0 (nan comparisons are always
+        False, so the replacement never fires). is_real_score()/clamp_score() used to rely
+        on isinstance(x, float) alone, so a NaN (or +/-inf) pillar score from any unguarded
+        upstream ratio would silently count as "available" data and clamp to a *perfect*
+        100.0 quality_score, with zero error trail and zero completeness-gate protection -
+        a data-quality bug that could turn into a top-scoring real-money buy signal. Calls
+        the real StockScoresLoader._compute_stock_score to prove the fix, not a re-simulated
+        copy of the logic.
+        """
+        import math
+
+        from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
+
+        loader = StockScoresLoader()
+        loader._liquidity_cache = {}
+
+        with (
+            patch("loaders.load_stock_scores.DatabaseContext") as mock_db_context,
+            patch.object(loader, "_get_quality_metrics", return_value={}),
+            patch.object(loader, "_get_growth_metrics", return_value={}),
+            patch.object(loader, "_get_value_metrics", return_value={}),
+            patch.object(loader, "_get_stability_metrics", return_value={}),
+            patch.object(loader, "_get_momentum_metrics", return_value={}),
+            patch.object(loader, "_score_quality", return_value=math.nan),  # simulates a 0/0 upstream ratio
+            patch.object(loader, "_score_growth", return_value=70.0),
+            patch.object(loader, "_score_value", return_value=60.0),
+            patch.object(loader, "_score_risk", return_value=50.0),
+            patch.object(loader, "_score_momentum", return_value=50.0),
+        ):
+            mock_db_context.return_value.__enter__.return_value = MagicMock()
+            result = loader._compute_stock_score("TESTSYM")
+
+        # The bug: this used to be 100.0. Must be None (unavailable), never a numeric score.
+        self.assertIsNone(result["quality_score"])
+
+        import json
+
+        self.assertEqual(
+            json.loads(result["unavailable_metrics"]).get("quality"),
+            "non_finite_score_nan_or_inf",
+        )
+
+        # Quality's weight must be excluded from the composite entirely, not contributed
+        # at 100.0 * weight.
+        expected_composite = (
+            70.0 * BASE_PILLAR_WEIGHTS["growth"]
+            + 60.0 * BASE_PILLAR_WEIGHTS["value"]
+            + 50.0 * BASE_PILLAR_WEIGHTS["risk"]
+            + 50.0 * BASE_PILLAR_WEIGHTS["momentum"]
+        )
+        self.assertAlmostEqual(result["composite_score"], round(expected_composite, 2), places=2)
+
+        # data_completeness must reflect quality being unavailable, not count it as present
+        # (weighted by BASE_PILLAR_WEIGHTS - quality's own share is excluded).
+        self.assertAlmostEqual(
+            float(result["data_completeness"]),
+            round((1 - BASE_PILLAR_WEIGHTS["quality"]) * 100, 2),
+            places=1,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
