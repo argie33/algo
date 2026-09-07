@@ -15,6 +15,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_earnings_per_share_from_continuing_discontinued_split,
     _fill_eps_shares_from_dual_class_dimensional_facts,
     _fill_income_tax_expense_from_current_deferred_split,
+    _fill_operating_income_from_revenue_minus_cogs_and_opex,
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
     _fill_pretax_income_from_domestic_foreign_split,
     _fill_pretax_income_from_results_of_operations_when_validated,
@@ -438,6 +439,16 @@ def get_income_statement(
         # reports both.
         "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
         "CostOfGoodsSoldExcludingDepreciationDepletionAndAmortization",
+        # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep,
+        # operating_income_not_itemized investigation): Casey's General Stores (CASY, CIK
+        # 0000726958, $17.5B FY2026 revenue convenience-store/gas retailer) splits COGS into
+        # this D&A-only component (FY2026 $449.958M) SEPARATE from the ex-D&A COGS above
+        # (FY2026 $13.240B) - live-confirmed via real companyfacts JSON. Fallback-only (see
+        # _fill_operating_income_from_revenue_minus_cogs_and_opex() below), only ever
+        # consumed by that derivation, never mapped to the plain "cost_of_revenue" column
+        # directly (CASY's ex-D&A COGS concept above already covers the dominant cost
+        # component on its own; this D&A slice is additive, not a replacement).
+        "CostOfGoodsAndServicesSoldDepreciationAndAmortization",
         # FIXED 2026-08-31 (same sweep): live-events/venue-based filers tag their pass-through
         # artist/venue/ticketing costs under this concept instead of any concept above - live-
         # confirmed Live Nation Entertainment (LYV, $23B market cap): zero data under every
@@ -476,10 +487,27 @@ def get_income_statement(
         # Revenues=$3,115,515,000/CostsAndExpenses=$2,283,825,000, ARDT FY2025
         # Revenues=$6,324,339,000/CostsAndExpenses=$6,037,981,000, both yielding a plausible
         # operating margin once subtracted. "OperatingExpenses" (the sibling concept) is
-        # deliberately NOT re-added - not re-verified against this new evidence, no known
-        # real filer needing it. See _fill_operating_income_from_revenue_minus_costs_and_
+        # deliberately NOT re-added at the time - not re-verified against this new evidence,
+        # no known real filer needing it. See _fill_operating_income_from_revenue_minus_costs_and_
         # expenses() below for the derivation - fallback-only, only fires when
         # OperatingIncomeLoss is absent for that fiscal year.
+        #
+        # RE-ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep,
+        # operating_income_not_itemized investigation): now verified against a real filer.
+        # Casey's General Stores (CASY, $17.5B FY2026 revenue) reports real "Revenues" and a
+        # real "OperatingExpenses" total (FY2026 $2.837B) but tags NO "OperatingIncomeLoss"/
+        # "CostsAndExpenses" concept at all - live-confirmed via real companyfacts JSON.
+        # Unlike RRC/ARDT's single combined CostsAndExpenses line, CASY's OperatingExpenses is
+        # ONLY the non-COGS opex portion - real operating_income = Revenues - (COGS ex-D&A) -
+        # (COGS D&A) - OperatingExpenses = $17,561,101,000 - $13,240,060,000 - $449,958,000 -
+        # $2,837,426,000 = $1,033,657,000, a 5.9% operating margin, plausible for a low-margin
+        # convenience-store/fuel retailer (vs. an implausible 84% if OperatingExpenses alone
+        # were subtracted from revenue, which is why this concept stayed unmapped for years -
+        # it is genuinely not usable alone, only as one term of a 4-value sum). See
+        # _fill_operating_income_from_revenue_minus_cogs_and_opex() below for the derivation -
+        # fallback-only, requires ALL FOUR real values present, never overwrites a real
+        # OperatingIncomeLoss/CostsAndExpenses-derived value.
+        "OperatingExpenses",
         "CostsAndExpenses",
         "GrossProfit",
         "OperatingIncomeLoss",
@@ -752,6 +780,7 @@ def get_income_statement(
     _fill_pretax_income_from_domestic_foreign_split(rows)
     _fill_pretax_income_from_results_of_operations_when_validated(rows)
     _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
+    _fill_operating_income_from_revenue_minus_cogs_and_opex(rows)
     if period == "annual":
         _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol, security_name)
     return rows

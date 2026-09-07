@@ -285,3 +285,53 @@ def _fill_operating_income_from_revenue_minus_costs_and_expenses(rows: list[dict
         if revenue is None:
             continue
         row["operating_income_loss"] = revenue - costs_and_expenses
+
+
+def _fill_operating_income_from_revenue_minus_cogs_and_opex(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: operating_income = Revenues - (COGS ex-D&A) - (COGS D&A) -
+    OperatingExpenses, for single-step-format filers that split cost of revenue into two
+    separate D&A/ex-D&A concepts and report a real OperatingExpenses total, but never tag
+    OperatingIncomeLoss or CostsAndExpenses at all.
+
+    Live-confirmed via real SEC companyfacts JSON: Casey's General Stores (CASY, CIK
+    0000726958, $17.5B FY2026 revenue convenience-store/gas retailer) reports real "Revenues"
+    ($17,561,101,000 FY2026), real "CostOfGoodsAndServiceExcludingDepreciationDepletionAnd
+    Amortization" ($13,240,060,000), real "CostOfGoodsAndServicesSoldDepreciationAnd
+    Amortization" ($449,958,000), and real "OperatingExpenses" ($2,837,426,000) but tags NO
+    OperatingIncomeLoss/CostsAndExpenses concept anywhere in its filing history. Subtracting
+    all three cost terms from revenue yields $1,033,657,000 - a 5.9% operating margin,
+    plausible for a low-margin convenience/fuel retailer (vs. an implausible ~84% if
+    OperatingExpenses alone were treated as total costs, which is exactly why this concept
+    was correctly left unmapped on its own for so long - see get_income_statement()'s
+    "OperatingExpenses" concept comment).
+
+    Deliberately requires ALL FOUR real values (revenue + both COGS components +
+    OperatingExpenses) - a filer missing any one of them gets no derived value rather than a
+    partial, systematically-understated one. Reads (does not pop) the ex-D&A COGS key so
+    load_financial_statements.py's normal field_mapping still maps it to "cost_of_revenue" for
+    every filer, including ones this function doesn't fire for. Writes to
+    "operating_income_loss" (the same raw key the plain OperatingIncomeLoss concept
+    populates - see the sibling function above for why). Never overwrites a real
+    operating_income_loss value (including one this function or the sibling above already
+    filled - whichever runs first wins, and CostsAndExpenges-based derivation runs first).
+    Mutates rows in place and always strips the two raw keys unique to this function.
+    """
+    ex_dda_keys = (
+        "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization",
+        "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization",
+    )
+    for row in rows:
+        operating_expenses = row.pop("operating_expenses", None)
+        cogs_dda = row.pop("cost_of_goods_and_services_sold_depreciation_and_amortization", None)
+        if "operating_income_loss" in row and row["operating_income_loss"] is not None:
+            continue
+        if operating_expenses is None or cogs_dda is None:
+            continue
+        cogs_ex_dda = None
+        for key in ex_dda_keys:
+            if key in row and row[key] is not None:
+                cogs_ex_dda = row[key]
+                break
+        if "revenues" not in row or row["revenues"] is None or cogs_ex_dda is None:
+            continue
+        row["operating_income_loss"] = row["revenues"] - cogs_ex_dda - cogs_dda - operating_expenses
