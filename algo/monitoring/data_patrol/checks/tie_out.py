@@ -330,6 +330,30 @@ class TieOutChecker(BaseCheck):
         but a structural gap in this two-term identity for this capital-structure class. Don't
         spend time trying to "fix" this population via extraction changes without first adding
         a real mezzanine-equity column and loader support.
+
+        NOTE (2026-09-07, goal: stock_scores factor/composite sanity audit): the PROK-style
+        mezzanine-equity population above is NOT the main source of noise on this check - it's
+        a small minority. The dominant cause, live-measured against the local DB: **761/5,078
+        symbols (15.0%) fail this check at the 1% tolerance**, and 85%+ of those have *positive*
+        stockholders_equity (not the PROK pattern's negative equity), including large,
+        well-covered names with material noncontrolling interests (XOM, CVX, KKR, APO, CB, RTX,
+        BLK, NEE, D, ENB, VOYA, FNF, IBKR). Root-caused via a fresh SEC companyfacts pull for
+        XOM: `liabilities`($117,931M) + `stockholders_equity_including_portion_attributable_to_
+        noncontrolling_interest`($115,392M) = `assets`($233,323M) EXACTLY, but this schema's
+        `stockholders_equity` column stores the narrower parent-only concept ($110,569M for the
+        same year) - a ~$4.8B gap that's just NCI, not a data error. Same class as the
+        mezzanine-equity gap above (this schema has no noncontrolling-interest column at all),
+        just far more common: any company with a material NCI position - JVs, consolidated
+        funds (KKR/APO), partial subsidiaries - trips this, not only the exotic Up-C/SPAC shape.
+        A real fix would add a `noncontrolling_interest` column (annual + quarterly balance
+        sheet) populated from `StockholdersEquityIncludingPortionAttributableToNoncontrolling
+        Interest` minus `StockholdersEquity` (or the direct `MinorityInterest` concept where
+        tagged) and extend this check's identity to `assets == liabilities + stockholders_equity
+        + noncontrolling_interest` - not attempted this session (touches
+        load_financial_statements.py, which a concurrent session was actively mid-fix on for an
+        unrelated critical bug at the time this was found - high collision risk to attempt
+        alongside that). Until that lands, treat this check's WARN rate as expected to run much
+        higher (~15%) than its other siblings' (<1%) - that's this known gap, not a regression.
         """
         try:
             cur.execute(
