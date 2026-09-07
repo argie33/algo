@@ -28,6 +28,7 @@
   "us-gaap:DeferredTaxLiabilities": "Deferred-tax footnote schedule component, same as above",
   "us-gaap:DeferredTaxLiabilitiesOther": "Deferred-tax footnote schedule component, same as above",
   "us-gaap:DeferredTaxLiabilitiesPropertyPlantAndEquipment": "Deferred-tax footnote schedule component, same as above",
+  "us-gaap:EarningsPerShareBasicAndDiluted": "Verified via full companyfacts cache scan (5,373 files): zero companies tag ONLY this combined concept without also tagging the separate EarningsPerShareBasic/EarningsPerShareDiluted we already fetch - every filer that uses it also has the two separate tags. Not a coverage gap.",
   "us-gaap:EffectiveIncomeTaxRateContinuingOperations": "Derivable from income_tax_expense/pretax_income already stored - not a new primary-statement fact",
   "us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization": "Intangible-asset footnote schedule component - not a primary statement line",
   "us-gaap:FiniteLivedIntangibleAssetsAmortizationExpenseNextTwelveMonths": "Forward amortization schedule footnote line - not a primary statement line",
