@@ -12,6 +12,7 @@ current+deferred split, validated pretax-income promotion, and derived operating
 from typing import Any
 
 from utils.external.sec_income_statement_fallbacks import (
+    _fill_cost_of_revenue_from_other_operating_cost,
     _fill_earnings_per_share_from_continuing_discontinued_split,
     _fill_eps_shares_from_dual_class_dimensional_facts,
     _fill_income_tax_expense_from_current_deferred_split,
@@ -449,6 +450,19 @@ def get_income_statement(
         # directly (CASY's ex-D&A COGS concept above already covers the dominant cost
         # component on its own; this D&A slice is additive, not a replacement).
         "CostOfGoodsAndServicesSoldDepreciationAndAmortization",
+        # ADDED 2026-09-07 (goal session: stock_scores factor audit + tie-out CI sweep,
+        # gross_profit_identity live triage): Tetra Tech (TTEK, CIK 0000831641, $5.44B FY2025
+        # revenue environmental/engineering consulting firm) tags real subcontractor/pass-
+        # through project costs under this concept ($3.656B FY2025) SEPARATE from its main
+        # CostOfGoodsAndServicesSold ($825.23M) - live-confirmed via real SEC companyfacts
+        # JSON: only their SUM ($4.481B) reconciles with TTEK's own filed GrossProfit
+        # ($961.344M = $5.4426B revenue - $4.481B, exact to the dollar). Checked AECOM/Jacobs
+        # Engineering (peer engineering-services filers) for the same shape - neither tags
+        # this concept at all, so this isn't a blanket industry pattern; kept additive-only
+        # (see _fill_cost_of_revenue_from_other_operating_cost() below) rather than mapped
+        # directly to "cost_of_revenue" via field_mapping, same discipline as CASY's D&A
+        # component above - a filer without this concept is completely unaffected.
+        "OtherCostOfOperatingRevenue",
         # FIXED 2026-08-31 (same sweep): live-events/venue-based filers tag their pass-through
         # artist/venue/ticketing costs under this concept instead of any concept above - live-
         # confirmed Live Nation Entertainment (LYV, $23B market cap): zero data under every
@@ -775,6 +789,7 @@ def get_income_statement(
     rows = _aggregate_concepts(
         client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES, dei_aliases=_INCOME_DEI_ALIASES
     )
+    _fill_cost_of_revenue_from_other_operating_cost(rows)
     _fill_earnings_per_share_from_continuing_discontinued_split(rows)
     _fill_income_tax_expense_from_current_deferred_split(rows)
     _fill_pretax_income_from_domestic_foreign_split(rows)
