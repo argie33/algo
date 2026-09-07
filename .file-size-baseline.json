@@ -138,6 +138,7 @@
   "algo/reporting/notifications.py": 427,
   "algo/reporting/performance.py": 758,
   "algo/research/all_pillars_curve_vs_percentile_sweep_20260828.py": 462,
+  "algo/research/bank_insurer_utility_curve_vs_percentile_20260907.py": 309,
   "algo/research/barra_style_neutralized_composite_20260907.py": 387,
   "algo/research/composite_new_data_source_candidates_20260831.py": 322,
   "algo/research/composite_percentile_and_interaction_test_20260831.py": 244,
