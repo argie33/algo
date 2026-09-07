@@ -51,6 +51,17 @@ easy to mistake for the loader/data problem you were actually trying to reproduc
 exercise phase logic for a historical date outside real market hours, set
 `ALLOW_OUTSIDE_MARKET_HOURS=true` in the environment first.
 
+**Phase 1 now halts if DataPatrol hasn't run recently (FIXED 2026-09-07).** `algo/orchestrator/
+phase1_data_freshness.py`'s `_check_data_patrol_results` queries `data_patrol_log` for the
+latest DataPatrol run and halts if it's missing, more than 8h stale, or has any CRITICAL/ERROR
+finding (tie-out identity checks, staleness, XBRL concept gaps, statistical anomalies - the
+whole DataPatrol suite). In production this is always fresh (terraform's pipeline DAG runs the
+DataPatrol ECS step immediately before triggering the orchestrator), but
+`scripts/run_local_orchestrator.py` never invokes DataPatrol itself — run
+`python algo/algo_data_patrol.py` first, or set `ALLOW_MISSING_DATA_PATROL=true` (local/dev
+only; forced off in `execution_mode="auto"` regardless, same as `ALLOW_OUTSIDE_MARKET_HOURS`)
+to downgrade a missing/stale patrol run to a warning instead of a halt.
+
 **Troubleshooting data issues:**
 ```bash
 python scripts/monitor_data_staleness.py               # Check freshness

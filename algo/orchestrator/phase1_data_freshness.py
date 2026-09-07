@@ -41,6 +41,7 @@ Phases should NOT convert run_date to UTC or use UTC timestamps for trading logi
 """
 
 import logging
+import os
 import time
 from collections.abc import Callable
 from datetime import date as _date
@@ -732,7 +733,9 @@ def _validate_dependency_freshness(
     return None
 
 
-def _check_data_patrol_results(cur: Any, log_phase_result_fn: Callable[..., Any]) -> PhaseResult | None:
+def _check_data_patrol_results(
+    cur: Any, log_phase_result_fn: Callable[..., Any], allow_missing_patrol: bool = False
+) -> PhaseResult | None:
     """Gate Phase 1 on the most recent DataPatrol run's findings.
 
     FIX (2026-09-07, goal: XBRL/tie-out data-confidence audit): this module's own docstring
@@ -749,16 +752,23 @@ def _check_data_patrol_results(cur: Any, log_phase_result_fn: Callable[..., Any]
     EPS/cashflow identity checks and the new XBRL-concept/statistical-anomaly checkers all write
     to this same table - all of it was advisory-only in practice despite the documented intent.
 
-    Deliberately conservative on the fail-open half of that terraform comment ("if patrol
-    itself errors, pipeline continues... Phase 1 passes vacuously"): only escalates to a
-    warning, not a halt, when no recent patrol run is found, rather than hard-blocking Phase 1
-    - this codebase has a documented history of stale-data freshness gates causing real
-    false-positive halts (see _validate_dependency_freshness's 2026-08-18 downgrade above), and
-    it's unconfirmed whether every local/dev orchestrator invocation runs DataPatrol first.
-    Halting on missing patrol data is a reasonable next step once that's confirmed safe.
+    CLOSES the fail-open half of that terraform comment too ("if patrol itself errors,
+    pipeline continues... Phase 1 passes vacuously"): missing or stale patrol data now halts
+    by default, same as CRITICAL/ERROR findings - a patrol infra crash/timeout must not read
+    as "nothing to report". Confirmed safe to make this the default: terraform's pipeline
+    DAG always runs the DataPatrol ECS step immediately before TriggerOrchestrator
+    (terraform/modules/pipeline/main.tf), so production Phase 1 always has a fresh patrol run
+    to read - the only way this branch fires in production is the exact infra failure it
+    exists to catch. scripts/run_local_orchestrator.py, confirmed via grep, never invokes
+    DataPatrol itself, so local/dev runs need `python algo/algo_data_patrol.py` run first (see
+    CLAUDE.md) or ALLOW_MISSING_DATA_PATROL=true set explicitly - mirrors the
+    ALLOW_OUTSIDE_MARKET_HOURS pattern (algo/orchestration/orchestrator.py): opt-in only,
+    forced off in execution_mode="auto" (live trading) by the caller in run() below regardless
+    of the env var, so it can never mask a real production patrol outage.
 
-    Returns: PhaseResult halt if the latest patrol run has CRITICAL or ERROR findings,
-    None otherwise (including "no patrol data at all", which only logs a warning).
+    Returns: PhaseResult halt if the latest patrol run has CRITICAL/ERROR findings, or if no
+    sufficiently-recent patrol run exists (unless allow_missing_patrol=True downgrades the
+    latter to a warning). None if the latest run is fresh and clean.
     """
     patrol_freshness_hours = (
         8  # generous: pipeline runs ~4x/day per CLAUDE.md's morning/afternoon/preclose/evening phases
@@ -767,23 +777,48 @@ def _check_data_patrol_results(cur: Any, log_phase_result_fn: Callable[..., Any]
         cur.execute("SELECT patrol_run_id, created_at FROM data_patrol_log ORDER BY created_at DESC LIMIT 1")
         latest = cur.fetchone()
         if not latest:
-            logger.warning(
-                "[PHASE 1] DataPatrol WARNING: data_patrol_log has no rows at all - cannot verify data quality."
+            msg = "data_patrol_log has no rows at all - cannot verify data quality"
+            if allow_missing_patrol:
+                logger.warning(f"[PHASE 1] DataPatrol WARNING: {msg}. Not halting (ALLOW_MISSING_DATA_PATROL=true).")
+                log_phase_result_fn(1, "data_patrol_check", "warning", msg)
+                return None
+            logger.error(f"[PHASE 1] DataPatrol HALT: {msg}.")
+            log_phase_result_fn(1, "data_patrol_check", "halt", msg)
+            return PhaseResult(
+                1,
+                "data_patrol_check",
+                "halted",
+                {"reason": "no_patrol_data"},
+                True,
+                f"{msg}. Halting rather than trade with zero data-quality verification. Run "
+                "`python algo/algo_data_patrol.py` first, or set ALLOW_MISSING_DATA_PATROL=true "
+                "for local/dev testing only.",
             )
-            log_phase_result_fn(1, "data_patrol_check", "warning", "data_patrol_log empty - patrol may never have run")
-            return None
 
         latest_run_id, latest_created_at = latest
         cur.execute("SELECT NOW() - %s", (latest_created_at,))
         age = cur.fetchone()[0]
         if age > _timedelta(hours=patrol_freshness_hours):
-            logger.warning(
-                f"[PHASE 1] DataPatrol WARNING: most recent patrol run ({latest_created_at}) is "
-                f"{age} old, past the {patrol_freshness_hours}h freshness window - cannot verify "
-                "current data quality. Not halting (see this function's docstring)."
+            msg = (
+                f"most recent patrol run ({latest_created_at}) is {age} old, past the "
+                f"{patrol_freshness_hours}h freshness window - cannot verify current data quality"
             )
-            log_phase_result_fn(1, "data_patrol_check", "warning", f"latest patrol run stale: {age} old")
-            return None
+            if allow_missing_patrol:
+                logger.warning(f"[PHASE 1] DataPatrol WARNING: {msg}. Not halting (ALLOW_MISSING_DATA_PATROL=true).")
+                log_phase_result_fn(1, "data_patrol_check", "warning", msg)
+                return None
+            logger.error(f"[PHASE 1] DataPatrol HALT: {msg}.")
+            log_phase_result_fn(1, "data_patrol_check", "halt", msg)
+            return PhaseResult(
+                1,
+                "data_patrol_check",
+                "halted",
+                {"reason": "stale_patrol_data", "latest_run_id": latest_run_id, "age": str(age)},
+                True,
+                f"{msg}. Halting rather than trade with unverified data. Run "
+                "`python algo/algo_data_patrol.py` first, or set ALLOW_MISSING_DATA_PATROL=true "
+                "for local/dev testing only.",
+            )
 
         cur.execute(
             """
@@ -1134,10 +1169,22 @@ def run(  # noqa: C901 -- inherently a long sequential gate (11 early-return hal
 
     # DATA PATROL GATE (2026-09-07 fix - see _check_data_patrol_results docstring): the most
     # recent DataPatrol run's tie-out/staleness/XBRL/statistical-anomaly findings now actually
-    # block trading on CRITICAL/ERROR, closing a gap where this was documented but never wired.
+    # block trading on CRITICAL/ERROR, and missing/stale patrol data halts too by default -
+    # closing a gap where both were documented as blocking but never wired at all. Mirrors
+    # ALLOW_OUTSIDE_MARKET_HOURS (algo/orchestration/orchestrator.py): opt-in local/dev escape
+    # hatch, forced off in live trading regardless of the env var so it can never mask a real
+    # production patrol outage.
+    allow_missing_patrol = os.environ.get("ALLOW_MISSING_DATA_PATROL", "false").lower() == "true"
+    if config.get("execution_mode") == "auto" and allow_missing_patrol:
+        logger.critical(
+            "[PHASE 1] ALLOW_MISSING_DATA_PATROL is set but execution_mode='auto' (live "
+            "trading) - ignoring it. This bypass is for local/dev testing only and is never "
+            "honored in live mode."
+        )
+        allow_missing_patrol = False
     try:
         with DatabaseContext("read") as patrol_check_cur:
-            patrol_halt = _check_data_patrol_results(patrol_check_cur, log_phase_result_fn)
+            patrol_halt = _check_data_patrol_results(patrol_check_cur, log_phase_result_fn, allow_missing_patrol)
             if patrol_halt:
                 return patrol_halt
     except Exception as e:
