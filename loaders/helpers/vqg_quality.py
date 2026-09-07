@@ -2154,11 +2154,31 @@ class QualityMetricsMixin(SymbolGateMixin):
             # Debt-to-Equity score: inverted (lower leverage = higher score), 0.5 maps to 75,
             # 1.0 to 50, 2.0+ to 0. Negative D/E (negative book equity, real financial distress)
             # floors to 0 rather than inverting into a spuriously high score.
+            #
+            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit): this
+            # industrial-leverage curve was being fed the SAME debt_to_equity value the
+            # depository-bank/insurance-underwriter override above deliberately inflates by
+            # using total_liabilities (deposits/policy reserves) as the debt numerator - see
+            # that override's comment. A deposit-funded bank sits at 8-15x by construction
+            # (JPM/BAC/WFC live-verified at 10.25/11.21/10.85), so the 2.0-floors-to-0 curve
+            # zeroed this component for essentially every bank/insurer in the universe
+            # regardless of actual balance-sheet health, dragging down ~25-27% of their
+            # Quality safety_cluster_score (see the Financial Services/Real Estate branch
+            # below) no matter how well-capitalized they actually were. The curve's breakpoints
+            # were never recalibrated when the metric definition changed for these two sectors.
+            # Separate curves below, scaled to each sector's typical deposit/reserve-inclusive
+            # range (banks ~8-15x, insurers ~2.5-11.5x per the override comment's live-verified
+            # figures) rather than the industrial 0.5/1.0/2.0x scale.
             debt_to_equity_val = metrics.get("debt_to_equity")
+            _symbol_industry_for_de = self._get_symbol_industry(symbol)
             if debt_to_equity_val is None:
                 debt_to_equity_score = None
             elif debt_to_equity_val < 0:
                 debt_to_equity_score = 0.0
+            elif _symbol_industry_for_de in _owner().DEPOSITORY_BANK_INDUSTRIES:
+                debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 20.0) * 100.0))
+            elif _symbol_industry_for_de in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
+                debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 12.0) * 100.0))
             else:
                 debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 2.0) * 100.0))
             # Margin volatility (QMJ 2013 Safety leg proxy): precomputed by the caller from
