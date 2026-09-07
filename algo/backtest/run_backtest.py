@@ -321,6 +321,47 @@ def _get_prices_batch(symbols: list[str], target_date: date) -> dict[str, float]
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch prices for symbols: {e}") from e
 
 
+def _get_avg_dollar_volume_batch(symbols: list[str], as_of_date: date) -> dict[str, float]:
+    """20-trading-day trailing average dollar volume (volume * close) as of as_of_date,
+    batched across symbols - same windowing/methodology as position_sizer.py's live
+    max_pct_of_adv_dollars check (20 most recent rows strictly before as_of_date), for the
+    optional participation-rate cap in run_backtest() below.
+
+    REAL-MONEY-READINESS FINDING (2026-09-06 audit): live position_sizer.py enforces this
+    cap but the backtest never modeled it at all, so a backtest could simulate a position
+    size live trading would never actually be allowed to take on a thin name - overstating
+    achievable backtested returns for that subset of trades. Opt-in (max_pct_of_adv_dollars
+    param, default None) matching every other backstop's introduction pattern in this
+    codebase, so existing callers/tests see zero behavior change unless they explicitly ask
+    for ADV-capped parity.
+
+    A symbol absent from the result has no resolvable 20-day window (new listing, data gap)
+    - the caller must treat that as "cannot check, don't cap" rather than a rejection, same
+    fail-open convention as position_sizer.py's own missing-ADV-reading handling.
+    """
+    if not symbols:
+        raise ValueError("symbols list cannot be empty for backtest avg dollar volume fetch")
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol, AVG(volume * close) AS avg_dollar_vol
+                FROM (
+                    SELECT symbol, volume, close,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                    FROM price_daily
+                    WHERE symbol = ANY(%s) AND date < %s
+                ) recent
+                WHERE rn <= 20
+                GROUP BY symbol
+                """,
+                (symbols, as_of_date),
+            )
+            return {r[0]: float(r[1]) for r in cur.fetchall() if r[1] is not None}
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch avg dollar volume for symbols: {e}") from e
+
+
 def run_backtest(  # noqa: C901
     start_date: date,
     end_date: date,
@@ -335,6 +376,7 @@ def run_backtest(  # noqa: C901
     slippage_bps: float = DEFAULT_SLIPPAGE_BPS,
     rank_by: str = "signal_quality_score",
     base_risk_pct: float | None = None,
+    max_pct_of_adv_dollars: float | None = None,
 ) -> dict[str, Any]:
     """Run backtest and return results dict.
 
@@ -411,6 +453,19 @@ def run_backtest(  # noqa: C901
     hold) are unaffected by design - those are level-based and continuously monitored in
     live exit_engine.py, not gated on the once-daily signal batch the way BUY/SELL signals
     are, so same-day detection-and-action remains correct for them.
+
+    PARTICIPATION-RATE CAP (added 2026-09-06, real-money-readiness audit): live
+    position_sizer.py's optional max_pct_of_adv_dollars cap (a candidate position can't
+    exceed N% of the symbol's own 20-day average dollar volume) was never modeled here at
+    all - a backtest could simulate a position size live trading would never actually be
+    allowed to take on a thin name, overstating achievable backtested returns for that
+    subset of trades. Opt-in (default None, matching every other backstop's introduction
+    pattern in this codebase) - pass the same value configured live (algo_config's
+    max_pct_of_adv_dollars, 5.0 by default as of this fix) for realistic parity. Uses the
+    identical 20-trading-day trailing window/methodology as the live check
+    (_get_avg_dollar_volume_batch mirrors position_sizer.py's own query). A symbol with no
+    resolvable 20-day window (new listing, data gap) is not capped - fails open, same
+    convention as the live check's own missing-ADV-reading handling.
     """
     # CRITICAL: Validate initial capital is positive (required for all P&L calculations)
     if initial_capital is None or initial_capital <= 0:
@@ -537,6 +592,11 @@ def run_backtest(  # noqa: C901
             buy_signals = _get_daily_buy_signals(prev_sim_date, min_composite, rank_by=rank_by)
             candidate_symbols = [s["symbol"] for s in buy_signals if s["symbol"] not in positions]
             fill_prices = _get_prices_batch(candidate_symbols, sim_date) if candidate_symbols else {}
+            adv_by_symbol = (
+                _get_avg_dollar_volume_batch(candidate_symbols, sim_date)
+                if candidate_symbols and max_pct_of_adv_dollars is not None
+                else {}
+            )
 
             for sig in buy_signals:
                 symbol = sig["symbol"]
@@ -572,6 +632,17 @@ def run_backtest(  # noqa: C901
                     position_dollars = min(cap_dollars, risk_based_dollars)
                 else:
                     position_dollars = cap_dollars
+
+                # PARTICIPATION-RATE CAP (see run_backtest()'s own docstring) - applied after
+                # every other cap, same as position_sizer.py's own cap-then-clamp ordering,
+                # so it can only shrink the position further, never grow it past the caps
+                # above. A symbol with no resolvable ADV reading is not capped (fails open).
+                if max_pct_of_adv_dollars is not None:
+                    avg_dollar_vol = adv_by_symbol.get(symbol)
+                    if avg_dollar_vol is not None:
+                        max_adv_dollars = avg_dollar_vol * max_pct_of_adv_dollars / 100
+                        position_dollars = min(position_dollars, max_adv_dollars)
+
                 shares = int(position_dollars / entry_price)
 
                 if shares < 1:
