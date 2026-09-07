@@ -72,7 +72,7 @@ import logging
 from typing import Any
 
 from ..base import BaseCheck, CheckResult
-from ..config import WARN
+from ..config import ERROR, WARN
 
 logger = logging.getLogger(__name__)
 
@@ -233,6 +233,12 @@ class TieOutChecker(BaseCheck):
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] balance_sheet_identity failed: {e}", exc_info=True)
+            self.log(
+                "balance_sheet_identity",
+                ERROR,
+                "annual_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
 
     def check_cashflow_reconciliation(self, cur: Any) -> None:
         """prior_year cash_and_equivalents + OCF + ICF + FCF ~= current_year cash_and_equivalents.
@@ -316,6 +322,12 @@ class TieOutChecker(BaseCheck):
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] cashflow_reconciliation failed: {e}", exc_info=True)
+            self.log(
+                "cashflow_reconciliation",
+                ERROR,
+                "annual_cash_flow",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
 
     def check_eps_reconciliation(self, cur: Any) -> None:
         """diluted_eps * shares_outstanding_diluted ~= net_income.
@@ -374,6 +386,12 @@ class TieOutChecker(BaseCheck):
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] eps_reconciliation failed: {e}", exc_info=True)
+            self.log(
+                "eps_reconciliation",
+                ERROR,
+                "annual_income_statement",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
 
     def check_gross_profit_identity(self, cur: Any) -> None:
         """revenue - cost_of_revenue ~= gross_profit.
@@ -433,6 +451,12 @@ class TieOutChecker(BaseCheck):
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] gross_profit_identity failed: {e}", exc_info=True)
+            self.log(
+                "gross_profit_identity",
+                ERROR,
+                "annual_income_statement",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
 
     def check_pretax_to_net_income(self, cur: Any) -> None:
         """pretax_income - income_tax_expense ~= net_income.
@@ -490,3 +514,9 @@ class TieOutChecker(BaseCheck):
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] pretax_to_net_income failed: {e}", exc_info=True)
+            self.log(
+                "pretax_to_net_income",
+                ERROR,
+                "annual_income_statement",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )

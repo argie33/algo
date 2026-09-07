@@ -8,7 +8,7 @@ check to one row per symbol instead of re-flagging every historical year forever
 from unittest.mock import MagicMock
 
 from algo.monitoring.data_patrol.checks.tie_out import TieOutChecker
-from algo.monitoring.data_patrol.config import PatrolConfig
+from algo.monitoring.data_patrol.config import ERROR, PatrolConfig
 
 
 def _checker() -> TieOutChecker:
@@ -78,7 +78,9 @@ class TestBalanceSheetIdentity:
         cur.execute.side_effect = RuntimeError("db down")
         checker = _checker()
         checker.check_balance_sheet_identity(cur)  # must not raise
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "balance_sheet_identity"
+        assert checker.results[0].severity == ERROR
 
 
 class TestCashflowReconciliation:
@@ -160,7 +162,9 @@ class TestCashflowReconciliation:
         cur.execute.side_effect = RuntimeError("db down")
         checker = _checker()
         checker.check_cashflow_reconciliation(cur)  # must not raise
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "cashflow_reconciliation"
+        assert checker.results[0].severity == ERROR
 
 
 class TestEpsReconciliation:
@@ -219,7 +223,9 @@ class TestEpsReconciliation:
         cur.execute.side_effect = RuntimeError("db down")
         checker = _checker()
         checker.check_eps_reconciliation(cur)  # must not raise
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "eps_reconciliation"
+        assert checker.results[0].severity == ERROR
 
 
 class TestGrossProfitIdentity:
@@ -273,7 +279,9 @@ class TestGrossProfitIdentity:
         cur.execute.side_effect = RuntimeError("db down")
         checker = _checker()
         checker.check_gross_profit_identity(cur)  # must not raise
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "gross_profit_identity"
+        assert checker.results[0].severity == ERROR
 
 
 class TestPretaxToNetIncome:
@@ -327,7 +335,9 @@ class TestPretaxToNetIncome:
         cur.execute.side_effect = RuntimeError("db down")
         checker = _checker()
         checker.check_pretax_to_net_income(cur)  # must not raise
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "pretax_to_net_income"
+        assert checker.results[0].severity == ERROR
 
 
 class TestRunAggregatesAllChecks:
