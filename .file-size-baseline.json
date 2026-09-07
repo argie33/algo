@@ -31,7 +31,7 @@
   "algo/infrastructure/__init__.py": 37,
   "algo/infrastructure/alpaca_broker_adapter.py": 505,
   "algo/infrastructure/alpaca_mock_server.py": 220,
-  "algo/infrastructure/alpaca_sync_manager.py": 853,
+  "algo/infrastructure/alpaca_sync_manager.py": 875,
   "algo/infrastructure/audit_logger.py": 67,
   "algo/infrastructure/broker_adapter.py": 87,
   "algo/infrastructure/config/__init__.py": 35,
