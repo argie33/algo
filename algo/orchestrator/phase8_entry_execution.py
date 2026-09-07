@@ -100,7 +100,12 @@ from algo.orchestrator.phase8_guards import (
 from algo.orchestrator.phase8_preentry_health_check import PreEntryHealthValidator
 from algo.orchestrator.phase_data_contract import ExposureConstraints, QualifiedTrade
 from algo.orchestrator.phase_result import PhaseResult
-from algo.orchestrator.validation_thresholds import MIN_ATR_THRESHOLD, MIN_ENTRY_PRICE, REJECTION_REASON_MAX_LEN
+from algo.orchestrator.validation_thresholds import (
+    MAX_PLAUSIBLE_ENTRY_PRICE_MOVE_PCT,
+    MIN_ATR_THRESHOLD,
+    MIN_ENTRY_PRICE,
+    REJECTION_REASON_MAX_LEN,
+)
 from algo.risk import LiquidityChecks
 from algo.trading.exceptions import DatabaseError
 from algo.trading.executor import TradeExecutor
@@ -823,6 +828,56 @@ def _persist_signals_to_database(qualified_trades: list[QualifiedTrade], run_dat
     except psycopg2.DatabaseError as e:
         logger.error(f"[PERSIST SIGNALS] Database error: {e}", exc_info=True)
         raise RuntimeError(f"[PHASE 8] Failed to persist entry signals: {e}") from e
+
+
+def _batch_fetch_prior_close(symbols: list[str], run_date: _date) -> dict[str, float]:
+    """Fetch each symbol's prior-trading-day close (the row immediately before the one
+    _batch_fetch_technical_data's "close" is drawn from), for the day-over-day price-
+    plausibility gate below.
+
+    REAL-MONEY-READINESS FINDING (2026-09-06 audit): Phase 1 checks table-level
+    freshness/completeness but has no per-symbol day-over-day plausibility check, and
+    data_patrol's check_price_moves (algo/monitoring/data_patrol/checks/price_sanity.py)
+    is a disconnected diagnostic report, never wired into any trading decision. A non-null
+    but garbage price (bad print, stale cache, decimal-shift error) would pass Phase 1 and
+    flow straight into position sizing with nothing to catch it. This closes that gap for
+    the one place it matters most: right before a candidate's entry_price is used to size
+    a real order.
+
+    Returns only symbols with a resolvable prior close - a symbol with no second row
+    (new listing, data gap) is simply absent from the result and the caller must treat
+    "no prior close available" as "cannot check, don't block" rather than a rejection.
+    """
+    if not symbols:
+        # No candidates to check - not an error, nothing to process, correctly represented
+        # as an empty map rather than a data-unavailable marker (there is no missing data
+        # here, just zero symbols to look up).
+        return {}
+    placeholders = ",".join(["%s"] * len(symbols))
+    with DatabaseContext("read") as cur:
+        cur.execute(
+            f"""
+            SELECT symbol, close
+            FROM (
+                SELECT symbol, close,
+                       ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                FROM price_daily
+                WHERE symbol IN ({placeholders}) AND date <= %s
+            ) ranked
+            WHERE rn = 2
+            """,
+            [*symbols, run_date],
+        )
+        prior_close: dict[str, float] = {}
+        for row in cur.fetchall():
+            sym = row.get("symbol") if isinstance(row, dict) else row[0]
+            close = row.get("close") if isinstance(row, dict) else row[1]
+            if sym is not None and close is not None:
+                try:
+                    prior_close[sym] = float(close)
+                except (TypeError, ValueError):
+                    continue
+        return prior_close
 
 
 def _batch_fetch_technical_data(
@@ -1996,6 +2051,7 @@ def run(
         }
 
     technical_data = _batch_fetch_technical_data(symbols_with_precomputed, run_date)
+    prior_close_by_symbol = _batch_fetch_prior_close(list(symbols_with_precomputed.keys()), run_date)
 
     def _is_valid_numeric(v: Any) -> bool:
         return isinstance(v, (int, float)) and not isinstance(v, bool)
@@ -2308,6 +2364,49 @@ def run(
                             None,
                         )
                         continue
+
+                    # PRICE-PLAUSIBILITY GATE (2026-09-06 real-money-readiness audit): entry_price
+                    # above comes straight from price_daily.close with no cross-check against the
+                    # prior day's close - a bad print, stale cache, or decimal-shift error would
+                    # pass Phase 1 (table-level freshness/completeness only, not per-symbol
+                    # plausibility) and size a real order off garbage data. Skip (not raise) - a
+                    # single symbol's implausible print is a per-symbol data-quality signal, not
+                    # something that should halt the rest of Phase 8's real candidates. No prior
+                    # close available (new listing, data gap) means "cannot check" - fail open on
+                    # that specific symbol rather than blocking every recent listing.
+                    prior_close = prior_close_by_symbol.get(str(symbol))
+                    if prior_close is not None and prior_close > 0:
+                        move_pct = abs(entry_price - prior_close) / prior_close * 100
+                        if move_pct > MAX_PLAUSIBLE_ENTRY_PRICE_MOVE_PCT:
+                            skipped_reason_counts["implausible_price_move"] = (
+                                skipped_reason_counts.get("implausible_price_move", 0) + 1
+                            )
+                            reject_msg = (
+                                f"implausible_price_move: {symbol} entry_price={entry_price} vs "
+                                f"prior_close={prior_close} ({move_pct:.0f}% > "
+                                f"{MAX_PLAUSIBLE_ENTRY_PRICE_MOVE_PCT:.0f}% max)"
+                            )
+                            logger.critical(f"[PHASE 8] {reject_msg} - skipping, likely bad data not a real move")
+                            try:
+                                from algo.reporting import notify
+
+                                notify(
+                                    "CRITICAL",
+                                    "Implausible entry price rejected",
+                                    reject_msg,
+                                    symbol=str(symbol),
+                                )
+                            except Exception as notify_err:
+                                logger.error(f"[PHASE 8] Failed to send implausible-price alert: {notify_err}")
+                            _log_signal_rejection(
+                                symbol,
+                                "concentration_prefilter",
+                                reject_msg,
+                                run_date,
+                                signal_entry_price_hint,
+                                None,
+                            )
+                            continue
 
                     stop_loss = _calculate_dynamic_stop_loss(entry_price, atr, sma_50)
 

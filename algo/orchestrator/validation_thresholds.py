@@ -58,6 +58,20 @@ MIN_SMA_50_THRESHOLD = 0.0  # SMA must be positive (> 0)
 # arbitrary number.
 MIN_ENTRY_PRICE = 5.0
 
+# Maximum plausible single-day price move (%) before an entry candidate's price is
+# treated as data-quality garbage rather than a real market move, and skipped rather
+# than sized. ADDED (2026-09-06 real-money-readiness audit): entry_price flowed
+# straight from price_daily.close into position sizing with no cross-check against the
+# prior day's close - a bad print, stale cache, or decimal-shift error would pass Phase
+# 1 (which checks table-level freshness/completeness, not per-symbol plausibility) and
+# size a real order off a garbage price. 300% is deliberately wide: it must never reject
+# a genuine outsized move (biotech trial results, M&A announcements, short squeezes can
+# legitimately move 50-150%+ in a session) while still catching the actual failure modes
+# this guards against (a 10x/100x decimal-shift error, or a stale/frozen price next to a
+# real one differing by orders of magnitude) - this is a garbage-data filter, not a
+# volatility filter.
+MAX_PLAUSIBLE_ENTRY_PRICE_MOVE_PCT = 300.0
+
 # Maximum number of concurrent open positions
 # RATIONALE: Portfolio risk and monitoring capacity
 MAX_CONCURRENT_POSITIONS = 15
