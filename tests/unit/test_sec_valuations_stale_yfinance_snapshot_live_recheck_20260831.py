@@ -41,7 +41,7 @@ class TestStaleYfinanceSnapshotLiveRecheck:
             "fcf_yield": 0.05,
             "reason": None,
         }
-        with patch.object(loader, "_fetch_live_fpi_yfinance_check_values", return_value=(6_000_000_000.0, None)):
+        with patch.object(loader, "_fetch_live_fpi_yfinance_check_values", return_value=(6_000_000_000.0, None, None)):
             loader._sanity_check_market_cap("AMRN", result, 312_020_320.0, yf_market_cap_is_live=False)
 
         assert result["market_cap"] == 5_860_000_000.0
@@ -59,7 +59,7 @@ class TestStaleYfinanceSnapshotLiveRecheck:
             "fcf_yield": 0.05,
             "reason": None,
         }
-        with patch.object(loader, "_fetch_live_fpi_yfinance_check_values", return_value=(5_000_000.0, None)):
+        with patch.object(loader, "_fetch_live_fpi_yfinance_check_values", return_value=(5_000_000.0, None, None)):
             loader._sanity_check_market_cap("BADCO", result, 312_020_320.0, yf_market_cap_is_live=False)
 
         assert result["market_cap"] is None
@@ -76,7 +76,9 @@ class TestStaleYfinanceSnapshotLiveRecheck:
             "fcf_yield": 0.05,
             "reason": None,
         }
-        with patch.object(loader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)) as mock_fetch:
+        with patch.object(
+            loader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None, None)
+        ) as mock_fetch:
             loader._sanity_check_market_cap("AMRN", result, 312_020_320.0, yf_market_cap_is_live=False)
 
         mock_fetch.assert_called_once()
@@ -103,7 +105,7 @@ class TestStaleYfinanceSnapshotLiveRecheck:
     def test_pe_ratio_stale_mismatch_rescued_by_live_recheck(self) -> None:
         loader = _make_loader()
         result: dict[str, Any] = {"pe_ratio": 500.0, "peg_ratio": 5.0, "pb_ratio": 3.1, "reason": None}
-        with patch.object(loader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, 60.0)):
+        with patch.object(loader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, 60.0, None)):
             loader._sanity_check_pe_ratio("ONC", result, 1.0, yf_value_is_live=False)
 
         assert result["pe_ratio"] == 500.0
@@ -112,8 +114,58 @@ class TestStaleYfinanceSnapshotLiveRecheck:
     def test_pe_ratio_live_fetch_failure_falls_back_to_stale_table_rejection(self) -> None:
         loader = _make_loader()
         result: dict[str, Any] = {"pe_ratio": 1884.30, "peg_ratio": 5.0, "pb_ratio": 3.1, "reason": None}
-        with patch.object(loader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)):
+        with patch.object(loader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None, None)):
             loader._sanity_check_pe_ratio("ONC", result, 1.0, yf_value_is_live=False)
 
         assert result["pe_ratio"] is None
         assert result["reason"] == "eps_scale_mismatch"
+
+
+class TestYfinanceInternallyInconsistentMarketCapRescuedBySharesOutstanding:
+    """PIII-shaped (2026-09-07, goal: "missing/implausible XBRL to zero" sweep - see
+    shares_outstanding_scale_mismatch_domestic_split_candidates_20260903 in memory): yfinance's
+    live `marketCap` field can itself be wrong/stale even when its own `sharesOutstanding` field
+    is current - live-confirmed via PIII (P3 Health Partners), where marketCap=$1.87B disagrees
+    by ~51x with sharesOutstanding(3,911,962) x price($9.35)=~$36.6M. Cross-checking our
+    SEC-derived shares_outstanding directly against yfinance's own live sharesOutstanding
+    rescues this case without having to decide which of yfinance's two mutually-inconsistent
+    fields to trust for a dollar figure.
+    """
+
+    def test_market_cap_mismatch_rescued_when_shares_outstanding_agree(self) -> None:
+        loader = _make_loader()
+        result: dict[str, Any] = {
+            "market_cap": 30_570_000.0,
+            "shares_outstanding": 3_269_000.0,
+            "pb_ratio": 3.1,
+            "ps_ratio": 2.0,
+            "fcf_yield": 0.05,
+            "reason": None,
+        }
+        with patch.object(
+            loader, "_fetch_live_fpi_yfinance_check_values", return_value=(1_868_774_656.0, None, 3_911_962.0)
+        ):
+            loader._sanity_check_market_cap("PIII", result, 1_000.0, yf_market_cap_is_live=False)
+
+        assert result["market_cap"] == 30_570_000.0
+        assert result["reason"] is None
+
+    def test_market_cap_mismatch_still_nulled_when_shares_outstanding_also_disagree(self) -> None:
+        """A genuine scale mismatch (shares_outstanding itself disagrees too) must still be
+        rejected - this rescue must not blanket-accept every market_cap mismatch."""
+        loader = _make_loader()
+        result: dict[str, Any] = {
+            "market_cap": 5_860_000_000.0,
+            "shares_outstanding": 419_500_000.0,
+            "pb_ratio": 3.1,
+            "ps_ratio": 2.0,
+            "fcf_yield": 0.05,
+            "reason": None,
+        }
+        with patch.object(
+            loader, "_fetch_live_fpi_yfinance_check_values", return_value=(5_000_000.0, None, 5_000_000.0)
+        ):
+            loader._sanity_check_market_cap("BADCO", result, 312_020_320.0, yf_market_cap_is_live=False)
+
+        assert result["market_cap"] is None
+        assert result["reason"] == "shares_outstanding_scale_mismatch"

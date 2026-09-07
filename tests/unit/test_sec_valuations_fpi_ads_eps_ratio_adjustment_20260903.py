@@ -140,7 +140,7 @@ class TestDdiFpiAdsRatioResolvesPeRatio:
             ),
             patch(
                 "loaders.load_sec_valuations.SecValuationsLoader._fetch_live_fpi_yfinance_check_values",
-                return_value=(None, None),
+                return_value=(None, None, None),
             ),
         ):
             result, _ = _run_fetch_incremental("DDI", _DDI_EPS_SHAPED_INCOME_ROWS, fetchone_results)

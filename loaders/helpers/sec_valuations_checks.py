@@ -40,8 +40,8 @@ class ValuationSanityCheckMixin:
             self, symbol: str, current_price: float, book_value: float | None, shares_out: float
         ) -> float | None: ...
 
-    def _fetch_live_fpi_yfinance_check_values(self, symbol: str) -> tuple[float | None, float | None]:
-        """Live market_cap/trailingPE for a foreign private issuer, for sanity-check use only.
+    def _fetch_live_fpi_yfinance_check_values(self, symbol: str) -> tuple[float | None, float | None, float | None]:
+        """Live market_cap/trailingPE/sharesOutstanding for a foreign private issuer, for sanity-check use only.
 
         Never a value source for pe_ratio/market_cap themselves (those stay 100% SEC-derived
         per this file's module docstring) - only used to validate/reject an already-computed
@@ -64,7 +64,7 @@ class ValuationSanityCheckMixin:
                 circuit_breaker.wait_or_raise()
             except YFinanceStillBannedError as e:
                 logger.debug(f"[{symbol}] yfinance shared IP ban active, skipping FPI sanity-check fetch: {e}")
-                return None, None
+                return None, None, None
 
             # FIXED 2026-08-29: fetches via the shared _YfinanceAttrProcessWorker (see
             # utils/external/yfinance_analyst_ratings.py) rather than an in-process
@@ -83,19 +83,21 @@ class ValuationSanityCheckMixin:
                 except Exception:
                     pass
             logger.debug(f"[{symbol}] Live FPI yfinance sanity-check fetch failed (non-fatal): {e}")
-            return None, None
+            return None, None, None
 
         try:
             get_circuit_breaker().report_success()
         except Exception:
             pass
         if not isinstance(info, dict):
-            return None, None
+            return None, None, None
         mcap = info.get("marketCap")
         pe = info.get("trailingPE")
+        shares_out = info.get("sharesOutstanding")
         yf_market_cap = float(mcap) if isinstance(mcap, (int, float)) and mcap > 0 else None
         yf_pe_ratio = float(pe) if isinstance(pe, (int, float)) and pe > 0 else None
-        return yf_market_cap, yf_pe_ratio
+        yf_shares_outstanding = float(shares_out) if isinstance(shares_out, (int, float)) and shares_out > 0 else None
+        return yf_market_cap, yf_pe_ratio, yf_shares_outstanding
 
     # ADDED 2026-08-22 (goal session - real-money-readiness audit): the one narrow, deliberate
     # exception to this file's "SEC data only, yfinance never a value source" rule - see the
@@ -278,12 +280,31 @@ class ValuationSanityCheckMixin:
         # (FPI / >$50B-ceiling tiers) means this IS already a live number - no help there,
         # already the best signal available; keep it as-is and reject as before.
         if not yf_market_cap_is_live:
-            live_mcap, _live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+            live_mcap, _live_pe, live_shares_out = self._fetch_live_fpi_yfinance_check_values(symbol)
             if live_mcap is not None:
                 yf_market_cap = live_mcap
                 ratio = max(market_cap, yf_market_cap) / min(market_cap, yf_market_cap)
                 if ratio <= 10:
                     return
+            # FIXED 2026-09-07 (goal: "missing/implausible XBRL data to zero" sweep - PIII
+            # live-investigated per shares_outstanding_scale_mismatch_domestic_split_
+            # candidates_20260903 in memory, "needs fresh investigation"). yfinance's own
+            # `marketCap` field can be internally inconsistent with its own `sharesOutstanding`
+            # field for a recent-reverse-split/reorg microcap: live-confirmed PIII (P3 Health
+            # Partners) reports marketCap=$1.87B but its OWN sharesOutstanding=3,911,962 times
+            # its OWN price $9.35 implies only ~$36.6M - a ~51x internal self-disagreement
+            # (marketCap evidently still reflects a stale pre-reorg valuation while
+            # sharesOutstanding was updated). Our SEC-derived shares_outstanding (3,269,000)
+            # matches yfinance's own sharesOutstanding within 20% - strong evidence our share
+            # count is right and yfinance's marketCap field, not our data, is the bad number.
+            # Cross-checking shares_outstanding directly sidesteps having to decide which of
+            # yfinance's two mutually-inconsistent fields to trust for a dollar comparison.
+            if live_shares_out is not None:
+                sec_shares_out = result.get("shares_outstanding")
+                if sec_shares_out is not None and sec_shares_out > 0:
+                    shares_ratio = max(sec_shares_out, live_shares_out) / min(sec_shares_out, live_shares_out)
+                    if shares_ratio <= 3:
+                        return
         logger.warning(
             f"[{symbol}] market_cap sanity check failed: SEC-derived=${market_cap:,.0f} vs "
             f"yfinance=${yf_market_cap:,.0f} (ratio {ratio:.0f}x) - shares_outstanding is "
@@ -408,7 +429,7 @@ class ValuationSanityCheckMixin:
         # so an 7-8-week-stale comparison value is just as unreliable here. One bounded live
         # re-check before committing to a rejection.
         if not yf_value_is_live:
-            _live_mcap, live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+            _live_mcap, live_pe, _live_shares_out = self._fetch_live_fpi_yfinance_check_values(symbol)
             if live_pe is not None:
                 yf_pe_ratio = live_pe
                 ratio = max(pe_ratio, yf_pe_ratio) / min(pe_ratio, yf_pe_ratio)

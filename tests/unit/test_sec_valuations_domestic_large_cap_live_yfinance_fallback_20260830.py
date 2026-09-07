@@ -115,7 +115,7 @@ class TestDomesticLargeCapLiveYfinanceFallback:
         with patch.object(
             SecValuationsLoader,
             "_fetch_live_fpi_yfinance_check_values",
-            return_value=(5_000_000_000.0, None),  # live, real, ~100x-mismatched value
+            return_value=(5_000_000_000.0, None, None),  # live, real, ~100x-mismatched value
         ) as mock_live_fetch:
             result = _run_fetch_incremental("BIGCO", _DOMESTIC_INCOME_ROWS, fetchone_results)
 

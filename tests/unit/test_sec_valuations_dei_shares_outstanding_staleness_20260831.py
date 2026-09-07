@@ -118,7 +118,7 @@ class TestDeiSharesOutstandingStalenessRejected:
                 "_fetch_live_fpi_shares_outstanding_yfinance",
                 return_value=1_421_491_965.0,
             ) as mock_fpi_shares_fetch,
-            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)),
+            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None, None)),
         ):
             result = _run_fetch_incremental("ENIC", income_rows, fetchone_results)
 
@@ -164,7 +164,7 @@ class TestDeiSharesOutstandingStalenessRejected:
 
         with (
             patch.object(SecValuationsLoader, "_fetch_live_fpi_shares_outstanding_yfinance") as mock_fpi_shares_fetch,
-            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)),
+            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None, None)),
         ):
             result = _run_fetch_incremental("RECENTDOM", income_rows, fetchone_results)
 
@@ -202,7 +202,7 @@ class TestDeiSharesOutstandingStalenessRejected:
 
         with (
             patch.object(SecValuationsLoader, "_fetch_live_fpi_shares_outstanding_yfinance") as mock_fpi_shares_fetch,
-            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)),
+            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None, None)),
         ):
             result = _run_fetch_incremental("STALEDOM", income_rows, fetchone_results)
 

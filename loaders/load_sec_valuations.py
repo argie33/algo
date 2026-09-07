@@ -1225,7 +1225,7 @@ class SecValuationsLoader(
             # (likely-stale-but-better-than-nothing) table value on any live-fetch error.
             yf_market_cap_is_live = False
             if is_foreign_private_issuer:
-                live_mcap, live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+                live_mcap, live_pe, _live_shares_out = self._fetch_live_fpi_yfinance_check_values(symbol)
                 if live_mcap is not None:
                     yf_market_cap = live_mcap
                     yf_market_cap_is_live = True
@@ -1316,7 +1316,7 @@ class SecValuationsLoader(
             if yf_market_cap is None and not is_foreign_private_issuer:
                 computed_market_cap = valuation_row.get("market_cap")
                 if computed_market_cap is not None and computed_market_cap > 50_000_000_000:
-                    live_mcap, _live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+                    live_mcap, _live_pe, _live_shares_out = self._fetch_live_fpi_yfinance_check_values(symbol)
                     if live_mcap is not None:
                         yf_market_cap = live_mcap
                         yf_market_cap_is_live = True

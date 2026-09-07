@@ -117,7 +117,7 @@ class TestFpiLiveYfinanceSanityCheck:
             patch.object(
                 SecValuationsLoader,
                 "_fetch_live_fpi_yfinance_check_values",
-                return_value=(30_990_489_600.0, None),  # live, fresh, real ~10x-mismatched value
+                return_value=(30_990_489_600.0, None, None),  # live, fresh, real ~10x-mismatched value
             ) as mock_live_fetch,
         ):
             result = _run_fetch_incremental("FPICO", _FPI_WITH_RESOLVED_SHARES_INCOME_ROWS, fetchone_results)
@@ -151,7 +151,7 @@ class TestFpiLiveYfinanceSanityCheck:
             patch.object(
                 SecValuationsLoader,
                 "_fetch_live_fpi_yfinance_check_values",
-                return_value=(None, None),
+                return_value=(None, None, None),
             ),
         ):
             result = _run_fetch_incremental("FPICO2", _FPI_WITH_RESOLVED_SHARES_INCOME_ROWS, fetchone_results)

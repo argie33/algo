@@ -122,7 +122,7 @@ class TestSanityCheckPeRatioTtmRescue:
         mixin = _make_mixin_with_quarters(_RECENT_QUARTERS)  # sums to eps=20.0
         result = {"pe_ratio": 942.0, "current_price": 100.0}  # 100/942 implies eps~0.106 (stale)
         with (
-            patch.object(mixin, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)),
+            patch.object(mixin, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None, None)),
             patch("loaders.helpers.sec_valuations_checks.DatabaseContext", return_value=mixin._fake_ctx),
         ):
             # yf pe_ratio=5.0 -> pe_from_quarters = 100/20.0 = 5.0, reconciles exactly.
@@ -134,7 +134,7 @@ class TestSanityCheckPeRatioTtmRescue:
         mixin = _make_mixin_with_quarters(_RECENT_QUARTERS)  # sums to eps=20.0 -> pe_from_quarters=5.0
         result = {"pe_ratio": 942.0, "current_price": 100.0}
         with (
-            patch.object(mixin, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)),
+            patch.object(mixin, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None, None)),
             patch("loaders.helpers.sec_valuations_checks.DatabaseContext", return_value=mixin._fake_ctx),
         ):
             # yf pe_ratio=60.0: triggers the initial gate (942/60=15.7x) AND still diverges from
@@ -148,7 +148,7 @@ class TestSanityCheckPeRatioTtmRescue:
         mixin = _make_mixin_with_quarters([])
         result = {"pe_ratio": 942.0, "current_price": 100.0}
         with (
-            patch.object(mixin, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)),
+            patch.object(mixin, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None, None)),
             patch("loaders.helpers.sec_valuations_checks.DatabaseContext", return_value=mixin._fake_ctx),
         ):
             mixin._sanity_check_pe_ratio("TEST", result, yf_pe_ratio=5.0, yf_value_is_live=True)
