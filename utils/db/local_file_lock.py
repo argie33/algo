@@ -7,6 +7,8 @@ Used in LOCAL_MODE to avoid AWS DynamoDB permissions issues.
 
 import logging
 import os
+import subprocess
+import sys
 import tempfile
 import time
 from datetime import datetime, timedelta, timezone
@@ -18,6 +20,42 @@ if TYPE_CHECKING:
     from utils.db.rds_lock import RDSLockManager
 
 logger = logging.getLogger(__name__)
+
+
+def _pid_alive(pid: int) -> bool:
+    """Best-effort liveness check, fails safe toward "alive" on any uncertainty.
+
+    ADDED 2026-09-07 (goal: stock_scores audit found company_info_sec's lock blocking
+    financial_statements/valuations for ~9h with no live company_info_sec process anywhere
+    in `tasklist` - this lock's content was just "local-dev|expiry", no PID, so a crashed
+    loader's lock is indistinguishable from a slow-but-alive one until its full per-loader
+    SLA timeout elapses (up to 1440min for prices - loaders/loader_timeout_config.py).
+    scripts/local_loader_scheduler.py's OWN top-level scheduler lock already solved this
+    identical problem back on 2026-08-17 (see that file's `_pid_alive`/`_lock_owner_info`) -
+    this per-loader lock (utils/optimal_loader.py -> get_lock_manager -> FileLockManager,
+    used by every individual loader) never got the same fix. Mirrors that file's
+    implementation exactly rather than importing it, to avoid a script-module <-> utils-
+    package import direction that doesn't otherwise exist in this codebase.
+    """
+    if sys.platform == "win32":
+        try:
+            out = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return str(pid) in out.stdout
+        except Exception:
+            return True
+    else:
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except Exception:
+            return True
 
 
 class FileLockManager:
@@ -88,23 +126,41 @@ class FileLockManager:
                     # Read expiry time from file content - authoritative when present.
                     expiry_str = None
                     is_content_expired = False
+                    owner_dead = False
+                    owner_pid: int | None = None
                     try:
                         with open(lock_file, encoding="utf-8") as f:
                             content = f.read().strip()
-                            # Format: "lock_id|expiry_timestamp"
-                            expiry_str = content.split("|")[1] if "|" in content else None
+                            # Format: "lock_id|expiry_timestamp|pid" (pid added 2026-09-07 -
+                            # older/interop-written lock files may still have only 2 parts)
+                            parts = content.split("|")
+                            expiry_str = parts[1] if len(parts) >= 2 else None
                             if expiry_str:
                                 expiry = datetime.fromisoformat(expiry_str)
                                 # CRITICAL FIX: Ensure both datetimes are timezone-aware for comparison
                                 if expiry.tzinfo is None:
                                     expiry = expiry.replace(tzinfo=timezone.utc)
                                 is_content_expired = now > expiry
+                            if len(parts) >= 3:
+                                try:
+                                    owner_pid = int(parts[2])
+                                    owner_dead = not _pid_alive(owner_pid)
+                                except ValueError:
+                                    owner_pid = None
                     except Exception as parse_err:
                         logger.debug(
                             f"[FILE_LOCK] Could not parse lock file content, treating as not-expired: {parse_err}"
                         )
 
-                    if expiry_str:
+                    if owner_dead:
+                        # Recorded owner PID is confirmed dead - don't wait out the rest of the
+                        # loader's SLA-length TTL (up to 1440min) just because the timestamp
+                        # hasn't elapsed yet. Same reasoning as local_loader_scheduler.py's
+                        # scheduler-level lock fix (2026-08-17): a dead owner can never release
+                        # or renew this lock, so an unexpired-by-timestamp lock is still stale.
+                        should_delete = True
+                        reason = f"owner_pid_{owner_pid}_dead"
+                    elif expiry_str:
                         # Content had a readable expiry - it alone decides staleness. A valid,
                         # still-future TTL (even one hours long) must never be overridden by
                         # file age, since file age says nothing about this lock's own duration.
@@ -160,31 +216,47 @@ class FileLockManager:
             for lock_file in self.lock_dir.glob("*.lock"):
                 try:
                     expiry_str = None
+                    owner_dead = False
+                    owner_pid: int | None = None
                     try:
                         with open(lock_file, encoding="utf-8") as f:
                             content = f.read().strip()
-                            # Format: "lock_id|expiry_timestamp"
-                            expiry_str = content.split("|")[1] if "|" in content else None
-                            if expiry_str:
-                                expiry = datetime.fromisoformat(expiry_str)
-                                if expiry.tzinfo is None:
-                                    expiry = expiry.replace(tzinfo=timezone.utc)
-                                # Content's own recorded TTL is authoritative - delete only if
-                                # it has actually expired, regardless of max_age_seconds/file age.
-                                if now > expiry:
-                                    lock_file.unlink()
-                                    deleted_count += 1
-                                    logger.debug(
-                                        f"[FILE_LOCK] Cleaned expired-TTL lock: {lock_file.name} "
-                                        f"(expiry={expiry.isoformat()} < now={now.isoformat()})"
-                                    )
-                                continue
+                            # Format: "lock_id|expiry_timestamp|pid" (pid added 2026-09-07)
+                            parts = content.split("|")
+                            expiry_str = parts[1] if len(parts) >= 2 else None
+                            if len(parts) >= 3:
+                                try:
+                                    owner_pid = int(parts[2])
+                                    owner_dead = not _pid_alive(owner_pid)
+                                except ValueError:
+                                    owner_pid = None
                     except Exception as parse_err:
                         logger.debug(f"[FILE_LOCK] Could not parse lock content for {lock_file.name}: {parse_err}")
 
+                    # unlink() happens AFTER the file handle above is closed - Windows can't
+                    # delete a file that's still open, which would silently no-op the delete
+                    # if done from inside the `with` block above.
+                    if owner_dead:
+                        # Dead owner can never release/renew - don't wait out the rest
+                        # of the recorded TTL. Same rationale as _cleanup_expired_locks.
+                        lock_file.unlink()
+                        deleted_count += 1
+                        logger.debug(f"[FILE_LOCK] Cleaned dead-owner lock: {lock_file.name} (pid={owner_pid})")
+                        continue
+
                     if expiry_str:
-                        # Content parsed fine and wasn't expired (handled above) - never fall
-                        # through to the file-age heuristic for a lock with a known-valid TTL.
+                        expiry = datetime.fromisoformat(expiry_str)
+                        if expiry.tzinfo is None:
+                            expiry = expiry.replace(tzinfo=timezone.utc)
+                        # Content's own recorded TTL is authoritative - delete only if
+                        # it has actually expired, regardless of max_age_seconds/file age.
+                        if now > expiry:
+                            lock_file.unlink()
+                            deleted_count += 1
+                            logger.debug(
+                                f"[FILE_LOCK] Cleaned expired-TTL lock: {lock_file.name} "
+                                f"(expiry={expiry.isoformat()} < now={now.isoformat()})"
+                            )
                         continue
 
                     # No readable expiry at all (missing/corrupted content) - file age is the
@@ -230,6 +302,12 @@ class FileLockManager:
             parts = content.split("|")
             if len(parts) < 2:
                 return False
+            if len(parts) >= 3:
+                try:
+                    if not _pid_alive(int(parts[2])):
+                        return False  # recorded owner is dead - not really locked
+                except ValueError:
+                    pass
             expiry = datetime.fromisoformat(parts[1])
             if expiry.tzinfo is None:
                 expiry = expiry.replace(tzinfo=timezone.utc)
@@ -276,9 +354,15 @@ class FileLockManager:
             try:
                 with open(lock_file, encoding="utf-8") as f:
                     content = f.read().strip()
-                    # Format: "lock_id|expiry_timestamp"
+                    # Format: "lock_id|expiry_timestamp|pid" (pid added 2026-09-07)
                     parts = content.split("|")
-                    if len(parts) >= 2:
+                    owner_alive = True
+                    if len(parts) >= 3:
+                        try:
+                            owner_alive = _pid_alive(int(parts[2]))
+                        except ValueError:
+                            owner_alive = True
+                    if len(parts) >= 2 and owner_alive:
                         expiry_str = parts[1]
                         expiry = datetime.fromisoformat(expiry_str)
                         if datetime.now(timezone.utc) < expiry:
@@ -288,6 +372,17 @@ class FileLockManager:
                                 logger.warning(
                                     f"[LOCK] Another instance already running (lock: {lock_key}). Skipping: {lock_key}"
                                 )
+                    elif len(parts) >= 2 and not owner_alive:
+                        logger.info(
+                            f"[FILE_LOCK] Lock owner (pid={parts[2]}) confirmed dead - "
+                            f"treating {lock_file.name} as stale."
+                        )
+                        # Remove it now - the atomic O_EXCL create below would otherwise
+                        # fail with FileExistsError against this now-stale file.
+                        try:
+                            lock_file.unlink()
+                        except OSError:
+                            pass
             except FileNotFoundError:
                 lock_is_valid = False  # Lock file deleted, treat as available
             except Exception as e:
@@ -302,7 +397,9 @@ class FileLockManager:
             try:
                 now = datetime.now(timezone.utc)
                 expiry = now + timedelta(seconds=self.lock_duration_seconds)
-                lock_content = f"local-dev|{expiry.isoformat()}"
+                # PID recorded so a crashed holder can be detected as dead (not just waited
+                # out for its full SLA-length TTL) by is_locked()/acquire()/cleanup above.
+                lock_content = f"local-dev|{expiry.isoformat()}|{os.getpid()}"
 
                 # ATOMIC: Only succeeds if file doesn't exist (O_CREAT | O_EXCL)
                 # Race-safe: If another process creates file between check and open, we get EEXIST
