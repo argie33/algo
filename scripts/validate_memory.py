@@ -91,8 +91,19 @@ def check_structure(filepath: Path, content: str) -> list[str]:
         return issues
 
     # For tested claims: require test method
-    if "tested" in content.lower() or "verified" in content.lower():
-        lowered = content.lower()
+    #
+    # BUG FOUND 2026-09-07: plain substring checks ("tested" in text / "verified" in text)
+    # match inside "untested"/"unverified" too - a memory honestly documenting the ABSENCE
+    # of verification (e.g. "terraform apply status is unverified... could not be confirmed")
+    # got flagged as an unbacked positive claim, the opposite of what it says. Live-reproduced
+    # on stop_loss_guardian_terraform_apply_unverified_20260906.md, which blocked commits
+    # repo-wide (this check runs against the whole memory dir, not just staged files) despite
+    # making no positive tested/verified claim at all. Word-boundary regex naturally excludes
+    # the "un-" prefix (no word-boundary between "un" and "verified"/"tested" internally) -
+    # same false-positive bug class this function has already been fixed for twice before
+    # (2026-08-11 exact-substring test-method check, 2026-09-04 pass-count adjacency check).
+    lowered = content.lower()
+    if re.search(r"\btested\b", lowered) or re.search(r"\bverified\b", lowered):
         # BUG FOUND 2026-08-11: this originally only matched an exact keyword substring
         # ("command:", "verified via", etc). In practice, a real verification writeup rarely
         # uses those literal phrases - it names the actual pytest/script invocation and its

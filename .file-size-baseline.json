@@ -588,7 +588,7 @@
   "scripts/test_yfinance_parallelism_optimization.py": 371,
   "scripts/validate_loader_systems_sync.py": 214,
   "scripts/validate_loading_system_fixes.py": 265,
-  "scripts/validate_memory.py": 290,
+  "scripts/validate_memory.py": 287,
   "scripts/verify_eventbridge_scheduler.py": 248,
   "scripts/verify_live_trading_readiness.py": 373,
   "scripts/verify_loaders_health.py": 581,
