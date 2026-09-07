@@ -417,6 +417,9 @@ VALIDATION_SCHEMA = {
     "orchestrator_halt_enabled": ("bool", None, None, False, True),  # Enable orchestrator halt on data issues
     # unified_risk_monitor.py: observe-only until an explicit operator decision flips this off
     "unified_risk_monitor_shadow_mode": ("bool", None, None, False, True),
+    # reconciliation.py's sustained-broker/DB-drift auto-halt: observe-only until an explicit
+    # operator decision flips this off (same rationale as unified_risk_monitor_shadow_mode)
+    "reconciliation_drift_halt_shadow_mode": ("bool", None, None, False, True),
     # Exposure Constraints (derived from ExposurePolicy, not directly used from AlgoConfig)
     "halt_new_entries": ("bool", None, None, False, False),  # Legacy: use exposure constraints instead
     "max_new_positions_today": ("int", 0, 100, False, 15),  # Legacy: use exposure constraints instead

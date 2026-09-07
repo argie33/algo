@@ -629,17 +629,42 @@ class DailyReconciliation(
             return
 
         if is_critical_drift and new_count >= consecutive_runs_to_halt:
+            drift_summary = (
+                f"Broker/DB equity drift ({float(drift_pct):+.1f}%) confirmed critical across "
+                f"{new_count} consecutive reconciliation runs - Alpaca ${float(alpaca_value):,.2f} "
+                f"vs DB-computed ${float(db_value):,.2f}"
+            )
+            # SHADOW MODE (2026-09-07, real-money-readiness): defaults True, mirrors
+            # unified_risk_monitor_shadow_mode's own rationale exactly - this call site landed
+            # on main (commit 3103b5652) calling set_halt_flag unconditionally, before the
+            # question of whether an automated real-money halt should go live at all had
+            # actually been put to the user (see this method's docstring: that was framed as
+            # settled here, but it's a risk-tolerance call the user gets to make, not
+            # something to bake in unilaterally from a code-quality pass). Reusing the exact
+            # same config key pattern: runs the full detection/debounce ladder above (so the
+            # streak state and alerting are already soak-testable against live reconciliation
+            # runs) but never calls set_halt_flag while shadow mode is on.
+            shadow_mode = bool(getattr(self, "config", {}).get("reconciliation_drift_halt_shadow_mode", True))
+            if shadow_mode:
+                logger.critical(f"[RECONCILIATION_EQUITY_DRIFT] SHADOW MODE - would halt: {drift_summary}")
+                try:
+                    from algo.reporting import AlertManager
+
+                    AlertManager().send_position_alert(
+                        "PORTFOLIO",
+                        "RECONCILIATION_DRIFT_HALT_SHADOW_MODE",
+                        f"[SHADOW MODE - no halt taken] {drift_summary}",
+                    )
+                except Exception as e:
+                    logger.warning(f"[RECONCILIATION_EQUITY_DRIFT] Shadow-mode alert failed (non-fatal): {e}")
+                return
             try:
                 from algo.orchestration.halt_flag_manager import HaltFlagManager
                 from algo.reporting import AlertManager
 
                 halt_manager = HaltFlagManager(AlertManager(), lambda *a, **k: None)
                 halt_manager.set_halt_flag(
-                    reason=(
-                        f"[RECONCILIATION_EQUITY_DRIFT] Broker/DB equity drift ({float(drift_pct):+.1f}%) "
-                        f"confirmed critical across {new_count} consecutive reconciliation runs - "
-                        f"Alpaca ${float(alpaca_value):,.2f} vs DB-computed ${float(db_value):,.2f}"
-                    ),
+                    reason=f"[RECONCILIATION_EQUITY_DRIFT] {drift_summary}",
                     triggered_by="reconciliation_equity_drift",
                 )
                 logger.critical(

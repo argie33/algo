@@ -237,6 +237,19 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
         "explicit operator decision to enable live automated remediation.",
         "Risk Management",
     ),
+    # Same rationale as unified_risk_monitor_shadow_mode above: reconciliation.py's
+    # sustained (2-consecutive-run) broker/DB equity-drift auto-halt observes and alerts
+    # but does NOT call set_halt_flag while true. Defaults true so this automated
+    # real-money halt never goes live without a deliberate, explicit operator decision.
+    "reconciliation_drift_halt_shadow_mode": (
+        "true",
+        "bool",
+        "reconciliation.py's sustained broker/DB equity-drift halt observes and alerts on "
+        "confirmed 2-consecutive-run critical drift but does NOT auto-halt while true. Set "
+        "false only after a deliberate, explicit operator decision to enable live automated "
+        "halting.",
+        "Risk Management",
+    ),
     # Position Monitoring & Re-entry
     "position_halt_flag_count": ("2", "int", "Flags to propose early exit", "Position Monitoring"),
     "max_reentries_per_name": ("2", "int", "Max times to re-enter same symbol", "Position Sizing"),
