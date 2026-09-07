@@ -98,7 +98,9 @@ MAX_FISCAL_YEAR_AGE_YEARS = 3
 # contamination that makes total_liabilities a bad proxy for an operating company is a rounding
 # error against a bank's deposit base, so total_liabilities is the better proxy here - narrowly
 # scoped to this industry list (not the whole Financial Services sector, which also includes
-# payment networks/asset managers/insurers whose liabilities aren't deposit-shaped) via
+# payment networks/asset managers/insurance brokers whose liabilities aren't deposit-shaped -
+# see INSURANCE_UNDERWRITER_INDUSTRIES just below for the separate, analogous fix for
+# risk-bearing insurers, whose core liability is loss reserves, not deposits) via
 # _get_symbol_industry(), a sibling of _get_symbol_sector() with the same fail-open contract.
 DEPOSITORY_BANK_INDUSTRIES = frozenset(
     {
@@ -108,6 +110,31 @@ DEPOSITORY_BANK_INDUSTRIES = frozenset(
         "Savings Institution, Federally Chartered",
         "Savings Institutions, Not Federally Chartered",
         "Functions Related To Depository Banking, NEC",
+    }
+)
+
+# SIC-derived company_profile.industry values covering risk-bearing insurance underwriters -
+# same bug class as DEPOSITORY_BANK_INDUSTRIES above, found the same session while checking why
+# Financial Services still dominated the top of composite_score after the bank fix landed.
+# An underwriter's core liability is policy/loss reserves and unearned premium - functionally
+# its "debt" (the capital it owes against future claims), same role deposits play for a bank -
+# but SEC filers tag reserves under concepts this pipeline doesn't map to "long_term_debt"
+# either, so debt_for_roic understates underwriters' real leverage the same way. Live-verified
+# against annual_balance_sheet.total_liabilities/stockholders_equity: RGA (Reinsurance Group of
+# America) computed debt_to_equity=0.42 vs a real ~11.5x; ACGL (Arch Capital)=0.01 vs ~2.5x;
+# HIG (Hartford)=0.24 vs ~3.5x - all in the "Fire, Marine & Casualty Insurance"/"Life Insurance"
+# SIC buckets. Confirmed narrowly scoped, not the whole insurance-adjacent space: "Insurance
+# Agents, Brokers & Service" (non-risk-bearing intermediaries who don't hold reserves - MRSH/AON
+# both show real 1.4-1.7x debt_to_equity already, genuine corporate bonds, not understated)
+# deliberately excluded.
+INSURANCE_UNDERWRITER_INDUSTRIES = frozenset(
+    {
+        "Fire, Marine & Casualty Insurance",
+        "Life Insurance",
+        "Accident & Health Insurance",
+        "Surety Insurance",
+        "Title Insurance",
+        "Insurance Carriers, NEC",
     }
 )
 

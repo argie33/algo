@@ -13,14 +13,24 @@ cohort and skewing the day's top BUY signals toward small commercial banks.
 Fix: for symbols whose company_profile.industry is a depository-bank SIC classification,
 debt_for_roic uses total_liabilities instead - narrowly scoped via _get_symbol_industry (a
 sibling of _get_symbol_sector), NOT applied to the broader Financial Services sector (payment
-networks/asset managers/insurers keep the universal interest-bearing-debt figure).
+networks/asset managers/insurance brokers keep the universal interest-bearing-debt figure).
+
+SAME-SESSION FOLLOW-UP: risk-bearing insurance underwriters (Fire/Marine & Casualty, Life,
+Accident & Health, Surety, Title) have the identical bug - their core liability (policy/loss
+reserves) isn't tagged as debt either. Live-verified: RGA (Reinsurance Group of America)
+computed debt_to_equity=0.42 vs a real ~11.5x; ACGL (Arch Capital)=0.01 vs ~2.5x. See
+INSURANCE_UNDERWRITER_INDUSTRIES's docstring for the full writeup - covered by
+TestInsuranceUnderwriterDebtOverride below.
 """
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from loaders.load_value_quality_growth_metrics import DEPOSITORY_BANK_INDUSTRIES
+from loaders.load_value_quality_growth_metrics import (
+    DEPOSITORY_BANK_INDUSTRIES,
+    INSURANCE_UNDERWRITER_INDUSTRIES,
+)
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader as L
 
 
@@ -172,6 +182,58 @@ class TestDepositoryBankDebtOverride:
             "Savings Institutions, Not Federally Chartered",
             "Functions Related To Depository Banking, NEC",
         }
+
+
+class TestInsuranceUnderwriterDebtOverride:
+    def test_fire_marine_casualty_insurer_uses_total_liabilities(self):
+        loader = _make_loader()
+        loader._get_symbol_sector = lambda symbol: "Financial Services"
+        loader._get_symbol_industry = lambda symbol: "Fire, Marine & Casualty Insurance"
+
+        metrics = loader._compute_quality_metrics(
+            "INSURECO", _row(), ev_metrics=_EV_METRICS_NO_DEBT, margin_volatility=10.0
+        )
+
+        assert metrics["debt_to_equity"] == pytest.approx(9.0)
+
+    def test_life_insurer_uses_total_liabilities(self):
+        loader = _make_loader()
+        loader._get_symbol_sector = lambda symbol: "Financial Services"
+        loader._get_symbol_industry = lambda symbol: "Life Insurance"
+
+        metrics = loader._compute_quality_metrics(
+            "LIFECO", _row(), ev_metrics=_EV_METRICS_NO_DEBT, margin_volatility=10.0
+        )
+
+        assert metrics["debt_to_equity"] == pytest.approx(9.0)
+
+    def test_insurance_broker_not_underwriter_keeps_universal_debt_figure(self):
+        # Insurance Agents/Brokers/Service are non-risk-bearing intermediaries - they don't
+        # hold policy reserves, so they must NOT get the override (live-confirmed: MRSH/AON
+        # both show real 1.4-1.7x debt_to_equity already - genuine corporate bonds, not
+        # understated reserves).
+        loader = _make_loader()
+        loader._get_symbol_sector = lambda symbol: "Financial Services"
+        loader._get_symbol_industry = lambda symbol: "Insurance Agents, Brokers & Service"
+
+        metrics = loader._compute_quality_metrics(
+            "BROKERCO", _row(), ev_metrics=_EV_METRICS_NO_DEBT, margin_volatility=10.0
+        )
+
+        assert metrics["debt_to_equity"] == pytest.approx(0.02)
+
+    def test_insurance_underwriter_industries_set_contents(self):
+        assert INSURANCE_UNDERWRITER_INDUSTRIES == {
+            "Fire, Marine & Casualty Insurance",
+            "Life Insurance",
+            "Accident & Health Insurance",
+            "Surety Insurance",
+            "Title Insurance",
+            "Insurance Carriers, NEC",
+        }
+
+    def test_depository_and_insurance_sets_are_disjoint(self):
+        assert not (DEPOSITORY_BANK_INDUSTRIES & INSURANCE_UNDERWRITER_INDUSTRIES)
 
 
 class TestGetSymbolIndustry:
