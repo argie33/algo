@@ -556,6 +556,24 @@ def get_income_statement(
         # add one only with the same live-evidence standard as every other fallback in this
         # file, not by guessing a plausible-sounding concept name.
         "SellingGeneralAndAdministrativeExpense",
+        # ADDED 2026-09-07 (goal session: XBRL extraction/tie-out hardening, migration 1271,
+        # found via scripts/xbrl_concept_coverage_scan.py's systematic gap scan): 2,567 real
+        # filers tag "GoodwillImpairmentLoss" and it was never fetched anywhere in this
+        # codebase - no goodwill_impairment_loss-shaped column existed. This is a P&L
+        # (income-statement) concept - the period impairment CHARGE taken against goodwill,
+        # distinct from annual_balance_sheet.goodwill (the balance-sheet carrying amount) and
+        # from _reject_implausible_goodwill in loaders/helpers/financial_statements_value_
+        # validation.py (which sanity-checks that balance-sheet figure, unrelated to this new
+        # column). Live-confirmed via real SEC companyfacts JSON cache: Kraft Heinz Co FY2025
+        # (period end 2025-12-27) = $6,734,000,000, CVS Health Corporation FY2025 (period end
+        # 2025-12-31) = $5,725,000,000, Centene Corporation FY2025 (period end 2025-09-30) =
+        # $6,723,000,000 - all real, material, sane impairment charges consistent with each
+        # company's well-known recent goodwill write-downs. Plain (non-fallback) concept, same
+        # convention as operating_expenses/accounts_payable (migrations 1263/1264) - data-
+        # availability only, not consumed by any scoring/quality-pillar logic yet. Naturally
+        # sparse/NULL for the vast majority of company-years (goodwill impairment is an
+        # episodic, not recurring, charge) - expected and correct, not a bug to chase.
+        "GoodwillImpairmentLoss",
         # ADDED 2026-08-27 (goal: close the R&D intensity/Mohanram G-Score literature-checklist
         # gap - see MEMORY.md growth_missing_metrics_swept_20260827, which had incorrectly
         # marked these permanently blocked on "no research_development column exists anywhere").

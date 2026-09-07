@@ -426,6 +426,9 @@ _INCOME_FIELD_MAPPING = {
     # ADDED 2026-09-07 (migration 1264): see sec_income_statement.py's comment on
     # "SellingGeneralAndAdministrativeExpense" for the live WMT/TGT/AAR/ABT evidence.
     "selling_general_and_administrative_expense": "operating_expenses",
+    # ADDED 2026-09-07 (migration 1271): see sec_income_statement.py's comment on
+    # "GoodwillImpairmentLoss" for the live Kraft Heinz/CVS/Centene evidence.
+    "goodwill_impairment_loss": "goodwill_impairment_loss",
     "operating_income_loss": "operating_income",
     "net_income_loss": "net_income",
     # FIXED 2026-08-17 (goal: "no SEC data" audit): "ProfitLoss" added to sec_statements.py's
@@ -1409,6 +1412,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "gross_profit",
                     "operating_income",
                     "operating_expenses",
+                    "goodwill_impairment_loss",
                     "net_income",
                     "earnings_per_share",
                     "diluted_eps",
@@ -1446,6 +1450,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "gross_profit",
                     "operating_income",
                     "operating_expenses",
+                    "goodwill_impairment_loss",
                     "net_income",
                     "earnings_per_share",
                     "diluted_eps",
