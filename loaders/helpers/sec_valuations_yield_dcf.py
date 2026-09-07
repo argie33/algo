@@ -446,10 +446,41 @@ class SecValuationYieldDcfMixin:
                         (symbol,),
                     )
                     sic_row = cur.fetchone()
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                    # follow-up): a physical commodity/currency/crypto trust
+                    # (vqg_symbol_gates._get_etf_trust_no_stockholders_equity_symbols - GLD/
+                    # GLDM/IAU/BITW/CPER/USCI/etc.) structurally never tags a CapitalExpenditures
+                    # concept either (it holds bullion/currency/crypto/futures, not PP&E), the
+                    # exact same "no such GAAP concept exists" fact as REIT/insurance just above -
+                    # but this DCF reason chain never checked for it, so CPER/USCI fell to the
+                    # generic "missing_cash_flow_data" instead of "etf_trust_no_gaap_financials".
+                    # SecValuationsLoader doesn't mix in vqg_symbol_gates.SymbolGateMixin, so
+                    # queried directly here (same reasoning as the REIT/insurance SIC lookup just
+                    # above) rather than reusing that mixin's cached helper.
+                    is_etf_trust = False
+                    if sic_row is None or sic_row[0] not in (6798, 6311, 6321, 6331, 6351, 6361, 6399):
+                        cur.execute(
+                            """
+                            SELECT 1 FROM etf_symbols e
+                            WHERE e.symbol = %s
+                              AND EXISTS (
+                                SELECT 1 FROM annual_balance_sheet b
+                                WHERE b.symbol = e.symbol AND b.data_unavailable = FALSE
+                              )
+                              AND NOT EXISTS (
+                                SELECT 1 FROM annual_balance_sheet b
+                                WHERE b.symbol = e.symbol AND b.stockholders_equity IS NOT NULL
+                              )
+                            """,
+                            (symbol,),
+                        )
+                        is_etf_trust = cur.fetchone() is not None
                 sic_code = sic_row[0] if sic_row else None
                 result["dcf_fcf_unavailable_reason"] = (
                     "reit_special_entity"
                     if sic_code in (6798, 6311, 6321, 6331, 6351, 6361, 6399)
+                    else "etf_trust_no_gaap_financials"
+                    if is_etf_trust
                     else "missing_cash_flow_data"
                 )
             elif dcf_fcf_base <= 0:
