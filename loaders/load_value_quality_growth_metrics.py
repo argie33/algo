@@ -79,6 +79,38 @@ logger = logging.getLogger(__name__)
 # delisted/inactive or a genuine data gap.
 MAX_FISCAL_YEAR_AGE_YEARS = 3
 
+# SIC-derived company_profile.industry values covering depository institutions (commercial
+# banks, savings institutions/thrifts) - a strict subset of the "Financial Services" sector.
+# FIXED 2026-09-06 (stock_scores symbol spot-check, see
+# stock_scores_symbol_spotcheck_20260906/bank_deposit_debt_to_equity_gap_fixed_20260906 in
+# memory): debt_for_roic (interest-bearing debt: long_term_debt/total_debt_ev) structurally
+# excludes customer deposits, because SEC filers tag deposits under concepts this pipeline
+# doesn't map to "long_term_debt". For an operating company that's the right call (Total
+# Liabilities/Equity is a bad debt proxy - see this file's own "NOT Total Liabilities / Equity"
+# comment - because it's contaminated by AP/accrued expenses/deferred revenue). For a
+# depository institution, deposits ARE the core interest-bearing liability funding its loan
+# book, so excluding them isn't a narrower, more precise "debt" figure - it's missing most of
+# the bank's real leverage, and disproportionately so for small banks with little wholesale
+# borrowing (live-verified: TCBX/PEBK's debt_to_equity computed near 0.11-0.12, inflating both
+# debt_to_equity_score and ROCE's capital_employed-based return for exactly this cohort -
+# Financial Services quality_score averaged 53.5 vs the universe's ~38-44, and small commercial
+# banks took 14/20 of the day's top BUY signals by composite_score). AP/accrued/deferred-revenue
+# contamination that makes total_liabilities a bad proxy for an operating company is a rounding
+# error against a bank's deposit base, so total_liabilities is the better proxy here - narrowly
+# scoped to this industry list (not the whole Financial Services sector, which also includes
+# payment networks/asset managers/insurers whose liabilities aren't deposit-shaped) via
+# _get_symbol_industry(), a sibling of _get_symbol_sector() with the same fail-open contract.
+DEPOSITORY_BANK_INDUSTRIES = frozenset(
+    {
+        "State Commercial Banks",
+        "National Commercial Banks",
+        "Commercial Banks, NEC",
+        "Savings Institution, Federally Chartered",
+        "Savings Institutions, Not Federally Chartered",
+        "Functions Related To Depository Banking, NEC",
+    }
+)
+
 
 def _mirror_shared_trend_fields(quality_dict: dict[str, Any], growth_dict: dict[str, Any]) -> None:
     """Copy _SHARED_TREND_FIELDS values/reasons from quality_dict into growth_dict in place.
@@ -1460,6 +1492,30 @@ class ValueQualityGrowthMetricsLoader(
                     f"8-input formula for every symbol this run: {e}"
                 )
         return self._sector_cache.get(symbol)
+
+    def _get_symbol_industry(self, symbol: str) -> str | None:
+        """Lazily fetches and caches symbol -> company_profile.industry (SIC-derived) once per
+        loader run, sibling to _get_symbol_sector above with the same caching/fail-open
+        contract (see DEPOSITORY_BANK_INDUSTRIES for why this is a separate, narrower lookup
+        than sector: depository institutions need a debt_for_roic override that the rest of
+        the broader Financial Services sector - payment networks, asset managers, insurers -
+        must not get).
+
+        Returns None (falls through to the universal debt_for_roic) if the industry map can't
+        be fetched or the symbol isn't in company_profile."""
+        if not hasattr(self, "_industry_cache"):
+            self._industry_cache: dict[str, str] = {}
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute("SELECT symbol, industry FROM company_profile WHERE industry IS NOT NULL")
+                    self._industry_cache = dict(cur.fetchall())
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(
+                    f"[QUALITY_METRICS] Failed to fetch company_profile industry map for the "
+                    f"depository-bank debt_for_roic override - falling back to the universal "
+                    f"debt figure for every symbol this run: {e}"
+                )
+        return self._industry_cache.get(symbol)
 
     @staticmethod
     def _cagr(latest: float, previous: float, years: int) -> float | None:

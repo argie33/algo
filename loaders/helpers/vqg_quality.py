@@ -89,6 +89,8 @@ class QualityMetricsMixin(SymbolGateMixin):
 
         def _get_symbol_sector(self, symbol: str) -> str | None: ...
 
+        def _get_symbol_industry(self, symbol: str) -> str | None: ...
+
         def _compute_quarterly_metrics(self, symbol: str) -> dict[str, Any]: ...
 
         def _margin_curve(self, value: float, breakpoints: list[tuple[float, float]]) -> float: ...
@@ -969,6 +971,23 @@ class QualityMetricsMixin(SymbolGateMixin):
 
             invested_capital = None
             debt_for_roic = total_debt_ev if total_debt_ev is not None else roic_long_term_debt
+
+            # Depository institutions: override with total_liabilities when available. Their
+            # core liability (customer deposits) is functionally interest-bearing debt but
+            # isn't tagged under long_term_debt/total_debt_ev (see DEPOSITORY_BANK_INDUSTRIES'
+            # docstring in load_value_quality_growth_metrics.py for the live-verified impact:
+            # deposit-funded small banks like TCBX/PEBK were showing debt_to_equity ~0.11,
+            # inflating quality_score's safety cluster and ROCE for that cohort specifically).
+            # Narrowly scoped to the SIC industries where liabilities are overwhelmingly
+            # deposits+borrowings, not the broader Financial Services sector (payment
+            # networks/asset managers/insurers keep the universal interest-bearing-debt figure,
+            # where total_liabilities' AP/accrued/deferred-revenue contamination would be a
+            # real, not negligible, distortion).
+            if (
+                total_liabilities is not None
+                and self._get_symbol_industry(symbol) in _owner().DEPOSITORY_BANK_INDUSTRIES
+            ):
+                debt_for_roic = total_liabilities
 
             # A symbol that has never tagged ANY debt component across its full balance-sheet
             # history AND never reports nonzero interest_expense is double-confirmed
