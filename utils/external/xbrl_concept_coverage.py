@@ -82,6 +82,7 @@ NOISE_SUBSTRINGS = [
 
 def load_dismissed() -> dict[str, str]:
     if not DISMISSED_FILE.exists():
+        # Not an error - no dismissals have been recorded yet, not that data is missing.
         return {}
     try:
         return cast(dict[str, str], json.loads(DISMISSED_FILE.read_text(encoding="utf-8")))
@@ -107,6 +108,8 @@ def load_known_concepts() -> set[str]:
 def iter_companyfacts_cache() -> list[Path]:
     cache_dir = Path(tempfile.gettempdir()) / "algo-sec-edgar-cache" / "companyfacts"
     if not cache_dir.exists():
+        # Not an error - not yet initialized by a loader run. Callers that need to
+        # distinguish this from "scanned and found nothing" check this function themselves.
         return []
     return sorted(cache_dir.glob("*.json"))
 
