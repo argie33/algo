@@ -75,7 +75,7 @@
   "algo/monitoring/data_patrol/checks/quality.py": 356,
   "algo/monitoring/data_patrol/checks/specialized.py": 616,
   "algo/monitoring/data_patrol/checks/staleness.py": 286,
-  "algo/monitoring/data_patrol/checks/tie_out.py": 887,
+  "algo/monitoring/data_patrol/checks/tie_out.py": 885,
   "algo/monitoring/data_patrol/config.py": 67,
   "algo/monitoring/data_patrol/logger.py": 123,
   "algo/monitoring/pipeline_health.py": 1087,

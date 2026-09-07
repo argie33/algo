@@ -133,6 +133,13 @@ _SHARE_COUNT_TOLERANCE_PCT = 0.001
 # since buybacks/OCI are real and common enough to not be pure noise.
 _RETAINED_EARNINGS_TOLERANCE_PCT = 0.25
 _RETAINED_EARNINGS_TOLERANCE_FLOOR = 1_000_000.0
+# operating_cash_flow - capex == free_cash_flow is a load-time derived identity (load_
+# financial_statements.py computes free_cash_flow FROM these two fields, it is not an
+# independently-tagged XBRL fact) - live feasibility check against the local DB (2026-09-07,
+# 4,439 comparable rows) found p50/p75/p90 relative error == 0%, tighter even than gross_profit's
+# identity, so a tolerance this tight has near-zero false-positive risk.
+_FREE_CASH_FLOW_TOLERANCE_PCT = 0.02
+_FREE_CASH_FLOW_TOLERANCE_FLOOR = 250_000.0
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
@@ -197,6 +204,7 @@ class TieOutChecker(BaseCheck):
         self.check_pretax_to_net_income(cur)
         self.check_diluted_ge_basic_shares(cur)
         self.check_retained_earnings_rollforward(cur)
+        self.check_free_cash_flow_identity(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -806,5 +814,72 @@ class TieOutChecker(BaseCheck):
                 "retained_earnings_rollforward",
                 ERROR,
                 "annual_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_free_cash_flow_identity(self, cur: Any) -> None:
+        """operating_cash_flow - capex ~= free_cash_flow.
+
+        ADDED 2026-09-07 (goal: "make sure we have all the right tie outs" sweep, CI tie-out
+        coverage audit's #1 recommendation). Unlike gross_profit_identity/pretax_to_net_income
+        (which cross independently-tagged XBRL facts), free_cash_flow is DERIVED at load time
+        from operating_cash_flow and capex by load_financial_statements.py - so this check is
+        really a regression guard against that derivation getting broken (e.g. a future capex
+        fallback-concept change writing to the wrong column), not a hunt for XBRL extraction
+        bugs. A real violation here indicates the load-time computation itself is wrong for
+        that symbol/year, not a tagging/magnitude problem upstream.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (symbol)
+                    symbol, fiscal_year, operating_cash_flow, capex, free_cash_flow
+                FROM annual_cash_flow
+                WHERE data_unavailable = FALSE
+                  AND operating_cash_flow IS NOT NULL
+                  AND capex IS NOT NULL
+                  AND free_cash_flow IS NOT NULL
+                ORDER BY symbol, fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                ocf, capex, fcf = (
+                    float(row["operating_cash_flow"]),
+                    float(row["capex"]),
+                    float(row["free_cash_flow"]),
+                )
+                implied_fcf = ocf - capex
+                residual = implied_fcf - fcf
+                tolerance = max(_FREE_CASH_FLOW_TOLERANCE_FLOOR, abs(fcf) * _FREE_CASH_FLOW_TOLERANCE_PCT)
+                if abs(residual) > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "operating_cash_flow": ocf,
+                            "capex": capex,
+                            "free_cash_flow": fcf,
+                            "implied_free_cash_flow": implied_fcf,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                self.log(
+                    "free_cash_flow_identity",
+                    WARN,
+                    "annual_cash_flow",
+                    f"{len(flagged)} symbol(s) fail operating_cash_flow - capex ~= free_cash_flow "
+                    f"beyond max(${_FREE_CASH_FLOW_TOLERANCE_FLOOR:,.0f}, "
+                    f"{_FREE_CASH_FLOW_TOLERANCE_PCT:.0%} of free_cash_flow)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] free_cash_flow_identity failed: {e}", exc_info=True)
+            self.log(
+                "free_cash_flow_identity",
+                ERROR,
+                "annual_cash_flow",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
             )
