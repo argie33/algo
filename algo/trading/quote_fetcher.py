@@ -42,6 +42,19 @@ logger = logging.getLogger(__name__)
 # updating, which this callers' real-time exit/stop evaluation must not silently trust.
 _MAX_QUOTE_AGE_SECONDS = 300
 
+# SPREAD SANITY GUARD (real-money-readiness audit, found 2026-09-06): the bid/ask
+# midpoint below was computed whenever both sides were present and positive, with no
+# check on how far apart they actually are. A wildly wide spread - a thin/halted/broken
+# quote (e.g. bid=$1, ask=$100) - passes that check silently and produces a garbage
+# midpoint that this function's own docstring says feeds directly into real-time
+# exit/stop evaluation (position_monitor.py's health-flag exits, exit_engine.py's
+# stop/target checks). A midpoint computed from a non-tradable spread could trigger (or
+# suppress) a real stop-loss/target exit on a price nobody could actually transact at.
+# 10% relative spread is already very wide for a liquid equity (typical spreads are
+# pennies/basis points) - conservative enough to only reject genuinely broken/illiquid
+# quotes, not flag normal intraday noise.
+_MAX_RELATIVE_SPREAD = 0.10
+
 
 def _check_quote_freshness(symbol: str, quote: dict[str, object], log_prefix: str) -> None:
     """Raises RuntimeError if quote's own timestamp shows it's stale while the market is
@@ -160,10 +173,21 @@ def fetch_live_quote(
 
             bid = quote.get("bp")
             ask = quote.get("ap")
-            if bid is not None and ask is not None and bid > 0 and ask > 0:
-                return (float(bid) + float(ask)) / 2.0
-
             last_price = quote.get("lp")
+            if bid is not None and ask is not None and bid > 0 and ask > 0:
+                bid_f, ask_f = float(bid), float(ask)
+                mid = (bid_f + ask_f) / 2.0
+                relative_spread = (ask_f - bid_f) / mid
+                if relative_spread > _MAX_RELATIVE_SPREAD:
+                    logger.warning(
+                        f"[{log_prefix}] {symbol}: bid/ask spread {relative_spread:.1%} exceeds "
+                        f"{_MAX_RELATIVE_SPREAD:.0%} sanity threshold (bid={bid_f}, ask={ask_f}) - "
+                        f"midpoint is not a trustworthy price for a real-time exit/stop decision. "
+                        f"Falling back to last trade price if available."
+                    )
+                else:
+                    return mid
+
             if last_price is not None:
                 return float(last_price)
 

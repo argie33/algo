@@ -349,24 +349,59 @@ class BrokerSnapshotMixin:
         Returns (max_drawdown_pct_dec, running_peak_dec, drawdown_pct_dec, net_capital_flow_cum,
         adjusted_equity, adjusted_running_peak, adjusted_drawdown_pct).
         """
-        # Calculate max drawdown from historical snapshots
+        # CRITICAL FIX (real-money-readiness audit, found 2026-09-06): this used to be
+        # `SELECT MAX(total_portfolio_value) as peak, MIN(total_portfolio_value) as trough
+        # FROM algo_portfolio_snapshots` with no time-ordering constraint at all - a real
+        # max drawdown requires the trough to occur AFTER the peak (a decline FROM that
+        # peak), but this took the global all-time max and global all-time min independently
+        # of when they occurred. An account whose all-time minimum happened before its
+        # all-time maximum (e.g. a small starting balance that has only grown since) reports
+        # a large PHANTOM "drawdown" that never actually happened - this feeds
+        # algo_portfolio_snapshots.max_drawdown_pct, consumed by dashboard/panels/portfolio.py
+        # as a real risk metric. Fixed: compute the correct sequential running-peak drawdown
+        # (max over time, in chronological order, of (running_peak_so_far - value) /
+        # running_peak_so_far) via a window function, matching the already-verified-correct
+        # pattern in utils/metrics_calculator.py's calculate_max_drawdown.
+        # Also bound by reconcile_date <=: same stray-future-dated-snapshot bug class this
+        # codebase already fixed 2026-08-09 across circuit_breaker.py/position_sizer.py/
+        # var.py/etc. (see test_no_unbounded_portfolio_snapshot_queries.py) could otherwise
+        # let a leftover future-dated simulation row inflate the peak here too.
         max_drawdown_pct_dec = Decimal(0)
-        cur.execute("""
-            SELECT
-                MAX(total_portfolio_value) as peak,
-                MIN(total_portfolio_value) as trough
-            FROM algo_portfolio_snapshots
-        """)
+        cur.execute(
+            """
+            WITH ordered AS (
+                SELECT
+                    total_portfolio_value,
+                    MAX(total_portfolio_value) OVER (
+                        ORDER BY snapshot_date
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                    ) AS running_peak
+                FROM algo_portfolio_snapshots
+                WHERE total_portfolio_value IS NOT NULL AND snapshot_date <= %s
+            )
+            SELECT MAX((running_peak - total_portfolio_value) / running_peak) * 100 AS max_drawdown_pct
+            FROM ordered
+            WHERE running_peak > 0
+            """,
+            (reconcile_date,),
+        )
+        drawdown_row = cur.fetchone()
+        if drawdown_row is not None and drawdown_row[0] is not None:
+            max_drawdown_pct_dec = Decimal(str(drawdown_row[0]))
+
+        # Peak value (all-time max, independent of when it occurred) is still needed below
+        # for running_peak_dec - that usage is correct as-is (today's drawdown-from-peak only
+        # cares about the highest value ever seen, not when it was seen).
+        cur.execute(
+            "SELECT MAX(total_portfolio_value) FROM algo_portfolio_snapshots WHERE snapshot_date <= %s",
+            (reconcile_date,),
+        )
         peak_row = cur.fetchone()
-        if peak_row is not None and peak_row[0] is not None and peak_row[1] is not None:
-            peak_val_dec = Decimal(str(peak_row[0]))
-            trough_val_dec = Decimal(str(peak_row[1]))
-            if peak_val_dec > 0:
-                max_drawdown_pct_dec = ((peak_val_dec - trough_val_dec) / peak_val_dec) * Decimal(100)
 
         # Calculate running peak for current snapshot (for use by circuit breaker)
         # running_peak = maximum portfolio value seen up to and including today
-        running_peak_dec = max(peak_val_dec, total_equity_dec) if peak_row and peak_row[0] else total_equity_dec
+        peak_val_dec = Decimal(str(peak_row[0])) if peak_row is not None and peak_row[0] is not None else None
+        running_peak_dec = max(peak_val_dec, total_equity_dec) if peak_val_dec is not None else total_equity_dec
 
         # Calculate drawdown percentage from running peak (used by circuit breaker)
         # drawdown_pct = how far below the all-time peak the current portfolio is
