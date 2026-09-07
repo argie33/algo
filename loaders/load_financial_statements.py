@@ -3664,6 +3664,52 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                 continue
             self._record_explicit_null_rejection(row, "gross_profit", "gross_profit_stale_no_fresh_annual_concept")
 
+    def _reject_implausible_debt_field(self, transformed: list[dict[str, Any]], field: str) -> None:
+        """Reject `field` (long_term_debt or short_term_debt) when it exceeds total_assets by
+        more than 20x, on the same row - not a tolerance/measurement-noise check like
+        algo/monitoring/data_patrol/checks/tie_out.py's own check_long_term_debt_le_total_
+        liabilities WARN, but a hard sanity floor: no real operating company carries debt more
+        than 20x its own total assets.
+
+        FOUND 2026-09-07 (goal session: live tie-out run against production DB surfaced 62
+        annual long_term_debt_le_total_liabilities violations; digging into the worst ones
+        found this instead). Live-confirmed via real SEC companyfacts JSON: VGAS (Verde Clean
+        Fuels) FY2023 tags us-gaap:ConvertibleDebt=$40,963,000,000 as of 2023-03-31 in a Q1
+        2024 10-Q's prior-period comparative column - VGAS's own real total_assets that year
+        is ~$31.9M (10-K FY2023, filed 2024-03-28), a company with zero plausible path to
+        $40.96B in convertible debt. A DB-wide sweep found 61 similar symbol-years (BGDE:
+        $28.1 TRILLION vs $133M assets; AM: $2.89 TRILLION vs $6.28B assets; CTGO: $44.68B vs
+        $58.6M assets) - all fallback-only concepts (ConvertibleDebt/OtherLongTermDebt/
+        SecuredLongTermDebt/etc., see sec_balance_sheet.py's concept list), all a filer/filing-
+        agent XBRL tagging error, not a clean round-multiple scale error (unlike
+        `_reject_scale_mismatched_net_income`) - same "impossible under a hard sanity bound"
+        signal as `_reject_implausible_gross_profit` above, just for debt-vs-assets instead of
+        gross-profit-vs-revenue. NOTE: BGDE/AM were previously one-off DB-patched (memory:
+        skm_bgde_am_orphaned_ltd, 2026-09-06) but had already recurred by this session - a
+        one-time DB UPDATE doesn't survive the next incremental re-fetch of the same bad SEC
+        source fact, so this needs a persistent extraction-time guard, not just another patch.
+        20x deliberately leaves room for genuinely highly-levered financials/BDCs/REITs (which
+        legitimately run high debt-to-assets) while still rejecting order-of-magnitude filer
+        errors.
+        """
+        if self.statement_type != "balance":
+            return
+        max_plausible_debt_to_assets_ratio = 20.0
+        for row in transformed:
+            total_assets = row.get("total_assets")
+            value = row.get(field)
+            if total_assets is None or total_assets <= 0 or value is None:
+                continue
+            if float(value) > float(total_assets) * max_plausible_debt_to_assets_ratio:
+                logger.warning(
+                    f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                    f"{field}={value:,.0f} exceeds {max_plausible_debt_to_assets_ratio:.0f}x "
+                    f"total_assets({total_assets:,.0f}) - filer-side XBRL tagging error, not a "
+                    "real debt figure. Rejecting rather than storing a confidently-wrong value."
+                )
+                row[field] = None
+                self._record_explicit_null_rejection(row, field, "implausible_debt_vs_total_assets_scale_error")
+
     # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep, gross_profit_
     # identity follow-up to the ABBV/GILD/AMGN/ABT stale-stub fix above): live-confirmed via
     # real SEC companyfacts JSON that Centene (CNC) and Elevance Health (ELV) - both managed-
@@ -3836,6 +3882,8 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         # load_company_info_sec.py.
         self._reject_implausible_shares_outstanding(transformed)
         self._reject_diluted_shares_below_basic(transformed)
+        self._reject_implausible_debt_field(transformed, "long_term_debt")
+        self._reject_implausible_debt_field(transformed, "short_term_debt")
         if self.statement_type == "income":
             self._fill_derived_eps(transformed)
             self._reject_implausible_eps(transformed)
