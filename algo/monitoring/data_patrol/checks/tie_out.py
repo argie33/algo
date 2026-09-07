@@ -220,6 +220,18 @@ _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in th
 # in line with the other structural-inequality checks above.
 _ACCOUNTS_PAYABLE_TOLERANCE_PCT = 0.001
 
+# cash_and_equivalents <= current_assets: same subset/category structural inequality as
+# accounts_payable_le_current_liabilities above - cash is one current-asset line item, never
+# the whole current-asset side. Live feasibility check against the local DB (2026-09-07) found
+# 26/4,207 comparable symbol/years beyond a 0.1% slack, dominated by the already-known
+# despac_current_assets_stale_not_a_bug_20260907 cohort (HIPO/PWP/BETR/SOFI/IGIC/OWL all
+# reappear here). Spot-checked 2 of the non-despac outliers (SHO, PHVS) via a fresh
+# get_balance_sheet() call: both now return None for current_assets/cash_and_equivalents -
+# stale rows pending reload (same root cause as
+# [[score_sanity_value_growth_loader_failure_20260907]]'s force-null bug, actively being fixed
+# by a concurrent session as of this check), not a live extraction bug.
+_CASH_TOLERANCE_PCT = 0.001
+
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
 # means what it means for an industrial filer - their real cash position sits mostly in
 # interest-earning deposits/securities the balance-sheet field this schema tracks doesn't
@@ -291,6 +303,7 @@ class TieOutChecker(BaseCheck):
         self.check_operating_income_upper_bound(cur)
         self.check_goodwill_le_total_assets(cur)
         self.check_accounts_payable_le_current_liabilities(cur)
+        self.check_cash_le_current_assets(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -1480,6 +1493,65 @@ class TieOutChecker(BaseCheck):
             )
             self.log(
                 "accounts_payable_le_current_liabilities",
+                ERROR,
+                "annual_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_cash_le_current_assets(self, cur: Any) -> None:
+        """cash_and_equivalents <= current_assets (both from annual_balance_sheet, same row).
+
+        ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit + tie-out CI
+        completeness review). See _CASH_TOLERANCE_PCT's own comment for the live-feasibility
+        numbers (26/4,207) and confirmation the non-despac outliers are stale-pending-reload
+        rows, not a live extraction bug.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.current_assets, b.cash_and_equivalents
+                FROM annual_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.current_assets IS NOT NULL
+                  AND b.cash_and_equivalents IS NOT NULL
+                  AND b.current_assets != 0
+                ORDER BY b.symbol, b.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                current_assets, cash_and_equivalents = (
+                    float(row["current_assets"]),
+                    float(row["cash_and_equivalents"]),
+                )
+                residual = cash_and_equivalents - current_assets
+                tolerance = abs(current_assets) * _CASH_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "current_assets": current_assets,
+                            "cash_and_equivalents": cash_and_equivalents,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "cash_le_current_assets",
+                    WARN,
+                    "annual_balance_sheet",
+                    f"{len(flagged)} symbol(s) fail cash_and_equivalents <= current_assets "
+                    f"beyond {_CASH_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] cash_le_current_assets failed: {e}", exc_info=True)
+            self.log(
+                "cash_le_current_assets",
                 ERROR,
                 "annual_balance_sheet",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
