@@ -127,12 +127,21 @@ def check_structure(filepath: Path, content: str) -> list[str]:
                 "test:",
                 "verification:",
                 "verified on:",
-                "verified via",
                 "pytest",
                 "exit 0",
                 "exit code",
             ]
         )
+        # BUG FOUND 2026-09-07: "verified via"/"confirmed via" as an exact adjacent substring
+        # missed real verification writeups that put a few words between the verb and "via"
+        # ("Verified landed via `git show HEAD --stat`", "confirmed via `grep`/`hasattr`") -
+        # both back a concrete git-based verification with a shown command, same evidentiary
+        # bar as the pytest-result-line case below, but got flagged as unverified anyway
+        # because "via" wasn't immediately adjacent. Same false-positive class already fixed
+        # twice before for this function (2026-08-11, 2026-09-04) - allow up to a few words
+        # between the verb and "via".
+        if not has_method:
+            has_method = bool(re.search(r"\b(verified|confirmed)\b[\s\S]{0,20}\bvia\b", lowered))
         if not has_method:
             has_shown_command = bool(re.search(r"`[^`\n]+`", content))
             # BUG FOUND 2026-09-04: the original `\d+\s*(passed|/\d+)` only matched a count
