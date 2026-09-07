@@ -1079,10 +1079,82 @@ class TestAccountsPayableLeCurrentLiabilities:
         assert checker.results[0].severity == ERROR
 
 
+class TestCashLeCurrentAssets:
+    def test_flags_cash_above_current_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADCASH",
+                        "fiscal_year": 2021,
+                        "current_assets": 901_355.0,
+                        "cash_and_equivalents": 775_600_000.0,  # far exceeds current_assets
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_cash_le_current_assets(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "cash_le_current_assets"
+        assert checker.results[0].details["examples"][0]["symbol"] == "BADCASH"
+
+    def test_does_not_flag_cash_within_current_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODCASH",
+                        "fiscal_year": 2025,
+                        "current_assets": 1_000_000_000.0,
+                        "cash_and_equivalents": 200_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_cash_le_current_assets(cur)
+        assert checker.results == []
+
+    def test_does_not_flag_cash_equal_current_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "ALLCASH",
+                        "fiscal_year": 2025,
+                        "current_assets": 1_000_000_000.0,
+                        "cash_and_equivalents": 1_000_000_000.0,  # no other current assets
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_cash_le_current_assets(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_cash_le_current_assets(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_cash_le_current_assets(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "cash_le_current_assets"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_seventeen_checks(self) -> None:
-        cur = _mock_cursor([[]] * 17)
+    def test_run_calls_all_eighteen_checks(self) -> None:
+        cur = _mock_cursor([[]] * 18)
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 17
+        assert cur.execute.call_count == 18
