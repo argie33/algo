@@ -37,7 +37,7 @@ class IncomeStatementContextMixin:
 
         def _get_market_cap_without_income_statement(
             self, cur: Any, symbol: str
-        ) -> tuple[float | None, float | None, float | None]: ...
+        ) -> tuple[float | None, float | None, float | None, float | None]: ...
 
         def _unavailable_marker(
             self,
@@ -49,6 +49,7 @@ class IncomeStatementContextMixin:
             current_price: float | None = None,
             shares_outstanding: float | None = None,
             market_cap: float | None = None,
+            pb_ratio: float | None = None,
         ) -> dict[str, Any]: ...
 
         @staticmethod
@@ -194,7 +195,9 @@ class IncomeStatementContextMixin:
             # fields don't need X" gap as total_cash/total_debt above - see
             # _get_market_cap_without_income_statement's own docstring for the 19/22
             # live-confirmed AADX/DPC/SIND/etc. symbols this recovers.
-            current_price, shares_outstanding, market_cap = self._get_market_cap_without_income_statement(cur, symbol)
+            current_price, shares_outstanding, market_cap, pb_ratio = self._get_market_cap_without_income_statement(
+                cur, symbol
+            )
             # FIXED 2026-09-05 (goal session: "implausible values" sweep follow-up): an ETF
             # (stock_symbols.etf = 'true') genuinely has zero annual_income_statement rows -
             # it files N-1A/N-CSR under the Investment Company Act, not a 10-K, so there is no
@@ -217,6 +220,7 @@ class IncomeStatementContextMixin:
                     current_price=current_price,
                     shares_outstanding=shares_outstanding,
                     market_cap=market_cap,
+                    pb_ratio=pb_ratio,
                 )
             ]
 

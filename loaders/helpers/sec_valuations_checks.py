@@ -7,7 +7,7 @@ Methods are verbatim, no logic changed - mixed into SecValuationsLoader.
 import logging
 from datetime import date, timedelta
 from itertools import pairwise
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from utils.db.context import DatabaseContext
 
@@ -33,6 +33,12 @@ class ValuationSanityCheckMixin:
     deferred until the method actually runs, by which point load_sec_valuations.py has finished
     executing and is present in sys.modules under its real name.
     """
+
+    if TYPE_CHECKING:
+
+        def _compute_pb_ratio(
+            self, symbol: str, current_price: float, book_value: float | None, shares_out: float
+        ) -> float | None: ...
 
     def _fetch_live_fpi_yfinance_check_values(self, symbol: str) -> tuple[float | None, float | None]:
         """Live market_cap/trailingPE for a foreign private issuer, for sanity-check use only.
@@ -528,9 +534,10 @@ class ValuationSanityCheckMixin:
 
     def _get_market_cap_without_income_statement(
         self, cur: Any, symbol: str
-    ) -> tuple[float | None, float | None, float | None]:
-        """Pure price * shares_outstanding lookup - no income-statement dependency, so
-        callable even before annual_income_statement has any usable row.
+    ) -> tuple[float | None, float | None, float | None, float | None]:
+        """Pure price * shares_outstanding (and, from that, book-value-derived pb_ratio)
+        lookup - no income-statement dependency, so callable even before
+        annual_income_statement has any usable row.
 
         FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling to
         _get_total_cash_and_debt's 2026-09-02 fix): market_cap only needs a live price
@@ -545,9 +552,15 @@ class ValuationSanityCheckMixin:
         queries - the exact same "these fields don't need X" gap total_cash/total_debt
         already had fixed here.
 
-        Returns (current_price, shares_outstanding, market_cap) - any/all None when either
-        input is missing (a company_info_sec shares_outstanding_unavailable_reason, no
-        recent price_daily row, etc.).
+        pb_ratio (ADDED same day, same population): also needs only shares_out (above) and
+        annual_balance_sheet.stockholders_equity - a pure balance-sheet fact, same as
+        total_cash/total_debt just above - so it's resolved via the same real
+        _compute_pb_ratio() every other pb_ratio computation in this loader uses (same
+        bounds/cross-year-fallback behavior), not a separate ad-hoc formula.
+
+        Returns (current_price, shares_outstanding, market_cap, pb_ratio) - any/all None
+        when an input is missing (a company_info_sec shares_outstanding_unavailable_reason,
+        no recent price_daily row, no usable stockholders_equity, etc.).
         """
         cur.execute(
             """
@@ -568,7 +581,23 @@ class ValuationSanityCheckMixin:
         shares_outstanding = float(shares_row[0]) if shares_row else None
 
         market_cap = current_price * shares_outstanding if current_price and shares_outstanding else None
-        return current_price, shares_outstanding, market_cap
+
+        pb_ratio = None
+        if current_price and shares_outstanding:
+            cur.execute(
+                """
+                SELECT stockholders_equity FROM annual_balance_sheet
+                WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
+                ORDER BY (CASE WHEN stockholders_equity IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                LIMIT 1
+                """,
+                (symbol,),
+            )
+            equity_row = cur.fetchone()
+            book_value = float(equity_row[0]) if equity_row and equity_row[0] is not None else None
+            pb_ratio = self._compute_pb_ratio(symbol, current_price, book_value, shares_outstanding)
+
+        return current_price, shares_outstanding, market_cap, pb_ratio
 
     def _unavailable_marker(
         self,
@@ -580,13 +609,14 @@ class ValuationSanityCheckMixin:
         current_price: float | None = None,
         shares_outstanding: float | None = None,
         market_cap: float | None = None,
+        pb_ratio: float | None = None,
     ) -> dict[str, Any]:
         """Return data_unavailable marker for symbol.
 
-        total_debt/total_cash/ebitda/current_price/shares_outstanding/market_cap are
-        optional overrides (2026-08-19, extended 2026-09-06 for the latter three): these
-        are pure balance-sheet/price/share-count figures that don't need every other
-        field this marker nulls out - see fetch_incremental's "MOVED 2026-08-19" comment
+        total_debt/total_cash/ebitda/current_price/shares_outstanding/market_cap/pb_ratio
+        are optional overrides (2026-08-19, extended 2026-09-06 for the rest): these are
+        pure balance-sheet/price/share-count figures that don't need every other field
+        this marker nulls out - see fetch_incremental's "MOVED 2026-08-19" comment
         and _get_market_cap_without_income_statement's docstring. Callers that genuinely
         have nothing yet simply omit them and get the same all-NULL behavior as before.
         """
@@ -605,7 +635,7 @@ class ValuationSanityCheckMixin:
             "enterprise_value": None,
             "ebitda": ebitda,
             "pe_ratio": None,
-            "pb_ratio": None,
+            "pb_ratio": pb_ratio,
             "ps_ratio": None,
             "peg_ratio": None,
             "fcf_yield": None,

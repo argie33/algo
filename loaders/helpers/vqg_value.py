@@ -128,6 +128,36 @@ class ValueMetricsMixin(SymbolGateMixin):
             if row_dict.get("market_cap") is not None:
                 marker["market_cap"] = row_dict["market_cap"]
                 marker["market_cap_unavailable_reason"] = None
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+            # follow-up, sibling to the market_cap override above): pb_ratio only needs
+            # current_price/shares_outstanding (already recovered above) and
+            # annual_balance_sheet.stockholders_equity - no income-statement dependency
+            # either. Skipped for a preferred/subordinated-debenture ticker (the override
+            # just above already correctly recategorizes its pb_ratio reason as
+            # "preferred_or_debt_security_no_common_equity_ratio" - a real business fact,
+            # not a missing value, so it must not be clobbered by a real number here even
+            # if sec_valuations happened to compute one).
+            if row_dict.get("pb_ratio") is not None and symbol not in self._get_preferred_or_debt_security_symbols():
+                marker["pb_ratio"] = row_dict["pb_ratio"]
+                marker["pb_ratio_unavailable_reason"] = None
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+            # follow-up): held_percent_institutions comes from positioning_metrics (13F
+            # ownership data) - a completely separate feed from sec_valuations/SEC XBRL, but
+            # `_fetch_positioning_metrics` is only ever called further down this method, past
+            # this early return, so a sec_valuations data_unavailable row (of ANY reason, not
+            # just no_income_statement) silently fell back to that reason instead of its own
+            # real, more specific positioning_metrics status. Live-confirmed 17/19 symbols
+            # hitting the no_income_statement gate (AADX/DPC/SIND/etc.) have a real, specific
+            # "no_resolved_13f_holdings" reason recorded in positioning_metrics (correctly
+            # "Ownership data unresolved" in /api/scores/coverage, not "Missing SEC/XBRL
+            # data" - see coverage_category_rules.py) and 2/19 (AIB, FCBM) have a real,
+            # computed institutional_ownership_pct that was being discarded outright.
+            held_percent_institutions, held_percent_institutions_reason = self._fetch_positioning_metrics(symbol)
+            if held_percent_institutions is not None:
+                marker["held_percent_institutions"] = held_percent_institutions
+                marker["held_percent_institutions_unavailable_reason"] = None
+            elif held_percent_institutions_reason is not None:
+                marker["held_percent_institutions_unavailable_reason"] = held_percent_institutions_reason
             return marker
 
         pe = row_dict.get("pe_ratio")
