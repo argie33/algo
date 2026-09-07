@@ -9,7 +9,7 @@
   ".pre-commit-scripts/check-silent-fallbacks.py": 619,
   ".pre-commit-scripts/check-strict-safe-conversion.py": 136,
   ".pre-commit-scripts/check-strict-validation-tests.py": 103,
-  ".pre-commit-scripts/check_file_size_ratchet.py": 141,
+  ".pre-commit-scripts/check_file_size_ratchet.py": 209,
   ".pre-commit-scripts/check_phantom_file_refs.py": 73,
   ".vulture_whitelist.py": 794,
   "algo/__init__.py": 0,
