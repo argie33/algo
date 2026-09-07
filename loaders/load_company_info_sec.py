@@ -525,7 +525,16 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # (same discipline as DUAL_CLASS_NO_SEPARATOR_ROOTS/CIK_OVERRIDES elsewhere in this codebase)
     # rather than any ticker-suffix-shape inference, which this method's own docstring already
     # rejects as unsafe (many bare siblings correctly have no determinable letter at all).
-    _SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES: dict[str, str] = {"WLY": "A", "WLYB": "B"}
+    # ADDED 2026-09-06 (same sweep, continued): TR (Tootsie Roll Industries) has the identical
+    # vendor/master-data gap as WLY - `stock_symbols.security_name` is the generic "Tootsie Roll
+    # Industries, Inc. Common Stock" with no "Class X" text - but its real current 10-K
+    # (CIK 98677, tr-20251231x10k.htm) cleanly tags TWO standard-dimensioned contexts embedded
+    # directly in the contextRef id string (Workiva-style, same shape as the Liberty Media family
+    # already handled by `_COMMON_CLASS_MEMBER_IN_ID_RE`): `...CommonClassAMember...`=41,820,966
+    # (TR's own class) and `...CommonClassBMember...`=31,165,664 (TROLB's, not currently in this
+    # universe). Live-confirmed against the filing's own XBRL - both fully resolvable, just
+    # missing the security_name signal.
+    _SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES: dict[str, str] = {"WLY": "A", "WLYB": "B", "TR": "A", "TROLB": "B"}
     # ADDED 2026-09-06 (same sweep, continued): ATRO (Astronics Corporation) has only ONE
     # registered common ticker ("ATRO"; the CIK's other ticker "ATROB" is its Class B, not
     # separately scored in this universe) but its real current filings (live-confirmed via
@@ -543,8 +552,19 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # "*Undefined*"/non-standard member name in general, which the method's docstring already
     # explains is exactly the ambiguity this whole cautious design exists to avoid guessing
     # through.
+    # ADDED 2026-09-06 (same sweep, continued): MOV (Movado Group) has the identical
+    # non-standard-custom-member shape as ATRO - its real current 10-K (CIK 72573,
+    # mov-20260131.htm) tags its plain "Common Stock" (the class MOV actually trades -
+    # 15,622,386 shares) under `mov:CommonStockClassUndefinedMember` (note: "CommonStockClass",
+    # not ATRO's "CommonClass" - a different filer-specific string, hence its own lowercased
+    # entry here, not reusable across symbols) rather than the standard
+    # `us-gaap:CommonStockMember`. Live-confirmed via the filing's own prose: "The number of
+    # shares outstanding of the registrant's Common Stock and Class A Common Stock ... were
+    # 15,622,386 and 6,455,602" - MOVAA (Class A, not in this universe) is the smaller, separately
+    # dimensioned `us-gaap:CommonClassAMember` value.
     _VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS: dict[str, frozenset[str]] = {
-        "ATRO": frozenset({"commonclassundefinedmember"})
+        "ATRO": frozenset({"commonclassundefinedmember"}),
+        "MOV": frozenset({"commonstockclassundefinedmember"}),
     }
     # FIXED 2026-09-04 (same sweep): some filers (Liberty Media family, via Workiva-style
     # generators) embed the full dimension/member name directly in the contextRef id string

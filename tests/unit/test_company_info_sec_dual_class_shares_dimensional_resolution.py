@@ -269,3 +269,93 @@ class TestAtroVerifiedCustomDefaultClassMember:
             )
 
         assert result is None
+
+
+class TestTrSecurityNameOverride:
+    """TR (Tootsie Roll Industries) - same vendor/master-data gap shape as WLY: real current
+    10-K (CIK 98677) embeds the class dimension directly in the contextRef id string (Workiva-
+    style, same shape as the Liberty Media family), fully resolvable once TR's own class letter
+    is known via the override."""
+
+    _TR_FILING_TEXT = (
+        '<ix:nonFraction contextRef="As_Of_2_11_2026_us-gaap_StatementClassOfStockAxis_'
+        'us-gaap_CommonClassAMember_P1fjnRulyUK9I85TyF2i8A" '
+        'name="dei:EntityCommonStockSharesOutstanding">41,820,966</ix:nonFraction>'
+        '<ix:nonFraction contextRef="As_Of_2_11_2026_us-gaap_StatementClassOfStockAxis_'
+        'us-gaap_CommonClassBMember_j2i8fgtt-kWU94OHTVgKLQ" '
+        'name="dei:EntityCommonStockSharesOutstanding">31,165,664</ix:nonFraction>'
+    )
+
+    def test_tr_resolves_to_its_own_class_a_value_without_db_lookup(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._TR_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "TR", "98677", _submissions_with_10k(tickers=["TR", "TROLB"])
+            )
+            mock_db_ctx.assert_not_called()
+
+        assert result == 41_820_966
+
+
+class TestMovVerifiedCustomDefaultClassMember:
+    """MOV (Movado Group) - same non-standard-custom-member shape as ATRO but a DIFFERENT
+    filer-specific string (`mov:CommonStockClassUndefinedMember`, not ATRO's
+    `atro:CommonClassUndefinedMember`) - live-confirmed via the filing's own prose ("shares
+    outstanding of the registrant's Common Stock and Class A Common Stock ... were 15,622,386
+    and 6,455,602")."""
+
+    _MOV_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-mov-1" name="dei:EntityCommonStockSharesOutstanding">'
+        "15,622,386</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-mov-2" name="dei:EntityCommonStockSharesOutstanding">'
+        "6,455,602</ix:nonFraction>"
+        '<xbrli:context id="c-mov-1"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">mov:CommonStockClassUndefinedMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-mov-2"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_mov_resolves_to_its_plain_common_stock_value(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._MOV_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Movado Group Inc. Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "MOV", "72573", _submissions_with_10k(tickers=["MOV", "MOVAA"])
+            )
+
+        assert result == 15_622_386
+
+    def test_atro_custom_member_string_does_not_leak_to_mov(self):
+        """Guards that ATRO's `commonclassundefinedmember` entry doesn't accidentally also
+        match MOV's differently-spelled `commonstockclassundefinedmember` string or vice versa -
+        each filer's exact custom member string is checked independently."""
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        # Same shape as MOV's real filing, but tagged with ATRO's exact custom string instead.
+        loader.sec_client.get_filing_plaintext.return_value = self._MOV_FILING_TEXT.replace(
+            "mov:CommonStockClassUndefinedMember", "mov:CommonClassUndefinedMember"
+        )
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Movado Group Inc. Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "MOV", "72573", _submissions_with_10k(tickers=["MOV", "MOVAA"])
+            )
+
+        # MOV's allowlist entry only covers "commonstockclassundefinedmember" - the ATRO-shaped
+        # string must NOT resolve for MOV even though it happens to match ATRO's own entry.
+        assert result is None
