@@ -985,6 +985,11 @@ _BALANCE_FIELD_MAPPING = {
     # on "InventoryNetOfAllowancesCustomerAdvancesAndProgressBillings" - fallback-only
     # (see _DEBT_FALLBACK_ONLY_FIELDS above), must never win over the standard concept.
     "inventory_net_of_allowances_customer_advances_and_progress_billings": "inventory",
+    # ADDED 2026-09-07 (goal: SEC/XBRL missing-data audit, migration 1263): see
+    # sec_balance_sheet.py's get_balance_sheet() comment on "AccountsPayableCurrent" for the
+    # live WMT/TGT evidence. Not fallback-only - this is the only concept fetched for this
+    # column, same single-concept convention as accounts_receivable/inventory above.
+    "accounts_payable_current": "accounts_payable",
     # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comments
     # on "PublicUtilitiesPropertyPlantAndEquipmentNet" (ES live evidence) and
     # "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciation
@@ -1467,6 +1472,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "stockholders_equity",
                     "cash_and_equivalents",
                     "accounts_receivable",
+                    "accounts_payable",
                     "inventory",
                     "ppe_net",
                     "goodwill",
@@ -1500,6 +1506,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "stockholders_equity",
                     "cash_and_equivalents",
                     "accounts_receivable",
+                    "accounts_payable",
                     "inventory",
                     "ppe_net",
                     "goodwill",

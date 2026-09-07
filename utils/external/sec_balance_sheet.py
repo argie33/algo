@@ -537,6 +537,17 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # IFRS filers report the equivalent under ifrs-full "RetainedEarnings" instead, went
         # universally NULL for every one of them until _BALANCE_IFRS_ALIASES added it above.
         "RetainedEarningsAccumulatedDeficit",
+        # ADDED 2026-09-07 (goal: SEC/XBRL missing-data audit, found via
+        # scripts/xbrl_concept_coverage_scan.py's systematic gap scan): 3,392 real filers tag
+        # this concept and it was never fetched at all - no accounts_payable-shaped column
+        # existed anywhere in the schema before migration 1263. Live-confirmed via real SEC
+        # companyfacts JSON: WMT FY2026 (period end 2026-01-31) = $63,061,000,000, TGT FY2026
+        # (period end 2026-01-31) = $12,622,000,000 - both sane, material trade-payables
+        # figures. No known taxonomy-variant/IFRS fallback verified yet (none appeared in the
+        # coverage scan at any company-count threshold checked) - add one only with the same
+        # live-evidence standard as every other fallback in this file, not by guessing a
+        # plausible-sounding concept name.
+        "AccountsPayableCurrent",
     ]
     rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
     _fill_long_term_debt_from_noncurrent_current_split(rows)
