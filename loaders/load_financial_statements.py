@@ -3134,6 +3134,57 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                     row[field] = None
                     self._record_explicit_null_rejection(row, field, "implausible_shares_outstanding_scale_error")
 
+    def _reject_diluted_shares_below_basic(self, transformed: list[dict[str, Any]]) -> None:
+        """Reject shares_outstanding_diluted when it's materially BELOW the same row's
+        shares_outstanding_basic. Mutates `transformed` in place.
+
+        FOUND 2026-09-07 (goal session: quarterly_diluted_ge_basic_shares tie-out check
+        triage, 59 flagged symbol/quarters): diluted share count can never be meaningfully
+        less than basic - GAAP defines diluted as basic plus dilutive potential shares (or,
+        in a net-loss period, antidilution rules require diluted to simply equal basic, never
+        go below it). A row where diluted << basic is a confidently-wrong value, the same
+        "filer/filing-agent XBRL tagging error" class _reject_implausible_shares_outstanding
+        already exists to catch via an external company_info_sec cross-check - this adds the
+        same-row cross-check that catch doesn't cover, since company_info_sec only holds one
+        CURRENT share count per symbol and is unreliable for a heavily-diluted small-cap's
+        older historical quarters (post-split/reload the current count can differ by 10-100x
+        from a several-year-old quarter, in either direction, defeating that ratio check).
+
+        Live-confirmed via direct SEC EDGAR companyfacts fetch (not a code bug, a genuine
+        filer tagging error already present in the raw fetched data): ADIL FY2022 Q2 tagged
+        WeightedAverageNumberOfDilutedSharesOutstanding=972,641 against a real
+        shares_outstanding_basic=24,316,031 (ratio ~25.0x) and FY2022 Q3 tagged
+        1,028,982 against 25,724,557 (ratio ~25.0x again) - the same suspiciously exact ~25x
+        factor in two independent quarters is a scale/tagging error, not real dilution.
+        ABTC FY2020 Q1/Q3 show a smaller but still implausible ~2.2x gap the other way.
+
+        Deliberately does NOT reject the common, legitimate case: many net-loss-quarter
+        filers correctly report antidilution by tagging a diluted count numerically equal to
+        (or negligibly different from, e.g. AA FY2016 Q1-Q3's 182,000,000 vs
+        182,471,195 - a real filer-rounded display value, live-confirmed against AA's own
+        companyfacts JSON, ratio ~1.003x) basic - the 20% tolerance below only fires on a
+        gap far too large for rounding or a real dilutive-securities computation to explain.
+        """
+        max_plausible_shortfall = 0.20  # diluted may be up to 20% below basic before rejecting
+        for row in transformed:
+            basic = row.get("shares_outstanding_basic")
+            diluted = row.get("shares_outstanding_diluted")
+            if basic is None or diluted is None or basic <= 0 or diluted <= 0:
+                continue
+            if diluted < basic * (1 - max_plausible_shortfall):
+                ratio = basic / diluted
+                fiscal_quarter = row.get("fiscal_quarter")
+                period_label = f"FY{row.get('fiscal_year')}" + (f"Q{fiscal_quarter}" if fiscal_quarter else "")
+                logger.warning(
+                    f"[{self.table_name}] {row.get('symbol')} {period_label}: "
+                    f"shares_outstanding_diluted={diluted:,.0f} is {ratio:.1f}x BELOW "
+                    f"shares_outstanding_basic={basic:,.0f} - diluted can never be materially "
+                    "less than basic under GAAP. Likely a filer/filing-agent XBRL tagging "
+                    "error. Rejecting rather than storing a confidently-wrong share count."
+                )
+                row["shares_outstanding_diluted"] = None
+                self._record_explicit_null_rejection(row, "shares_outstanding_diluted", "diluted_below_basic_shares")
+
     def _fill_derived_eps(self, transformed: list[dict[str, Any]]) -> None:
         """Fill earnings_per_share when the filer never tagged EarningsPerShareBasic/Diluted
         at all, using data this same row already carries. Mutates `transformed` in place.
@@ -3784,6 +3835,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         # present. Same MIN_PLAUSIBLE_SHARES_OUTSTANDING floor (100,000) already used in
         # load_company_info_sec.py.
         self._reject_implausible_shares_outstanding(transformed)
+        self._reject_diluted_shares_below_basic(transformed)
         if self.statement_type == "income":
             self._fill_derived_eps(transformed)
             self._reject_implausible_eps(transformed)
