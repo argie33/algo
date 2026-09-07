@@ -2538,16 +2538,110 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         # constant) instead of the full preserve_on_missing_fields set: a row missing every
         # required field has no usable data regardless of what cover-page/share-count
         # fields it also carries.
+        # FIXED 2026-09-07 (goal session: scores-review regression audit, AAPL/JPM/NVDA/KO/
+        # NEE/XOM/F/... live-confirmed): the 2026-09-06 fix above force-nulled a row the
+        # moment THIS run's fetch came back with no required fields, with no check against
+        # what's already stored - a transient single-run fetch gap (rate limiting, timing, a
+        # slow SEC re-serve; see the 2026-08-20/21 "would_downgrade" comment above for the
+        # same class of transient gap, just for the data_unavailable flag instead of the
+        # value itself) got treated identically to a genuine "no annual filing exists" case,
+        # and irreversibly wiped it via _record_explicit_null_rejection's bypass of preserve_
+        # on_missing_fields' COALESCE - no retry, no cross-run confirmation. Live-confirmed
+        # this morning's 07:43-09:03 run: 3,013 of 5,015 symbols hit this path in ONE run
+        # (baseline the two days prior: 3 symbols) - including AAPL FY2024/FY2025, whose real
+        # net_income ($93.7B/$112.0B) a direct fetch_incremental()+transform() call
+        # immediately afterward reproduced correctly, proving the emptiness was this run's
+        # own transient miss, not a real absence. Cascaded into stock_scores.quality_score/
+        # value_score going NULL for hundreds of symbols same-day.
+        #
+        # Fix: apply the same "financial facts are immutable once real" principle preserve_
+        # on_missing_fields itself already uses - only force-null when the row NEVER had real
+        # required-field data on file (checked against the DB, same pattern as the
+        # already_available rescue below), not whenever a single run's fetch happens to miss
+        # it. ALMR/MRLN (this guard's original target) are unaffected by this change - the
+        # specific gross_profit-exceeds-revenue impossibility they exhibited is independently
+        # caught by _reject_implausible_gross_profit's dedicated 3x check above, which doesn't
+        # depend on this run's fetch being empty at all.
         bulk_insert_mgr = getattr(self, "_bulk_insert_mgr", None)
         required_fields = _REQUIRED_STATEMENT_FIELDS.get(self.statement_type, set())
+        # FIXED 2026-09-07 (goal session: scores-review, CELH/DXCM/SHOP/NU live-confirmed):
+        # `rows` here is PRE-transform - its keys are the raw aggregated concept names
+        # (e.g. "revenue_from_contract_with_customer_excluding_assessed_tax",
+        # "net_income_loss"), not the canonical "revenue"/"net_income" column names
+        # `required_fields` names - self._field_mapping (raw concept -> canonical column,
+        # applied later by transform()) is what actually produces those. Checking
+        # `row.get("revenue")`/`row.get("net_income")` directly against a pre-transform row
+        # was therefore checking keys that (almost) never exist pre-mapping, regardless of
+        # how much real data the row actually carried - live-confirmed via a direct
+        # fetch_incremental("CELH") call: FY2025 row had
+        # revenue_from_contract_with_customer_excluding_assessed_tax=2,515,269,000 and
+        # net_income_loss=107,999,000 (both real, matching the raw SEC companyfacts cache
+        # exactly) yet this check saw neither "revenue" nor "net_income" present and force-
+        # nulled the row via _reject_stale_all_none_annual_row - reproduced for all of
+        # CELH/DXCM/SHOP/NU's history in one run (all fiscal years share one force-null
+        # timestamp), which is what a full/first backfill run looks like under this bug
+        # (an incremental run with no new rows never reaches this loop at all, which is why
+        # most already-loaded symbols were unaffected). Fix: check the raw keys that
+        # self._field_mapping maps onto each required canonical field, not the canonical
+        # field name itself.
+        field_mapping = getattr(self, "_field_mapping", None) or {}
+        required_raw_keys = {raw for raw, mapped in field_mapping.items() if mapped in required_fields}
         if self.period == "annual" and bulk_insert_mgr is not None and required_fields:
-            for row in rows:
-                if row.get("data_unavailable"):
-                    continue
-                if any(row.get(field) is not None for field in required_fields):
-                    continue  # Real data present for at least one required field
-                self._reject_stale_all_none_annual_row(symbol, row)
+            self._reject_all_none_annual_rows_without_existing_data(
+                symbol, rows, bulk_insert_mgr, required_fields, required_raw_keys
+            )
         return rows
+
+    def _reject_all_none_annual_rows_without_existing_data(
+        self,
+        symbol: str,
+        rows: list[dict[str, Any]],
+        bulk_insert_mgr: Any,
+        required_fields: set[str],
+        required_raw_keys: set[str],
+    ) -> None:
+        """Force-null an all-none annual row only if the DB has NEVER had real required-field
+        data for that (symbol, primary key) - see the 2026-09-07 fix comment above
+        fetch_incremental's call site for the full incident writeup (AAPL/NVDA/JPM/... force-
+        nulled by treating a transient single-run empty fetch as a genuine absence).
+        """
+        pk_cols = list(bulk_insert_mgr.primary_key)
+        required_cols = sorted(required_fields)
+        already_has_data: set[tuple[Any, ...]] | None = None
+        for row in rows:
+            if row.get("data_unavailable"):
+                continue
+            if any(row.get(field) is not None for field in required_raw_keys):
+                continue  # Real data present for at least one required field
+
+            if already_has_data is None:
+                already_has_data = set()
+                try:
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            f"""
+                            SELECT {", ".join(pk_cols)}, {", ".join(required_cols)}
+                            FROM {self.table_name}
+                            WHERE symbol = %s
+                            """,
+                            (symbol,),
+                        )
+                        n_pk = len(pk_cols)
+                        for existing_row in cur.fetchall():
+                            key = tuple(existing_row[:n_pk])
+                            required_vals = existing_row[n_pk:]
+                            if any(v is not None for v in required_vals):
+                                already_has_data.add(key)
+                except Exception as e:
+                    logger.debug(f"[{self.table_name}] Existing-row lookup failed for {symbol} (non-fatal): {e}")
+
+            pk_row = {pk: (symbol if pk == "symbol" else row.get(pk)) for pk in pk_cols}
+            if any(v is None for v in pk_row.values()):
+                continue  # Can't target an UPDATE without a complete primary key
+            key = tuple(pk_row[pk] for pk in pk_cols)
+            if key in already_has_data:
+                continue  # Already-confirmed real data on file - this run's empty fetch is untrusted, let COALESCE preserve it
+            self._reject_stale_all_none_annual_row(symbol, row)
 
     def _apply_custom_cashflow_extensions(self, symbol: str, rows: list[dict[str, Any]]) -> None:
         """Supplement `rows` with any of this loader's per-symbol custom-XBRL-extension

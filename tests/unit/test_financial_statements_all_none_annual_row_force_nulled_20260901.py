@@ -24,6 +24,7 @@ legitimate partial-data case always leaves at least one field populated), scoped
 that (symbol, fiscal_year), not the whole symbol's history like the FPI case.
 """
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from loaders.load_financial_statements import ConsolidatedFinancialStatementsLoader
@@ -84,9 +85,22 @@ class TestAllNoneAnnualRowForceNulled:
 
     def test_partial_data_row_does_not_queue(self) -> None:
         """A row with at least one real field populated (the common 'one optional concept
-        missing' case preserve_on_missing_fields exists for) must never trigger this."""
+        missing' case preserve_on_missing_fields exists for) must never trigger this.
+
+        Uses a raw pre-transform concept key ("revenue_from_contract_with_customer_
+        excluding_assessed_tax"), not the canonical "revenue" column name - fetch_incremental's
+        `rows` here are pre-transform (see the 2026-09-07 fix comment in fetch_incremental for
+        the CELH/DXCM/SHOP/NU regression this distinguishes from: a fixture keyed by the
+        canonical name would pass even with that bug present, since real raw rows never carry
+        a literal "revenue"/"net_income" key at all).
+        """
         loader = _make_loader()
-        partial_row = {"symbol": "AAPL", "fiscal_year": 2024, "revenue": 391_035_000_000, "net_income": None}
+        partial_row = {
+            "symbol": "AAPL",
+            "fiscal_year": 2024,
+            "revenue_from_contract_with_customer_excluding_assessed_tax": 391_035_000_000,
+            "net_income_loss": None,
+        }
         with patch.object(
             ConsolidatedFinancialStatementsLoader.__mro__[1],
             "fetch_incremental",
@@ -118,6 +132,78 @@ def _mock_write_context() -> tuple[MagicMock, MagicMock]:
     mock_ctx.__enter__.return_value = mock_cur
     mock_ctx.__exit__.return_value = False
     return mock_ctx, mock_cur
+
+
+def _mock_read_context(fetchall_result: list[tuple[Any, ...]]) -> MagicMock:
+    mock_cur = MagicMock()
+    mock_cur.fetchall.return_value = fetchall_result
+    mock_ctx = MagicMock()
+    mock_ctx.__enter__.return_value = mock_cur
+    mock_ctx.__exit__.return_value = False
+    return mock_ctx
+
+
+class TestExistingRealDataProtectedFromTransientFetchGap:
+    """Regression test for the 2026-09-07 fix: the 2026-09-06 guard above force-nulled a row
+    the instant THIS run's fetch came back with no required fields, with no check against
+    what's already stored - live-confirmed to have wiped real annual_income_statement data
+    (revenue/net_income) for 3,013 of 5,015 symbols in one run on 2026-09-07, including AAPL
+    FY2024/FY2025 (real net_income $93.7B/$112.0B), because a single run's fetch transiently
+    missed the required fields even though a direct fetch_incremental()+transform() call
+    immediately afterward reproduced the correct values. A row that already has confirmed
+    real required-field data on file must not be force-nulled just because one run's fetch
+    came back empty - only a row that NEVER had real data on file should be.
+    """
+
+    def test_existing_real_data_blocks_force_null_on_transient_empty_fetch(self) -> None:
+        loader = _make_loader()
+        all_none_row = {
+            "symbol": "AAPL",
+            "fiscal_year": 2024,
+            "fiscal_quarter": None,
+            "revenue": None,
+            "net_income": None,
+        }
+        # DB already has real revenue/net_income on file for AAPL FY2024 - this run's fetch
+        # came back empty (transient), so the existing real data must win.
+        read_ctx = _mock_read_context([("AAPL", 2024, 93_736_000_000, 391_035_000_000)])
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[all_none_row],
+            ),
+            patch("loaders.load_financial_statements.DatabaseContext", return_value=read_ctx),
+        ):
+            result = loader.fetch_incremental("AAPL", None)
+        assert result == [all_none_row]
+        assert loader._explicit_null_rejections == []
+
+    def test_no_existing_real_data_still_force_nulls(self) -> None:
+        """A fiscal year the DB has never had real required-field data for (the guard's
+        original ALMR/MRLN-class target) must still be force-nulled - this fix only protects
+        rows that already have confirmed real data on file."""
+        loader = _make_loader()
+        all_none_row = {
+            "symbol": "OFRM",
+            "fiscal_year": 2026,
+            "fiscal_quarter": None,
+            "revenue": None,
+            "net_income": None,
+        }
+        read_ctx = _mock_read_context([])
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[all_none_row],
+            ),
+            patch("loaders.load_financial_statements.DatabaseContext", return_value=read_ctx),
+        ):
+            result = loader.fetch_incremental("OFRM", None)
+        assert result == [all_none_row]
+        for field in loader._bulk_insert_mgr.preserve_on_missing_fields:
+            assert ({"symbol": "OFRM", "fiscal_year": 2026}, field) in loader._explicit_null_rejections
 
 
 class TestPostRunActuallyNullsTheStaleCell:
