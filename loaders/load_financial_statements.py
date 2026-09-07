@@ -3471,6 +3471,42 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                 continue
             self._record_explicit_null_rejection(row, "gross_profit", "gross_profit_stale_no_fresh_annual_concept")
 
+    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep, gross_profit_
+    # identity follow-up to the ABBV/GILD/AMGN/ABT stale-stub fix above): live-confirmed via
+    # real SEC companyfacts JSON that Centene (CNC) and Elevance Health (ELV) - both managed-
+    # care health insurers, SIC "Hospital & Medical Service Plans" - tag their OWN "GrossProfit"/
+    # "CostOfGoodsAndServicesSold" XBRL concepts to a narrow, real sub-calculation (their non-
+    # premium service-fee segments only, ~$2.7-21B) that EXCLUDES their dominant cost line -
+    # medical claims/benefits expense, tagged separately as PolicyholderBenefitsAndClaims
+    # IncurredHealthCare/BenefitsLossesAndExpenses (CNC FY2023 $118.9B, ELV H1'26-annualized
+    # ~$193B) - which this pipeline never maps to cost_of_revenue at all. Unlike HCTI's
+    # gross_profit bug above (a filing-agent tagging ERROR, not a real number at all), CNC's/
+    # ELV's $2.67B/$21.2B "GrossProfit"/"CostOfGoodsAndServicesSold" figures ARE real, filer-
+    # reported facts - just not economically comparable to a retailer's gross margin, since they
+    # cover only a small slice of the filer's true cost structure. Live-cross-checked their real
+    # peers to confirm this is NOT a blanket "insurers are all wrong" issue: MOH/HUM (no
+    # GrossProfit tag at all, correctly NULL already) and UNH/CI/CVS (real, meaningful
+    # CostOfGoodsAndServicesSold figures for their own genuine PBM/retail-pharmacy product
+    # segments, ~50-55% of revenue - a real, comparable cost ratio, not this bug) are unaffected
+    # and must NOT be touched by this fix. A curated, individually-verified rejection (same
+    # discipline as this file's other symbol-specific overrides) rather than a SIC-wide null,
+    # which would incorrectly also blank UNH/CI/CVS's real PBM segment cost data.
+    _PARTIAL_SEGMENT_GROSS_PROFIT_MANAGED_CARE_SYMBOLS = frozenset({"CNC", "ELV"})
+
+    def _reject_partial_segment_gross_profit_for_managed_care_insurers(self, transformed: list[dict[str, Any]]) -> None:
+        """Force-null gross_profit/cost_of_revenue for the curated managed-care symbols above -
+        see that constant's own comment for the live SEC-data verification."""
+        if self.statement_type != "income":
+            return
+        for row in transformed:
+            if row.get("symbol") not in self._PARTIAL_SEGMENT_GROSS_PROFIT_MANAGED_CARE_SYMBOLS:
+                continue
+            for field in ("gross_profit", "cost_of_revenue"):
+                if row.get(field) is None:
+                    continue
+                row[field] = None
+                self._record_explicit_null_rejection(row, field, "managed_care_partial_segment_cost_not_total")
+
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Transform to schema format and add data_unavailable/reason flags.
 
@@ -3505,6 +3541,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
             self._reject_scale_mismatched_net_income(transformed)
             self._reject_implausible_gross_profit(transformed)
             self._reject_stale_gross_profit_without_fresh_concept(transformed)
+            self._reject_partial_segment_gross_profit_for_managed_care_insurers(transformed)
 
         # Get REQUIRED metrics for current statement type (see module-level
         # _REQUIRED_STATEMENT_FIELDS docstring - shared with post_run()'s flag sync).
