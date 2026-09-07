@@ -75,6 +75,7 @@
   "algo/monitoring/data_patrol/checks/quality.py": 356,
   "algo/monitoring/data_patrol/checks/specialized.py": 616,
   "algo/monitoring/data_patrol/checks/staleness.py": 286,
+  "algo/monitoring/data_patrol/checks/statistical_anomaly.py": 122,
   "algo/monitoring/data_patrol/checks/tie_out.py": 3858,
   "algo/monitoring/data_patrol/checks/xbrl_new_concepts.py": 80,
   "algo/monitoring/data_patrol/config.py": 67,

@@ -126,6 +126,7 @@ class DataPatrol:
             QualityChecker,
             SpecializedChecker,
             StalenessChecker,
+            StatisticalAnomalyChecker,
             TieOutChecker,
         )
         from .config import CRIT, ERROR
@@ -147,6 +148,7 @@ class DataPatrol:
                 SpecializedChecker(self.config),
                 TieOutChecker(self.config),
                 NewXbrlConceptChecker(self.config),
+                StatisticalAnomalyChecker(self.config),
             ]
 
             for checker in checkers:
