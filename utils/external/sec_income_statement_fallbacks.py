@@ -382,6 +382,23 @@ def _fill_cost_of_revenue_from_other_operating_cost(rows: list[dict[str, Any]]) 
     field_mapping still maps the corrected total to "cost_of_revenue" for every filer, same
     technique as the CASY D&A fallback above. Always strips both raw keys (never mapped to a
     DB column on their own) whether or not either fired.
+
+    FIXED 2026-09-07 (goal session: gross_profit_identity live tie-out run, PM live-confirmed):
+    the addition used to be unconditional whenever both concepts were tagged - correct for TAP
+    (Molson Coors: revenue is reported ex-excise-tax, and the filer's OWN tagged GrossProfit
+    only reconciles once ExciseAndSalesTaxes is added to COGS - $4.2746B, exact match), but
+    live-confirmed WRONG for PM (Philip Morris) FY2025: revenue ($40.648B) is ALSO reported
+    ex-excise-tax (RevenueFromContractWithCustomerExcludingAssessedTax), but PM's own tagged
+    GrossProfit ($27.282B) ALREADY reconciles with COGS alone ($13.366B, no excise addition
+    needed) - adding ExciseAndSalesTaxes ($53.211B) on top produced cost_of_revenue=$66.577B,
+    exceeding revenue entirely and breaking gross_profit_identity. Same raw concepts, opposite
+    correct treatment per filer - there is no single unconditional rule. Now validated against
+    the filer's own tagged "gross_profit" (when present) the same way _fill_pretax_income_
+    from_domestic_foreign_split validates against net_income+tax above: only add extra when
+    doing so makes cost_of_revenue reconcile BETTER with the filer's own tagged gross_profit
+    than leaving it alone would. A filer with no tagged gross_profit at all (the original
+    TTEK/SAM-without-GrossProfit case) still gets the addition unconditionally, unchanged from
+    before - this only tightens the TAP-vs-PM ambiguous case.
     """
     for row in rows:
         other_cost = row.pop("other_cost_of_operating_revenue", None)
@@ -392,4 +409,19 @@ def _fill_cost_of_revenue_from_other_operating_cost(rows: list[dict[str, Any]]) 
         cogs = row.get("cost_of_goods_and_services_sold")
         if cogs is None:
             continue
+        tagged_gross_profit = row.get("gross_profit")
+        revenue = None
+        for revenue_key in (
+            "revenues",
+            "revenue_from_contract_with_customer_excluding_assessed_tax",
+            "revenue_from_contract_with_customer_including_assessed_tax",
+        ):
+            if row.get(revenue_key) is not None:
+                revenue = row[revenue_key]
+                break
+        if tagged_gross_profit is not None and revenue is not None:
+            error_without_extra = abs((revenue - cogs) - tagged_gross_profit)
+            error_with_extra = abs((revenue - cogs - extra) - tagged_gross_profit)
+            if error_without_extra <= error_with_extra:
+                continue  # Filer's own tagged gross_profit already reconciles without the addition
         row["cost_of_goods_and_services_sold"] = cogs + extra

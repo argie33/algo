@@ -104,3 +104,25 @@ class TestTtekCostOfRevenueFromOtherOperatingCost:
         _fill_cost_of_revenue_from_other_operating_cost(rows)
 
         assert rows[0]["cost_of_goods_and_services_sold"] == 6_866_200_000.0
+
+    def test_pm_style_excise_tax_addition_validated_out(self) -> None:
+        """FIXED 2026-09-07 (gross_profit_identity live tie-out follow-up): PM (Philip Morris,
+        CIK 0001413329) FY2025 tags BOTH CostOfGoodsAndServicesSold ($13.366B) and
+        ExciseAndSalesTaxes ($53.211B), same shape as TAP - but unlike TAP, PM's own tagged
+        GrossProfit ($27.282B) ALREADY reconciles with COGS alone (revenue $40.648B - COGS
+        $13.366B = $27.282B, exact). Adding excise tax on top (as the old unconditional
+        behavior did) produced cost_of_revenue=$66.577B, exceeding revenue entirely. Must be
+        validated out here, not summed in blindly."""
+        rows = [
+            {
+                "revenue_from_contract_with_customer_excluding_assessed_tax": 40_648_000_000.0,
+                "cost_of_goods_and_services_sold": 13_366_000_000.0,
+                "excise_and_sales_taxes": 53_211_000_000.0,
+                "gross_profit": 27_282_000_000.0,
+            }
+        ]
+
+        _fill_cost_of_revenue_from_other_operating_cost(rows)
+
+        assert rows[0]["cost_of_goods_and_services_sold"] == 13_366_000_000.0
+        assert "excise_and_sales_taxes" not in rows[0]
