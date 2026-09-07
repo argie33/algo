@@ -474,9 +474,19 @@ class DailyReconciliation(
                         100
                     )
                     if abs(drift_pct) > Decimal("1.0"):
-                        logger.warning(
-                            f"Position value drift: Alpaca ${float(alpaca_portfolio_value_dec):,.2f} vs DB-computed ${float(total_equity_db_dec):,.2f} ({float(drift_pct):+.1f}%)"
+                        drift_message = (
+                            f"Position value drift: Alpaca ${float(alpaca_portfolio_value_dec):,.2f} vs "
+                            f"DB-computed ${float(total_equity_db_dec):,.2f} ({float(drift_pct):+.1f}%)"
                         )
+                        logger.warning(drift_message)
+                        try:
+                            notify(
+                                "warning",
+                                title="Broker/DB Equity Drift",
+                                message=drift_message,
+                            )
+                        except (ValueError, ZeroDivisionError, TypeError) as e:
+                            logger.warning(f"Failed to send notification: {e}")
 
                 metrics = self._compute_broker_snapshot_metrics(cur, reconcile_date, total_equity_dec, position_state)
 

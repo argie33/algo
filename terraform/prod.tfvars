@@ -71,11 +71,11 @@ enable_premarket_orchestrator = false                       # Disabled: no marke
 # and auto-repairs missing/wrong-sized protective stops every 15 min during market hours,
 # independent of the full orchestrator's own less-frequent schedule above). Real-money-
 # readiness audit (2026-09-05) found the full orchestrator's cadence alone leaves a real
-# window where a position can sit without a live broker-side stop. Deliberately left false
-# here: this is a real, ongoing AWS Scheduler cost and a live-account behavior change, not
-# just a code readiness question - flip to true only with an explicit go-ahead to deploy it,
-# then `terraform apply`.
-enable_stop_loss_guardian = false
+# window where a position can sit without a live broker-side stop - with only the morning
+# orchestrator enabled (line 65 above), that window is effectively the entire rest of the
+# trading day. ENABLED 2026-09-06 with explicit go-ahead: closes that gap before real-money
+# trading begins. Requires `terraform apply` to take effect.
+enable_stop_loss_guardian = true
 
 # High-frequency intraday beta/concentration risk re-check (modules/services/intraday-
 # risk-monitor.tf, alert-only - see that file's header and algo/risk/intraday_risk_

@@ -195,6 +195,11 @@ VALIDATION_SCHEMA = {
     "paper_mode_max_consecutive_losses": ("int", 1, 100, False, 5),  # Paper trading (more lenient)
     "min_win_rate_pct": ("float", 0.0, 100.0, False, 40.0),
     "max_total_risk_pct": ("float", 0.1, 100.0, False, 4.0),
+    # Fat-finger backstop (position_sizer.py): hard per-trade dollar ceiling independent of
+    # portfolio_value, so a corrupted equity read can't make every percentage cap look
+    # "compliant" while authorizing an arbitrarily large real order. Not critical (False) -
+    # the sizer code itself treats this as optional/opt-in, matching that design.
+    "absolute_max_dollars_per_trade": ("float", 100.0, 10_000_000.0, False, 10000.0),
     "min_risk_pct_floor": ("float", 0.01, 10.0, False, 0.10),
     "max_weekly_loss_pct": ("float", 0.1, 100.0, False, 5.0),
     "max_data_staleness_days": ("int", 0, 30, False, 3),

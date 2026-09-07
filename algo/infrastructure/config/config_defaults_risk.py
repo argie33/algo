@@ -185,6 +185,12 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
         "Risk Limits",
     ),
     "max_total_risk_pct": ("4.0", "float", "Max total open risk %", "Risk Limits"),
+    "absolute_max_dollars_per_trade": (
+        "10000.0",
+        "float",
+        "Hard per-trade dollar ceiling independent of portfolio_value - fat-finger backstop against a corrupted equity read",
+        "Risk Limits",
+    ),
     "min_risk_pct_floor": (
         "0.10",
         "float",

@@ -373,3 +373,70 @@ class CorporateActionsMixin:
                 "new_stop": new_stop,
             }
         )
+
+        self._reconcile_broker_orders_after_split(cur, pos_id, symbol, new_stop)
+
+    def _reconcile_broker_orders_after_split(
+        self, cur: PsycopgCursor[Any], pos_id: int, symbol: str, new_stop: float
+    ) -> None:
+        """CRITICAL FIX (2026-09-06 real-money-readiness audit): _apply_split_adjustment above
+        only ever rescaled DB price columns. The live protective stop-loss (and take-profit)
+        order(s) resting at the broker were never cancelled/replaced, so they stayed at their
+        stale PRE-split price indefinitely - phase9_stop_loss_repair.py's
+        check_stop_loss_leg_live only verifies a stop LEG'S PRESENCE and QTY, never its price,
+        so it would report "protected" forever while the real broker-side stop sat at up to
+        Nx the correct level (a forward split leaves it far too high - fires immediately or
+        nonsensically; a reverse split leaves it far too low - never fires, unbounded downside
+        exposure). Whether Alpaca itself auto-adjusts a resting order's price on a split is not
+        something this codebase can assume or verify from here, so treat every resting order
+        for this symbol as stale and force a real re-verification rather than trust it.
+
+        Fix: cancel every open order resting at the broker for this symbol (the stale-priced
+        bracket/standalone legs) and clear standalone_stop_order_id, so phase9's normal
+        check_stop_loss_leg_live/is_order_still_live checks correctly see "no live stop" on
+        the next cycle and submit a fresh standalone protective stop at the just-rescaled
+        new_stop price - reusing the existing, already-tested repair path instead of
+        duplicating order-submission logic here. With enable_stop_loss_guardian now on (see
+        prod.tfvars), that next cycle is at most ~15 minutes away, not the once-daily
+        orchestrator run.
+        """
+        from algo.trading.order_manager import OrderManager
+
+        try:
+            alpaca_base_url, alpaca_key, alpaca_secret = self._get_alpaca_creds()
+            order_mgr = OrderManager(alpaca_key, alpaca_secret, alpaca_base_url)
+            cancel_result = order_mgr.cancel_all_open_orders_for_symbol(symbol)
+        except Exception as e:
+            cancel_result = {"success": False, "cancelled_order_ids": [], "message": str(e)}
+
+        cur.execute(
+            "UPDATE algo_positions SET standalone_stop_order_id = NULL WHERE id = %s",
+            (pos_id,),
+        )
+
+        severity = "WARN" if cancel_result.get("success") else "CRITICAL"
+        details = (
+            f"Split follow-up for {symbol} (position {pos_id}): cancelled stale-priced broker "
+            f"order(s) {cancel_result.get('cancelled_order_ids')} so the next stop-loss-repair "
+            f"cycle resubmits at the corrected post-split stop {new_stop:.2f}. "
+            f"{cancel_result.get('message')}"
+        )
+        cur.execute(
+            "INSERT INTO algo_audit_log (action_type, action_date, details, severity) VALUES (%s, %s, %s, %s)",
+            ("CORPORATE_ACTION_SPLIT_BROKER_RECONCILE", datetime.now(timezone.utc), details, severity),
+        )
+        if not cancel_result.get("success"):
+            logger.critical(f"[POSITION_MONITOR] {details}")
+            try:
+                from algo.reporting import notify
+
+                notify(
+                    "CRITICAL",
+                    "Split detected but stale broker order cancel failed",
+                    details,
+                    symbol=symbol,
+                )
+            except Exception as notify_err:
+                logger.error(f"[POSITION_MONITOR] Failed to send split-broker-reconcile alert: {notify_err}")
+        else:
+            logger.warning(f"[POSITION_MONITOR] {details}")
