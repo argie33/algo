@@ -38,7 +38,6 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "operating_income_not_itemized",
             "no_dividend_xbrl_concepts",
             "no_us_gaap_facts",
-            "no_xbrl_filings",
             "cik_not_found",
             "depreciation_amortization_not_loaded",
             "ebitda_not_extracted",
@@ -675,6 +674,24 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # real business-model fact as reit_special_entity just above, not an extraction
             # gap. Live-confirmed SPY/QQQ/IWM (the universe's only active etf='true' symbols).
             "etf_no_sec_filings",
+            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, dividend_data
+            # no_xbrl_filings investigation): load_dividend_data.py's own except FileNotFoundError
+            # handler that WRITES this reason already calls it "permanent and legitimate (mutual
+            # funds, shells), not a loader failure" in its own comment - it was just never moved
+            # to match that comment's own conclusion. Live-sampled the full active-scored
+            # population (496 rows, ~90 distinct symbols): dominated by closed-end funds/trusts
+            # that file N-CSR/N-PORT, never a 10-K (Gabelli GAB/GDV/GUT/GLU/GNT, BlackRock
+            # BCX/BDJ/BGR/BGY/BHK/BOE/BSTZ/BTX/BTZ, Franklin FT/PIM/PPT, Royce RGT/RMT/RVT, abrdn
+            # HQH/HQL, DWS KTF, BNY LEO, Barings MCI/MPV, Central Securities CET), oil/gas/mineral
+            # royalty trusts (SBR/CRT/SJT/PBT/MTR - no operating XBRL by design), ETFs (SPY/QQQ -
+            # same etf_no_sec_filings class just above), OZK (see
+            # bank_ozk_fdic_designee_no_10k_structural_genuine_20260903 in memory - FDIC Section
+            # 12(i) designee, no SEC 10-K ever), and foreign banks filing 20-F/6-K with no XBRL
+            # companyfacts at all (IBN/ICICI Bank - live-confirmed CIK 1103838's companyfacts
+            # endpoint 404s). Every sampled case is a real, permanent, non-SEC-XBRL-reporting
+            # entity, not an extraction gap - was inflating "Missing SEC/XBRL data" for a
+            # population this pipeline can never close regardless of extraction-code quality.
+            "no_xbrl_filings",
             # ADDED 2026-09-05 (SEC/XBRL missing-data sweep, "implausible values" follow-up):
             # a real, reported $0.00 total_assets/stockholders_equity (a blank-check/shell
             # company pre-merger, e.g. OBX) - a known business fact, not an extraction gap.
