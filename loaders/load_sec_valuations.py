@@ -113,35 +113,6 @@ MAX_ABSOLUTE_DOLLAR_VALUE = 9_000_000_000_000.0  # $9 trillion - stays safely un
 # root here only after the same entity_name verification - never on ticker-shape alone.
 DUAL_CLASS_NO_SEPARATOR_ROOTS = frozenset({"DGIC", "KELY", "LBTY", "BELF", "SENE", "RUSH"})
 
-# ADDED 2026-09-06 (goal: SEC/XBRL missing-data-to-zero sweep, has_dual_class_sibling detection
-# gap found while investigating ps_ratio "implausible_ratio" for UONE): DUAL_CLASS_NO_SEPARATOR_
-# ROOTS above only matches when the CURRENT symbol is the SUFFIXED side of a pair (root+1 char,
-# e.g. "DGICB" against root "DGIC") - it can never match when the current symbol IS the bare root
-# itself (`symbol.startswith(r) and len(symbol) == len(r) + 1` is never true when symbol == r).
-# That's fine for DGIC/KELY/LBTY/BELF/SENE/RUSH because the bare root isn't itself a real ticker
-# there, but several real dual-class families use a real, actively-traded ticker AS the root, with
-# the sibling class suffixed onto it with no separator (UONE/UONEK - Urban One Class A/D). Each
-# pair below individually verified via matching company_info_sec.entity_name across both tickers,
-# same discipline as the roots above. NOT folded into DUAL_CLASS_NO_SEPARATOR_ROOTS's generic
-# prefix+length matching: several of these roots are short/common enough to collide with real,
-# unrelated tickers under that same heuristic (UA would wildcard-match UAL/United Airlines; FOX
-# would wildcard-match FOXF/Fox Factory and FOXX) - live-confirmed via a direct query against
-# stock_symbols, exactly the false-positive failure mode already documented in
-# DUAL_CLASS_NO_SEPARATOR_ROOTS's own comment (NTR/NTRA/NTRB/NTRP/NTRS). Exact-family-membership
-# matching (see has_dual_class_sibling's use of this below) has zero collision risk regardless of
-# root length, so it's safe to include short roots here that would not be safe to add above.
-DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES: tuple[frozenset[str], ...] = (
-    frozenset({"CENT", "CENTA"}),  # Central Garden & Pet
-    frozenset({"FOX", "FOXA"}),  # Fox Corp
-    frozenset({"LILA", "LILAK"}),  # Liberty Latin America
-    frozenset({"METC", "METCB"}),  # Ramaco Resources
-    frozenset({"NWS", "NWSA"}),  # News Corp
-    frozenset({"RDI", "RDIB"}),  # Reading International
-    frozenset({"UA", "UAA"}),  # Under Armour
-    frozenset({"UONE", "UONEK"}),  # Urban One
-    frozenset({"WLY", "WLYB"}),  # John Wiley & Sons
-)
-
 # ADDED 2026-08-31 (goal: data-coverage sweep, AMRN follow-up to
 # sec_valuations_fpi_shares_out_missing_gate_fixed_20260831): a narrow, individually-verified
 # allowlist (same discipline as CIK_OVERRIDES/DUAL_CLASS_NO_SEPARATOR_ROOTS above) for the one

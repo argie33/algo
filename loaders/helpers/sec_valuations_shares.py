@@ -68,10 +68,7 @@ class SharesOutstandingResolutionMixin:
         # module is imported BY load_sec_valuations.py, so a module-level import here would be
         # a true circular import - same fix already applied in
         # ValuationSanityCheckMixin._sanity_check_market_cap for the same reason.
-        from loaders.load_sec_valuations import (
-            DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES,
-            DUAL_CLASS_NO_SEPARATOR_ROOTS,
-        )
+        from loaders.load_sec_valuations import DUAL_CLASS_NO_SEPARATOR_ROOTS
         from utils.type_conversion import safe_float
 
         shares_out = None
@@ -114,22 +111,6 @@ class SharesOutstandingResolutionMixin:
                         "SELECT 1 FROM stock_symbols WHERE active = true AND symbol != %s "
                         "AND symbol LIKE %s AND length(symbol) = %s LIMIT 1",
                         (symbol, f"{no_sep_root}%", len(symbol)),
-                    )
-                    has_dual_class_sibling = cur.fetchone() is not None
-            if not has_dual_class_sibling:
-                # See DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES' own module-level comment: covers
-                # dual-class families (UONE/UONEK etc.) where the bare root is itself a real,
-                # actively-traded ticker - a shape the prefix+length heuristic above structurally
-                # can't match (len(symbol) == len(root) + 1 is never true when symbol == root).
-                # Exact family-membership lookup, not a wildcard/prefix match, so short roots
-                # (UA, FOX, NWS, RDI) carry no risk of matching an unrelated ticker that merely
-                # shares a prefix.
-                bare_root_family = next((f for f in DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES if symbol in f), None)
-                if bare_root_family:
-                    siblings = list(bare_root_family - {symbol})
-                    cur.execute(
-                        "SELECT 1 FROM stock_symbols WHERE active = true AND symbol = ANY(%s) LIMIT 1",
-                        (siblings,),
                     )
                     has_dual_class_sibling = cur.fetchone() is not None
             if (
