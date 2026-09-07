@@ -749,6 +749,8 @@ def run_backtest(  # noqa: C901
     best_trade = max(t["profit_loss_pct"] for t in completed_trades) if total_trades > 0 else None
     worst_trade = min(t["profit_loss_pct"] for t in completed_trades) if total_trades > 0 else None
     avg_hold = sum(t["holding_days"] for t in completed_trades) / total_trades if total_trades > 0 else None
+    avg_win_pct = (sum(t["profit_loss_pct"] for t in winning_trades) / win_count) if win_count > 0 else None
+    avg_loss_pct = abs(sum(t["profit_loss_pct"] for t in losing_trades) / loss_count) if loss_count > 0 else None
 
     gross_profit = sum(t["profit_loss_dollars"] for t in winning_trades)
     gross_loss = abs(sum(t["profit_loss_dollars"] for t in losing_trades))
@@ -851,6 +853,8 @@ def run_backtest(  # noqa: C901
         "winning_trades": win_count,
         "losing_trades": loss_count,
         "avg_trade_return_pct": round(avg_trade_return_pct, 4) if avg_trade_return_pct is not None else None,
+        "avg_win_pct": round(avg_win_pct, 4) if avg_win_pct is not None else None,
+        "avg_loss_pct": round(avg_loss_pct, 4) if avg_loss_pct is not None else None,
         "best_trade_pct": round(best_trade, 4) if best_trade is not None else None,
         "worst_trade_pct": round(worst_trade, 4) if worst_trade is not None else None,
         "avg_holding_days": round(avg_hold, 2) if avg_hold is not None else None,
@@ -931,8 +935,8 @@ def save_results(results: dict[str, Any]) -> int | None:
                     results["total_trades"],
                     results["winning_trades"],
                     results["losing_trades"],
-                    results["avg_trade_return_pct"],
-                    results["worst_trade_pct"],  # avg_loss proxy
+                    results["avg_win_pct"],
+                    results["avg_loss_pct"],
                     results["best_trade_pct"],
                     results["worst_trade_pct"],
                 ),

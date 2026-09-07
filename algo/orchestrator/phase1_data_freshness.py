@@ -1188,7 +1188,28 @@ def run(  # noqa: C901 -- inherently a long sequential gate (11 early-return hal
             if patrol_halt:
                 return patrol_halt
     except Exception as e:
-        logger.warning(f"[PHASE 1] DataPatrol gate raised unexpectedly, continuing (non-blocking): {e}", exc_info=True)
+        # REAL-MONEY-READINESS FIX (2026-09-07 audit): this was the one fail-open exception
+        # handler left in this file after the 2026-09-05 dependency-check fix above - an
+        # unexpected error here (DB hiccup, schema drift, bad row) silently let Phase 1
+        # proceed as if DataPatrol were clean, defeating the whole point of this gate.
+        # Now halts like every other Phase 1 failure mode, including the sibling check above.
+        logger.error(f"[PHASE 1] DataPatrol gate raised unexpectedly: {e}", exc_info=True)
+        log_phase_result_fn(
+            1,
+            "data_patrol_gate_error",
+            "halt",
+            f"DataPatrol gate raised unexpectedly: {e}",
+        )
+        return PhaseResult(
+            1,
+            "data_patrol_gate_error",
+            "halted",
+            {},
+            True,
+            f"DataPatrol gate check failed unexpectedly: {type(e).__name__}: {e}. "
+            "Cannot verify data quality is clean - halting rather than risk trading on "
+            "unverified data.",
+        )
 
     preflight_halt = preflight_verify_stock_symbols_table(log_phase_result_fn)
     if preflight_halt:
