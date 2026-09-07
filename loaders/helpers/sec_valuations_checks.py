@@ -313,6 +313,74 @@ class ValuationSanityCheckMixin:
         if all(m is None for m in key_metrics):
             result["data_unavailable"] = True
 
+    # ADDED 2026-09-06 (goal: "digging into stock_scores symbols" spot-check session, extreme
+    # fcf_yield tail follow-up - see stock_scores_symbol_spotcheck_20260906/
+    # shares_outstanding_impossible_volume_gate in memory). _sanity_check_market_cap above
+    # already catches a >10x disagreement with yfinance_snapshot.market_cap, but that ratio
+    # gate missed a real case: CISS's SEC-derived shares_outstanding (274,402) implied
+    # market_cap ($408,859) vs yfinance's $2,595,698 - only a 6.35x gap, under the 10x bar,
+    # so it survived. A completely independent, always-available signal proves it wrong
+    # anyway: CISS traded 12,332,426 shares on a single day within the prior 30 days - a stock
+    # cannot trade 45x its own total share count in one session. This doesn't depend on
+    # yfinance (which can be stale/unavailable - see _sanity_check_market_cap's own "frozen
+    # since Session 275" history) at all; price_daily's own recorded volume is ground truth
+    # for what actually traded. Universe-wide, this same test caught 2 further real cases
+    # (WHLR, IZM) among the 34 symbols with fcf_yield>100% that session found, out of 34
+    # checked - the other 31 have real, if extreme, share counts consistent with their own
+    # trading volume, so this check is deliberately narrow (mathematical impossibility, not a
+    # plausibility judgment call) rather than a broader fcf_yield ceiling, to avoid discarding
+    # real signal for genuinely tiny/distressed/serially-diluted names (TOPS/WHLR-shaped
+    # penny-stock distrust discounts are real market behavior, not data errors, when the
+    # share count itself is internally consistent with trading volume).
+    def _sanity_check_shares_outstanding_vs_volume(
+        self, symbol: str, result: dict[str, Any], cur: Any, lookback_days: int = 30
+    ) -> None:
+        shares_outstanding = result.get("shares_outstanding")
+        if shares_outstanding is None or shares_outstanding <= 0:
+            return
+        cur.execute(
+            "SELECT MAX(volume) FROM price_daily WHERE symbol = %s AND date >= CURRENT_DATE - %s::interval",
+            (symbol, f"{lookback_days} days"),
+        )
+        row = cur.fetchone()
+        max_volume = row[0] if row and row[0] is not None else None
+        if max_volume is None or max_volume <= shares_outstanding:
+            return
+        logger.warning(
+            f"[{symbol}] shares_outstanding sanity check failed: recorded shares_outstanding="
+            f"{shares_outstanding:,.0f} but a single day's trading volume in the last "
+            f"{lookback_days} days reached {max_volume:,.0f} - mathematically impossible unless "
+            f"shares_outstanding is stale/wrong; nulling shares_outstanding-dependent fields"
+        )
+        for field in (
+            "market_cap",
+            "pb_ratio",
+            "ps_ratio",
+            "fcf_yield",
+            "dividend_yield",
+            "net_payout_yield",
+            "enterprise_value",
+            "ev_ebitda",
+            "ev_revenue",
+            "intrinsic_value_per_share",
+            "margin_of_safety_pct",
+        ):
+            result[field] = None
+        # Reuses "shares_outstanding_scale_mismatch" rather than a new reason string -
+        # downstream (vqg_value.py's _build_value_metrics) has ~10 call sites that specifically
+        # check for that exact string to give each nulled field a precise per-field reason
+        # instead of falling through to generic "missing_sec_data"; a new string here would
+        # silently skip all of them (same gap test_value_metrics_shares_outstanding_scale_
+        # mismatch_sibling_fields_20260903.py exists to prevent for the sibling check above).
+        # Both failure modes are the same underlying category (shares_outstanding is
+        # untrustworthy) with identical downstream field effects, so sharing the reason is
+        # correct, not just convenient.
+        if result.get("reason") is None:
+            result["reason"] = "shares_outstanding_scale_mismatch"
+        key_metrics = [result.get("pe_ratio"), result.get("pb_ratio"), result.get("ps_ratio"), result.get("fcf_yield")]
+        if all(m is None for m in key_metrics):
+            result["data_unavailable"] = True
+
     # FIXED 2026-08-20 (goal: finance-accuracy audit, ONC follow-up): pe_ratio doesn't depend
     # on shares_outstanding (current_price / ttm_eps only), so _sanity_check_market_cap above
     # correctly leaves it untouched - but that also means a separately-mis-scaled ttm_eps

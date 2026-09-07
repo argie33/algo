@@ -1328,6 +1328,17 @@ class SecValuationsLoader(
             self._recategorize_royalty_trust_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_capex_never_tagged_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_blank_check_dcf_fcf_reason(symbol, valuation_row)
+            # Deliberately LAST DB-touching call in this method (after every _recategorize_*
+            # above, each of which opens its own cursor) - see that method's own docstring for
+            # why, plus a test-fixture-brittleness note: this is the only ordering under which
+            # every existing hand-scripted fetchone_results test fixture (30+ files, none of
+            # which could have anticipated this later addition) safely exhausts at the true end
+            # of its scripted sequence instead of shifting every later scripted value by one
+            # position - the latter silently corrupts assertions rather than raising, which is
+            # worse than the crash it replaces. Do not move this earlier without auditing every
+            # such fixture again.
+            with DatabaseContext("read") as cur:
+                self._sanity_check_shares_outstanding_vs_volume(symbol, valuation_row, cur)
 
             return [valuation_row]
 
