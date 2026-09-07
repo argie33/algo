@@ -525,9 +525,10 @@ class BrokerSnapshotMixin:
                     daily_return_pct, cumulative_return_pct, max_drawdown_pct,
                     sharpe_ratio, market_health_status, drawdown_pct, running_peak,
                     net_capital_flow_cum, adjusted_equity, adjusted_running_peak, adjusted_drawdown_pct,
+                    session_open_unrealized_pnl_total,
                     cognito_sub, created_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
                 )
                 ON CONFLICT (snapshot_date) DO UPDATE SET
                 total_portfolio_value = EXCLUDED.total_portfolio_value,
@@ -592,6 +593,7 @@ class BrokerSnapshotMixin:
                     metrics.adjusted_equity,
                     metrics.adjusted_running_peak,
                     metrics.adjusted_drawdown_pct,
+                    float(position_state.unrealized_pnl),
                     get_algo_owner_cognito_sub(),
                 ),
             )

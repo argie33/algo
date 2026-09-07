@@ -152,7 +152,7 @@ def _check_portfolio_variance(config: Any, max_attempts: int = 3) -> dict[str, A
                 current_pnl = float(current_pnl)
 
                 cur.execute(
-                    """SELECT unrealized_pnl_total FROM algo_portfolio_snapshots
+                    """SELECT session_open_unrealized_pnl_total FROM algo_portfolio_snapshots
                        WHERE snapshot_date = CURRENT_DATE LIMIT 1"""
                 )
                 session_row = cur.fetchone()

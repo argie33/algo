@@ -124,7 +124,7 @@ def get_portfolio_pnl(max_attempts: int = 3):
             # Get session opening P&L snapshot (captured at market open).
             # CRITICAL: Do NOT use COALESCE(..., 0) - must detect missing snapshots
             cur.execute("""
-                SELECT unrealized_pnl_total as session_open_pnl
+                SELECT session_open_unrealized_pnl_total as session_open_pnl
                 FROM algo_portfolio_snapshots
                 WHERE snapshot_date = CURRENT_DATE
                 LIMIT 1
