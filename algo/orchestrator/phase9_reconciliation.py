@@ -753,6 +753,18 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
 
         if closed_positions:
             exits_recorded = 0
+            # BUG FOUND 2026-09-07 (real-money-readiness audit): the CROSS JOIN LATERAL
+            # UNNEST(ap.trade_ids_arr) query above yields one row per still-untouched leg of a
+            # pyramided position (2+ algo_trades rows sharing one algo_positions row). The
+            # prior_partial_pnl lookup a few hundred lines below is scoped only by
+            # symbol+action_date, not by trade_id/position - so every leg of the SAME position
+            # processed in this same batch re-queries and re-adds the identical prior partial
+            # P&L into that leg's OWN profit_loss_dollars. Summing profit_loss_dollars across a
+            # position's algo_trades rows (the natural way to get total realized P&L) then
+            # double/triple-counts the prior partial exactly N times for an N-leg position.
+            # Track which position_ids have already been credited with their prior partial P&L
+            # in this batch and zero it out for every subsequent leg of the same position.
+            positions_credited_partial_pnl: set[Any] = set()
             with DatabaseContext("write") as write_cursor:
                 acquire_advisory_lock(write_cursor, ALGO_TRADES_LOCK_ID, "algo_trades")
                 acquire_advisory_lock(write_cursor, ALGO_POSITIONS_LOCK_ID, "algo_positions")
@@ -917,23 +929,31 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                             Decimal("0.01"), ROUND_HALF_UP
                         )
 
-                        # Check for any prior partial exits to compute cumulative P&L (same fix as executor_exit_handler)
-                        write_cursor.execute(
-                            """
-                            SELECT COALESCE(SUM((details->>'pnl_dollars')::numeric), 0)
-                            FROM algo_audit_log
-                            WHERE action_type LIKE 'exit_%%'
-                              AND symbol = %s
-                              AND action_date::date = %s
-                              AND (details->>'full_exit')::boolean = false
-                            """,
-                            (symbol, run_date),
-                        )
-                        prior_partial = write_cursor.fetchone()
-                        if prior_partial and len(prior_partial) > 0 and prior_partial[0] is not None:
-                            prior_partial_pnl = Decimal(str(prior_partial[0]))
-                        else:
+                        # Check for any prior partial exits to compute cumulative P&L (same fix as executor_exit_handler).
+                        # Only credit this once per position (see positions_credited_partial_pnl comment
+                        # above the loop) - every subsequent leg of the same pyramided position gets 0
+                        # here so the prior partial isn't re-added into every leg's own P&L row.
+                        if position_id is not None and position_id in positions_credited_partial_pnl:
                             prior_partial_pnl = Decimal(0)
+                        else:
+                            write_cursor.execute(
+                                """
+                                SELECT COALESCE(SUM((details->>'pnl_dollars')::numeric), 0)
+                                FROM algo_audit_log
+                                WHERE action_type LIKE 'exit_%%'
+                                  AND symbol = %s
+                                  AND action_date::date = %s
+                                  AND (details->>'full_exit')::boolean = false
+                                """,
+                                (symbol, run_date),
+                            )
+                            prior_partial = write_cursor.fetchone()
+                            if prior_partial and len(prior_partial) > 0 and prior_partial[0] is not None:
+                                prior_partial_pnl = Decimal(str(prior_partial[0]))
+                            else:
+                                prior_partial_pnl = Decimal(0)
+                            if position_id is not None:
+                                positions_credited_partial_pnl.add(position_id)
 
                         # Cumulative P&L across all legs
                         cumulative_pnl_dollars = float(

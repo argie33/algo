@@ -395,21 +395,41 @@ class ExitFillReconciliationMixin:
         entry_price = estimated_exit_price (no price movement), can use the estimate if price_daily
         data hasn't loaded yet. Otherwise leaves trade pending for next run.
         """
+        # BUG FOUND 2026-09-07 (real-money-readiness audit): this was the last of 5 copies of
+        # the pyramided-entry-price bug in the repo (see reconcile_exit_fills() above, fixed
+        # 2026-09-07, and executor_exit_handler.py's _compute_cumulative_pnl, 486b4e3cc/
+        # 8e0c0ccec) - it read entry_price/entry_quantity straight off this row's own leg with
+        # no join to algo_positions, so a pyramided position resolved here used the FIRST/OWN
+        # leg's entry_price (not the quantity-weighted avg_entry_price) and that leg's own
+        # entry_quantity (not the position's total) for cost-basis/risk-dollar denominators.
+        # LOCAL_MODE-only so this never touched live-money P&L directly, but any "verified
+        # locally" P&L claim for a pyramided position closed in local/dev mode was unreliable.
         cur.execute("""
-            SELECT trade_id, symbol, entry_price, stop_loss_price, entry_quantity, exit_date,
-                   estimated_exit_price
-            FROM algo_trades
-            WHERE status = 'closed'
-              AND profit_loss_dollars IS NULL
-              AND estimated_exit_price IS NOT NULL
-              AND exit_date <= CURRENT_DATE
+            SELECT t.trade_id, t.symbol, COALESCE(p.avg_entry_price, t.entry_price) AS entry_price,
+                   t.stop_loss_price, t.entry_quantity, t.exit_date, t.estimated_exit_price,
+                   p.position_id
+            FROM algo_trades t
+            LEFT JOIN algo_positions p ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
+            WHERE t.status = 'closed'
+              AND t.profit_loss_dollars IS NULL
+              AND t.estimated_exit_price IS NOT NULL
+              AND t.exit_date <= CURRENT_DATE
             """)
         pending = cur.fetchall()
         if not pending:
             return {"resolved": 0, "message": "No local-mode pending exits to resolve"}
 
         resolved = 0
-        for trade_id, symbol, entry_price, stop_loss_price, entry_qty, exit_date, estimated_exit_price in pending:
+        for (
+            trade_id,
+            symbol,
+            entry_price,
+            stop_loss_price,
+            entry_qty,
+            exit_date,
+            estimated_exit_price,
+            position_id,
+        ) in pending:
             if entry_price is None or stop_loss_price is None or entry_qty is None:
                 logger.warning(
                     f"[LOCAL EXIT RESOLUTION] {trade_id} ({symbol}) missing entry_price/stop_loss_price/"
@@ -492,18 +512,38 @@ class ExitFillReconciliationMixin:
             # Cumulative P&L: prior legs + this leg
             cumulative_pnl = prior_pnl_dollars + this_leg_pnl
 
-            # Risk/reward based on TOTAL realized P&L, not just this leg
+            # Risk/reward based on TOTAL realized P&L, not just this leg. For a pyramided
+            # position (2+ legs), this row's own entry_quantity understates the true position
+            # size - sum entry_quantity across every leg on the position instead (mirrors
+            # reconcile_exit_fills()'s identical total_entry_qty_dec fix above).
+            total_entry_qty_dec = qty_dec
+            if position_id is not None:
+                cur.execute(
+                    """
+                    SELECT SUM(t2.entry_quantity)
+                    FROM algo_trades t2
+                    JOIN algo_positions p2 ON t2.trade_id::text = ANY(p2.trade_ids_arr::text[])
+                    WHERE p2.position_id = %s
+                    """,
+                    (position_id,),
+                )
+                total_entry_qty_row = cur.fetchone()
+                if total_entry_qty_row and total_entry_qty_row[0] is not None:
+                    total_entry_qty_dec = Decimal(str(total_entry_qty_row[0]))
+
             # R multiple = total_pnl / (risk_per_share * total_entry_qty)
             risk_per_share = float(entry_price) - float(stop_loss_price)
             if risk_per_share > 0:
-                total_risk = Decimal(str(risk_per_share)) * qty_dec
+                total_risk = Decimal(str(risk_per_share)) * total_entry_qty_dec
                 exit_r_multiple = float((cumulative_pnl / total_risk).quantize(Decimal("0.01"), ROUND_HALF_UP))
             else:
                 exit_r_multiple = None
 
             # P&L % based on total realized P&L relative to total position cost
             pnl_pct = float(
-                (cumulative_pnl / (entry_dec * qty_dec) * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                (cumulative_pnl / (entry_dec * total_entry_qty_dec) * Decimal(100)).quantize(
+                    Decimal("0.01"), ROUND_HALF_UP
+                )
             )
             pnl_dollars = float(cumulative_pnl.quantize(Decimal("0.01"), ROUND_HALF_UP))
 

@@ -1337,7 +1337,16 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # producing a ~1,042,265x understatement with no data_unavailable/reason flag -
             # caught by algo/monitoring/data_patrol/checks/tie_out.py's
             # pretax_to_net_income identity check (WARN, not previously root-caused).
-            _net_income_source_rank: int | None = None
+            # GENERALIZED 2026-09-07 (real-money-readiness audit): the net_income-only guard
+            # above was a single db_field special case. Every other multi-concept db_field
+            # (pretax_income, total_assets, stockholders_equity, gross_profit,
+            # operating_income, income_tax_expense, interest_expense,
+            # shares_outstanding_diluted, diluted_eps, ...) fell through to the generic
+            # last-listed-wins `else` branch below with NO rank check at all - the exact same
+            # unguarded shape that produced the PCG net_income bug, just not yet caught live
+            # on one of these other fields. Track rank per db_field instead of only for
+            # net_income so the same protection applies uniformly.
+            _field_source_rank: dict[str, int] = {}
 
             field_mapping = self._field_mapping
             # FIXED 2026-08-22 (goal session: "Implausible / rejected value" coverage audit):
@@ -1577,18 +1586,43 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 elif db_field == "reason":
                     row["reason"] = value
                 elif (
-                    db_field == "net_income"
-                    and db_field in row
-                    and _net_income_source_rank is not None
-                    and _net_income_source_rank > 0
+                    db_field in row
+                    and _field_source_rank.get(db_field) is not None
+                    and _field_source_rank[db_field] > 0
                     and r.get(f"_rank_{sec_field}", 2) == 0
                 ):
-                    # See _net_income_source_rank's own comment above (PCG live-confirmed):
-                    # a rank-0 (non-primary-form, e.g. DEF 14A) concept must never overwrite
-                    # a value a real primary-form concept already wrote, even though it's a
-                    # DIFFERENT concept occupying a later list position - the ordinary
-                    # last-listed-wins rule only ever intended to arbitrate between
-                    # comparable-quality concepts.
+                    # See _field_source_rank's own comment above (PCG net_income live-confirmed,
+                    # generalized to every multi-concept db_field): a rank-0 (non-primary-form,
+                    # e.g. DEF 14A) concept must never overwrite a value a real primary-form
+                    # concept already wrote, even though it's a DIFFERENT concept occupying a
+                    # later list position - the ordinary last-listed-wins rule only ever
+                    # intended to arbitrate between comparable-quality concepts.
+                    continue
+                elif (
+                    db_field == "capex"
+                    and sec_field
+                    in (
+                        "payments_to_acquire_oil_and_gas_property",
+                        "payments_to_explore_and_develop_oil_and_gas_properties",
+                    )
+                    and db_field in row
+                    and isinstance(row[db_field], (int, float, Decimal))
+                    and isinstance(value, (int, float, Decimal))
+                ):
+                    # BUG FOUND 2026-09-07 (real-money-readiness audit): see
+                    # utils/external/sec_cash_flow.py's concepts-list comment on these two
+                    # concepts - CRGY (Crescent Energy) tags BOTH as genuinely distinct,
+                    # additive investing-activity lines in the same fiscal year
+                    # (PaymentsToExploreAndDevelopOilAndGasProperties $951.0M E&D +
+                    # PaymentsToAcquireOilAndGasProperty $818.9M acquisition, FY2025), not
+                    # alternates for the same fact. _aggregate_concepts has no summing
+                    # mechanism (both keep their own distinct snake_case keys there), so the
+                    # collision happens here: field_mapping maps both to db_field "capex",
+                    # and the ordinary last-listed-wins rule silently discarded whichever one
+                    # processed first - understating total capex (and correspondingly
+                    # overstating free_cash_flow/fcf_margin) by the other line's amount for
+                    # any O&G filer tagging both in the same year. Sum instead of overwrite.
+                    row[db_field] = row[db_field] + value
                     continue
                 elif (
                     db_field == "shares_outstanding_basic"
@@ -1621,8 +1655,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         row[db_field] = value
                         if db_field == "revenue":
                             _revenue_source_sec_field = sec_field
-                        elif db_field == "net_income":
-                            _net_income_source_rank = r.get(f"_rank_{sec_field}", 2)
+                        _field_source_rank[db_field] = r.get(f"_rank_{sec_field}", 2)
 
             # free_cash_flow has no direct XBRL concept (FCF is a non-GAAP measure SEC
             # filers don't tag) - derive it from operating_cash_flow - capex, the standard

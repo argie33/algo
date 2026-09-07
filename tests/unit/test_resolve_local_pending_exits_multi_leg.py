@@ -36,7 +36,7 @@ class TestResolveLocalPendingExitsMultiLeg:
         recon = _make_recon()
         cur = MagicMock()
         cur.fetchall.return_value = [
-            (1, "AAPL", 50.0, 45.0, 100, date(2026, 7, 25), 55.0),
+            (1, "AAPL", 50.0, 45.0, 100, date(2026, 7, 25), 55.0, None),
         ]
         cur.fetchone.side_effect = [
             (55.0,),
@@ -57,7 +57,7 @@ class TestResolveLocalPendingExitsMultiLeg:
         recon = _make_recon()
         cur = MagicMock()
         cur.fetchall.return_value = [
-            (1, "AAPL", 50.0, 45.0, 100, date(2026, 7, 25), 55.0),
+            (1, "AAPL", 50.0, 45.0, 100, date(2026, 7, 25), 55.0, None),
         ]
         cur.fetchone.side_effect = [
             (55.0,),  # price_daily close for exit_date
@@ -81,7 +81,7 @@ class TestResolveLocalPendingExitsMultiLeg:
         recon = _make_recon()
         cur = MagicMock()
         cur.fetchall.return_value = [
-            (42, "AAPL", 50.0, 45.0, 100, date(2026, 7, 25), 50.0),
+            (42, "AAPL", 50.0, 45.0, 100, date(2026, 7, 25), 50.0, None),
         ]
         cur.fetchone.side_effect = [
             (50.0,),  # price_daily close == entry price (breakeven final leg)
@@ -104,7 +104,7 @@ class TestResolveLocalPendingExitsMultiLeg:
         recon = _make_recon()
         cur = MagicMock()
         cur.fetchall.return_value = [
-            (7, "AAPL", 50.0, 45.0, 100, date(2026, 7, 25), 48.0),
+            (7, "AAPL", 50.0, 45.0, 100, date(2026, 7, 25), 48.0, None),
         ]
         cur.fetchone.side_effect = [
             (48.0,),
@@ -118,3 +118,34 @@ class TestResolveLocalPendingExitsMultiLeg:
         pnl_dollars = params[1]
         # final leg: (48-50)*60 = -120; cumulative = 300 - 120 = 180
         assert pnl_dollars == 180.0
+
+    def test_pyramided_position_uses_avg_entry_price_and_total_leg_qty(self):
+        """Position pyramided from 2 entries (60sh @ $50, 40sh @ $55 -> avg $52 on
+        100sh total), fully closed via this fallback path with T1 already realized
+        +$200 on 40sh. The per-row entry_price/entry_quantity from algo_trades alone
+        only reflect ONE leg - must use algo_positions.avg_entry_price and the SUM of
+        entry_quantity across every leg sharing this position_id instead."""
+        recon = _make_recon()
+        cur = MagicMock()
+        cur.fetchall.return_value = [
+            (99, "AAPL", 52.0, 47.0, 60, date(2026, 7, 25), 60.0, 555),
+        ]
+        cur.fetchone.side_effect = [
+            (60.0,),  # price_daily close for exit_date
+            (Decimal("200.0"), Decimal("40")),  # prior partial leg: +$200 on 40sh
+            (100,),  # SUM(entry_quantity) across both legs of position 555
+        ]
+
+        result = recon.resolve_local_pending_exits(cur)
+
+        assert result["resolved"] == 1
+        update_call = [c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]][0]
+        params = update_call.args[1]
+        pnl_dollars, pnl_pct, exit_r_multiple = params[1], params[2], params[3]
+        # this leg's own remaining qty = entry_qty(60) - prior_exit_qty(40) = 20
+        # this leg: (60-52)*20 = 160; cumulative = 200 + 160 = 360
+        assert pnl_dollars == 360.0
+        # pct against TOTAL position cost basis: 360 / (52*100) * 100
+        assert pnl_pct == 6.92
+        # R multiple against TOTAL risk: 360 / ((52-47)*100)
+        assert exit_r_multiple == 0.72
