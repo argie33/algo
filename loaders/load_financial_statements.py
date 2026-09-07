@@ -3323,6 +3323,70 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                     row[field] = None
                     self._record_explicit_null_rejection(row, field, "implausible_eps_filer_tagging_error")
 
+    def _reject_scale_mismatched_net_income(self, transformed: list[dict[str, Any]]) -> None:
+        """Reject `net_income` when it's a clean 1,000x or 1,000,000x-too-small multiple of
+        (pretax_income - income_tax_expense) - the same filer-side "reported in thousands/
+        millions under a whole-dollar concept" scale error `_reject_implausible_eps`'s own
+        docstring already names (the FLOC case: eps=32,729 vs net_income=32,729,000), just
+        caught here from the other side of that same identity, for rows where pretax_income/
+        income_tax_expense happen to carry the correct scale while net_income itself doesn't.
+
+        FOUND 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep, pretax_to_
+        net_income follow-up - this identity's own 593-symbol tie-out failure count hadn't
+        moved all session despite several sibling fixes landing). Live-confirmed via 3 of
+        this check's own top offenders: MVBF (pretax=$36,850,000, tax=$9,928,000,
+        net_income=$26,922 - pretax-tax=$26,922,000, an EXACT 1,000x match), KWY
+        (pretax=-$14,004,000, tax=-$3,752,000, net_income=-$10,252 - pretax-tax=-$10,252,000,
+        exact match), NXPL (pretax=-$10,463,000, tax=$0, net_income=-$10,463 - exact match).
+        Unlike `_reject_implausible_eps`'s fp=None non-integer detector (which catches this
+        exact bug shape but only for EPS, and only for proxy-statement-sourced facts), this
+        targets net_income directly, regardless of source form, since a clean multiplicative
+        match against this row's own pretax_income/income_tax_expense is precise enough on
+        its own - no reliance on the fact's form/fp (already gone by the time `transformed`
+        rows reach this stage).
+
+        Deliberately does NOT attempt to "fix" the value by multiplying it back up: with
+        `pretax_income - income_tax_expense` itself sometimes wrong instead (ambiguous from
+        magnitude alone, same as `_reject_implausible_eps`'s MVBF/TE-shaped mirror case),
+        nulling is the same "honest NULL over a confidently-wrong number" choice made
+        throughout this file - either value being wrong corrupts the same downstream ratios
+        (ROE, net_margin, ...) equally, so which one gets nulled doesn't change the outcome.
+        Tolerance (20% of the scaled comparison, not tie_out.py's tighter 10%/$500K) is
+        deliberately loose: this only needs to recognize "unmistakably the same multiplicative
+        family", not reconcile the identity precisely - genuine NCI/discontinued-operations
+        noise this file's own pretax_to_net_income WARN check already tolerates can push a
+        real match a few points off 1,000x/1,000,000x without this guard losing confidence
+        that it's still the same scale-error shape.
+        """
+        min_plausible_abs_expected = 100_000.0
+        scale_tolerance_pct = 0.20
+        for row in transformed:
+            net_income = row.get("net_income")
+            pretax_income = row.get("pretax_income")
+            income_tax_expense = row.get("income_tax_expense")
+            if net_income is None or net_income == 0 or pretax_income is None or income_tax_expense is None:
+                continue
+            expected = float(pretax_income) - float(income_tax_expense)
+            if abs(expected) < min_plausible_abs_expected:
+                continue
+            for scale in (1_000, 1_000_000):
+                scaled_net_income = float(net_income) * scale
+                relative_error = abs(scaled_net_income - expected) / abs(expected)
+                if relative_error <= scale_tolerance_pct:
+                    logger.warning(
+                        f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                        f"net_income={net_income:,.0f} is a {scale:,}x-too-small match against "
+                        f"pretax_income({pretax_income:,.0f}) - income_tax_expense("
+                        f"{income_tax_expense:,.0f}) = {expected:,.0f} (net_income*{scale:,} = "
+                        f"{scaled_net_income:,.0f}, {relative_error:.1%} residual). Filer-side "
+                        "scale tagging error (reported in thousands/millions under a whole-"
+                        "dollar concept), not a currency issue. Rejecting rather than storing a "
+                        "confidently-wrong net_income."
+                    )
+                    row["net_income"] = None
+                    self._record_explicit_null_rejection(row, "net_income", "net_income_scale_error")
+                    break
+
     def _reject_stale_gross_profit_without_fresh_concept(self, transformed: list[dict[str, Any]]) -> None:
         """Force-null a stale `gross_profit` value for any (symbol, fiscal_year) where this
         run's fresh SEC extraction has both revenue and cost_of_revenue but no fresh
@@ -3395,6 +3459,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         if self.statement_type == "income":
             self._fill_derived_eps(transformed)
             self._reject_implausible_eps(transformed)
+            self._reject_scale_mismatched_net_income(transformed)
             self._reject_stale_gross_profit_without_fresh_concept(transformed)
 
         # Get REQUIRED metrics for current statement type (see module-level
