@@ -534,7 +534,26 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # (TR's own class) and `...CommonClassBMember...`=31,165,664 (TROLB's, not currently in this
     # universe). Live-confirmed against the filing's own XBRL - both fully resolvable, just
     # missing the security_name signal.
-    _SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES: dict[str, str] = {"WLY": "A", "WLYB": "B", "TR": "A", "TROLB": "B"}
+    # ADDED 2026-09-06 (same sweep, continued): AGM (Federal Agricultural Mortgage Corp/"Farmer
+    # Mac") has THREE classes - Class A (1,030,780, restricted to System agricultural lending
+    # institutions, separately registered as ticker AGM-A / our AGM.A), Class B (500,301,
+    # restricted to other System institutions, no separate ticker), and Class C (9,325,900, the
+    # actual NYSE-traded non-voting common stock, ticker AGM) - live-confirmed via CIK 845877's
+    # real current 10-K (agm-20251231.htm) and Farmer Mac's own publicly-documented capital
+    # structure (Class A/B restricted to System institutions per the Farm Credit Act; Class C is
+    # the freely-tradable public float). `AGM.A` already resolves correctly (dot-suffix ->
+    # target_letter "A" directly), but bare "AGM" has the same security_name vendor gap as
+    # WLY/TR (generic "...Common Stock", no "Class X" text) - and even if it had one, "Common
+    # Stock" alone would say nothing about which of B/C it is, since Class B and Class C are
+    # NOT distinguished by the security_name text but by which one is real-world publicly
+    # traded, only knowable via this ticker's exchange listing itself.
+    _SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES: dict[str, str] = {
+        "WLY": "A",
+        "WLYB": "B",
+        "TR": "A",
+        "TROLB": "B",
+        "AGM": "C",
+    }
     # ADDED 2026-09-06 (same sweep, continued): ATRO (Astronics Corporation) has only ONE
     # registered common ticker ("ATRO"; the CIK's other ticker "ATROB" is its Class B, not
     # separately scored in this universe) but its real current filings (live-confirmed via
@@ -565,6 +584,24 @@ class CompanyInfoSECLoader(SecLoaderBase):
     _VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS: dict[str, frozenset[str]] = {
         "ATRO": frozenset({"commonclassundefinedmember"}),
         "MOV": frozenset({"commonstockclassundefinedmember"}),
+    }
+    # ADDED 2026-09-06 (same sweep, continued): FWONA (Liberty Media's Formula One tracking
+    # stock, Series A) has its OWN target_letter correctly resolved to "A" (security_name says
+    # "...Series A Liberty Formula One Common Stock"), but its real current 10-K (CIK 1560385,
+    # lmca-20251231x10k.htm) tags Series A's own value under
+    # `lmca:LibertyFormulaOneGroupCommonClassMember` - genuinely NO letter at all in the member
+    # name, unlike its siblings' `...CommonClassBMember`/`...CommonClassCMember` - so
+    # `_class_letter_for_context`'s letter-extraction regex can never match it even though
+    # target_letter="A" is already known with confidence. NOT the same bug class as the
+    # REVERTED 2026-09-06 MKC/MKC.V fix just above (that was a general "target letter known +
+    # zero explicit matches + exactly one undimensioned candidate -> assume it's the target's"
+    # heuristic, applied to ANY symbol with that shape - live-caught wrong for MKC/MKC.V, whose
+    # untagged candidate was NOT actually MKC's own value). This is a narrow, individually-
+    # verified exact-string mapping for ONE specific filer-custom member name to its real,
+    # confirmed letter - same discipline as `_VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS` above, not
+    # a heuristic that could misfire on an unrelated filer's differently-shaped ambiguity.
+    _VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES: dict[str, dict[str, str]] = {
+        "FWONA": {"libertyformulaonegroupcommonclassmember": "A"},
     }
     # FIXED 2026-09-04 (same sweep): some filers (Liberty Media family, via Workiva-style
     # generators) embed the full dimension/member name directly in the contextRef id string
@@ -874,10 +911,14 @@ class CompanyInfoSECLoader(SecLoaderBase):
         match = CompanyInfoSECLoader._CLASS_LETTER_FROM_SECURITY_NAME_RE.search(row[0])
         return match.group(1).upper() if match else None
 
-    def _class_letter_for_context(self, filing_text: str, context_id: str) -> str | None:
+    def _class_letter_for_context(self, filing_text: str, context_id: str, symbol: str | None = None) -> str | None:
         """The us-gaap:StatementClassOfStockAxis class letter for one <xbrli:context>, or
         None if this context has no such dimension (single-class filers, or an unrelated
-        context reused from another fact) or the member name doesn't end in a bare letter.
+        context reused from another fact) or the member name doesn't end in a bare letter -
+        UNLESS `symbol` has an individually-verified entry in
+        `_VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES` mapping this exact member name to a real,
+        confirmed letter (see that constant's own comment - FWONA's
+        `LibertyFormulaOneGroupCommonClassMember`).
         """
         id_match = self._COMMON_CLASS_MEMBER_IN_ID_RE.search(context_id)
         if id_match:
@@ -892,7 +933,11 @@ class CompanyInfoSECLoader(SecLoaderBase):
         if not member_match:
             return None
         letter_match = self._CLASS_LETTER_FROM_MEMBER_RE.search(member_match.group(1))
-        return letter_match.group(1).upper() if letter_match else None
+        if letter_match:
+            return letter_match.group(1).upper()
+        member_name = member_match.group(1).rsplit(":", 1)[-1].lower()
+        overrides = self._VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES.get(symbol or "", {})
+        return overrides.get(member_name)
 
     def _context_is_generic_common_class(self, filing_text: str, context_id: str, symbol: str | None = None) -> bool:
         """True only when this context is safely treated as "the plain default common
@@ -1063,7 +1108,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 for v, ctx in values_with_context
                 if v > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING
                 and ctx is not None
-                and self._class_letter_for_context(text, ctx) == target_letter
+                and self._class_letter_for_context(text, ctx, symbol) == target_letter
             ]
             if len(dimensional_matches) == 1:
                 result = int(dimensional_matches[0])

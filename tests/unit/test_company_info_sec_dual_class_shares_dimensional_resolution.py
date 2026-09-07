@@ -359,3 +359,107 @@ class TestMovVerifiedCustomDefaultClassMember:
         # MOV's allowlist entry only covers "commonstockclassundefinedmember" - the ATRO-shaped
         # string must NOT resolve for MOV even though it happens to match ATRO's own entry.
         assert result is None
+
+
+class TestAgmSecurityNameOverride:
+    """AGM (Federal Agricultural Mortgage Corp/"Farmer Mac") has THREE classes - live-confirmed
+    via CIK 845877's real current 10-K: Class A (1,030,780, restricted, separately ticketed as
+    AGM.A), Class B (500,301, restricted, no separate ticker), Class C (9,325,900, the actual
+    NYSE-traded public float, ticker AGM). Bare "AGM" has the WLY-shaped security_name gap
+    (generic "...Common Stock", no "Class X" text)."""
+
+    _AGM_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-10" name="dei:EntityCommonStockSharesOutstanding">'
+        "1,030,780</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-11" name="dei:EntityCommonStockSharesOutstanding">'
+        "500,301</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-12" name="dei:EntityCommonStockSharesOutstanding">'
+        "9,325,900</ix:nonFraction>"
+        '<xbrli:context id="c-10"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-11"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassBMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-12"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassCMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_agm_resolves_to_its_own_class_c_value_without_db_lookup(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._AGM_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "AGM", "845877", _submissions_with_10k(tickers=["AGM", "AGM-A"])
+            )
+            mock_db_ctx.assert_not_called()
+
+        assert result == 9_325_900
+
+
+class TestFwonaLetterlessClassMemberOverride:
+    """FWONA (Liberty Media's Formula One tracking stock, Series A) has its own target_letter
+    correctly resolved to "A" via security_name ("...Series A Liberty Formula One Common
+    Stock"), but its real current 10-K tags Series A's own value under a genuinely letterless
+    filer-custom member (`lmca:LibertyFormulaOneGroupCommonClassMember`) - unlike its siblings'
+    `...CommonClassBMember`/`...CommonClassCMember`, which DO carry a letter and already resolve
+    via the standard path."""
+
+    _FWONA_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-a" name="dei:EntityCommonStockSharesOutstanding">'
+        "23,991,058</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-b" name="dei:EntityCommonStockSharesOutstanding">'
+        "2,381,188</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-c" name="dei:EntityCommonStockSharesOutstanding">'
+        "224,102,531</ix:nonFraction>"
+        '<xbrli:context id="c-a"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">lmca:LibertyFormulaOneGroupCommonClassMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-b"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">lmca:LibertyFormulaOneGroupCommonClassBMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-c"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">lmca:LibertyFormulaOneGroupCommonClassCMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_fwona_resolves_to_its_own_series_a_value(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._FWONA_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Liberty Media Corporation - Series A Liberty Formula One Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "FWONA", "1560385", _submissions_with_10k(tickers=["FWONA", "FWONK", "FWONB"])
+            )
+
+        assert result == 23_991_058
+
+    def test_unverified_symbol_with_same_letterless_member_stays_unresolved(self):
+        """Guards the allowlist discipline: a DIFFERENT symbol hitting the identical letterless
+        member shape must NOT be trusted just because FWONA's is - only an individually-
+        verified entry in _VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES is trusted, same as the
+        MKC/MKC.V corruption this replaces was reverted for trying to generalize."""
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._FWONA_FILING_TEXT.replace("FWONA", "ZZZZA").replace(
+            "lmca:LibertyFormulaOneGroupCommonClassMember", "lmca:LibertyFormulaOneGroupCommonClassMember"
+        )
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Some Other Corp - Series A Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "ZZZZA", "999999", _submissions_with_10k(tickers=["ZZZZA", "ZZZZK", "ZZZZB"])
+            )
+
+        assert result is None
