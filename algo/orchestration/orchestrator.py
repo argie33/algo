@@ -1824,14 +1824,40 @@ class Orchestrator:
     def phase_2_circuit_breakers(self) -> bool:
         """Thin delegation to phase2_circuit_breakers module."""
         self.log_phase_start(2, "CIRCUIT BREAKERS")
-        result = run_phase2(
-            self.config,
-            self.run_date,
-            self.dry_run,
-            self.alerts,
-            self.verbose,
-            self.log_phase_result,
-        )
+        try:
+            result = run_phase2(
+                self.config,
+                self.run_date,
+                self.dry_run,
+                self.alerts,
+                self.verbose,
+                self.log_phase_result,
+            )
+        except Exception as e:
+            # CRITICAL FIX (real-money-readiness audit, found 2026-09-07): same bug class
+            # already fixed for Phase 1 (see phase_1_data_freshness's identical try/except,
+            # "Phase 1 crashed" comment) but never applied here - and this gap is arguably
+            # worse, since Phase 2 IS the circuit breaker. An unhandled exception inside
+            # run_phase2() (e.g. a transient DB error while computing live drawdown) used to
+            # propagate straight past the halted/else branches below - which are the ONLY
+            # places this method calls set_halt_flag()/clear_halt_flag() - and hit
+            # phase_executor.py's generic Exception handler instead, which records
+            # PhaseResult(status="error", halted=False) without ever touching the halt flag.
+            # Since phases 3/4/5/6/7/8/9 are all always_run=True, a Phase 2 crash left the
+            # global halt flag exactly as it was before this run - Phase 8 would check
+            # check_halt_flag(), see whatever stale value was already there, and place real
+            # entry orders with this run's circuit-breaker check never actually evaluated.
+            halt_reason = f"Phase 2 crashed: {type(e).__name__}: {e}"
+            logger.error(f"[PHASE 2] {halt_reason}", exc_info=True)
+            halt_set_result = self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase2_circuit_breaker")
+            if not halt_set_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set after Phase 2 crashed. "
+                    "This is a critical safety failure - circuit breakers are unverified but we "
+                    "can't stop trading. Orchestrator MUST fail. Check database connectivity (RDS "
+                    "and DynamoDB) and AWS credentials."
+                ) from e
+            raise
         self._phase2_result = result
         # CRITICAL FIX: Set halt flag when circuit breaker fires so Phase 8 respects it
         # Previously only Phase 1 called set_halt_flag, leaving Phase 2 halts unheeded by later phases
@@ -1939,7 +1965,34 @@ class Orchestrator:
         self.log_phase_start(9, "RECONCILIATION & SNAPSHOT")
         # No halt flag check: snapshot must always be written so circuit breakers
         # have accurate portfolio state on the next invocation.
-        result = run_phase9(self.config, self.run_date, self.log_phase_result)
+        try:
+            result = run_phase9(self.config, self.run_date, self.log_phase_result)
+        except Exception as e:
+            # CRITICAL FIX (real-money-readiness audit, found 2026-09-07): same bug class
+            # already fixed for Phase 1/Phase 2 (see their identical try/except blocks) but
+            # never applied here. An unhandled exception inside run_phase9() (broker API
+            # failure, DB error mid-reconciliation) used to propagate straight past the
+            # `if result.halted` branch below - the only place this method calls
+            # set_halt_flag() - and hit phase_executor.py's generic Exception handler
+            # instead, which never touches the halt flag. Phase 9 writes the portfolio
+            # snapshot circuit breakers read on the NEXT invocation (see this method's own
+            # "No halt flag check" comment above) - a crash here means that snapshot is
+            # stale or missing, so the next run's Phase 2 circuit-breaker check and Phase 8
+            # entry gate could both be operating on unverified portfolio state with no halt
+            # flag raised to say so.
+            halt_reason = f"Phase 9 crashed: {type(e).__name__}: {e}"
+            logger.error(f"[PHASE 9] {halt_reason}", exc_info=True)
+            halt_set_result = self.halt_manager.set_halt_flag(
+                halt_reason, triggered_by="phase9_reconciliation_governance"
+            )
+            if not halt_set_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set after Phase 9 crashed. "
+                    "This is a critical safety failure - the portfolio reconciliation snapshot "
+                    "is unverified but we can't stop trading. Orchestrator MUST fail. Check "
+                    "database connectivity (RDS and DynamoDB) and AWS credentials."
+                ) from e
+            raise
         self._phase9_result = result
         # CRITICAL FIX: mirror Phase 2's pattern. result.halted is only True for the
         # execution_mode=auto governance halt (see phase9_reconciliation.py's
