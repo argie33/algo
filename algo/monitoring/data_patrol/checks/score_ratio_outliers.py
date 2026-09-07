@@ -116,7 +116,10 @@ class ScoreRatioOutlierChecker(BaseCheck):
             if not flagged:
                 return
 
-            examples = [{"symbol": s, "value": v, "reference_p05_or_p95": round(reference, 4)} for s, v in flagged[:_MAX_REPORTED_PER_CHECK]]
+            examples = [
+                {"symbol": s, "value": v, "reference_p05_or_p95": round(reference, 4)}
+                for s, v in flagged[:_MAX_REPORTED_PER_CHECK]
+            ]
             self.log(
                 check_name,
                 WARN,

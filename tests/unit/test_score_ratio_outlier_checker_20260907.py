@@ -53,9 +53,7 @@ class TestLowDirectionOutlier:
         cur = _mock_cursor(rows)
         checker = _checker()
         checker._check_ratio_outliers(cur, "value_metrics", "pe_ratio", "low")
-        assert all(
-            e["symbol"] != "NEGATIVE" for r in checker.results for e in r.details["examples"]
-        )
+        assert all(e["symbol"] != "NEGATIVE" for r in checker.results for e in r.details["examples"])
 
 
 class TestHighDirectionOutlier:
