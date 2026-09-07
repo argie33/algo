@@ -259,7 +259,9 @@ function ScoresDashboardPage() {
   const stats = useMemo(() => {
     if (!items) return { total: 0, top: 0, avg: 0, gradeA: 0, aCutoff: 80 };
     const aCutoff = percentileCutoff(items, 0.1);
-    const top = items.filter((s) => Number(s.composite_score) >= aCutoff).length;
+    const top = items.filter(
+      (s) => Number(s.composite_score) >= aCutoff
+    ).length;
     const valid = items.filter((s) => s.composite_score != null);
     const avg = valid.length
       ? valid.reduce((s, x) => s + Number(x.composite_score), 0) / valid.length
