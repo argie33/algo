@@ -704,8 +704,21 @@ class StockScoresLoader(
                 )
 
             # NUMERIC(4,2) schema constraint: max 99.99 (not 100.0)
-            # Calculate completeness on 5 pillars (quality, growth, value, risk, momentum)
-            data_completeness = min(99.99, round((data_count / 5.0) * 100, 2))
+            # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): this used to be a flat
+            # pillar COUNT (data_count/5), so a symbol missing "value" (27% of
+            # BASE_PILLAR_WEIGHTS, the single largest pillar) reported the exact same 80%
+            # completeness as one missing "momentum" (10% of the weight) - both cleared the
+            # same >=70% GOVERNANCE trading-eligibility gate (phase7_signal_generation.py's
+            # composite_score ranking, phase8_entry_execution.py's concentration-limited
+            # entry queue) identically, even though the real impact on composite_score's
+            # ceiling differs by ~3x between those two cases. Weight completeness by each
+            # available pillar's actual share of BASE_PILLAR_WEIGHTS instead of a flat
+            # per-pillar count, so the gate reflects how much of the composite is actually
+            # backed by real data, not just how many of 5 slots are filled.
+            available_weight = sum(
+                BASE_PILLAR_WEIGHTS[pillar] for pillar, score in all_scores.items() if is_real_score(score)
+            )
+            data_completeness = min(99.99, round(available_weight * 100, 2))
 
             # CRITICAL FIX 2026-07-19: Compute score for all symbols with 5+/6 metrics, mark completeness for trading filters.
             # Previous: Rejected any score with <70% completeness, removing 1,635 valid candidates from universe.

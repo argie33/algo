@@ -189,6 +189,73 @@ class TestMarkerPropagation(unittest.TestCase):
         renormalized = expected_composite / available_weight
         self.assertLess(result["composite_score"], renormalized)
 
+    def test_data_completeness_is_weighted_not_flat_count(self) -> None:
+        """REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): data_completeness used to
+        be a flat pillar COUNT (data_count/5), so a symbol missing "value" (27% of
+        BASE_PILLAR_WEIGHTS, the largest pillar) reported the identical 80% completeness as
+        one missing "momentum" (10% of the weight) - both cleared GOVERNANCE's >=70%
+        trading-eligibility gate identically despite very different actual data coverage.
+        Verify data_completeness now reflects each missing pillar's real weight share.
+        """
+        from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
+
+        loader = StockScoresLoader()
+        loader._liquidity_cache = {}
+
+        def _run(missing_pillar: str, mock_scores: dict[str, float]) -> float:
+            marker = {"symbol": "TESTSYM", "data_unavailable": True, "reason": "test_missing"}
+            with (
+                patch("loaders.load_stock_scores.DatabaseContext") as mock_db_context,
+                patch.object(loader, "_get_quality_metrics", return_value={}),
+                patch.object(loader, "_get_growth_metrics", return_value={}),
+                patch.object(loader, "_get_value_metrics", return_value={}),
+                patch.object(loader, "_get_stability_metrics", return_value={}),
+                patch.object(loader, "_get_momentum_metrics", return_value={}),
+                patch.object(
+                    loader,
+                    "_score_quality",
+                    return_value=marker if missing_pillar == "quality" else mock_scores["quality"],
+                ),
+                patch.object(
+                    loader,
+                    "_score_growth",
+                    return_value=marker if missing_pillar == "growth" else mock_scores["growth"],
+                ),
+                patch.object(
+                    loader, "_score_value", return_value=marker if missing_pillar == "value" else mock_scores["value"]
+                ),
+                patch.object(
+                    loader, "_score_risk", return_value=marker if missing_pillar == "risk" else mock_scores["risk"]
+                ),
+                patch.object(
+                    loader,
+                    "_score_momentum",
+                    return_value=marker if missing_pillar == "momentum" else mock_scores["momentum"],
+                ),
+            ):
+                mock_db_context.return_value.__enter__.return_value = MagicMock()
+                result = loader._compute_stock_score("TESTSYM")
+            return float(result["data_completeness"])
+
+        scores = {"quality": 80.0, "growth": 70.0, "value": 60.0, "risk": 50.0, "momentum": 50.0}
+        completeness_missing_value = _run("value", scores)
+        completeness_missing_momentum = _run("momentum", scores)
+
+        # Both cases are missing exactly 1 of 5 pillars - a flat count would report the
+        # same 80.0% for each. Value (27%) is the largest pillar and momentum (10%) the
+        # smallest, so missing value must report meaningfully lower completeness.
+        self.assertAlmostEqual(
+            completeness_missing_value,
+            round((1 - BASE_PILLAR_WEIGHTS["value"]) * 100, 2),
+            places=1,
+        )
+        self.assertAlmostEqual(
+            completeness_missing_momentum,
+            round((1 - BASE_PILLAR_WEIGHTS["momentum"]) * 100, 2),
+            places=1,
+        )
+        self.assertLess(completeness_missing_value, completeness_missing_momentum)
+
     def test_marker_reason_propagates_to_api_response(self) -> None:
         """Verify marker reasons appear in API responses."""
 

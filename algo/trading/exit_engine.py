@@ -361,7 +361,10 @@ class ExitEngine:
                             continue
 
                         # Use fresh stop price if available (ensures exit calculation has latest data)
-                        effective_current_stop = fresh_stop_price if fresh_stop_price else current_stop
+                        # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): was `if fresh_stop_price
+                        # else current_stop`, a truthiness check - a legitimate stop price of exactly 0
+                        # would silently fall back to the stale current_stop instead of being used.
+                        effective_current_stop = fresh_stop_price if fresh_stop_price is not None else current_stop
 
                         try:
                             entry_price = Decimal(str(entry_price))
@@ -756,13 +759,22 @@ class ExitEngine:
 
                         cur.execute(f"RELEASE SAVEPOINT {_sp}")
 
-                    except (
-                        psycopg2.DatabaseError,
-                        psycopg2.OperationalError,
-                        ValueError,
-                        KeyError,
-                        RuntimeError,
-                    ) as _trade_err:
+                    except Exception as _trade_err:
+                        # REAL-MONEY-READINESS FIX (2026-09-07, pre-live audit): this previously
+                        # caught only (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError,
+                        # KeyError, RuntimeError) - see the comment above at the Decimal-conversion
+                        # block (~line 379) that already documented the gap: any OTHER exception type
+                        # (TypeError, AttributeError, IndexError, decimal.InvalidOperation,
+                        # ZeroDivisionError, etc.) raised anywhere in this per-position block would
+                        # propagate straight out of the per-position try, past this handler, and
+                        # (since this loop runs inside one outer `with DatabaseContext("write")`
+                        # transaction across ALL positions in the cycle) abort/rollback the entire
+                        # batch - silently undoing exit decisions (including hard stop-loss closes)
+                        # already made this cycle for every OTHER position, not just the one that
+                        # errored. Catching Exception broadly here routes any failure through this
+                        # block's existing savepoint-rollback-and-continue recovery instead, isolating
+                        # the failure to the single position that raised it.
+                        #
                         # CRITICAL FIX: Rollback to savepoint may itself fail if transaction is aborted.
                         # Wrap it in try-except to ensure we log the error and continue to the next position,
                         # rather than propagating a "current transaction is aborted" error that would abort

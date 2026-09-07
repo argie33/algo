@@ -1335,6 +1335,35 @@ def _verify_open_position_stop_loss_protection_step(
             log_phase_result_fn(9, "stop_loss_protection_check", "info", "skipped - no Alpaca credentials")
             return
 
+        # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): unlike every entry/exit
+        # call site in executor.py/executor_entry_handler.py/executor_exit_handler.py,
+        # this repair path had NO explicit execution_mode check anywhere - it only gated
+        # on credential presence, then handed sync_mgr.alpaca_base_url straight to
+        # OrderManager. Today that URL happens to land on the paper endpoint for every
+        # non-"auto" mode purely because AlpacaSyncManager.__init__ resolves it via the
+        # same create_execution_mode_strategy(...) factory executor.py uses - but that
+        # means this repair path's only protection against submitting a real order in
+        # "review" mode (documented as "validated but not executed... before automatic
+        # execution is enabled") is an implicit URL-resolution side effect, not an
+        # explicit gate at THIS call site. One refactor of that shared resolution logic
+        # could silently start submitting real repair orders here with nothing catching
+        # it. Fail closed instead of trusting the implicit coupling: verify explicitly
+        # that a non-"auto" execution_mode actually resolved to the paper endpoint before
+        # letting this repair path touch the broker at all.
+        execution_mode = str(config.get("execution_mode") or "").lower()
+        base_url_is_paper = "paper" in sync_mgr.alpaca_base_url.lower()
+        if execution_mode != "auto" and not base_url_is_paper:
+            logger.critical(
+                f"[PHASE 9 CRITICAL] Stop-loss protection check ABORTED - execution_mode="
+                f"'{execution_mode}' but resolved Alpaca base_url does not look like the "
+                f"paper endpoint ({sync_mgr.alpaca_base_url}). Refusing to submit repair "
+                f"orders in a non-auto mode against what may be a live endpoint."
+            )
+            log_phase_result_fn(
+                9, "stop_loss_protection_check", "error", "aborted - non-auto mode resolved to non-paper endpoint"
+            )
+            return
+
         order_mgr = OrderManager(sync_mgr.alpaca_key, sync_mgr.alpaca_secret, sync_mgr.alpaca_base_url)
 
         # GUARDIAN-MODE FIX (2026-09-06): the normal Phase 9 call path only reaches here
