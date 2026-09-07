@@ -2022,12 +2022,36 @@ class QualityMetricsMixin(SymbolGateMixin):
             # ROCE score: same curve shape as the old roic_score (both are "return on capital
             # deployed" measures, similar scale) - see the roce_pct computation's own comment
             # (near roic_pct above) for why ROCE replaces ROIC in the composite.
+            #
+            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, JPM/BAC/WFC/C/
+            # GS/MS/MET/PRU live-confirmed): same industrial-curve-applied-to-every-sector bug
+            # class as debt_to_equity_score/roa_score above, for the SAME underlying cause -
+            # capital_employed (line ~1053-1054) already uses debt_for_roic=total_liabilities
+            # for depository banks/insurers (see that override's own comment), so a bank's
+            # capital_employed is ~its entire (deposit-funded, hence enormous) balance sheet,
+            # structurally floors roce_pct into single digits regardless of real capital
+            # efficiency (JPM=3.85%, BAC=3.40%, WFC=3.03%, C=3.87%, GS=12.55%, MS=4.21% - the
+            # 8.0-floors-to-~19/25.0-caps-to-100 industrial curve scored JPM/BAC/WFC/C around
+            # 15-20 despite GS's genuinely-higher 12.55% showing real cross-sectional variation
+            # exists to reward). Insurers get the same single blended curve precedent as
+            # debt_to_equity_score/roa_score's INSURANCE_UNDERWRITER_INDUSTRIES override (P&C
+            # underwriters PGR/TRV/ALL live-confirmed 5.72-11.79% run meaningfully higher than
+            # life insurers MET/PRU's ~0.82-0.85%, same reserve-heavy-balance-sheet split ROA's
+            # curve already accounts for) - hand-calibrated to credit P&C-typical ROCE highly
+            # without being so generous it validates a genuinely weak life-insurer ROCE.
+            # Breakpoints hand-set (not FM-backtested), same as every other curve in this
+            # function. Financial Services/Real Estate's two-cluster branch is the only consumer
+            # of roce_score, and update_quality_roe_roce_percentiles() already explicitly skips
+            # those sectors (see its own docstring) - no reconciliation-math interaction here.
             roce_pct_val = metrics.get("roce_pct")
-            roce_score = (
-                self._margin_curve(roce_pct_val, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
-                if roce_pct_val is not None
-                else None
-            )
+            _symbol_industry_for_roce = self._get_symbol_industry(symbol)
+            if _symbol_industry_for_roce in _owner().DEPOSITORY_BANK_INDUSTRIES:
+                _roce_breakpoints = [(3.0, 40.0), (6.0, 75.0), (10.0, 100.0)]
+            elif _symbol_industry_for_roce in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
+                _roce_breakpoints = [(2.0, 40.0), (5.0, 75.0), (10.0, 100.0)]
+            else:
+                _roce_breakpoints = [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)]
+            roce_score = self._margin_curve(roce_pct_val, _roce_breakpoints) if roce_pct_val is not None else None
             # FCF Margin (free_cash_flow / revenue): cash-conversion efficiency net of capex,
             # independent of Accruals Ratio (never nets out capex). Replaces accruals_score in
             # the composite.
