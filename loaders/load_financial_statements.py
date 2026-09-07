@@ -996,6 +996,12 @@ _BALANCE_FIELD_MAPPING = {
     # live WMT/TGT evidence. Not fallback-only - this is the only concept fetched for this
     # column, same single-concept convention as accounts_receivable/inventory above.
     "accounts_payable_current": "accounts_payable",
+    # ADDED 2026-09-07 (goal: check_balance_sheet_identity NCI gap rootcaused, migration
+    # 1265): see sec_balance_sheet.py's get_balance_sheet() comment on "MinorityInterest" for
+    # the live XOM FY2009 evidence ($4,823,000,000, closing the assets vs.
+    # liabilities+stockholders_equity gap exactly). Not fallback-only - single directly-tagged
+    # concept, same convention as accounts_payable above.
+    "minority_interest": "noncontrolling_interest",
     # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comments
     # on "PublicUtilitiesPropertyPlantAndEquipmentNet" (ES live evidence) and
     # "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciation
@@ -1488,6 +1494,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "short_term_debt",
                     "operating_lease_liability",
                     "finance_lease_liability",
+                    "noncontrolling_interest",
                     "retained_earnings",
                     "created_at",
                     "data_unavailable",
@@ -1522,6 +1529,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "short_term_debt",
                     "operating_lease_liability",
                     "finance_lease_liability",
+                    "noncontrolling_interest",
                     "created_at",
                     "data_unavailable",
                     "reason",

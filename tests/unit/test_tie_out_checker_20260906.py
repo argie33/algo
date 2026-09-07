@@ -33,6 +33,7 @@ class TestBalanceSheetIdentity:
                         "total_assets": 1000.0,
                         "total_liabilities": 400.0,
                         "stockholders_equity": 400.0,  # off by 200, 20% of assets
+                        "noncontrolling_interest": None,
                     }
                 ]
             ]
@@ -54,6 +55,28 @@ class TestBalanceSheetIdentity:
                         "total_assets": 1000.0,
                         "total_liabilities": 600.0,
                         "stockholders_equity": 400.0,  # exact tie-out
+                        "noncontrolling_interest": None,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_balance_sheet_identity(cur)
+        assert checker.results == []
+
+    def test_noncontrolling_interest_closes_identity(self) -> None:
+        """FIXED 2026-09-07 (migration 1265): a row that would otherwise fail by exactly its
+        NCI amount must NOT be flagged once noncontrolling_interest is populated."""
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "XOM",
+                        "fiscal_year": 2009,
+                        "total_assets": 233_323_000_000.0,
+                        "total_liabilities": 117_931_000_000.0,
+                        "stockholders_equity": 110_569_000_000.0,
+                        "noncontrolling_interest": 4_823_000_000.0,
                     }
                 ]
             ]

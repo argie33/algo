@@ -358,33 +358,34 @@ class TieOutChecker(BaseCheck):
 
         NOTE (2026-09-07, goal: stock_scores factor/composite sanity audit): the PROK-style
         mezzanine-equity population above is NOT the main source of noise on this check - it's
-        a small minority. The dominant cause, live-measured against the local DB: **761/5,078
-        symbols (15.0%) fail this check at the 1% tolerance**, and 85%+ of those have *positive*
-        stockholders_equity (not the PROK pattern's negative equity), including large,
-        well-covered names with material noncontrolling interests (XOM, CVX, KKR, APO, CB, RTX,
-        BLK, NEE, D, ENB, VOYA, FNF, IBKR). Root-caused via a fresh SEC companyfacts pull for
-        XOM: `liabilities`($117,931M) + `stockholders_equity_including_portion_attributable_to_
-        noncontrolling_interest`($115,392M) = `assets`($233,323M) EXACTLY, but this schema's
-        `stockholders_equity` column stores the narrower parent-only concept ($110,569M for the
-        same year) - a ~$4.8B gap that's just NCI, not a data error. Same class as the
-        mezzanine-equity gap above (this schema has no noncontrolling-interest column at all),
-        just far more common: any company with a material NCI position - JVs, consolidated
-        funds (KKR/APO), partial subsidiaries - trips this, not only the exotic Up-C/SPAC shape.
-        A real fix would add a `noncontrolling_interest` column (annual + quarterly balance
-        sheet) populated from `StockholdersEquityIncludingPortionAttributableToNoncontrolling
-        Interest` minus `StockholdersEquity` (or the direct `MinorityInterest` concept where
-        tagged) and extend this check's identity to `assets == liabilities + stockholders_equity
-        + noncontrolling_interest` - not attempted this session (touches
-        load_financial_statements.py, which a concurrent session was actively mid-fix on for an
-        unrelated critical bug at the time this was found - high collision risk to attempt
-        alongside that). Until that lands, treat this check's WARN rate as expected to run much
-        higher (~15%) than its other siblings' (<1%) - that's this known gap, not a regression.
+        a small minority. The dominant cause (before the fix below), live-measured against the
+        local DB: **761/5,078 symbols (15.0%) fail this check at the 1% tolerance**, and 85%+ of
+        those have *positive* stockholders_equity (not the PROK pattern's negative equity),
+        including large, well-covered names with material noncontrolling interests (XOM, CVX,
+        KKR, APO, CB, RTX, BLK, NEE, D, ENB, VOYA, FNF, IBKR). Root-caused via a fresh SEC
+        companyfacts pull for XOM: `liabilities`($117,931M) + `stockholders_equity`($110,569M)
+        + directly-tagged `MinorityInterest`($4,823M) = `assets`($233,323M) EXACTLY - this
+        schema's `stockholders_equity` column stores the narrower parent-only concept, and the
+        NCI portion had no column to land in at all.
+
+        FIXED 2026-09-07 (migration 1265): added `noncontrolling_interest` (annual + quarterly
+        balance sheet), extracted from the directly-tagged `MinorityInterest` XBRL concept (see
+        `sec_balance_sheet.py`'s comment on that concept for the XOM evidence above) - not a
+        derived subtraction, XOM and the other flagged large-caps tag it directly. This check's
+        identity is now `assets == liabilities + stockholders_equity + noncontrolling_interest`.
+        Rows for filers who don't tag `MinorityInterest` at all (the true PROK-style mezzanine-
+        equity population, and ordinary single-entity filers with no NCI) are unaffected -
+        `COALESCE(noncontrolling_interest, 0)` makes the identity degrade to the original
+        two-term form when the column is NULL. Expect the ~15% WARN rate to collapse close to
+        the <1% baseline of this check's siblings once affected symbols reload; PROK/ATTO/FAC/
+        LTGO/SCTX-style true mezzanine-equity gaps remain unfixed (still no column for that).
         """
         try:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.total_assets, b.total_liabilities, b.stockholders_equity
+                    b.symbol, b.fiscal_year, b.total_assets, b.total_liabilities,
+                    b.stockholders_equity, b.noncontrolling_interest
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -397,12 +398,13 @@ class TieOutChecker(BaseCheck):
             )
             flagged = []
             for row in cur.fetchall():
-                assets, liabilities, equity = (
+                assets, liabilities, equity, nci = (
                     float(row["total_assets"]),
                     float(row["total_liabilities"]),
                     float(row["stockholders_equity"]),
+                    float(row["noncontrolling_interest"] or 0),
                 )
-                residual = assets - (liabilities + equity)
+                residual = assets - (liabilities + equity + nci)
                 relative_error = abs(residual) / abs(assets)
                 if relative_error > _BALANCE_SHEET_TOLERANCE_PCT:
                     flagged.append(
@@ -412,6 +414,7 @@ class TieOutChecker(BaseCheck):
                             "total_assets": assets,
                             "total_liabilities": liabilities,
                             "stockholders_equity": equity,
+                            "noncontrolling_interest": nci,
                             "residual": residual,
                             "relative_error_pct": round(relative_error * 100, 2),
                         }

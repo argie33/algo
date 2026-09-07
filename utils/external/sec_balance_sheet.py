@@ -593,6 +593,20 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # live-evidence standard as every other fallback in this file, not by guessing a
         # plausible-sounding concept name.
         "AccountsPayableCurrent",
+        # ADDED 2026-09-07 (goal session: check_balance_sheet_identity NCI gap rootcaused -
+        # see tie_out.py's check_balance_sheet_identity docstring): our schema's
+        # stockholders_equity column stores the narrower parent-only concept, so any filer
+        # with a material noncontrolling/minority interest fails
+        # assets == liabilities + stockholders_equity by exactly that NCI amount - 15% of the
+        # annual universe (761/5,078 symbols: XOM, CVX, KKR, APO, CB, RTX, BLK, NEE, D, ENB,
+        # VOYA, FNF, IBKR, etc.), not an extraction bug. Live-confirmed via real SEC
+        # companyfacts JSON: XOM directly tags this concept (not the combined
+        # StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest variant) -
+        # FY2009 (period end 2009-12-31) MinorityInterest=$4,823,000,000, exactly closing the
+        # gap between XOM's assets ($233,323M) and liabilities+stockholders_equity ($117,931M
+        # + $110,569M = $228,500M). Single directly-tagged concept, same convention as
+        # accounts_payable above - no summing/derivation needed.
+        "MinorityInterest",
     ]
     rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
     _fill_long_term_debt_from_noncurrent_current_split(rows)
