@@ -94,12 +94,18 @@ def test_known_etf_misclassification_override_survives_upstream_flag() -> None:
     stock_symbols as ordinary stocks and get silently dropped from etf_symbols on every
     TRUNCATE+rebuild in _upsert_etf_symbols, undoing migration 069's one-time DB patch
     again on the very next loader run.
+
+    BAR (GraniteShares Gold Trust) added 2026-09-07: same shape - live-confirmed absent from
+    etf_symbols even immediately after a fresh same-day reload, despite trading since 2017,
+    landing it in stock_symbols where quality/value metrics expect an income
+    statement/balance sheet/cash-flow statement a commodity trust structurally never files.
     """
     other_text = "\n".join(
         [
             _HEADER,
             _row("JHDV", "Janus Henderson U.S. Dividend Factor ETF"),
             _row("JVAL", "Janus Henderson U.S. Deep Value ETF"),
+            _row("BAR", "GraniteShares Gold Trust Shares of Beneficial Interest"),
             _row("REAL", "Some Real Company Common Stock"),
         ]
     )
@@ -120,11 +126,12 @@ def test_known_etf_misclassification_override_survives_upstream_flag() -> None:
     stock_symbols = {r["symbol"] for r in rows}
     assert "JHDV" not in stock_symbols
     assert "JVAL" not in stock_symbols
+    assert "BAR" not in stock_symbols
     assert "REAL" in stock_symbols
 
     assert mock_upsert.call_count == 1
     etf_symbols = {r["symbol"] for r in mock_upsert.call_args[0][0]}
-    assert etf_symbols == {"JHDV", "JVAL"}
+    assert etf_symbols == {"JHDV", "JVAL", "BAR"}
 
 
 def test_test_issue_flag_still_excludes_dot_suffix_test_symbols() -> None:

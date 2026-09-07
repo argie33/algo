@@ -55,7 +55,20 @@ SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 # etf_symbols again (and stock_symbols.etf reverts to 'N') on the very next loader run,
 # undoing that migration - the loader itself must correct this every run, not a one-off
 # manual DB patch. Add future confirmed upstream misclassifications here.
-KNOWN_ETF_MISCLASSIFICATIONS = {"JHDV", "JVAL"}
+#
+# BAR added 2026-09-07 (goal: "SEC/XBRL missing data to zero" sweep, missing_sec_data
+# generic-bucket follow-up): GraniteShares Gold Trust (a physical-commodity grantor trust,
+# same structural class as GLD/SLV/IAU/AAAU/GLDM - see
+# _get_etf_trust_no_stockholders_equity_symbols()'s docstring) has traded since 2017 (2,251
+# real price_daily rows) and was still absent from etf_symbols after a same-day fresh
+# etf_symbols reload (2026-09-07 01:31 UTC) - not a staleness artifact, a genuine upstream
+# feed misclassification landing it in stock_symbols instead. As a "common stock" it flows
+# through quality/value metrics expecting an income statement/balance sheet/cash-flow
+# statement a commodity trust structurally never files, landing on the generic
+# "missing_sec_data"/"Missing SEC/XBRL data" bucket instead of the correct
+# "etf_trust_no_gaap_financials"/"Legitimate / not applicable" once it's in etf_symbols and
+# the existing RIC/ETF-trust gates (loaders/helpers/vqg_symbol_gates.py) can see it.
+KNOWN_ETF_MISCLASSIFICATIONS = {"JHDV", "JVAL", "BAR"}
 
 # GOVERNANCE 2026-08-18 (goal: "missing SEC data"/loader-failure audit): same class of
 # problem as KNOWN_ETF_MISCLASSIFICATIONS above - the upstream NASDAQ/NYSE symbol
