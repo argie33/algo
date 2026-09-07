@@ -1673,6 +1673,49 @@ def _lock_paths_for_pipeline(pipeline_name: str) -> list[Path]:
     return [shared_lock]
 
 
+def _run_data_patrol_and_report() -> int:
+    """Run the full DataPatrol suite (tie-out identities, staleness, XBRL new-concept
+    detection, statistical anomalies, ...) against whatever just loaded and print a summary.
+
+    Returns 0 if no CRITICAL/ERROR findings, 1 otherwise (mirrors algo/algo_data_patrol.py's
+    own CLI exit code) - a local reload should end with the same pass/fail signal a production
+    pipeline run would get from Phase 1's DataPatrol gate.
+    """
+    print("[LOCAL_SCHEDULER] Running DataPatrol (tie-out, staleness, XBRL, statistical checks)...")
+    try:
+        from algo.monitoring.data_patrol import DataPatrol
+        from algo.monitoring.data_patrol.config import PatrolConfig
+
+        summary = DataPatrol(config=PatrolConfig()).run()
+    except Exception as e:
+        print(f"[LOCAL_SCHEDULER] DataPatrol itself failed to run: {e}", file=sys.stderr)
+        return 1
+
+    errors = summary.get("errors", 0)
+    warnings = summary.get("warnings", 0)
+    ready = summary.get("ready", False)
+    if ready:
+        print(f"[LOCAL_SCHEDULER] DataPatrol: OK (0 CRITICAL/ERROR, {warnings} warning(s)).")
+        return 0
+
+    print(
+        f"[LOCAL_SCHEDULER] DataPatrol: {errors} CRITICAL/ERROR finding(s), {warnings} warning(s). "
+        "A production run would HALT on this - see the findings below "
+        "(or query data_patrol_log / check the dashboard for the full list):",
+        file=sys.stderr,
+    )
+    blocking = [f for f in summary.get("findings", []) if f.get("severity") in ("error", "critical")]
+    for finding in blocking[:10]:
+        print(
+            f"  [{finding.get('severity', '?').upper()}] {finding.get('check', '?')} "
+            f"({finding.get('target', '?')}): {finding.get('message', '?')}",
+            file=sys.stderr,
+        )
+    if len(blocking) > 10:
+        print(f"  ... and {len(blocking) - 10} more", file=sys.stderr)
+    return 1
+
+
 def main() -> int:
     # FIXED 2026-08-16: this process's own top-level output (pipeline start, lock
     # rejections, pre-mark errors) was bare print()/stderr with zero persistent capture -
@@ -1776,6 +1819,26 @@ def main() -> int:
                     "remaining pipelines in --now=all so one failure doesn't block the rest",
                     file=sys.stderr,
                 )
+
+        # AUTO-RUN DATA PATROL (2026-09-07, goal: XBRL data-confidence audit): "metrics" is
+        # where financial_statements (SEC/XBRL) and everything derived from it (valuations,
+        # value_quality_growth) loads - the exact class of bug this whole goal session was
+        # about (see the valuations/financial_statements dependency fix landed the same
+        # session). Production always runs DataPatrol automatically right after loaders finish
+        # (terraform's pipeline DAG) and Phase 1 now halts trading on what it finds (see
+        # algo/orchestrator/phase1_data_freshness.py's _check_data_patrol_results) - but this
+        # script, confirmed via grep, never invoked DataPatrol at all, so a local reload gave
+        # no equivalent signal short of manually remembering to run
+        # `python algo/algo_data_patrol.py` afterward. Runs automatically here instead, so a
+        # local `--now metrics`/`--now all` surfaces the same tie-out/staleness/XBRL-concept/
+        # statistical-anomaly findings the production gate would halt on, without an extra
+        # manual step. Best-effort: a patrol failure must never mask whether the loaders
+        # themselves succeeded (exit_code already reflects that above).
+        if "metrics" in pipelines_to_run:
+            patrol_exit = _run_data_patrol_and_report()
+            if patrol_exit != 0 and exit_code == 0:
+                exit_code = patrol_exit
+
         return exit_code
     finally:
         # Always clean up locks on exit (success or failure)
