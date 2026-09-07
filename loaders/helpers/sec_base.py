@@ -1252,6 +1252,24 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # smaller value that excluding_assessed_tax is SUPPOSED to override regardless
             # of magnitude" (must NOT protect it - see that guard's own comment).
             _revenue_source_sec_field: str | None = None
+            # FIXED 2026-09-07 (PCG live-confirmed, goal session: stock_scores factor audit
+            # + tie-out sweep): tracks the rank (see sec_statements_shared.py's
+            # _PRIMARY_STATEMENT_FORMS/_ANNUAL_REPORT_FORMS) of whichever sec_field most
+            # recently wrote "net_income", so the guard below can refuse to let a
+            # non-primary-form-sourced concept (a DEF 14A Pay vs Performance re-tag, kept
+            # only as _aggregate_concepts's documented "last resort when no primary-form
+            # entry exists" fallback - see test_sec_statements_primary_form_outranks_
+            # def14a_scale_error.py) silently overwrite an already-correct value a
+            # DIFFERENT, real 10-K-sourced concept already wrote. Live-confirmed via PG&E
+            # Corp (PCG) FY2025: "ProfitLoss" (10-K, real $2,703,000,000, rank 2) wrote
+            # net_income correctly, then "NetIncomeLoss" (PG&E's real 10-K never tags this
+            # concept at all - only a DEF 14A proxy does, mistagged in thousands as raw
+            # "2593" instead of $2,593,000,000, rank 0) was processed later in the concepts
+            # list and unconditionally overwrote it via the ordinary last-listed-wins rule,
+            # producing a ~1,042,265x understatement with no data_unavailable/reason flag -
+            # caught by algo/monitoring/data_patrol/checks/tie_out.py's
+            # pretax_to_net_income identity check (WARN, not previously root-caused).
+            _net_income_source_rank: int | None = None
 
             field_mapping = self._field_mapping
             # FIXED 2026-08-22 (goal session: "Implausible / rejected value" coverage audit):
@@ -1285,6 +1303,13 @@ class SecEdgarStatementLoader(SecLoaderBase):
             revenue_total_best: dict[str, float] = {}
             for sec_field, value in ordered_fields:
                 if sec_field in ("symbol", "fiscal_year"):
+                    continue
+                # `_rank_{col}` bookkeeping (see _aggregate_concepts_apply_entry_value /
+                # sec_statements_aggregate.py's result-building comment on why it alone,
+                # unlike its `_filed_`/`_end_`/`_frame_`/`_span_`/`_is_instant_` siblings, is
+                # not stripped before reaching here) is read on demand below via
+                # r.get(f"_rank_{sec_field}") - it is never itself a field to map/warn on.
+                if sec_field.startswith("_rank_"):
                     continue
 
                 if sec_field not in field_mapping:
@@ -1483,6 +1508,20 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     row["data_unavailable"] = value
                 elif db_field == "reason":
                     row["reason"] = value
+                elif (
+                    db_field == "net_income"
+                    and db_field in row
+                    and _net_income_source_rank is not None
+                    and _net_income_source_rank > 0
+                    and r.get(f"_rank_{sec_field}", 2) == 0
+                ):
+                    # See _net_income_source_rank's own comment above (PCG live-confirmed):
+                    # a rank-0 (non-primary-form, e.g. DEF 14A) concept must never overwrite
+                    # a value a real primary-form concept already wrote, even though it's a
+                    # DIFFERENT concept occupying a later list position - the ordinary
+                    # last-listed-wins rule only ever intended to arbitrate between
+                    # comparable-quality concepts.
+                    continue
                 else:
                     precision_scale = self._get_field_precision_scale(db_field)
                     if precision_scale is not None and not self._validate_numeric_precision(
@@ -1499,6 +1538,8 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         row[db_field] = value
                         if db_field == "revenue":
                             _revenue_source_sec_field = sec_field
+                        elif db_field == "net_income":
+                            _net_income_source_rank = r.get(f"_rank_{sec_field}", 2)
 
             # free_cash_flow has no direct XBRL concept (FCF is a non-GAAP measure SEC
             # filers don't tag) - derive it from operating_cash_flow - capex, the standard

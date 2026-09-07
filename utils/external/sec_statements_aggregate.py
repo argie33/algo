@@ -195,6 +195,19 @@ def _aggregate_concepts(
     # instead of guessing from (fiscal_year, fiscal_quarter). Annual extraction still strips
     # it - annual_income_statement has no such column and no such ordering ambiguity (a
     # single fiscal_year value already identifies one row per symbol unambiguously).
+    # `_rank_{col}` (see _aggregate_concepts_apply_entry_value) is deliberately KEPT here,
+    # unlike the other `_filed_`/`_end_`/`_frame_`/`_span_`/`_is_instant_` bookkeeping
+    # prefixes it's stripped alongside - see sec_base.py's transform() cross-concept
+    # net_income guard (FIXED 2026-09-07, PCG live-confirmed) for why: two DIFFERENT
+    # concepts (e.g. "ProfitLoss" and "NetIncomeLoss") can both target the same downstream
+    # db column, and transform() resolves that collision by "whichever concept's row key
+    # was inserted last wins" - a rule that is correct when both concepts came from a real
+    # primary financial-statement form, but not when the later one is only present because
+    # of the "non-primary form as last-resort fallback" allowance
+    # (_aggregate_concepts_should_replace_entry's own docstring/tests) - a DEF 14A Pay vs
+    # Performance re-tag can silently win over a correct 10-K figure from a sibling concept
+    # this way. transform() needs the per-concept rank to tell the two cases apart; the rank
+    # itself is meaningless without also keeping the row.
     result = []
     for row in rows.values():
         result.append(
@@ -203,7 +216,6 @@ def _aggregate_concepts(
                 for k, v in row.items()
                 if not k.startswith("_filed_")
                 and not k.startswith("_end_")
-                and not k.startswith("_rank_")
                 and not k.startswith("_frame_")
                 and not k.startswith("_span_")
                 and not k.startswith("_is_instant_")
