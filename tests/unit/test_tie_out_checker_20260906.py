@@ -106,6 +106,93 @@ class TestBalanceSheetIdentity:
         assert checker.results[0].severity == ERROR
 
 
+class TestQuarterlyBalanceSheetIdentity:
+    """ADDED 2026-09-07: quarterly mirror of TestBalanceSheetIdentity, added once the
+    noncontrolling_interest (migration 1265) and retained_earnings (migration 1266) schema
+    gaps on quarterly_balance_sheet closed."""
+
+    def test_flags_row_beyond_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADCO",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "total_assets": 1000.0,
+                        "total_liabilities": 400.0,
+                        "stockholders_equity": 400.0,  # off by 200, 20% of assets
+                        "noncontrolling_interest": None,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_balance_sheet_identity(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_balance_sheet_identity"
+        assert checker.results[0].details["count"] == 1
+        assert checker.results[0].details["examples"][0]["symbol"] == "BADCO"
+        assert checker.results[0].details["examples"][0]["fiscal_quarter"] == 2
+
+    def test_does_not_flag_within_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODCO",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 3,
+                        "total_assets": 1000.0,
+                        "total_liabilities": 600.0,
+                        "stockholders_equity": 400.0,  # exact tie-out
+                        "noncontrolling_interest": None,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_balance_sheet_identity(cur)
+        assert checker.results == []
+
+    def test_noncontrolling_interest_closes_identity(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "XOM",
+                        "fiscal_year": 2009,
+                        "fiscal_quarter": 4,
+                        "total_assets": 233_323_000_000.0,
+                        "total_liabilities": 117_931_000_000.0,
+                        "stockholders_equity": 110_569_000_000.0,
+                        "noncontrolling_interest": 4_823_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_balance_sheet_identity(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_period_per_symbol(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_balance_sheet_identity(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_balance_sheet_identity(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_balance_sheet_identity"
+        assert checker.results[0].severity == ERROR
+
+
 class TestCashflowReconciliation:
     def test_does_not_flag_residual_under_floor(self) -> None:
         cur = _mock_cursor(
@@ -1442,10 +1529,437 @@ class TestQuarterlyDilutedGeBasicShares:
         assert checker.results[0].severity == ERROR
 
 
+class TestQuarterlyInventoryLeCurrentAssets:
+    def test_flags_inventory_above_current_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QINVBAD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "current_assets": 1_000_000.0,
+                        "inventory": 5_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_inventory_le_current_assets(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_inventory_le_current_assets"
+        assert checker.results[0].details["examples"][0]["symbol"] == "QINVBAD"
+
+    def test_does_not_flag_inventory_within_current_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QINVGOOD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "current_assets": 1_000_000.0,
+                        "inventory": 200_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_inventory_le_current_assets(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_inventory_le_current_assets(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "quarterly_balance_sheet" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_inventory_le_current_assets(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_inventory_le_current_assets"
+        assert checker.results[0].severity == ERROR
+
+
+class TestQuarterlyAccountsReceivableLeCurrentAssets:
+    def test_flags_ar_above_current_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QARBAD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "current_assets": 1_000_000.0,
+                        "accounts_receivable": 5_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_accounts_receivable_le_current_assets(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_accounts_receivable_le_current_assets"
+        assert checker.results[0].details["examples"][0]["symbol"] == "QARBAD"
+
+    def test_does_not_flag_ar_within_current_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QARGOOD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "current_assets": 1_000_000.0,
+                        "accounts_receivable": 200_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_accounts_receivable_le_current_assets(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_accounts_receivable_le_current_assets(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "quarterly_balance_sheet" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_accounts_receivable_le_current_assets(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_accounts_receivable_le_current_assets"
+        assert checker.results[0].severity == ERROR
+
+
+class TestQuarterlyPpeNetLeTotalAssets:
+    def test_flags_ppe_net_above_total_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QPPEBAD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "total_assets": 1_000_000.0,
+                        "ppe_net": 5_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_ppe_net_le_total_assets(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_ppe_net_le_total_assets"
+        assert checker.results[0].details["examples"][0]["symbol"] == "QPPEBAD"
+
+    def test_does_not_flag_ppe_net_within_total_assets(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QPPEGOOD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "total_assets": 1_000_000.0,
+                        "ppe_net": 200_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_ppe_net_le_total_assets(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_ppe_net_le_total_assets(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "quarterly_balance_sheet" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_ppe_net_le_total_assets(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_ppe_net_le_total_assets"
+        assert checker.results[0].severity == ERROR
+
+
+class TestQuarterlyShortTermDebtLeCurrentLiabilities:
+    def test_flags_short_term_debt_above_current_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QSTDBAD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "current_liabilities": 1_000_000.0,
+                        "short_term_debt": 5_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_short_term_debt_le_current_liabilities(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_short_term_debt_le_current_liabilities"
+        assert checker.results[0].details["examples"][0]["symbol"] == "QSTDBAD"
+
+    def test_does_not_flag_short_term_debt_within_current_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QSTDGOOD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "current_liabilities": 1_000_000.0,
+                        "short_term_debt": 200_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_short_term_debt_le_current_liabilities(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_short_term_debt_le_current_liabilities(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "quarterly_balance_sheet" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_short_term_debt_le_current_liabilities(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_short_term_debt_le_current_liabilities"
+        assert checker.results[0].severity == ERROR
+
+
+class TestQuarterlyOperatingLeaseLiabilityLeTotalLiabilities:
+    def test_flags_operating_lease_liability_above_total_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QOLLBAD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "total_liabilities": 1_000_000.0,
+                        "operating_lease_liability": 5_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_operating_lease_liability_le_total_liabilities(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_operating_lease_liability_le_total_liabilities"
+        assert checker.results[0].details["examples"][0]["symbol"] == "QOLLBAD"
+
+    def test_does_not_flag_operating_lease_liability_within_total_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QOLLGOOD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "total_liabilities": 1_000_000.0,
+                        "operating_lease_liability": 200_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_operating_lease_liability_le_total_liabilities(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_operating_lease_liability_le_total_liabilities(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "quarterly_balance_sheet" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_operating_lease_liability_le_total_liabilities(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_operating_lease_liability_le_total_liabilities"
+        assert checker.results[0].severity == ERROR
+
+
+class TestQuarterlyFinanceLeaseLiabilityLeTotalLiabilities:
+    def test_flags_finance_lease_liability_above_total_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QFLLBAD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "total_liabilities": 1_000_000.0,
+                        "finance_lease_liability": 5_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_finance_lease_liability_le_total_liabilities(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_finance_lease_liability_le_total_liabilities"
+        assert checker.results[0].details["examples"][0]["symbol"] == "QFLLBAD"
+
+    def test_does_not_flag_finance_lease_liability_within_total_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QFLLGOOD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "total_liabilities": 1_000_000.0,
+                        "finance_lease_liability": 200_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_finance_lease_liability_le_total_liabilities(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_finance_lease_liability_le_total_liabilities(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "quarterly_balance_sheet" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_finance_lease_liability_le_total_liabilities(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_finance_lease_liability_le_total_liabilities"
+        assert checker.results[0].severity == ERROR
+
+
+class TestQuarterlyDilutedEpsLeBasicEps:
+    def test_flags_diluted_eps_above_basic_eps(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QEPSBAD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "diluted_eps": 5.00,
+                        "earnings_per_share": 1.00,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_diluted_eps_le_basic_eps(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_diluted_eps_le_basic_eps"
+        assert checker.results[0].details["examples"][0]["symbol"] == "QEPSBAD"
+
+    def test_flags_less_negative_diluted_loss_per_share(self) -> None:
+        """Antidilution violation in the loss-period direction: a less-negative diluted
+        loss-per-share than basic is just as much a violation as an inflated profit figure."""
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QEPSLOSS",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "diluted_eps": -0.16,
+                        "earnings_per_share": -377.10,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_diluted_eps_le_basic_eps(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].details["examples"][0]["symbol"] == "QEPSLOSS"
+
+    def test_does_not_flag_diluted_eps_within_basic_eps(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QEPSGOOD",
+                        "fiscal_year": 2025,
+                        "fiscal_quarter": 2,
+                        "diluted_eps": 0.90,
+                        "earnings_per_share": 1.00,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_diluted_eps_le_basic_eps(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_diluted_eps_le_basic_eps(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (i.symbol)" in executed_sql
+        assert "ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC" in executed_sql
+        assert "quarterly_income_statement" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_diluted_eps_le_basic_eps(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_diluted_eps_le_basic_eps"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_twenty_two_checks(self) -> None:
-        cur = _mock_cursor([[]] * 22)
+    def test_run_calls_all_thirty_checks(self) -> None:
+        cur = _mock_cursor([[]] * 30)
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 22
+        assert cur.execute.call_count == 30

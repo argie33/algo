@@ -256,6 +256,40 @@ _CASH_TOLERANCE_PCT = 0.001
 # check at least surfaces the resulting impossibility going forward.
 _INVENTORY_TOLERANCE_PCT = 0.001
 
+# accounts_receivable/ppe_net/short_term_debt/operating_lease_liability/finance_lease_liability
+# vs. their parent total: the same subset/category structural inequality as inventory/goodwill/
+# long_term_debt above - each is one line item, never the whole asset or liability side. Live
+# feasibility checks against the local DB (2026-09-07, Round 3 sweep) all landed clean:
+# accounts_receivable_le_current_assets 5/3,786, ppe_net_le_total_assets 4/4,757,
+# short_term_debt_le_current_liabilities 44/1,945 (2.3%, the noisiest of the five - still a
+# small minority, comparable to long_term_debt_le_total_liabilities's own noise floor),
+# operating_lease_liability_le_total_liabilities 3/4,326, finance_lease_liability_le_total_
+# liabilities 3/1,652.
+_ACCOUNTS_RECEIVABLE_TOLERANCE_PCT = 0.001
+_PPE_NET_TOLERANCE_PCT = 0.001
+_SHORT_TERM_DEBT_TOLERANCE_PCT = 0.001
+_OPERATING_LEASE_LIABILITY_TOLERANCE_PCT = 0.001
+_FINANCE_LEASE_LIABILITY_TOLERANCE_PCT = 0.001
+
+# diluted_eps <= earnings_per_share (basic) is a real GAAP rule (ASC 260's antidilution
+# provision), not a heuristic: a filer may never report a diluted per-share figure MORE
+# favorable than basic - dilutive securities are excluded from the diluted calculation
+# whenever including them would raise EPS (or shrink a loss per share), so diluted can only
+# ever equal or fall below basic. Because "more favorable" means numerically larger
+# regardless of sign (a less-negative loss-per-share is just as much an antidilution
+# violation as an inflated profit-per-share), a single signed inequality - diluted_eps -
+# earnings_per_share > tolerance - correctly catches both directions without a separate
+# branch per sign; live-verified against the local DB (2026-09-07, quarterly_income_statement):
+# of 65 raw loss-period "violations" (diluted less negative than basic) essentially all were
+# genuine magnitude-swap bugs (e.g. RETO diluted -0.16 vs basic -377.10, a ~2,356x mismatch),
+# not a sign-handling artifact. Tolerance tuned looser than _SHARE_COUNT_TOLERANCE_PCT's
+# near-zero slack because per-share figures are rounded to 2 decimals at the source (a real
+# source of small legitimate divergence tiny share-count tolerances don't have) - pct=2%/
+# floor=$0.01 landed a clean 13/2,964 (0.44%) noise floor, in line with this file's other
+# structural checks. Quarterly-only for now - no annual counterpart check exists yet.
+_DILUTED_LE_BASIC_EPS_TOLERANCE_PCT = 0.02
+_DILUTED_LE_BASIC_EPS_TOLERANCE_FLOOR = 0.01
+
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
 # means what it means for an industrial filer - their real cash position sits mostly in
 # interest-earning deposits/securities the balance-sheet field this schema tracks doesn't
@@ -311,6 +345,7 @@ class TieOutChecker(BaseCheck):
     def run(self, cur: Any) -> list[CheckResult]:
         self.results = []
         self.check_balance_sheet_identity(cur)
+        self.check_quarterly_balance_sheet_identity(cur)
         self.check_cashflow_reconciliation(cur)
         self.check_eps_reconciliation(cur)
         self.check_basic_eps_reconciliation(cur)
@@ -332,6 +367,13 @@ class TieOutChecker(BaseCheck):
         self.check_quarterly_gross_profit_identity(cur)
         self.check_quarterly_free_cash_flow_identity(cur)
         self.check_quarterly_diluted_ge_basic_shares(cur)
+        self.check_quarterly_inventory_le_current_assets(cur)
+        self.check_quarterly_accounts_receivable_le_current_assets(cur)
+        self.check_quarterly_ppe_net_le_total_assets(cur)
+        self.check_quarterly_short_term_debt_le_current_liabilities(cur)
+        self.check_quarterly_operating_lease_liability_le_total_liabilities(cur)
+        self.check_quarterly_finance_lease_liability_le_total_liabilities(cur)
+        self.check_quarterly_diluted_eps_le_basic_eps(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -438,6 +480,87 @@ class TieOutChecker(BaseCheck):
                 "balance_sheet_identity",
                 ERROR,
                 "annual_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_balance_sheet_identity(self, cur: Any) -> None:
+        """total_assets == total_liabilities + stockholders_equity + noncontrolling_interest,
+        quarterly mirror of check_balance_sheet_identity.
+
+        ADDED 2026-09-07 (goal: tie-out CI coverage sweep). Deferred earlier this session
+        pending two schema gaps on quarterly_balance_sheet - noncontrolling_interest (migration
+        1265, `1d0e48378`) and retained_earnings (migration 1266, `c72e7e007`) - both landed;
+        this check only needs the former.
+
+        Live-verified against the local DB immediately before adding: 731/5,092 (14.4%) of
+        quarterly rows fail at the same 1% tolerance as the annual check - same magnitude and,
+        by inspection, the same top offenders (LTGO/PROK/OMEX/SCTX/ATTO - the documented
+        PROK-style mezzanine-equity population with no noncontrolling_interest/MinorityInterest
+        concept at all) plus a long tail of NCI-bearing names whose quarterly
+        noncontrolling_interest column is still NULL - the metrics reload that repairs this
+        (same one backfilling the annual NCI gap) had not yet reached most quarterly rows as of
+        when this check was added. Expect this rate to collapse toward the <1% baseline of this
+        check's siblings once that reload completes, same trajectory as the annual check
+        followed earlier the same day. Don't re-triage this rate as a new bug without first
+        confirming the reload has actually finished.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.fiscal_quarter, b.total_assets, b.total_liabilities,
+                    b.stockholders_equity, b.noncontrolling_interest
+                FROM quarterly_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.total_assets IS NOT NULL
+                  AND b.total_liabilities IS NOT NULL
+                  AND b.stockholders_equity IS NOT NULL
+                  AND b.total_assets != 0
+                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                assets, liabilities, equity, nci = (
+                    float(row["total_assets"]),
+                    float(row["total_liabilities"]),
+                    float(row["stockholders_equity"]),
+                    float(row["noncontrolling_interest"] or 0),
+                )
+                residual = assets - (liabilities + equity + nci)
+                relative_error = abs(residual) / abs(assets)
+                if relative_error > _BALANCE_SHEET_TOLERANCE_PCT:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "fiscal_quarter": row["fiscal_quarter"],
+                            "total_assets": assets,
+                            "total_liabilities": liabilities,
+                            "stockholders_equity": equity,
+                            "noncontrolling_interest": nci,
+                            "residual": residual,
+                            "relative_error_pct": round(relative_error * 100, 2),
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["relative_error_pct"], reverse=True)
+                self.log(
+                    "quarterly_balance_sheet_identity",
+                    WARN,
+                    "quarterly_balance_sheet",
+                    f"{len(flagged)} symbol/quarter(s) fail total_assets == total_liabilities + "
+                    f"stockholders_equity + noncontrolling_interest beyond "
+                    f"{_BALANCE_SHEET_TOLERANCE_PCT:.0%} tolerance",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quarterly_balance_sheet_identity failed: {e}", exc_info=True)
+            self.log(
+                "quarterly_balance_sheet_identity",
+                ERROR,
+                "quarterly_balance_sheet",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
             )
 
@@ -1867,6 +1990,430 @@ class TieOutChecker(BaseCheck):
             logger.error(f"[TieOutChecker] quarterly_diluted_ge_basic_shares failed: {e}", exc_info=True)
             self.log(
                 "quarterly_diluted_ge_basic_shares",
+                ERROR,
+                "quarterly_income_statement",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_inventory_le_current_assets(self, cur: Any) -> None:
+        """inventory <= current_assets (quarterly_balance_sheet, same row).
+
+        ADDED 2026-09-07 (Round 3). Quarterly port of check_inventory_le_current_assets -
+        reuses the annual _INVENTORY_TOLERANCE_PCT unchanged (live-verified 2/2,800).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.fiscal_quarter, b.current_assets, b.inventory
+                FROM quarterly_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.current_assets IS NOT NULL
+                  AND b.inventory IS NOT NULL
+                  AND b.current_assets != 0
+                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                current_assets, inventory = (
+                    float(row["current_assets"]),
+                    float(row["inventory"]),
+                )
+                residual = inventory - current_assets
+                tolerance = abs(current_assets) * _INVENTORY_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "fiscal_quarter": row["fiscal_quarter"],
+                            "current_assets": current_assets,
+                            "inventory": inventory,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "quarterly_inventory_le_current_assets",
+                    WARN,
+                    "quarterly_balance_sheet",
+                    f"{len(flagged)} symbol/quarter(s) fail inventory <= current_assets "
+                    f"beyond {_INVENTORY_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quarterly_inventory_le_current_assets failed: {e}", exc_info=True)
+            self.log(
+                "quarterly_inventory_le_current_assets",
+                ERROR,
+                "quarterly_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_accounts_receivable_le_current_assets(self, cur: Any) -> None:
+        """accounts_receivable <= current_assets (quarterly_balance_sheet, same row).
+
+        ADDED 2026-09-07 (Round 3). Quarterly port of
+        check_accounts_receivable_le_current_assets - reuses the annual
+        _ACCOUNTS_RECEIVABLE_TOLERANCE_PCT unchanged (live-verified 5/3,786).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.fiscal_quarter,
+                    b.current_assets, b.accounts_receivable
+                FROM quarterly_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.current_assets IS NOT NULL
+                  AND b.accounts_receivable IS NOT NULL
+                  AND b.current_assets != 0
+                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                current_assets, accounts_receivable = (
+                    float(row["current_assets"]),
+                    float(row["accounts_receivable"]),
+                )
+                residual = accounts_receivable - current_assets
+                tolerance = abs(current_assets) * _ACCOUNTS_RECEIVABLE_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "fiscal_quarter": row["fiscal_quarter"],
+                            "current_assets": current_assets,
+                            "accounts_receivable": accounts_receivable,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "quarterly_accounts_receivable_le_current_assets",
+                    WARN,
+                    "quarterly_balance_sheet",
+                    f"{len(flagged)} symbol/quarter(s) fail accounts_receivable <= "
+                    f"current_assets beyond {_ACCOUNTS_RECEIVABLE_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quarterly_accounts_receivable_le_current_assets failed: {e}", exc_info=True)
+            self.log(
+                "quarterly_accounts_receivable_le_current_assets",
+                ERROR,
+                "quarterly_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_ppe_net_le_total_assets(self, cur: Any) -> None:
+        """ppe_net <= total_assets (quarterly_balance_sheet, same row).
+
+        ADDED 2026-09-07 (Round 3). Quarterly port of check_ppe_net_le_total_assets - reuses
+        the annual _PPE_NET_TOLERANCE_PCT unchanged (live-verified 4/4,757).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.fiscal_quarter, b.total_assets, b.ppe_net
+                FROM quarterly_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.total_assets IS NOT NULL
+                  AND b.ppe_net IS NOT NULL
+                  AND b.total_assets != 0
+                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                total_assets, ppe_net = (
+                    float(row["total_assets"]),
+                    float(row["ppe_net"]),
+                )
+                residual = ppe_net - total_assets
+                tolerance = abs(total_assets) * _PPE_NET_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "fiscal_quarter": row["fiscal_quarter"],
+                            "total_assets": total_assets,
+                            "ppe_net": ppe_net,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "quarterly_ppe_net_le_total_assets",
+                    WARN,
+                    "quarterly_balance_sheet",
+                    f"{len(flagged)} symbol/quarter(s) fail ppe_net <= total_assets beyond "
+                    f"{_PPE_NET_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quarterly_ppe_net_le_total_assets failed: {e}", exc_info=True)
+            self.log(
+                "quarterly_ppe_net_le_total_assets",
+                ERROR,
+                "quarterly_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_short_term_debt_le_current_liabilities(self, cur: Any) -> None:
+        """short_term_debt <= current_liabilities (quarterly_balance_sheet, same row).
+
+        ADDED 2026-09-07 (Round 3). Quarterly port of
+        check_short_term_debt_le_current_liabilities - reuses the annual
+        _SHORT_TERM_DEBT_TOLERANCE_PCT unchanged (live-verified 44/1,945, the noisiest of
+        the Batch C ports at 2.3% but still a small minority, comparable to
+        long_term_debt_le_total_liabilities's own noise floor).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.fiscal_quarter,
+                    b.current_liabilities, b.short_term_debt
+                FROM quarterly_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.current_liabilities IS NOT NULL
+                  AND b.short_term_debt IS NOT NULL
+                  AND b.current_liabilities != 0
+                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                current_liabilities, short_term_debt = (
+                    float(row["current_liabilities"]),
+                    float(row["short_term_debt"]),
+                )
+                residual = short_term_debt - current_liabilities
+                tolerance = abs(current_liabilities) * _SHORT_TERM_DEBT_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "fiscal_quarter": row["fiscal_quarter"],
+                            "current_liabilities": current_liabilities,
+                            "short_term_debt": short_term_debt,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "quarterly_short_term_debt_le_current_liabilities",
+                    WARN,
+                    "quarterly_balance_sheet",
+                    f"{len(flagged)} symbol/quarter(s) fail short_term_debt <= "
+                    f"current_liabilities beyond {_SHORT_TERM_DEBT_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quarterly_short_term_debt_le_current_liabilities failed: {e}", exc_info=True)
+            self.log(
+                "quarterly_short_term_debt_le_current_liabilities",
+                ERROR,
+                "quarterly_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_operating_lease_liability_le_total_liabilities(self, cur: Any) -> None:
+        """operating_lease_liability <= total_liabilities (quarterly_balance_sheet, same row).
+
+        ADDED 2026-09-07 (Round 3). Quarterly port of
+        check_operating_lease_liability_le_total_liabilities - reuses the annual
+        _OPERATING_LEASE_LIABILITY_TOLERANCE_PCT unchanged (live-verified 3/4,326).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.fiscal_quarter,
+                    b.total_liabilities, b.operating_lease_liability
+                FROM quarterly_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.total_liabilities IS NOT NULL
+                  AND b.operating_lease_liability IS NOT NULL
+                  AND b.total_liabilities != 0
+                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                total_liabilities, operating_lease_liability = (
+                    float(row["total_liabilities"]),
+                    float(row["operating_lease_liability"]),
+                )
+                residual = operating_lease_liability - total_liabilities
+                tolerance = abs(total_liabilities) * _OPERATING_LEASE_LIABILITY_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "fiscal_quarter": row["fiscal_quarter"],
+                            "total_liabilities": total_liabilities,
+                            "operating_lease_liability": operating_lease_liability,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "quarterly_operating_lease_liability_le_total_liabilities",
+                    WARN,
+                    "quarterly_balance_sheet",
+                    f"{len(flagged)} symbol/quarter(s) fail operating_lease_liability <= "
+                    f"total_liabilities beyond {_OPERATING_LEASE_LIABILITY_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(
+                f"[TieOutChecker] quarterly_operating_lease_liability_le_total_liabilities failed: {e}", exc_info=True
+            )
+            self.log(
+                "quarterly_operating_lease_liability_le_total_liabilities",
+                ERROR,
+                "quarterly_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_finance_lease_liability_le_total_liabilities(self, cur: Any) -> None:
+        """finance_lease_liability <= total_liabilities (quarterly_balance_sheet, same row).
+
+        ADDED 2026-09-07 (Round 3). Quarterly port of
+        check_finance_lease_liability_le_total_liabilities - reuses the annual
+        _FINANCE_LEASE_LIABILITY_TOLERANCE_PCT unchanged (live-verified 3/1,652).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.fiscal_quarter,
+                    b.total_liabilities, b.finance_lease_liability
+                FROM quarterly_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.total_liabilities IS NOT NULL
+                  AND b.finance_lease_liability IS NOT NULL
+                  AND b.total_liabilities != 0
+                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                total_liabilities, finance_lease_liability = (
+                    float(row["total_liabilities"]),
+                    float(row["finance_lease_liability"]),
+                )
+                residual = finance_lease_liability - total_liabilities
+                tolerance = abs(total_liabilities) * _FINANCE_LEASE_LIABILITY_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "fiscal_quarter": row["fiscal_quarter"],
+                            "total_liabilities": total_liabilities,
+                            "finance_lease_liability": finance_lease_liability,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "quarterly_finance_lease_liability_le_total_liabilities",
+                    WARN,
+                    "quarterly_balance_sheet",
+                    f"{len(flagged)} symbol/quarter(s) fail finance_lease_liability <= "
+                    f"total_liabilities beyond {_FINANCE_LEASE_LIABILITY_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(
+                f"[TieOutChecker] quarterly_finance_lease_liability_le_total_liabilities failed: {e}", exc_info=True
+            )
+            self.log(
+                "quarterly_finance_lease_liability_le_total_liabilities",
+                ERROR,
+                "quarterly_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_diluted_eps_le_basic_eps(self, cur: Any) -> None:
+        """diluted_eps <= earnings_per_share (quarterly_income_statement, same row).
+
+        ADDED 2026-09-07 (Round 3). ASC 260's antidilution rule (see
+        _DILUTED_LE_BASIC_EPS_TOLERANCE_PCT's own comment) applied to quarterly_income_
+        statement - no annual counterpart check exists yet, this is quarterly-only
+        (live-verified 21/4,824).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (i.symbol)
+                    i.symbol, i.fiscal_year, i.fiscal_quarter, i.diluted_eps, i.earnings_per_share
+                FROM quarterly_income_statement i
+                JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
+                WHERE i.data_unavailable = FALSE
+                  AND i.diluted_eps IS NOT NULL
+                  AND i.earnings_per_share IS NOT NULL
+                ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                diluted_eps, basic_eps = (
+                    float(row["diluted_eps"]),
+                    float(row["earnings_per_share"]),
+                )
+                residual = diluted_eps - basic_eps
+                tolerance = max(
+                    _DILUTED_LE_BASIC_EPS_TOLERANCE_FLOOR, abs(basic_eps) * _DILUTED_LE_BASIC_EPS_TOLERANCE_PCT
+                )
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "fiscal_quarter": row["fiscal_quarter"],
+                            "diluted_eps": diluted_eps,
+                            "earnings_per_share": basic_eps,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "quarterly_diluted_eps_le_basic_eps",
+                    WARN,
+                    "quarterly_income_statement",
+                    f"{len(flagged)} symbol/quarter(s) fail diluted_eps <= earnings_per_share "
+                    f"(ASC 260 antidilution) beyond max(${_DILUTED_LE_BASIC_EPS_TOLERANCE_FLOOR:.2f}, "
+                    f"{_DILUTED_LE_BASIC_EPS_TOLERANCE_PCT:.0%} of basic eps)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quarterly_diluted_eps_le_basic_eps failed: {e}", exc_info=True)
+            self.log(
+                "quarterly_diluted_eps_le_basic_eps",
                 ERROR,
                 "quarterly_income_statement",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
