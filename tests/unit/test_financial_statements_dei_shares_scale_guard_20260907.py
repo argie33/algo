@@ -120,7 +120,15 @@ class TestDeiSharesOutstandingScaleGuard:
         mock_ctx.__enter__.return_value = mock_cur
         mock_ctx.__exit__.return_value = False
 
-        with patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx):
+        # NOTE 2026-09-07: _reject_implausible_shares_outstanding (and its DatabaseContext
+        # cross-check call) moved to loaders/helpers/financial_statements_share_count_validation.py's
+        # FinancialStatementsShareCountValidationMixin (file-size ratchet split, see that
+        # module's docstring) - patch DatabaseContext where it's actually imported/called
+        # now, not on load_financial_statements itself.
+        with patch(
+            "loaders.helpers.financial_statements_share_count_validation.DatabaseContext",
+            return_value=mock_ctx,
+        ):
             _transform(loader, rows)
 
         assert (
