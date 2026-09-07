@@ -228,6 +228,70 @@ class TestEpsReconciliation:
         assert checker.results[0].severity == ERROR
 
 
+class TestBasicEpsReconciliation:
+    """Mirrors TestEpsReconciliation above, but for check_basic_eps_reconciliation
+    (eps * shares_outstanding_basic ~= net_income) - added 2026-09-07, same day as the
+    check itself, because the diluted pair had monitoring-layer tie-out coverage while the
+    basic pair had none at all."""
+
+    def test_flags_unit_scale_mismatch(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADSHARES",
+                        "fiscal_year": 2025,
+                        "net_income": 2_000_000_000.0,
+                        "eps": 1.0,
+                        "shares_outstanding_basic": 3_000_000_000_000.0,  # off by ~1000x
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_basic_eps_reconciliation(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "basic_eps_reconciliation"
+        assert checker.results[0].details["examples"][0]["symbol"] == "BADSHARES"
+
+    def test_does_not_flag_within_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODEPS",
+                        "fiscal_year": 2025,
+                        "net_income": 1_000_000_000.0,
+                        "eps": 2.0,
+                        "shares_outstanding_basic": 500_000_000.0,  # exact tie-out
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_basic_eps_reconciliation(cur)
+        assert checker.results == []
+
+    def test_query_excludes_zero_denominators_and_dedups(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_basic_eps_reconciliation(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "shares_outstanding_basic != 0" in executed_sql
+        assert "net_income != 0" in executed_sql
+        assert "DISTINCT ON (i.symbol)" in executed_sql
+        assert "ORDER BY i.symbol, i.fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_basic_eps_reconciliation(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "basic_eps_reconciliation"
+        assert checker.results[0].severity == ERROR
+
+
 class TestGrossProfitIdentity:
     def test_flags_row_beyond_tolerance(self) -> None:
         cur = _mock_cursor(
@@ -341,9 +405,9 @@ class TestPretaxToNetIncome:
 
 
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_five_checks(self) -> None:
-        cur = _mock_cursor([[], [], [], [], []])
+    def test_run_calls_all_six_checks(self) -> None:
+        cur = _mock_cursor([[], [], [], [], [], []])
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 5
+        assert cur.execute.call_count == 6

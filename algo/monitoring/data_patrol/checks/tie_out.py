@@ -156,6 +156,7 @@ class TieOutChecker(BaseCheck):
         self.check_balance_sheet_identity(cur)
         self.check_cashflow_reconciliation(cur)
         self.check_eps_reconciliation(cur)
+        self.check_basic_eps_reconciliation(cur)
         self.check_gross_profit_identity(cur)
         self.check_pretax_to_net_income(cur)
         return self.results
@@ -388,6 +389,82 @@ class TieOutChecker(BaseCheck):
             logger.error(f"[TieOutChecker] eps_reconciliation failed: {e}", exc_info=True)
             self.log(
                 "eps_reconciliation",
+                ERROR,
+                "annual_income_statement",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_basic_eps_reconciliation(self, cur: Any) -> None:
+        """eps * shares_outstanding_basic ~= net_income.
+
+        ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit + "make sure we
+        have all the right tie outs in CI"): mirrors check_eps_reconciliation above exactly,
+        but for basic EPS/shares - that check only ever covered diluted, leaving the basic
+        pair with no periodic monitoring-layer coverage at all. load_financial_statements.py
+        already has a LOAD-TIME guard cross-checking implied EPS against
+        shares_outstanding_basic/diluted to reject scale errors (see that file's
+        `_reject_implausible_shares_outstanding` docstring, "FIXED 2026-08-21"/"FIXED
+        2026-09-06") - this is a separate, complementary DETECTION-layer check: it catches
+        anything that guard doesn't (a future regression in the guard itself, a new bad-data
+        pattern not yet covered by it, or drift introduced after load time), same as how
+        eps_reconciliation (diluted) already coexists with that same load-time guard rather
+        than being made redundant by it. Same tolerance constants as the diluted check - the
+        same untracked noise sources (preferred dividends, discontinued-ops allocations,
+        NCI carve-outs) apply identically to basic EPS.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (i.symbol)
+                    i.symbol, i.fiscal_year, i.net_income, i.eps, i.shares_outstanding_basic
+                FROM annual_income_statement i
+                JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
+                WHERE i.data_unavailable = FALSE
+                  AND i.net_income IS NOT NULL
+                  AND i.eps IS NOT NULL
+                  AND i.shares_outstanding_basic IS NOT NULL
+                  AND i.shares_outstanding_basic != 0
+                  AND i.net_income != 0
+                ORDER BY i.symbol, i.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                net_income, basic_eps, basic_shares = (
+                    float(row["net_income"]),
+                    float(row["eps"]),
+                    float(row["shares_outstanding_basic"]),
+                )
+                implied_net_income = basic_eps * basic_shares
+                residual = implied_net_income - net_income
+                tolerance = max(_EPS_TOLERANCE_FLOOR, abs(net_income) * _EPS_TOLERANCE_PCT)
+                if abs(residual) > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "net_income": net_income,
+                            "eps": basic_eps,
+                            "shares_outstanding_basic": basic_shares,
+                            "implied_net_income": implied_net_income,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                self.log(
+                    "basic_eps_reconciliation",
+                    WARN,
+                    "annual_income_statement",
+                    f"{len(flagged)} symbol(s) fail eps * shares_outstanding_basic ~= "
+                    f"net_income beyond max(${_EPS_TOLERANCE_FLOOR:,.0f}, {_EPS_TOLERANCE_PCT:.0%} "
+                    "of net_income)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] basic_eps_reconciliation failed: {e}", exc_info=True)
+            self.log(
+                "basic_eps_reconciliation",
                 ERROR,
                 "annual_income_statement",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
