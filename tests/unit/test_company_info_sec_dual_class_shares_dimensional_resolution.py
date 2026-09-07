@@ -210,3 +210,62 @@ class TestWileyClassLetterOverrideDimensionalResolution:
         )
 
         assert result == 8_758_419
+
+
+class TestAtroVerifiedCustomDefaultClassMember:
+    """ATRO (Astronics Corporation, CIK 8063) has only ONE registered common ticker - its real
+    current 10-K (atro-20260226) tags its plain "common stock" (the class ATRO actually trades,
+    31,868,534 shares) under a filer-custom `atro:CommonClassUndefinedMember` dimension member
+    instead of the standard `us-gaap:CommonStockMember` - live-confirmed via the filing's own
+    prose ("consisting of 36,107,984 [sic, a later filing's count] shares of common stock ...
+    and ... shares of Class B common stock"). Before the fix, `_context_is_generic_common_class`
+    correctly refused to trust the non-standard member name (same caution that caught the UHAL
+    bug), so ATRO fell through to the ambiguous reject despite having only one real ticker."""
+
+    _ATRO_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-2" name="dei:EntityCommonStockSharesOutstanding">'
+        "31,868,534</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-3" name="dei:EntityCommonStockSharesOutstanding">'
+        "3,822,641</ix:nonFraction>"
+        '<xbrli:context id="c-2"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">atro:CommonClassUndefinedMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-3"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassBMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_atro_resolves_to_its_plain_common_stock_value_via_verified_override(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._ATRO_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Astronics Corporation - Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "ATRO", "8063", _submissions_with_10k(tickers=["ATRO", "ATROB"])
+            )
+
+        assert result == 31_868_534
+
+    def test_unverified_symbol_with_same_shape_stays_unresolved(self):
+        """Guards the allowlist discipline: a DIFFERENT symbol with the identical
+        CommonClassUndefinedMember shape must NOT be trusted just because ATRO's is - only an
+        individually-verified entry in _VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS is trusted."""
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._ATRO_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Some Other Company Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "ZZZZ", "999999", _submissions_with_10k(tickers=["ZZZZ", "ZZZZB"])
+            )
+
+        assert result is None

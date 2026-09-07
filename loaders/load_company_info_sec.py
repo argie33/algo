@@ -526,6 +526,26 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # rather than any ticker-suffix-shape inference, which this method's own docstring already
     # rejects as unsafe (many bare siblings correctly have no determinable letter at all).
     _SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES: dict[str, str] = {"WLY": "A", "WLYB": "B"}
+    # ADDED 2026-09-06 (same sweep, continued): ATRO (Astronics Corporation) has only ONE
+    # registered common ticker ("ATRO"; the CIK's other ticker "ATROB" is its Class B, not
+    # separately scored in this universe) but its real current filings (live-confirmed via
+    # CIK 8063's 10-K atro-20260226 and 10-Q atro-20260812) tag its plain, non-special "common
+    # stock" (the class ATRO actually trades - 31,868,534 shares per the 10-K) under a filer-
+    # custom dimension member `atro:CommonClassUndefinedMember`, not the standard
+    # `us-gaap:CommonStockMember` `_context_is_generic_common_class` requires to trust a
+    # non-lettered candidate as the default class (see that method's own UHAL-burn docstring
+    # for why "no letter" alone is never enough). Live-confirmed via the filing's own prose:
+    # "consisting of 36,107,984 shares of common stock ($.01 par value) and 6,901,080 shares of
+    # Class B common stock" - the Undefined-tagged value genuinely IS the plain default class,
+    # just tagged with an oddly-named filer-specific member instead of the standard one. A
+    # small, explicit, individually-verified allowlist (same discipline as
+    # `_SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES` just above) rather than trusting any
+    # "*Undefined*"/non-standard member name in general, which the method's docstring already
+    # explains is exactly the ambiguity this whole cautious design exists to avoid guessing
+    # through.
+    _VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS: dict[str, frozenset[str]] = {
+        "ATRO": frozenset({"commonclassundefinedmember"})
+    }
     # FIXED 2026-09-04 (same sweep): some filers (Liberty Media family, via Workiva-style
     # generators) embed the full dimension/member name directly in the contextRef id string
     # itself (e.g. "As_Of_1_31_2026_us-gaap_StatementClassOfStockAxis_lmca_
@@ -854,7 +874,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
         letter_match = self._CLASS_LETTER_FROM_MEMBER_RE.search(member_match.group(1))
         return letter_match.group(1).upper() if letter_match else None
 
-    def _context_is_generic_common_class(self, filing_text: str, context_id: str) -> bool:
+    def _context_is_generic_common_class(self, filing_text: str, context_id: str, symbol: str | None = None) -> bool:
         """True only when this context is safely treated as "the plain default common
         class, no special designation" - i.e. safe to assign to a bare ticker with no
         determinable class letter of its own.
@@ -880,7 +900,11 @@ class CompanyInfoSECLoader(SecLoaderBase):
         classification that merely doesn't fit the "Class{LETTER}" shape - not proof it's the
         default - and is deliberately NOT trusted here, even though the letter-extraction regex
         also returns None for it. When this returns False for the only non-lettered candidate,
-        the caller correctly falls through to the conservative reject rather than guessing.
+        the caller correctly falls through to the conservative reject rather than guessing -
+        UNLESS `symbol` has an individually-verified entry in
+        `_VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS` confirming that filer's specific non-standard
+        member name really does mean "plain default class" (see that constant's own comment -
+        ATRO's `atro:CommonClassUndefinedMember`, live-verified against the filing's own prose).
         """
         context_re = re.compile(
             self._CONTEXT_BLOCK_RE_TEMPLATE.format(re.escape(context_id)), re.IGNORECASE | re.DOTALL
@@ -891,8 +915,11 @@ class CompanyInfoSECLoader(SecLoaderBase):
         member_match = self._CLASS_OF_STOCK_MEMBER_RE.search(context_match.group(0))
         if not member_match:
             return True
-        member_name = member_match.group(1).rsplit(":", 1)[-1]
-        return member_name.lower() == "commonstockmember"
+        member_name = member_match.group(1).rsplit(":", 1)[-1].lower()
+        if member_name == "commonstockmember":
+            return True
+        verified_members = self._VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS.get(symbol or "", frozenset())
+        return member_name in verified_members
 
     def _fetch_shares_outstanding_from_filing_text(
         self, symbol: str, cik: str, submissions: dict[str, Any]
@@ -1060,7 +1087,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 v
                 for v, ctx in values_with_context
                 if v > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING
-                and (ctx is None or self._context_is_generic_common_class(text, ctx))
+                and (ctx is None or self._context_is_generic_common_class(text, ctx, symbol))
             ]
             if len(undimensioned) == 1:
                 result = int(undimensioned[0])
