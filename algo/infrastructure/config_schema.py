@@ -244,6 +244,7 @@ VALIDATION_SCHEMA = {
     "require_strong_sector": ("bool", None, None, False, None),
     "min_adv_shares": ("int", 1, 10000000, False, 50000),
     "min_adv_dollars": ("float", 1.0, 100000000.0, False, 500000.0),
+    "max_pct_of_adv_dollars": ("float", 0.1, 50.0, False, 5.0),
     "min_order_size_dollars": ("float", 0.1, 100000.0, False, 100.0),
     "phase1_min_coverage_pct": ("int", 0, 100, False, 75),
     "phase1_min_symbol_count": ("int", 100, 100000, False, 5000),

@@ -257,6 +257,25 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
     "max_short_interest_pct": ("30.0", "float", "Maximum short interest %", "Liquidity Requirements"),
     "min_adv_shares": ("50000", "int", "Minimum average daily volume (shares)", "Liquidity Requirements"),
     "min_adv_dollars": ("500000", "float", "Minimum average daily dollar volume", "Liquidity Requirements"),
+    # ENABLED (real-money-readiness audit, 2026-09-06): PositionSizer's optional
+    # max_pct_of_adv_dollars participation-rate cap (added earlier the same day) was fully
+    # implemented and tested but never actually configured anywhere - min_adv_shares/
+    # min_adv_dollars above are a fixed pass/fail floor on the SYMBOL's own liquidity, not a
+    # ceiling on how large a CANDIDATE POSITION can be relative to it. A big-enough account
+    # could clear that floor by a wide margin while still sizing a single trade as a large
+    # fraction of the stock's own daily turnover, risking real execution slippage and
+    # multi-day unwind risk on exit. 5% is standard low-single-digit institutional practice
+    # for a participation-rate ceiling - conservative enough to only bind on genuinely thin
+    # names, consistent with this system's other conservative liquidity/concentration
+    # defaults (max_position_size_pct=4.75%). User directed: "figure out what is right and
+    # best" rather than picking a number themselves - this is that judgment call, not a
+    # placeholder guess.
+    "max_pct_of_adv_dollars": (
+        "5.0",
+        "float",
+        "Maximum position size as % of symbol's 20-day avg dollar volume (participation-rate cap)",
+        "Liquidity Requirements",
+    ),
     "min_order_size_dollars": ("100.0", "float", "Minimum order size in dollars", "Liquidity Requirements"),
     "phase1_min_coverage_pct": ("75", "int", "Phase 1: Minimum data coverage %", "Liquidity Requirements"),
     # Risk Metrics Calculation (M3 - Risk Thresholds)
