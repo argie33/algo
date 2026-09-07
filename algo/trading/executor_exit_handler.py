@@ -629,6 +629,7 @@ class ExitHandler:
         risk_per_share: Decimal,
         full_exit: bool,
         is_estimated_price: bool,
+        position_id: int | None,
     ) -> tuple[float, float, float]:
         """Return (pnl_dollars, pnl_pct, r_multiple), summed across every leg of a
         multi-leg exit when this call is the final leg.
@@ -646,6 +647,19 @@ class ExitHandler:
 
         For a partial exit (full_exit=False) or an unreconciled estimated fill, there is no
         final trade-level total to report yet - returns the single-leg values unchanged.
+
+        FIXED 2026-09-07 (follow-up to the same-day pyramided-entry-price fix above, closing
+        the edge case its own docstring flagged as open): `entry_qty` is `t.entry_quantity` -
+        the FIRST/original leg's own quantity only, same single-leg limitation `entry_price`
+        had before today's fix. For a position that is BOTH pyramided (2+ legs) AND exited via
+        multiple partial legs (the only branch that reaches this far - `prior_partial_pnl_dec
+        != 0` below), using just the first leg's quantity against the now-correct blended
+        `entry_price` understates original_cost_basis/original_risk_dollars, overstating
+        cumulative_pnl_pct/cumulative_r_multiple. Sums entry_quantity across every leg on the
+        position (algo_positions.trade_ids_arr, the same array executor_entry_handler.py
+        appends every pyramid add to) instead of trusting the single first-leg value - falls
+        back to the passed-in single-leg entry_qty when no position row exists (matching
+        entry_price's own COALESCE fallback at the call site).
         """
         if not (full_exit and not is_estimated_price):
             return pnl_dollars, pnl_pct, r_multiple
@@ -668,7 +682,21 @@ class ExitHandler:
         cumulative_pnl_dollars_dec = (prior_partial_pnl_dec + Decimal(str(pnl_dollars))).quantize(
             Decimal("0.01"), ROUND_HALF_UP
         )
-        entry_qty_dec = Decimal(str(entry_qty))
+        total_entry_qty = entry_qty
+        if position_id is not None:
+            cur.execute(
+                """
+                SELECT SUM(t.entry_quantity)
+                FROM algo_trades t
+                JOIN algo_positions p ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
+                WHERE p.position_id = %s
+                """,
+                (position_id,),
+            )
+            total_entry_qty_row = cur.fetchone()
+            if total_entry_qty_row and total_entry_qty_row[0] is not None:
+                total_entry_qty = float(total_entry_qty_row[0])
+        entry_qty_dec = Decimal(str(total_entry_qty))
         original_cost_basis = Decimal(str(entry_price)) * entry_qty_dec
         original_risk_dollars = risk_per_share * entry_qty_dec
         cumulative_pnl_dollars = float(cumulative_pnl_dollars_dec)
@@ -1173,6 +1201,7 @@ class ExitHandler:
             risk_per_share,
             full_exit,
             is_estimated_price,
+            position_id,
         )
 
         # TRANSACTION GUARD 3: Update algo_trades

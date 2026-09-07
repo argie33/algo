@@ -45,6 +45,7 @@ class TestComputeCumulativePnl:
             risk_per_share=Decimal("2.0"),
             full_exit=True,
             is_estimated_price=False,
+            position_id=None,
         )
 
         assert pnl_dollars == 150.0
@@ -69,6 +70,7 @@ class TestComputeCumulativePnl:
             risk_per_share=Decimal("2.0"),
             full_exit=False,
             is_estimated_price=False,
+            position_id=None,
         )
 
         assert pnl_dollars == 80.0
@@ -94,6 +96,7 @@ class TestComputeCumulativePnl:
             risk_per_share=Decimal("2.0"),
             full_exit=True,
             is_estimated_price=True,
+            position_id=None,
         )
 
         assert (pnl_dollars, pnl_pct, r_multiple) == (0.0, 0.0, 0.0)
@@ -118,6 +121,7 @@ class TestComputeCumulativePnl:
             risk_per_share=Decimal("2.0"),
             full_exit=True,
             is_estimated_price=False,
+            position_id=None,
         )
 
         assert pnl_dollars == 200.0  # not $0 - the pre-fix bug
@@ -144,6 +148,7 @@ class TestComputeCumulativePnl:
             risk_per_share=Decimal("4.0"),
             full_exit=True,
             is_estimated_price=False,
+            position_id=None,
         )
 
         assert pnl_dollars == 200.0
@@ -172,6 +177,7 @@ class TestComputeCumulativePnl:
             risk_per_share=Decimal("2.0"),
             full_exit=True,
             is_estimated_price=False,
+            position_id=None,
         )
 
         assert pnl_dollars == 200.0
@@ -199,9 +205,108 @@ class TestComputeCumulativePnl:
             risk_per_share=Decimal("5.0"),
             full_exit=True,
             is_estimated_price=False,
+            position_id=None,
         )
 
         executed_sql, params = cur.execute.call_args[0]
         assert "trade_id" in executed_sql
         assert "full_exit" in executed_sql
         assert params == (99,)
+
+
+class TestComputeCumulativePnlPyramidedPosition:
+    """Regression test (2026-09-07, same-day follow-up to the pyramided-entry-price fix
+    above ExitHandler._fetch_and_lock_trade_data): entry_qty here is t.entry_quantity - the
+    FIRST/original leg's own quantity only, same single-leg limitation entry_price had
+    before that fix. For a position that is BOTH pyramided (2+ legs) AND exited via
+    multiple partial legs (the only branch that reaches the cost-basis math below), using
+    just the first leg's quantity against the now-correct blended entry_price understated
+    original_cost_basis/original_risk_dollars, overstating cumulative_pnl_pct/r_multiple.
+
+    Concrete example: leg1 buys 100sh@$10, leg2 (pyramid add) buys 50sh@$15 (avg_entry_price
+    blends to $11.67, entry_qty passed in is only leg1's 100sh). T1 takes profit on 60sh
+    (+$300 already realized), final leg closes remaining 90sh at $20 (+$750 this leg).
+    True total pnl_pct must be computed against the full 150-share cost basis
+    (11.67*150=$1750.50), not just 100 shares (11.67*100=$1167) - the difference between
+    ~60% and ~90% reported pnl_pct on the exact same trade.
+    """
+
+    def _cur_with_prior_partial_and_total_qty(self, prior_partial: float, total_qty: float) -> MagicMock:
+        cur = MagicMock()
+        cur.fetchone.side_effect = [(Decimal(str(prior_partial)),), (Decimal(str(total_qty)),)]
+        return cur
+
+    def test_uses_summed_position_quantity_not_first_leg_quantity(self):
+        handler = _make_handler()
+        cur = self._cur_with_prior_partial_and_total_qty(prior_partial=300.0, total_qty=150.0)
+
+        pnl_dollars, pnl_pct, r_multiple = handler._compute_cumulative_pnl(
+            cur,
+            trade_id=55,
+            symbol="AAPL",
+            pnl_dollars=750.0,
+            pnl_pct=45.45,
+            r_multiple=1.5,
+            entry_price=11.67,  # blended avg_entry_price, already fixed
+            entry_qty=100,  # leg1's own quantity ONLY - must NOT be trusted here
+            risk_per_share=Decimal("2.0"),
+            full_exit=True,
+            is_estimated_price=False,
+            position_id=321,
+        )
+
+        assert pnl_dollars == 1050.0  # 300 + 750
+        # Against the TRUE 150-share cost basis (11.67*150=1750.5), not 100 shares (1167.0).
+        assert pnl_pct == pytest.approx(round(1050 / (11.67 * 150) * 100, 2))
+        assert r_multiple == pytest.approx(round(1050 / (2.0 * 150), 2))
+
+    def test_position_lookup_query_scopes_to_position_id(self):
+        handler = _make_handler()
+        cur = self._cur_with_prior_partial_and_total_qty(prior_partial=50.0, total_qty=150.0)
+
+        handler._compute_cumulative_pnl(
+            cur,
+            trade_id=55,
+            symbol="AAPL",
+            pnl_dollars=10.0,
+            pnl_pct=1.0,
+            r_multiple=0.5,
+            entry_price=11.67,
+            entry_qty=100,
+            risk_per_share=Decimal("2.0"),
+            full_exit=True,
+            is_estimated_price=False,
+            position_id=321,
+        )
+
+        second_call_sql, second_call_params = cur.execute.call_args_list[1][0]
+        assert "trade_ids_arr" in second_call_sql
+        assert "position_id" in second_call_sql
+        assert second_call_params == (321,)
+
+    def test_no_position_id_falls_back_to_single_leg_entry_qty(self):
+        """No position row exists (e.g. a legacy/orphaned trade) - must not query for a
+        total and must use the passed-in single-leg entry_qty unchanged, same fallback
+        convention as entry_price's own COALESCE at the call site."""
+        handler = _make_handler()
+        cur = _cur_with_prior_partial_sum(200.0)
+
+        pnl_dollars, pnl_pct, r_multiple = handler._compute_cumulative_pnl(
+            cur,
+            trade_id=1,
+            symbol="AAPL",
+            pnl_dollars=0.0,
+            pnl_pct=0.0,
+            r_multiple=0.0,
+            entry_price=50.0,
+            entry_qty=100,
+            risk_per_share=Decimal("2.0"),
+            full_exit=True,
+            is_estimated_price=False,
+            position_id=None,
+        )
+
+        assert cur.execute.call_count == 1  # only the prior-partial-pnl query
+        assert pnl_dollars == 200.0
+        assert pnl_pct == pytest.approx(4.0)  # 200 / (50*100) * 100 - unchanged single-leg qty
+        assert r_multiple == pytest.approx(1.0)
