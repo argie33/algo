@@ -3734,6 +3734,47 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                 row[field] = None
                 self._record_explicit_null_rejection(row, field, "implausible_debt_vs_total_assets_scale_error")
 
+    def _reject_implausible_goodwill(self, transformed: list[dict[str, Any]]) -> None:
+        """Reject `goodwill` when it exceeds `total_assets` on the same row - not a
+        tolerance/measurement-noise check like algo/monitoring/data_patrol/checks/tie_out.py's
+        own goodwill_le_total_assets WARN, but a hard mathematical impossibility: goodwill is
+        one of the line items summed INTO total_assets on a balance sheet, so it can never
+        legitimately exceed total_assets, not even slightly - unlike
+        `_reject_implausible_debt_field`'s 20x tolerance (real companies can carry debt many
+        times their asset base), there is no legitimate multiple here at all.
+
+        FOUND 2026-09-07 (goal session: tie-out score-sanity audit, goodwill_le_total_assets
+        live triage). Live-confirmed via real SEC companyfacts JSON, all from the filer's OWN
+        real, primary-form (10-K/20-F) filing, not a comparative echo or wrong-period bug in
+        this pipeline's extraction: ILLR FY2024 tags Goodwill=$1,005,778,000 against its own
+        same-filing Assets=$50,578,000 (a ~20x overstatement); BTCT (foreign private issuer,
+        20-F) FY2022 tags Goodwill=$192,962,000 against Assets that never exceed ~$40M in any
+        surrounding period; MTC (20-F) tags the identical Goodwill=$108,218,586 across THREE
+        straight fiscal years (2023/2024/2025) while Assets is only ~$18.4M - the frozen,
+        unchanging-for-3-years figure is itself a signature of a stale/comparative value the
+        filer's own XBRL never actually updated. Small tolerance (1.05x) rather than an exact
+        0x to allow trivial same-period rounding noise between the two facts' filing contexts,
+        not because a real excess is ever legitimate.
+        """
+        if self.statement_type != "balance":
+            return
+        max_plausible_goodwill_to_assets_ratio = 1.05
+        for row in transformed:
+            total_assets = row.get("total_assets")
+            goodwill = row.get("goodwill")
+            if total_assets is None or total_assets <= 0 or goodwill is None:
+                continue
+            if float(goodwill) > float(total_assets) * max_plausible_goodwill_to_assets_ratio:
+                logger.warning(
+                    f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                    f"goodwill={goodwill:,.0f} exceeds total_assets({total_assets:,.0f}) - "
+                    "mathematically impossible (goodwill is one of the line items summed into "
+                    "total_assets). Filer-side tagging error or stale comparative, not a real "
+                    "figure. Rejecting rather than storing a confidently-wrong value."
+                )
+                row["goodwill"] = None
+                self._record_explicit_null_rejection(row, "goodwill", "implausible_goodwill_exceeds_total_assets")
+
     # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep, gross_profit_
     # identity follow-up to the ABBV/GILD/AMGN/ABT stale-stub fix above): live-confirmed via
     # real SEC companyfacts JSON that Centene (CNC) and Elevance Health (ELV) - both managed-
@@ -3908,6 +3949,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         self._reject_diluted_shares_below_basic(transformed)
         self._reject_implausible_debt_field(transformed, "long_term_debt")
         self._reject_implausible_debt_field(transformed, "short_term_debt")
+        self._reject_implausible_goodwill(transformed)
         if self.statement_type == "income":
             self._fill_derived_eps(transformed)
             self._reject_implausible_eps(transformed)
