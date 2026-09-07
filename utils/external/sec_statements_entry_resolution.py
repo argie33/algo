@@ -154,7 +154,19 @@ def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-exis
     # trusting one for duration data (test_sec_custom_xbrl_concepts.py already
     # treats 8-K as something to skip when looking for a filer's authoritative
     # annual data, for the same reason).
-    if start_date and entry.get("form") in ("8-K", "8-K/A"):
+    #
+    # WIDENED 2026-09-07 (goal session: tie-out score-sanity audit, WTRG live-
+    # confirmed): the original fix above only excluded DURATION facts (has "start")
+    # from an 8-K, on the assumption the bug class was specific to income-statement
+    # concepts. Live-confirmed the same filer (WTRG) also tags "ShortTermBorrowings"
+    # (a balance-sheet INSTANT fact, no "start") under two 8-K filings and nowhere
+    # else in its entire companyfacts history - no 10-K/10-Q ever carries this
+    # concept for WTRG at all. An 8-K is not a periodic financial statement
+    # regardless of whether the specific fact it carries happens to be a duration
+    # or instant concept - the "not subject to the same XBRL-tagging rigor" rationale
+    # above is identical either way. Drop the `start_date and` restriction so this
+    # exclusion applies uniformly to every 8-K-sourced fact.
+    if entry.get("form") in ("8-K", "8-K/A"):
         return None
 
     # See the _max_end_by_accn comment above this loop: drop any instant fact
