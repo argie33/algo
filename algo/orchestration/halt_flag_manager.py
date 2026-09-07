@@ -135,6 +135,98 @@ class HaltFlagManager:
         self._alert_halt_detected("both DynamoDB and RDS unavailable - failing closed")
         return True
 
+    def _cancel_pending_entry_orders_on_halt(self, reason: str, triggered_by: str) -> None:
+        """Best-effort: cancel every resting-at-broker, not-yet-filled ENTRY order the moment a
+        halt is set, so a halt actually stops new exposure instead of only blocking future
+        submissions.
+
+        REAL-MONEY-READINESS FIX (2026-09-07 audit): set_halt_flag() only ever gated Phase 8's
+        decision to submit a NEW order - an order already sent to Alpaca before the halt fired
+        (e.g. a bracket entry sitting as `new`/`accepted`/`pending_new`) was left completely
+        untouched and could still fill minutes later, adding exactly the exposure the halt was
+        meant to prevent. A repo-wide grep for cancel_order/cancel_all_orders found exactly one
+        caller of the underlying primitive (`OrderManager.cancel_all_open_orders_for_symbol`)
+        outside this fix: scripts/flatten_all_positions.py, a manual operator tool - there was no
+        automatic path. This reuses that exact same primitive (real Alpaca cancel, same
+        transaction-safety story) rather than writing a second cancel implementation.
+
+        Deliberately does NOT touch already-FILLED positions' resting bracket (stop-loss/
+        take-profit) legs - those are the position's own protection and cancelling them on a
+        routine halt would make things worse, not safer (see flatten_all_positions.py's docstring
+        for the same design decision - a full flatten remains a separate, explicit operator
+        action). Only PENDING/OPEN (unfilled) entries are cancelled here.
+
+        Must never raise or block the halt flag write that already succeeded by the time this
+        runs - failures are logged and alerted, never propagated.
+        """
+        try:
+            from algo.config.api_endpoints import get_alpaca_base_url
+            from algo.config.credential_manager import get_alpaca_credentials
+            from algo.infrastructure.config import AlgoConfig
+            from algo.trading.order_manager import OrderManager
+            from utils.db import DatabaseContext
+            from utils.trading import TradeStatus
+
+            config = AlgoConfig()
+            execution_mode = str(config["execution_mode"]).lower()
+            try:
+                alpaca_creds = get_alpaca_credentials()
+                alpaca_key = alpaca_creds.get("key")
+                alpaca_secret = alpaca_creds.get("secret")
+            except ValueError:
+                alpaca_key = None
+                alpaca_secret = None
+            if not alpaca_key or not alpaca_secret:
+                logger.debug("[HALT_FLAG] No Alpaca credentials available - skipping pending-order cancel on halt")
+                return
+
+            base_url = get_alpaca_base_url(execution_mode)
+            order_mgr = OrderManager(alpaca_key, alpaca_secret, base_url)
+
+            unfilled_statuses = (TradeStatus.PENDING.value, TradeStatus.OPEN.value)
+            placeholders = ", ".join(["%s"] * len(unfilled_statuses))
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    f"SELECT DISTINCT symbol FROM algo_trades WHERE status IN ({placeholders})",
+                    unfilled_statuses,
+                )
+                symbols = [row[0] for row in cur.fetchall()]
+
+            if not symbols:
+                logger.info("[HALT_FLAG] No pending/unfilled entry orders to cancel on halt")
+                return
+
+            cancelled: list[str] = []
+            failed: list[str] = []
+            for symbol in symbols:
+                result = order_mgr.cancel_all_open_orders_for_symbol(symbol)
+                if result.get("success"):
+                    cancelled.append(symbol)
+                else:
+                    failed.append(f"{symbol}: {result.get('message')}")
+
+            logger.critical(
+                f"[HALT_FLAG_ORDER_CANCEL] Halt triggered_by={triggered_by} reason={reason[:200]!r} - "
+                f"cancelled pending entry orders for {len(cancelled)} symbol(s): {cancelled}"
+                + (f"; {len(failed)} FAILED: {failed}" if failed else "")
+            )
+            if failed:
+                try:
+                    self.alerts.send_position_alert(
+                        "HALT_ORDER_CANCEL_FAILED",
+                        "PENDING_ENTRY_ORDER_CANCEL_FAILED",
+                        f"Halt fired but {len(failed)} symbol(s) still have resting entry orders at "
+                        f"the broker that could fill despite the halt: {failed}. Manual cancellation required.",
+                        {"failed": failed, "triggered_by": triggered_by},
+                    )
+                except Exception as alert_err:
+                    logger.error(f"[HALT_FLAG] Could not send order-cancel-failure alert: {alert_err}")
+        except Exception as e:
+            logger.error(
+                f"[HALT_FLAG] Best-effort pending-order cancel on halt raised (halt flag itself still stands): "
+                f"{type(e).__name__}: {e}"
+            )
+
     def _alert_halt_detected(self, source: str) -> None:
         """Notify operators that trading is halted.
 
@@ -776,6 +868,7 @@ class HaltFlagManager:
                     logger.critical(f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})")
                 else:
                     logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
+                self._cancel_pending_entry_orders_on_halt(reason, triggered_by)
                 return True
             except Exception as e:
                 last_error = e
@@ -795,6 +888,7 @@ class HaltFlagManager:
                             continue
                         else:
                             break
+                    self._cancel_pending_entry_orders_on_halt(reason, triggered_by)
                     return rds_result  # Return True on success
                 except Exception as rds_err:
                     logger.warning(f"[HALT_FLAG] RDS fallback exception (attempt {attempt + 1}): {rds_err}")
