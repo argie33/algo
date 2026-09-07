@@ -3536,7 +3536,28 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
     # _PARTIAL_SEGMENT_GROSS_PROFIT_MANAGED_CARE_SYMBOLS above) - only cost_of_revenue is
     # nulled here, NOT gross_profit, since GrossProfit is the reliable, complete figure in
     # this case (opposite of CNC/ELV, where GrossProfit itself was the partial concept).
-    _PARTIAL_COST_OF_REVENUE_SYMBOLS = frozenset({"MO"})
+    #
+    # ADDED 2026-09-07 (same goal session, gross_profit_identity live triage continuation,
+    # batch 21-45 by residual): ZIM Integrated Shipping (ZIM, CIK 0001654126, a container-
+    # shipping line filing 20-F under IFRS) - live-confirmed via real SEC companyfacts JSON:
+    # ifrs-full "RevenueFromContractsWithCustomers" ($6.9042B FY2025) - "CostOfSales"
+    # ($4.4608B) implies a $2.4434B gross profit (35.4% margin), but the real, filer-tagged
+    # "GrossProfit" is only $1.3209B (19.1% margin) - a $1.1225B gap, exactly this pipeline's
+    # own gross_profit_identity residual. Unlike TTEK/TAP (a single missing additive concept
+    # that reconciles the gap exactly - see _fill_cost_of_revenue_from_other_operating_cost()),
+    # an exhaustive scan of every ifrs-full concept for this exact fiscal-year period found NO
+    # single concept matching the $1.1225B gap (TransportationExpense $2.1021B and FuelExpense
+    # $1.1467B are both real, large, separately-tagged shipping-specific cost lines, but neither
+    # alone nor their sum closes the gap exactly) - ruling out the clean-sum pattern. The lower,
+    # real GrossProfit figure is corroborated as the reliable one: GrossProfit ($1.3209B) -
+    # ProfitLossFromOperatingActivities ($1.016B) = $304.9M, a plausible SG&A-scale residual,
+    # while CostOfSales's implied 35.4% gross margin is implausibly high for bulk container
+    # shipping's well-known thin-margin economics. No good SEC-registered direct peer exists
+    # (most major container lines - Maersk, COSCO, CMA CGM, Hapag-Lloyd - aren't SEC-listed) so
+    # this is verified via internal consistency (the operating-income cross-check above) rather
+    # than a peer comparison, same as this constant's original MO entry when it predated the PM
+    # peer-check precedent.
+    _PARTIAL_COST_OF_REVENUE_SYMBOLS = frozenset({"MO", "ZIM"})
 
     def _reject_partial_cost_of_revenue(self, transformed: list[dict[str, Any]]) -> None:
         """Force-null cost_of_revenue (keeping gross_profit) for the curated symbols above -

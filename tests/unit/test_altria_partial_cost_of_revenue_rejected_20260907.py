@@ -10,6 +10,14 @@ of only $14.542B - a $3.14B gap, this pipeline's own gross_profit_identity tie-o
 residual). Peer-checked Philip Morris International (PM) for the same FY2025 period and it
 reconciles EXACTLY ($40.648B - $13.366B = $27.282B, to the dollar) - ruling out an industry-
 wide excise-tax-exclusion accounting convention as the explanation; this is Altria-specific.
+
+Extended 2026-09-07 (same goal session continuation, gross_profit_identity's batch 21-45
+triage) with ZIM (ZIM Integrated Shipping, an IFRS 20-F container-shipping line): ifrs-full
+"CostOfSales" ($4.4608B FY2025) is similarly partial - Revenue ($6.9042B) - CostOfSales implies
+a 35.4% gross margin vs. the real, filer-tagged GrossProfit's 19.1% ($1.3209B) - no single
+missing concept closes the $1.1225B gap exactly (ruled out the TTEK/TAP clean-sum pattern via
+an exhaustive concept scan), and GrossProfit's plausibility is corroborated by
+GrossProfit - ProfitLossFromOperatingActivities = a normal $304.9M SG&A-scale residual.
 """
 
 from decimal import Decimal
@@ -49,6 +57,25 @@ class TestAltriaPartialCostOfRevenueRejected:
         assert result[0]["gross_profit"] == Decimal("14542000000")
         assert ({"symbol": "MO", "fiscal_year": 2025}, "cost_of_revenue") in loader._explicit_null_rejections
         assert ({"symbol": "MO", "fiscal_year": 2025}, "gross_profit") not in loader._explicit_null_rejections
+
+    def test_zim_cost_of_revenue_rejected_gross_profit_kept(self) -> None:
+        loader = _make_loader()
+        rows = [
+            {
+                "symbol": "ZIM",
+                "fiscal_year": 2025,
+                "revenue": Decimal("6904200000"),
+                "cost_of_revenue": Decimal("4460800000"),
+                "gross_profit": Decimal("1320900000"),
+                "net_income": Decimal("481500000"),
+                "data_unavailable": False,
+                "reason": None,
+            }
+        ]
+        result = _transform(loader, rows)
+        assert result[0]["cost_of_revenue"] is None
+        assert result[0]["gross_profit"] == Decimal("1320900000")
+        assert ({"symbol": "ZIM", "fiscal_year": 2025}, "cost_of_revenue") in loader._explicit_null_rejections
 
     def test_unrelated_symbol_with_similar_shape_is_not_rejected(self) -> None:
         """Peer-verified: Philip Morris International's own concepts reconcile exactly for
