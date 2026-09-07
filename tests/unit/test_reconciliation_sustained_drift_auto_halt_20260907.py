@@ -33,8 +33,23 @@ class TestSustainedDriftAutoHalt:
         insert_call = next(c for c in cur.execute.call_args_list if "INSERT INTO algo_risk_monitor_state" in c.args[0])
         assert insert_call.args[1][1] == 1  # new_count = prior(0) + 1
 
-    def test_second_consecutive_critical_drift_halts(self):
+    def test_second_consecutive_critical_drift_shadow_mode_does_not_halt(self):
+        """Default (no self.config / shadow mode on): observes and alerts but does not halt."""
         recon = _instance()
+        cur = _mock_cursor(prior_count=1)
+        with (
+            patch("algo.orchestration.halt_flag_manager.HaltFlagManager") as mock_hfm_cls,
+            patch("algo.reporting.AlertManager") as mock_alert_cls,
+        ):
+            recon._track_and_maybe_halt_on_sustained_drift(
+                cur, True, Decimal("7.0"), Decimal("107000"), Decimal("100000")
+            )
+        mock_hfm_cls.assert_not_called()
+        mock_alert_cls.return_value.send_position_alert.assert_called_once()
+
+    def test_second_consecutive_critical_drift_halts_when_shadow_mode_disabled(self):
+        recon = _instance()
+        recon.config = {"reconciliation_drift_halt_shadow_mode": False}
         cur = _mock_cursor(prior_count=1)
         mock_manager = MagicMock()
         with patch("algo.orchestration.halt_flag_manager.HaltFlagManager", return_value=mock_manager) as mock_hfm_cls:
@@ -79,6 +94,7 @@ class TestSustainedDriftAutoHalt:
 
     def test_halt_manager_failure_is_swallowed_not_raised(self):
         recon = _instance()
+        recon.config = {"reconciliation_drift_halt_shadow_mode": False}
         cur = _mock_cursor(prior_count=1)
         with patch("algo.orchestration.halt_flag_manager.HaltFlagManager", side_effect=RuntimeError("boom")):
             # Must not raise even though set_halt_flag construction failed.
