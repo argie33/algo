@@ -1136,14 +1136,17 @@ _BALANCE_FIELD_MAPPING = {
 }
 
 # ADDED 2026-08-26 (Quality pillar literature audit): Altman Z''-Score's Retained Earnings/
-# Total Assets term - see sec_statements.py's get_balance_sheet() comment. Annual-only: migration
-# 1234 added `retained_earnings` to annual_balance_sheet only (nothing in this codebase consumes
-# a quarterly or TTM Altman Z''), so this must NOT be merged into _BALANCE_FIELD_MAPPING itself -
-# that dict is shared with quarterly_balance_sheet's config below, whose schema_cols has no
-# `retained_earnings` column. Live-caught 2026-08-26: merging it into the shared base dict made
-# every single quarterly_balance_sheet fetch raise sec_base.py's "not in target schema"
-# RuntimeError (self._schema_cols is a hardcoded per-config frozenset, not introspected from the
-# live DB, so it doesn't just silently pass through).
+# Total Assets term - see sec_statements.py's get_balance_sheet() comment. Kept out of the
+# shared _BALANCE_FIELD_MAPPING base dict deliberately: that dict is reused by every period's
+# balance-sheet config, and each period has its own schema_cols frozenset - merging a mapping
+# into the shared base for a column not every period's table has raises sec_base.py's "not in
+# target schema" RuntimeError (self._schema_cols is hardcoded per-config, not introspected
+# from the live DB). Live-caught 2026-08-26 when this exact mistake broke every quarterly
+# fetch. Migration 1234 added `retained_earnings` to annual_balance_sheet; migration 1266
+# (2026-09-07) added the equivalent to quarterly_balance_sheet too, via its own
+# _QUARTERLY_BALANCE_EXTRA below rather than merging here - same pattern,
+# _QUARTERLY_INCOME_EXTRA already established it for period_end. TTM still has no
+# retained_earnings column - nothing in this codebase consumes a TTM Altman Z''-Score.
 _ANNUAL_BALANCE_EXTRA = {"retained_earnings_accumulated_deficit": "retained_earnings"}
 
 _CASHFLOW_FIELD_MAPPING = {
@@ -1335,6 +1338,18 @@ _QUARTERLY_EXTRA = {"fiscal_period": "fiscal_quarter"}
 # those two tables don't have.
 _QUARTERLY_INCOME_EXTRA = {**_QUARTERLY_EXTRA, "period_end": "period_end"}
 
+# ADDED 2026-09-07 (goal session: quarterly_balance_sheet missing retained_earnings column):
+# every quarterly balance-sheet fetch already pulls the real SEC-tagged
+# "RetainedEarningsAccumulatedDeficit" concept (see sec_balance_sheet.py's get_balance_sheet(),
+# concept list is shared with annual) but quarterly_balance_sheet had no column to store it in,
+# so it was discarded post-fetch with an "Unmapped SEC field" warning on every symbol, every
+# quarter. Kept separate from _QUARTERLY_EXTRA (shared by cashflow/income-statement quarterly
+# configs too) for the same reason _QUARTERLY_INCOME_EXTRA is separate above - merging into the
+# shared dict would raise sec_base.py's "not in target schema" RuntimeError for the other two
+# statement types, whose schema_cols don't have this column (see _ANNUAL_BALANCE_EXTRA's
+# comment for the live 2026-08-26 incident this exact mistake caused).
+_QUARTERLY_BALANCE_EXTRA = {**_QUARTERLY_EXTRA, "retained_earnings_accumulated_deficit": "retained_earnings"}
+
 
 def get_statement_config(statement_type: str, period: str) -> dict[str, Any]:
     """Return configuration for a specific statement type and period.
@@ -1506,7 +1521,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
     elif period == "quarterly":
         return {
             "table_name": "quarterly_balance_sheet",
-            "field_mapping": {**_BALANCE_FIELD_MAPPING, **_QUARTERLY_EXTRA},
+            "field_mapping": {**_BALANCE_FIELD_MAPPING, **_QUARTERLY_BALANCE_EXTRA},
             "fallback_only_fields": _DEBT_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
             "schema_cols": frozenset(
@@ -1530,6 +1545,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "operating_lease_liability",
                     "finance_lease_liability",
                     "noncontrolling_interest",
+                    "retained_earnings",
                     "created_at",
                     "data_unavailable",
                     "reason",
