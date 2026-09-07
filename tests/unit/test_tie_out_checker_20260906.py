@@ -242,7 +242,7 @@ class TestBasicEpsReconciliation:
                         "symbol": "BADSHARES",
                         "fiscal_year": 2025,
                         "net_income": 2_000_000_000.0,
-                        "eps": 1.0,
+                        "earnings_per_share": 1.0,
                         "shares_outstanding_basic": 3_000_000_000_000.0,  # off by ~1000x
                     }
                 ]
@@ -262,7 +262,7 @@ class TestBasicEpsReconciliation:
                         "symbol": "GOODEPS",
                         "fiscal_year": 2025,
                         "net_income": 1_000_000_000.0,
-                        "eps": 2.0,
+                        "earnings_per_share": 2.0,
                         "shares_outstanding_basic": 500_000_000.0,  # exact tie-out
                     }
                 ]

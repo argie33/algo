@@ -395,7 +395,7 @@ class TieOutChecker(BaseCheck):
             )
 
     def check_basic_eps_reconciliation(self, cur: Any) -> None:
-        """eps * shares_outstanding_basic ~= net_income.
+        """earnings_per_share * shares_outstanding_basic ~= net_income.
 
         ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit + "make sure we
         have all the right tie outs in CI"): mirrors check_eps_reconciliation above exactly,
@@ -411,17 +411,27 @@ class TieOutChecker(BaseCheck):
         than being made redundant by it. Same tolerance constants as the diluted check - the
         same untracked noise sources (preferred dividends, discontinued-ops allocations,
         NCI carve-outs) apply identically to basic EPS.
+
+        FIXED 2026-09-07 (same-day follow-up, goal: "SEC/XBRL...tie outs...tying out right
+        way" sweep): the original query read `annual_income_statement.eps`, which is a dead
+        legacy column - live-confirmed 0 of 67,746 rows have it non-NULL, ever. The real,
+        actually-populated basic-EPS column is `earnings_per_share` (59,868 non-NULL rows) -
+        `diluted_eps`'s sibling above it in the same table, populated by the same loader.
+        This meant the check as originally written matched zero rows and always silently
+        "passed", giving false confidence that basic EPS ties out when it was never actually
+        being tested at all - the exact failure mode this whole checker exists to catch in
+        OTHER tables, just self-inflicted here via a wrong column name.
         """
         try:
             cur.execute(
                 """
                 SELECT DISTINCT ON (i.symbol)
-                    i.symbol, i.fiscal_year, i.net_income, i.eps, i.shares_outstanding_basic
+                    i.symbol, i.fiscal_year, i.net_income, i.earnings_per_share, i.shares_outstanding_basic
                 FROM annual_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
                   AND i.net_income IS NOT NULL
-                  AND i.eps IS NOT NULL
+                  AND i.earnings_per_share IS NOT NULL
                   AND i.shares_outstanding_basic IS NOT NULL
                   AND i.shares_outstanding_basic != 0
                   AND i.net_income != 0
@@ -432,7 +442,7 @@ class TieOutChecker(BaseCheck):
             for row in cur.fetchall():
                 net_income, basic_eps, basic_shares = (
                     float(row["net_income"]),
-                    float(row["eps"]),
+                    float(row["earnings_per_share"]),
                     float(row["shares_outstanding_basic"]),
                 )
                 implied_net_income = basic_eps * basic_shares
@@ -444,7 +454,7 @@ class TieOutChecker(BaseCheck):
                             "symbol": row["symbol"],
                             "fiscal_year": row["fiscal_year"],
                             "net_income": net_income,
-                            "eps": basic_eps,
+                            "earnings_per_share": basic_eps,
                             "shares_outstanding_basic": basic_shares,
                             "implied_net_income": implied_net_income,
                             "residual": residual,
@@ -456,7 +466,7 @@ class TieOutChecker(BaseCheck):
                     "basic_eps_reconciliation",
                     WARN,
                     "annual_income_statement",
-                    f"{len(flagged)} symbol(s) fail eps * shares_outstanding_basic ~= "
+                    f"{len(flagged)} symbol(s) fail earnings_per_share * shares_outstanding_basic ~= "
                     f"net_income beyond max(${_EPS_TOLERANCE_FLOOR:,.0f}, {_EPS_TOLERANCE_PCT:.0%} "
                     "of net_income)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
