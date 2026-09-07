@@ -209,6 +209,17 @@ _OPERATING_INCOME_BOUND_TOLERANCE_FLOOR = 500_000.0
 _GOODWILL_TOLERANCE_PCT = 0.001
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
+# accounts_payable <= current_liabilities: same subset/category structural inequality as
+# goodwill_le_total_assets above - AP is one liability line item, never the whole current-
+# liability side. Live feasibility check against the local DB (2026-09-07, same session as the
+# migration-1263 accounts_payable extraction landing) found 3/2,827 comparable symbol/years
+# beyond a 0.1% slack (WALD FY2021, GLND FY2026, ATPC FY2018). Spot-checked all 3 via a fresh
+# get_balance_sheet() call: all now return None for both fields - stale DB rows pending reload,
+# same class as despac_current_assets_stale_not_a_bug, not a live extraction bug. Kept as a
+# permanent WARN-level guard since the check itself is correct and the false-positive rate is
+# in line with the other structural-inequality checks above.
+_ACCOUNTS_PAYABLE_TOLERANCE_PCT = 0.001
+
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
 # means what it means for an industrial filer - their real cash position sits mostly in
 # interest-earning deposits/securities the balance-sheet field this schema tracks doesn't
@@ -279,6 +290,7 @@ class TieOutChecker(BaseCheck):
         self.check_long_term_debt_le_total_liabilities(cur)
         self.check_operating_income_upper_bound(cur)
         self.check_goodwill_le_total_assets(cur)
+        self.check_accounts_payable_le_current_liabilities(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -1406,6 +1418,68 @@ class TieOutChecker(BaseCheck):
             logger.error(f"[TieOutChecker] goodwill_le_total_assets failed: {e}", exc_info=True)
             self.log(
                 "goodwill_le_total_assets",
+                ERROR,
+                "annual_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_accounts_payable_le_current_liabilities(self, cur: Any) -> None:
+        """accounts_payable <= current_liabilities (both from annual_balance_sheet, same row).
+
+        ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit + tie-out CI
+        completeness review). See _ACCOUNTS_PAYABLE_TOLERANCE_PCT's own comment for the
+        live-feasibility numbers (3/2,827) and confirmation these are stale-pending-reload
+        rows, not a live extraction bug.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.current_liabilities, b.accounts_payable
+                FROM annual_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.current_liabilities IS NOT NULL
+                  AND b.accounts_payable IS NOT NULL
+                  AND b.current_liabilities != 0
+                ORDER BY b.symbol, b.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                current_liabilities, accounts_payable = (
+                    float(row["current_liabilities"]),
+                    float(row["accounts_payable"]),
+                )
+                residual = accounts_payable - current_liabilities
+                tolerance = abs(current_liabilities) * _ACCOUNTS_PAYABLE_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "current_liabilities": current_liabilities,
+                            "accounts_payable": accounts_payable,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "accounts_payable_le_current_liabilities",
+                    WARN,
+                    "annual_balance_sheet",
+                    f"{len(flagged)} symbol(s) fail accounts_payable <= current_liabilities "
+                    f"beyond {_ACCOUNTS_PAYABLE_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(
+                f"[TieOutChecker] accounts_payable_le_current_liabilities failed: {e}",
+                exc_info=True,
+            )
+            self.log(
+                "accounts_payable_le_current_liabilities",
                 ERROR,
                 "annual_balance_sheet",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",

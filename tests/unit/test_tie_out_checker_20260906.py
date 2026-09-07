@@ -1007,10 +1007,82 @@ class TestGoodwillLeTotalAssets:
         assert checker.results[0].severity == ERROR
 
 
+class TestAccountsPayableLeCurrentLiabilities:
+    def test_flags_accounts_payable_above_current_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADAP",
+                        "fiscal_year": 2021,
+                        "current_liabilities": 367_953.0,
+                        "accounts_payable": 12_680_000.0,  # far exceeds current_liabilities
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_accounts_payable_le_current_liabilities(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "accounts_payable_le_current_liabilities"
+        assert checker.results[0].details["examples"][0]["symbol"] == "BADAP"
+
+    def test_does_not_flag_accounts_payable_within_current_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODAP",
+                        "fiscal_year": 2025,
+                        "current_liabilities": 1_000_000_000.0,
+                        "accounts_payable": 200_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_accounts_payable_le_current_liabilities(cur)
+        assert checker.results == []
+
+    def test_does_not_flag_accounts_payable_equal_current_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "ALLAP",
+                        "fiscal_year": 2025,
+                        "current_liabilities": 1_000_000_000.0,
+                        "accounts_payable": 1_000_000_000.0,  # no other current liabilities
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_accounts_payable_le_current_liabilities(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_accounts_payable_le_current_liabilities(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_accounts_payable_le_current_liabilities(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "accounts_payable_le_current_liabilities"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_sixteen_checks(self) -> None:
-        cur = _mock_cursor([[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []])
+    def test_run_calls_all_seventeen_checks(self) -> None:
+        cur = _mock_cursor([[]] * 17)
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 16
+        assert cur.execute.call_count == 17
