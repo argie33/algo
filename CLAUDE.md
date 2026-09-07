@@ -57,6 +57,26 @@ python scripts/monitor_data_staleness.py               # Check freshness
 python scripts/verify_eventbridge_scheduler.py --fix   # Repair scheduler if stuck
 ```
 
+**Finding missing XBRL concepts systematically (not one bug report at a time):**
+```bash
+python scripts/xbrl_concept_coverage_scan.py --exclude-noise --min-companies 100
+```
+Diffs every us-gaap/dei concept real filers actually tag (read from the on-disk SEC EDGAR
+companyfacts cache under `%TEMP%/algo-sec-edgar-cache/companyfacts` — already populated by
+normal loader runs, no extra fetching) against the allowlist our loader source files
+(`utils/external/sec_income_statement.py`, `sec_balance_sheet.py`, `sec_cash_flow.py`,
+`sec_custom_xbrl_concepts.py`, etc.) actually know how to fetch, ranked by how many distinct
+companies tag each missing concept. This is how the `accounts_payable` gap (confirmed missing
+from the whole schema, independently rediscovered by
+`algo/research/quality_asset_turnover_piotroski_candidates.py`) got found — 3,392 filers tag
+`AccountsPayableCurrent` and it was never in the allowlist at all. Re-run this periodically
+(new symbols entering the universe, filers adopting newly-effective taxonomy tags in future
+10-Ks) rather than waiting for the next "implausible value" bug report to point at a gap.
+Review a batch, then record anything genuinely out of scope with `--dismiss "us-gaap:Concept"
+--reason "..."` (persisted in `scripts/xbrl_concept_coverage_dismissed.json`, checked into
+git) so future scans only surface what's actually new instead of re-litigating the same
+already-reviewed footnote/schedule concepts every time.
+
 `monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use
 **different freshness methodologies** — a table can show FRESH in the monitor and still halt
 Phase 1 minutes later:

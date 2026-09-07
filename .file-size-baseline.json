@@ -594,6 +594,7 @@
   "scripts/verify_loaders_health.py": 581,
   "scripts/verify_production_deployment.py": 281,
   "scripts/verify_safety_thresholds.py": 260,
+  "scripts/xbrl_concept_coverage_scan.py": 296,
   "shared_contracts/__init__.py": 25,
   "shared_contracts/dashboard_api_contract.py": 205,
   "shared_contracts/dashboard_api_contract_endpoints_core.py": 585,
