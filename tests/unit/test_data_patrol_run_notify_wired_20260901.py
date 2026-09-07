@@ -25,6 +25,7 @@ from algo.monitoring.data_patrol.checks import (
     StalenessChecker,
     StatisticalAnomalyChecker,
     TieOutChecker,
+    XbrlConceptContinuityChecker,
 )
 from algo.monitoring.data_patrol.config import CRIT, ERROR, WARN, PatrolConfig
 
@@ -50,6 +51,7 @@ def _run_patrol_with_results(results_by_checker: dict) -> dict:
         "TieOutChecker": TieOutChecker,
         "NewXbrlConceptChecker": NewXbrlConceptChecker,
         "StatisticalAnomalyChecker": StatisticalAnomalyChecker,
+        "XbrlConceptContinuityChecker": XbrlConceptContinuityChecker,
     }
 
     mock_conn = MagicMock()
@@ -152,6 +154,7 @@ class TestDataPatrolNotifyWiring:
             patch.object(TieOutChecker, "run", return_value=[]),
             patch.object(NewXbrlConceptChecker, "run", return_value=[]),
             patch.object(StatisticalAnomalyChecker, "run", return_value=[]),
+            patch.object(XbrlConceptContinuityChecker, "run", return_value=[]),
         ):
             # Must not raise despite notify() failing internally.
             summary = patrol.run()
