@@ -200,7 +200,7 @@
   "algo/risk/market_exposure_technicals.py": 508,
   "algo/risk/market_factor_calculator.py": 748,
   "algo/risk/stale_signal_circuit_breaker.py": 111,
-  "algo/risk/unified_risk_monitor.py": 569,
+  "algo/risk/unified_risk_monitor.py": 574,
   "algo/risk/var.py": 1122,
   "algo/signals/__init__.py": 9,
   "algo/signals/advanced_filters.py": 1106,
