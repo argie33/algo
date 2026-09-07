@@ -1876,6 +1876,98 @@ class TestComponentSumSegmentRevenueFallback:
         assert revenues == {"AlphaMember": 81_930_000.0, "BetaMember": 119_700_000.0}
 
 
+class TestGseNetInterestIncomeSegmentRevenueFallback:
+    """Real gap found live against Federal Agricultural Mortgage Corporation's ("Farmer
+    Mac") FY2025 10-K instance: it tags segment-level GROSS interest income
+    (InterestAndDividendIncomeOperating) and interest expense (InterestExpenseOperating)
+    as two separate concepts requiring SUBTRACTION (net interest income) - unlike
+    TestComponentSumSegmentRevenueFallback's banks, which tag an already-netted
+    InterestIncomeExpenseNet concept. Summing the 7 real segments' (income - expense) for
+    FY2025 reconciled EXACTLY ($390,734,000) against Farmer Mac's own plain consolidated
+    InterestIncomeExpenseNet fact for the same period - see
+    _extract_gse_net_interest_income_segment_revenue's own docstring.
+
+    Deliberately scoped to AGM/AGM.A only (an explicit symbol allowlist, not a general
+    concept-pair list any filer could match) - a symbol outside the allowlist must fall
+    through to the generic "no data" result even with the identical XML shape.
+    """
+
+    def _xml(self, contexts: str, facts: str) -> str:
+        return f"""<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+    {contexts}
+    {facts}
+</xbrl>
+"""
+
+    def test_gse_net_interest_income_used_for_allowlisted_symbol(self) -> None:
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "BetaMember", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_nii", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c1">60000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c1">45000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c2">40000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c2">33000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestIncomeExpenseNet contextRef="anchor_nii">22000000</us-gaap:InterestIncomeExpenseNet>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "AGM")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        # AlphaMember = 60M - 45M = 15M; BetaMember = 40M - 33M = 7M; total = 22M, matches anchor.
+        assert revenues == {"AlphaMember": 15_000_000.0, "BetaMember": 7_000_000.0}
+
+    def test_gse_net_interest_income_not_used_for_symbol_outside_allowlist(self) -> None:
+        """Identical XML shape, but a symbol NOT in the explicit allowlist - must not
+        match, even though the concepts and reconciliation would otherwise succeed."""
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "BetaMember", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_nii", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c1">60000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c1">45000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c2">40000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c2">33000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestIncomeExpenseNet contextRef="anchor_nii">22000000</us-gaap:InterestIncomeExpenseNet>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "AGMH")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
+
+    def test_gse_net_interest_income_fails_closed_when_reconciliation_off(self) -> None:
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "BetaMember", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_nii", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c1">60000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c1">45000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c2">40000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c2">33000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestIncomeExpenseNet contextRef="anchor_nii">999000000</us-gaap:InterestIncomeExpenseNet>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "AGM")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
+
+
 class TestAltAssetManagerComponentSumSegmentRevenueFallback:
     """Real gap found live against Blackstone's (BX, CIK 1393818) real FY2025 10-K
     instance: segment revenue is real (49 genuine StatementBusinessSegmentsAxis-

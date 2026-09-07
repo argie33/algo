@@ -448,6 +448,23 @@ _ALT_ASSET_MANAGER_REVENUE_COMPONENT_CONCEPTS = (
     "RealizedPrincipalInvestmentIncomeLoss",
 )
 
+# ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, segment-reporting
+# deep-dive): Federal Agricultural Mortgage Corporation ("Farmer Mac") tags segment-level
+# revenue as GROSS interest income and interest expense requiring subtraction, unlike
+# _BANK_REVENUE_COMPONENT_CONCEPTS's already-netted anchor - see
+# _extract_gse_net_interest_income_segment_revenue's own docstring for the to-the-dollar
+# live verification. AGM and AGM.A are both Farmer Mac (CIK 0000845877, common stock and
+# Class A voting stock respectively) - verified live via SEC's own symbol_to_cik. AGMB
+# ("AgomAb Therapeutics NV", CIK 0002020932) and AGMH ("AGM Group Holdings Inc.", CIK
+# 0001705402) merely share a similar-looking ticker prefix and are NOT Farmer Mac -
+# confirmed live via each symbol's own real entityName before assuming ticker similarity
+# implied the same company. Deliberately excluded: this function is a no-op safety net for
+# them either way (it checks for Farmer Mac's own concept names, absent from their real
+# filings, so it would just fall through to the next tier) but listing them here would be
+# actively misleading to a future reader.
+_GSE_NET_INTEREST_INCOME_SEGMENT_SYMBOLS = frozenset({"AGM", "AGM.A"})
+_GSE_NET_INTEREST_INCOME_CONCEPTS = ("InterestAndDividendIncomeOperating", "InterestExpenseOperating")
+
 # The dimension/member Blackstone uses for its own "Operating Segments" (pre-
 # consolidation-adjustment) aggregate - live-confirmed in the raw XBRL instance as a
 # context with EXACTLY this one explicitMember (no StatementBusinessSegmentsAxis) - the
@@ -537,6 +554,7 @@ from utils.external.sec_xbrl_segment_revenue import (  # noqa: E402
     _extract_alt_asset_manager_segment_revenue,
     _extract_component_sum_segment_revenue,
     _extract_cross_tab_segment_revenue,
+    _extract_gse_net_interest_income_segment_revenue,
 )
 from utils.external.sec_xbrl_segment_revenue_2 import (  # noqa: E402
     _extract_ares_style_segment_revenue,
@@ -1058,12 +1076,29 @@ class XBRLSegmentParser:
                 if cross_tab is None and component_sum is None
                 else None
             )
-            ares_style_sum = (
-                _extract_ares_style_segment_revenue(root, symbol)
-                if cross_tab is None and component_sum is None and alt_asset_manager_sum is None
+            gse_net_interest_income_sum = (
+                _extract_gse_net_interest_income_segment_revenue(root, context_segment, axis_to_use, symbol)
+                if cross_tab is None
+                and component_sum is None
+                and alt_asset_manager_sum is None
+                and symbol in _GSE_NET_INTEREST_INCOME_SEGMENT_SYMBOLS
                 else None
             )
-            if cross_tab is None and component_sum is None and alt_asset_manager_sum is None and ares_style_sum is None:
+            ares_style_sum = (
+                _extract_ares_style_segment_revenue(root, symbol)
+                if cross_tab is None
+                and component_sum is None
+                and alt_asset_manager_sum is None
+                and gse_net_interest_income_sum is None
+                else None
+            )
+            if (
+                cross_tab is None
+                and component_sum is None
+                and alt_asset_manager_sum is None
+                and gse_net_interest_income_sum is None
+                and ares_style_sum is None
+            ):
                 # require_explicit_count_tag=True: real segment-dimensioned contexts DO exist
                 # here (context_segment is non-empty - see the early-return branch above for
                 # the true zero-context case) but none of the reconciliation strategies
@@ -1132,6 +1167,13 @@ class XBRLSegmentParser:
                 logger.debug(
                     f"[{symbol}] Segment revenue matched via alt-asset-manager component-sum "
                     f"({' + '.join(_ALT_ASSET_MANAGER_REVENUE_COMPONENT_CONCEPTS)}) on {axis_to_use}"
+                )
+            elif gse_net_interest_income_sum is not None:
+                segments, max_end, max_duration = gse_net_interest_income_sum
+                logger.debug(
+                    f"[{symbol}] Segment revenue matched via GSE net-interest-income "
+                    f"component-sum ({_GSE_NET_INTEREST_INCOME_CONCEPTS[0]} - "
+                    f"{_GSE_NET_INTEREST_INCOME_CONCEPTS[1]}) on {axis_to_use}"
                 )
             elif ares_style_sum is not None:
                 segments, max_end, max_duration = ares_style_sum

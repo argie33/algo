@@ -27,6 +27,8 @@ from utils.external.sec_xbrl_segments import (
     _CONSOLIDATION_ITEMS_AXIS_NAMES,
     _CROSS_TAB_ONLY_EXTRA_REVENUE_CONCEPTS,
     _CROSS_TAB_RECONCILIATION_TOLERANCE,
+    _GSE_NET_INTEREST_INCOME_CONCEPTS,
+    _GSE_NET_INTEREST_INCOME_SEGMENT_SYMBOLS,
     _NON_ADDITIVE_CONSOLIDATION_MEMBERS,
     _OPERATING_SEGMENTS_AGGREGATE_DIMENSION,
     _OPERATING_SEGMENTS_AGGREGATE_MEMBER,
@@ -380,6 +382,157 @@ def _extract_component_sum_segment_revenue(  # noqa: C901 -- same reconciliation
         logger.info(
             f"[{symbol}] Component-sum segment revenue reconciliation failed: segment total "
             f"{total:,.0f} off by {error * 100:.1f}% vs consolidated {anchor:,.0f} - not trusting."
+        )
+        return None
+
+    return combined, max_end, max_duration
+
+
+def _extract_gse_net_interest_income_segment_revenue(  # noqa: C901 -- same reconciliation-discipline shape as _extract_component_sum_segment_revenue above (that function carries the identical suppression, for the identical reason): discover candidates, then verify against a plain consolidated anchor, is inherently a few linear steps, not deeply nested logic.
+    root: ET.Element,
+    context_segment: dict[str, tuple[str, str, str, str | None, bool]],
+    axis_to_use: str,
+    symbol: str,
+) -> tuple[dict[str, float], str, int] | None:
+    """Fallback for GSE-style agricultural/infrastructure lenders (confirmed live: Federal
+    Agricultural Mortgage Corporation / "Farmer Mac", CIK 0000845877 - AGM/AGM.A are this
+    one company's common and Class A voting stock; AGMB/AGMH are unrelated companies that
+    merely share a similar ticker prefix, deliberately excluded from the allowlist) that tag
+    segment-level revenue as GROSS interest income and interest expense under two SEPARATE
+    concepts requiring subtraction (net interest income), not addition like
+    _BANK_REVENUE_COMPONENT_CONCEPTS's already-netted `InterestIncomeExpenseNet` anchor +
+    `NoninterestIncome` addend.
+
+    ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, segment-reporting
+    deep-dive): live-verified against Farmer Mac's real FY2025 10-K (accession
+    0000845877-26-000014): its 7 real segments each tag `InterestAndDividendIncomeOperating`
+    (gross interest/dividend income) and `InterestExpenseOperating` (gross interest expense)
+    under `StatementBusinessSegmentsAxis` - neither concept is in
+    `_BANK_REVENUE_COMPONENT_CONCEPTS`/`_REVENUE_CONCEPT_LOCAL_NAMES` at all, so this filer's
+    real, complete segment breakdown was invisible to every existing tier. Summing the 7
+    segments' (income - expense) for FY2025 gives EXACTLY $390,734,000 - matching Farmer
+    Mac's own plain, non-dimensioned `InterestIncomeExpenseNet` consolidated fact for the
+    same period to the dollar (same "confirmed live, not approximated" standard as the
+    Blackstone alt-asset-manager fix).
+
+    Deliberately scoped to this exact 4-ticker/1-company population via an explicit symbol
+    check (not generalized into a new universal concept-pair list) - unlike
+    `_BANK_REVENUE_COMPONENT_CONCEPTS` (any bank can tag `InterestIncomeExpenseNet`), gross
+    income/expense-instead-of-net reporting is Farmer Mac's own idiosyncratic GSE shape, not
+    independently verified against any other filer.
+
+    Returns (member -> net interest income, end_date, duration_days), or None if `symbol`
+    isn't in the explicit allowlist, the anchor concept isn't tagged under axis_to_use at
+    all, or the combined total doesn't reconcile against the plain consolidated
+    InterestIncomeExpenseNet fact.
+    """
+    if symbol not in _GSE_NET_INTEREST_INCOME_SEGMENT_SYMBOLS:
+        return None
+
+    income_concept, expense_concept = _GSE_NET_INTEREST_INCOME_CONCEPTS
+
+    candidate_facts: list[tuple[str, str, int, float, bool]] = []
+    for elem in root.iter():
+        if _local_name(elem.tag) != income_concept:
+            continue
+        info = context_segment.get(elem.get("contextRef", ""))
+        if not info or info[0] != axis_to_use:
+            continue
+        _axis, member, end_str, start_str, is_boilerplate = info
+        value = elem.text
+        if value is None:
+            continue
+        try:
+            income = float(value.strip())
+        except ValueError:
+            continue
+        duration_days = 0
+        if start_str and end_str:
+            try:
+                duration_days = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+            except ValueError:
+                duration_days = 0
+        candidate_facts.append((member, end_str, duration_days, income, is_boilerplate))
+
+    if not candidate_facts:
+        return None
+
+    max_end = max(f[1] for f in candidate_facts)
+    same_end = [f for f in candidate_facts if f[1] == max_end]
+    max_duration = max(f[2] for f in same_end)
+    latest_facts = [f for f in same_end if f[2] == max_duration]
+
+    income_by_member = _sxs.XBRLSegmentParser._dedupe_member_facts(
+        [(member, value, is_boilerplate) for member, _end, _duration, value, is_boilerplate in latest_facts],
+        symbol,
+        income_concept,
+    )
+    expense_by_member = _sxs.XBRLSegmentParser._extract_segment_member_values(
+        root, context_segment, axis_to_use, (expense_concept,), max_end, max_duration, symbol
+    )
+
+    combined = {member: income_by_member[member] - expense_by_member.get(member, 0.0) for member in income_by_member}
+
+    plain_contexts: dict[str, tuple[bool, str | None, str | None]] = {}
+    for ctx in root.iter():
+        if _local_name(ctx.tag) != "context":
+            continue
+        ctx_id = ctx.get("id")
+        if not ctx_id:
+            continue
+        has_dims = False
+        plain_start_str: str | None = None
+        plain_end_str: str | None = None
+        for child in ctx.iter():
+            loc = _local_name(child.tag)
+            if loc == "explicitMember":
+                has_dims = True
+            elif loc == "startDate":
+                plain_start_str = (child.text or "").strip() or None
+            elif loc in ("endDate", "instant"):
+                plain_end_str = (child.text or "").strip() or None
+        plain_contexts[ctx_id] = (has_dims, plain_start_str, plain_end_str)
+
+    def _plain_value(concept: str) -> float | None:
+        for elem in root.iter():
+            if _local_name(elem.tag) != concept:
+                continue
+            info = plain_contexts.get(elem.get("contextRef", ""))
+            if not info:
+                continue
+            has_dims, start_str, end_str = info
+            if has_dims or end_str != max_end or elem.text is None:
+                continue
+            if start_str:
+                try:
+                    duration = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+                except ValueError:
+                    continue
+                if duration != max_duration:
+                    continue
+            try:
+                return float(elem.text.strip())
+            except ValueError:
+                continue
+        return None
+
+    anchor = _plain_value("InterestIncomeExpenseNet")
+    if anchor is None:
+        logger.info(
+            f"[{symbol}] GSE net-interest-income segment revenue found candidates but no "
+            "plain consolidated InterestIncomeExpenseNet to reconcile against - not trusting."
+        )
+        return None
+    if anchor == 0:
+        return None
+
+    total = sum(combined.values())
+    error = abs(total - anchor) / abs(anchor)
+    if error > _CROSS_TAB_RECONCILIATION_TOLERANCE:
+        logger.info(
+            f"[{symbol}] GSE net-interest-income segment revenue reconciliation failed: "
+            f"segment total {total:,.0f} off by {error * 100:.1f}% vs consolidated "
+            f"InterestIncomeExpenseNet {anchor:,.0f} - not trusting."
         )
         return None
 
