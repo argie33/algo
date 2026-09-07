@@ -66,7 +66,11 @@ class TestFetchIncrementalUsesFallback:
     def test_unmapped_code_in_precedented_division_resolves_via_fallback(self):
         loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
         mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = self._mock_row(3560)
+        # ADDED 2026-09-07: fetch_incremental now issues a second query (yfinance_snapshot
+        # override lookup) before unpacking the company_info_sec row - side_effect gives each
+        # cur.execute()/fetchone() pair its own return value in call order. None for the
+        # yfinance lookup means "no override", preserving this test's intent (pure SIC fallback).
+        mock_cur.fetchone.side_effect = [self._mock_row(3560), None]
 
         with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
@@ -80,7 +84,10 @@ class TestFetchIncrementalUsesFallback:
     def test_unmapped_code_in_unprecedented_division_still_fails_closed(self):
         loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
         mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = self._mock_row(9995)  # non-classifiable establishment
+        # See test_unmapped_code_in_precedented_division_resolves_via_fallback's comment
+        # above on why this is now side_effect - None for the yfinance lookup keeps this a
+        # genuine no-override unmapped-code case.
+        mock_cur.fetchone.side_effect = [self._mock_row(9995), None]  # non-classifiable establishment
 
         with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
@@ -147,7 +154,8 @@ class TestOperatingEntityWithBlankSicFallsBackToFinancialServices:
         fallback - it genuinely has no determinable sector."""
         loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
         mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = self._mock_row("other")
+        # See TestFetchIncrementalUsesFallback's comment on why this is side_effect now.
+        mock_cur.fetchone.side_effect = [self._mock_row("other"), None]
 
         with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
@@ -242,18 +250,25 @@ class TestUnavailableRecordsCarryWatermarkField:
     def test_missing_sic_code_carries_updated_at(self):
         loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
         mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = (
-            "NOSIC",  # symbol
-            "No SIC Corp",  # entity_name
-            None,  # sic_code
-            None,  # sic_description
-            None,  # shares_outstanding
-            None,  # created_at
-            "2026-07-27",  # updated_at
-            False,  # data_unavailable
-            None,  # reason
-            "other",  # entity_type - NOT "operating", so this must still fail closed
-        )
+        # ADDED 2026-09-07: fetch_incremental now issues a second query (yfinance_snapshot
+        # override lookup) before unpacking the company_info_sec row - side_effect gives each
+        # cur.execute()/fetchone() pair its own return value in call order. None for the
+        # yfinance lookup preserves this test's intent (pure SIC fail-closed path).
+        mock_cur.fetchone.side_effect = [
+            (
+                "NOSIC",  # symbol
+                "No SIC Corp",  # entity_name
+                None,  # sic_code
+                None,  # sic_description
+                None,  # shares_outstanding
+                None,  # created_at
+                "2026-07-27",  # updated_at
+                False,  # data_unavailable
+                None,  # reason
+                "other",  # entity_type - NOT "operating", so this must still fail closed
+            ),
+            None,  # yfinance_snapshot lookup: no override available
+        ]
 
         with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = mock_cur

@@ -5,7 +5,8 @@ Populates company_profile from company_info_sec with proper SIC→GICS mapping.
 Required for: position sizing, sector rotation (hardcoded GICS sectors),
 dashboard sector enrichment.
 
-Data source: company_info_sec (SEC EDGAR)
+Data source: company_info_sec (SEC EDGAR), overridden by yfinance_snapshot.sector
+when available (see fetch_incremental's yfinance_sector lookup below).
 Update frequency: Daily (catches new symbols, sector changes)
 Quality: Official SEC data + reliable GICS mapping
 
@@ -97,6 +98,14 @@ SIC_TO_GICS = {
     2087: "Consumer Defensive",  # Flavoring extracts & syrups
     2090: "Consumer Defensive",  # Food preparations n.e.c.
     2100: "Consumer Defensive",  # Tobacco manufactures
+    # FIXED 2026-09-07 (goal: "top scores by sector" audit, same pass as the
+    # CSCO/GOOG findings): 2844 had no explicit entry, so it fell to division 28's
+    # fallback, which votes Materials (bulk industrial/agricultural chemicals
+    # dominate that division's other entries). Live symbols on this code are all
+    # cosmetics/personal-care brands - Colgate-Palmolive (CL), Estee Lauder (EL),
+    # e.l.f. Beauty (ELF), Coty (COTY), Kenvue (KVUE) - GICS classifies these under
+    # Consumer Staples (Household & Personal Products), not Materials.
+    2844: "Consumer Defensive",  # Perfumes, cosmetics & other toilet preparations
     # Materials
     2800: "Materials",  # Chemicals & allied products (broad)
     2810: "Materials",  # Industrial inorganic chemicals
@@ -242,9 +251,20 @@ SIC_TO_GICS = {
     2721: "Communication Services",  # Periodicals: publishing
     2731: "Communication Services",  # Books: publishing
     2741: "Communication Services",  # Miscellaneous publishing
-    2750: "Communication Services",  # Commercial printing
-    2761: "Communication Services",  # Manifold business forms
-    2780: "Communication Services",  # Blankbooks & bookbinding
+    # FIXED 2026-09-07 (goal: "top scores by sector" audit - GOOG missing from Comm
+    # Svcs, "mind boggling" names atop the Comm Svcs list): 2750/2761/2780 cover
+    # commercial printing, business forms, and bookbinding - office/industrial
+    # print-production businesses (live symbols: QUAD/CMPR commercial printing,
+    # EBF business forms, ACCO/DLX blankbooks & binders), not media/publishing
+    # content companies. GICS puts these under Industrials (Commercial Printing /
+    # Office Services & Supplies), not Communication Services - only the actual
+    # publishing codes above (2711/2721/2731/2741, newspapers/periodicals/books)
+    # belong in Communication Services. This trio was polluting the Communication
+    # Services top-score rankings with printing/office-supply names ahead of real
+    # media/telecom.
+    2750: "Industrials",  # Commercial printing
+    2761: "Industrials",  # Manifold business forms
+    2780: "Industrials",  # Blankbooks & bookbinding
     # Industrials (construction 15xx-17xx nonresidential, transportation services 46xx/47xx,
     # wholesale trade 50xx/51xx, professional/engineering services 81xx/87xx)
     1540: "Industrials",  # General building contractors - nonresidential
@@ -335,6 +355,48 @@ def _build_major_group_fallback(mapping: dict[int, str]) -> dict[int, str]:
 
 SIC_MAJOR_GROUP_FALLBACK = _build_major_group_fallback(SIC_TO_GICS)
 
+# ADDED 2026-09-07 (goal: "top scores by sector" audit - CSCO found sitting in
+# Industrials): 3570/3576 had no explicit entry, so they fell to division 35's
+# same-division fallback - a division that mixes real Technology codes
+# (3571-3579, computers/peripherals) with real Industrials codes (3500-3550,
+# general industrial machinery); Industrials narrowly outvoted Technology (7-6),
+# so CSCO, IBM, HPE, HPQ, Arista (ANET), F5 (FFIV), NETGEAR (NTGR), Extreme
+# Networks (EXTR) and others were all silently misfiled as Industrials. Both
+# codes are unambiguously Technology (computer/networking hardware). Added here,
+# AFTER SIC_MAJOR_GROUP_FALLBACK is built, not inside the SIC_TO_GICS literal
+# above - adding them there would itself flip division 35's vote to a Technology
+# majority (8-7), silently reclassifying the division's other genuine machinery
+# codes (3559/3560/3561/3562/3564/3569/3580/3585/3590 etc., all real Industrials
+# companies with no explicit entry of their own) that depend on that fallback.
+SIC_TO_GICS.update(
+    {
+        3570: "Technology",  # Computer & office equipment
+        3576: "Technology",  # Computer communications equipment
+    }
+)
+
+# ADDED 2026-09-07 (goal: "top scores by sector" audit - live empirical scan of
+# every active symbol with both a SIC-derived sector and a real yfinance sector
+# found 693 raw disagreements, 579 after the naming fix below - spanning nearly
+# every SIC division: Technology<->Industrials (electronics/instruments/
+# machinery codes SIC can't cleanly separate), Consumer Cyclical<->Consumer
+# Defensive (wholesale/retail codes), Industrials<->Energy (pipeline/oilfield
+# services codes), Materials<->Industrials, Healthcare<->Industrials/Technology
+# (medical/scientific instrument codes), etc. SIC's 4-digit granularity is
+# simply too coarse to reconstruct GICS reliably at scale - this isn't a handful
+# of typos to patch, it's a structural limitation of deriving GICS from a much
+# older, differently-organized classification system. yfinance_snapshot.sector
+# is a real per-company classification (same taxonomy SPDR sector ETFs use) and
+# is preferred wherever available - see fetch_incremental below. The one
+# normalization needed: Yahoo's own vocabulary calls this sector "Basic
+# Materials" where every other source in this codebase (SIC_TO_GICS above,
+# GOVERNANCE's hardcoded DEFENSIVE/CYCLICAL sector lists, dashboard filters)
+# says "Materials" - map it so the override doesn't introduce a second, silently
+# incompatible spelling that breaks every exact string match downstream.
+YFINANCE_SECTOR_NORMALIZE = {
+    "Basic Materials": "Materials",
+}
+
 
 class CompanyProfileLoader(OptimalLoader):
     """Load company profiles from company_info_sec with SIC→GICS mapping."""
@@ -368,6 +430,30 @@ class CompanyProfileLoader(OptimalLoader):
                 (symbol,),
             )
             row = cur.fetchone()
+
+            # ADDED 2026-09-07 (goal: "top scores by sector" audit - why derive GICS
+            # from a 1970s SEC industry code at all when a real classification is
+            # sitting unused in our own DB?). SIC has no way to express GICS's own
+            # judgment calls (e.g. Alphabet/Meta/Match/Pinterest/Snap moved into
+            # "Communication Services" in GICS's 2018 sector realignment - SIC 7370
+            # "Computer Programming/Data Processing" still lumps them with generic
+            # enterprise software) and, per the live 579-symbol disagreement scan
+            # above SIC_MAJOR_GROUP_FALLBACK's own docstring, is simply too coarse
+            # to reconstruct GICS reliably at scale. yfinance_snapshot.sector comes
+            # from Yahoo's own classification (built on the same GICS taxonomy S&P
+            # uses for the SPDR sector ETFs - not a substitute standard, just a
+            # different vendor path to it) and is live-verified correct for exactly
+            # the cases the SIC-derived path gets wrong: GOOG/GOOGL/META ->
+            # Communication Services, CSCO -> Technology, ACCO/QUAD -> Industrials.
+            # Used as an override below when present, not a replacement for the SIC
+            # path - only ~2,466 of 5,143 active symbols have a yfinance sector, so
+            # SIC-derivation remains the only source for the rest.
+            cur.execute(
+                "SELECT sector FROM yfinance_snapshot WHERE symbol = %s AND data_available = true AND sector IS NOT NULL",
+                (symbol,),
+            )
+            yf_row = cur.fetchone()
+            yfinance_sector = YFINANCE_SECTOR_NORMALIZE.get(yf_row[0], yf_row[0]) if yf_row else None
 
         if row is None:
             # WATERMARK FIX (2026-08-17, live-reproduced - 1296 symbols/run in
@@ -466,6 +552,30 @@ class CompanyProfileLoader(OptimalLoader):
                         "reason": None,
                     }
                 ]
+            if yfinance_sector is not None:
+                logger.info(
+                    f"[{symbol}] No SIC code in company_info_sec, but yfinance_snapshot has a "
+                    f"real sector ({yfinance_sector!r}) - using it instead of marking data_unavailable."
+                )
+                return [
+                    {
+                        "ticker": symbol,
+                        "symbol": symbol,
+                        "short_name": entity_name or "Unknown",
+                        "long_name": entity_name or "Unknown",
+                        "display_name": entity_name or "Unknown",
+                        "sector": yfinance_sector,
+                        "industry": sic_description or "Unknown",
+                        "exchange": None,
+                        "website": None,
+                        "employees": None,
+                        "currency_code": "USD",
+                        "created_at": created_at,
+                        "updated_at": updated_at or None,
+                        "data_unavailable": False,
+                        "reason": None,
+                    }
+                ]
             logger.warning(
                 f"[{symbol}] No SIC code in company_info_sec. Cannot determine GICS sector. Marking data_unavailable."
             )
@@ -493,7 +603,7 @@ class CompanyProfileLoader(OptimalLoader):
                     f"major-group fallback (division {sic_code_int // 100}) -> {sector}."
                 )
 
-        if sector is None:
+        if sector is None and yfinance_sector is None:
             # SIC code's whole major group is unmapped - fail-fast instead of defaulting to "Other"
             # This ensures stock_scores sees incomplete data and marks unavailable appropriately
             logger.warning(
@@ -513,6 +623,20 @@ class CompanyProfileLoader(OptimalLoader):
                     "updated_at": updated_at,
                 }
             ]
+
+        # ADDED 2026-09-07 (goal: "top scores by sector" audit) - yfinance's own
+        # classification wins over our SIC-derived approximation whenever it's
+        # available: it's a real per-company classification (built on the same
+        # GICS taxonomy S&P uses for SPDR sector ETFs), not a formula reverse-
+        # engineered from a 1970s SEC industry code that can't express
+        # distinctions like GICS's 2018 Interactive Media split. This is what
+        # live-fixed GOOG/GOOGL/META/CSCO/ACCO/QUAD without needing to
+        # hand-maintain a per-symbol override list for every SIC/GICS mismatch.
+        if yfinance_sector is not None and yfinance_sector != sector:
+            logger.info(
+                f"[{symbol}] yfinance_snapshot sector ({yfinance_sector!r}) overrides SIC-derived sector ({sector!r})."
+            )
+            sector = yfinance_sector
 
         return [
             {
