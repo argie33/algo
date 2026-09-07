@@ -592,7 +592,7 @@
   "scripts/validate_loading_system_fixes.py": 265,
   "scripts/validate_memory.py": 296,
   "scripts/verify_eventbridge_scheduler.py": 248,
-  "scripts/verify_live_trading_readiness.py": 373,
+  "scripts/verify_live_trading_readiness.py": 479,
   "scripts/verify_loaders_health.py": 581,
   "scripts/verify_production_deployment.py": 281,
   "scripts/verify_safety_thresholds.py": 260,
