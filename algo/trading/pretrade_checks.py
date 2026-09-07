@@ -344,6 +344,23 @@ class PreTradeChecks:
 
                 sector, industry = row
 
+                # REAL-MONEY-READINESS FIX (2026-09-07 audit): a company_profile row can
+                # exist with sector/industry = NULL (recent listings, ADRs, SPACs pre-merger,
+                # foreign private issuers, data gaps) - the "not found" check above only
+                # catches a missing ROW, not a present row with NULL columns. Postgres'
+                # `col = NULL` is never true, so the COUNT(*) queries below silently returned
+                # 0 for a NULL sector/industry regardless of how many other NULL-sector
+                # positions were already open - every NULL-sector symbol was its own
+                # uncapped, never-colliding bucket, letting max_positions_per_sector/industry
+                # be bypassed entirely for exactly the symbols most likely to share real risk
+                # (e.g. several pre-merger SPACs). Fail closed the same way as a missing row.
+                if sector is None or industry is None:
+                    raise ValueError(
+                        f"[PRE-TRADE CRITICAL] {symbol}: company_profile has NULL sector/industry "
+                        f"(sector={sector!r}, industry={industry!r}). Cannot evaluate sector/industry "
+                        f"concentration limits (required risk controls) - blocking entry."
+                    )
+
                 try:
                     max_sector_positions = int(self.config["max_positions_per_sector"])
                     max_industry_positions = int(self.config["max_positions_per_industry"])
