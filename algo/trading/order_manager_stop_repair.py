@@ -206,11 +206,13 @@ class StopLossRepairMixin:
         only for backward compatibility with any caller that doesn't yet track pos_id;
         phase9_stop_loss_repair.py (the only current caller) always has it.
 
-        Uses time_in_force=gtc, deliberately different from the bracket entry's day TIF -
-        this repair exists specifically because a day-TIF leg may have already expired
-        unprotected once; resubmitting another day order would just recreate the same
-        expiry risk every single day until someone notices. A resting GTC sell-stop is
-        the correct fix for a position already known to be held multi-day.
+        Uses time_in_force=gtc. STALE COMMENT FIXED 2026-09-07 (order-type/TIF audit): this
+        used to read "deliberately different from the bracket entry's day TIF" - true when
+        written, but order_manager.py's _build_bracket_order_payload changed the bracket
+        entry's own TIF to gtc on 2026-09-06 (see that function's comment), so both paths
+        are gtc now. This repair still exists as a backstop for other failure modes (fill/
+        cancel races, broker-side leg rejection - see this method's own docstring above),
+        not to compensate for a day-TIF self-inflicted expiry that no longer happens.
 
         Side is hardcoded "sell" - this codebase is long-only (see order_manager.py's
         _build_bracket_order_payload hardcoded "side": "buy" for entries); there is no
