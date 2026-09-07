@@ -327,10 +327,25 @@ class AlpacaSyncManager:
                 ) from e
 
         try:
+            # BUG FOUND 2026-09-07 (real-money-readiness audit): this used to be an UPDATE
+            # that only bumped `updated_at` for rows whose symbol is no longer in the current
+            # orphan_symbols list - it never actually removed or flagged them. Every consumer
+            # of this table (lambda/api/routes/algo_handlers/dashboard/positions.py's
+            # untracked-position count/list, both grepped repo-wide) reads it with NO
+            # last_seen_at/staleness filter at all, so a row created once - a manual broker
+            # position later closed at Alpaca, or one that became properly algo-tracked -
+            # stayed in "Untracked Broker Position(s)" counts/alerts forever. For a real-money
+            # dashboard, a permanently-stuck phantom alert is exactly the kind of noise that
+            # trains an operator to stop trusting (or stop reading) the one alert meant to
+            # catch a genuinely orphaned, un-stopped position. Migration 1118's own column
+            # comment says last_seen_at is "used to detect closed positions" - actually do
+            # that here by deleting rows for symbols no longer orphaned this cycle, rather
+            # than leaving that intent unimplemented. Safe when orphan_symbols is empty too:
+            # `symbol != ALL('{}')` is true for every row, correctly clearing the table when
+            # Alpaca currently holds zero untracked positions.
             cur.execute(
                 """
-                UPDATE algo_untracked_positions
-                SET updated_at = CURRENT_TIMESTAMP
+                DELETE FROM algo_untracked_positions
                 WHERE symbol != ALL(%s)
             """,
                 (list(orphan_symbols),),
@@ -338,8 +353,8 @@ class AlpacaSyncManager:
             untracked_closed_count = cur.rowcount
         except Exception as e:
             raise RuntimeError(
-                f"[POSITION_SYNC] Failed to mark closed untracked positions: {e}. "
-                f"Cannot mark stale untracked positions as closed - position tracking state would be incomplete. "
+                f"[POSITION_SYNC] Failed to remove resolved untracked positions: {e}. "
+                f"Cannot clear stale untracked-position rows - position tracking state would be incomplete. "
                 f"Reconciliation integrity requires all position updates to succeed."
             ) from e
 
