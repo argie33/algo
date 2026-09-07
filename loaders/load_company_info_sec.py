@@ -603,6 +603,30 @@ class CompanyInfoSECLoader(SecLoaderBase):
     _VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES: dict[str, dict[str, str]] = {
         "FWONA": {"libertyformulaonegroupcommonclassmember": "A"},
     }
+    # ADDED 2026-09-06 (same sweep, continued): 5 oil/gas royalty trusts (CRT, MTR, PBT, SBR,
+    # SJT) have ZERO XBRL companyfacts (404, live-confirmed for all 5) AND zero
+    # dei:EntityCommonStockSharesOutstanding inline-XBRL tag anywhere in their real current
+    # 10-Ks - trusts report "units" (of beneficial interest), never "shares", and never tag the
+    # standard corporate cover-page fact at all. Each DOES state its real unit count in plain
+    # cover-page prose, in one of two live-confirmed shapes: "there were N Units ... outstanding"
+    # (CRT/SBR/PBT/SJT, each with slightly different trailing wording -
+    # "units outstanding"/"Units of Beneficial Interest of the Trust outstanding"/"Units of the
+    # registrant outstanding") or "the N units outstanding were held by" (MTR). A single regex
+    # bridges both shapes since they share the same "N units ... outstanding" core - see
+    # `_PLAIN_PROSE_UNITS_OUTSTANDING_RE` below. Deliberately gated to this exact, individually-
+    # verified symbol set rather than applied to any filing: an ungated "N units ... outstanding"
+    # match could false-positive on an unrelated company's restricted-stock-unit disclosure
+    # ("500,000 stock units outstanding under the 2024 Plan").
+    _VERIFIED_PLAIN_PROSE_UNIT_SYMBOLS: frozenset[str] = frozenset({"CRT", "MTR", "PBT", "SBR", "SJT"})
+    _PLAIN_PROSE_UNITS_OUTSTANDING_RE = re.compile(r"([\d][\d,]{4,})\s+[Uu]nits\b[^.]{0,80}?outstanding")
+    # ADDED 2026-09-06 (same sweep, continued): BTGO (BitGo Holdings) has zero XBRL companyfacts
+    # dei fact AND zero inline-XBRL tag for this fact in its real current 10-K - states its real
+    # dual-class counts only in plain prose: "the registrant had 106,611,583 shares of Class A
+    # common stock and 8,855,382 shares of Class B common stock outstanding." BTGO's own ticker
+    # is Class A (security_name: "BitGo Holdings, Inc. Class A Common Stock", live-confirmed).
+    # Same discipline as the units regex above - curated symbol allowlist, not applied blindly.
+    _VERIFIED_PLAIN_PROSE_CLASS_SYMBOLS: dict[str, str] = {"BTGO": "class a"}
+    _PLAIN_PROSE_CLASS_SHARES_RE = re.compile(r"([\d][\d,]{4,})\s+shares of ([A-Za-z]+(?:\s+[A-Za-z])?) common stock")
     # FIXED 2026-09-04 (same sweep): some filers (Liberty Media family, via Workiva-style
     # generators) embed the full dimension/member name directly in the contextRef id string
     # itself (e.g. "As_Of_1_31_2026_us-gaap_StatementClassOfStockAxis_lmca_
@@ -1063,6 +1087,33 @@ class CompanyInfoSECLoader(SecLoaderBase):
 
         matches = self._INLINE_XBRL_SHARES_OUTSTANDING_RE.findall(text)
         if not matches:
+            # Plain-prose fallback for filers that tag NO inline-XBRL shares-outstanding fact
+            # at all - see _VERIFIED_PLAIN_PROSE_UNIT_SYMBOLS/_VERIFIED_PLAIN_PROSE_CLASS_
+            # SYMBOLS' own comments. Deliberately curated allowlists, checked before any regex
+            # runs, so this can never fire for an unverified symbol.
+            if symbol in self._VERIFIED_PLAIN_PROSE_UNIT_SYMBOLS:
+                unit_match = self._PLAIN_PROSE_UNITS_OUTSTANDING_RE.search(text)
+                if unit_match:
+                    result = int(unit_match.group(1).replace(",", ""))
+                    if result > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING:
+                        logger.info(
+                            f"[{symbol}] Recovered shares_outstanding={result:,.0f} via verified "
+                            f"plain-prose units-outstanding fallback (accession {accession})"
+                        )
+                        return result
+            target_class_label = self._VERIFIED_PLAIN_PROSE_CLASS_SYMBOLS.get(symbol)
+            if target_class_label:
+                for value_str, label in self._PLAIN_PROSE_CLASS_SHARES_RE.findall(text):
+                    if label.strip().lower() == target_class_label:
+                        result = int(value_str.replace(",", ""))
+                        if result > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING:
+                            logger.info(
+                                f"[{symbol}] Recovered shares_outstanding={result:,.0f} for "
+                                f"'{label}' via verified plain-prose class-shares fallback "
+                                f"(accession {accession})"
+                            )
+                            return result
+                        break
             return None
 
         values = []

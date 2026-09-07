@@ -508,3 +508,87 @@ class TestPreferredClassMemberDoesNotCollideWithCommonClassLetter:
             )
 
         assert result == 71_237_859
+
+
+class TestPlainProseUnitsOutstandingFallback:
+    """5 oil/gas royalty trusts (CRT, MTR, PBT, SBR, SJT) tag ZERO inline-XBRL shares-
+    outstanding fact at all - real unit counts live only in free-form cover-page prose, in one
+    of two live-confirmed shapes. Deliberately gated to this exact symbol set - see
+    _VERIFIED_PLAIN_PROSE_UNIT_SYMBOLS' own comment for the false-positive risk this guards."""
+
+    def _loader_with_text(self, text: str) -> CompanyInfoSECLoader:
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = text
+        return loader
+
+    def test_crt_resolves_via_there_were_phrasing(self):
+        loader = self._loader_with_text(
+            "At March 18, 2026, there were 6,000,000 units outstanding and approximately "
+            "145 unitholders of record; 5,968,235 of these units were held by ..."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("CRT", "881787", _submissions_with_10k())
+        assert result == 6_000_000
+
+    def test_mtr_resolves_via_units_outstanding_were_held_by_phrasing(self):
+        loader = self._loader_with_text(
+            "At December 31, 2025, the 1,863,590 units outstanding were held by 374 unitholders of record."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("MTR", "313364", _submissions_with_10k())
+        assert result == 1_863_590
+
+    def test_pbt_resolves_via_units_of_beneficial_interest_phrasing(self):
+        loader = self._loader_with_text(
+            "At March 27, 2026, there were 46,608,796 Units of Beneficial Interest of the Trust outstanding."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("PBT", "319654", _submissions_with_10k())
+        assert result == 46_608_796
+
+    def test_percentage_threshold_mention_is_not_falsely_matched(self):
+        """A trust indenture routinely mentions "75% of all Units outstanding" as a voting
+        threshold, not the total outstanding count - the regex's minimum-digit-length floor
+        must reject this and keep scanning for the real cover-page statement."""
+        loader = self._loader_with_text(
+            "the Trustee may not sell all or any part of the Royalties unless approved by "
+            "holders of 75% of all Units outstanding in which case the sale must be final. "
+            "At March 27, 2026, there were 46,608,796 Units of Beneficial Interest of the "
+            "Trust outstanding."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("PBT", "319654", _submissions_with_10k())
+        assert result == 46_608_796
+
+    def test_unverified_symbol_with_same_units_phrasing_stays_unresolved(self):
+        """Guards the allowlist discipline: an unrelated company's RSU/stock-unit disclosure
+        must NOT be trusted just because it matches the same "N units ... outstanding" shape -
+        only the 5 individually-verified royalty trusts are checked at all."""
+        loader = self._loader_with_text("As of the record date, 500,000 stock units outstanding under the 2024 Plan.")
+        result = loader._fetch_shares_outstanding_from_filing_text("ZZZZ", "999999", _submissions_with_10k())
+        assert result is None
+
+
+class TestPlainProseClassSharesFallback:
+    """BTGO (BitGo Holdings) tags ZERO inline-XBRL shares-outstanding fact - real dual-class
+    counts live only in free-form cover-page prose. BTGO's own ticker is Class A."""
+
+    _BTGO_FILING_TEXT = (
+        "On March 19, 2026, the registrant had 106,611,583 shares of Class A common stock "
+        "and 8,855,382 shares of Class B common stock outstanding."
+    )
+
+    def test_btgo_resolves_to_its_own_class_a_value(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._BTGO_FILING_TEXT
+
+        result = loader._fetch_shares_outstanding_from_filing_text("BTGO", "1740604", _submissions_with_10k())
+
+        assert result == 106_611_583
+
+    def test_unverified_symbol_with_same_class_shares_phrasing_stays_unresolved(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._BTGO_FILING_TEXT
+
+        result = loader._fetch_shares_outstanding_from_filing_text("ZZZZ", "999999", _submissions_with_10k())
+
+        assert result is None
