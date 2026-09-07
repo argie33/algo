@@ -219,6 +219,24 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
         "Sector drawdown % to halt trading",
         "Drawdown Defense",
     ),
+    # REAL-MONEY-READINESS (2026-09-07): unified_risk_monitor.py's confirmed-breach ladder
+    # (HALT -> automated reduce/flatten) is fully built and correct, but has never been
+    # soak-tested against a live paper account - the auto-remediation actions are real,
+    # irreversible trades. This flag lets the monitor run its FULL detection/escalation
+    # logic (every check, every consecutive-breach streak, every alert) with zero live
+    # trading impact: while true, a confirmed breach is loudly alerted as "SHADOW MODE -
+    # would have halted/flattened" instead of actually calling set_halt_flag or the exit
+    # path. Defaults true (observe-only) so simply enabling the monitor itself
+    # (enable_unified_risk_monitor in terraform) never silently turns on live
+    # auto-remediation - that requires this SEPARATE, explicit operator decision.
+    "unified_risk_monitor_shadow_mode": (
+        "true",
+        "bool",
+        "unified_risk_monitor observes and alerts on confirmed breaches but does NOT "
+        "auto-halt or auto-flatten while true. Set false only after a deliberate, "
+        "explicit operator decision to enable live automated remediation.",
+        "Risk Management",
+    ),
     # Position Monitoring & Re-entry
     "position_halt_flag_count": ("2", "int", "Flags to propose early exit", "Position Monitoring"),
     "max_reentries_per_name": ("2", "int", "Max times to re-enter same symbol", "Position Sizing"),
