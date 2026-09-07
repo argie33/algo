@@ -267,6 +267,17 @@ class TestCashflowReconciliation:
         assert "DISTINCT ON (symbol)" in executed_sql
         assert "ORDER BY symbol, fiscal_year DESC" in executed_sql
 
+    def test_query_prefers_combined_restricted_cash_when_present(self) -> None:
+        """FIXED 2026-09-07 (ADP live-confirmed, migration 1267): a filer with material
+        restricted cash reconciles OCF+ICF+FCF to cash_and_restricted_cash_combined, not
+        unrestricted cash_and_equivalents alone - see check_cashflow_reconciliation's own
+        docstring for the full evidence."""
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_cashflow_reconciliation(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "COALESCE(cash_and_restricted_cash_combined, cash_and_equivalents)" in executed_sql
+
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
         cur.execute.side_effect = RuntimeError("db down")

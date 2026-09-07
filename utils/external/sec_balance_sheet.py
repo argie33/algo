@@ -612,7 +612,43 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
     _fill_long_term_debt_from_noncurrent_current_split(rows)
     if period == "annual":
         _fill_long_term_debt_from_segment_dimensional_facts(rows, client, symbol)
+    _fill_cash_and_restricted_cash_combined(rows, client, symbol, period)
     return rows
+
+
+def _fill_cash_and_restricted_cash_combined(rows: list[dict[str, Any]], client: Any, symbol: str, period: str) -> None:
+    """Populate `cash_and_restricted_cash_combined` from us-gaap:CashCashEquivalentsRestricted
+    CashAndRestrictedCashEquivalents - a SEPARATE aggregation pass, not reusable from the main
+    concepts list above (migration 1267), because that same concept name already feeds
+    `cash_and_equivalents` there as a least-preferred fallback (see this file's own comment on
+    it above: "includes restricted cash where a filer only tags this combined figure") -
+    _aggregate_concepts' one-raw-key-per-concept-name design means the same concept string
+    can't ALSO target a second, different column in the same call.
+
+    ADDED 2026-09-07 (goal session: tie-out check_cashflow_reconciliation follow-up, ADP live-
+    confirmed - see migration 1267's own header for the full evidence). Per ASU 2016-18, a
+    filer's cash-flow statement reconciles OCF+ICF+FCF to this COMBINED total when it holds
+    material restricted cash (payroll processors, banks/trust companies), not to unrestricted
+    cash_and_equivalents alone - tie_out.py's check_cashflow_reconciliation prefers this column
+    (via COALESCE) when present. NULL for the (majority) of filers with no material restricted
+    cash - a second real API/cache lookup per symbol, same as `_fill_long_term_debt_from_
+    segment_dimensional_facts` above, but reads from the same already-fetched companyfacts
+    cache so it costs no extra network I/O beyond the local disk read.
+    """
+    combined_rows = _aggregate_concepts(
+        client, symbol, ["CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"], period
+    )
+    combined_by_key = {
+        (r.get("fiscal_year"), r.get("fiscal_period")): r.get(
+            "cash_cash_equivalents_restricted_cash_and_restricted_cash_equivalents"
+        )
+        for r in combined_rows
+    }
+    for row in rows:
+        key = (row.get("fiscal_year"), row.get("fiscal_period"))
+        value = combined_by_key.get(key)
+        if value is not None:
+            row["cash_and_restricted_cash_combined"] = value
 
 
 def _fill_long_term_debt_from_segment_dimensional_facts(rows: list[dict[str, Any]], client: Any, symbol: str) -> None:

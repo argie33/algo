@@ -702,7 +702,19 @@ class TieOutChecker(BaseCheck):
             )
 
     def check_cashflow_reconciliation(self, cur: Any) -> None:
-        """prior_year cash_and_equivalents + OCF + ICF + FCF ~= current_year cash_and_equivalents.
+        """prior_year cash + OCF + ICF + FCF ~= current_year cash, where "cash" prefers
+        cash_and_restricted_cash_combined over cash_and_equivalents when present.
+
+        FIXED 2026-09-07 (goal session: live tie-out run against production DB, ADP live-
+        confirmed): per ASU 2016-18, a filer's cash-flow statement reconciles OCF+ICF+FCF to
+        its COMBINED cash+restricted-cash total when it holds material restricted cash (payroll
+        processors like ADP - funds held for clients, banks/trust companies, escrow-heavy
+        businesses), not to unrestricted cash_and_equivalents alone. See migration 1267's own
+        header for the full ADP evidence (OCF+ICF+FCF=$5.608B FY2026 matches the real combined-
+        cash change of $5.571B, not the $0.882B change in unrestricted cash_and_equivalents
+        alone). cash_and_restricted_cash_combined is NULL for the majority of filers with no
+        material restricted cash, where cash_and_equivalents alone already reconciles - no
+        regression for that population.
 
         Excludes depository institutions and financial intermediaries (exchanges/clearinghouses/
         broker-dealers), plus individually-verified embedded-fintech exceptions - see
@@ -723,7 +735,8 @@ class TieOutChecker(BaseCheck):
                     ORDER BY symbol, fiscal_year DESC
                 ),
                 cash AS (
-                    SELECT symbol, fiscal_year, cash_and_equivalents
+                    SELECT symbol, fiscal_year,
+                        COALESCE(cash_and_restricted_cash_combined, cash_and_equivalents) AS cash_and_equivalents
                     FROM annual_balance_sheet
                     WHERE data_unavailable = FALSE AND cash_and_equivalents IS NOT NULL
                 )

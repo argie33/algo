@@ -1002,6 +1002,13 @@ _BALANCE_FIELD_MAPPING = {
     # liabilities+stockholders_equity gap exactly). Not fallback-only - single directly-tagged
     # concept, same convention as accounts_payable above.
     "minority_interest": "noncontrolling_interest",
+    # ADDED 2026-09-07 (goal session: check_cashflow_reconciliation restricted-cash gap
+    # rootcaused, migration 1267): see sec_balance_sheet.py's _fill_cash_and_restricted_cash_
+    # combined() for the live ADP evidence. Identity mapping (raw key already equals the
+    # canonical column name) - that helper writes the canonical name directly onto the row
+    # since the underlying XBRL concept can't be reused for two different target columns via
+    # the normal _aggregate_concepts pipeline (it already fallback-feeds cash_and_equivalents).
+    "cash_and_restricted_cash_combined": "cash_and_restricted_cash_combined",
     # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comments
     # on "PublicUtilitiesPropertyPlantAndEquipmentNet" (ES live evidence) and
     # "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciation
@@ -1510,6 +1517,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "operating_lease_liability",
                     "finance_lease_liability",
                     "noncontrolling_interest",
+                    "cash_and_restricted_cash_combined",
                     "retained_earnings",
                     "created_at",
                     "data_unavailable",
@@ -1545,6 +1553,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "operating_lease_liability",
                     "finance_lease_liability",
                     "noncontrolling_interest",
+                    "cash_and_restricted_cash_combined",
                     "retained_earnings",
                     "created_at",
                     "data_unavailable",
