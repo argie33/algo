@@ -59,7 +59,7 @@
   "algo/infrastructure/reconciliation_analytics.py": 284,
   "algo/infrastructure/reconciliation_broker_positions.py": 237,
   "algo/infrastructure/reconciliation_broker_snapshot.py": 640,
-  "algo/infrastructure/reconciliation_exit_fills.py": 755,
+  "algo/infrastructure/reconciliation_exit_fills.py": 747,
   "algo/infrastructure/reconciliation_fill_and_account.py": 426,
   "algo/infrastructure/reconciliation_paper_mode.py": 712,
   "algo/infrastructure/reconciliation_shared.py": 84,

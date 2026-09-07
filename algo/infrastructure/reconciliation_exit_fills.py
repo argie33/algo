@@ -116,13 +116,21 @@ class ExitFillReconciliationMixin:
 
                 cur.execute("SAVEPOINT reconcile_fill")
                 try:
+                    # FIXED 2026-09-07 (same bug class as executor_exit_handler.py's
+                    # _fetch_and_lock_trade_data COALESCE fix, mirrored here): a pyramided
+                    # position (2+ legs) has its true quantity-weighted cost basis on
+                    # algo_positions.avg_entry_price, not this trade row's own single-leg
+                    # entry_price - see this function's docstring and 486b4e3cc for the full
+                    # writeup. p.position_id carried through for the entry_qty sum below too.
                     cur.execute(
                         """
-                        SELECT trade_id, entry_price, stop_loss_price, entry_quantity
-                        FROM algo_trades
-                        WHERE pending_exit_client_order_id = %s
-                          AND symbol = %s
-                          AND status = 'closed'
+                        SELECT t.trade_id, COALESCE(p.avg_entry_price, t.entry_price) AS entry_price,
+                               t.stop_loss_price, t.entry_quantity, p.position_id
+                        FROM algo_trades t
+                        LEFT JOIN algo_positions p ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
+                        WHERE t.pending_exit_client_order_id = %s
+                          AND t.symbol = %s
+                          AND t.status = 'closed'
                     """,
                         (client_order_id, symbol),
                     )
@@ -135,7 +143,7 @@ class ExitFillReconciliationMixin:
                         )
                         continue
 
-                    trade_id, entry_price, stop_loss_price, entry_qty = row
+                    trade_id, entry_price, stop_loss_price, entry_qty, position_id = row
                     if entry_price is None or stop_loss_price is None or entry_qty is None:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
                         raise ValueError(
@@ -251,8 +259,28 @@ class ExitFillReconciliationMixin:
                         cumulative_pnl_dec = (prior_partial_pnl_dec + leg_pnl_dollars_dec).quantize(
                             Decimal("0.01"), ROUND_HALF_UP
                         )
-                        original_cost_basis = entry_dec * entry_qty_dec
-                        original_risk_dollars = Decimal(str(risk)) * entry_qty_dec
+                        # FIXED 2026-09-07 (same bug class/fix as executor_exit_handler.py's
+                        # _compute_cumulative_pnl - see 8e0c0ccec): entry_qty is this trade
+                        # row's own single-leg entry_quantity, which understates the true cost
+                        # basis for a position that is BOTH pyramided AND exited via multiple
+                        # partial legs (the only branch reached here). Sum entry_quantity
+                        # across every leg on the position instead of trusting this one row.
+                        total_entry_qty_dec = entry_qty_dec
+                        if position_id is not None:
+                            cur.execute(
+                                """
+                                SELECT SUM(t2.entry_quantity)
+                                FROM algo_trades t2
+                                JOIN algo_positions p2 ON t2.trade_id::text = ANY(p2.trade_ids_arr::text[])
+                                WHERE p2.position_id = %s
+                                """,
+                                (position_id,),
+                            )
+                            total_entry_qty_row = cur.fetchone()
+                            if total_entry_qty_row and total_entry_qty_row[0] is not None:
+                                total_entry_qty_dec = Decimal(str(total_entry_qty_row[0]))
+                        original_cost_basis = entry_dec * total_entry_qty_dec
+                        original_risk_dollars = Decimal(str(risk)) * total_entry_qty_dec
                         pnl_dollars = float(cumulative_pnl_dec)
                         pnl_pct = float(
                             (cumulative_pnl_dec / original_cost_basis * Decimal(100)).quantize(
