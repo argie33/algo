@@ -961,8 +961,31 @@ class QualityMetricsMixin(SymbolGateMixin):
             # total_debt_ev has no fiscal-year dimension (sec_valuations is a single
             # latest-snapshot row), so only long_term_debt_bs can be rescued this way - only
             # search when total_debt_ev is also absent (it remains the primary source below).
-            roic_long_term_debt = long_term_debt_bs
-            if total_debt_ev is None and long_term_debt_bs is None:
+            #
+            # `0 < x < 1000` treated the same as missing for BOTH total_debt_ev and
+            # long_term_debt_bs - ADDED 2026-09-07 (goal: "digging into scores" audit,
+            # anchor-fiscal-year-mismatch follow-up). Live-confirmed FLZH: both
+            # sec_valuations.total_debt (total_debt_ev, a separate loader/table) AND this
+            # anchor row's own long_term_debt were the identical real-but-immaterial $0.01
+            # stub - an as-yet-unfiled current fiscal year's rounding/placeholder artifact
+            # (same class this file already treats interest_expense<=0 as invalid for just
+            # above, not merely None). Since $0.01 is non-NULL in both places, neither the
+            # "is None" check here nor total_debt_ev's own unconditional priority below ever
+            # caught it, so debt_for_roic paired FY2026's real $191.9M stockholders_equity
+            # with essentially zero debt (debt_to_equity≈0.00) while total_liabilities/
+            # total_assets (which DO have their own None-triggered fallback above) correctly
+            # fell back to FY2025's real $45.5M liabilities/$332K assets - two supposedly-
+            # paired leverage ratios for the same company computed from two different,
+            # inconsistent fiscal years. $1000 is far below any economically meaningful
+            # long-term-debt figure for a real filer (SEC XBRL reports whole dollars, not
+            # thousands) while comfortably above a genuine $0 "no debt" tag, which stays
+            # untouched (only a non-zero, sub-floor value is treated as a stub).
+            _total_debt_ev_is_stub = total_debt_ev is not None and 0 < total_debt_ev < 1000
+            _long_term_debt_bs_is_stub = long_term_debt_bs is not None and 0 < long_term_debt_bs < 1000
+            roic_long_term_debt = None if _long_term_debt_bs_is_stub else long_term_debt_bs
+            if (total_debt_ev is None or _total_debt_ev_is_stub) and (
+                long_term_debt_bs is None or _long_term_debt_bs_is_stub
+            ):
                 # `data_unavailable IS NOT TRUE` (applied inside the helper) excludes an
                 # incomplete/stale-orphan stub.
                 fallback_debt = self._fetch_balance_sheet_anchor_fallback(symbol, "long_term_debt")
@@ -970,7 +993,9 @@ class QualityMetricsMixin(SymbolGateMixin):
                     roic_long_term_debt = fallback_debt
 
             invested_capital = None
-            debt_for_roic = total_debt_ev if total_debt_ev is not None else roic_long_term_debt
+            debt_for_roic = (
+                total_debt_ev if total_debt_ev is not None and not _total_debt_ev_is_stub else roic_long_term_debt
+            )
 
             # Depository institutions AND risk-bearing insurance underwriters: override with
             # total_liabilities when available. A bank's core liability (customer deposits) and
