@@ -3387,6 +3387,49 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                     self._record_explicit_null_rejection(row, "net_income", "net_income_scale_error")
                     break
 
+    def _reject_implausible_gross_profit(self, transformed: list[dict[str, Any]]) -> None:
+        """Reject `gross_profit` when it exceeds revenue by more than 3x while cost_of_revenue
+        is a real, positive figure - not a tolerance/measurement-noise check like
+        algo/monitoring/data_patrol/checks/tie_out.py's own gross_profit_identity WARN (2%
+        tolerance, still exploratory per that file's own docstring), but a hard mathematical
+        impossibility check: gross_profit = revenue - cost_of_revenue, so with a real positive
+        cost_of_revenue on the same row, gross_profit can never legitimately exceed revenue at
+        all, let alone by 3x+.
+
+        FOUND 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep, gross_profit_
+        identity follow-up). Live-confirmed via HCTI: FY2025 10-K/A tags GrossProfit=
+        $1,235,000,000 against real revenue=$13,891,000 and cost_of_revenue=$12,001,000 (real
+        FY2025 gross profit is ~$1.89M - HCTI's own Q2 2026 10-Q shows a comparable-scale
+        $4.459M half-year gross profit, confirming the real business is nowhere near
+        $1.235B) - an ~89x overstatement, a filer/filing-agent tagging error in the amendment
+        itself. Not a clean round-multiple scale error (unlike `_reject_scale_mismatched_
+        net_income` above) - no single scale factor to detect, so this uses the simpler
+        "impossible under the definitional identity" signal instead. 3x threshold (not 1x)
+        deliberately leaves room for a company reporting an adjusted/non-strictly-definitional
+        gross profit figure that legitimately differs somewhat from the raw subtraction -
+        only rejects an extreme, order-of-magnitude-style violation.
+        """
+        max_plausible_gross_profit_to_revenue_ratio = 3.0
+        for row in transformed:
+            revenue = row.get("revenue")
+            cost_of_revenue = row.get("cost_of_revenue")
+            gross_profit = row.get("gross_profit")
+            if revenue is None or revenue <= 0 or cost_of_revenue is None or cost_of_revenue <= 0:
+                continue
+            if gross_profit is None:
+                continue
+            if float(gross_profit) > float(revenue) * max_plausible_gross_profit_to_revenue_ratio:
+                logger.warning(
+                    f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                    f"gross_profit={gross_profit:,.0f} exceeds {max_plausible_gross_profit_to_revenue_ratio:.0f}x "
+                    f"revenue({revenue:,.0f}) while cost_of_revenue({cost_of_revenue:,.0f}) is a real positive "
+                    "figure - mathematically impossible under gross_profit = revenue - cost_of_revenue. "
+                    "Filer-side tagging error, not a currency/scale issue with a clean multiple. Rejecting "
+                    "rather than storing a confidently-wrong gross_profit."
+                )
+                row["gross_profit"] = None
+                self._record_explicit_null_rejection(row, "gross_profit", "implausible_gross_profit_scale_error")
+
     def _reject_stale_gross_profit_without_fresh_concept(self, transformed: list[dict[str, Any]]) -> None:
         """Force-null a stale `gross_profit` value for any (symbol, fiscal_year) where this
         run's fresh SEC extraction has both revenue and cost_of_revenue but no fresh
@@ -3460,6 +3503,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
             self._fill_derived_eps(transformed)
             self._reject_implausible_eps(transformed)
             self._reject_scale_mismatched_net_income(transformed)
+            self._reject_implausible_gross_profit(transformed)
             self._reject_stale_gross_profit_without_fresh_concept(transformed)
 
         # Get REQUIRED metrics for current statement type (see module-level
