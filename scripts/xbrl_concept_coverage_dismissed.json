@@ -50,7 +50,6 @@
   "us-gaap:LesseeOperatingLeaseLiabilityPaymentsRemainderOfFiscalYear": "Lease maturity schedule footnote line - total operating_lease_liability already tracked",
   "us-gaap:LesseeOperatingLeaseLiabilityUndiscountedExcessAmount": "Lease maturity schedule footnote line, same as above",
   "us-gaap:LiabilitiesAndStockholdersEquity": "Mathematically identical to total_assets by balance-sheet definition (Assets = Liabilities + Equity) - every filer tags this as the bottom-line check figure. We already fetch TotalAssets/Assets for total_assets; adding this as a separate column would be a pure duplicate, not a new metric. Confirmed our own tie_out.py check_balance_sheet_identity docstring already treats this exact concept as the well-known cross-check total, not a novel data point.",
-  "us-gaap:NetIncomeLossAvailableToCommonStockholdersBasic": "EPS-computation footnote intermediate value - net_income already tracked, basic EPS itself already tracked separately",
   "us-gaap:OperatingLeaseCost": "Lease expense footnote disclosure - not a primary statement line",
   "us-gaap:OperatingLeaseLiabilityCurrent": "Current-portion split of a lease liability already tracked at the total level via the directly-tagged OperatingLeaseLiability concept - not a scoring input",
   "us-gaap:OperatingLeaseLiabilityNoncurrent": "Noncurrent-portion split, same as above",
