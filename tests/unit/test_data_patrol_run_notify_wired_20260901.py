@@ -18,17 +18,26 @@ from algo.monitoring.data_patrol.base import CheckResult, DataPatrol
 from algo.monitoring.data_patrol.checks import (
     AlignmentChecker,
     CoverageChecker,
+    NewXbrlConceptChecker,
     PriceSanityChecker,
     QualityChecker,
     SpecializedChecker,
     StalenessChecker,
+    StatisticalAnomalyChecker,
+    TieOutChecker,
 )
 from algo.monitoring.data_patrol.config import CRIT, ERROR, WARN, PatrolConfig
 
 
 def _run_patrol_with_results(results_by_checker: dict) -> dict:
     """Run DataPatrol.run() with DB connection mocked out and each checker's .run()
-    patched to return a fixed CheckResult list (default: empty for unlisted checkers)."""
+    patched to return a fixed CheckResult list (default: empty for unlisted checkers).
+
+    Must mock every checker DataPatrol.run() registers (base.py), not just a subset -
+    an unmocked checker runs for real against the MagicMock() DB connection and, for
+    checkers that read outside the DB (e.g. NewXbrlConceptChecker reads the on-disk SEC
+    EDGAR cache), can produce real findings that leak into "clean run" assertions below.
+    """
     patrol = DataPatrol(PatrolConfig())
 
     checker_classes = {
@@ -38,6 +47,9 @@ def _run_patrol_with_results(results_by_checker: dict) -> dict:
         "PriceSanityChecker": PriceSanityChecker,
         "AlignmentChecker": AlignmentChecker,
         "SpecializedChecker": SpecializedChecker,
+        "TieOutChecker": TieOutChecker,
+        "NewXbrlConceptChecker": NewXbrlConceptChecker,
+        "StatisticalAnomalyChecker": StatisticalAnomalyChecker,
     }
 
     mock_conn = MagicMock()
@@ -137,6 +149,9 @@ class TestDataPatrolNotifyWiring:
             patch.object(PriceSanityChecker, "run", return_value=[]),
             patch.object(AlignmentChecker, "run", return_value=[]),
             patch.object(SpecializedChecker, "run", return_value=[]),
+            patch.object(TieOutChecker, "run", return_value=[]),
+            patch.object(NewXbrlConceptChecker, "run", return_value=[]),
+            patch.object(StatisticalAnomalyChecker, "run", return_value=[]),
         ):
             # Must not raise despite notify() failing internally.
             summary = patrol.run()
