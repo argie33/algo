@@ -2595,6 +2595,23 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if "current_ratio" in implausible_ratio_metrics
                     else "reit_special_entity"
                     if unclassified_balance_sheet
+                    # FIXED 2026-09-07 (goal: "SEC/XBRL missing data to zero" sweep): physical
+                    # commodity/currency/crypto trusts (BTC/ETH/XRP/GSOL/BSOL-class, see
+                    # _get_etf_trust_no_stockholders_equity_symbols()'s own docstring) file a
+                    # "Statement of Assets and Liabilities" with no current/non-current split
+                    # at all - same structural fact as that gate's own stockholders_equity
+                    # case, just never checked here. Live-confirmed: BTC/ETH/XRP/GSOL/BSOL and
+                    # 9 more universe symbols have real annual_balance_sheet history (proving
+                    # they're established filers) but zero current_assets ever, landing on the
+                    # generic "no_recent_current_assets_reported" ("Missing SEC/XBRL data")
+                    # instead of the correct "Legitimate / not applicable" fact. Checked before
+                    # the generic never-tagged-current-assets gate below, same priority as the
+                    # ETF-trust check already established for every other metric's chain in
+                    # this file.
+                    else "etf_trust_no_gaap_financials"
+                    if current_assets is None and symbol in self._get_etf_trust_no_stockholders_equity_symbols()
+                    else "registered_investment_company_no_xbrl"
+                    if current_assets is None and symbol in self._get_registered_investment_company_symbols()
                     else "no_recent_current_assets_reported"
                     if current_assets is None
                     and (
@@ -2618,6 +2635,12 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if "quick_ratio" in implausible_ratio_metrics
                     else "reit_special_entity"
                     if unclassified_balance_sheet
+                    # Same ETF-trust/RIC fix as current_ratio's identical chain just above -
+                    # quick_ratio shares current_ratio's structural inputs.
+                    else "etf_trust_no_gaap_financials"
+                    if current_assets is None and symbol in self._get_etf_trust_no_stockholders_equity_symbols()
+                    else "registered_investment_company_no_xbrl"
+                    if current_assets is None and symbol in self._get_registered_investment_company_symbols()
                     # quick_ratio shares current_ratio's structural inputs; inventory's absence
                     # is a normal "not a goods business" fact, not a data gap, deliberately not
                     # gated.
