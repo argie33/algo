@@ -524,6 +524,31 @@ class DailyReconciliation(
                     self._track_and_maybe_halt_on_sustained_drift(
                         cur, is_critical_drift, drift_pct, alpaca_portfolio_value_dec, total_equity_db_dec
                     )
+                else:
+                    # REAL-MONEY-READINESS FIX (2026-09-07 audit): this branch previously
+                    # didn't exist, so a non-positive DB-computed equity (missing position
+                    # rows, a cash-calc bug, a bad backfill) silently skipped drift detection
+                    # entirely - no log, no notify, no halt-streak tracking. That's exactly
+                    # the scenario needing the LOUDEST escalation (DB thinks equity is ~$0
+                    # while the broker holds real money), and it was failing open in silence.
+                    # Treat it as maximal critical drift rather than an undefined percentage.
+                    drift_message = (
+                        f"DB-computed equity is non-positive (${float(total_equity_db_dec):,.2f}) while "
+                        f"Alpaca reports ${float(alpaca_portfolio_value_dec):,.2f} - cannot compute a drift "
+                        f"percentage, but this itself is a critical data-integrity condition."
+                    )
+                    logger.critical(drift_message)
+                    try:
+                        notify(
+                            "critical",
+                            title="Broker/DB Equity Drift - DB Equity Non-Positive",
+                            message=drift_message,
+                        )
+                    except (ValueError, ZeroDivisionError, TypeError) as e:
+                        logger.warning(f"Failed to send notification: {e}")
+                    self._track_and_maybe_halt_on_sustained_drift(
+                        cur, True, Decimal(100), alpaca_portfolio_value_dec, total_equity_db_dec
+                    )
 
                 metrics = self._compute_broker_snapshot_metrics(cur, reconcile_date, total_equity_dec, position_state)
 

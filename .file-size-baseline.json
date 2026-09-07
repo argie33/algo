@@ -55,7 +55,7 @@
   "algo/infrastructure/market_events.py": 850,
   "algo/infrastructure/position_analyzer.py": 148,
   "algo/infrastructure/price_auditor.py": 10,
-  "algo/infrastructure/reconciliation.py": 750,
+  "algo/infrastructure/reconciliation.py": 744,
   "algo/infrastructure/reconciliation_analytics.py": 284,
   "algo/infrastructure/reconciliation_broker_positions.py": 237,
   "algo/infrastructure/reconciliation_broker_snapshot.py": 640,
