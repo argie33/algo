@@ -76,31 +76,30 @@ def parse_staged(lines: list[str]) -> list[tuple[str, str | None]]:
     return entries
 
 
-def main() -> int:
-    # --diff-filter=ACMR + -M: renames must be included, not just add/modify - otherwise
-    # renaming a bloated file while growing it past its cap (or past 800 for a "new" path)
-    # completely bypasses this check whenever git's similarity heuristic still calls it a
-    # rename instead of a delete+add (the default threshold is 50% similarity).
-    staged = subprocess.run(
-        ["git", "diff", "--cached", "--name-status", "--diff-filter=ACMR", "-M"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.splitlines()
+def load_baseline_at(ref: str) -> dict:
+    result = subprocess.run(["git", "show", f"{ref}:{BASELINE_PATH.as_posix()}"], capture_output=True, text=True)
+    if result.returncode == 0:
+        return json.loads(result.stdout)
+    return {}
 
-    entries = [(rel, old) for rel, old in parse_staged(staged) if rel.endswith(".py") and not is_excluded(rel)]
-    if not entries:
-        return 0
 
-    baseline = load_baseline()
+def file_lines_at(ref: str, rel: str) -> int | None:
+    """Line count of rel as it existed at ref, or None if it doesn't exist there (deleted)."""
+    result = subprocess.run(["git", "show", f"{ref}:{rel}"], capture_output=True, text=True)
+    if result.returncode != 0:
+        return None
+    return len(result.stdout.splitlines())
+
+
+def check_diff(entries: list[tuple[str, str | None]], baseline: dict, current_lines: dict) -> tuple[list[str], dict]:
+    """Shared ratchet logic. current_lines maps rel -> line count (or None if deleted).
+    Returns (failures, updated_baseline)."""
     failures = []
     updated = dict(baseline)
-
     for rel, old_rel in entries:
-        path = Path(rel)
-        if not path.exists():
+        current = current_lines.get(rel)
+        if current is None:
             continue
-        current = count_lines(path)
         prior = baseline.get(rel)
         if prior is None and old_rel is not None:
             prior = baseline.get(old_rel)
@@ -126,6 +125,28 @@ def main() -> int:
             )
         elif current < prior:
             updated[rel] = current
+    return failures, updated
+
+
+def main_local() -> int:
+    # --diff-filter=ACMR + -M: renames must be included, not just add/modify - otherwise
+    # renaming a bloated file while growing it past its cap (or past 800 for a "new" path)
+    # completely bypasses this check whenever git's similarity heuristic still calls it a
+    # rename instead of a delete+add (the default threshold is 50% similarity).
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-status", "--diff-filter=ACMR", "-M"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+
+    entries = [(rel, old) for rel, old in parse_staged(staged) if rel.endswith(".py") and not is_excluded(rel)]
+    if not entries:
+        return 0
+
+    baseline = load_baseline()
+    current_lines = {rel: count_lines(Path(rel)) for rel, _ in entries if Path(rel).exists()}
+    failures, updated = check_diff(entries, baseline, current_lines)
 
     if updated != baseline:
         BASELINE_PATH.write_text(json.dumps(dict(sorted(updated.items())), indent=2) + "\n", encoding="utf-8")
@@ -135,6 +156,53 @@ def main() -> int:
         print("File-size ratchet failed:\n" + "\n".join(failures), file=sys.stderr)
         return 1
     return 0
+
+
+def main_ci_range(base_sha: str, head_sha: str) -> int:
+    # CI has nothing staged (a plain checkout's index matches HEAD), so `git diff --cached`
+    # used by main_local() always sees zero entries and silently no-ops here - this codepath
+    # exists so CI actually enforces the ratchet instead of rubber-stamping every push/PR that
+    # skips (or never installs) the local pre-commit hook. Replays the range commit-by-commit,
+    # each one diffed against its own parent and checked against the baseline AS OF that parent
+    # - matching exactly what would have happened had pre-commit run on every individual local
+    # commit, so a two-commit "bump the baseline, then grow the file to match" trick within one
+    # PR is still caught (each commit is judged against the baseline that existed before it).
+    commits = subprocess.run(
+        ["git", "rev-list", "--reverse", f"{base_sha}..{head_sha}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+
+    all_failures = []
+    for commit in commits:
+        parent = f"{commit}^"
+        diff_lines = subprocess.run(
+            ["git", "diff", "--name-status", "--diff-filter=ACMR", "-M", parent, commit],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.splitlines()
+        entries = [(rel, old) for rel, old in parse_staged(diff_lines) if rel.endswith(".py") and not is_excluded(rel)]
+        if not entries:
+            continue
+
+        baseline = load_baseline_at(parent)
+        current_lines = {rel: file_lines_at(commit, rel) for rel, _ in entries}
+        failures, _ = check_diff(entries, baseline, current_lines)
+        all_failures.extend(f"{f}  [commit {commit[:8]}]" for f in failures)
+
+    if all_failures:
+        print("File-size ratchet failed:\n" + "\n".join(all_failures), file=sys.stderr)
+        return 1
+    return 0
+
+
+def main() -> int:
+    if len(sys.argv) == 3:
+        # Invoked as: check_file_size_ratchet.py <base_sha> <head_sha>  (CI mode)
+        return main_ci_range(sys.argv[1], sys.argv[2])
+    return main_local()
 
 
 if __name__ == "__main__":
