@@ -6,8 +6,10 @@ import json
 import logging
 from datetime import date as _date_type
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, cast
 
+import psycopg2
 import requests
 from psycopg2.extensions import cursor as PsycopgCursor
 
@@ -473,6 +475,7 @@ class DailyReconciliation(
                     drift_pct = ((alpaca_portfolio_value_dec - total_equity_db_dec) / total_equity_db_dec) * Decimal(
                         100
                     )
+                    is_critical_drift = abs(drift_pct) > Decimal("5.0")
                     if abs(drift_pct) > Decimal("1.0"):
                         drift_message = (
                             f"Position value drift: Alpaca ${float(alpaca_portfolio_value_dec):,.2f} vs "
@@ -487,10 +490,8 @@ class DailyReconciliation(
                         # drift already auto-corrects+alerts (alpaca_sync_manager.py); this is the
                         # matching escalation for value-level drift once it's large enough that
                         # "transient timing noise" (unsettled cash, pending dividend) stops being a
-                        # plausible innocent explanation. Does NOT change halted/success - whether
-                        # large sustained value drift should halt trading is a risk-tolerance policy
-                        # decision, not something to bake in unilaterally.
-                        drift_severity = "critical" if abs(drift_pct) > Decimal("5.0") else "warning"
+                        # plausible innocent explanation.
+                        drift_severity = "critical" if is_critical_drift else "warning"
                         if drift_severity == "critical":
                             logger.critical(drift_message)
                         else:
@@ -503,6 +504,26 @@ class DailyReconciliation(
                             )
                         except (ValueError, ZeroDivisionError, TypeError) as e:
                             logger.warning(f"Failed to send notification: {e}")
+
+                    # AUTO-HALT ON SUSTAINED DRIFT (2026-09-07, real-money-readiness): a halt
+                    # (unlike unified_risk_monitor's auto-flatten) is low-risk and reversible -
+                    # it only blocks NEW entries, never touches existing positions or places
+                    # any order, and is already this codebase's standard automated response to
+                    # far less severe conditions (Phase 1 data staleness, Phase 2 circuit
+                    # breakers). What made this alert-only originally was false-positive risk
+                    # from a SINGLE transient reading (unsettled cash, a pending dividend) - not
+                    # the halt action itself being too risky to automate. Requiring the >5%
+                    # drift to persist across 2 CONSECUTIVE reconciliation runs (Phase 4 runs
+                    # 5x/day, so this spans a meaningful time gap, not sub-minute noise) before
+                    # halting closes that gap the same way unified_risk_monitor's
+                    # consecutive-breach ladder does, without needing a separate risk-tolerance
+                    # sign-off - reuses algo_risk_monitor_state's existing generic check_key
+                    # schema (migration 1260) rather than a new table. Any non-critical run
+                    # (including no drift at all) resets the streak - only a run where the
+                    # PRIOR run was also critical actually halts.
+                    self._track_and_maybe_halt_on_sustained_drift(
+                        cur, is_critical_drift, drift_pct, alpaca_portfolio_value_dec, total_equity_db_dec
+                    )
 
                 metrics = self._compute_broker_snapshot_metrics(cur, reconcile_date, total_equity_dec, position_state)
 
@@ -546,6 +567,90 @@ class DailyReconciliation(
             # "reason field missing" RuntimeError from phase4_reconciliation.py instead of the
             # actual error captured here.
             return {"success": False, "error": str(e), "reason": str(e)}
+
+    def _track_and_maybe_halt_on_sustained_drift(
+        self,
+        cur: PsycopgCursor[Any],
+        is_critical_drift: bool,
+        drift_pct: Decimal,
+        alpaca_value: Decimal,
+        db_value: Decimal,
+    ) -> None:
+        """Debounce/escalate broker-vs-DB equity drift into an automatic halt, mirroring
+        unified_risk_monitor.py's consecutive-breach ladder (2 consecutive confirmations
+        required) but reusing that module's own algo_risk_monitor_state table rather than a
+        dedicated one - see this call site's own comment for the full rationale (a halt is
+        low-risk/reversible, unlike unified_risk_monitor's auto-flatten, so this doesn't need
+        a separate risk-tolerance sign-off the way that did).
+
+        Best-effort: any failure here is logged and swallowed, never allowed to fail the
+        reconciliation run itself over a debounce-bookkeeping problem.
+        """
+        check_key = "reconciliation_equity_drift"
+        consecutive_runs_to_halt = 2
+        try:
+            cur.execute(
+                "SELECT consecutive_breach_count FROM algo_risk_monitor_state WHERE check_key = %s",
+                (check_key,),
+            )
+            row = cur.fetchone()
+            prior_count = row[0] if row else 0
+            new_count = (prior_count + 1) if is_critical_drift else 0
+            cur.execute(
+                """
+                INSERT INTO algo_risk_monitor_state (
+                    check_key, consecutive_breach_count, last_breached, last_action,
+                    last_result_json, last_checked_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+                ON CONFLICT (check_key) DO UPDATE SET
+                    consecutive_breach_count = EXCLUDED.consecutive_breach_count,
+                    last_breached = EXCLUDED.last_breached,
+                    last_action = EXCLUDED.last_action,
+                    last_result_json = EXCLUDED.last_result_json,
+                    last_checked_at = NOW(),
+                    updated_at = NOW()
+                """,
+                (
+                    check_key,
+                    new_count,
+                    is_critical_drift,
+                    "halted" if new_count >= consecutive_runs_to_halt else "tracked",
+                    json.dumps(
+                        {
+                            "drift_pct": float(drift_pct),
+                            "alpaca_value": float(alpaca_value),
+                            "db_value": float(db_value),
+                        }
+                    ),
+                ),
+            )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, TypeError, ValueError) as e:
+            logger.error(f"[RECONCILIATION] Could not update sustained-drift streak state (non-fatal): {e}")
+            return
+
+        if is_critical_drift and new_count >= consecutive_runs_to_halt:
+            try:
+                from algo.orchestration.halt_flag_manager import HaltFlagManager
+                from algo.reporting import AlertManager
+
+                halt_manager = HaltFlagManager(AlertManager(), lambda *a, **k: None)
+                halt_manager.set_halt_flag(
+                    reason=(
+                        f"[RECONCILIATION_EQUITY_DRIFT] Broker/DB equity drift ({float(drift_pct):+.1f}%) "
+                        f"confirmed critical across {new_count} consecutive reconciliation runs - "
+                        f"Alpaca ${float(alpaca_value):,.2f} vs DB-computed ${float(db_value):,.2f}"
+                    ),
+                    triggered_by="reconciliation_equity_drift",
+                )
+                logger.critical(
+                    f"[RECONCILIATION_EQUITY_DRIFT] Halted new entries - drift confirmed critical across "
+                    f"{new_count} consecutive runs"
+                )
+            except Exception as e:
+                logger.critical(
+                    f"[RECONCILIATION_EQUITY_DRIFT] Sustained critical drift confirmed but set_halt_flag "
+                    f"FAILED (non-fatal to this reconciliation run, but trading is NOT halted): {e}"
+                )
 
     def sync_positions(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Sync broker positions via BrokerAdapter."""
