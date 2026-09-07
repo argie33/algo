@@ -3402,6 +3402,24 @@ class QualityMetricsMixin(SymbolGateMixin):
                     "debt_to_assets",
                     "gross_margin",
                     "ebitda",
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                    # follow-up): the sibling royalty-trust block above already includes all 6
+                    # of these FCF/OCF-derived fields in its own recategorize-fields tuple, but
+                    # this RIC block never got them - a RIC's "Statement of Changes in Net
+                    # Assets" has no CapitalExpenditures/OperatingCashFlow concept either (same
+                    # structural fact as its debt/cash/interest gaps above), so free_cash_flow's
+                    # capex dependency and operating_cash_flow itself both fall to the generic
+                    # "missing_sec_data" already in _ric_source_reasons below. Live-confirmed 63
+                    # active-universe RIC symbols stuck on "missing_sec_data" for fcf_margin/
+                    # fcf_to_net_income/free_cash_flow (vs. 19 siblings that already resolve to
+                    # "registered_investment_company_no_xbrl" via some other path) and 14 more
+                    # for ocf_to_net_income/operating_cash_flow/accruals_ratio.
+                    "fcf_margin",
+                    "fcf_to_net_income",
+                    "free_cash_flow",
+                    "ocf_to_net_income",
+                    "operating_cash_flow",
+                    "accruals_ratio",
                 )
                 _ric_source_reasons = {
                     "missing_sec_data",
