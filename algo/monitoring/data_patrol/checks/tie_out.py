@@ -167,6 +167,19 @@ _QUICK_RATIO_TOLERANCE = 0.0001
 # $130.2B vs total_assets $20.2B, a ~6.4x mismatch) and 8/4,171 for current_liabilities vs
 # total_liabilities, both far below the noise floor of the loosest checks in this file.
 _CURRENT_VS_TOTAL_TOLERANCE_PCT = 0.001
+# long_term_debt <= total_liabilities is the same subset/category structural inequality as
+# current_assets/current_liabilities above (long-term debt is one liability line item, never
+# the whole liability side), but is noisier in practice - live feasibility check against the
+# local DB (2026-09-07) found 64/4,244 comparable symbol/years beyond a 0.1% slack, higher than
+# current_assets_le_total_assets's 1/4,180 but still a small minority driven by real
+# wrong-magnitude bugs, not filer-side convention differences (spot-checked: INCY FY2018
+# long_term_debt tagged at $19.094B vs a real total_liabilities of $719.8M, a ~26.5x mismatch -
+# Incyte's real 2018 debt was a ~$402M convertible note). Deliberately compares long_term_debt
+# ALONE, not long_term_debt + short_term_debt - summing introduced ~30% more false positives in
+# the same feasibility check (87/4,396) because some filers double-tag the current portion of
+# long-term debt under both concepts, the same double-counting risk this file's own O&G capex
+# dual-concept-sum fix and the rejected operating_income=gross_profit-opex check ran into.
+_LONG_TERM_DEBT_TOLERANCE_PCT = 0.001
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
 # Depository institutions never tag a cash flow statement whose "cash_and_equivalents" concept
@@ -236,6 +249,7 @@ class TieOutChecker(BaseCheck):
         self.check_quick_ratio_le_current_ratio(cur)
         self.check_current_assets_le_total_assets(cur)
         self.check_current_liabilities_le_total_liabilities(cur)
+        self.check_long_term_debt_le_total_liabilities(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -1163,6 +1177,67 @@ class TieOutChecker(BaseCheck):
             logger.error(f"[TieOutChecker] current_liabilities_le_total_liabilities failed: {e}", exc_info=True)
             self.log(
                 "current_liabilities_le_total_liabilities",
+                ERROR,
+                "annual_balance_sheet",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_long_term_debt_le_total_liabilities(self, cur: Any) -> None:
+        """long_term_debt <= total_liabilities (both from annual_balance_sheet, same row).
+
+        ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit + tie-out CI
+        completeness review), same subset/category structural inequality as
+        check_current_assets_le_total_assets/check_current_liabilities_le_total_liabilities
+        above - long_term_debt is one liability line item, never the whole liability side. See
+        _LONG_TERM_DEBT_TOLERANCE_PCT's own comment for why this compares long_term_debt alone
+        (not summed with short_term_debt) and for the live-feasibility numbers (64/4,244).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year, b.total_liabilities, b.long_term_debt
+                FROM annual_balance_sheet b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.total_liabilities IS NOT NULL
+                  AND b.long_term_debt IS NOT NULL
+                  AND b.total_liabilities != 0
+                ORDER BY b.symbol, b.fiscal_year DESC
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                total_liabilities, long_term_debt = (
+                    float(row["total_liabilities"]),
+                    float(row["long_term_debt"]),
+                )
+                residual = long_term_debt - total_liabilities
+                tolerance = abs(total_liabilities) * _LONG_TERM_DEBT_TOLERANCE_PCT
+                if residual > tolerance:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "total_liabilities": total_liabilities,
+                            "long_term_debt": long_term_debt,
+                            "residual": residual,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["residual"], reverse=True)
+                self.log(
+                    "long_term_debt_le_total_liabilities",
+                    WARN,
+                    "annual_balance_sheet",
+                    f"{len(flagged)} symbol(s) fail long_term_debt <= total_liabilities beyond "
+                    f"{_LONG_TERM_DEBT_TOLERANCE_PCT:.1%} slack",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] long_term_debt_le_total_liabilities failed: {e}", exc_info=True)
+            self.log(
+                "long_term_debt_le_total_liabilities",
                 ERROR,
                 "annual_balance_sheet",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",

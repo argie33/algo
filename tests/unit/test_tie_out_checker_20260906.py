@@ -804,10 +804,82 @@ class TestCurrentLiabilitiesLeTotalLiabilities:
         assert checker.results[0].severity == ERROR
 
 
+class TestLongTermDebtLeTotalLiabilities:
+    def test_flags_long_term_debt_above_total_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADLTD",
+                        "fiscal_year": 2018,
+                        "total_liabilities": 719_795_000.0,
+                        "long_term_debt": 19_094_000_000.0,  # far exceeds total_liabilities
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_long_term_debt_le_total_liabilities(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "long_term_debt_le_total_liabilities"
+        assert checker.results[0].details["examples"][0]["symbol"] == "BADLTD"
+
+    def test_does_not_flag_long_term_debt_within_total_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "GOODLTD",
+                        "fiscal_year": 2025,
+                        "total_liabilities": 1_000_000_000.0,
+                        "long_term_debt": 400_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_long_term_debt_le_total_liabilities(cur)
+        assert checker.results == []
+
+    def test_does_not_flag_long_term_debt_equal_total_liabilities(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "ALLDEBT",
+                        "fiscal_year": 2025,
+                        "total_liabilities": 1_000_000_000.0,
+                        "long_term_debt": 1_000_000_000.0,  # no other liabilities - legitimate
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_long_term_debt_le_total_liabilities(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_long_term_debt_le_total_liabilities(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_long_term_debt_le_total_liabilities(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "long_term_debt_le_total_liabilities"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_thirteen_checks(self) -> None:
-        cur = _mock_cursor([[], [], [], [], [], [], [], [], [], [], [], [], []])
+    def test_run_calls_all_fourteen_checks(self) -> None:
+        cur = _mock_cursor([[], [], [], [], [], [], [], [], [], [], [], [], [], []])
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 13
+        assert cur.execute.call_count == 14
