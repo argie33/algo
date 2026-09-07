@@ -49,6 +49,7 @@ def _patched(sizer, active_positions_value="0"):
         patch.object(sizer, "get_phase_size_multiplier", return_value=1.0),
         patch.object(sizer, "get_vix_caution_multiplier", return_value=Decimal("1.0")),
         patch.object(sizer, "get_data_maturity_multiplier", return_value=Decimal("1.0")),
+        patch.object(sizer, "get_symbol_position_value", return_value=Decimal("0")),
     )
 
 
@@ -68,7 +69,7 @@ class TestMaxPctOfAdvDollars:
         checks no query mentions price_daily/volume rather than asserting zero DB calls)."""
         sizer = _make_sizer()
         patches = _patched(sizer)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
             with patch("algo.trading.position_sizer.DatabaseContext") as mock_db_ctx:
                 result = sizer._calculate_with_external_cursor(
                     symbol="AAPL",
@@ -90,7 +91,7 @@ class TestMaxPctOfAdvDollars:
         skipped there (not fail closed), not raise or block."""
         sizer = _make_sizer(max_pct_of_adv_dollars=1.0)
         patches = _patched(sizer)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
             with patch("algo.trading.position_sizer.DatabaseContext") as mock_db_ctx:
                 result = sizer._calculate_with_external_cursor(
                     symbol="AAPL",
@@ -111,7 +112,7 @@ class TestMaxPctOfAdvDollars:
         percentage caps would normally size a much larger position."""
         sizer = _make_sizer(max_pct_of_adv_dollars=1.0)
         patches = _patched(sizer)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
             with patch(
                 "algo.trading.position_sizer.DatabaseContext",
                 return_value=_db_context_with_adv(1_000_000.0),
@@ -132,7 +133,7 @@ class TestMaxPctOfAdvDollars:
     def test_rejects_with_no_room_when_even_one_share_exceeds_cap(self):
         sizer = _make_sizer(max_pct_of_adv_dollars=1.0)
         patches = _patched(sizer)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
             with patch(
                 "algo.trading.position_sizer.DatabaseContext",
                 return_value=_db_context_with_adv(1000.0),  # 1% = $10 ceiling, entry is $100
@@ -155,7 +156,7 @@ class TestMaxPctOfAdvDollars:
         job, not this cap's)."""
         sizer = _make_sizer(max_pct_of_adv_dollars=1.0)
         patches = _patched(sizer)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
             with patch(
                 "algo.trading.position_sizer.DatabaseContext",
                 return_value=_db_context_with_adv(None),
@@ -175,7 +176,7 @@ class TestMaxPctOfAdvDollars:
         sizer = _make_sizer(max_pct_of_adv_dollars=0)
         patches = _patched(sizer)
         try:
-            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
                 sizer._calculate_with_external_cursor(
                     symbol="AAPL",
                     entry_price=Decimal("100"),
