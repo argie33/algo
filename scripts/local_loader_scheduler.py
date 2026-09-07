@@ -278,10 +278,13 @@ def _monitor_loader_progress(
                     stall_duration = now - last_pct_time
                     row_stall_duration = now - last_row_count_time
                     updated_at_stall_duration = now - last_max_updated_time
+                    # completion_pct carries over nonzero from the loader's prior successful
+                    # run and is never reset - requiring last_pct<=0.0 here permanently blocked
+                    # a real stall from ever being detected once a loader had run successfully
+                    # once (2026-09-07, analyst_sentiment_analysis wedged 58min undetected).
                     is_stalled = (
                         stall_duration > max_stall_sec
                         and row_stall_duration > max_stall_sec
-                        and (last_pct is None or last_pct <= 0.0)
                         and (not has_updated_at or updated_at_stall_duration > max_stall_sec)
                     )
                     if is_stalled:
