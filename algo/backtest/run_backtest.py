@@ -64,6 +64,21 @@ more than one regime). The default ranking stays `signal_quality_score` until th
 callers/results are unaffected by this change. Momentum sub-score is price-based (1m/3m/6m/12m)
 so recency bias is expected for stocks that gained since signal date, in either ranking mode.
 
+CAVEAT, unaddressed (real-money-readiness audit, 2026-09-07): this backtest's EXIT logic
+does not match live's. Live (`algo/trading/executor.py`'s `execute_exit`/`ExitHandler`) runs a
+3-tier R-multiple partial-exit system (T1/T2/T3 scale-out targets) with trailing stops on the
+runner. This backtest instead uses a single fixed `--stop-loss`/`--profit-target`/`--max-hold-
+days` all-or-nothing exit per position - no partial scale-outs, no trailing stop. The entry-lag
+and slippage fixes documented above are real and correctly implemented, but this backtest's
+historical Sharpe/return numbers describe a materially SIMPLER exit strategy than the one live
+actually runs - they should NOT be read as validating live's tiered partial-exit behavior
+specifically. Either extend this backtest to simulate the T1/T2/T3 system before treating its
+results as evidence for a real-money go-live decision, or treat backtest output here as "does
+the entry/ranking signal have edge" evidence only, separate from "does the live exit strategy
+work" (which currently has no backtest coverage at all). There is also no live-vs-backtest
+performance drift detector anywhere in this codebase - nothing would alert if live trading
+started deviating from what backtest predicted, even for the parts backtest does simulate.
+
 Usage:
     python -m algo.backtest.run_backtest [options]
 
