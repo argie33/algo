@@ -577,7 +577,7 @@
   "scripts/fix_loader_status_drift.py": 259,
   "scripts/flatten_all_positions.py": 252,
   "scripts/load_credentials.py": 136,
-  "scripts/local_loader_scheduler.py": 1790,
+  "scripts/local_loader_scheduler.py": 1853,
   "scripts/manage_halt_flag.py": 90,
   "scripts/monitor_data_staleness.py": 932,
   "scripts/orchestrator_scheduler.py": 199,
