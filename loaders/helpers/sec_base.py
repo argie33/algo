@@ -516,6 +516,74 @@ class SecEdgarStatementLoader(SecLoaderBase):
             self._dual_class_security_names = cached
         return cached
 
+    def _get_dual_class_sibling_symbols(self) -> frozenset[str]:
+        """Bulk-fetch symbols that have an active dual-class sibling, once per loader run.
+
+        FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit + "make sure we
+        have all the right tie outs" sweep, found via the new check_diluted_ge_basic_shares
+        tie-out's CWEN flag): shares_outstanding_basic's fallback tier (common_stock_shares_
+        issued/common_stock_shares_outstanding, see field_mapping's comment in
+        load_financial_statements.py) reads a bare balance-sheet-cover concept that's
+        entity-wide (summed across every share class a multi-class filer has), but
+        shares_outstanding_diluted for the same symbol can be a real, undimensioned,
+        class-scoped WeightedAverageNumberOfDilutedSharesOutstanding value when that filer's
+        EPS footnote is computed per-class - live-confirmed via Clearway Energy (CWEN, Class
+        C common): real diluted weighted-average = 35,000,000 (Class C only, exactly matches
+        CWEN's own reported EPS denominator), but CommonStockSharesOutstanding =
+        203,773,674 (Class A+B+C combined balance-sheet total) - an apples-to-oranges
+        comparison that produced a nonsensical shares_outstanding_basic > shares_outstanding_
+        diluted result, caught by tie_out.py's check_diluted_ge_basic_shares (added same
+        session, `60de22f75`). This is a DIFFERENT gap than has_dual_class_sibling in
+        sec_valuations_shares.py: that gating only covers the sec_valuations pipeline's own
+        shares-outstanding computation, never annual_income_statement.shares_outstanding_
+        basic itself, which is what this loader (and the tie-out check) actually reads.
+        Reuses the same three detection tiers (dot-suffix, DUAL_CLASS_NO_SEPARATOR_ROOTS,
+        DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES) as one bulk query instead of sec_valuations_
+        shares.py's per-symbol round trip, matching this file's existing bulk-fetch-once
+        convention (_get_reit_symbols et al.) rather than adding N queries per loader run.
+        """
+        cached: frozenset[str] | None = getattr(self, "_dual_class_sibling_symbols", None)
+        if cached is None:
+            from loaders.load_sec_valuations import (
+                DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES,
+                DUAL_CLASS_NO_SEPARATOR_ROOTS,
+            )
+            from utils.db.context import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT symbol FROM stock_symbols WHERE active = true")
+                all_symbols = frozenset(row[0] for row in cur.fetchall())
+
+            # roots[base] collects every active symbol (bare root and any dot-suffixed
+            # siblings) sharing that base - e.g. roots["CWEN"] = {"CWEN", "CWEN.A"}.
+            roots: dict[str, set[str]] = {}
+            for sym in all_symbols:
+                base = sym.split(".")[0] if "." in sym else sym
+                roots.setdefault(base, set()).add(sym)
+            flagged: set[str] = set()
+            for sym in all_symbols:
+                if "." in sym:
+                    base = sym.split(".")[0]
+                    siblings = roots.get(base, set()) - {sym}
+                    if siblings:
+                        flagged.add(sym)
+                        flagged |= siblings
+                    continue
+                no_sep_root = next(
+                    (r for r in DUAL_CLASS_NO_SEPARATOR_ROOTS if sym.startswith(r) and len(sym) == len(r) + 1),
+                    None,
+                )
+                if no_sep_root and no_sep_root in all_symbols:
+                    flagged.add(sym)
+                    flagged.add(no_sep_root)
+            for family in DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES:
+                present = family & all_symbols
+                if len(present) > 1:
+                    flagged |= present
+            cached = frozenset(flagged)
+            self._dual_class_sibling_symbols = cached
+        return cached
+
     def _get_insurance_symbols(self) -> frozenset[str]:
         """Bulk-fetch insurance-carrier symbols (SIC 6311/6321/6331/6351/6361/6399) once per
         loader run, not per-row.
@@ -1521,6 +1589,21 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # DIFFERENT concept occupying a later list position - the ordinary
                     # last-listed-wins rule only ever intended to arbitrate between
                     # comparable-quality concepts.
+                    continue
+                elif (
+                    db_field == "shares_outstanding_basic"
+                    and sec_field in ("common_stock_shares_issued", "common_stock_shares_outstanding")
+                    and r.get("symbol") in self._get_dual_class_sibling_symbols()
+                ):
+                    # See _get_dual_class_sibling_symbols's own docstring (CWEN live-confirmed):
+                    # these two concepts are the entity-wide balance-sheet share count (every
+                    # class combined), a real fallback only when the filer's other reported
+                    # share/EPS concepts are equally entity-wide - true for a single-class
+                    # filer, but not for a dual/multi-class one whose real weighted-average
+                    # diluted count (when tagged) is scoped to just this ticker's own class.
+                    # Left NULL rather than storing a mismatched entity-wide total under
+                    # shares_outstanding_basic - same "don't fabricate, leave unavailable"
+                    # discipline as every other guard in this method.
                     continue
                 else:
                     precision_scale = self._get_field_precision_scale(db_field)
