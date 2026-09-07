@@ -277,6 +277,22 @@ _OPERATING_INCOME_BOUND_TOLERANCE_FLOOR = 500_000.0
 _GOODWILL_TOLERANCE_PCT = 0.001
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
+# Round 5 (2026-09-07, goal: "run all the tie-outs" buildout). stock_based_compensation/
+# common_stock_repurchased should always be non-negative magnitudes (a non-cash addback and a
+# cash outflow, respectively) - load_financial_statements.py's transform() now abs()'s both
+# the same way it already does for dividends_paid, so any row still negative in the DB is
+# either pending that fix's reload or a future extraction regression this guard exists to
+# catch. See that fix's commit for the live AAMI/JCTC evidence this bug is real, not
+# speculative.
+_MIN_PLAUSIBLE_SHARES_OUTSTANDING = 100_000
+_MAX_PLAUSIBLE_SHARES_OUTSTANDING = 500_000_000_000
+# ^ mirrors load_financial_statements.py's _reject_implausible_shares_outstanding() bounds
+# exactly (kept in sync intentionally, not re-derived) - shares_outstanding_dei sits in the
+# same EPS-derivation fallback chain as shares_outstanding_basic/diluted, and this check is
+# the same "regression guard for a loader-side fix" role every bound check in this file plays
+# for its own field. See that fix's commit for the live EEFT evidence (dei tagged
+# 52,752,851,000,000,000 for FY2020 vs a real ~52.2-52.3M).
+
 # accounts_payable <= current_liabilities: same subset/category structural inequality as
 # goodwill_le_total_assets above - AP is one liability line item, never the whole current-
 # liability side. Live feasibility check against the local DB (2026-09-07, same session as the
@@ -485,6 +501,16 @@ class TieOutChecker(BaseCheck):
         self.check_quarterly_goodwill_le_total_assets(cur)
         self.check_quarterly_accounts_payable_le_current_liabilities(cur)
         self.check_quarterly_cash_le_current_assets(cur)
+        # Round 5 (2026-09-07, goal: "run all the tie-outs" buildout): guard checks for the
+        # 3 fields found live-verified-broken this round (sign-flip fix + dei scale guard,
+        # see load_financial_statements.py) - these fire on ANY row the fix hasn't reached
+        # yet (pre-reload) or that somehow bypasses the loader-side guard in the future.
+        self.check_stock_based_compensation_nonnegative(cur)
+        self.check_quarterly_stock_based_compensation_nonnegative(cur)
+        self.check_common_stock_repurchased_nonnegative(cur)
+        self.check_quarterly_common_stock_repurchased_nonnegative(cur)
+        self.check_shares_outstanding_dei_plausible_scale(cur)
+        self.check_quarterly_shares_outstanding_dei_plausible_scale(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -3599,3 +3625,194 @@ class TieOutChecker(BaseCheck):
                 "quarterly_balance_sheet",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
             )
+
+    def _check_nonnegative_cashflow_field(
+        self, cur: Any, *, table: str, field: str, check_name: str, quarterly: bool
+    ) -> None:
+        """Shared implementation for the 4 Round 5 sign-flip guard checks below - `field`
+        should always be >= 0 (a non-cash addback or cash outflow magnitude), same
+        "loader-side abs() fix, DB-side regression guard" pairing every other Round 5 check
+        uses. Not a generic helper other rounds should extend - kept private/narrow like the
+        rest of this file's single-purpose check methods.
+        """
+        try:
+            order_cols = (
+                "b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" if quarterly else "b.symbol, b.fiscal_year DESC"
+            )
+            quarter_col = ", b.fiscal_quarter" if quarterly else ""
+            cur.execute(
+                f"""
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year{quarter_col}, b.{field}
+                FROM {table} b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.{field} IS NOT NULL
+                ORDER BY {order_cols}
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                value = float(row[field])
+                if value < 0:
+                    example = {"symbol": row["symbol"], "fiscal_year": row["fiscal_year"], field: value}
+                    if quarterly:
+                        example["fiscal_quarter"] = row["fiscal_quarter"]
+                    flagged.append(example)
+            if flagged:
+                flagged.sort(key=lambda r: r[field])
+                unit = "symbol/quarter(s)" if quarterly else "symbol(s)"
+                self.log(
+                    check_name,
+                    WARN,
+                    table,
+                    f"{len(flagged)} {unit} have negative {field} (should always be >= 0)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] {check_name} failed: {e}", exc_info=True)
+            self.log(
+                check_name,
+                ERROR,
+                table,
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_stock_based_compensation_nonnegative(self, cur: Any) -> None:
+        """stock_based_compensation >= 0 (annual_cash_flow).
+
+        ADDED 2026-09-07 (Round 5, goal: "run all the tie-outs" buildout). Regression guard
+        for the sign-flip fix landed the same session - see _MIN_PLAUSIBLE_SHARES_OUTSTANDING's
+        neighboring comment block for the live AAMI evidence (AllocatedShareBasedCompensation
+        Expense tagged -$23.2M/-$47.7M for FY2024/2025) this fix and guard were built for.
+        """
+        self._check_nonnegative_cashflow_field(
+            cur,
+            table="annual_cash_flow",
+            field="stock_based_compensation",
+            check_name="stock_based_compensation_nonnegative",
+            quarterly=False,
+        )
+
+    def check_quarterly_stock_based_compensation_nonnegative(self, cur: Any) -> None:
+        """stock_based_compensation >= 0 (quarterly_cash_flow). Quarterly mirror of
+        check_stock_based_compensation_nonnegative."""
+        self._check_nonnegative_cashflow_field(
+            cur,
+            table="quarterly_cash_flow",
+            field="stock_based_compensation",
+            check_name="quarterly_stock_based_compensation_nonnegative",
+            quarterly=True,
+        )
+
+    def check_common_stock_repurchased_nonnegative(self, cur: Any) -> None:
+        """common_stock_repurchased >= 0 (annual_cash_flow).
+
+        ADDED 2026-09-07 (Round 5, goal: "run all the tie-outs" buildout). Regression guard
+        for the sign-flip fix landed the same session - live-confirmed via JCTC's own filed
+        10-K/10-K-A XBRL: PaymentsForRepurchaseOfCommonStock tagged -$3,075,559/-$7,188 for
+        FY2012/2013.
+        """
+        self._check_nonnegative_cashflow_field(
+            cur,
+            table="annual_cash_flow",
+            field="common_stock_repurchased",
+            check_name="common_stock_repurchased_nonnegative",
+            quarterly=False,
+        )
+
+    def check_quarterly_common_stock_repurchased_nonnegative(self, cur: Any) -> None:
+        """common_stock_repurchased >= 0 (quarterly_cash_flow). Quarterly mirror of
+        check_common_stock_repurchased_nonnegative."""
+        self._check_nonnegative_cashflow_field(
+            cur,
+            table="quarterly_cash_flow",
+            field="common_stock_repurchased",
+            check_name="quarterly_common_stock_repurchased_nonnegative",
+            quarterly=True,
+        )
+
+    def _check_shares_outstanding_dei_plausible_scale(
+        self, cur: Any, *, table: str, check_name: str, quarterly: bool
+    ) -> None:
+        """Shared implementation for the annual/quarterly shares_outstanding_dei scale-guard
+        checks below."""
+        try:
+            order_cols = (
+                "b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" if quarterly else "b.symbol, b.fiscal_year DESC"
+            )
+            quarter_col = ", b.fiscal_quarter" if quarterly else ""
+            cur.execute(
+                f"""
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year{quarter_col}, b.shares_outstanding_dei
+                FROM {table} b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.shares_outstanding_dei IS NOT NULL
+                  AND b.shares_outstanding_dei > 0
+                ORDER BY {order_cols}
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                value = float(row["shares_outstanding_dei"])
+                if value < _MIN_PLAUSIBLE_SHARES_OUTSTANDING or value > _MAX_PLAUSIBLE_SHARES_OUTSTANDING:
+                    example = {
+                        "symbol": row["symbol"],
+                        "fiscal_year": row["fiscal_year"],
+                        "shares_outstanding_dei": value,
+                    }
+                    if quarterly:
+                        example["fiscal_quarter"] = row["fiscal_quarter"]
+                    flagged.append(example)
+            if flagged:
+                flagged.sort(key=lambda r: r["shares_outstanding_dei"], reverse=True)
+                unit = "symbol/quarter(s)" if quarterly else "symbol(s)"
+                self.log(
+                    check_name,
+                    WARN,
+                    table,
+                    f"{len(flagged)} {unit} have an implausible shares_outstanding_dei "
+                    f"(outside [{_MIN_PLAUSIBLE_SHARES_OUTSTANDING:,}, "
+                    f"{_MAX_PLAUSIBLE_SHARES_OUTSTANDING:,}]) - likely a filer/filing-agent "
+                    "XBRL tagging error, same class as EEFT's FY2020 case.",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] {check_name} failed: {e}", exc_info=True)
+            self.log(
+                check_name,
+                ERROR,
+                table,
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_shares_outstanding_dei_plausible_scale(self, cur: Any) -> None:
+        """shares_outstanding_dei within a plausible real-share-count range
+        (annual_income_statement).
+
+        ADDED 2026-09-07 (Round 5, goal: "run all the tie-outs" buildout). Regression guard
+        for the loader-side fix landed the same session - see
+        _reject_implausible_shares_outstanding()'s docstring in load_financial_statements.py
+        for the live EEFT evidence (dei:EntityCommonStockSharesOutstanding tagged
+        52,752,851,000,000,000 for FY2020 vs a real ~52.2-52.3M per the filer's own FY2020
+        10-Qs).
+        """
+        self._check_shares_outstanding_dei_plausible_scale(
+            cur,
+            table="annual_income_statement",
+            check_name="shares_outstanding_dei_plausible_scale",
+            quarterly=False,
+        )
+
+    def check_quarterly_shares_outstanding_dei_plausible_scale(self, cur: Any) -> None:
+        """shares_outstanding_dei within a plausible real-share-count range
+        (quarterly_income_statement). Quarterly mirror of
+        check_shares_outstanding_dei_plausible_scale."""
+        self._check_shares_outstanding_dei_plausible_scale(
+            cur,
+            table="quarterly_income_statement",
+            check_name="quarterly_shares_outstanding_dei_plausible_scale",
+            quarterly=True,
+        )

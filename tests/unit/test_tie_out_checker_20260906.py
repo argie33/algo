@@ -3229,10 +3229,199 @@ class TestQuarterlyCashLeCurrentAssets:
         assert checker.results[0].severity == ERROR
 
 
+class TestStockBasedCompensationNonnegative:
+    def test_flags_negative_row(self) -> None:
+        cur = _mock_cursor([[{"symbol": "AAMI", "fiscal_year": 2025, "stock_based_compensation": -47_700_000.0}]])
+        checker = _checker()
+        checker.check_stock_based_compensation_nonnegative(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "stock_based_compensation_nonnegative"
+        assert checker.results[0].details["examples"][0]["symbol"] == "AAMI"
+
+    def test_does_not_flag_nonnegative_row(self) -> None:
+        cur = _mock_cursor([[{"symbol": "AAPL", "fiscal_year": 2025, "stock_based_compensation": 11_000_000_000.0}]])
+        checker = _checker()
+        checker.check_stock_based_compensation_nonnegative(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_stock_based_compensation_nonnegative(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "DISTINCT ON (b.symbol)" in executed_sql
+        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "annual_cash_flow" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_stock_based_compensation_nonnegative(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "stock_based_compensation_nonnegative"
+        assert checker.results[0].severity == ERROR
+
+
+class TestQuarterlyStockBasedCompensationNonnegative:
+    def test_flags_negative_row(self) -> None:
+        cur = _mock_cursor(
+            [[{"symbol": "AAMI", "fiscal_year": 2025, "fiscal_quarter": 4, "stock_based_compensation": -1_000.0}]]
+        )
+        checker = _checker()
+        checker.check_quarterly_stock_based_compensation_nonnegative(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_stock_based_compensation_nonnegative"
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_stock_based_compensation_nonnegative(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "quarterly_cash_flow" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_stock_based_compensation_nonnegative(cur)  # must not raise
+        assert checker.results[0].severity == ERROR
+
+
+class TestCommonStockRepurchasedNonnegative:
+    def test_flags_negative_row(self) -> None:
+        cur = _mock_cursor([[{"symbol": "JCTC", "fiscal_year": 2013, "common_stock_repurchased": -7_188.0}]])
+        checker = _checker()
+        checker.check_common_stock_repurchased_nonnegative(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "common_stock_repurchased_nonnegative"
+
+    def test_does_not_flag_nonnegative_row(self) -> None:
+        cur = _mock_cursor([[{"symbol": "AAPL", "fiscal_year": 2025, "common_stock_repurchased": 90_000_000_000.0}]])
+        checker = _checker()
+        checker.check_common_stock_repurchased_nonnegative(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_common_stock_repurchased_nonnegative(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "annual_cash_flow" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_common_stock_repurchased_nonnegative(cur)  # must not raise
+        assert checker.results[0].severity == ERROR
+
+
+class TestQuarterlyCommonStockRepurchasedNonnegative:
+    def test_flags_negative_row(self) -> None:
+        cur = _mock_cursor(
+            [[{"symbol": "JCTC", "fiscal_year": 2013, "fiscal_quarter": 4, "common_stock_repurchased": -7_188.0}]]
+        )
+        checker = _checker()
+        checker.check_quarterly_common_stock_repurchased_nonnegative(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_common_stock_repurchased_nonnegative"
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_common_stock_repurchased_nonnegative(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "quarterly_cash_flow" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_common_stock_repurchased_nonnegative(cur)  # must not raise
+        assert checker.results[0].severity == ERROR
+
+
+class TestSharesOutstandingDeiPlausibleScale:
+    def test_flags_implausibly_large_row(self) -> None:
+        cur = _mock_cursor(
+            [[{"symbol": "EEFT", "fiscal_year": 2020, "shares_outstanding_dei": 52_752_851_000_000_000.0}]]
+        )
+        checker = _checker()
+        checker.check_shares_outstanding_dei_plausible_scale(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "shares_outstanding_dei_plausible_scale"
+        assert checker.results[0].details["examples"][0]["symbol"] == "EEFT"
+
+    def test_flags_implausibly_small_row(self) -> None:
+        cur = _mock_cursor([[{"symbol": "TINY", "fiscal_year": 2024, "shares_outstanding_dei": 52_205.0}]])
+        checker = _checker()
+        checker.check_shares_outstanding_dei_plausible_scale(cur)
+        assert len(checker.results) == 1
+
+    def test_does_not_flag_plausible_row(self) -> None:
+        cur = _mock_cursor([[{"symbol": "PJT", "fiscal_year": 2020, "shares_outstanding_dei": 28_000_000.0}]])
+        checker = _checker()
+        checker.check_shares_outstanding_dei_plausible_scale(cur)
+        assert checker.results == []
+
+    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_shares_outstanding_dei_plausible_scale(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "annual_income_statement" in executed_sql
+        assert "b.shares_outstanding_dei > 0" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_shares_outstanding_dei_plausible_scale(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "shares_outstanding_dei_plausible_scale"
+        assert checker.results[0].severity == ERROR
+
+
+class TestQuarterlySharesOutstandingDeiPlausibleScale:
+    def test_flags_implausibly_large_row(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "EEFT",
+                        "fiscal_year": 2020,
+                        "fiscal_quarter": 4,
+                        "shares_outstanding_dei": 52_752_851_000_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_shares_outstanding_dei_plausible_scale(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_shares_outstanding_dei_plausible_scale"
+
+    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_shares_outstanding_dei_plausible_scale(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "quarterly_income_statement" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_shares_outstanding_dei_plausible_scale(cur)  # must not raise
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_forty_seven_checks(self) -> None:
-        cur = _mock_cursor([[]] * 47)
+    def test_run_calls_all_fifty_three_checks(self) -> None:
+        cur = _mock_cursor([[]] * 53)
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 47
+        assert cur.execute.call_count == 53
