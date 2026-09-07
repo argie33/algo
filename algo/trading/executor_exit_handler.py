@@ -452,8 +452,23 @@ class ExitHandler:
         # (the caller logged a generic "EARLY EXIT FAILED" and moved on). Prefer the open
         # position deterministically so a stop-loss exit is never blocked by stale linkage
         # on an unrelated closed position.
+        # FIX 2026-09-07 (real-money-readiness audit): for a pyramided position (2+ legs,
+        # entry_qty/entry_price documented as per-leg on algo_trades - see
+        # executor_entry_handler.py's blended-avg-price comment above), every exit call site
+        # resolves trade_id = trade_ids_arr[0] - always the FIRST/original leg, never the
+        # blended position. Selecting t.entry_price here paired the first leg's own entry
+        # price with p.quantity (the position's TOTAL remaining quantity across all legs),
+        # so a full exit priced every share - including later, differently-priced pyramid
+        # adds - at the first leg's price. Concrete example: leg1 100sh@$10, leg2 (pyramid
+        # add) 50sh@$15 -> avg_entry_price correctly blends to $11.67 on algo_positions, but
+        # a full exit at $20 using entry_price=$10 for all 150sh computed pnl_dollars=$1500
+        # instead of the true (20-10)*100 + (20-15)*50 = $1250 - a 20% overstatement fed
+        # directly into algo_trades.profit_loss_dollars/exit_r_multiple. p.avg_entry_price is
+        # already correctly quantity-weighted on every entry add (executor_entry_handler.py),
+        # so prefer it over the single-leg t.entry_price whenever a position row exists.
         cur.execute(
-            """SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
+            """SELECT t.symbol, COALESCE(p.avg_entry_price, t.entry_price) AS entry_price,
+                       t.entry_quantity, t.stop_loss_price,
                        t.alpaca_order_id,
                        p.position_id, p.quantity, p.target_levels_hit, p.status
                 FROM algo_trades t
