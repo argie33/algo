@@ -375,6 +375,15 @@ class ExitStrategyChain:
         tightening could silently starve a genuine exhaustion exit for an entire cycle. Now
         keeps scanning past a stop-raise-only trigger for a real (fraction > 0) exit among
         remaining strategies; only falls back to the stop-raise if nothing else fires.
+
+        FIX (2026-09-07, same day BreakevenStopStrategy was added): once two independent
+        stop-raise-only strategies can trigger the same cycle (chandelier trail and breakeven),
+        keeping only the FIRST one seen meant whichever sat earlier in `self.strategies` always
+        won, even on a cycle where the other proposed a strictly higher (better) stop. Each
+        candidate is a floor proposal, not a final decision - the actual write path only ever
+        raises the stored stop, never lowers it (see executor_exit_handler.py's
+        _raise_stop_only) - so comparing new_stop across every triggered stop-raise signal and
+        keeping the highest is strictly more correct than picking whichever fired first.
         """
         stop_raise_signal: ExitSignal | None = None
         for strategy in self.strategies:
@@ -382,7 +391,10 @@ class ExitStrategyChain:
             if signal.triggered:
                 if signal.fraction > 0:
                     return signal
-                if stop_raise_signal is None:
+                if stop_raise_signal is None or (
+                    signal.new_stop is not None
+                    and (stop_raise_signal.new_stop is None or signal.new_stop > stop_raise_signal.new_stop)
+                ):
                     stop_raise_signal = signal
 
         if stop_raise_signal is not None:
