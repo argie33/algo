@@ -120,6 +120,7 @@ class TradingConfig:
         Returns:
             {
                 "require_target_pullback": False,
+                "use_scale_out_targets": True,
                 "t1_target_r_multiple": 1.5,
                 "t2_target_r_multiple": 3.0,
                 "t3_target_r_multiple": 4.0,
@@ -140,6 +141,7 @@ class TradingConfig:
         """
         return {
             "require_target_pullback": self.get("require_target_pullback"),
+            "use_scale_out_targets": self.get("use_scale_out_targets"),
             "t1_target_r_multiple": self.get("t1_target_r_multiple"),
             "t2_target_r_multiple": self.get("t2_target_r_multiple"),
             "t3_target_r_multiple": self.get("t3_target_r_multiple"),

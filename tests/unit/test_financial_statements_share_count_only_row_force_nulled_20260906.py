@@ -79,13 +79,18 @@ class TestShareCountOnlyRowForceNulled:
 
     def test_revenue_present_still_does_not_queue(self) -> None:
         """A row with a real required field populated must never trigger this, even
-        alongside share-count fields."""
+        alongside share-count fields.
+
+        Uses a raw pre-transform concept key, not the canonical "revenue" column name -
+        see the 2026-09-07 fix comment in fetch_incremental (CELH/DXCM/SHOP/NU regression)
+        for why a fixture keyed by the canonical name doesn't actually exercise this check.
+        """
         loader = _make_loader()
         row = {
             "symbol": "AAPL",
             "fiscal_year": 2024,
-            "revenue": 391_035_000_000,
-            "net_income": None,
+            "revenue_from_contract_with_customer_excluding_assessed_tax": 391_035_000_000,
+            "net_income_loss": None,
             "entity_common_stock_shares_outstanding": 15_000_000_000,
         }
         with patch.object(

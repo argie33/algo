@@ -68,7 +68,30 @@ from .coverage_category_rules import _COVERAGE_CATEGORY_RULES
 # tables alone account for 494 no_segment_dimension_contexts_in_xbrl_xml + 345
 # no_segment_revenue_in_xbrl_xml (839 raw rows, scripts/audit_unavailable_reasons.py) that
 # were inflating the "Missing SEC/XBRL data" headline for gaps that can never move a score.
-_UNSCORED_TABLES: set[str] = {"positioning_metrics", "short_interest_finra", "sec_segment_info", "sec_segment_metrics"}
+#
+# ADDED 2026-09-07 (goal session: score-sanity/coverage audit): institutional_holdings_13f
+# is the SAME whole-table display-only case as positioning_metrics/short_interest_finra two
+# tables above - it's Positioning's other data source, and _score_positioning was fully
+# retired along with that whole pillar (see this file's own comment above; grepped
+# load_stock_scores.py repo-wide, zero references to institutional_ownership_pct or this
+# table). It was missed when positioning_metrics/short_interest_finra were added because this
+# table uses a bare "reason" column (bare_reason_tables in coverage.py) rather than a
+# per-field *_unavailable_reason column, so it read as "just another factor" instead of the
+# same retired-pillar table it actually is. Concretely: load_institutional_holdings_13f.py
+# writes "institutional_ownership_pct_capped_raw_ratio_exceeded_100pct" onto ~1,647 rows
+# where institutional_ownership_pct is REAL and populated (just capped at 100%, per that
+# write site's own 2026-09-07 comment) - since this table had no matching value column for
+# coverage.py's value_col cross-check (bare_reason_tables case), those rows were counted as
+# "missing" purely off the non-null `reason` column and fell through to "Other (errors /
+# excluded)" (no bucket in coverage_category_rules.py maps this string), miscounting real,
+# available, unscored data as an unexplained scored-factor error.
+_UNSCORED_TABLES: set[str] = {
+    "positioning_metrics",
+    "short_interest_finra",
+    "sec_segment_info",
+    "sec_segment_metrics",
+    "institutional_holdings_13f",
+}
 
 _UNSCORED_FACTORS: set[tuple[str, str]] = {
     # Value: _score_value's live formula is pe_ratio(27%) + pb_ratio(27%) + ps_ratio(27%)

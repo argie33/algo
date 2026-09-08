@@ -41,6 +41,7 @@ Phases should NOT convert run_date to UTC or use UTC timestamps for trading logi
 """
 
 import logging
+import os
 import time
 from collections.abc import Callable
 from datetime import date as _date
@@ -732,6 +733,163 @@ def _validate_dependency_freshness(
     return None
 
 
+def _check_data_patrol_results(
+    cur: Any, log_phase_result_fn: Callable[..., Any], allow_missing_patrol: bool = False
+) -> PhaseResult | None:
+    """Gate Phase 1 on the most recent DataPatrol run's findings.
+
+    FIX (2026-09-07, goal: XBRL/tie-out data-confidence audit): this module's own docstring
+    ("ISSUE #6 FIX: Integrate DataPatrol checks to block Phase 1 if data quality issues
+    found... Fails if CRITICAL or ERROR issues found") and terraform/modules/pipeline/main.tf's
+    DataPatrol step comment ("Orchestrator Phase 1 reads data_patrol_log; CRITICAL findings
+    block trading") both describe this exact behavior - but no code anywhere in
+    algo/orchestrator/ or algo/orchestration/ ever actually queried data_patrol_log. Confirmed
+    by grep across the whole tree: the only readers were the dashboard/API endpoints
+    (lambda/api/routes/algo_handlers/monitoring.py, market/data_quality.py). Live-confirmed
+    against the local dev DB the same session this was found: the latest patrol run had 4
+    CRITICAL staleness findings (price_daily, technical_data_daily, buy_sell_daily,
+    trend_template_data) that Phase 1 would have silently ignored. The tie_out.py balance-sheet/
+    EPS/cashflow identity checks and the new XBRL-concept/statistical-anomaly checkers all write
+    to this same table - all of it was advisory-only in practice despite the documented intent.
+
+    CLOSES the fail-open half of that terraform comment too ("if patrol itself errors,
+    pipeline continues... Phase 1 passes vacuously"): missing or stale patrol data now halts
+    by default, same as CRITICAL/ERROR findings - a patrol infra crash/timeout must not read
+    as "nothing to report". Confirmed safe to make this the default: terraform's pipeline
+    DAG always runs the DataPatrol ECS step immediately before TriggerOrchestrator
+    (terraform/modules/pipeline/main.tf), so production Phase 1 always has a fresh patrol run
+    to read - the only way this branch fires in production is the exact infra failure it
+    exists to catch. scripts/run_local_orchestrator.py, confirmed via grep, never invokes
+    DataPatrol itself, so local/dev runs need `python algo/algo_data_patrol.py` run first (see
+    CLAUDE.md) or ALLOW_MISSING_DATA_PATROL=true set explicitly - mirrors the
+    ALLOW_OUTSIDE_MARKET_HOURS pattern (algo/orchestration/orchestrator.py): opt-in only,
+    forced off in execution_mode="auto" (live trading) by the caller in run() below regardless
+    of the env var, so it can never mask a real production patrol outage.
+
+    Returns: PhaseResult halt if the latest patrol run has CRITICAL/ERROR findings, or if no
+    sufficiently-recent patrol run exists (unless allow_missing_patrol=True downgrades the
+    latter to a warning). None if the latest run is fresh and clean.
+    """
+    patrol_freshness_hours = (
+        8  # generous: pipeline runs ~4x/day per CLAUDE.md's morning/afternoon/preclose/evening phases
+    )
+    try:
+        cur.execute("SELECT patrol_run_id, created_at FROM data_patrol_log ORDER BY created_at DESC LIMIT 1")
+        latest = cur.fetchone()
+        if not latest:
+            msg = "data_patrol_log has no rows at all - cannot verify data quality"
+            if allow_missing_patrol:
+                logger.warning(f"[PHASE 1] DataPatrol WARNING: {msg}. Not halting (ALLOW_MISSING_DATA_PATROL=true).")
+                log_phase_result_fn(1, "data_patrol_check", "warning", msg)
+                return None
+            logger.error(f"[PHASE 1] DataPatrol HALT: {msg}.")
+            log_phase_result_fn(1, "data_patrol_check", "halt", msg)
+            return PhaseResult(
+                1,
+                "data_patrol_check",
+                "halted",
+                {"reason": "no_patrol_data"},
+                True,
+                f"{msg}. Halting rather than trade with zero data-quality verification. Run "
+                "`python algo/algo_data_patrol.py` first, or set ALLOW_MISSING_DATA_PATROL=true "
+                "for local/dev testing only.",
+            )
+
+        latest_run_id, latest_created_at = latest
+        cur.execute("SELECT NOW() - %s", (latest_created_at,))
+        age = cur.fetchone()[0]
+        if age > _timedelta(hours=patrol_freshness_hours):
+            msg = (
+                f"most recent patrol run ({latest_created_at}) is {age} old, past the "
+                f"{patrol_freshness_hours}h freshness window - cannot verify current data quality"
+            )
+            if allow_missing_patrol:
+                logger.warning(f"[PHASE 1] DataPatrol WARNING: {msg}. Not halting (ALLOW_MISSING_DATA_PATROL=true).")
+                log_phase_result_fn(1, "data_patrol_check", "warning", msg)
+                return None
+            logger.error(f"[PHASE 1] DataPatrol HALT: {msg}.")
+            log_phase_result_fn(1, "data_patrol_check", "halt", msg)
+            return PhaseResult(
+                1,
+                "data_patrol_check",
+                "halted",
+                {"reason": "stale_patrol_data", "latest_run_id": latest_run_id, "age": str(age)},
+                True,
+                f"{msg}. Halting rather than trade with unverified data. Run "
+                "`python algo/algo_data_patrol.py` first, or set ALLOW_MISSING_DATA_PATROL=true "
+                "for local/dev testing only.",
+            )
+
+        cur.execute(
+            """
+            SELECT check_name, target_table, message
+            FROM data_patrol_log
+            WHERE patrol_run_id = %s AND severity IN ('critical', 'error')
+            ORDER BY check_name
+            """,
+            (latest_run_id,),
+        )
+        blocking = cur.fetchall()
+        if blocking:
+            findings = [f"{name} ({table}): {msg}" for name, table, msg in blocking]
+            summary = "; ".join(findings[:5]) + (f" ... and {len(findings) - 5} more" if len(findings) > 5 else "")
+            logger.error(f"[PHASE 1] DataPatrol CRITICAL/ERROR findings block trading: {summary}")
+            log_phase_result_fn(
+                1, "data_patrol_check", "halt", f"DataPatrol found {len(findings)} blocking issue(s): {summary}"
+            )
+            return PhaseResult(
+                1,
+                "data_patrol_check",
+                "halted",
+                {"patrol_run_id": latest_run_id, "findings": findings},
+                True,
+                f"DataPatrol found {len(findings)} CRITICAL/ERROR data-quality issue(s) in the latest run "
+                f"({latest_run_id}): {summary}. Halting rather than trade on unverified data.",
+            )
+    except Exception as e:
+        # BUG FIX (2026-09-07, real-money-readiness audit, personally re-verified against the
+        # live code + this file's own test suite rather than trusted from memory): this used to
+        # `return None` here (comment claimed "same fail-safe posture as
+        # _validate_dependency_freshness's exception handler" - but that comparison doesn't
+        # hold: that sibling function is explicitly documented, by this same file's own header
+        # docstring, as an enrichment-only/never-halting check, so its exception path matching
+        # its own non-blocking findings path is consistent. THIS function's entire purpose,
+        # per its own docstring above, is to be a hard blocking gate on CRITICAL/ERROR data-
+        # quality findings - its two other failure modes (no patrol rows, stale patrol data)
+        # both correctly halt by default. An exception while querying data_patrol_log is the
+        # same "cannot verify data quality" situation as those two - not a different, safer-
+        # to-ignore one - so treating it as "no issues found" directly contradicted this
+        # function's own "CLOSES the fail-open half" docstring claim: an exception IS exactly
+        # "patrol itself errors... Phase 1 passes vacuously", just from Phase 1's query side
+        # instead of the patrol job's run side. Same allow_missing_patrol opt-out as the other
+        # two "cannot verify" cases now applies here too, for consistency.
+        logger.warning(f"[PHASE 1] Could not check DataPatrol results: {e}")
+        try:
+            cur.connection.rollback()
+        except Exception as rollback_err:
+            logger.warning(f"[PHASE 1] Rollback after failed DataPatrol check also failed: {rollback_err}")
+        msg = f"could not query data_patrol_log to verify data quality: {e}"
+        if allow_missing_patrol:
+            logger.warning(f"[PHASE 1] DataPatrol WARNING: {msg}. Not halting (ALLOW_MISSING_DATA_PATROL=true).")
+            log_phase_result_fn(1, "data_patrol_check", "warning", msg)
+            return None
+        logger.error(f"[PHASE 1] DataPatrol HALT: {msg}.")
+        log_phase_result_fn(1, "data_patrol_check", "halt", msg)
+        return PhaseResult(
+            1,
+            "data_patrol_check",
+            "halted",
+            {"reason": "patrol_check_query_failed"},
+            True,
+            f"{msg}. Halting rather than trade with unverified data quality. Run "
+            "`python algo/algo_data_patrol.py` first, or set ALLOW_MISSING_DATA_PATROL=true "
+            "for local/dev testing only.",
+        )
+
+    logger.info("[PHASE 1] DataPatrol check: OK (no CRITICAL/ERROR findings in latest run)")
+    return None
+
+
 def _check_failsafe_retry_result(
     failsafe_result: dict[str, Any],
     log_phase_result_fn: Callable[..., Any],
@@ -1037,6 +1195,50 @@ def run(  # noqa: C901 -- inherently a long sequential gate (11 early-return hal
             True,
             f"Dependency freshness validation failed unexpectedly: {type(e).__name__}: {e}. "
             "Cannot verify upstream data is fresh - halting rather than risk silent degradation.",
+        )
+
+    # DATA PATROL GATE (2026-09-07 fix - see _check_data_patrol_results docstring): the most
+    # recent DataPatrol run's tie-out/staleness/XBRL/statistical-anomaly findings now actually
+    # block trading on CRITICAL/ERROR, and missing/stale patrol data halts too by default -
+    # closing a gap where both were documented as blocking but never wired at all. Mirrors
+    # ALLOW_OUTSIDE_MARKET_HOURS (algo/orchestration/orchestrator.py): opt-in local/dev escape
+    # hatch, forced off in live trading regardless of the env var so it can never mask a real
+    # production patrol outage.
+    allow_missing_patrol = os.environ.get("ALLOW_MISSING_DATA_PATROL", "false").lower() == "true"
+    if config.get("execution_mode") == "auto" and allow_missing_patrol:
+        logger.critical(
+            "[PHASE 1] ALLOW_MISSING_DATA_PATROL is set but execution_mode='auto' (live "
+            "trading) - ignoring it. This bypass is for local/dev testing only and is never "
+            "honored in live mode."
+        )
+        allow_missing_patrol = False
+    try:
+        with DatabaseContext("read") as patrol_check_cur:
+            patrol_halt = _check_data_patrol_results(patrol_check_cur, log_phase_result_fn, allow_missing_patrol)
+            if patrol_halt:
+                return patrol_halt
+    except Exception as e:
+        # REAL-MONEY-READINESS FIX (2026-09-07 audit): this was the one fail-open exception
+        # handler left in this file after the 2026-09-05 dependency-check fix above - an
+        # unexpected error here (DB hiccup, schema drift, bad row) silently let Phase 1
+        # proceed as if DataPatrol were clean, defeating the whole point of this gate.
+        # Now halts like every other Phase 1 failure mode, including the sibling check above.
+        logger.error(f"[PHASE 1] DataPatrol gate raised unexpectedly: {e}", exc_info=True)
+        log_phase_result_fn(
+            1,
+            "data_patrol_gate_error",
+            "halt",
+            f"DataPatrol gate raised unexpectedly: {e}",
+        )
+        return PhaseResult(
+            1,
+            "data_patrol_gate_error",
+            "halted",
+            {},
+            True,
+            f"DataPatrol gate check failed unexpectedly: {type(e).__name__}: {e}. "
+            "Cannot verify data quality is clean - halting rather than risk trading on "
+            "unverified data.",
         )
 
     preflight_halt = preflight_verify_stock_symbols_table(log_phase_result_fn)

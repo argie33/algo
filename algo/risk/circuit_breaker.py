@@ -7,6 +7,12 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 from utils.db import DatabaseContext
+from utils.db.advisory_locks import (
+    ALGO_POSITIONS_LOCK_ID,
+    ALGO_TRADES_LOCK_ID,
+    acquire_advisory_lock,
+    release_advisory_lock,
+)
 from utils.infrastructure.timezone import EASTERN_TZ
 
 if TYPE_CHECKING:
@@ -231,81 +237,100 @@ class CircuitBreaker(
 
         with DatabaseContext("write") as cur:
             try:
-                # Remove stale positions with no algo trade association before checking risk.
-                # A prior sync bug inserted rows using Alpaca's asset_id as position_id,
-                # giving them NULL current_stop_price and no trade_ids_arr. These orphans
-                # trip the total_risk check even though they aren't real algo positions.
-                cur.execute("""
-                    DELETE FROM algo_positions
-                    WHERE status = 'open'
-                      AND current_stop_price IS NULL
-                      AND (trade_ids_arr IS NULL OR array_length(trade_ids_arr, 1) IS NULL)
-                """)
-                orphans_removed = cur.rowcount
-                if orphans_removed > 0:
-                    logger.warning(
-                        f"[CIRCUIT_BREAKER] Removed {orphans_removed} orphan position(s) "
-                        "with no trade associations before risk checks"
-                    )
-
-                results: dict[str, Any] = {
-                    "halted": False,
-                    "halt_reasons": [],
-                    "checks": {},
-                }
-
-                for check_name in self._check_registry:
-                    try:
-                        fn = self._checks[check_name]
-                        state = fn(current_date, cur)
-                    except Exception as e:
-                        # CRITICAL FIX: previously only caught (psycopg2.DatabaseError,
-                        # psycopg2.OperationalError) - stress-tested live and confirmed a plain
-                        # ValueError (e.g. a malformed algo_config value) from any individual
-                        # _check_* method propagated straight out of check_all() uncaught,
-                        # contradicting this exact comment block's own stated contract ("All
-                        # check failures result in fail-closed halt"). check_all() only stayed
-                        # safe in practice because both of its current callers
-                        # (phase2_circuit_breakers.py, utils/orchestrator_diagnostics.py)
-                        # happen to also wrap it in a broad except Exception - a landmine for
-                        # any future caller that reasonably trusts this function's own
-                        # docstring ("Returns dict with per-check status") instead of
-                        # independently re-adding that same broad catch. Widened to catch
-                        # every exception type, not just DB errors, so check_all() is
-                        # genuinely self-contained and fail-closed regardless of caller.
-                        import traceback
-
-                        tb = traceback.format_exc()
-                        error_type = type(e).__name__
-                        safe_tb = tb.replace("{", "{{").replace("}", "}}")
-
-                        # Log full traceback for debugging
-                        logger.error(f"Circuit breaker {check_name} raised {error_type}: {e}")
-                        logger.error(f"Full traceback:\n{safe_tb}")
-
-                        # All check failures result in fail-closed halt.
-                        # If a safety check cannot be verified, trading must halt.
-                        # Do NOT skip checks with "transient" claims - that masks data loss.
-                        logger.critical(f"Circuit breaker {check_name} FAILED - HALTING TRADING: {error_type}: {e}")
-                        state = {
-                            "halted": True,
-                            "reason": f"check error ({error_type}: {e})",
-                        }
-                    state["label"] = CHECK_LABELS.get(check_name, check_name)
-                    results["checks"][check_name] = state
-                    if "halted" not in state:
-                        raise ValueError(
-                            f"Circuit breaker check '{check_name}' missing required 'halted' field in state: {state}"
+                # LOCK (2026-09-07 real-money-readiness audit): every writer to algo_positions/
+                # algo_trades (executor.py, phase9_reconciliation.py, phase6_exit_execution.py)
+                # acquires these same advisory locks before touching either table, but this
+                # read path never did - a concurrent write elsewhere (only reachable if the
+                # orchestrator's own run-lock has failed, since phases otherwise execute
+                # strictly sequentially within one run - see executor.py's own "CONCURRENCY
+                # ASSUMPTION" docstring) could be observed mid-flight, feeding a transiently
+                # inconsistent view into drawdown/daily-loss/total-risk. A lock-acquisition
+                # failure/timeout here is caught by this function's own outer `except
+                # Exception` below and correctly converted into a fail-closed halt - the same
+                # safe outcome as any other circuit-breaker check failure, not a new failure
+                # mode. Explicitly released in `finally` (not left to connection teardown)
+                # since DatabaseContext connections can be pooled/reused across calls.
+                acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                acquire_advisory_lock(cur, ALGO_TRADES_LOCK_ID, "algo_trades")
+                try:
+                    # Remove stale positions with no algo trade association before checking risk.
+                    # A prior sync bug inserted rows using Alpaca's asset_id as position_id,
+                    # giving them NULL current_stop_price and no trade_ids_arr. These orphans
+                    # trip the total_risk check even though they aren't real algo positions.
+                    cur.execute("""
+                        DELETE FROM algo_positions
+                        WHERE status = 'open'
+                          AND current_stop_price IS NULL
+                          AND (trade_ids_arr IS NULL OR array_length(trade_ids_arr, 1) IS NULL)
+                    """)
+                    orphans_removed = cur.rowcount
+                    if orphans_removed > 0:
+                        logger.warning(
+                            f"[CIRCUIT_BREAKER] Removed {orphans_removed} orphan position(s) "
+                            "with no trade associations before risk checks"
                         )
-                    if state["halted"]:
-                        results["halted"] = True
-                        results["halt_reasons"].append(f"{state['label']}: {state['reason']}")
 
-                # Persist if halted
-                if results["halted"]:
-                    self._log_halt(results, cur)
+                    results: dict[str, Any] = {
+                        "halted": False,
+                        "halt_reasons": [],
+                        "checks": {},
+                    }
 
-                return results
+                    for check_name in self._check_registry:
+                        try:
+                            fn = self._checks[check_name]
+                            state = fn(current_date, cur)
+                        except Exception as e:
+                            # CRITICAL FIX: previously only caught (psycopg2.DatabaseError,
+                            # psycopg2.OperationalError) - stress-tested live and confirmed a plain
+                            # ValueError (e.g. a malformed algo_config value) from any individual
+                            # _check_* method propagated straight out of check_all() uncaught,
+                            # contradicting this exact comment block's own stated contract ("All
+                            # check failures result in fail-closed halt"). check_all() only stayed
+                            # safe in practice because both of its current callers
+                            # (phase2_circuit_breakers.py, utils/orchestrator_diagnostics.py)
+                            # happen to also wrap it in a broad except Exception - a landmine for
+                            # any future caller that reasonably trusts this function's own
+                            # docstring ("Returns dict with per-check status") instead of
+                            # independently re-adding that same broad catch. Widened to catch
+                            # every exception type, not just DB errors, so check_all() is
+                            # genuinely self-contained and fail-closed regardless of caller.
+                            import traceback
+
+                            tb = traceback.format_exc()
+                            error_type = type(e).__name__
+                            safe_tb = tb.replace("{", "{{").replace("}", "}}")
+
+                            # Log full traceback for debugging
+                            logger.error(f"Circuit breaker {check_name} raised {error_type}: {e}")
+                            logger.error(f"Full traceback:\n{safe_tb}")
+
+                            # All check failures result in fail-closed halt.
+                            # If a safety check cannot be verified, trading must halt.
+                            # Do NOT skip checks with "transient" claims - that masks data loss.
+                            logger.critical(f"Circuit breaker {check_name} FAILED - HALTING TRADING: {error_type}: {e}")
+                            state = {
+                                "halted": True,
+                                "reason": f"check error ({error_type}: {e})",
+                            }
+                        state["label"] = CHECK_LABELS.get(check_name, check_name)
+                        results["checks"][check_name] = state
+                        if "halted" not in state:
+                            raise ValueError(
+                                f"Circuit breaker check '{check_name}' missing required 'halted' field in state: {state}"
+                            )
+                        if state["halted"]:
+                            results["halted"] = True
+                            results["halt_reasons"].append(f"{state['label']}: {state['reason']}")
+
+                    # Persist if halted
+                    if results["halted"]:
+                        self._log_halt(results, cur)
+
+                    return results
+                finally:
+                    release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                    release_advisory_lock(cur, ALGO_TRADES_LOCK_ID, "algo_trades")
             except Exception as e:
                 # CRITICAL FIX: previously only caught (psycopg2.DatabaseError,
                 # psycopg2.OperationalError) - widened for the same reason as the per-check

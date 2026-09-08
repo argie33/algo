@@ -14,7 +14,7 @@ reasonably trusts this function's own docstring instead of re-adding that same b
 """
 
 from datetime import date
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from algo.risk.circuit_breaker import CircuitBreaker
 
@@ -41,6 +41,7 @@ def test_check_all_fails_closed_when_a_check_raises_non_db_exception():
     cur = MagicMock()
     cur.fetchone.return_value = None
     cur.fetchall.return_value = []
+    cur.rowcount = 0
 
     def raiser(current_date, cur):
         raise ValueError("simulated bad algo_config value")
@@ -50,7 +51,24 @@ def test_check_all_fails_closed_when_a_check_raises_non_db_exception():
     # must overwrite the registry entry itself to actually inject the failure.
     cb._checks["daily_loss"] = raiser
 
-    result = cb.check_all(current_date=date(2026, 7, 24))
+    # DatabaseContext must be mocked (2026-09-07 fix - this test never patched it, so
+    # check_all() opened a REAL DB connection; harmless until check_all() started
+    # acquiring the algo_positions/algo_trades advisory locks on that real connection,
+    # which then genuinely contends with any other concurrent session/process holding
+    # those same locks, making this test flaky/slow against a real shared dev DB).
+    # acquire_advisory_lock/release_advisory_lock are mocked directly (not via cur.fetchone,
+    # which this test forces to None for the check queries themselves) - check_all() now
+    # acquires the algo_positions/algo_trades advisory locks before running checks (2026-09-07
+    # fix), and letting that hit the real pg_try_advisory_lock retry loop against a
+    # fetchone()=None mock would spin for the full 30s timeout on every test run.
+    with (
+        patch("algo.risk.circuit_breaker.DatabaseContext") as mock_db_ctx,
+        patch("algo.risk.circuit_breaker.acquire_advisory_lock"),
+        patch("algo.risk.circuit_breaker.release_advisory_lock"),
+    ):
+        mock_db_ctx.return_value.__enter__.return_value = cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+        result = cb.check_all(current_date=date(2026, 7, 24))
 
     assert result["halted"] is True
     assert any("daily_loss" in r.lower() or "check error" in r.lower() for r in result["halt_reasons"])
@@ -63,6 +81,7 @@ def test_check_all_fails_closed_when_a_non_db_exception_escapes_the_whole_method
     cur = MagicMock()
     cur.fetchone.return_value = None
     cur.fetchall.return_value = []
+    cur.rowcount = 0
 
     def malformed_state(current_date, cur):
         # Missing the required "halted" key - check_all() itself raises ValueError for this,
@@ -72,6 +91,18 @@ def test_check_all_fails_closed_when_a_non_db_exception_escapes_the_whole_method
 
     cb._checks["daily_loss"] = malformed_state
 
-    result = cb.check_all(current_date=date(2026, 7, 24))
+    # acquire_advisory_lock/release_advisory_lock are mocked directly (not via cur.fetchone,
+    # which this test forces to None for the check queries themselves) - check_all() now
+    # acquires the algo_positions/algo_trades advisory locks before running checks (2026-09-07
+    # fix), and letting that hit the real pg_try_advisory_lock retry loop against a
+    # fetchone()=None mock would spin for the full 30s timeout on every test run.
+    with (
+        patch("algo.risk.circuit_breaker.DatabaseContext") as mock_db_ctx,
+        patch("algo.risk.circuit_breaker.acquire_advisory_lock"),
+        patch("algo.risk.circuit_breaker.release_advisory_lock"),
+    ):
+        mock_db_ctx.return_value.__enter__.return_value = cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+        result = cb.check_all(current_date=date(2026, 7, 24))
 
     assert result["halted"] is True

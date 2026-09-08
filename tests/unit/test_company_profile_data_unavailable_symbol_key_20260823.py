@@ -42,18 +42,26 @@ class TestDataUnavailablePathsSetSymbolKey:
     def test_no_sic_code_available_sets_symbol_key(self):
         loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
         mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = (
-            "RCBC",  # symbol
-            None,  # entity_name
-            None,  # sic_code - missing, triggers this branch
-            None,  # sic_description
-            None,  # shares_outstanding
-            None,  # created_at
-            "2026-08-23",  # updated_at
-            False,  # data_unavailable
-            None,  # reason
-            "other",  # entity_type - NOT "operating", so this must still fail closed
-        )
+        # ADDED 2026-09-07: fetch_incremental now issues a second query (yfinance_snapshot
+        # override lookup) before unpacking the company_info_sec row - side_effect gives each
+        # cur.execute()/fetchone() pair its own return value in call order, matching the real
+        # two-query flow. None for the yfinance lookup means "no override available", which is
+        # what this fixture intends to test (SIC-only fail-closed path).
+        mock_cur.fetchone.side_effect = [
+            (
+                "RCBC",  # symbol
+                None,  # entity_name
+                None,  # sic_code - missing, triggers this branch
+                None,  # sic_description
+                None,  # shares_outstanding
+                None,  # created_at
+                "2026-08-23",  # updated_at
+                False,  # data_unavailable
+                None,  # reason
+                "other",  # entity_type - NOT "operating", so this must still fail closed
+            ),
+            None,  # yfinance_snapshot lookup: no override available
+        ]
 
         with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
@@ -80,18 +88,24 @@ class TestDataUnavailablePathsSetSymbolKey:
         # specific code, so any genuinely-unmapped code preserves its intent.
         loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
         mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = (
-            "BNC",  # symbol
-            "CEA Industries Inc.",  # entity_name
-            9995,  # sic_code - non-classifiable establishment, permanently unmapped
-            "Non-classifiable Establishments",  # sic_description
-            None,  # shares_outstanding
-            None,  # created_at
-            "2026-08-23",  # updated_at
-            False,  # data_unavailable
-            None,  # reason
-            "operating",  # entity_type - irrelevant to this branch (sic_code is present)
-        )
+        # See test_no_sic_code_available_sets_symbol_key's comment above on why this is now
+        # side_effect: fetch_incremental's second query (yfinance override lookup) must
+        # return None here too, so this stays a genuine no-override unmapped-code case.
+        mock_cur.fetchone.side_effect = [
+            (
+                "BNC",  # symbol
+                "CEA Industries Inc.",  # entity_name
+                9995,  # sic_code - non-classifiable establishment, permanently unmapped
+                "Non-classifiable Establishments",  # sic_description
+                None,  # shares_outstanding
+                None,  # created_at
+                "2026-08-23",  # updated_at
+                False,  # data_unavailable
+                None,  # reason
+                "operating",  # entity_type - irrelevant to this branch (sic_code is present)
+            ),
+            None,  # yfinance_snapshot lookup: no override available
+        ]
 
         with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = mock_cur

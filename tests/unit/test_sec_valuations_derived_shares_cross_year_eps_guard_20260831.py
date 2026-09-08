@@ -51,6 +51,13 @@ class _RecordingCursor:
         return result
 
     def fetchone(self) -> Any:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -82,6 +89,7 @@ _UROY_SHAPED_INCOME_ROWS = [
 # company_info_sec fallback, shares_outstanding_diluted fallback, shares_outstanding_dei
 # fallback - every tier fed nothing so only the derived-tier's own behavior is under test.
 _ALL_EMPTY_FETCHONE = [
+    None,  # entity_type exemption gate check (138006446) - not exempt
     None,  # prior-year-EPS-style lookup
     (None,),  # cash_and_equivalents
     (None,),  # debt_row
@@ -116,6 +124,7 @@ class TestDerivedSharesCrossYearEpsGuard:
         # happens when len(income_rows) > 1), so this fixture's sequence is shorter than the
         # 2-row UROY-shaped fixture above.
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (None,),  # cash_and_equivalents
             (None,),  # debt_row
             None,  # has_dual_class_sibling check - no matching row

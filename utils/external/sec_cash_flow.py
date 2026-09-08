@@ -185,7 +185,23 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # discontinued) and must keep winning whenever it's actually present.
         "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
         "NetCashProvidedByUsedInOperatingActivities",
+        # FIXED 2026-09-07 (goal session: "make sure the list/checks are right, then fix
+        # issues" audit): same "discontinued-operations filer" failure shape as the Operating
+        # pair above, live-confirmed via real companyfacts JSON. Air Products and Chemicals
+        # (APD, a major real 10-K filer) tags investing/financing cash flow ONLY under these
+        # ContinuingOperations concepts for EVERY fiscal year 2016-2025 - the plain concepts
+        # below have zero entries for APD in that entire span - so investing_cash_flow/
+        # financing_cash_flow were silently NULL for APD's whole recent history despite real
+        # data being available. More broadly: of 1,887/1,925 filers that tag the financing/
+        # investing ContinuingOperations concepts at all, 1,391/1,373 have at least one
+        # individual fiscal year present ONLY under the ContinuingOperations tag (not just
+        # APD - a widespread partial-year gap, not a single-filer quirk). Listed BEFORE the
+        # plain concepts (this file's "last-listed wins on overwrite" convention) so a filer
+        # that reports BOTH for the same fiscal year keeps the fuller plain-concept total
+        # whenever it's actually present, same precedent as Operating above.
+        "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations",
         "NetCashProvidedByUsedInInvestingActivities",
+        "NetCashProvidedByUsedInFinancingActivitiesContinuingOperations",
         "NetCashProvidedByUsedInFinancingActivities",
         "PaymentsToAcquirePropertyPlantAndEquipment",
         # FIXED 2026-08-10: real capex concept some filers use INSTEAD of the concept
@@ -261,6 +277,20 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "PaymentsToAcquireAndDevelopRealEstate",
         "PaymentsToAcquireRealEstate",
         "PaymentsForCapitalImprovements",
+        # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep,
+        # capex_never_tagged_in_recent_filings continuation, scored-symbol sample beyond the
+        # earlier 2026-09-06 REIT sweep above): Tanger Inc (SKT, CIK 0000899715, real outlet-mall
+        # REIT) reports NEITHER "PaymentsForCapitalImprovements" nor any other RealEstate/
+        # PP&E-family concept above - live-confirmed via real companyfacts JSON its actual
+        # property-improvement capex is tagged under this standard (not filer-specific) us-gaap
+        # concept instead: $188.863M FY2023, $77.194M FY2024, $93.868M FY2025 (10-K, accession
+        # confirmed via real end-dates) - plausible ~15-19% of SKT's real ~$500M annual revenue,
+        # consistent with an outlet-center REIT's ongoing renovation/expansion spend, not a
+        # placeholder. Standard taxonomy element, so likely generalizes beyond SKT even though
+        # only this one filer was live-confirmed this session (same "standard concept, single
+        # filer verified" precedent as PaymentsToDevelopRealEstateAssets/
+        # PaymentsToAcquireCommercialRealEstate above).
+        "RealEstateImprovements",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
         # no_recent_free_cash_flow_reported investigation): a standard (not filer-specific)
         # us-gaap concept for real-estate development spend, never in this fetch list at
@@ -545,6 +575,29 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "ShareBasedCompensation",
         "PaymentsForRepurchaseOfEquity",
         "PaymentsForRepurchaseOfCommonStock",
+        # ADDED 2026-09-07 (goal: "SEC/XBRL missing data" + tie-out sweep): net_change_cash
+        # has been a real, declared schema column on annual_cash_flow/quarterly_cash_flow/
+        # ttm_cash_flow since this loader's creation, but NO concept was ever fetched for
+        # it and no field_mapping entry ever targeted it - live-confirmed via direct DB
+        # query, 0 of 66,580 annual_cash_flow rows have net_change_cash populated, for
+        # every symbol, ever. Standard XBRL concept for "cash flow statement's total
+        # change in cash for the period" comes in two generations: the plain pre-ASU-
+        # 2016-18 concept (live-confirmed via AMZN's real companyfacts JSON: real values
+        # FY2015-2017, e.g. $1,188,000,000 FY2017) and the post-ASU-2016-18 restricted-
+        # cash-inclusive concept most large filers switched to afterward (live-confirmed
+        # via AMZN again: real values every year since, e.g. $7,794,000,000 FY2025) - most
+        # filers use exactly one of the two for any given fiscal year, not both, so listing
+        # the modern concept last (this file's "last-listed wins on overwrite" convention)
+        # lets it take priority for filers who report both in a transition year without
+        # ever losing the plain concept's value for filers who never switched. Each has an
+        # "ExcludingExchangeRateEffect" sibling for filers with no material FX translation
+        # effect on cash - same target column, listed immediately before its "Including"
+        # counterpart so the fuller (higher-priority, present-when-tagged) figure still
+        # wins when a filer tags both.
+        "CashAndCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+        "CashAndCashEquivalentsPeriodIncreaseDecrease",
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect",
     ]
     # REMOVED 2026-07-28: "Depreciation"/"DepreciationAndAmortization" (and the matching
     # ("DepreciationExpense", "depreciation") IFRS alias) used to be fetched here too, but

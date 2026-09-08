@@ -46,6 +46,13 @@ class _FakeCursor:
         return result
 
     def fetchone(self) -> Any:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -72,6 +79,7 @@ class TestStaleAnnualSharesLoweredThreshold:
             (2025, 10_000_000.0, -5_000_000.0, -46.80, None, None, None, None, 106_902.0, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no match (WHLR is single-class)
@@ -101,6 +109,7 @@ class TestStaleAnnualSharesLoweredThreshold:
             (2025, 10_000_000.0, 1_000_000.0, 1.0, None, None, None, None, 1_000_000.0, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no match

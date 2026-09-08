@@ -291,7 +291,10 @@ def run_part_a() -> None:
 
 def discover_all_13f_datasets() -> list[tuple[str, date]]:
     req = urllib.request.Request(SEC_13F_DATASETS_PAGE, headers={"User-Agent": "algo-research contact@example.com"})
-    html = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", errors="ignore")
+    # SEC_13F_DATASETS_PAGE is a hardcoded "https://www.sec.gov/..." literal (see its
+    # definition in loaders/load_institutional_holdings_13f.py) - not user/request-controlled,
+    # so bandit's file://-scheme-confusion warning doesn't apply here.
+    html = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", errors="ignore")  # nosec B310
     pattern = re.compile(
         r'href="(/files/[a-z]+/data/form-13f-data-sets/(\d{2}[a-z]{3}\d{4})-(\d{2}[a-z]{3}\d{4})_form13f\.zip)"',
         re.IGNORECASE,

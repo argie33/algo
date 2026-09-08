@@ -169,9 +169,15 @@ def _validate_pnl_step(
                     "Reconciliation succeeded but missing portfolio_value (required for P&L validation). "
                     f"Available keys: {list(result.keys())}"
                 )
-            local_equity = result["portfolio_value"]
+            # NAMING FIX (2026-09-07, real-money-readiness audit): this is Alpaca's own
+            # portfolio_value (reconciliation.py's sync_positions always uses Alpaca's live
+            # value here, never a DB-computed one - see validate_pnl's docstring), not a
+            # locally/DB-computed equity. validate_pnl cross-checks two Alpaca-reported
+            # fields against each other; it is NOT the broker-vs-DB drift detector (that's
+            # reconciliation.py's _track_and_maybe_halt_on_sustained_drift).
+            broker_portfolio_value = result["portfolio_value"]
 
-            pnl_check = recon.validate_pnl(broker_equity, local_equity)
+            pnl_check = recon.validate_pnl(broker_equity, broker_portfolio_value)
             pnl_validation_status = pnl_check["status"]
             pnl_validation_summary = pnl_check["message"]
 
@@ -181,11 +187,12 @@ def _validate_pnl_step(
                 logger.warning(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
             else:  # critical
                 logger.critical(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
-                # GOVERNANCE: a critical P&L divergence is, per validate_pnl()'s own
-                # docstring, real data corruption between broker and local state. Every
-                # other critical branch in this file surfaces via notify(); this one only
-                # logged, so a >1% divergence could go unnoticed unless someone was
-                # watching logs at the moment it happened.
+                # GOVERNANCE: a critical divergence between Alpaca's own `equity` and
+                # `portfolio_value` fields (see validate_pnl()'s docstring - this is NOT a
+                # broker-vs-DB check) is still worth surfacing. Every other critical branch
+                # in this file surfaces via notify(); this one only logged, so a >1%
+                # divergence could go unnoticed unless someone was watching logs at the
+                # moment it happened.
                 try:
                     from algo.reporting import notify
 
@@ -193,7 +200,7 @@ def _validate_pnl_step(
                         severity="critical",
                         title="Phase 9 P&L Divergence",
                         message=pnl_check["message"],
-                        details={"broker_equity": broker_equity, "local_equity": local_equity},
+                        details={"broker_equity": broker_equity, "broker_portfolio_value": broker_portfolio_value},
                     )
                 except (ValueError, TypeError, RuntimeError) as notify_err:
                     logger.error(f"Failed to send P&L divergence notification: {notify_err}")
@@ -753,6 +760,18 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
 
         if closed_positions:
             exits_recorded = 0
+            # BUG FOUND 2026-09-07 (real-money-readiness audit): the CROSS JOIN LATERAL
+            # UNNEST(ap.trade_ids_arr) query above yields one row per still-untouched leg of a
+            # pyramided position (2+ algo_trades rows sharing one algo_positions row). The
+            # prior_partial_pnl lookup a few hundred lines below is scoped only by
+            # symbol+action_date, not by trade_id/position - so every leg of the SAME position
+            # processed in this same batch re-queries and re-adds the identical prior partial
+            # P&L into that leg's OWN profit_loss_dollars. Summing profit_loss_dollars across a
+            # position's algo_trades rows (the natural way to get total realized P&L) then
+            # double/triple-counts the prior partial exactly N times for an N-leg position.
+            # Track which position_ids have already been credited with their prior partial P&L
+            # in this batch and zero it out for every subsequent leg of the same position.
+            positions_credited_partial_pnl: set[Any] = set()
             with DatabaseContext("write") as write_cursor:
                 acquire_advisory_lock(write_cursor, ALGO_TRADES_LOCK_ID, "algo_trades")
                 acquire_advisory_lock(write_cursor, ALGO_POSITIONS_LOCK_ID, "algo_positions")
@@ -811,6 +830,15 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                             )
                             logger.critical(error_msg)
                             raise RuntimeError(error_msg)
+                        if entry_qty is None or entry_qty <= 0:
+                            error_msg = (
+                                f"[PHASE 9 CRITICAL] Trade {symbol} (trade_id={trade_id}) has invalid "
+                                f"entry_quantity ({entry_qty}) on algo_trades. Cannot calculate this leg's "
+                                f"P&L without its own share count. Halting Phase 9 to prevent audit trail "
+                                f"corruption."
+                            )
+                            logger.critical(error_msg)
+                            raise RuntimeError(error_msg)
                         if stop_loss_price is None:
                             error_msg = (
                                 f"[PHASE 9 CRITICAL] Trade {symbol} (trade_id={trade_id}) has NULL "
@@ -850,7 +878,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                         # Third priority: position's current_price (fallback for intraday closes before EOD price_daily loads)
                         if exit_price is None and current_price is not None and current_price > 0:
                             exit_price = float(current_price)
-                            price_source = "position current_price (price_daily not yet loaded for today)"
+                            price_source = "position current_price (EOD pending)"
                             logger.info(
                                 f"[PHASE 9] {symbol}: Using position current_price ${exit_price:.2f} "
                                 f"(price_daily EOD not available for {run_date})"
@@ -884,9 +912,21 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                 f"Cannot calculate R-multiple with corrupted stop price."
                             )
 
-                        # P&L on this leg's quantity (position may have been reduced by partial exits)
+                        # P&L on THIS TRADE LEG's own share count (entry_qty), not the position's
+                        # aggregate quantity. BUG FOUND 2026-09-06 (real-money-readiness audit): a
+                        # pyramided position (built from 2+ entries, one algo_trades row per entry,
+                        # all sharing algo_positions.trade_ids_arr) unnests to one row per trade_id
+                        # here, and every row shares the SAME ap.quantity (the position's full
+                        # aggregate size). Using position_qty as the per-leg multiplier wrote the
+                        # full aggregate P&L into EACH leg's algo_trades row instead of that leg's
+                        # own slice of it, overstating total recorded realized P&L roughly Nx for
+                        # this catch-up path (fires when the normal exit-recording flow was bypassed
+                        # by a broker-side close). entry_qty is correct here specifically because
+                        # this branch is scoped to `at.exit_date IS NULL` - a leg that already had a
+                        # partial exit recorded through the normal path would have exit_date set and
+                        # be excluded, so an untouched leg's full entry_quantity is still open.
                         pnl_per_share_dec = Decimal(str(exit_price)) - Decimal(str(entry_price))
-                        pnl_dollars_dec = (pnl_per_share_dec * Decimal(str(position_qty))).quantize(
+                        pnl_dollars_dec = (pnl_per_share_dec * Decimal(str(entry_qty))).quantize(
                             Decimal("0.01"), ROUND_HALF_UP
                         )
                         pnl_pct_dec = (pnl_per_share_dec / Decimal(str(entry_price)) * Decimal(100)).quantize(
@@ -896,35 +936,68 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                             Decimal("0.01"), ROUND_HALF_UP
                         )
 
-                        # Check for any prior partial exits to compute cumulative P&L (same fix as executor_exit_handler)
-                        write_cursor.execute(
-                            """
-                            SELECT COALESCE(SUM((details->>'pnl_dollars')::numeric), 0)
-                            FROM algo_audit_log
-                            WHERE action_type LIKE 'exit_%%'
-                              AND symbol = %s
-                              AND action_date::date = %s
-                              AND (details->>'full_exit')::boolean = false
-                            """,
-                            (symbol, run_date),
-                        )
-                        prior_partial = write_cursor.fetchone()
-                        if prior_partial and len(prior_partial) > 0 and prior_partial[0] is not None:
-                            prior_partial_pnl = Decimal(str(prior_partial[0]))
-                        else:
+                        # Check for any prior partial exits to compute cumulative P&L (same fix as executor_exit_handler).
+                        # Only credit this once per position (see positions_credited_partial_pnl comment
+                        # above the loop) - every subsequent leg of the same pyramided position gets 0
+                        # here so the prior partial isn't re-added into every leg's own P&L row.
+                        if position_id is not None and position_id in positions_credited_partial_pnl:
                             prior_partial_pnl = Decimal(0)
+                        else:
+                            write_cursor.execute(
+                                """
+                                SELECT COALESCE(SUM((details->>'pnl_dollars')::numeric), 0)
+                                FROM algo_audit_log
+                                WHERE action_type LIKE 'exit_%%'
+                                  AND symbol = %s
+                                  AND action_date::date = %s
+                                  AND (details->>'full_exit')::boolean = false
+                                """,
+                                (symbol, run_date),
+                            )
+                            prior_partial = write_cursor.fetchone()
+                            if prior_partial and len(prior_partial) > 0 and prior_partial[0] is not None:
+                                prior_partial_pnl = Decimal(str(prior_partial[0]))
+                            else:
+                                prior_partial_pnl = Decimal(0)
+                            if position_id is not None:
+                                positions_credited_partial_pnl.add(position_id)
 
                         # Cumulative P&L across all legs
                         cumulative_pnl_dollars = float(
                             (prior_partial_pnl + pnl_dollars_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)
                         )
+                        # FIXED 2026-09-07 (same bug class/fix as executor_exit_handler.py's
+                        # _compute_cumulative_pnl - see 8e0c0ccec/4735a8bc4 - THIRD independent
+                        # copy of this logic found by grepping for "cumulative_pnl" repo-wide):
+                        # entry_qty here is this ONE leg's own entry_quantity (correct for
+                        # pnl_dollars_dec above, since this branch is scoped to untouched legs -
+                        # see the comment above pnl_per_share_dec) but understates the true cost
+                        # basis/risk denominator when prior_partial_pnl != 0 - i.e. this position
+                        # is BOTH pyramided (2+ legs) AND was exited via multiple partial legs.
+                        # Sum entry_quantity across every leg on the position instead of trusting
+                        # this one row's own quantity, same trade_ids_arr sum as the other two
+                        # fixes.
+                        total_entry_qty = entry_qty
+                        if prior_partial_pnl != 0 and position_id is not None:
+                            write_cursor.execute(
+                                """
+                                SELECT SUM(t2.entry_quantity)
+                                FROM algo_trades t2
+                                JOIN algo_positions p2 ON t2.trade_id::text = ANY(p2.trade_ids_arr::text[])
+                                WHERE p2.position_id = %s
+                                """,
+                                (position_id,),
+                            )
+                            total_entry_qty_row = write_cursor.fetchone()
+                            if total_entry_qty_row and total_entry_qty_row[0] is not None:
+                                total_entry_qty = total_entry_qty_row[0]
                         cumulative_pnl_pct = (
                             float(pnl_pct_dec)
                             if prior_partial_pnl == 0
                             else float(
                                 (
                                     Decimal(str(cumulative_pnl_dollars))
-                                    / (Decimal(str(entry_price)) * Decimal(str(entry_qty)))
+                                    / (Decimal(str(entry_price)) * Decimal(str(total_entry_qty)))
                                     * Decimal(100)
                                 ).quantize(Decimal("0.01"), ROUND_HALF_UP)
                             )
@@ -935,7 +1008,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                             else float(
                                 (
                                     Decimal(str(cumulative_pnl_dollars))
-                                    / (Decimal(str(risk_per_share)) * Decimal(str(entry_qty)))
+                                    / (Decimal(str(risk_per_share)) * Decimal(str(total_entry_qty)))
                                 ).quantize(Decimal("0.01"), ROUND_HALF_UP)
                             )
                         )
@@ -984,7 +1057,18 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                     cumulative_pnl_dollars,
                                     cumulative_pnl_pct,
                                     cumulative_r_multiple,
-                                    f"Closed position recorded during reconciliation (exit price source: {price_source})",
+                                    # BUG FOUND (2026-09-08, live orchestrator dry-run against paper
+                                    # trading): exit_reason is VARCHAR(100) but this template with the
+                                    # current_price-fallback price_source was 129 chars, crashing Phase 9
+                                    # with StringDataRightTruncation on a live position (ING) and halting
+                                    # the whole run. Shortened the variable suffix (kept the
+                                    # "Closed position recorded during reconciliation" prefix intact -
+                                    # _repair_missing_exit_prices() ILIKE-matches on that exact substring
+                                    # to find trades needing exit-price recovery) plus a defensive [:100]
+                                    # slice (same convention as this file's log_phase_result_fn(9, ...)
+                                    # truncation elsewhere) so this bug class can't recur even if
+                                    # price_source grows again later.
+                                    f"Closed position recorded during reconciliation (src: {price_source})"[:100],
                                     run_date,
                                     f"Recorded from {price_source} on {run_date} (P&L: ${cumulative_pnl_dollars:.2f}, {cumulative_pnl_pct:+.2f}%, {cumulative_r_multiple:+.2f}R)",
                                     trade_id,
@@ -1045,7 +1129,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                         exit_price,
                                         cumulative_pnl_dollars,
                                         cumulative_pnl_pct,
-                                        f"Closed position recorded during reconciliation (from {price_source})",
+                                        f"Closed position recorded during reconciliation (src: {price_source})"[:100],
                                         position_id,
                                     ),
                                 )
@@ -1066,7 +1150,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                         exit_price,
                                         cumulative_pnl_dollars,
                                         cumulative_pnl_pct,
-                                        f"Closed position recorded during reconciliation (from {price_source})",
+                                        f"Closed position recorded during reconciliation (src: {price_source})"[:100],
                                         symbol,
                                     ),
                                 )
@@ -1267,6 +1351,35 @@ def _verify_open_position_stop_loss_protection_step(
                 "[PHASE 9] Stop-loss protection check skipped - no Alpaca credentials/base_url (paper mode, DB-only)."
             )
             log_phase_result_fn(9, "stop_loss_protection_check", "info", "skipped - no Alpaca credentials")
+            return
+
+        # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): unlike every entry/exit
+        # call site in executor.py/executor_entry_handler.py/executor_exit_handler.py,
+        # this repair path had NO explicit execution_mode check anywhere - it only gated
+        # on credential presence, then handed sync_mgr.alpaca_base_url straight to
+        # OrderManager. Today that URL happens to land on the paper endpoint for every
+        # non-"auto" mode purely because AlpacaSyncManager.__init__ resolves it via the
+        # same create_execution_mode_strategy(...) factory executor.py uses - but that
+        # means this repair path's only protection against submitting a real order in
+        # "review" mode (documented as "validated but not executed... before automatic
+        # execution is enabled") is an implicit URL-resolution side effect, not an
+        # explicit gate at THIS call site. One refactor of that shared resolution logic
+        # could silently start submitting real repair orders here with nothing catching
+        # it. Fail closed instead of trusting the implicit coupling: verify explicitly
+        # that a non-"auto" execution_mode actually resolved to the paper endpoint before
+        # letting this repair path touch the broker at all.
+        execution_mode = str(config.get("execution_mode") or "").lower()
+        base_url_is_paper = "paper" in sync_mgr.alpaca_base_url.lower()
+        if execution_mode != "auto" and not base_url_is_paper:
+            logger.critical(
+                f"[PHASE 9 CRITICAL] Stop-loss protection check ABORTED - execution_mode="
+                f"'{execution_mode}' but resolved Alpaca base_url does not look like the "
+                f"paper endpoint ({sync_mgr.alpaca_base_url}). Refusing to submit repair "
+                f"orders in a non-auto mode against what may be a live endpoint."
+            )
+            log_phase_result_fn(
+                9, "stop_loss_protection_check", "error", "aborted - non-auto mode resolved to non-paper endpoint"
+            )
             return
 
         order_mgr = OrderManager(sync_mgr.alpaca_key, sync_mgr.alpaca_secret, sync_mgr.alpaca_base_url)
@@ -1538,10 +1651,34 @@ def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this c
         try:
             _verify_open_position_stop_loss_protection_step(log_phase_result_fn, config)
         except Exception as protection_err:
-            logger.warning(
+            logger.critical(
                 f"[PHASE 9] Stop-loss protection check encountered unexpected error: {protection_err}", exc_info=True
             )
-            # Don't halt Phase 9 for this check's own failures - proceed with reconciliation
+            # Don't halt Phase 9 for this check's own failures - proceed with reconciliation.
+            # But this check is the system's sole dedicated defense against a live position
+            # with no broker-side stop, so its own failure must reach a human, not just a log
+            # line - matching the notify()-on-critical convention used elsewhere in this file
+            # (see _validate_pnl_step/_audit_exit_prices_step error paths).
+            try:
+                from algo.reporting.notifications import notify
+
+                notify(
+                    "critical",
+                    title="Phase 9 stop-loss protection check failed",
+                    message=(
+                        f"The naked-position (missing broker-side stop-loss) verification step "
+                        f"raised an unexpected error and was skipped this cycle: {protection_err}. "
+                        f"No positions were checked for stop-loss protection this run - "
+                        f"investigate immediately."
+                    ),
+                    strict=True,
+                )
+            except Exception as notify_err:
+                logger.critical(
+                    f"[PHASE 9] CRITICAL: Failed to send stop-loss-protection-check-failed alert: "
+                    f"{notify_err}. Operator was NOT notified that this cycle's naked-position "
+                    f"check was skipped."
+                )
 
         # CRITICAL: Validate that local P&L matches Broker P&L
         # Skip if reconciliation failed (recon object may be incomplete or paper mode)

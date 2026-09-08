@@ -268,6 +268,48 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
     return layout
 
 
+def _build_sp500_table(top_sp500: list[Any], limit: int = 10) -> Table | None:
+    """Small S&P 500-only sub-leaderboard, same unmodified composite_score as the main
+    table - just restricted to recognizable large-cap names (2026-09-07, see
+    _get_dashboard_scores's inline comment for why this exists as a second lens rather than
+    a change to the score itself: Value's 27% weight structurally penalizes famous companies
+    whose quality is already priced in, so a universe-wide cheapness screen can never put
+    megacaps at the top no matter how good their business is - this view answers "how do the
+    companies I actually recognize rank against each other" instead).
+    """
+    if not isinstance(top_sp500, list) or not top_sp500:
+        return None
+
+    t: Table = Table(
+        box=box.SIMPLE_HEAD,
+        show_header=True,
+        header_style="dim",
+        padding=(0, 1),
+        expand=False,
+        row_styles=["", "dim"],
+    )
+    t.add_column("#", style="dim", justify="right", no_wrap=True, width=2)
+    t.add_column("Symbol", style="bold white", no_wrap=True, width=6)
+    t.add_column("Company", style="white", no_wrap=True, width=28)
+    t.add_column("Comp", justify="right", no_wrap=True, width=5)
+    t.add_column("Sector", style="dim", no_wrap=True, width=16)
+
+    for rank, sc in enumerate(top_sp500[:limit], 1):
+        sym = safe_get_field(sc, "symbol", "--")
+        company = (safe_get_field(sc, "company_name") or "--")[:28]
+        comp_v = safe_float(safe_get_field(sc, "composite_score"))
+        sc_c = _composite_score_color(comp_v) if comp_v is not None else "dim"
+        sector = safe_get_field(sc, "sector", "--")
+        t.add_row(
+            Text(str(rank), style="dim"),
+            sym,
+            Text(company, style="dim"),
+            Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
+            Text(str(sector), style="dim"),
+        )
+    return t
+
+
 def _stale_warning(scores: Any) -> str:
     """Server-computed staleness badge, matching positions.py's pattern.
 
@@ -339,6 +381,12 @@ def panel_scores_compact(scores: Any) -> Panel:
 
     rows.extend(_build_scores_table(top_scores, limit=15))
 
+    top_sp500 = safe_get_list(safe_get_dict(scores).get("top_sp500", []))
+    sp500_table = _build_sp500_table(top_sp500, limit=10) if isinstance(top_sp500, list) else None
+    if sp500_table is not None:
+        rows.append(Text.from_markup("\n[cyan][bold]TOP S&P 500[/][/] [dim](same scores, recognizable names)[/]"))
+        rows.append(sp500_table)
+
     timestamp_val = safe_get_dict(scores).get("timestamp")
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     stale_warning = _stale_warning(scores)
@@ -392,6 +440,12 @@ def panel_scores_expanded(scores: Any) -> Panel:
     if summary is not None:
         left_rows.append(summary)
     left_rows.extend(_build_scores_table(top_scores, limit=50, show_company=True))
+
+    top_sp500 = safe_get_list(safe_get_dict(scores).get("top_sp500", []))
+    sp500_table = _build_sp500_table(top_sp500, limit=15) if isinstance(top_sp500, list) else None
+    if sp500_table is not None:
+        left_rows.append(Text.from_markup("\n[cyan][bold]TOP S&P 500[/][/] [dim](same scores, recognizable names)[/]"))
+        left_rows.append(sp500_table)
 
     # Build right side: top-5 for each factor (3 columns x 2 rows grid)
     factor_layout = _build_factor_top5_tables(top_scores)

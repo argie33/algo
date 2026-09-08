@@ -652,6 +652,28 @@ variable "enable_intraday_risk_monitor" {
   default     = false
 }
 
+# FIX (2026-09-06 real-money-readiness audit): this variable and enable_trade_update_listener
+# below were declared only inside their respective modules (modules/services/
+# unified-risk-monitor.tf, modules/loaders/trade-update-listener.tf) with no root-module
+# declaration and no pass-through in main.tf's module "services"/"loaders" blocks. prod.tfvars
+# already sets both (currently to `false`, matching each module's own default, so no behavioral
+# difference today) - but `terraform plan/apply -var-file=prod.tfvars` only WARNS
+# ("Value for undeclared variable") and silently drops the value; it never reaches the module.
+# Whoever eventually flips either to `true` to actually deploy these real-money safety upgrades
+# would get a clean-looking apply that deploys nothing, believing the flag took effect. Root
+# declaration + explicit pass-through below closes that gap.
+variable "enable_unified_risk_monitor" {
+  description = "Enable the consolidated 5-minute intraday risk monitor (modules/services/unified-risk-monitor.tf) - real, ongoing AWS Scheduler invocation cost, and this schedule both halts trading and can submit real exit orders automatically; needs explicit sign-off per that file's header comment before flipping true in an environment's tfvars."
+  type        = bool
+  default     = false
+}
+
+variable "enable_trade_update_listener" {
+  description = "Enable the always-on Alpaca trade_updates websocket listener (modules/loaders/trade-update-listener.tf) - new ongoing Fargate cost + new infrastructure pattern for this repo; needs explicit sign-off per that file's header comment before flipping true in an environment's tfvars."
+  type        = bool
+  default     = false
+}
+
 variable "enable_morning_orchestrator" {
   description = "Enable 2x daily orchestrator execution (morning 9:30 AM ET + evening 5:30 PM ET)"
   type        = bool
@@ -781,6 +803,42 @@ variable "alert_smtp_password" {
 
 variable "alert_smtp_from" {
   description = "From email address for SMTP alerts"
+  type        = string
+  default     = ""
+}
+
+# PagerDuty/Twilio critical-alert paging (2026-09-06 real-money-readiness fix) - see
+# modules/services/variables.tf's identical declarations for full rationale. Both
+# channels independently optional; empty defaults leave paging disabled.
+variable "pagerduty_routing_key" {
+  description = "PagerDuty Events API v2 routing key for critical-alert paging. Empty disables PagerDuty paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_account_sid" {
+  description = "Twilio Account SID for SMS critical-alert paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_auth_token" {
+  description = "Twilio Auth Token for SMS critical-alert paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_from_number" {
+  description = "Twilio phone number (E.164) to send critical-alert SMS from."
+  type        = string
+  default     = ""
+}
+
+variable "alert_sms_to" {
+  description = "Comma-separated E.164 phone numbers to receive critical-alert SMS. Empty disables SMS paging even if Twilio credentials are set."
   type        = string
   default     = ""
 }

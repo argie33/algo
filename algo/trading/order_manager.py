@@ -89,6 +89,16 @@ def _quantize_price(v: float) -> str:
     return str(v_dec.quantize(places, rounding=ROUND_HALF_UP))
 
 
+def _quantize_qty(v: float) -> str:
+    """Stringify a share quantity for broker submission via str(float) -> Decimal, not a bare
+    float, so binary-float representation drift (e.g. a partial-exit fraction landing on
+    4.870000000000001) never reaches the JSON payload - matches _quantize_price's approach.
+    Exit quantities can be genuinely fractional (partial/scale-out exits of a whole-share
+    position), so this preserves the literal decimal value rather than rounding to an integer.
+    """
+    return str(Decimal(str(v)))
+
+
 class OrderManager(StopLossRepairMixin):
     """Manage order lifecycle via Alpaca API.
 
@@ -186,7 +196,7 @@ class OrderManager(StopLossRepairMixin):
         # compensating for a self-inflicted daily expiry.
         order_data: dict[str, Any] = {
             "symbol": symbol,
-            "qty": shares,
+            "qty": _quantize_qty(shares),
             "side": "buy",
             "type": "limit",
             "time_in_force": "gtc",
@@ -206,6 +216,19 @@ class OrderManager(StopLossRepairMixin):
                 "limit_price": _quantize_price(take_profit_price),
             }
         else:
+            # REAL-MONEY-READINESS FIX (2026-09-06 audit): every other invalid-input case in
+            # this function (bad entry/stop/shares) fails loud with an operator alert - a
+            # caller-supplied take_profit_price that's positive/finite but not > entry_price
+            # used to fail this condition silently and fall through to the 1.5R fallback with
+            # no signal at all, inconsistent with that fail-loud discipline. The fallback is
+            # still a reasonable target, so this only warns rather than raising - but a caller
+            # passing a nonsensical take-profit should not go unnoticed.
+            if take_profit_price is not None:
+                logger.warning(
+                    f"[BRACKET_ORDER] {symbol}: caller-supplied take_profit_price="
+                    f"{take_profit_price} is not above entry_price={entry_price} - ignoring it "
+                    f"and computing the take-profit from the standard 1.5R fallback instead."
+                )
             risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
             if risk_dec > 0:
                 tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)
@@ -1681,7 +1704,7 @@ class OrderManager(StopLossRepairMixin):
             try:
                 order_data: dict[str, Any] = {
                     "symbol": symbol,
-                    "qty": shares,
+                    "qty": _quantize_qty(shares),
                     "side": "sell",
                     "type": "limit" if use_limit else "market",
                     "time_in_force": "day",

@@ -393,6 +393,15 @@ class SecEdgarStatementLoader(SecLoaderBase):
     # retry-trigger fields - live-confirmed this session's own `4bb8d3d6b`/`0e7051e9a`/09-03
     # interest_expense fixes were each blocked by this exact gap (AIG/ORC/RRC/CNS/PKG all
     # have real primary fields on file with a watermark already past their latest year).
+    #
+    # FIXED 2026-09-07 (goal: "run all the tie-outs" sweep): `retained_earnings` (balance)
+    # added as a further retry-trigger field. Live-confirmed: quarterly_balance_sheet's
+    # retained_earnings column (migration 1266, extraction landed `c72e7e007` this session)
+    # sat at 0/212,531 populated even on rows this session's own reload freshly wrote,
+    # because every other balance core field (stockholders_equity/long_term_debt/
+    # short_term_debt) was already non-NULL for those symbols - the exact same
+    # already-processed-year gap the fields above were added to close, just newly
+    # introduced by this session's own column addition instead of an older one.
     _CORE_FIELD_BY_STATEMENT_TYPE: dict[str, tuple[str, ...]] = {
         "income": (
             "net_income",
@@ -402,7 +411,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
             "interest_expense",
             "pretax_income",
         ),
-        "balance": ("stockholders_equity", "long_term_debt", "short_term_debt"),
+        "balance": ("stockholders_equity", "long_term_debt", "short_term_debt", "retained_earnings"),
         "cashflow": ("operating_cash_flow", "capex"),
     }
 
@@ -514,6 +523,74 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 cur.execute("SELECT symbol, security_name FROM stock_symbols WHERE security_name ILIKE '%Class%'")
                 cached = {row[0]: row[1] for row in cur.fetchall()}
             self._dual_class_security_names = cached
+        return cached
+
+    def _get_dual_class_sibling_symbols(self) -> frozenset[str]:
+        """Bulk-fetch symbols that have an active dual-class sibling, once per loader run.
+
+        FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit + "make sure we
+        have all the right tie outs" sweep, found via the new check_diluted_ge_basic_shares
+        tie-out's CWEN flag): shares_outstanding_basic's fallback tier (common_stock_shares_
+        issued/common_stock_shares_outstanding, see field_mapping's comment in
+        load_financial_statements.py) reads a bare balance-sheet-cover concept that's
+        entity-wide (summed across every share class a multi-class filer has), but
+        shares_outstanding_diluted for the same symbol can be a real, undimensioned,
+        class-scoped WeightedAverageNumberOfDilutedSharesOutstanding value when that filer's
+        EPS footnote is computed per-class - live-confirmed via Clearway Energy (CWEN, Class
+        C common): real diluted weighted-average = 35,000,000 (Class C only, exactly matches
+        CWEN's own reported EPS denominator), but CommonStockSharesOutstanding =
+        203,773,674 (Class A+B+C combined balance-sheet total) - an apples-to-oranges
+        comparison that produced a nonsensical shares_outstanding_basic > shares_outstanding_
+        diluted result, caught by tie_out.py's check_diluted_ge_basic_shares (added same
+        session, `60de22f75`). This is a DIFFERENT gap than has_dual_class_sibling in
+        sec_valuations_shares.py: that gating only covers the sec_valuations pipeline's own
+        shares-outstanding computation, never annual_income_statement.shares_outstanding_
+        basic itself, which is what this loader (and the tie-out check) actually reads.
+        Reuses the same three detection tiers (dot-suffix, DUAL_CLASS_NO_SEPARATOR_ROOTS,
+        DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES) as one bulk query instead of sec_valuations_
+        shares.py's per-symbol round trip, matching this file's existing bulk-fetch-once
+        convention (_get_reit_symbols et al.) rather than adding N queries per loader run.
+        """
+        cached: frozenset[str] | None = getattr(self, "_dual_class_sibling_symbols", None)
+        if cached is None:
+            from loaders.load_sec_valuations import (
+                DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES,
+                DUAL_CLASS_NO_SEPARATOR_ROOTS,
+            )
+            from utils.db.context import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT symbol FROM stock_symbols WHERE active = true")
+                all_symbols = frozenset(row[0] for row in cur.fetchall())
+
+            # roots[base] collects every active symbol (bare root and any dot-suffixed
+            # siblings) sharing that base - e.g. roots["CWEN"] = {"CWEN", "CWEN.A"}.
+            roots: dict[str, set[str]] = {}
+            for sym in all_symbols:
+                base = sym.split(".")[0] if "." in sym else sym
+                roots.setdefault(base, set()).add(sym)
+            flagged: set[str] = set()
+            for sym in all_symbols:
+                if "." in sym:
+                    base = sym.split(".")[0]
+                    siblings = roots.get(base, set()) - {sym}
+                    if siblings:
+                        flagged.add(sym)
+                        flagged |= siblings
+                    continue
+                no_sep_root = next(
+                    (r for r in DUAL_CLASS_NO_SEPARATOR_ROOTS if sym.startswith(r) and len(sym) == len(r) + 1),
+                    None,
+                )
+                if no_sep_root and no_sep_root in all_symbols:
+                    flagged.add(sym)
+                    flagged.add(no_sep_root)
+            for family in DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES:
+                present = family & all_symbols
+                if len(present) > 1:
+                    flagged |= present
+            cached = frozenset(flagged)
+            self._dual_class_sibling_symbols = cached
         return cached
 
     def _get_insurance_symbols(self) -> frozenset[str]:
@@ -1252,6 +1329,33 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # smaller value that excluding_assessed_tax is SUPPOSED to override regardless
             # of magnitude" (must NOT protect it - see that guard's own comment).
             _revenue_source_sec_field: str | None = None
+            # FIXED 2026-09-07 (PCG live-confirmed, goal session: stock_scores factor audit
+            # + tie-out sweep): tracks the rank (see sec_statements_shared.py's
+            # _PRIMARY_STATEMENT_FORMS/_ANNUAL_REPORT_FORMS) of whichever sec_field most
+            # recently wrote "net_income", so the guard below can refuse to let a
+            # non-primary-form-sourced concept (a DEF 14A Pay vs Performance re-tag, kept
+            # only as _aggregate_concepts's documented "last resort when no primary-form
+            # entry exists" fallback - see test_sec_statements_primary_form_outranks_
+            # def14a_scale_error.py) silently overwrite an already-correct value a
+            # DIFFERENT, real 10-K-sourced concept already wrote. Live-confirmed via PG&E
+            # Corp (PCG) FY2025: "ProfitLoss" (10-K, real $2,703,000,000, rank 2) wrote
+            # net_income correctly, then "NetIncomeLoss" (PG&E's real 10-K never tags this
+            # concept at all - only a DEF 14A proxy does, mistagged in thousands as raw
+            # "2593" instead of $2,593,000,000, rank 0) was processed later in the concepts
+            # list and unconditionally overwrote it via the ordinary last-listed-wins rule,
+            # producing a ~1,042,265x understatement with no data_unavailable/reason flag -
+            # caught by algo/monitoring/data_patrol/checks/tie_out.py's
+            # pretax_to_net_income identity check (WARN, not previously root-caused).
+            # GENERALIZED 2026-09-07 (real-money-readiness audit): the net_income-only guard
+            # above was a single db_field special case. Every other multi-concept db_field
+            # (pretax_income, total_assets, stockholders_equity, gross_profit,
+            # operating_income, income_tax_expense, interest_expense,
+            # shares_outstanding_diluted, diluted_eps, ...) fell through to the generic
+            # last-listed-wins `else` branch below with NO rank check at all - the exact same
+            # unguarded shape that produced the PCG net_income bug, just not yet caught live
+            # on one of these other fields. Track rank per db_field instead of only for
+            # net_income so the same protection applies uniformly.
+            _field_source_rank: dict[str, int] = {}
 
             field_mapping = self._field_mapping
             # FIXED 2026-08-22 (goal session: "Implausible / rejected value" coverage audit):
@@ -1285,6 +1389,13 @@ class SecEdgarStatementLoader(SecLoaderBase):
             revenue_total_best: dict[str, float] = {}
             for sec_field, value in ordered_fields:
                 if sec_field in ("symbol", "fiscal_year"):
+                    continue
+                # `_rank_{col}` bookkeeping (see _aggregate_concepts_apply_entry_value /
+                # sec_statements_aggregate.py's result-building comment on why it alone,
+                # unlike its `_filed_`/`_end_`/`_frame_`/`_span_`/`_is_instant_` siblings, is
+                # not stripped before reaching here) is read on demand below via
+                # r.get(f"_rank_{sec_field}") - it is never itself a field to map/warn on.
+                if sec_field.startswith("_rank_"):
                     continue
 
                 if sec_field not in field_mapping:
@@ -1483,6 +1594,60 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     row["data_unavailable"] = value
                 elif db_field == "reason":
                     row["reason"] = value
+                elif (
+                    db_field in row
+                    and _field_source_rank.get(db_field) is not None
+                    and _field_source_rank[db_field] > 0
+                    and r.get(f"_rank_{sec_field}", 2) == 0
+                ):
+                    # See _field_source_rank's own comment above (PCG net_income live-confirmed,
+                    # generalized to every multi-concept db_field): a rank-0 (non-primary-form,
+                    # e.g. DEF 14A) concept must never overwrite a value a real primary-form
+                    # concept already wrote, even though it's a DIFFERENT concept occupying a
+                    # later list position - the ordinary last-listed-wins rule only ever
+                    # intended to arbitrate between comparable-quality concepts.
+                    continue
+                elif (
+                    db_field == "capex"
+                    and sec_field
+                    in (
+                        "payments_to_acquire_oil_and_gas_property",
+                        "payments_to_explore_and_develop_oil_and_gas_properties",
+                    )
+                    and db_field in row
+                    and isinstance(row[db_field], (int, float, Decimal))
+                    and isinstance(value, (int, float, Decimal))
+                ):
+                    # BUG FOUND 2026-09-07 (real-money-readiness audit): see
+                    # utils/external/sec_cash_flow.py's concepts-list comment on these two
+                    # concepts - CRGY (Crescent Energy) tags BOTH as genuinely distinct,
+                    # additive investing-activity lines in the same fiscal year
+                    # (PaymentsToExploreAndDevelopOilAndGasProperties $951.0M E&D +
+                    # PaymentsToAcquireOilAndGasProperty $818.9M acquisition, FY2025), not
+                    # alternates for the same fact. _aggregate_concepts has no summing
+                    # mechanism (both keep their own distinct snake_case keys there), so the
+                    # collision happens here: field_mapping maps both to db_field "capex",
+                    # and the ordinary last-listed-wins rule silently discarded whichever one
+                    # processed first - understating total capex (and correspondingly
+                    # overstating free_cash_flow/fcf_margin) by the other line's amount for
+                    # any O&G filer tagging both in the same year. Sum instead of overwrite.
+                    row[db_field] = row[db_field] + value
+                    continue
+                elif (
+                    db_field == "shares_outstanding_basic"
+                    and sec_field in ("common_stock_shares_issued", "common_stock_shares_outstanding")
+                    and r.get("symbol") in self._get_dual_class_sibling_symbols()
+                ):
+                    # See _get_dual_class_sibling_symbols's own docstring (CWEN live-confirmed):
+                    # these two concepts are the entity-wide balance-sheet share count (every
+                    # class combined), a real fallback only when the filer's other reported
+                    # share/EPS concepts are equally entity-wide - true for a single-class
+                    # filer, but not for a dual/multi-class one whose real weighted-average
+                    # diluted count (when tagged) is scoped to just this ticker's own class.
+                    # Left NULL rather than storing a mismatched entity-wide total under
+                    # shares_outstanding_basic - same "don't fabricate, leave unavailable"
+                    # discipline as every other guard in this method.
+                    continue
                 else:
                     precision_scale = self._get_field_precision_scale(db_field)
                     if precision_scale is not None and not self._validate_numeric_precision(
@@ -1499,6 +1664,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         row[db_field] = value
                         if db_field == "revenue":
                             _revenue_source_sec_field = sec_field
+                        _field_source_rank[db_field] = r.get(f"_rank_{sec_field}", 2)
 
             # free_cash_flow has no direct XBRL concept (FCF is a non-GAAP measure SEC
             # filers don't tag) - derive it from operating_cash_flow - capex, the standard

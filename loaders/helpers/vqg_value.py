@@ -116,6 +116,48 @@ class ValueMetricsMixin(SymbolGateMixin):
                 for field in ("pe_ratio", "pb_ratio", "ps_ratio", "peg_ratio"):
                     if marker.get(f"{field}_unavailable_reason") is not None:
                         marker[f"{field}_unavailable_reason"] = "preferred_or_debt_security_no_common_equity_ratio"
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling to
+            # sec_valuations_income_context.py's _get_market_cap_without_income_statement):
+            # sec_valuations' own "no_income_statement"/etc. data_unavailable marker can
+            # still carry a real market_cap (price * shares_outstanding needs neither an
+            # income statement nor this method's other tiers) - this method's own all-NULL
+            # `_unavailable_marker("value_metrics", ...)` above discarded it unconditionally.
+            # Live-confirmed AADX/DPC/SIND/PBLS/ADBT/ADIG/BSEM/AIB/KARD/AVEX/SSMR/CSQR/LFTO/
+            # FCBM/HMH/LCLN/LIME/SECZ/SUJA all have a real row_dict["market_cap"] here despite
+            # data_unavailable=True.
+            if row_dict.get("market_cap") is not None:
+                marker["market_cap"] = row_dict["market_cap"]
+                marker["market_cap_unavailable_reason"] = None
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+            # follow-up, sibling to the market_cap override above): pb_ratio only needs
+            # current_price/shares_outstanding (already recovered above) and
+            # annual_balance_sheet.stockholders_equity - no income-statement dependency
+            # either. Skipped for a preferred/subordinated-debenture ticker (the override
+            # just above already correctly recategorizes its pb_ratio reason as
+            # "preferred_or_debt_security_no_common_equity_ratio" - a real business fact,
+            # not a missing value, so it must not be clobbered by a real number here even
+            # if sec_valuations happened to compute one).
+            if row_dict.get("pb_ratio") is not None and symbol not in self._get_preferred_or_debt_security_symbols():
+                marker["pb_ratio"] = row_dict["pb_ratio"]
+                marker["pb_ratio_unavailable_reason"] = None
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+            # follow-up): held_percent_institutions comes from positioning_metrics (13F
+            # ownership data) - a completely separate feed from sec_valuations/SEC XBRL, but
+            # `_fetch_positioning_metrics` is only ever called further down this method, past
+            # this early return, so a sec_valuations data_unavailable row (of ANY reason, not
+            # just no_income_statement) silently fell back to that reason instead of its own
+            # real, more specific positioning_metrics status. Live-confirmed 17/19 symbols
+            # hitting the no_income_statement gate (AADX/DPC/SIND/etc.) have a real, specific
+            # "no_resolved_13f_holdings" reason recorded in positioning_metrics (correctly
+            # "Ownership data unresolved" in /api/scores/coverage, not "Missing SEC/XBRL
+            # data" - see coverage_category_rules.py) and 2/19 (AIB, FCBM) have a real,
+            # computed institutional_ownership_pct that was being discarded outright.
+            held_percent_institutions, held_percent_institutions_reason = self._fetch_positioning_metrics(symbol)
+            if held_percent_institutions is not None:
+                marker["held_percent_institutions"] = held_percent_institutions
+                marker["held_percent_institutions_unavailable_reason"] = None
+            elif held_percent_institutions_reason is not None:
+                marker["held_percent_institutions_unavailable_reason"] = held_percent_institutions_reason
             return marker
 
         pe = row_dict.get("pe_ratio")
@@ -295,21 +337,39 @@ class ValueMetricsMixin(SymbolGateMixin):
             if market_cap is not None
             else None
         )
-        if ebitda_raw is not None and ebitda_raw <= 0:
-            ev_ebitda_reason = "unprofitable_stock"
-        elif ebitda_raw is None:
-            ev_ebitda_reason = "ebitda_not_extracted"
         # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, comprehensive RIC-gap
         # scan): a registered investment company (see _get_registered_investment_company_
         # symbols()' docstring) has no debt concept to tag at all, same structural fact already
         # recategorized for quality_metrics.total_debt/roic_pct/roce_pct/debt_to_equity - this
-        # chain reused the "total_debt_not_itemized" branch below (same root gate,
-        # _get_no_recent_debt_components_symbols()) without ever checking RIC first. Live-
-        # confirmed CEV (a real ebitda>0 but no debt concept RIC) was falling to the generic
-        # "total_debt_not_itemized" ("Missing SEC/XBRL data") instead of
-        # "registered_investment_company_no_xbrl" ("Legitimate / not applicable").
+        # chain used to reuse the "total_debt_not_itemized" branch below (same root gate,
+        # _get_no_recent_debt_components_symbols()) without ever checking RIC first, and was
+        # ALSO placed after the ebitda_raw None/<=0 checks below - a RIC's own EBITDA concept is
+        # equally absent (no GAAP income statement at all), so it was silently outranked by
+        # "ebitda_not_extracted"/"unprofitable_stock" whenever ebitda_raw happened to be None or
+        # 0 instead of ever reaching this check. Live-confirmed CEV (a real ebitda>0 but no debt
+        # concept RIC) was falling to the generic "total_debt_not_itemized" ("Missing SEC/XBRL
+        # data") instead of "registered_investment_company_no_xbrl" ("Legitimate / not
+        # applicable"). Moved to the front of this chain so it wins regardless of ebitda_raw's
+        # own state, mirroring fcf_yield_reason_str's own RIC/etf-trust/royalty-trust priority
+        # order just above in this file.
+        #
+        # FIXED same sweep, same-day follow-up: a physical commodity/currency/crypto trust
+        # (etf_trust) or royalty trust has no EBITDA concept either (no operating business to
+        # report income/expenses for) - same structural fact, added as siblings to the RIC check
+        # here since neither was ever wired into this specific chain (fcf_yield/total_debt/
+        # quality_metrics.ebitda already have all three). Live-confirmed 37 active etf_symbols
+        # tickers (GLDM/BITW/CPER/USCI-class) stuck on "missing_sec_data"/"ebitda_not_extracted"
+        # for ev_ebitda.
+        if symbol in self._ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS:
+            ev_ebitda_reason = "reit_special_entity"
         elif symbol in self._get_registered_investment_company_symbols():
             ev_ebitda_reason = "registered_investment_company_no_xbrl"
+        elif symbol in self._get_etf_trust_no_stockholders_equity_symbols():
+            ev_ebitda_reason = "etf_trust_no_gaap_financials"
+        elif ebitda_raw is not None and ebitda_raw <= 0:
+            ev_ebitda_reason = "unprofitable_stock"
+        elif ebitda_raw is None:
+            ev_ebitda_reason = "ebitda_not_extracted"
         # ebitda>0 present, enterprise_value missing or out of bounds: enterprise_value =
         # market_cap + total_debt - total_cash, so it fails whenever total_debt can't be
         # itemized - reuse the same gate quality_metrics.total_debt already uses.
@@ -429,6 +489,15 @@ class ValueMetricsMixin(SymbolGateMixin):
                 # intrinsic_value/margin_of_safety's reasons below, which derive from this value.
                 else "shares_outstanding_scale_mismatch"
                 if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
+                # FIXED 2026-09-07 (goal: "1600 missing XBRL" reduction sweep):
+                # _get_structural_entity_type_exemptions() (broader SIC-code/entity_type CEF/
+                # BDC/ETF-trust gate than the RIC/etf_trust/royalty-trust checks above, which
+                # only cover their own narrower membership tests) was wired into quality_metrics
+                # but never checked here. Live-confirmed 64 of 153 active-universe fcf_yield
+                # "missing_sec_data" symbols are covered by this gate but fall through every
+                # narrower check above to the generic fallback.
+                else "entity_type_structurally_exempt_10k_filing"
+                if symbol in self._get_structural_entity_type_exemptions()
                 else "missing_sec_data"
             )
             if fcf_yield is None
@@ -699,6 +768,56 @@ class ValueMetricsMixin(SymbolGateMixin):
                 )
                 eps_row = cur.fetchone()
             latest_eps = eps_row[0] if eps_row else None
+            # FIXED 2026-09-07 (goal session: real-money-readiness audit): sec_valuations_
+            # ratios.py's _compute_pe_ratio deliberately nulls a real, positive, plausible
+            # pe_ratio when _pe_earnings_too_volatile/_pe_earnings_tax_benefit_inflated fire
+            # (see those methods' own docstrings - live-confirmed BA/RILY and AES/RIGL/AXON),
+            # but only logs a warning, recording no reason on the row - so this cascade, which
+            # only ever sees a real positive latest_eps for these symbols, fell all the way
+            # through to the generic "missing_sec_data" catch-all instead of the correct
+            # "Implausible / rejected value" bucket (coverage_category_rules.py maps both
+            # strings there, same bucket as eps_scale_mismatch/implausible_dcf_result above).
+            # Re-derives both checks directly (same "recompute the real gate's logic here"
+            # convention as every other guard in this cascade, e.g. the implausible_ratio pe/
+            # pb/ps bound rechecks just below) since this loader is a different class than
+            # SecValuationsLoader and has no access to its instance methods. Checked BEFORE the
+            # implausible-ratio/unprofitable/never-tagged branches below: a real, in-bounds pe
+            # that was excluded for earnings-quality reasons is a more specific, more accurate
+            # cause than any of those generic fallbacks.
+            _pe_too_volatile = False
+            _pe_tax_benefit_inflated = False
+            if latest_eps is not None and latest_eps > 0:
+                with _owner().DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT net_income FROM annual_income_statement
+                        WHERE symbol = %s AND net_income IS NOT NULL AND data_unavailable IS NOT TRUE
+                        ORDER BY fiscal_year DESC LIMIT 3
+                        """,
+                        (symbol,),
+                    )
+                    _volatility_rows = cur.fetchall()
+                if len(_volatility_rows) >= 3:
+                    _negative_years = sum(1 for (ni,) in _volatility_rows if ni < 0)
+                    _pe_too_volatile = _negative_years >= 2
+                if not _pe_too_volatile:
+                    with _owner().DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT pretax_income, income_tax_expense FROM annual_income_statement
+                            WHERE symbol = %s AND pretax_income IS NOT NULL AND income_tax_expense IS NOT NULL
+                              AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        _tax_row = cur.fetchone()
+                    if _tax_row and len(_tax_row) == 2:
+                        _pretax_income, _income_tax_expense = _tax_row
+                        if _pretax_income is not None and _pretax_income > 0:
+                            _pretax_f = float(_pretax_income)
+                            _tax_f = float(_income_tax_expense)
+                            _pe_tax_benefit_inflated = _tax_f < 0 and abs(_tax_f) >= 0.30 * _pretax_f
             # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): mirrors
             # load_sec_valuations.py's own pe_ratio bounds check (MIN_PLAUSIBLE_PE_RATIO..10000)
             # - a real, positive, tiny EPS (near-zero-denominator) produces a real but
@@ -726,7 +845,11 @@ class ValueMetricsMixin(SymbolGateMixin):
                     if _implied_pe > 10000 or _implied_pe < 0.05 or float(latest_eps) < 0.10:
                         _pe_implausible_from_eps = True
             pe_ratio_reason = (
-                "implausible_ratio"
+                "pe_earnings_too_volatile"
+                if _pe_too_volatile
+                else "pe_earnings_tax_benefit_inflated"
+                if _pe_tax_benefit_inflated
+                else "implausible_ratio"
                 if _pe_implausible_from_eps
                 else "unprofitable_stock"
                 if latest_eps is not None and latest_eps <= 0
@@ -775,7 +898,36 @@ class ValueMetricsMixin(SymbolGateMixin):
                     (symbol,),
                 )
                 eps_rows = cur.fetchall()
-            peg_ratio_reason = peg_ratio_reason_from_eps_history(eps_rows)
+            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): only pay for this
+            # second query on the rare symbols with explosive apparent growth - same cheap-
+            # pre-filter discipline sec_valuations_ratios.py's own _compute_peg_ratio uses
+            # before it does the identical query to detect a low-base trough year. See
+            # peg_ratio_reason_from_eps_history()'s own docstring for why this is needed at
+            # all: without it, the low-base-effect rejection this mirrors falls through to
+            # "missing_sec_data" instead of "peg_ratio_low_base_effect".
+            other_positive_eps: list[float] | None = None
+            if len(eps_rows) >= 2:
+                ttm_eps_for_growth, prior_eps_for_growth = eps_rows[0][1], eps_rows[1][1]
+                if (
+                    prior_eps_for_growth is not None
+                    and prior_eps_for_growth > 0
+                    and ttm_eps_for_growth is not None
+                    and ((ttm_eps_for_growth - prior_eps_for_growth) / abs(prior_eps_for_growth)) * 100 > 300
+                ):
+                    with _owner().DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT earnings_per_share FROM annual_income_statement
+                            WHERE symbol = %s AND earnings_per_share IS NOT NULL
+                              AND earnings_per_share > 0 AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC
+                            """,
+                            (symbol,),
+                        )
+                        other_positive_eps = [
+                            float(r[0]) for r in cur.fetchall() if float(r[0]) != prior_eps_for_growth
+                        ]
+            peg_ratio_reason = peg_ratio_reason_from_eps_history(eps_rows, other_positive_eps)
         else:
             peg_ratio_reason = pe_ratio_reason if peg is None and pe is None else None
 

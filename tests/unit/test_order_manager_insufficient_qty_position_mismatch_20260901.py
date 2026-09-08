@@ -66,7 +66,7 @@ class TestHandleInsufficientQtyPartialAvailability:
         # otherwise it would just 403 again identically.
         assert mock_post.call_count == 2
         retried_payload = mock_post.call_args_list[1].kwargs["json"]
-        assert retried_payload["qty"] == 60.0
+        assert retried_payload["qty"] == "60.0"
 
     def test_does_not_retry_with_corrected_qty_past_attempt_zero(self):
         """The 'available' partial-qty correction is only trusted on attempt 0 (a stale
@@ -86,8 +86,8 @@ class TestHandleInsufficientQtyPartialAvailability:
 
         assert result["success"] is True
         assert mock_post.call_count == 3
-        assert mock_post.call_args_list[1].kwargs["json"]["qty"] == 60.0
-        assert mock_post.call_args_list[2].kwargs["json"]["qty"] == 60.0
+        assert mock_post.call_args_list[1].kwargs["json"]["qty"] == "60.0"
+        assert mock_post.call_args_list[2].kwargs["json"]["qty"] == "60.0"
 
 
 class TestHandleInsufficientQtyLockedByOrders:

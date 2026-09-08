@@ -378,6 +378,45 @@ class TestRetriesIncompleteAvailableYearsPastWatermark:
         # retry under the old single-field check.
         assert {r["fiscal_year"] for r in rows} == {2026, 2025}
 
+    def test_retries_fiscal_year_with_debt_populated_but_retained_earnings_null(self):
+        """2026-09-07 fix: balance's core-field retry now ALSO fires on `retained_earnings`
+        alone - see _CORE_FIELD_BY_STATEMENT_TYPE's comment. Live-confirmed: quarterly_
+        balance_sheet's retained_earnings column (migration 1266) sat at 0/212,531 populated
+        even on rows this session's own reload freshly wrote, because every other balance
+        core field was already non-NULL for those symbols - exactly the same
+        already-processed-year gap as the long_term_debt/short_term_debt fix above."""
+        loader = _make_balance_loader()
+        loader._sec_client.get_balance_sheet.return_value = [
+            {
+                "symbol": "CSX",
+                "fiscal_year": 2026,
+                "stockholders_equity": 12_000_000_000,
+                "long_term_debt": 18_000_000_000,
+                "short_term_debt": 500_000_000,
+                "retained_earnings": None,
+            },
+            {
+                "symbol": "CSX",
+                "fiscal_year": 2025,
+                "stockholders_equity": 11_500_000_000,
+                "long_term_debt": 17_500_000_000,
+                "short_term_debt": 450_000_000,
+                "retained_earnings": None,
+            },
+        ]
+
+        with patch(
+            "utils.db.context.DatabaseContext",
+            side_effect=_fake_db_context(has_rows_for_symbol=True, unavailable_years=[], incomplete_years=[2025]),
+        ):
+            rows = loader.fetch_incremental("CSX", since=date(2025, 12, 31))
+
+        # Without the fix, since_year=2025 would silently drop the FY2025 row forever, even
+        # though retained_earnings is now extractable and right there in the freshly
+        # refetched data - stockholders_equity/long_term_debt/short_term_debt all being
+        # non-NULL meant it never triggered a retry under the old 3-field check.
+        assert {r["fiscal_year"] for r in rows} == {2026, 2025}
+
     def test_balance_statement_uses_debt_fields_as_core_fields(self):
         """Different statement_type -> different core field(s) (_CORE_FIELD_BY_STATEMENT_TYPE)."""
         loader = _make_balance_loader()

@@ -94,6 +94,35 @@ class TestExplicitNullRejectionRecorded:
             "shares_outstanding_basic",
         ) in loader._explicit_null_rejections
 
+    def test_shares_outstanding_absolute_ceiling_rejection_records(self) -> None:
+        """NMR-shaped case (2026-09-06 fix): a real filer/filing-agent XBRL tagging error can
+        tag a share count many orders of magnitude too LARGE, not just too small - this has
+        no upper bound at all when company_info_sec.shares_outstanding is NULL for the symbol
+        (the relative cross-check below this absolute check silently no-ops without a
+        reference). Live-confirmed via SEC's own companyfacts API: Nomura Holdings (NMR) tags
+        WeightedAverageNumberOfDilutedSharesOutstanding as 3,041,190,068,000,000 "shares" -
+        net_income/diluted_eps on the same row imply the real count is ~3.04 billion, exactly
+        1,000,000x smaller.
+        """
+        loader = _make_loader()
+        rows = [
+            {
+                "symbol": "NMR",
+                "fiscal_year": 2026,
+                "revenue": Decimal("50000000000"),
+                "net_income": Decimal("2270401253.92"),
+                "shares_outstanding_basic": None,
+                "shares_outstanding_diluted": Decimal("3041190068000000"),
+                "data_unavailable": False,
+                "reason": None,
+            }
+        ]
+        _transform(loader, rows)
+        assert (
+            {"symbol": "NMR", "fiscal_year": 2026},
+            "shares_outstanding_diluted",
+        ) in loader._explicit_null_rejections
+
     def test_no_rejection_leaves_list_empty(self) -> None:
         loader = _make_loader()
         rows = [

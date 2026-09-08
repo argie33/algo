@@ -231,15 +231,35 @@ class ExitEngine:
                     # If we fetch positions without lock, another transaction can modify them in the gap
                     # between this SELECT and the FOR UPDATE recheck at line 625. This causes duplicate
                     # exits or exits on wrong positions under concurrent load. Lock positions here.
+                    # BUG FOUND 2026-09-07 (goal session: pre-live-trading order-execution/
+                    # stop-loss audit, 4th independent copy of the pyramided-position
+                    # entry-price bug class - see the entry_price/entry_qty fixes in
+                    # executor_exit_handler.py, _compute_cumulative_pnl, and
+                    # phase9_reconciliation.py's _record_closed_positions_exits). Two
+                    # problems from joining on `ANY(p.trade_ids_arr)` instead of the
+                    # established "trade_ids_arr[0] is THE trade for this position"
+                    # convention every other consumer uses (phase9_stop_loss_repair.py,
+                    # phase6_exit_execution.py, position_monitor.py): (1) a position with
+                    # 2+ entries in trade_ids_arr would join to MULTIPLE rows here and get
+                    # evaluated for exit/trailing-stop-raise once per leg per cycle instead
+                    # of once, each time anchored to a DIFFERENT leg's own entry_price
+                    # rather than the position's actual blended cost basis; (2) even for a
+                    # single matched row, t.entry_price is that one trade's own entry price,
+                    # not the (COALESCE-guarded, same pattern as the already-fixed P&L bugs)
+                    # blended p.avg_entry_price - so a pyramided position's trailing-stop
+                    # raise/lock-in-gain logic would anchor to the wrong cost basis. Match
+                    # exactly one row per position (the array's first/original trade, same
+                    # as every other consumer) and use the position's blended entry price.
                     cur.execute(
-                        f"""SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
+                        f"""SELECT t.trade_id, t.symbol, COALESCE(p.avg_entry_price, t.entry_price) AS entry_price,
+                                  t.stop_loss_price,
                                   t.target_1_price, t.target_2_price, t.target_3_price,
                                   t.trade_date,
                                   p.position_id, p.quantity, p.target_levels_hit,
                                   p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time,
                                   t.last_partial_exit_date, t.partial_exits_log
                            FROM algo_trades t
-                           JOIN algo_positions p ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
+                           JOIN algo_positions p ON t.trade_id::text = p.trade_ids_arr[1]::text
                            WHERE t.status IN ({status_placeholders}) AND p.status = %s AND p.quantity > 0
                            ORDER BY t.trade_date ASC
                            FOR UPDATE OF p""",
@@ -341,7 +361,10 @@ class ExitEngine:
                             continue
 
                         # Use fresh stop price if available (ensures exit calculation has latest data)
-                        effective_current_stop = fresh_stop_price if fresh_stop_price else current_stop
+                        # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): was `if fresh_stop_price
+                        # else current_stop`, a truthiness check - a legitimate stop price of exactly 0
+                        # would silently fall back to the stale current_stop instead of being used.
+                        effective_current_stop = fresh_stop_price if fresh_stop_price is not None else current_stop
 
                         try:
                             entry_price = Decimal(str(entry_price))
@@ -498,6 +521,15 @@ class ExitEngine:
                                     ),
                                 )
                                 exits_executed += 1
+                                # REAL-MONEY-READINESS FIX (2026-09-06 audit): this dedicated counter
+                                # was declared, logged, and returned but never incremented anywhere -
+                                # always reported 0 regardless of how many positions actually got
+                                # force-closed with an unknown fill price here. That silently defeated
+                                # the operator-visibility signal for exactly the case (force-closed,
+                                # NULL P&L, needs manual reconciliation) that most needs a human to
+                                # notice - phase6_exit_execution.py's run summary and the
+                                # EXIT_CHECK_FAILURES alert payload both surface this value.
+                                forced_closes_no_price += 1
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")
                                 continue
                             else:
@@ -594,23 +626,16 @@ class ExitEngine:
                                 "exit_price_override": float(exit_price_for_stop),  # Use stop price as fill
                             }
                         else:
-                            # Get min_hold_days from config
-                            # Hard stop-loss above already checked and not triggered
-                            min_hold_val = self.config.get("min_hold_days")
-                            if min_hold_val is None:
-                                raise ValueError(
-                                    "CRITICAL: min_hold_days config missing. Cannot enforce minimum holding period."
-                                )
-                            min_hold_days_check = int(min_hold_val)
-
-                            if days_held < min_hold_days_check:
-                                if self.verbose:
-                                    logger.info(
-                                        f"  {symbol}: hold (minimum hold period not met: {days_held}d held < {min_hold_days_check}d required)"
-                                    )
-                                cur.execute(f"RELEASE SAVEPOINT {_sp}")
-                                continue
-
+                            # BUG FIX: This used to gate the entire ExitStrategyChain (targets,
+                            # trailing/active stop, Minervini/RS breaks, distribution de-risking)
+                            # behind min_hold_days, blocking `_evaluate_position` from ever being
+                            # reached during the hold window. That made _evaluate_position's own
+                            # "SESSION 41" fix (which documents removing exactly this blanket gate
+                            # and delegating min_hold_days enforcement to check_time_exit for
+                            # time-based exits only) dead code - the min_hold_days config is still
+                            # read and enforced, just inside check_time_exit (exit_position_context.py)
+                            # and the active_stop/hard-stop checks at the top of _evaluate_position,
+                            # not here. Hard stop-loss above already checked and not triggered.
                             exit_signal = self._evaluate_position(
                                 cur,
                                 symbol,
@@ -727,13 +752,22 @@ class ExitEngine:
 
                         cur.execute(f"RELEASE SAVEPOINT {_sp}")
 
-                    except (
-                        psycopg2.DatabaseError,
-                        psycopg2.OperationalError,
-                        ValueError,
-                        KeyError,
-                        RuntimeError,
-                    ) as _trade_err:
+                    except Exception as _trade_err:
+                        # REAL-MONEY-READINESS FIX (2026-09-07, pre-live audit): this previously
+                        # caught only (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError,
+                        # KeyError, RuntimeError) - see the comment above at the Decimal-conversion
+                        # block (~line 379) that already documented the gap: any OTHER exception type
+                        # (TypeError, AttributeError, IndexError, decimal.InvalidOperation,
+                        # ZeroDivisionError, etc.) raised anywhere in this per-position block would
+                        # propagate straight out of the per-position try, past this handler, and
+                        # (since this loop runs inside one outer `with DatabaseContext("write")`
+                        # transaction across ALL positions in the cycle) abort/rollback the entire
+                        # batch - silently undoing exit decisions (including hard stop-loss closes)
+                        # already made this cycle for every OTHER position, not just the one that
+                        # errored. Catching Exception broadly here routes any failure through this
+                        # block's existing savepoint-rollback-and-continue recovery instead, isolating
+                        # the failure to the single position that raised it.
+                        #
                         # CRITICAL FIX: Rollback to savepoint may itself fail if transaction is aborted.
                         # Wrap it in try-except to ensure we log the error and continue to the next position,
                         # rather than propagating a "current transaction is aborted" error that would abort

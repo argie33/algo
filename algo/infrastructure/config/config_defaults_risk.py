@@ -185,6 +185,12 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
         "Risk Limits",
     ),
     "max_total_risk_pct": ("4.0", "float", "Max total open risk %", "Risk Limits"),
+    "absolute_max_dollars_per_trade": (
+        "10000.0",
+        "float",
+        "Hard per-trade dollar ceiling independent of portfolio_value - fat-finger backstop against a corrupted equity read",
+        "Risk Limits",
+    ),
     "min_risk_pct_floor": (
         "0.10",
         "float",
@@ -193,11 +199,62 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
     ),
     "max_weekly_loss_pct": ("5.0", "float", "Max weekly loss % before halt", "Risk Management"),
     "daily_profit_cap_pct": ("2.0", "float", "Daily profit cap %", "Position Sizing"),
+    "intraday_prior_day_drop_halt_pct": (
+        "-2.0",
+        "float",
+        "Prior-day SPY drop % that halts new entries (must be negative)",
+        "Drawdown Defense",
+    ),
+    "intraday_spy_drop_halt_pct": (
+        "-2.0",
+        "float",
+        "Live intraday SPY move % (vs. prior close) that unified_risk_monitor treats as a "
+        "market-health breach (must be negative) - distinct from "
+        "intraday_prior_day_drop_halt_pct, which compares yesterday's close to the day before",
+        "Drawdown Defense",
+    ),
     "sector_drawdown_halt_pct": (
         "-12.0",
         "float",
         "Sector drawdown % to halt trading",
         "Drawdown Defense",
+    ),
+    # REAL-MONEY-READINESS (2026-09-07): unified_risk_monitor.py's confirmed-breach ladder
+    # (HALT -> automated reduce/flatten) is fully built and correct, but has never been
+    # soak-tested against a live paper account - the auto-remediation actions are real,
+    # irreversible trades. This flag lets the monitor run its FULL detection/escalation
+    # logic (every check, every consecutive-breach streak, every alert) with zero live
+    # trading impact: while true, a confirmed breach is loudly alerted as "SHADOW MODE -
+    # would have halted/flattened" instead of actually calling set_halt_flag or the exit
+    # path. Defaults true (observe-only) so simply enabling the monitor itself
+    # (enable_unified_risk_monitor in terraform) never silently turns on live
+    # auto-remediation - that requires this SEPARATE, explicit operator decision.
+    "unified_risk_monitor_shadow_mode": (
+        "true",
+        "bool",
+        "unified_risk_monitor observes and alerts on confirmed breaches but does NOT "
+        "auto-halt or auto-flatten while true. Set false only after a deliberate, "
+        "explicit operator decision to enable live automated remediation.",
+        "Risk Management",
+    ),
+    # REAL-MONEY-READINESS (2026-09-07, deliberate operator decision): unlike
+    # unified_risk_monitor_shadow_mode above (auto-flatten/reduce - real, irreversible
+    # trades, stays shadow-mode until separately soak-tested), this check's only action is
+    # set_halt_flag - it blocks new entries, never touches or exits an existing position
+    # (verified: Phase 6 exits, Phase 3/4/5/7 all always_run=True regardless of halt state).
+    # A halt is cheap to be wrong about and expensive to be missing: >5% confirmed broker-
+    # vs-DB equity drift, sustained across 2 consecutive reconciliation runs (not a single
+    # noisy snapshot), means the algo's own books may be materially wrong about what it
+    # holds - exactly the condition that should stop new risk-taking before real capital is
+    # on the line, not just alert. Flipped to live enforcement ahead of go-live; flip back
+    # to "true" only if live operation shows this debounce is still too sensitive.
+    "reconciliation_drift_halt_shadow_mode": (
+        "false",
+        "bool",
+        "reconciliation.py's sustained broker/DB equity-drift halt observes, alerts, AND "
+        "auto-halts (new entries only, never touches existing positions) on confirmed "
+        "2-consecutive-run critical (>5%) drift. Set true to return to observe-only mode.",
+        "Risk Management",
     ),
     # Position Monitoring & Re-entry
     "position_halt_flag_count": ("2", "int", "Flags to propose early exit", "Position Monitoring"),
@@ -243,6 +300,25 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
     "max_short_interest_pct": ("30.0", "float", "Maximum short interest %", "Liquidity Requirements"),
     "min_adv_shares": ("50000", "int", "Minimum average daily volume (shares)", "Liquidity Requirements"),
     "min_adv_dollars": ("500000", "float", "Minimum average daily dollar volume", "Liquidity Requirements"),
+    # ENABLED (real-money-readiness audit, 2026-09-06): PositionSizer's optional
+    # max_pct_of_adv_dollars participation-rate cap (added earlier the same day) was fully
+    # implemented and tested but never actually configured anywhere - min_adv_shares/
+    # min_adv_dollars above are a fixed pass/fail floor on the SYMBOL's own liquidity, not a
+    # ceiling on how large a CANDIDATE POSITION can be relative to it. A big-enough account
+    # could clear that floor by a wide margin while still sizing a single trade as a large
+    # fraction of the stock's own daily turnover, risking real execution slippage and
+    # multi-day unwind risk on exit. 5% is standard low-single-digit institutional practice
+    # for a participation-rate ceiling - conservative enough to only bind on genuinely thin
+    # names, consistent with this system's other conservative liquidity/concentration
+    # defaults (max_position_size_pct=4.75%). User directed: "figure out what is right and
+    # best" rather than picking a number themselves - this is that judgment call, not a
+    # placeholder guess.
+    "max_pct_of_adv_dollars": (
+        "5.0",
+        "float",
+        "Maximum position size as % of symbol's 20-day avg dollar volume (participation-rate cap)",
+        "Liquidity Requirements",
+    ),
     "min_order_size_dollars": ("100.0", "float", "Minimum order size in dollars", "Liquidity Requirements"),
     "phase1_min_coverage_pct": ("75", "int", "Phase 1: Minimum data coverage %", "Liquidity Requirements"),
     # Risk Metrics Calculation (M3 - Risk Thresholds)

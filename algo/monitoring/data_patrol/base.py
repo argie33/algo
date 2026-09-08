@@ -111,21 +111,31 @@ class DataPatrol:
         Returns:
             dict with keys: ready (bool), findings (list), errors (int), warnings (int)
         """
+        import time
+        import uuid
+
         from psycopg2.extras import DictCursor
 
         from utils.db.connection import get_db_connection
 
         from .checks import (
             AlignmentChecker,
+            CompositeScoreReconciliationChecker,
             CoverageChecker,
+            NewXbrlConceptChecker,
             PriceSanityChecker,
             QualityChecker,
+            ScoreRatioOutlierChecker,
             SpecializedChecker,
             StalenessChecker,
+            StatisticalAnomalyChecker,
             TieOutChecker,
+            XbrlConceptContinuityChecker,
         )
         from .config import CRIT, ERROR
 
+        self.run_id = uuid.uuid4().hex
+        run_started = time.monotonic()
         conn = None
         try:
             conn = get_db_connection(max_retries=2, timeout=30)
@@ -140,6 +150,11 @@ class DataPatrol:
                 AlignmentChecker(self.config),
                 SpecializedChecker(self.config),
                 TieOutChecker(self.config),
+                NewXbrlConceptChecker(self.config),
+                XbrlConceptContinuityChecker(self.config),
+                StatisticalAnomalyChecker(self.config),
+                ScoreRatioOutlierChecker(self.config),
+                CompositeScoreReconciliationChecker(self.config),
             ]
 
             for checker in checkers:
@@ -156,6 +171,28 @@ class DataPatrol:
                             message=f"{checker.__class__.__name__} failed: {e}",
                         )
                     )
+
+            # BUG FOUND 2026-09-07 (goal: stock_scores/tie-out CI sanity audit): PatrolLogger
+            # (this module's own logger.py, INSERT INTO data_patrol_log fully implemented and
+            # unit-tested) was never actually called from here - self.run_id above sat as a
+            # permanent "" placeholder, and data_patrol_log's last row was 2026-07-05 despite
+            # this run() executing on every scheduled ECS invocation since. The 2026-09-01 fix
+            # in this same function wired up notify() (a text summary in algo_notifications)
+            # but not this - the lambda API's own data-quality dashboard endpoints
+            # (lambda/api/routes/algo_handlers/market/data_quality.py, monitoring.py) read
+            # data_patrol_log directly and were silently showing a 2-month-stale snapshot.
+            # Wired here, in the same cur/conn this run already holds, fail-safe (a logging
+            # failure must never crash or fail the patrol run itself - same fail-safe posture
+            # already used for notify() below).
+            try:
+                from .logger import PatrolLogger
+
+                patrol_logger = PatrolLogger(self.run_id)
+                patrol_logger.log_results(cur, self.results)
+                patrol_logger.log_performance(cur, time.monotonic() - run_started, "OK")
+                conn.commit()
+            except Exception as log_err:
+                logger.error(f"[DataPatrol] Failed to persist findings to data_patrol_log: {log_err}")
 
             cur.close()
         except Exception as e:

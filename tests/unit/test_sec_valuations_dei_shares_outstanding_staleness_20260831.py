@@ -58,6 +58,13 @@ class _FakeCursor:
         return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -92,6 +99,7 @@ class TestDeiSharesOutstandingStalenessRejected:
             (2024, 738_169_736_000.0, 61_254_079_000.0, 33.01, None, None, None, None, None, None, True, 6022),
         ]
         fetchone_results: list[tuple[Any, ...] | None] = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             (2.23,),  # price_daily.close
@@ -110,7 +118,7 @@ class TestDeiSharesOutstandingStalenessRejected:
                 "_fetch_live_fpi_shares_outstanding_yfinance",
                 return_value=1_421_491_965.0,
             ) as mock_fpi_shares_fetch,
-            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)),
+            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None, None)),
         ):
             result = _run_fetch_incremental("ENIC", income_rows, fetchone_results)
 
@@ -135,6 +143,7 @@ class TestDeiSharesOutstandingStalenessRejected:
             (2024, 10_000_000.0, None, None, None, None, None, None, None, None, False, 7372),
         ]
         fetchone_results: list[tuple[Any, ...] | None] = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),  # cash_and_equivalents
             (500_000.0, None, None, None),  # debt_row
             None,  # dual-class sibling check -> not dual class
@@ -155,7 +164,7 @@ class TestDeiSharesOutstandingStalenessRejected:
 
         with (
             patch.object(SecValuationsLoader, "_fetch_live_fpi_shares_outstanding_yfinance") as mock_fpi_shares_fetch,
-            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)),
+            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None, None)),
         ):
             result = _run_fetch_incremental("RECENTDOM", income_rows, fetchone_results)
 
@@ -173,6 +182,7 @@ class TestDeiSharesOutstandingStalenessRejected:
             (2024, 10_000_000.0, None, None, None, None, None, None, None, None, False, 7372),
         ]
         fetchone_results: list[tuple[Any, ...] | None] = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),  # cash_and_equivalents
             (500_000.0, None, None, None),  # debt_row
             None,  # dual-class sibling check -> not dual class
@@ -192,7 +202,7 @@ class TestDeiSharesOutstandingStalenessRejected:
 
         with (
             patch.object(SecValuationsLoader, "_fetch_live_fpi_shares_outstanding_yfinance") as mock_fpi_shares_fetch,
-            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None)),
+            patch.object(SecValuationsLoader, "_fetch_live_fpi_yfinance_check_values", return_value=(None, None, None)),
         ):
             result = _run_fetch_incremental("STALEDOM", income_rows, fetchone_results)
 

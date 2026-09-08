@@ -41,10 +41,11 @@ from math import isnan, sqrt
 from typing import Any, cast
 
 import psycopg2
-from psycopg2.extras import execute_values
+from psycopg2.extras import execute_values  # noqa: F401 - used via _owner().execute_values in vqg_quality_batch.py
 
 from loaders.helpers.vqg_growth import GrowthMetricsMixin
 from loaders.helpers.vqg_quality import QualityMetricsMixin
+from loaders.helpers.vqg_quality_batch import QualityBatchMixin
 from loaders.helpers.vqg_shared import (
     _SHARED_TREND_FIELDS,
     MAX_ABSOLUTE_DOLLAR_VALUE,  # noqa: F401 -- re-exported, see comment below
@@ -79,6 +80,93 @@ logger = logging.getLogger(__name__)
 # delisted/inactive or a genuine data gap.
 MAX_FISCAL_YEAR_AGE_YEARS = 3
 
+# SIC-derived company_profile.industry values covering depository institutions (commercial
+# banks, savings institutions/thrifts) - a strict subset of the "Financial Services" sector.
+# FIXED 2026-09-06 (stock_scores symbol spot-check, see
+# stock_scores_symbol_spotcheck_20260906/bank_deposit_debt_to_equity_gap_fixed_20260906 in
+# memory): debt_for_roic (interest-bearing debt: long_term_debt/total_debt_ev) structurally
+# excludes customer deposits, because SEC filers tag deposits under concepts this pipeline
+# doesn't map to "long_term_debt". For an operating company that's the right call (Total
+# Liabilities/Equity is a bad debt proxy - see this file's own "NOT Total Liabilities / Equity"
+# comment - because it's contaminated by AP/accrued expenses/deferred revenue). For a
+# depository institution, deposits ARE the core interest-bearing liability funding its loan
+# book, so excluding them isn't a narrower, more precise "debt" figure - it's missing most of
+# the bank's real leverage, and disproportionately so for small banks with little wholesale
+# borrowing (live-verified: TCBX/PEBK's debt_to_equity computed near 0.11-0.12, inflating both
+# debt_to_equity_score and ROCE's capital_employed-based return for exactly this cohort -
+# Financial Services quality_score averaged 53.5 vs the universe's ~38-44, and small commercial
+# banks took 14/20 of the day's top BUY signals by composite_score). AP/accrued/deferred-revenue
+# contamination that makes total_liabilities a bad proxy for an operating company is a rounding
+# error against a bank's deposit base, so total_liabilities is the better proxy here - narrowly
+# scoped to this industry list (not the whole Financial Services sector, which also includes
+# payment networks/asset managers/insurance brokers whose liabilities aren't deposit-shaped -
+# see INSURANCE_UNDERWRITER_INDUSTRIES just below for the separate, analogous fix for
+# risk-bearing insurers, whose core liability is loss reserves, not deposits) via
+# _get_symbol_industry(), a sibling of _get_symbol_sector() with the same fail-open contract.
+DEPOSITORY_BANK_INDUSTRIES = frozenset(
+    {
+        "State Commercial Banks",
+        "National Commercial Banks",
+        "Commercial Banks, NEC",
+        "Savings Institution, Federally Chartered",
+        "Savings Institutions, Not Federally Chartered",
+        "Functions Related To Depository Banking, NEC",
+    }
+)
+
+# SIC-derived company_profile.industry values covering risk-bearing insurance underwriters -
+# same bug class as DEPOSITORY_BANK_INDUSTRIES above, found the same session while checking why
+# Financial Services still dominated the top of composite_score after the bank fix landed.
+# An underwriter's core liability is policy/loss reserves and unearned premium - functionally
+# its "debt" (the capital it owes against future claims), same role deposits play for a bank -
+# but SEC filers tag reserves under concepts this pipeline doesn't map to "long_term_debt"
+# either, so debt_for_roic understates underwriters' real leverage the same way. Live-verified
+# against annual_balance_sheet.total_liabilities/stockholders_equity: RGA (Reinsurance Group of
+# America) computed debt_to_equity=0.42 vs a real ~11.5x; ACGL (Arch Capital)=0.01 vs ~2.5x;
+# HIG (Hartford)=0.24 vs ~3.5x - all in the "Fire, Marine & Casualty Insurance"/"Life Insurance"
+# SIC buckets. Confirmed narrowly scoped, not the whole insurance-adjacent space: "Insurance
+# Agents, Brokers & Service" (non-risk-bearing intermediaries who don't hold reserves - MRSH/AON
+# both show real 1.4-1.7x debt_to_equity already, genuine corporate bonds, not understated)
+# deliberately excluded.
+INSURANCE_UNDERWRITER_INDUSTRIES = frozenset(
+    {
+        "Fire, Marine & Casualty Insurance",
+        "Life Insurance",
+        "Accident & Health Insurance",
+        "Surety Insurance",
+        "Title Insurance",
+        "Insurance Carriers, NEC",
+    }
+)
+
+# SIC-derived company_profile.industry values covering regulated rate-base utilities - same bug
+# class as DEPOSITORY_BANK_INDUSTRIES/INSURANCE_UNDERWRITER_INDUSTRIES above, found the same
+# session while sanity-checking Quality scores across a broader known-symbol set (goal: stock_scores
+# factor/composite sanity audit). A regulated utility's enormous rate-base asset structure
+# structurally compresses ROA/ROCE and requires more leverage than a typical industrial by design
+# (regulators set allowed ROE against a rate base financed partly by debt) - live-verified across
+# 10 electric utilities (NEE/DUK/SO/D/AEP/EXC/XEL/WEC/ED/PEG): ROA clustered 2.37-3.67% (industrial
+# curve's (3.0,40)/(8.0,80)/(15.0,100) floors nearly all of them near the bottom), debt_to_equity
+# clustered 1.11-1.91x (industrial curve's 2.0-floors-to-0 crushes every one of them toward zero),
+# ROCE clustered 3.96-7.23%. Water/gas distribution utilities (CWT/OGS/WTRG/YORW/ARTNA/NGG)
+# independently confirmed the same 2.26-3.17% ROA/0.71-1.42x D/E range - same regulated-rate-base
+# economics, included here; midstream/pipeline gas transmission names (WMB/AROC) were spot-checked
+# and show materially different (healthier, unregulated-economics) ROA/quality already, deliberately
+# excluded pending their own evidence. fcf_margin_score is also excluded for this group (same
+# "raw value kept, not scored" treatment as DEPOSITORY_BANK_INDUSTRIES) - heavy, continuous grid/
+# generation capex routinely drives utility FCF margin deeply negative (NEE -42%, XEL -46%, D -44%
+# live-confirmed) even for fundamentally healthy, dividend-growing utilities, the same "raw ratio
+# reflects an unrelated structural cash-flow pattern, not real operating profitability" problem
+# fcf_margin has for depository banks.
+UTILITY_INDUSTRIES = frozenset(
+    {
+        "Electric Services",
+        "Electric & Other Services Combined",
+        "Water Supply",
+        "Natural Gas Distribution",
+    }
+)
+
 
 def _mirror_shared_trend_fields(quality_dict: dict[str, Any], growth_dict: dict[str, Any]) -> None:
     """Copy _SHARED_TREND_FIELDS values/reasons from quality_dict into growth_dict in place.
@@ -99,7 +187,7 @@ def _mirror_shared_trend_fields(quality_dict: dict[str, Any], growth_dict: dict[
 
 
 class ValueQualityGrowthMetricsLoader(
-    ValueMetricsMixin, QualityMetricsMixin, GrowthMetricsMixin, OptimalLoader, SymbolGateMixin
+    ValueMetricsMixin, QualityMetricsMixin, QualityBatchMixin, GrowthMetricsMixin, OptimalLoader, SymbolGateMixin
 ):
     """Consolidated value + quality + growth metrics from SEC + valuations.
 
@@ -1119,38 +1207,30 @@ class ValueQualityGrowthMetricsLoader(
                     "insufficient_year_over_year_quarterly_history"
                 )
 
-            # Phase 3A: Earnings surprise and beat rate
-            # Use last quarter EPS vs current analyst forward EPS as proxy for surprise
-            last_eps = last_4q[-1]["eps"]
-            forward_eps = self._get_analyst_forward_eps(symbol)
-
-            if last_eps is not None and forward_eps is not None and last_eps != 0:
-                # Earnings surprise: (last reported - forward estimate) / |forward estimate| * 100
-                # Bounded like quarterly_growth_momentum above - a near-zero forward_eps estimate
-                # (common for turnaround/recovery names) can otherwise divide this into a
-                # meaningless, orders-of-magnitude "surprise" percentage.
-                if forward_eps != 0:
-                    surprise = ((last_eps - forward_eps) / abs(forward_eps)) * 100
-                    if abs(surprise) < MAX_PLAUSIBLE_GROWTH_PCT:
-                        metrics["earnings_surprise_avg"] = float(round(surprise, 2))
-                    else:
-                        metrics["earnings_surprise_avg_unavailable_reason"] = (
-                            "garbage_metric_value_implausible_growth_rate"
-                        )
-
-                # Earnings beat rate: % of recent quarters with positive EPS growth (proxy for beats)
-                if len(eps_growth_rates) > 0:
-                    beat_count = sum(1 for rate in eps_growth_rates if rate > 0)
-                    beat_rate = (beat_count / len(eps_growth_rates)) * 100
-                    metrics["earnings_beat_rate"] = float(round(beat_rate, 2))
-            else:
-                # Set unavailable reasons for earnings metrics when analyst data missing
-                if forward_eps is None:
-                    metrics["earnings_surprise_avg_unavailable_reason"] = "no_analyst_estimates"
-                    metrics["earnings_beat_rate_unavailable_reason"] = "no_analyst_estimates"
-                elif last_eps is None:
-                    metrics["earnings_surprise_avg_unavailable_reason"] = "insufficient_quarterly_history"
-                    metrics["earnings_beat_rate_unavailable_reason"] = "insufficient_quarterly_history"
+            # Phase 3A: Earnings surprise and beat rate - REMOVED 2026-09-07 (goal-mode score
+            # sanity audit). This block computed both fields as a crude proxy: "surprise" was
+            # (last quarter's TRAILING actual EPS - CURRENT FORWARD full-year analyst estimate)
+            # / |forward estimate|, and "beat rate" was really "% of recent quarters with
+            # positive EPS growth", not an actual consensus-vs-actual beat count. For any
+            # genuinely high-growth company (quarterly EPS structurally well below a forward
+            # full-year estimate), this proxy is negative almost by construction regardless of
+            # real quarterly beats - live-confirmed for NVDA: this proxy produced
+            # earnings_surprise_avg=-84.02% for a stock whose real, per-quarter actual-vs-
+            # consensus surprises (load_earnings_calendar.py's own eps_estimate/actual_eps/
+            # surprise_pct, ground truth) were all POSITIVE (+3.46% to +8.02%, matching this
+            # same file's own earnings_beat_rate=100% exactly) the last 4 quarters. Found via
+            # the mathematically-impossible combination this block could produce
+            # (earnings_beat_rate=100 with earnings_surprise_avg<0, or the reverse) - confirmed
+            # at population scale: 931 of ~5,140 symbols showed this exact impossible combo
+            # live. load_enhanced_quality_growth_metrics.py's _compute_earnings_surprise_metrics
+            # already computes the correct version (real per-quarter consensus-estimate-vs-
+            # actual surprise from yfinance earnings_dates, matching load_earnings_calendar.py's
+            # independently-sourced ground truth) and is now the sole writer of both columns to
+            # growth_metrics too (see that loader's growth_fields list - already wired for
+            # quality_metrics, growth_metrics wiring added the same session). Removing the
+            # proxy here rather than relabeling it: no valid definition of "surprise" should mix
+            # a trailing single-quarter actual with a forward multi-quarter estimate, so there's
+            # no smaller fix that keeps this computation while making it correct.
 
         except Exception as e:
             logger.debug(f"[{symbol}] Failed to compute quarterly metrics: {type(e).__name__}: {e}")
@@ -1460,6 +1540,30 @@ class ValueQualityGrowthMetricsLoader(
                     f"8-input formula for every symbol this run: {e}"
                 )
         return self._sector_cache.get(symbol)
+
+    def _get_symbol_industry(self, symbol: str) -> str | None:
+        """Lazily fetches and caches symbol -> company_profile.industry (SIC-derived) once per
+        loader run, sibling to _get_symbol_sector above with the same caching/fail-open
+        contract (see DEPOSITORY_BANK_INDUSTRIES for why this is a separate, narrower lookup
+        than sector: depository institutions need a debt_for_roic override that the rest of
+        the broader Financial Services sector - payment networks, asset managers, insurers -
+        must not get).
+
+        Returns None (falls through to the universal debt_for_roic) if the industry map can't
+        be fetched or the symbol isn't in company_profile."""
+        if not hasattr(self, "_industry_cache"):
+            self._industry_cache: dict[str, str] = {}
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute("SELECT symbol, industry FROM company_profile WHERE industry IS NOT NULL")
+                    self._industry_cache = dict(cur.fetchall())
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(
+                    f"[QUALITY_METRICS] Failed to fetch company_profile industry map for the "
+                    f"depository-bank debt_for_roic override - falling back to the universal "
+                    f"debt figure for every symbol this run: {e}"
+                )
+        return self._industry_cache.get(symbol)
 
     @staticmethod
     def _cagr(latest: float, previous: float, years: int) -> float | None:
@@ -2275,217 +2379,8 @@ class ValueQualityGrowthMetricsLoader(
 
     def post_run(self) -> None:
         """Runs automatically after fetch_incremental() completes for every symbol - see
-        loaders/runner.py's `hasattr(loader, "post_run")` dispatch (the same generic mechanism
-        loaders/load_stock_scores.py's own post_run()/update_rs_percentiles() already use)."""
-        self.update_quality_roe_roce_percentiles()
-
-    @staticmethod
-    def _margin_curve(value: float, breakpoints: list[tuple[float, float]]) -> float:
-        """breakpoints: [(x0,y0), (x1,y1), ...] increasing x; value<x0 -> 0-ramp to y0,
-        value>=last x -> last y. Piecewise-linear between points.
-
-        Shared by `_compute_quality_metrics`'s ROE/ROA/gross_profitability/roce_pct/fcf_margin/
-        asset_turnover/margin_volatility score curves and `update_quality_roe_roce_percentiles()`'s
-        reconciliation math (which must reconstruct what Pass 1 originally scored ROE/ROCE at) -
-        one shared definition so the two call sites can't silently diverge.
-        """
-        if value < 0:
-            return 0.0
-        if value < breakpoints[0][0]:
-            x1, y1 = breakpoints[0]
-            return (value / x1) * y1 if x1 > 0 else y1
-        for (x0, y0), (x1, y1) in itertools.pairwise(breakpoints):
-            if value < x1:
-                return y0 + (value - x0) / (x1 - x0) * (y1 - y0)
-        return breakpoints[-1][1]
-
-    @staticmethod
-    def _weighted_avg(components: list[tuple[float | None, float]], min_weight_pct: float = 0.0) -> float | None:
-        """components: [(score_or_None, weight), ...]. Renormalizes over whichever
-        components are actually available, same "1/n over available" spirit as the old
-        equal-weighted average, just weighted instead of equal. Returns None if the
-        available weight doesn't clear min_weight_pct - renormalizing a 1-2 component
-        sample up to a full 0-100 score is a thin-sample extrapolation, not an honest
-        partial score (see quality_score's own call site for the live-verified case)."""
-        available = [(v, w) for v, w in components if v is not None]
-        total_weight = sum(w for _, w in available)
-        if not available or total_weight <= 0 or total_weight < min_weight_pct:
-            return None
-        return sum(v * w for v, w in available) / total_weight
-
-    @staticmethod
-    def _percent_rank_higher_is_better(values: dict[str, float]) -> dict[str, float]:
-        """symbol -> percentile in [0, 100], HIGHEST raw value = HIGHEST percentile (ROE/ROCE
-        convention - more return-on-capital is better, the opposite direction from
-        load_stock_scores.py's `_percent_rank_cheap_high`, which is for "lower is better"
-        metrics like P/E - deliberately NOT importing that one across loader files to avoid a
-        sign mixup like the one caught by this repo's own
-        tests/unit/test_size_percentile_ranking_20260828.py). Ties share the same percentile
-        (RANK()-style). A universe of 1 gets 50.0; empty input returns an empty mapping (not a
-        silent fallback for missing/failed data - this is a pure function over an
-        already-validated `values` dict, so an empty input mathematically has nothing to
-        rank; `dict()` here, not the `{}` literal, so this doesn't false-positive-trip
-        .pre-commit-scripts/check-silent-fallbacks.py's return-empty-dict pattern check)."""
-        n = len(values)
-        if n == 0:
-            return dict()  # noqa: C408 - see docstring: intentional, not the `{}` literal
-        if n == 1:
-            return dict.fromkeys(values, 50.0)
-        sorted_items = sorted(values.items(), key=lambda kv: kv[1])
-        result: dict[str, float] = {}
-        i = 0
-        while i < n:
-            j = i
-            while j < n and sorted_items[j][1] == sorted_items[i][1]:
-                j += 1
-            pct = 100.0 * i / (n - 1)  # LOWEST raw value here (i=0) -> percentile 0
-            for sym, _ in sorted_items[i:j]:
-                result[sym] = pct
-            i = j
-        return result
-
-    def update_quality_roe_roce_percentiles(self) -> None:
-        """Batch pass: replace ROE's and ROCE's Pass-1 PROVISIONAL fixed-curve scores with a
-        true cross-sectional percentile rank against the current run's universe, then
-        FULLY RECOMPUTE quality_score from scratch off the raw stored ratio columns (not
-        patched relative to whatever quality_score currently holds) - mirrors
-        `update_rs_percentiles()`'s pure-overwrite pattern, NOT
-        `update_value_multiples_percentiles()`'s additive-delta one.
-
-        Only ROE/ROCE are percentile-ranked (of the 8 Quality components) - a sweep found
-        those two the only ones where cross-sectional percentile consistently beat the fixed
-        curve across eras; the other 6 keep their Pass-1 curve formulas.
-
-        MUST be a pure function of the raw stored ratio columns, never reading
-        quality_score itself as an input: an earlier additive-delta design read/wrote the
-        same mutable column every run, so the same delta re-applied on top of an
-        already-corrected value each pipeline cycle with no convergence except the 0/100
-        clamp - over time this pinned ~30% of the universe at exactly 100.00.
-
-        ROE/ROCE percentile ranking is computed only over the non-negative population, with
-        negative-raw-value symbols explicitly floored to percentile 0.0 (matching curve-based
-        Pass-1's own `if value < 0: return 0.0`) - a plain percentile rank doesn't floor at 0
-        for a non-worst performer, which otherwise systematically over-scores unprofitable
-        companies (e.g. negative ROE still landing mid-percentile).
-
-        Raises on failure, same as every other post_run() batch pass - an inconsistent
-        quality_score is a live-trading-relevant correctness issue.
-
-        Skips Financial Services/Real Estate: those sectors' quality_score uses a two-cluster
-        (profitability + safety) structure, not the flat 8-input weighted average this method
-        recomputes: reconciling ROE/ROCE through that structure needs its own derivation.
-        """
-        try:
-            with DatabaseContext("write") as cur:
-                cur.execute("""
-                    SELECT qm.symbol, qm.quality_score, qm.roe, qm.roa, qm.roce_pct, qm.fcf_margin,
-                           qm.debt_to_equity, qm.margin_volatility, qm.asset_turnover, qm.gross_profitability
-                    FROM quality_metrics qm
-                    LEFT JOIN company_profile cp ON cp.symbol = qm.symbol
-                    WHERE qm.quality_score IS NOT NULL
-                      AND COALESCE(qm.data_unavailable, false) = false
-                      AND COALESCE(cp.sector, '') NOT IN ('Financial Services', 'Real Estate')
-                """)
-                rows = cur.fetchall()
-
-            if not rows:
-                logger.warning(
-                    "[QUALITY_METRICS] update_quality_roe_roce_percentiles: no eligible rows found - skipping."
-                )
-                return
-
-            # Percentile universe restricted to non-negative raw values (same "floor, don't
-            # dilute the ranking" precedent as load_stock_scores.py's unprofitable-P/E fix) -
-            # a negative ROE/ROCE symbol is floored to 0.0 directly below, never ranked.
-            roe_raw = {row[0]: float(row[2]) for row in rows if row[2] is not None and float(row[2]) >= 0.0}
-            roce_raw = {row[0]: float(row[4]) for row in rows if row[4] is not None and float(row[4]) >= 0.0}
-            roe_pct = self._percent_rank_higher_is_better(roe_raw)
-            roce_pct = self._percent_rank_higher_is_better(roce_raw)
-            logger.info(
-                f"[QUALITY_METRICS] ROE/ROCE percentile universe: ROE {len(roe_pct)}, ROCE {len(roce_pct)} symbols"
-            )
-
-            updates: list[tuple[str, float]] = []
-            for row in rows:
-                symbol, quality_score_old = row[0], float(row[1])
-                roe, roa, roce_pct_val, fcf_margin, d2e, margin_vol, asset_turnover, gross_prof = row[2:10]
-
-                components: list[tuple[float, float]] = []
-
-                if roe is not None:
-                    roe_component = 0.0 if float(roe) < 0.0 else roe_pct[symbol]
-                    components.append((roe_component, 11.0))
-                if roa is not None:
-                    components.append((self._margin_curve(float(roa), [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)]), 18.0))
-                if roce_pct_val is not None:
-                    roce_component = 0.0 if float(roce_pct_val) < 0.0 else roce_pct[symbol]
-                    components.append((roce_component, 18.0))
-                if fcf_margin is not None:
-                    components.append(
-                        (
-                            self._margin_curve(float(fcf_margin), [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)]),
-                            15.0,
-                        )
-                    )
-                if d2e is not None:
-                    d2e_val = float(d2e)
-                    d2e_score = 0.0 if d2e_val < 0.0 else max(0.0, min(100.0, 100.0 - (d2e_val / 2.0) * 100.0))
-                    components.append((d2e_score, 18.0))
-                if margin_vol is not None:
-                    components.append(
-                        (
-                            100.0 - self._margin_curve(float(margin_vol), [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)]),
-                            7.0,
-                        )
-                    )
-                if asset_turnover is not None:
-                    components.append(
-                        (
-                            self._margin_curve(float(asset_turnover), [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)]),
-                            7.0,
-                        )
-                    )
-                if gross_prof is not None:
-                    components.append(
-                        (
-                            self._margin_curve(float(gross_prof), [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)]),
-                            7.0,
-                        )
-                    )
-
-                total_weight = sum(w for _, w in components)
-                if total_weight <= 0:
-                    continue  # defensive only - can't happen if quality_score is real
-
-                quality_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
-                if quality_score_new != quality_score_old:
-                    updates.append((symbol, quality_score_new))
-
-            if not updates:
-                logger.info("[QUALITY_METRICS] ROE/ROCE percentile pass: no symbol's quality_score changed.")
-                return
-
-            with DatabaseContext("write") as cur:
-                execute_values(
-                    cur,
-                    """
-                    UPDATE quality_metrics AS qm
-                    SET quality_score = v.quality_score,
-                        updated_at = CURRENT_TIMESTAMP
-                    FROM (VALUES %s) AS v(symbol, quality_score)
-                    WHERE qm.symbol = v.symbol
-                    """,
-                    updates,
-                    template="(%s, %s)",
-                )
-            logger.info(
-                f"[QUALITY_METRICS] ROE/ROCE cross-sectional percentile pass corrected "
-                f"{len(updates)}/{len(rows)} symbols' quality_score (post_run completed)"
-            )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            error_msg = f"ROE/ROCE percentile batch update failed - quality_metrics cannot be finalized: {e}"
-            logger.error(error_msg)
-            raise RuntimeError(error_msg) from e
+        loaders/runner.py's `hasattr(loader, "post_run")` dispatch (same mechanism load_stock_scores.py's own post_run() uses)."""
+        self.update_quality_sector_neutral_scores()
 
 
 if __name__ == "__main__":

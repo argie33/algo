@@ -154,7 +154,19 @@ def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-exis
     # trusting one for duration data (test_sec_custom_xbrl_concepts.py already
     # treats 8-K as something to skip when looking for a filer's authoritative
     # annual data, for the same reason).
-    if start_date and entry.get("form") in ("8-K", "8-K/A"):
+    #
+    # WIDENED 2026-09-07 (goal session: tie-out score-sanity audit, WTRG live-
+    # confirmed): the original fix above only excluded DURATION facts (has "start")
+    # from an 8-K, on the assumption the bug class was specific to income-statement
+    # concepts. Live-confirmed the same filer (WTRG) also tags "ShortTermBorrowings"
+    # (a balance-sheet INSTANT fact, no "start") under two 8-K filings and nowhere
+    # else in its entire companyfacts history - no 10-K/10-Q ever carries this
+    # concept for WTRG at all. An 8-K is not a periodic financial statement
+    # regardless of whether the specific fact it carries happens to be a duration
+    # or instant concept - the "not subject to the same XBRL-tagging rigor" rationale
+    # above is identical either way. Drop the `start_date and` restriction so this
+    # exclusion applies uniformly to every 8-K-sourced fact.
+    if entry.get("form") in ("8-K", "8-K/A"):
         return None
 
     # See the _max_end_by_accn comment above this loop: drop any instant fact
@@ -416,11 +428,24 @@ def _aggregate_concepts_should_replace_entry(
     start_date: Any,
     end_date: Any,
     period: str,
+    concept: str | None = None,
 ) -> tuple[bool, int, bool]:
     """Decide whether ``entry`` should replace the currently-stored value for ``col``.
 
     Extracted from _aggregate_concepts (mechanical extraction, no behavior change).
     Returns (should_replace, entry_rank, is_instant).
+
+    FIXED 2026-09-07 (CVE FY2022 current_assets=0.0 live-confirmed): a secondary/fallback
+    IFRS alias concept for the same target column (e.g. sec_balance_sheet.py's
+    _BALANCE_IFRS_ALIASES CurrentAssetsOtherThan...HeldForSale fallback) could overwrite an
+    already-populated PRIMARY concept's value via the frame-preference tiebreak (added for
+    PMT/IPAR, designed for same-concept multi-fact collisions, not cross-concept ones).
+    CVE's primary CurrentAssets concept correctly reports $12.43B CAD with no frame key;
+    the fallback concept's same-accn/same-filed/same-end_date fact reports 0 but DOES carry
+    SEC's frame tag, so it wrongly won. Fix: track which concept last populated each column
+    and require a concept match before falling through to the frame/end-date tiebreak -
+    first-populated-wins for cross-concept collisions, same-concept PMT/IPAR/RIGL/LADR
+    tiebreaks unaffected.
     """
     # FIXED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, live SEC
     # EDGAR verification): _PRIMARY_STATEMENT_FORMS ranks 10-K and 10-Q equally
@@ -487,6 +512,12 @@ def _aggregate_concepts_should_replace_entry(
         # this branch is a no-op there and only fires on a real conflict like
         # LADR's.
         should_replace = bool(row.get(f"_is_instant_{col}"))
+    elif concept is not None and row.get(f"_concept_{col}") not in (None, concept):
+        # FIXED 2026-09-07: same rank AND same instant-ness, but a DIFFERENT concept than
+        # the one that already populated this column - never let the tiebreak refinements
+        # below hand a fallback/secondary alias concept priority over an already-populated
+        # primary concept's fact. First-populated-wins for cross-concept collisions.
+        should_replace = False
     else:
         # FIXED 2026-08-18 (live-verified RIGL): instant/point-in-time balance-
         # sheet facts (no "start" - see this loop's is_instant-equivalent comment
@@ -535,6 +566,46 @@ def _aggregate_concepts_should_replace_entry(
                 row_has_frame = bool(row.get(f"_frame_{col}"))
                 if entry_has_frame != row_has_frame:
                     should_replace = entry_has_frame
+                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, tie-out
+                    # audit follow-up): SEC's own "frame" assignment is normally trusted
+                    # unconditionally as the canonical-value signal (see the PMT case above),
+                    # but it is itself just an index over whatever facts filers submitted -
+                    # live-confirmed via Inter Parfums (IPAR) FY2021 CashAndCashEquivalentsAt
+                    # CarryingValue: the ORIGINAL FY2021 10-K (filed 2022-03-01) and three later
+                    # 10-Qs/one 10-K comparative period all agree on ~$159-168M with NO frame
+                    # key at all, but IPAR's FY2023 10-K (filed 2024-02-27) re-cites the same
+                    # 2021-12-31 period as $159,613,000,000 - a filer-side 1000x decimals-tag
+                    # error on their part - and THAT corrupted entry is the one SEC's frames API
+                    # happened to tag "CY2021Q4I", so the existing frame-preference rule
+                    # confidently replaced the correct ~$159.6M figure with a bogus $159.6B one.
+                    # A frame-tagged replacement whose value differs from unanimous prior
+                    # agreement by a ratio suspiciously close to a clean power of 10 (100x/
+                    # 1000x/10000x, within 1%) is far more likely a decimals-tag error than a
+                    # real business change - real restatements essentially never move a balance
+                    # by an exact round factor of 10. Only overrides the frame-preference in
+                    # this narrow, high-confidence shape; every other frame-vs-no-frame case
+                    # (the overwhelming majority) is unaffected.
+                    if entry_has_frame and col in row:
+                        _existing_val = row.get(col)
+                        _entry_val = entry.get("val")
+                        if (
+                            isinstance(_existing_val, int | float)
+                            and isinstance(_entry_val, int | float)
+                            and _existing_val != 0
+                            and _entry_val != 0
+                        ):
+                            _ratio = abs(_entry_val) / abs(_existing_val)
+                            if _ratio < 1:
+                                _ratio = 1 / _ratio
+                            if any(abs(_ratio - _power) / _power < 0.01 for _power in (100, 1000, 10000)):
+                                logger.warning(
+                                    f"[frame_magnitude_scale_guard] Rejecting frame-tagged "
+                                    f"replacement for {col} (accn {entry.get('accn')}): "
+                                    f"{_entry_val} is a {_ratio:.0f}x-scaled outlier vs the "
+                                    f"already-agreed {_existing_val} - likely a filer decimals-"
+                                    f"tag error, not a real restatement."
+                                )
+                                should_replace = False
                 else:
                     should_replace = row_filed is None or entry_filed > row_filed
         elif period == "quarterly":
@@ -616,6 +687,7 @@ def _aggregate_concepts_apply_entry_value(
     period: str,
     is_major_currency: bool,
     _currency_code: str,
+    concept: str | None = None,
 ) -> None:
     """Write ``entry``'s value (with FX conversion if needed) into ``row[col]``.
 
@@ -638,6 +710,7 @@ def _aggregate_concepts_apply_entry_value(
     row[f"_rank_{col}"] = entry_rank
     row[f"_frame_{col}"] = bool(entry.get("frame"))
     row[f"_is_instant_{col}"] = is_instant
+    row[f"_concept_{col}"] = concept
     if period == "quarterly" and start_date and end_date:
         try:
             row[f"_span_{col}"] = (datetime.date.fromisoformat(end_date) - datetime.date.fromisoformat(start_date)).days

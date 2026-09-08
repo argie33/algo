@@ -47,6 +47,22 @@ class SecValuationRatiosMixin:
         if ttm_eps and ttm_eps > 0:
             pe = current_price / ttm_eps
             if pe <= 10000 and pe >= self.MIN_PLAUSIBLE_PE_RATIO and ttm_eps >= 0.10:
+                if self._pe_earnings_too_volatile(symbol):
+                    logger.warning(
+                        f"[{symbol}] PE ratio {pe:.2f} computed off a single profitable year "
+                        "immediately following 2+ net-loss years - excluding from Value scoring "
+                        "as an earnings-stability-driven distortion, not a genuine bargain "
+                        "(see _pe_earnings_too_volatile)."
+                    )
+                    return None
+                if self._pe_earnings_tax_benefit_inflated(symbol):
+                    logger.warning(
+                        f"[{symbol}] PE ratio {pe:.2f} computed off net income inflated by a "
+                        "large one-off tax benefit relative to pretax income - excluding from "
+                        "Value scoring as a tax-driven distortion, not a genuine bargain "
+                        "(see _pe_earnings_tax_benefit_inflated)."
+                    )
+                    return None
                 return round(pe, 2)
             elif pe > 10000 or ttm_eps < 0.10:
                 # FIXED 2026-09-05 (goal session: "implausible values" sweep) - same
@@ -96,6 +112,108 @@ class SecValuationRatiosMixin:
         else:
             logger.warning(f"[{symbol}] TTM EPS missing or invalid, PE ratio unavailable")
             return None
+
+    @staticmethod
+    def _pe_earnings_too_volatile(symbol: str) -> bool:
+        """True when 2+ of the last 3 reported fiscal years' net_income were losses.
+
+        ADDED 2026-09-07 (goal: "digging into scores" audit - "why are distressed companies
+        topping the Value leaderboard"). A single profitable year immediately after a run of
+        losses can produce a mathematically valid but statistically meaningless "cheap" PE -
+        live-confirmed RILY (B. Riley Financial): FY2025 net_income +$307.4M/EPS $9.80 right
+        after FY2024 -$764.3M, FY2023 -$99.9M, FY2022 -$159.8M, computing pe_ratio=0.72 and
+        ranking #3 on the entire Value factor leaderboard - a company whose earnings swing by
+        $1B+ year to year has no business looking "cheap for good reason" off one quarter's
+        (Q1 FY2026 alone was $213M of that $307.4M) worth of what reads like a non-recurring
+        gain, not durable earnings power. Universe-wide: 82 symbols show this exact "2+
+        consecutive loss years then a profit year, now showing a suspiciously cheap PE" shape
+        (live query, not assumed).
+
+        Deliberately does NOT try to match the exact fiscal year that produced `ttm_eps` (which
+        this class's other same-file fallbacks track carefully via income_rows indices) -
+        checking the last 3 REPORTED fiscal years' net_income sign, independent of which one
+        backs ttm_eps, is a simpler and more robust earnings-stability signal that only ever
+        makes this guard MORE conservative (exclude more), never fabricates a wrong number, in
+        the rare case ttm_eps came from an older/substituted row.
+
+        Same "exclude rather than fabricate" convention as MIN_PLAUSIBLE_PE_RATIO/
+        GROWTH_INPUT_IMPLAUSIBLE_PCT elsewhere in this codebase (see growth_scoring.py's
+        GROWTH_INPUT_IMPLAUSIBLE_PCT docstring for the sibling Growth-pillar version of this
+        same principle) - an unstable-earnings PE isn't wrong data, it's just not a reliable
+        value signal, so it's excluded from ranking rather than clipped or smoothed.
+
+        Requires 3 real (non-NULL) fiscal years on file - a symbol with less history returns
+        False (doesn't block a genuinely short-lived filer's PE on incomplete grounds).
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT net_income FROM annual_income_statement
+                WHERE symbol = %s AND net_income IS NOT NULL AND data_unavailable IS NOT TRUE
+                ORDER BY fiscal_year DESC LIMIT 3
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
+        if len(rows) < 3:
+            return False
+        negative_years = sum(1 for (net_income,) in rows if net_income < 0)
+        return negative_years >= 2
+
+    @staticmethod
+    def _pe_earnings_tax_benefit_inflated(symbol: str) -> bool:
+        """True when the latest fiscal year's net_income is inflated 30%+ above pretax_income
+        by a one-off tax benefit (a negative income_tax_expense), rather than durable operating
+        earnings power.
+
+        ADDED 2026-09-07 (goal: "why does LLY score so far below distressed/turnaround
+        healthcare peers" audit). LLY's genuinely rich valuation (pe_ratio ~50, PB ~39, EV/EBITDA
+        ~36, FCF yield ~0.8%) was being outranked on the Value factor by small-cap biotechs whose
+        "cheap" PE was an artifact of a deferred-tax-asset valuation-allowance release, not real
+        earnings. Live-confirmed RIGL: FY2025 pretax_income $121.8M but net_income $367.0M off a
+        -$245.2M income_tax_expense (effective tax rate -201%) - pretax operating income implies
+        a PE in the 8-9x range, not the 2.39 net-income-based figure that was ranking it #1 on
+        the Value leaderboard ahead of every real pharma major. Universe-wide, a live query of
+        symbols with pretax_income > 0, pe_ratio < 20, and net_income > 1.3x pretax_income found
+        ~35 names (ACAD, AUPH, INSP, TDW, AFRM, UBER, PEGA, AGCO, etc.) sharing this exact
+        deeply-negative-effective-tax-rate shape - this is not a single-symbol anomaly.
+
+        Distinct from _pe_earnings_too_volatile (which catches "loss years then a profit year"
+        via net_income sign): a company can be reporting income growth for 3 straight years
+        while still having THIS year's headline net_income skewed well above its pretax/operating
+        earnings by a one-off tax item - RIGL is exactly that case (2024 and 2025 were both
+        GAAP-profitable, so the loss-years guard doesn't fire).
+
+        30% threshold: an ordinary R&D-credit-driven negative effective tax rate is typically a
+        single-digit-to-teens percentage; a rate more negative than -30% (net_income > 1.3x
+        pretax_income) reliably indicates a valuation-allowance release, NOL utilization event,
+        or similar one-off rather than a structurally low tax jurisdiction (which shows a low but
+        usually POSITIVE rate, not a large tax benefit). Same "exclude rather than fabricate"
+        convention as _pe_earnings_too_volatile/MIN_PLAUSIBLE_PE_RATIO.
+
+        Requires the latest fiscal year to have both pretax_income and income_tax_expense on
+        file and pretax_income > 0 - a symbol missing either, or with a pretax loss (unprofitable
+        already excluded upstream by the ttm_eps > 0 check), returns False.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT pretax_income, income_tax_expense FROM annual_income_statement
+                WHERE symbol = %s AND pretax_income IS NOT NULL AND income_tax_expense IS NOT NULL
+                  AND data_unavailable IS NOT TRUE
+                ORDER BY fiscal_year DESC LIMIT 1
+                """,
+                (symbol,),
+            )
+            row = cur.fetchone()
+        if not row or len(row) != 2:
+            return False
+        pretax_income, income_tax_expense = row
+        if pretax_income is None or pretax_income <= 0:
+            return False
+        pretax_f = float(pretax_income)
+        tax_f = float(income_tax_expense)
+        return tax_f < 0 and abs(tax_f) >= 0.30 * pretax_f
 
     def _compute_pb_ratio(
         self, symbol: str, current_price: float, book_value: float | None, shares_out: float

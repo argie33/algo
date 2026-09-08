@@ -55,6 +55,7 @@ def mock_config():
         "exit_on_td_sequential": False,
         "exit_on_rs_line_break_50dma": False,
         "require_target_pullback": False,
+        "use_scale_out_targets": True,
         "execution_mode": "paper",
         "alpaca_paper_trading": True,
         "t1_target_r_multiple": 1.5,
@@ -100,26 +101,35 @@ class TestTargetT1:
         assert decision["new_stop"] == 100.00
 
     def test_does_not_fire_below_t1_price(self, mock_config):
+        """T1 itself must not fire below its price. Price is still >= move_be_at_r (1.0R),
+        so the chain correctly falls back to BreakevenStopStrategy's stop-raise-only signal
+        (added 2026-09-07, see BreakevenStopStrategy) rather than returning no decision at
+        all - that fallback is what proves T1 didn't preempt it, not an absence of any
+        decision."""
         engine = _engine(mock_config)
         decision = engine._evaluate_position(
             **_BASE_KWARGS, cur_price=Decimal("114.99"), prev_close=Decimal("110.00"), target_hits=0
         )
-        assert decision is None
+        assert decision["stage"] == "raise_stop_breakeven"
+        assert decision["fraction"] == 0.0
 
     def test_does_not_refire_once_target_hits_advanced(self, mock_config):
         """Once T1 has fired (target_hits=1), price staying above t1_price but below
         t2_price must NOT re-trigger T1 (its own gate is target_hits==0) and must not
-        fire T2 either (price below t2_price) - the position should simply hold."""
+        fire T2 either (price below t2_price) - only the breakeven stop-raise fallback
+        (price is well above move_be_at_r=1.0R) should surface."""
         engine = _engine(mock_config)
         decision = engine._evaluate_position(
             **_BASE_KWARGS, cur_price=Decimal("120.00"), prev_close=Decimal("118.00"), target_hits=1
         )
-        assert decision is None
+        assert decision["stage"] == "raise_stop_breakeven"
+        assert decision["fraction"] == 0.0
 
     def test_same_day_rehit_guard_blocks_refire(self, mock_config):
         """Even with target_hits still 0 (e.g. a stale/racing read), a T1 already recorded
         as hit today must not fire again - this is the guard that prevents the exit engine
-        from repeatedly selling 50% of the position on every pass within the same day."""
+        from repeatedly selling 50% of the position on every pass within the same day. The
+        breakeven stop-raise fallback still surfaces since price is above move_be_at_r."""
         engine = _engine(mock_config)
         decision = engine._evaluate_position(
             **_BASE_KWARGS,
@@ -128,7 +138,8 @@ class TestTargetT1:
             target_hits=0,
             t1_hit_time=datetime(2026, 8, 24, 10, 30, 0),
         )
-        assert decision is None
+        assert decision["stage"] == "raise_stop_breakeven"
+        assert decision["fraction"] == 0.0
 
     def test_prior_day_hit_does_not_block_refire(self, mock_config):
         """Sanity check on the dedup guard's date boundary: a hit recorded on a PRIOR day
@@ -154,7 +165,9 @@ class TestTargetT1:
             decision = engine._evaluate_position(
                 **_BASE_KWARGS, cur_price=Decimal("115.00"), prev_close=Decimal("114.00"), target_hits=0
             )
-        assert decision is None
+        # T1 itself is blocked (no pullback); breakeven stop-raise fallback still surfaces
+        # since price (1.5R) is above move_be_at_r (1.0R).
+        assert decision["stage"] == "raise_stop_breakeven"
 
     def test_require_pullback_allows_fire_when_pullback_confirmed(self, mock_config):
         mock_config["require_target_pullback"] = True
@@ -197,7 +210,9 @@ class TestTargetT2:
             target_hits=1,
             t2_hit_time=datetime(2026, 8, 24, 11, 0, 0),
         )
-        assert decision is None
+        # Breakeven stop-raise fallback surfaces (price well above move_be_at_r); T2 itself
+        # correctly did not re-fire.
+        assert decision["stage"] == "raise_stop_breakeven"
 
 
 class TestTargetT3:
@@ -219,7 +234,9 @@ class TestTargetT3:
             target_hits=2,
             t3_hit_time=datetime(2026, 8, 24, 12, 0, 0),
         )
-        assert decision is None
+        # Breakeven stop-raise fallback surfaces (price well above move_be_at_r); T3 itself
+        # correctly did not re-fire.
+        assert decision["stage"] == "raise_stop_breakeven"
 
     def test_full_sequence_nets_to_100pct_of_original_position(self, mock_config):
         """End-to-end sanity check on the fraction cascade: T1 (0.50 of remaining) + T2

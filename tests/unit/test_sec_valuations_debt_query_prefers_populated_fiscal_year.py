@@ -74,6 +74,13 @@ class _RecordingCursor:
         return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -96,6 +103,7 @@ def _run_fetch_incremental(
 class TestDebtQueryPrefersPopulatedFiscalYear:
     def test_debt_query_orders_by_long_term_debt_populated_before_fiscal_year(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -130,6 +138,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         # older year with a real, usable component. 522 of the universe's 1,060 NULL total_debt
         # symbols have this shape.
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),
             (None, 0.0, 59_642_000.0, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -167,6 +176,7 @@ class TestDebtQueryPrefersPopulatedFiscalYear:
         # text contains a nonzero-sum tier ranked ahead of the plain "any non-NULL component"
         # tier - the regression guard against reverting to the looser IS NOT NULL-only check.
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),
             (2_439_000_000.0, 9_000_000.0, 308_000_000.0, None),  # debt_row: FY2025's real figures
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -214,6 +224,7 @@ class TestDebtQueryPrefersRealLongTermDebtOverIncompleteRecentYear:
         # figure beating a real $1.754B long_term_debt). A year where long_term_debt ITSELF is
         # populated must now win outright, regardless of any other year's component sum.
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),
             (49_913_000_000.0, 1_087_000_000.0, 1_259_000_000.0, None),  # debt_row: FY2025's real figures
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -247,6 +258,7 @@ class TestDebtQueryPrefersRealLongTermDebtOverIncompleteRecentYear:
         # component-sum CASE), so a fresh cash figure isn't held back just because that year's
         # debt tags aren't filed yet.
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (55_911_000_000.0,),  # cash_and_equivalents - real, current-year figure
             (None, 0.0, None, None),  # debt_row - GOOGL-FY2026-shaped: long_term_debt NULL
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row

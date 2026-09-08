@@ -58,6 +58,20 @@ MIN_SMA_50_THRESHOLD = 0.0  # SMA must be positive (> 0)
 # arbitrary number.
 MIN_ENTRY_PRICE = 5.0
 
+# Maximum plausible single-day price move (%) before an entry candidate's price is
+# treated as data-quality garbage rather than a real market move, and skipped rather
+# than sized. ADDED (2026-09-06 real-money-readiness audit): entry_price flowed
+# straight from price_daily.close into position sizing with no cross-check against the
+# prior day's close - a bad print, stale cache, or decimal-shift error would pass Phase
+# 1 (which checks table-level freshness/completeness, not per-symbol plausibility) and
+# size a real order off a garbage price. 300% is deliberately wide: it must never reject
+# a genuine outsized move (biotech trial results, M&A announcements, short squeezes can
+# legitimately move 50-150%+ in a session) while still catching the actual failure modes
+# this guards against (a 10x/100x decimal-shift error, or a stale/frozen price next to a
+# real one differing by orders of magnitude) - this is a garbage-data filter, not a
+# volatility filter.
+MAX_PLAUSIBLE_ENTRY_PRICE_MOVE_PCT = 300.0
+
 # Maximum number of concurrent open positions
 # RATIONALE: Portfolio risk and monitoring capacity
 MAX_CONCURRENT_POSITIONS = 15
@@ -101,6 +115,11 @@ BUY_SELL_DAILY_ANOMALY_THRESHOLD = 40  # Post edge-trigger-fix baseline; see bc0
 # (Liquidity checks are expensive, so we sample top-ranked candidates)
 # RATIONALE: Performance vs completeness tradeoff
 LIQUIDITY_CHECK_LIMIT = 20  # Increased from 10 to 20 (AUDIT FIX Session 276)
+
+# BUG FOUND + FIXED 2026-09-07: _run_liquidity_checks used to check only a single fixed
+# top-slice, never backfilling from liquid candidates ranked past LIQUIDITY_CHECK_LIMIT.
+# Live-confirmed CIG.C/JFIN/SGU/XYF all below the ADV floor sitting in the live top-20.
+MAX_LIQUIDITY_CANDIDATES_CONSIDERED = LIQUIDITY_CHECK_LIMIT * 5
 
 # Number of worker threads for parallel liquidity checks in Phase 7
 # RATIONALE: Limits I/O contention on database connections

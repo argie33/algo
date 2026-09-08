@@ -109,7 +109,12 @@ class TestEscalationLadder:
         mock_manager = MagicMock()
         with _patched_db(table), patch("algo.risk.unified_risk_monitor._get_halt_manager", return_value=mock_manager):
             verdict = urm._apply_risk_verdict(
-                {}, alerts, "variance", True, "portfolio variance 20% exceeds 15%", {"variance": 0.20}
+                {"unified_risk_monitor_shadow_mode": False},
+                alerts,
+                "variance",
+                True,
+                "portfolio variance 20% exceeds 15%",
+                {"variance": 0.20},
             )
         assert verdict["action"] == "halt"
         assert verdict["streak"] == 2
@@ -132,7 +137,12 @@ class TestEscalationLadder:
             ) as mock_act,
         ):
             verdict = urm._apply_risk_verdict(
-                {}, alerts, "variance", True, "portfolio variance 20% exceeds 15%", {"variance": 0.20}
+                {"unified_risk_monitor_shadow_mode": False},
+                alerts,
+                "variance",
+                True,
+                "portfolio variance 20% exceeds 15%",
+                {"variance": 0.20},
             )
         assert verdict["action"] == "reduce_or_flatten"
         assert verdict["streak"] == 3
@@ -157,7 +167,12 @@ class TestEscalationLadder:
             ),
         ):
             urm._apply_risk_verdict(
-                {}, alerts, "variance", True, "portfolio variance 20% exceeds 15%", {"variance": 0.20}
+                {"unified_risk_monitor_shadow_mode": False},
+                alerts,
+                "variance",
+                True,
+                "portfolio variance 20% exceeds 15%",
+                {"variance": 0.20},
             )
         alert_types = [c[0][1] for c in alerts.send_position_alert.call_args_list]
         assert "RISK_BREACH_ACTION_FAILED_MANUAL_INTERVENTION_REQUIRED" in alert_types
@@ -176,7 +191,12 @@ class TestEscalationLadder:
             ),
         ):
             urm._apply_risk_verdict(
-                {}, alerts, "variance", True, "portfolio variance 20% exceeds 15%", {"variance": 0.20}
+                {"unified_risk_monitor_shadow_mode": False},
+                alerts,
+                "variance",
+                True,
+                "portfolio variance 20% exceeds 15%",
+                {"variance": 0.20},
             )
         alert_types = [c[0][1] for c in alerts.send_position_alert.call_args_list]
         assert "RISK_BREACH_ACTION_FAILED_MANUAL_INTERVENTION_REQUIRED" not in alert_types
@@ -224,6 +244,66 @@ class TestEscalationLadder:
         # here since nothing halted yet) - the real assertion is that set_halt_flag itself
         # is never called across this whole intermittent (never 2-consecutive) sequence.
         mock_manager.set_halt_flag.assert_not_called()
+
+
+class TestShadowMode:
+    """unified_risk_monitor_shadow_mode defaults True (2026-09-07, real-money-readiness) -
+    the full detection/escalation ladder must run and alert normally, but set_halt_flag and
+    the automated exit path must never actually be invoked while shadow mode is on. This is
+    what makes it safe to soak-test the monitor against a live paper account before deciding
+    to enable real auto-remediation."""
+
+    def test_default_config_is_shadow_mode_confirmed_halt_tier(self):
+        table = _FakeRiskStateTable()
+        table.upsert("variance", 1, True, "warn", "{}")
+        alerts = MagicMock()
+        mock_manager = MagicMock()
+        with _patched_db(table), patch("algo.risk.unified_risk_monitor._get_halt_manager", return_value=mock_manager):
+            verdict = urm._apply_risk_verdict(
+                {}, alerts, "variance", True, "portfolio variance 20% exceeds 15%", {"variance": 0.20}
+            )
+        assert verdict["action"] == "shadow_halt"
+        mock_manager.set_halt_flag.assert_not_called()
+        alert_types = [c[0][1] for c in alerts.send_position_alert.call_args_list]
+        assert "RISK_BREACH_HALT_SHADOW_MODE" in alert_types
+        assert "RISK_BREACH_HALTED" not in alert_types
+
+    def test_default_config_is_shadow_mode_confirmed_act_tier(self):
+        table = _FakeRiskStateTable()
+        table.upsert("variance", 2, True, "shadow_halt", "{}")
+        alerts = MagicMock()
+        mock_manager = MagicMock()
+        with (
+            _patched_db(table),
+            patch("algo.risk.unified_risk_monitor._get_halt_manager", return_value=mock_manager),
+            patch("algo.risk.unified_risk_monitor._act_reduce_or_flatten") as mock_act,
+        ):
+            verdict = urm._apply_risk_verdict(
+                {}, alerts, "variance", True, "portfolio variance 20% exceeds 15%", {"variance": 0.20}
+            )
+        assert verdict["action"] == "shadow_reduce_or_flatten"
+        mock_manager.set_halt_flag.assert_not_called()
+        mock_act.assert_not_called()
+        alert_types = [c[0][1] for c in alerts.send_position_alert.call_args_list]
+        assert "RISK_BREACH_ACT_SHADOW_MODE" in alert_types
+        assert "RISK_BREACH_HALTED" not in alert_types
+
+    def test_explicit_shadow_mode_false_takes_real_action(self):
+        table = _FakeRiskStateTable()
+        table.upsert("variance", 1, True, "warn", "{}")
+        alerts = MagicMock()
+        mock_manager = MagicMock()
+        with _patched_db(table), patch("algo.risk.unified_risk_monitor._get_halt_manager", return_value=mock_manager):
+            verdict = urm._apply_risk_verdict(
+                {"unified_risk_monitor_shadow_mode": False},
+                alerts,
+                "variance",
+                True,
+                "portfolio variance 20% exceeds 15%",
+                {"variance": 0.20},
+            )
+        assert verdict["action"] == "halt"
+        mock_manager.set_halt_flag.assert_called_once()
 
 
 class TestConcurrentInvocationSafety:

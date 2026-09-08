@@ -39,11 +39,24 @@ logger = logging.getLogger("loaders.load_stock_scores")
 # (GROWTH_MIN_FIELDS_AVAILABLE) and the same ~40% ratio as Quality's own established floor - 0.40
 # here since Risk's weights are fractional (sum to 1.0), not Growth's field-count-based floor,
 # since Risk is weighted (45/20/20/15) rather than equal-weighted.
-# Deliberately NOT applied to Value or Momentum: live-swept both the same way (61 and 58
-# thin-coverage symbols respectively) and found ZERO symbols scoring >=90 off <40% weight in
-# either - Value's cross-sectional percentile-rank correction and Momentum's "skip weak
-# momentum" None-handling already prevent the single-field-saturation failure mode structurally,
-# so adding an artificial floor there would only cost real coverage without fixing anything real.
+# Deliberately NOT applied to Value or Momentum (AT THE TIME): live-swept both the same way
+# (61 and 58 thin-coverage symbols respectively) and found ZERO symbols scoring >=90 off <40%
+# weight in either - Value's cross-sectional percentile-rank correction and Momentum's "skip
+# weak momentum" None-handling already prevent the single-field-saturation failure mode
+# structurally, so adding an artificial floor there would only cost real coverage without
+# fixing anything real.
+#
+# VALUE RECONSIDERED 2026-09-07 (/goal session: "dig into the scoring results" sweep) - the
+# check above only looked at saturation at the TOP (>=90); it never checked the bottom. Live
+# resweep found the real failure mode there instead: 71 symbols with <40% of Value's weight
+# available, most commonly just dividend_yield=0.0 (a non-dividend-paying stock, 10% weight)
+# with every multiple missing, landing value_score EXACTLY 0.00 - the same single-field-
+# saturation problem this file's own Risk fix above targets, just at the opposite end.
+# VALUE_MIN_WEIGHT (loaders/stock_scores/value_score.py) now applies the identical 0.40 floor.
+# Momentum's own re-check (same session, same method) found no analogous bottom-end
+# saturation - its thin-coverage cases (410 symbols, RSI/MACD-only at 37% weight) span a real,
+# non-extreme 15.68-84.04 range live - so Momentum's exemption above still stands as originally
+# reasoned, not re-litigated further.
 RISK_MIN_WEIGHT_AVAILABLE = 0.40
 
 # NEAR-ZERO LIQUIDITY PRICE-STAT RELIABILITY GATE (added 2026-09-01, same goal session as the

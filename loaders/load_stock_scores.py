@@ -40,6 +40,7 @@ setup_imports()
 
 import json  # noqa: E402
 import logging  # noqa: E402
+import math  # noqa: E402
 from collections.abc import Iterable  # noqa: E402
 from datetime import date, datetime, timezone  # noqa: E402
 from typing import Any  # noqa: E402
@@ -52,6 +53,7 @@ import psycopg2  # noqa: E402
 # keeps working.
 from psycopg2.extras import execute_values  # noqa: E402, F401
 
+from algo.infrastructure import MarketCalendar  # noqa: E402
 from loaders.runner import run_loader  # noqa: E402
 from loaders.stock_scores.growth_scoring import (  # noqa: E402
     GROWTH_INPUT_IMPLAUSIBLE_PCT,
@@ -74,10 +76,13 @@ from loaders.stock_scores.risk_scoring import (  # noqa: E402
 from loaders.stock_scores.value_metrics import ValueMetricsMixin  # noqa: E402
 from loaders.stock_scores.value_score import ValueScoreMixin  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
+from utils.infrastructure.timezone import EASTERN_TZ  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 from utils.type_conversion import safe_float  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+STALE_PRICE_TRADING_DAYS_THRESHOLD = 3  # 2026-09-07: mirrors load_risk_metrics_daily.py's constant
 
 # BASE_PILLAR_WEIGHTS / VALUE_RISK_INTERACTION_MAX_SHIFT (from pillar_weights.py) and
 # GROWTH_SCORE_FIELDS / GROWTH_INPUT_IMPLAUSIBLE_PCT / GROWTH_MIN_FIELDS_AVAILABLE (from
@@ -97,6 +102,7 @@ __all__ = [
     "GROWTH_SCORE_FIELDS",
     "NEAR_ZERO_LIQUIDITY_THRESHOLD",
     "RISK_MIN_WEIGHT_AVAILABLE",
+    "STALE_PRICE_TRADING_DAYS_THRESHOLD",
     "VALUE_RISK_INTERACTION_MAX_SHIFT",
     "StockScoresLoader",
 ]
@@ -548,10 +554,16 @@ class StockScoresLoader(
             # signal of price-return momentum (it's price-vs-trend, not windowed % return), so
             # there's no double-weighting concern here.
             cur.execute(
-                "SELECT DISTINCT ON (symbol) symbol, rsi_14, macd, sma_50, sma_200, close "
+                "SELECT DISTINCT ON (symbol) symbol, rsi_14, macd, sma_50, sma_200, close, date "
                 "FROM technical_data_daily ORDER BY symbol, date DESC"
             )
-            self._technical_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
+            now_et = datetime.now(EASTERN_TZ).date()
+            self._technical_cache: dict[str, tuple[Any, ...]] = {}
+            for row in cur.fetchall():
+                symbol, rsi_14, macd, sma_50, sma_200, close, tech_date = row
+                if MarketCalendar.trading_days_elapsed(tech_date, now_et) > STALE_PRICE_TRADING_DAYS_THRESHOLD:
+                    continue
+                self._technical_cache[symbol] = (rsi_14, macd, sma_50, sma_200, close)
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol. Returns data_unavailable dict if unable to compute.
@@ -658,14 +670,21 @@ class StockScoresLoader(
             momentum_score = self._score_momentum(momentum, symbol)
 
             # Extract numeric scores for computation, track unavailability reasons
+            # REAL-MONEY-READINESS FIX (2026-09-07): isinstance(nan, float) is True, so a
+            # NaN/Inf score used to pass this check as "real data" - a data-quality bug
+            # anywhere upstream (e.g. an unguarded 0/0 ratio) would silently count as an
+            # available pillar instead of being excluded. math.isfinite() rejects both
+            # nan and +/-inf so a non-finite score is treated the same as a marker dict.
             def is_real_score(result: float | dict[str, Any] | None) -> bool:
-                return isinstance(result, float)
+                return isinstance(result, float) and math.isfinite(result)
 
             def get_marker_reason(result: float | dict[str, Any] | None) -> str:
                 if isinstance(result, dict) and result.get("data_unavailable"):
                     reason = result.get("reason")
                     if isinstance(reason, str):
                         return reason
+                if isinstance(result, float) and not math.isfinite(result):
+                    return "non_finite_score_nan_or_inf"
                 return "unknown_reason"
 
             # Count data completeness: only float scores count as "real data"
@@ -704,8 +723,21 @@ class StockScoresLoader(
                 )
 
             # NUMERIC(4,2) schema constraint: max 99.99 (not 100.0)
-            # Calculate completeness on 5 pillars (quality, growth, value, risk, momentum)
-            data_completeness = min(99.99, round((data_count / 5.0) * 100, 2))
+            # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): this used to be a flat
+            # pillar COUNT (data_count/5), so a symbol missing "value" (27% of
+            # BASE_PILLAR_WEIGHTS, the single largest pillar) reported the exact same 80%
+            # completeness as one missing "momentum" (10% of the weight) - both cleared the
+            # same >=70% GOVERNANCE trading-eligibility gate (phase7_signal_generation.py's
+            # composite_score ranking, phase8_entry_execution.py's concentration-limited
+            # entry queue) identically, even though the real impact on composite_score's
+            # ceiling differs by ~3x between those two cases. Weight completeness by each
+            # available pillar's actual share of BASE_PILLAR_WEIGHTS instead of a flat
+            # per-pillar count, so the gate reflects how much of the composite is actually
+            # backed by real data, not just how many of 5 slots are filled.
+            available_weight = sum(
+                BASE_PILLAR_WEIGHTS[pillar] for pillar, score in all_scores.items() if is_real_score(score)
+            )
+            data_completeness = min(99.99, round(available_weight * 100, 2))
 
             # CRITICAL FIX 2026-07-19: Compute score for all symbols with 5+/6 metrics, mark completeness for trading filters.
             # Previous: Rejected any score with <70% completeness, removing 1,635 valid candidates from universe.
@@ -853,6 +885,14 @@ class StockScoresLoader(
             # Clamp scores to 0-100, keep markers for missing data
             def clamp_score(score: float | dict[str, Any] | None) -> float | dict[str, Any] | None:
                 if isinstance(score, float):
+                    # REAL-MONEY-READINESS FIX (2026-09-07): min(100.0, nan) evaluates to
+                    # 100.0 in Python (nan comparisons are always False, so the replacement
+                    # never happens) - a NaN/Inf score used to silently clamp to a *perfect*
+                    # 100.0 instead of being rejected, and that 100.0 would then be stored
+                    # directly in the DB column via extract_score_value(). Convert to a
+                    # marker dict instead, matching is_real_score's non-finite rejection above.
+                    if not math.isfinite(score):
+                        return {"data_unavailable": True, "reason": "non_finite_score_nan_or_inf"}
                     return max(0.0, min(100.0, score))
                 # Return marker dicts as-is; don't silence them with None
                 return score if isinstance(score, dict) else None

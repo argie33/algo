@@ -165,15 +165,19 @@ function ScoresDashboardPage() {
   const [sortBy, setSortBy] = useState("composite_score");
   const [sortOrder, setSortOrder] = useState("desc");
   const [minScore, setMinScore] = useState(0);
-  // Investability screen (2026-09-01): the backend's `minMarketCap` API param
-  // (lambda/api/routes/scores.py) was added specifically because raw factor scores have no
-  // liquidity/size floor - a nano-cap with $2-3M market cap can top Value/Composite purely on
-  // scoring mechanics while being effectively untradeable at real size. That param was never
-  // actually wired into this page, so the exact "top of list" problem it was built to solve
-  // kept recurring here regardless. Filtered client-side (market_cap is already in every row
-  // from value_metrics, same as minScore above) rather than round-tripping the API, since this
+  // Investability screen (2026-09-01, defaulted on 2026-09-08): the backend's `minMarketCap`
+  // API param (lambda/api/routes/scores.py) was added specifically because raw factor scores
+  // have no liquidity/size floor - a nano-cap with $2-3M market cap can top Value/Composite
+  // purely on scoring mechanics while being effectively untradeable at real size. That param
+  // was wired into this page's UI but left defaulted to "any", so the exact "top of list"
+  // problem it was built to solve kept recurring for anyone opening this page fresh. Defaulted
+  // to $300M to match algo_config.min_market_cap_millions (algo/infrastructure/config/
+  // config_defaults_risk.py), the same real-money eligibility floor lambda/api/routes/
+  // algo_handlers/dashboard/scores.py already applies - still user-adjustable via the
+  // dropdown below. Filtered client-side (market_cap is already in every row from
+  // value_metrics, same as minScore above) rather than round-tripping the API, since this
   // page already fetches the full universe in one call.
-  const [minMarketCap, setMinMarketCap] = useState(0);
+  const [minMarketCap, setMinMarketCap] = useState(300000000);
   const [tab, setTab] = useState("rankings");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -259,7 +263,9 @@ function ScoresDashboardPage() {
   const stats = useMemo(() => {
     if (!items) return { total: 0, top: 0, avg: 0, gradeA: 0, aCutoff: 80 };
     const aCutoff = percentileCutoff(items, 0.1);
-    const top = items.filter((s) => Number(s.composite_score) >= aCutoff).length;
+    const top = items.filter(
+      (s) => Number(s.composite_score) >= aCutoff
+    ).length;
     const valid = items.filter((s) => s.composite_score != null);
     const avg = valid.length
       ? valid.reduce((s, x) => s + Number(x.composite_score), 0) / valid.length

@@ -35,9 +35,9 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
       - name: Ruff lint
-        run: ruff check algo/ tests/ tools/ loaders/ utils/ config/ lambda/
+        run: ruff check algo/ tests/ tools/ loaders/ utils/ config/ lambda/ dashboard/ monitoring/ scripts/ .pre-commit-scripts/
       - name: Ruff format check
-        run: ruff format --check algo/ tests/ tools/ loaders/ utils/ config/ lambda/
+        run: ruff format --check algo/ tests/ tools/ loaders/ utils/ config/ lambda/ dashboard/ monitoring/ scripts/ .pre-commit-scripts/
       - name: MyPy (core)
         run: |
           mypy algo/ loaders/ utils/ config/ dashboard/ monitoring/ lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py lambda/monitoring/health_monitor.py lambda/monitoring/loader_failure_handler.py --show-error-codes
@@ -60,6 +60,56 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Run test suite
         run: pytest tests/ -q
+
+  governance-checks:
+    # ADDED 2026-09-07: the repo:local hooks in .pre-commit-config.yaml (file-size ratchet,
+    # phantom-file-refs, vulture dead-code, credential-defaults, silent-fallbacks, dashboard
+    # .get()-pattern, strict-safe-conversion, block-seed-prices, memory validation, etc.) had
+    # ZERO server-side enforcement - they only ran if a contributor had pre-commit installed
+    # locally and didn't pass --no-verify. Nothing in this file (ruff/mypy/pylint/tests/
+    # security below) ran any of them, and that's how legacy bloat kept accumulating even
+    # after the file-size ratchet existed: the ratchet only ever ran client-side. This job
+    # closes that gap by running the same hooks pre-commit would run locally, via the same
+    # .pre-commit-config.yaml, so CI is the actual backstop it was always assumed to be (see
+    # this file's original 2026-08-20 header comment and steering/GOVERNANCE.md).
+    name: Governance hooks (file-size ratchet, dead-code, fail-fast rules, memory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install pre-commit
+      - name: Determine diff range for file-size ratchet
+        id: diffrange
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            BEFORE="${{ github.event.before }}"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              BEFORE=$(git rev-parse HEAD~1)
+            fi
+            echo "base=$BEFORE" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: File-size ratchet (replays each commit in range - see script header)
+        run: python .pre-commit-scripts/check_file_size_ratchet.py ${{ steps.diffrange.outputs.base }} ${{ steps.diffrange.outputs.head }}
+      - name: Remaining local governance hooks
+        # ruff/ruff-format/mypy-core/mypy-lambda-api/pylint-core already run in python-quality;
+        # check-file-size-ratchet already handled above with its own commit-range semantics
+        # (running it again here would silently no-op - nothing is staged in a plain checkout,
+        # so `git diff --cached` sees zero entries); trufflehog is stage:manual (skipped by
+        # `pre-commit run` unless --hook-stage manual is passed) and already runs natively via
+        # the official Action in python-security below.
+        run: SKIP=ruff,ruff-format,mypy-core,mypy-lambda-api,pylint-core,check-file-size-ratchet pre-commit run --all-files --show-diff-on-failure
 
   python-security:
     name: Python security scan

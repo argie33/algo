@@ -51,11 +51,42 @@ easy to mistake for the loader/data problem you were actually trying to reproduc
 exercise phase logic for a historical date outside real market hours, set
 `ALLOW_OUTSIDE_MARKET_HOURS=true` in the environment first.
 
+**Phase 1 now halts if DataPatrol hasn't run recently (FIXED 2026-09-07).** `algo/orchestrator/
+phase1_data_freshness.py`'s `_check_data_patrol_results` queries `data_patrol_log` for the
+latest DataPatrol run and halts if it's missing, more than 8h stale, or has any CRITICAL/ERROR
+finding (tie-out identity checks, staleness, XBRL concept gaps, statistical anomalies - the
+whole DataPatrol suite). In production this is always fresh (terraform's pipeline DAG runs the
+DataPatrol ECS step immediately before triggering the orchestrator), but
+`scripts/run_local_orchestrator.py` never invokes DataPatrol itself — run
+`python algo/algo_data_patrol.py` first, or set `ALLOW_MISSING_DATA_PATROL=true` (local/dev
+only; forced off in `execution_mode="auto"` regardless, same as `ALLOW_OUTSIDE_MARKET_HOURS`)
+to downgrade a missing/stale patrol run to a warning instead of a halt.
+
 **Troubleshooting data issues:**
 ```bash
 python scripts/monitor_data_staleness.py               # Check freshness
 python scripts/verify_eventbridge_scheduler.py --fix   # Repair scheduler if stuck
 ```
+
+**Finding missing XBRL concepts systematically (not one bug report at a time):**
+```bash
+python scripts/xbrl_concept_coverage_scan.py --exclude-noise --min-companies 100
+```
+Diffs every us-gaap/dei concept real filers actually tag (read from the on-disk SEC EDGAR
+companyfacts cache under `%TEMP%/algo-sec-edgar-cache/companyfacts` — already populated by
+normal loader runs, no extra fetching) against the allowlist our loader source files
+(`utils/external/sec_income_statement.py`, `sec_balance_sheet.py`, `sec_cash_flow.py`,
+`sec_custom_xbrl_concepts.py`, etc.) actually know how to fetch, ranked by how many distinct
+companies tag each missing concept. This is how the `accounts_payable` gap (confirmed missing
+from the whole schema, independently rediscovered by
+`algo/research/quality_asset_turnover_piotroski_candidates.py`) got found — 3,392 filers tag
+`AccountsPayableCurrent` and it was never in the allowlist at all. Re-run this periodically
+(new symbols entering the universe, filers adopting newly-effective taxonomy tags in future
+10-Ks) rather than waiting for the next "implausible value" bug report to point at a gap.
+Review a batch, then record anything genuinely out of scope with `--dismiss "us-gaap:Concept"
+--reason "..."` (persisted in `scripts/xbrl_concept_coverage_dismissed.json`, checked into
+git) so future scans only surface what's actually new instead of re-litigating the same
+already-reviewed footnote/schedule concepts every time.
 
 `monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use
 **different freshness methodologies** — a table can show FRESH in the monitor and still halt

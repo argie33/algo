@@ -14,6 +14,7 @@ a bare `\\bpfd\\b` pattern would have wrongly excluded it.
 
 from loaders.load_market_constituents import (
     CORP_SPONSOR_PATTERN,
+    KNOWN_FUND_NAME_MISCLASSIFICATIONS,
     KNOWN_SPAC_MISCLASSIFICATIONS,
     _is_excluded,
     should_exclude,
@@ -457,3 +458,53 @@ class TestAdsWarrantAbbreviationExcluded:
 
     def test_psny_common_ads_not_excluded(self):
         assert not should_exclude("Polestar Automotive Holding UK Limited - Class A ADS")
+
+
+class TestBdcFundNameMisclassificationExcluded:
+    """GOVERNANCE 2026-09-07 (goal: stock_scores factor/composite sanity audit - BDC/REIT
+    universe coverage check): business development companies (BDCs) are real, actively-
+    traded operating lending businesses that are nonetheless legally organized as closed-
+    end investment companies under the Investment Company Act of 1940, so NASDAQ's own
+    listing feed tags many of them "<Name> - Closed End Fund" or includes "Fund" directly
+    in the legal name - both false-positiving on EXCLUSION_PATTERNS' \\bfund\\b/
+    \\bclosed[- ]end\\b entries (correctly meant to catch real pooled funds).
+
+    Found by spot-checking ARCC/FSK/PSEC/HTGC/OBDC/GBDC/TSLX/GSBD/BXSL/TPVG against
+    stock_symbols - 4 missing (ARCC/PSEC/GBDC/BXSL). An initial pass wrongly concluded
+    ARCC/PSEC/GBDC weren't should_exclude() false positives by testing GUESSED plain
+    legal names instead of the real raw nasdaqlisted.txt row text ("Ares Capital
+    Corporation - Closed End Fund", etc.) - re-checked against the real feed strings and
+    all 4 are should_exclude() false positives via \\bclosed[- ]end\\b or \\bfund\\b. Each
+    individually verified as a genuine operating company (not a pooled fund) via SEC's own
+    live submissions API: entityType="operating", real recent 10-K filings (ARCC CIK
+    1287750, PSEC CIK 1287032, GBDC CIK 1476765).
+    """
+
+    def test_bxsl_fund_name_false_positive_excluded_by_bare_pattern(self):
+        """Confirms the bug: without the override, the real BDC's raw feed name matches."""
+        assert should_exclude("Blackstone Secured Lending Fund Common Shares of Beneficial Interest")
+
+    def test_closed_end_fund_suffix_false_positive_on_real_bdcs(self):
+        """ARCC/PSEC/GBDC's real nasdaqlisted.txt security_name (not a guessed plain legal
+        name) is caught via \\bclosed[- ]end\\b, the same false-positive shape as BXSL."""
+        assert should_exclude("Ares Capital Corporation - Closed End Fund")
+        assert should_exclude("Prospect Capital Corporation - Closed End Fund")
+        assert should_exclude("Golub Capital BDC, Inc. - Closed End Fund")
+
+    def test_bdcs_not_excluded_via_is_excluded_override(self):
+        assert not _is_excluded("BXSL", "Blackstone Secured Lending Fund Common Shares of Beneficial Interest")
+        assert not _is_excluded("ARCC", "Ares Capital Corporation - Closed End Fund")
+        assert not _is_excluded("PSEC", "Prospect Capital Corporation - Closed End Fund")
+        assert not _is_excluded("GBDC", "Golub Capital BDC, Inc. - Closed End Fund")
+
+    def test_all_four_bdcs_in_known_fund_name_misclassifications(self):
+        assert {"ARCC", "BXSL", "GBDC", "PSEC"} == KNOWN_FUND_NAME_MISCLASSIFICATIONS
+
+    def test_real_closed_end_funds_still_excluded(self):
+        """The override must be scoped to these 4 symbols alone - a real closed-end/mutual
+        fund without a symbol-level override must still be excluded, including one carrying
+        the exact same "- Closed End Fund" suffix as the real BDCs above."""
+        assert should_exclude("Blackrock Multi-Sector Income Trust Fund")
+        assert _is_excluded("BXFAKE", "Blackrock Multi-Sector Income Trust Fund")
+        assert should_exclude("Calamos Convertible Opportunities and Income Fund - Closed End Fund")
+        assert _is_excluded("CHI", "Calamos Convertible Opportunities and Income Fund - Closed End Fund")

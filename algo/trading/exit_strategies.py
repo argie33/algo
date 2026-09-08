@@ -13,14 +13,51 @@ Exit hierarchy (by priority):
    no-trigger today.
 3. RS line break (relative strength breakdown)
 4. Time-based (held >= max_days)
-5. Profit target T1 (1.5R)
-6. Profit target T2 (3R)
-7. Profit target T3 (4R)
+5. Profit target T1 (1.5R) - DISABLED BY DEFAULT since 2026-09-07 (see check_target_t1's
+   docstring and the module note below): a validation backtest found a pure trail beats this.
+   `use_scale_out_targets` config; T2/T3 are deliberately left ungated (see check_target_t1's
+   docstring) so a pre-existing position that already sold its T1 leg completes normally.
+6. Profit target T2 (3R) - see #5; naturally inert for NEW trades (target_hits never leaves 0)
+7. Profit target T3 (4R) - see #5; naturally inert for NEW trades (target_hits never leaves 0)
 8. Chandelier trail (3xATR from high)
-9. TD Sequential (9-count or 13-count exhaustion)
-10. First red day (after 2.5R+ gain)
-11. Climax exhaustion (30+ days, 5R+ gain)
-12. Distribution (market distribution days exceed limit)
+9. Move to breakeven (unconditional stop floor once R >= move_be_at_r, default 1.0 - added
+   2026-09-07, see BreakevenStopStrategy/check_move_to_breakeven)
+10. TD Sequential (9-count or 13-count exhaustion)
+11. First red day (after 2.5R+ gain)
+12. Climax exhaustion (30+ days, 5R+ gain)
+13. Distribution (market distribution days exceed limit)
+
+2026-09-07 exit-strategy literature review (goal session): compared this stack against
+trading literature/academic research, then validated the one concrete, actionable finding
+against our own data before touching live behavior (the user's explicit bar: literature AND
+our own validation, not literature alone). Findings: the swing-low initial stop + ATR-based
+chandelier trail already match best-practice direction (volatility-scaled stops beat fixed-%
+stops - Kaufman-style systems literature); the O'Neil 8-week time-stop extension is a
+reasonable adaptive time-stop. `move_be_at_r` (added above) - a required config key since
+inception that no code had ever actually wired up (confirmed dead via full-repo grep) - now
+enforces an unconditional breakeven-stop floor, distinct from T1's later breakeven raise,
+without touching position sizing or profit-taking.
+
+T1/T2/T3 scaling out at fixed R-multiples was flagged as the one place trend-following
+literature (Covel, Faber-style momentum research) is fairly consistent against this system's
+approach - scaling out lowers blended expectancy vs. a pure trail by capping the fat-tail
+winners a trend system's edge depends on. RESOLVED (same session, follow-up): built
+scripts/backtest_exit_strategy_comparison_20260907.py, a standalone paired backtest that
+replays the real price-technical BUY entry trigger (buy_signal_generator.py's swing-pivot
+breakout above a rising 50-day SMA - no fundamentals dependency, so it doesn't hit the
+buy_sell_daily ~83-day depth blocker that closed off regime-adaptive-exit validation, see
+tests/unit/test_regime_adaptive_exits_backtest_infeasible_20260825.py) across 2,885 symbols
+with 10+ years of price_daily history. Result, 471,972 paired trades (1962-2026): the pure-
+trail design (chandelier + breakeven floor, no scale-out) beat this T1/T2/T3 chain on mean
+R-multiple (+0.096 vs +0.085), geometric per-trade growth (+0.088% vs +0.079% at 1% account
+risk/trade), and tail capture (57.5% vs 52.7% of total profit from the top-decile of trades) -
+paired mean-R difference -0.0114, 95% bootstrap CI [-0.0132, -0.0096], excludes zero. T1/T2/T3
+scale-out is now gated OFF by default (`use_scale_out_targets`, see check_target_t1's
+docstring) - literature AND our own data now agree. TD Sequential 9/13-count exhaustion exits
+remain a genuinely open, thin-evidence question (independent academic validation is
+thin-to-mixed, regime-dependent at best) - not addressed this session; IBD's specific
+7-8%/20-25% numeric thresholds are moot here since this system already uses a swing-low pivot
+stop instead of a fixed %, the stronger choice per literature.
 """
 
 from __future__ import annotations
@@ -229,7 +266,6 @@ class ProfitTargetStrategy(ExitStrategy):
     """Base class for profit target exits (T1, T2, T3)."""
 
     target_level: int
-    default_fraction: float
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         from algo.trading.exit_engine import ExitEngine
@@ -261,21 +297,25 @@ class T1Strategy(ProfitTargetStrategy):
     """Exit 50% at target 1 (1.5R), raise stop to entry."""
 
     target_level = 1
-    default_fraction = 0.5
 
 
 class T2Strategy(ProfitTargetStrategy):
     """Exit 25% at target 2 (3R), raise stop to T1 area."""
 
     target_level = 2
-    default_fraction = 0.25
 
 
 class T3Strategy(ProfitTargetStrategy):
     """Exit final 25% at target 3 (4R)."""
 
     target_level = 3
-    default_fraction = 0.25
+
+
+class BreakevenStopStrategy(ExitStrategy):
+    """Raise stop to breakeven once price reaches move_be_at_r (stop-raise only, never exits)."""
+
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
+        return self._evaluate_engine_strategy(lambda engine: ctx.check_move_to_breakeven(engine), include_new_stop=True)
 
 
 class ChandelierTrailStrategy(ExitStrategy):
@@ -345,6 +385,7 @@ class ExitStrategyChain:
             T1Strategy(config),
             T2Strategy(config),
             T3Strategy(config),
+            BreakevenStopStrategy(config),
             ChandelierTrailStrategy(config),
             TDSequentialStrategy(config),
             FirstRedDayStrategy(config),
@@ -353,19 +394,45 @@ class ExitStrategyChain:
         ]
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
-        """Evaluate all strategies in priority order; return first triggered signal.
-
-        Args:
-            ctx: PositionContext with all position data
-            cur: Database cursor
+        """Evaluate all strategies in priority order; return first triggered REAL exit signal.
 
         Returns:
-            ExitSignal from first triggered strategy, or hold if none triggered
+            ExitSignal from the first triggered strategy with fraction > 0 (a real share
+            reduction), or hold if none triggered.
+
+        FIX (2026-09-07 pre-live audit): a triggered signal with fraction == 0.0 (a pure
+        stop-tightening, e.g. ChandelierTrailStrategy) used to return immediately like any
+        other trigger, short-circuiting evaluation of every lower-priority strategy for that
+        cycle - including TDSequentialStrategy/FirstRedDayStrategy/ClimaxExhaustionStrategy,
+        whose real partial/full exits are most likely to fire in exactly the strong-uptrend
+        condition that also raises the chandelier trail on the same day. A routine stop
+        tightening could silently starve a genuine exhaustion exit for an entire cycle. Now
+        keeps scanning past a stop-raise-only trigger for a real (fraction > 0) exit among
+        remaining strategies; only falls back to the stop-raise if nothing else fires.
+
+        FIX (2026-09-07, same day BreakevenStopStrategy was added): once two independent
+        stop-raise-only strategies can trigger the same cycle (chandelier trail and breakeven),
+        keeping only the FIRST one seen meant whichever sat earlier in `self.strategies` always
+        won, even on a cycle where the other proposed a strictly higher (better) stop. Each
+        candidate is a floor proposal, not a final decision - the actual write path only ever
+        raises the stored stop, never lowers it (see executor_exit_handler.py's
+        _raise_stop_only) - so comparing new_stop across every triggered stop-raise signal and
+        keeping the highest is strictly more correct than picking whichever fired first.
         """
+        stop_raise_signal: ExitSignal | None = None
         for strategy in self.strategies:
             signal = strategy.evaluate(ctx, cur)
             if signal.triggered:
-                return signal
+                if signal.fraction > 0:
+                    return signal
+                if stop_raise_signal is None or (
+                    signal.new_stop is not None
+                    and (stop_raise_signal.new_stop is None or signal.new_stop > stop_raise_signal.new_stop)
+                ):
+                    stop_raise_signal = signal
+
+        if stop_raise_signal is not None:
+            return stop_raise_signal
 
         return ExitSignal(
             triggered=False,

@@ -27,6 +27,10 @@ from algo.reporting.alerts import AlertManager
 def _make_alert_manager(email_to=None, sns_topic=""):
     with patch("algo.reporting.alerts.get_credential_manager") as mock_cred_mgr:
         mock_cred_mgr.return_value.get_smtp_credentials.return_value = None
+        # Explicit {} (not the MagicMock default) - a truthy auto-mocked return value here
+        # would make page_critical() (added 2026-09-06) attempt a real network call to
+        # PagerDuty/Twilio from this unit test.
+        mock_cred_mgr.return_value.get_paging_credentials.return_value = {}
         mgr = AlertManager()
     mgr.email_to = email_to or []
     mgr.sns_topic = sns_topic

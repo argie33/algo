@@ -27,6 +27,16 @@ resource "aws_sns_topic_subscription" "circuit_breaker_email" {
   }
 }
 
+# REAL-MONEY-READINESS FIX (2026-09-07 audit): email-only paging for a circuit-breaker alarm
+# (an intraday portfolio-variance breach) means an after-hours trip only reaches an inbox. See
+# services/main.tf's algo_alerts_sms for the full rationale.
+resource "aws_sns_topic_subscription" "circuit_breaker_sms" {
+  for_each  = toset([for n in split(",", var.alert_sms_to) : trimspace(n) if trimspace(n) != ""])
+  topic_arn = aws_sns_topic.circuit_breaker_alerts.arn
+  protocol  = "sms"
+  endpoint  = each.value
+}
+
 # ============================================================
 # 0b. Circuit Breaker Lambda Security Group
 # ============================================================
@@ -187,9 +197,9 @@ resource "aws_lambda_function" "circuit_breaker" {
 
   environment {
     variables = {
-      ENVIRONMENT          = var.environment
-      SNS_ALERT_TOPIC_ARN  = aws_sns_topic.circuit_breaker_alerts.arn
-      LOG_LEVEL            = "INFO"
+      ENVIRONMENT         = var.environment
+      SNS_ALERT_TOPIC_ARN = aws_sns_topic.circuit_breaker_alerts.arn
+      LOG_LEVEL           = "INFO"
     }
   }
 

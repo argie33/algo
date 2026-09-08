@@ -70,7 +70,8 @@ def test_small_legit_position_not_flagged_against_account_equity():
     )
     mock_cursor.fetchall = MagicMock(
         side_effect=[
-            [],  # _check_sector_concentration runs first - no over-concentrated sectors
+            [],  # orphaned-trade-with-real-broker-order check (2026-09-06 fix) - none found
+            [],  # _check_sector_concentration runs next - no over-concentrated sectors
             [("pos_001", "XYZ", position_value)],  # all open positions, ordered by value desc
         ]
     )

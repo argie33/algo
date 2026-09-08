@@ -87,6 +87,12 @@ _CASHFLOW_CONCEPTS = [
     "ShareBasedCompensation",
     "PaymentsForRepurchaseOfEquity",
     "PaymentsForRepurchaseOfCommonStock",
+    # ADDED 2026-09-07: net_change_cash was fetched by none of these and mapped nowhere -
+    # see sec_cash_flow.py's get_cash_flow() comment on these 4 concepts.
+    "CashAndCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+    "CashAndCashEquivalentsPeriodIncreaseDecrease",
+    "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+    "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect",
 ]
 
 

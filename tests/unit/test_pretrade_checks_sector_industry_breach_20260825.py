@@ -121,3 +121,69 @@ class TestIndustryConcentrationBreach:
 
         assert passed is False, f"expected industry-at-cap rejection, got passed=True reason={reason!r}"
         assert reason is not None and "Software" in reason and "5" in reason
+
+
+class TestNullSectorFailsClosedNotOpen:
+    """REAL-MONEY-READINESS FIX (2026-09-07 audit): a company_profile row can exist with
+    sector/industry = NULL (recent listings, ADRs, SPACs pre-merger, foreign private
+    issuers, data gaps) - distinct from the row being missing entirely (already handled).
+    Postgres' `col = NULL` is never true, so the COUNT(*) queries used to silently return 0
+    for a NULL sector/industry regardless of how many other NULL-sector positions were
+    already open - every NULL-sector symbol was its own uncapped, never-colliding bucket,
+    letting max_positions_per_sector/industry be bypassed entirely for exactly the kind of
+    symbol most likely to share real correlated risk (e.g. several pre-merger SPACs)."""
+
+    def test_null_sector_blocks_entry_instead_of_silently_passing(self):
+        checks = PreTradeChecks(config=_config(max_sector=3, max_industry=100))
+        mock_earnings = MagicMock()
+        mock_earnings.run.return_value = {"pass": True, "reason": None}
+        db_ctx = _mock_db_context(sector=None, industry="Software", sector_count=0, industry_count=0)
+
+        with (
+            patch("algo.trading.pretrade_checks.EarningsBlackout", return_value=mock_earnings),
+            patch("algo.trading.pretrade_checks.DatabaseContext", return_value=db_ctx),
+        ):
+            try:
+                passed, reason = checks.run_all(
+                    symbol="SPAQ",
+                    position_value=1000.0,
+                    portfolio_value=100_000.0,
+                    side="BUY",
+                    eval_date=date(2026, 3, 15),
+                )
+            except ValueError as e:
+                # run_all's real caller (phase8_entry_execution.py) converts this into a
+                # halting RuntimeError - either outcome is an acceptable fail-closed shape,
+                # the bug being fixed is a *silent pass*, not the specific exception type.
+                assert "NULL" in str(e) or "sector" in str(e).lower()
+                return
+
+            assert passed is False, (
+                f"NULL sector must fail closed (block entry), not silently pass: passed={passed!r} reason={reason!r}"
+            )
+
+    def test_null_industry_blocks_entry_instead_of_silently_passing(self):
+        checks = PreTradeChecks(config=_config(max_sector=100, max_industry=3))
+        mock_earnings = MagicMock()
+        mock_earnings.run.return_value = {"pass": True, "reason": None}
+        db_ctx = _mock_db_context(sector="Technology", industry=None, sector_count=0, industry_count=0)
+
+        with (
+            patch("algo.trading.pretrade_checks.EarningsBlackout", return_value=mock_earnings),
+            patch("algo.trading.pretrade_checks.DatabaseContext", return_value=db_ctx),
+        ):
+            try:
+                passed, reason = checks.run_all(
+                    symbol="SPAQ",
+                    position_value=1000.0,
+                    portfolio_value=100_000.0,
+                    side="BUY",
+                    eval_date=date(2026, 3, 15),
+                )
+            except ValueError as e:
+                assert "NULL" in str(e) or "industry" in str(e).lower()
+                return
+
+            assert passed is False, (
+                f"NULL industry must fail closed (block entry), not silently pass: passed={passed!r} reason={reason!r}"
+            )

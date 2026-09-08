@@ -22,6 +22,9 @@ from typing import Any
 
 from psycopg2.extensions import cursor as PsycopgCursor
 
+from algo.reporting import notify
+from algo.trading.exceptions import NotificationError
+
 logger = logging.getLogger(__name__)
 
 
@@ -111,11 +114,33 @@ def resize_standalone_stop_after_partial_exit(
 
     result = sync_standalone_stop_fn(standalone_stop_order_id, new_stop_price, new_qty)
     if not result.get("success"):
-        logger.error(
-            f"[EXIT_HANDLER] {symbol}: partial exit succeeded but failed to resize the standalone "
+        # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): matches
+        # executor_exit_handler.py's bracket-side resize failure severity - a stale/oversized
+        # standalone stop needs a human to notice now, not the next Phase 9 cycle. This was
+        # logger.error + no alert, invisible to any monitoring tier that only watches
+        # critical-severity signals.
+        logger.critical(
+            f"[EXIT_HANDLER CRITICAL] {symbol}: partial exit succeeded but failed to resize the standalone "
             f"protective stop {standalone_stop_order_id} to {new_qty} shares @ ${new_stop_price:.2f} - "
             f"{result.get('message')}. It may still be sized for the pre-partial-exit quantity."
         )
+        try:
+            notify(
+                "critical",
+                title=f"Standalone stop resize failed after partial exit: {symbol}",
+                message=(
+                    f"Position {position_id}: partial exit succeeded but the standalone "
+                    f"protective stop {standalone_stop_order_id} could not be resized to "
+                    f"{new_qty} shares @ ${new_stop_price:.2f} - {result.get('message')}. It "
+                    f"may still be sized for the pre-partial-exit quantity. Investigate now."
+                ),
+                strict=True,
+            )
+        except NotificationError as e:
+            raise RuntimeError(
+                f"CRITICAL: Failed to send standalone-stop-resize-failed alert for {symbol}: "
+                f"{e}. Trader was NOT notified of a stale broker-side stop-loss leg."
+            ) from e
         return
 
     new_order_id = result.get("new_order_id")

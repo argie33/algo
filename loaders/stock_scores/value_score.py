@@ -20,6 +20,22 @@ from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger("loaders.load_stock_scores")
 
+# VALUE_MIN_WEIGHT (added 2026-09-07, /goal session: "dig into the scoring results" sweep).
+# _score_value's `if total_weight > 0: return weighted_sum / total_weight` accepted ANY nonzero
+# weight as a fully-confident score - live-verified this lets a single satellite input (most
+# often dividend_yield=0.0 for a non-dividend-paying stock, 10% of nominal weight, or the
+# unprofitable-PE floor at 27%) produce a value_score indistinguishable in the DB from a name
+# scored off real coverage of PE/PB/PS. Live sweep: 71 universe symbols currently get a
+# value_score built from <=20% of nominal weight (17 from dividend_yield ALONE). This is the
+# identical thin-sample-extrapolation problem Growth (GROWTH_MIN_FIELDS_AVAILABLE, ~42% of its
+# 12 fields - see growth_scoring.py) and Quality (40-point floor out of a 101-point nominal
+# total - see quality_scoring.py's own docstring) already solved for themselves; Value never
+# got the same treatment. 0.40 mirrors that same ~40% convention against this pillar's own
+# 1.00 nominal total (PE 0.27 + PB 0.27 + PS 0.27 + Forward P/E 0.09 + Dividend Yield 0.10).
+# Below this, _score_value returns a data_unavailable marker instead of a score built from too
+# little evidence, same principle, not a new one invented here.
+VALUE_MIN_WEIGHT = 0.40
+
 
 class ValueScoreMixin:
     """See module docstring.
@@ -578,8 +594,10 @@ class ValueScoreMixin:
         Internal function: caller (_compute_stock_score) explicitly handles marker dicts
         and uses them for value metric computation.
 
-        MINIMUM DATA REQUIREMENT: At least one of PE/PB/FCF/dividend metrics must be
-        non-NULL. If all value metrics are None, returns data_unavailable marker.
+        MINIMUM DATA REQUIREMENT: at least VALUE_MIN_WEIGHT (0.40) of nominal weight
+        (PE 0.27 + PB 0.27 + PS 0.27 + Forward P/E 0.09 + Dividend Yield 0.10 = 1.00) must be
+        available - see that constant's own docstring. Below that, or if all value metrics are
+        None, returns a data_unavailable marker rather than a thin-sample score.
         Critical metric for stock scoring (high priority upstream loader).
         """
         if not metrics or metrics.get("data_unavailable"):
@@ -879,8 +897,20 @@ class ValueScoreMixin:
         # by this function, same "computed-but-unscored" convention as ev_ebitda/ev_revenue
         # above (forward_pe is no longer in this bucket - see the Forward P/E block above).
 
-        if total_weight > 0:
+        if total_weight >= VALUE_MIN_WEIGHT:
             return weighted_sum / total_weight
+        if total_weight > 0:
+            logger.warning(
+                f"[STOCK_SCORES] {symbol} value_score withheld: only {total_weight:.2f}/1.00 nominal "
+                f"weight available, below VALUE_MIN_WEIGHT={VALUE_MIN_WEIGHT}. See that constant's "
+                f"docstring - a single satellite input's weight is thin-sample extrapolation, not an "
+                f"honest partial score."
+            )
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "insufficient_value_inputs_thin_sample",
+            }
         logger.debug(f"[STOCK_SCORES] No value metrics found to score for {symbol}")
         logger.debug(
             f"[STOCK_SCORES] Returning data_unavailable marker for value_score({symbol}) - no scoreable fields"

@@ -452,8 +452,23 @@ class ExitHandler:
         # (the caller logged a generic "EARLY EXIT FAILED" and moved on). Prefer the open
         # position deterministically so a stop-loss exit is never blocked by stale linkage
         # on an unrelated closed position.
+        # FIX 2026-09-07 (real-money-readiness audit): for a pyramided position (2+ legs,
+        # entry_qty/entry_price documented as per-leg on algo_trades - see
+        # executor_entry_handler.py's blended-avg-price comment above), every exit call site
+        # resolves trade_id = trade_ids_arr[0] - always the FIRST/original leg, never the
+        # blended position. Selecting t.entry_price here paired the first leg's own entry
+        # price with p.quantity (the position's TOTAL remaining quantity across all legs),
+        # so a full exit priced every share - including later, differently-priced pyramid
+        # adds - at the first leg's price. Concrete example: leg1 100sh@$10, leg2 (pyramid
+        # add) 50sh@$15 -> avg_entry_price correctly blends to $11.67 on algo_positions, but
+        # a full exit at $20 using entry_price=$10 for all 150sh computed pnl_dollars=$1500
+        # instead of the true (20-10)*100 + (20-15)*50 = $1250 - a 20% overstatement fed
+        # directly into algo_trades.profit_loss_dollars/exit_r_multiple. p.avg_entry_price is
+        # already correctly quantity-weighted on every entry add (executor_entry_handler.py),
+        # so prefer it over the single-leg t.entry_price whenever a position row exists.
         cur.execute(
-            """SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
+            """SELECT t.symbol, COALESCE(p.avg_entry_price, t.entry_price) AS entry_price,
+                       t.entry_quantity, t.stop_loss_price,
                        t.alpaca_order_id,
                        p.position_id, p.quantity, p.target_levels_hit, p.status
                 FROM algo_trades t
@@ -614,6 +629,7 @@ class ExitHandler:
         risk_per_share: Decimal,
         full_exit: bool,
         is_estimated_price: bool,
+        position_id: int | None,
     ) -> tuple[float, float, float]:
         """Return (pnl_dollars, pnl_pct, r_multiple), summed across every leg of a
         multi-leg exit when this call is the final leg.
@@ -631,6 +647,19 @@ class ExitHandler:
 
         For a partial exit (full_exit=False) or an unreconciled estimated fill, there is no
         final trade-level total to report yet - returns the single-leg values unchanged.
+
+        FIXED 2026-09-07 (follow-up to the same-day pyramided-entry-price fix above, closing
+        the edge case its own docstring flagged as open): `entry_qty` is `t.entry_quantity` -
+        the FIRST/original leg's own quantity only, same single-leg limitation `entry_price`
+        had before today's fix. For a position that is BOTH pyramided (2+ legs) AND exited via
+        multiple partial legs (the only branch that reaches this far - `prior_partial_pnl_dec
+        != 0` below), using just the first leg's quantity against the now-correct blended
+        `entry_price` understates original_cost_basis/original_risk_dollars, overstating
+        cumulative_pnl_pct/cumulative_r_multiple. Sums entry_quantity across every leg on the
+        position (algo_positions.trade_ids_arr, the same array executor_entry_handler.py
+        appends every pyramid add to) instead of trusting the single first-leg value - falls
+        back to the passed-in single-leg entry_qty when no position row exists (matching
+        entry_price's own COALESCE fallback at the call site).
         """
         if not (full_exit and not is_estimated_price):
             return pnl_dollars, pnl_pct, r_multiple
@@ -653,7 +682,21 @@ class ExitHandler:
         cumulative_pnl_dollars_dec = (prior_partial_pnl_dec + Decimal(str(pnl_dollars))).quantize(
             Decimal("0.01"), ROUND_HALF_UP
         )
-        entry_qty_dec = Decimal(str(entry_qty))
+        total_entry_qty = entry_qty
+        if position_id is not None:
+            cur.execute(
+                """
+                SELECT SUM(t.entry_quantity)
+                FROM algo_trades t
+                JOIN algo_positions p ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
+                WHERE p.position_id = %s
+                """,
+                (position_id,),
+            )
+            total_entry_qty_row = cur.fetchone()
+            if total_entry_qty_row and total_entry_qty_row[0] is not None:
+                total_entry_qty = float(total_entry_qty_row[0])
+        entry_qty_dec = Decimal(str(total_entry_qty))
         original_cost_basis = Decimal(str(entry_price)) * entry_qty_dec
         original_risk_dollars = risk_per_share * entry_qty_dec
         cumulative_pnl_dollars = float(cumulative_pnl_dollars_dec)
@@ -739,6 +782,11 @@ class ExitHandler:
 
         # Calculate shares to exit
         shares_to_exit, full_exit = self._calculate_exit_shares(current_qty, exit_fraction)
+        # Captured before any race/partial-fill reconciliation below overwrites shares_to_exit
+        # with the verified ACTUAL filled quantity - TCA's fill_rate_pct needs the originally
+        # REQUESTED amount, not the (possibly identical) reconciled one, mirroring the entry
+        # side's shares_requested/shares_filled distinction (executor_entry_handler.py).
+        requested_shares_to_exit = shares_to_exit
 
         # Needed earlier than before (moved up from just above the order-submission block) so
         # the cancel-race handling below can distinguish a genuine auto-mode cancel failure from
@@ -984,7 +1032,67 @@ class ExitHandler:
                                     f"Using verified fill quantity."
                                 )
                             shares_to_exit = verified_filled_qty
-                            full_exit = shares_to_exit >= current_qty
+
+                    # REAL-MONEY-READINESS FIX (2026-09-06 audit): raced_filled_qty (the bracket
+                    # leg that filled during the cancel race above) was subtracted from the
+                    # replacement order's requested size but never added back anywhere below -
+                    # shares_to_exit here only reflects the REPLACEMENT order's own fill, so
+                    # full_exit/new_qty/pnl_dollars all silently dropped the raced leg's shares
+                    # and dollars whenever this replacement order's fill didn't happen to exactly
+                    # equal current_qty on its own. Fold it back in now: blend the raced fill's
+                    # price with this order's fill price (quantity-weighted) and roll the raced
+                    # quantity into shares_to_exit so every downstream calculation reflects the
+                    # TOTAL shares actually sold this call, not just the replacement leg's slice.
+                    if raced_filled_qty and not raced_fill_closed_position:
+                        if actual_fill_price is None:
+                            raise RuntimeError(
+                                f"[EXIT_HANDLER CRITICAL] {trade_id} {symbol}: raced_filled_qty="
+                                f"{raced_filled_qty} but actual_fill_price is None - cannot blend "
+                                f"the raced leg's fill into this call's P&L/quantity accounting."
+                            )
+                        total_qty_dec = Decimal(str(shares_to_exit)) + Decimal(str(raced_filled_qty))
+                        blended_price_dec = (
+                            Decimal(str(actual_fill_price)) * Decimal(str(shares_to_exit))
+                            + Decimal(str(raced_fill_price)) * Decimal(str(raced_filled_qty))
+                        ) / total_qty_dec
+                        logger.info(
+                            f"[EXIT_HANDLER] {trade_id} {symbol}: folding raced fill "
+                            f"{raced_filled_qty}sh @ ${raced_fill_price} into replacement order's "
+                            f"{shares_to_exit}sh @ ${actual_fill_price} -> total {total_qty_dec}sh "
+                            f"@ blended ${blended_price_dec}"
+                        )
+                        shares_to_exit = float(total_qty_dec)
+                        actual_fill_price = float(blended_price_dec)
+
+                    full_exit = shares_to_exit >= current_qty
+
+                    # TCA (2026-09-07 real-money-readiness audit): the entry side has recorded
+                    # every fill's execution quality since 2026-08-xx (see
+                    # executor_entry_handler.py's _record_entry_phase), but no exit ever called
+                    # record_fill() - stop-loss/profit-target/time exits (the fills most likely
+                    # to slip, especially a market-order stop in a fast decline) were completely
+                    # invisible to slippage measurement. Only recorded for a REAL confirmed fill
+                    # (not the PENDING_FILL_RECONCILIATION placeholder path above, where
+                    # actual_fill_price is just the evaluation-time quote, not a real fill) - same
+                    # "never let TCA revert an already-happened trade" non-blocking contract as
+                    # the entry side.
+                    if not is_estimated_price:
+                        try:
+                            self.context.tca.record_fill(
+                                trade_id=trade_id,
+                                symbol=symbol,
+                                signal_price=exit_price,
+                                fill_price=actual_fill_price,
+                                shares_requested=int(requested_shares_to_exit),
+                                shares_filled=int(shares_to_exit),
+                                side="SELL",
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"[TCA] Failed to record exit execution-quality data for {symbol} "
+                                f"trade {trade_id} (non-blocking, trade already committed): "
+                                f"{type(e).__name__}: {e}"
+                            )
             else:
                 # Explicit message handling - log if missing instead of defaulting
                 error_message = exit_order_result.get("message")
@@ -1126,6 +1234,7 @@ class ExitHandler:
             risk_per_share,
             full_exit,
             is_estimated_price,
+            position_id,
         )
 
         # TRANSACTION GUARD 3: Update algo_trades
@@ -1277,12 +1386,43 @@ class ExitHandler:
         if not (full_exit or new_qty <= 0) and alpaca_order_id:
             resize_result = self.context._sync_bracket_stop_loss(alpaca_order_id, effective_stop, new_qty)
             if not resize_result.get("success"):
-                logger.error(
-                    f"[EXIT_HANDLER] {symbol}: partial exit succeeded but failed to resize the "
+                # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): this was logger.error,
+                # invisible to any monitoring tier that only watches CRITICAL-level logs (the
+                # convention this same file uses elsewhere - see lines 135/492/827/1453 - for
+                # exactly this "needs a human to notice" severity). The only other backstop is
+                # the NEXT Phase 9 reconciliation cycle's own qty-mismatch check, which can be
+                # hours away - this closes the visibility gap for that window, where the
+                # resting stop-loss leg is stale/oversized relative to the actual position.
+                logger.critical(
+                    f"[EXIT_HANDLER CRITICAL] {symbol}: partial exit succeeded but failed to resize the "
                     f"resting bracket stop-loss leg to {new_qty} shares @ ${effective_stop:.2f} - "
                     f"{resize_result.get('message')}. The broker's stop-loss order may still be "
-                    f"sized for the pre-partial-exit quantity until the next stop-raise corrects it."
+                    f"sized for the pre-partial-exit quantity until the next Phase 9 cycle corrects it."
                 )
+                # A critical log alone is invisible to anything that isn't tailing logs - this
+                # file uses notify() alongside logger.critical everywhere else it needs a human
+                # to actually act (see lines 833/900/1070), both already relying on this file's
+                # own module-level `notify`/`NotificationError` import (no local re-import here -
+                # that shadows the module-level name for this whole method, breaking those
+                # earlier unconditional call sites, per ruff F823).
+                try:
+                    notify(
+                        "critical",
+                        title=f"Stop-loss resize failed after partial exit: {symbol}",
+                        message=(
+                            f"Trade {trade_id}: partial exit succeeded but the resting bracket "
+                            f"stop-loss leg (order {alpaca_order_id}) could not be resized to "
+                            f"{new_qty} shares @ ${effective_stop:.2f} - {resize_result.get('message')}. "
+                            f"The broker-side stop may still be sized for the pre-partial-exit "
+                            f"quantity until the next Phase 9 cycle corrects it. Investigate now."
+                        ),
+                        strict=True,
+                    )
+                except NotificationError as e:
+                    raise RuntimeError(
+                        f"CRITICAL: Failed to send stop-resize-failed alert for {symbol}: {e}. "
+                        f"Trader was NOT notified of a stale broker-side stop-loss leg."
+                    ) from e
 
         # A position auto-repaired onto a standalone stop (Phase 9) needs the SAME resize -
         # see executor_exit_standalone_stop.py's resize_standalone_stop_after_partial_exit

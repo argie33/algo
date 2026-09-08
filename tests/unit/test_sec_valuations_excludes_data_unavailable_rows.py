@@ -75,6 +75,13 @@ class _RecordingCursor:
         return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -101,6 +108,7 @@ class TestExcludesDataUnavailableRows:
         # test_sec_valuations_book_value_query_prefers_populated_fiscal_year.py's matching fix
         # comment for why the old order only happened to work before.
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (68_111_000.0,),  # annual_balance_sheet.cash_and_equivalents
             (20_000_000.0, 5_000_000.0, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row

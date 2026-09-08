@@ -48,6 +48,9 @@ from decimal import Decimal
 from typing import Any, cast
 from xml.etree import ElementTree as ET
 
+from utils.external.fx_rates import MAJOR_CURRENCIES
+from utils.external.sec_custom_xbrl_concepts import _fx_rate_cache, _parse_unit_currencies
+
 logger = logging.getLogger(__name__)
 
 # Standard us-gaap axes used for ASC 280 segment reporting. Axis *names* are
@@ -445,6 +448,23 @@ _ALT_ASSET_MANAGER_REVENUE_COMPONENT_CONCEPTS = (
     "RealizedPrincipalInvestmentIncomeLoss",
 )
 
+# ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, segment-reporting
+# deep-dive): Federal Agricultural Mortgage Corporation ("Farmer Mac") tags segment-level
+# revenue as GROSS interest income and interest expense requiring subtraction, unlike
+# _BANK_REVENUE_COMPONENT_CONCEPTS's already-netted anchor - see
+# _extract_gse_net_interest_income_segment_revenue's own docstring for the to-the-dollar
+# live verification. AGM and AGM.A are both Farmer Mac (CIK 0000845877, common stock and
+# Class A voting stock respectively) - verified live via SEC's own symbol_to_cik. AGMB
+# ("AgomAb Therapeutics NV", CIK 0002020932) and AGMH ("AGM Group Holdings Inc.", CIK
+# 0001705402) merely share a similar-looking ticker prefix and are NOT Farmer Mac -
+# confirmed live via each symbol's own real entityName before assuming ticker similarity
+# implied the same company. Deliberately excluded: this function is a no-op safety net for
+# them either way (it checks for Farmer Mac's own concept names, absent from their real
+# filings, so it would just fall through to the next tier) but listing them here would be
+# actively misleading to a future reader.
+_GSE_NET_INTEREST_INCOME_SEGMENT_SYMBOLS = frozenset({"AGM", "AGM.A"})
+_GSE_NET_INTEREST_INCOME_CONCEPTS = ("InterestAndDividendIncomeOperating", "InterestExpenseOperating")
+
 # The dimension/member Blackstone uses for its own "Operating Segments" (pre-
 # consolidation-adjustment) aggregate - live-confirmed in the raw XBRL instance as a
 # context with EXACTLY this one explicitMember (no StatementBusinessSegmentsAxis) - the
@@ -534,6 +554,7 @@ from utils.external.sec_xbrl_segment_revenue import (  # noqa: E402
     _extract_alt_asset_manager_segment_revenue,
     _extract_component_sum_segment_revenue,
     _extract_cross_tab_segment_revenue,
+    _extract_gse_net_interest_income_segment_revenue,
 )
 from utils.external.sec_xbrl_segment_revenue_2 import (  # noqa: E402
     _extract_ares_style_segment_revenue,
@@ -766,6 +787,36 @@ class XBRLSegmentParser:
             if axis and member and end_str:
                 context_segment[ctx_id] = (axis, member, end_str, start_str, is_boilerplate_paired)
 
+        # FIXED 2026-09-07 (goal: stock_scores/tie-out sanity audit, segment-sum-to-consolidated
+        # investigation): "ReportableSegmentMember" (singular - the ASU 2023-07 generic member a
+        # single-reportable-segment filer tags on its own aggregate total) is AMBIGUOUS in a way
+        # the always-a-subtotal plural "ReportableSegmentsMember" isn't - live-confirmed two
+        # opposite real shapes for the exact same member name:
+        #   - Electronic Arts (EA) FY2026 10-K: StatementBusinessSegmentsAxis=ReportableSegmentMember
+        #     tags $7.531B (the real, correct total) ALONGSIDE separate real disaggregation-by-
+        #     category members (Mobile/Live Services/Full Game/etc.) under the SAME axis -
+        #     counting it as an additional peer segment roughly doubles the true total.
+        #   - Realty Income's FY2025 10-K: this is the filer's ONLY segment-dimensioned member at
+        #     all (a genuinely single-segment company) - dropping it unconditionally (an earlier,
+        #     REVERTED version of this fix added it to _NON_SEGMENT_SUBTOTAL_MEMBERS directly)
+        #     broke the single-segment fallback path further down that needs this exact member
+        #     present in context_segment to correctly label/value the one real segment.
+        # Distinguishing factor: EA's shape has 2+ OTHER distinct real members sharing the axis;
+        # Realty Income's shape has none. Only drop this specific member when 2+ siblings exist -
+        # a sole "ReportableSegmentMember" with no siblings is genuinely the one real segment, not
+        # a redundant subtotal.
+        for axis_with_member in {info[0] for info in context_segment.values()}:
+            members_on_axis = {info[1] for info in context_segment.values() if info[0] == axis_with_member}
+            if "ReportableSegmentMember" not in members_on_axis:
+                continue
+            sibling_members = members_on_axis - {"ReportableSegmentMember"}
+            if len(sibling_members) >= 2:
+                context_segment = {
+                    cid: info
+                    for cid, info in context_segment.items()
+                    if not (info[0] == axis_with_member and info[1] == "ReportableSegmentMember")
+                }
+
         return context_segment
 
     @staticmethod
@@ -850,6 +901,7 @@ class XBRLSegmentParser:
         segment reported a -$2.66B OperatingIncomeLoss in FY2023).
         """
         values: dict[str, float] = {}
+        unit_currencies = _parse_unit_currencies(root)
         for concept in concept_local_names:
             facts: list[tuple[str, float, bool]] = []
             for elem in root.iter():
@@ -878,9 +930,22 @@ class XBRLSegmentParser:
                 if value is None:
                     continue
                 try:
-                    facts.append((member, float(value.strip()), is_boilerplate))
+                    fvalue = float(value.strip())
                 except ValueError:
                     continue
+                # Same FX-normalization as the revenue path above (see
+                # extract_segment_revenue_from_xbrl_xml's 2026-09-06 comment) - operating_income
+                # and assets share this one extraction function, so the same wrong-magnitude
+                # local-currency bug applied to both, not just revenue.
+                currency = unit_currencies.get(elem.get("unitRef") or "")
+                if currency and currency != "USD":
+                    if currency not in MAJOR_CURRENCIES:
+                        continue
+                    fx_rate = _fx_rate_cache.get_usd_rate(currency, end_str)
+                    if fx_rate is None or fx_rate == 0:
+                        continue
+                    fvalue = fvalue / fx_rate
+                facts.append((member, fvalue, is_boilerplate))
             if facts:
                 values = XBRLSegmentParser._dedupe_member_facts(facts, symbol, concept)
                 break
@@ -959,6 +1024,31 @@ class XBRLSegmentParser:
         axis_priority = [axis for axis in _SEGMENT_AXIS_LOCAL_NAMES if axis in available_axes]
         axis_to_use = axis_priority[0]
 
+        # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep, segment-sum-to-
+        # consolidated FX gap - see this file's module docstring on the previously-rejected
+        # "Segment-sum-to-consolidated" tie-out check for the live evidence: AKO.A/AKO.B/KWM/
+        # LGPS/MRM/LFS/LRE/PDC/PAYP-style foreign filers showed 100x-1,400x magnitude errors
+        # because segment revenue is tagged in the filer's local reporting currency with no
+        # normalization step here, unlike annual_income_statement.revenue (which DOES convert -
+        # see sec_statements_entry_resolution.py's _aggregate_concepts_apply_entry_value). This
+        # was silently storing wrong-magnitude local-currency values as if they were USD, not
+        # just under-reporting - a real "no confidently-wrong data" violation, not merely a
+        # missing-data gap. Live-verified against AKO.A's real FY2025 20-F (CIK 0000925261,
+        # accession 0001104659-26-038506): Brazil segment revenue was $976,907,746,000 (raw CLP
+        # stored as if USD) before this fix, $1,085,525,417 (a plausible real figure) after -
+        # Chile/Argentina/Paraguay corrected the same way, summing to ~$3.7B total, consistent
+        # with Andina's real known consolidated scale. Resolves each matched fact's own unitRef
+        # to a currency and converts via the same real historical-ECB-rate FxRateCache the
+        # income/balance-sheet extractors use (never a guessed rate); a non-major, non-USD
+        # currency (e.g. KRW/JPY-scale mismatches, or a lookup failure) rejects the fact entirely
+        # rather than storing an unconverted or fabricated value - same fail-closed discipline as
+        # every other currency guard in this codebase. Scoped to this direct-axis-facts path and
+        # its sibling _extract_segment_member_values (operating_income/assets, same bug) - the
+        # cross-tab/component-sum/Ares-style fallback paths below are predominantly US filers
+        # already reporting in USD and are left untouched rather than risk a wider, less-tested
+        # change.
+        unit_currencies = _parse_unit_currencies(root)
+
         candidate_facts: list[tuple[str, str, int, float, bool]] = []
         # (member, end_date, duration_days, revenue, is_boilerplate_paired)
         matched_concept = None
@@ -982,6 +1072,14 @@ class XBRLSegmentParser:
                         revenue = float(value.strip())
                     except ValueError:
                         continue
+                    currency = unit_currencies.get(elem.get("unitRef") or "")
+                    if currency and currency != "USD":
+                        if currency not in MAJOR_CURRENCIES or not end_str:
+                            continue
+                        fx_rate = _fx_rate_cache.get_usd_rate(currency, end_str)
+                        if fx_rate is None or fx_rate == 0:
+                            continue
+                        revenue = revenue / fx_rate
                     duration_days = 0
                     if start_str and end_str:
                         try:
@@ -1008,13 +1106,36 @@ class XBRLSegmentParser:
                 if cross_tab is None and component_sum is None
                 else None
             )
-            ares_style_sum = (
-                _extract_ares_style_segment_revenue(root, symbol)
-                if cross_tab is None and component_sum is None and alt_asset_manager_sum is None
+            gse_net_interest_income_sum = (
+                _extract_gse_net_interest_income_segment_revenue(root, context_segment, axis_to_use, symbol)
+                if cross_tab is None
+                and component_sum is None
+                and alt_asset_manager_sum is None
+                and symbol in _GSE_NET_INTEREST_INCOME_SEGMENT_SYMBOLS
                 else None
             )
-            if cross_tab is None and component_sum is None and alt_asset_manager_sum is None and ares_style_sum is None:
-                single = _extract_single_segment_revenue(root, symbol)
+            ares_style_sum = (
+                _extract_ares_style_segment_revenue(root, symbol)
+                if cross_tab is None
+                and component_sum is None
+                and alt_asset_manager_sum is None
+                and gse_net_interest_income_sum is None
+                else None
+            )
+            if (
+                cross_tab is None
+                and component_sum is None
+                and alt_asset_manager_sum is None
+                and gse_net_interest_income_sum is None
+                and ares_style_sum is None
+            ):
+                # require_explicit_count_tag=True: real segment-dimensioned contexts DO exist
+                # here (context_segment is non-empty - see the early-return branch above for
+                # the true zero-context case) but none of the reconciliation strategies
+                # matched them - see _extract_single_segment_revenue's own docstring
+                # ("BUG FOUND 2026-09-06") for why the relaxed no-count-tag-required rule
+                # must not apply at this call site.
+                single = _extract_single_segment_revenue(root, symbol, require_explicit_count_tag=True)
                 if single is not None:
                     _concept, revenue, single_end, single_duration = single
                     # Realty Income's FY2025 10-K tags the single segment's
@@ -1076,6 +1197,13 @@ class XBRLSegmentParser:
                 logger.debug(
                     f"[{symbol}] Segment revenue matched via alt-asset-manager component-sum "
                     f"({' + '.join(_ALT_ASSET_MANAGER_REVENUE_COMPONENT_CONCEPTS)}) on {axis_to_use}"
+                )
+            elif gse_net_interest_income_sum is not None:
+                segments, max_end, max_duration = gse_net_interest_income_sum
+                logger.debug(
+                    f"[{symbol}] Segment revenue matched via GSE net-interest-income "
+                    f"component-sum ({_GSE_NET_INTEREST_INCOME_CONCEPTS[0]} - "
+                    f"{_GSE_NET_INTEREST_INCOME_CONCEPTS[1]}) on {axis_to_use}"
                 )
             elif ares_style_sum is not None:
                 segments, max_end, max_duration = ares_style_sum

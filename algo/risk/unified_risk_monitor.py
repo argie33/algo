@@ -152,7 +152,7 @@ def _check_portfolio_variance(config: Any, max_attempts: int = 3) -> dict[str, A
                 current_pnl = float(current_pnl)
 
                 cur.execute(
-                    """SELECT unrealized_pnl_total FROM algo_portfolio_snapshots
+                    """SELECT session_open_unrealized_pnl_total FROM algo_portfolio_snapshots
                        WHERE snapshot_date = CURRENT_DATE LIMIT 1"""
                 )
                 session_row = cur.fetchone()
@@ -284,18 +284,60 @@ def _apply_risk_verdict(
         )
         return {"check": check_key, "breached": True, "streak": streak, "action": "warn"}
 
-    manager = _get_halt_manager(alerts)
-    manager.set_halt_flag(reason=f"[UNIFIED_RISK_MONITOR:{check_key}] {reason}", triggered_by="unified_risk_monitor")
-    alerts.send_position_alert(
-        "PORTFOLIO",
-        "RISK_BREACH_HALTED",
-        f"{check_key} breach CONFIRMED across {streak} consecutive live-reconfirmed runs - "
-        f"new entries halted automatically: {reason}",
-        result,
-    )
+    # SHADOW MODE (2026-09-07, real-money-readiness): defaults True (see
+    # unified_risk_monitor_shadow_mode's own config-registry docstring) - runs the FULL
+    # detection/escalation ladder below (every check, every streak, every alert) so this can
+    # be soak-tested against a live paper account with zero trading impact, but never calls
+    # set_halt_flag or the automated exit path while shadow mode is on. Enabling the monitor
+    # itself (enable_unified_risk_monitor in terraform) does NOT implicitly enable live
+    # auto-remediation - that is this separate, explicit config flag, off by default.
+    shadow_mode = bool(config.get("unified_risk_monitor_shadow_mode", True))
+
+    if shadow_mode:
+        alerts.send_position_alert(
+            "PORTFOLIO",
+            "RISK_BREACH_HALT_SHADOW_MODE",
+            f"{check_key} breach CONFIRMED across {streak} consecutive live-reconfirmed runs - "
+            f"SHADOW MODE: would have halted new entries, no real action taken: {reason}",
+            result,
+        )
+    else:
+        manager = _get_halt_manager(alerts)
+        manager.set_halt_flag(
+            reason=f"[UNIFIED_RISK_MONITOR:{check_key}] {reason}", triggered_by="unified_risk_monitor"
+        )
+        alerts.send_position_alert(
+            "PORTFOLIO",
+            "RISK_BREACH_HALTED",
+            f"{check_key} breach CONFIRMED across {streak} consecutive live-reconfirmed runs - "
+            f"new entries halted automatically: {reason}",
+            result,
+        )
 
     if streak < CONSECUTIVE_BREACH_RUNS_TO_ACT:
-        return {"check": check_key, "breached": True, "streak": streak, "action": "halt"}
+        return {
+            "check": check_key,
+            "breached": True,
+            "streak": streak,
+            "action": "halt" if not shadow_mode else "shadow_halt",
+        }
+
+    if shadow_mode:
+        alerts.send_position_alert(
+            "PORTFOLIO",
+            "RISK_BREACH_ACT_SHADOW_MODE",
+            f"{check_key}: breach still confirmed after the halt-confirmation window - "
+            f"SHADOW MODE: would have automatically reduced/flattened offending position(s) "
+            f"now, no real action taken: {reason}",
+            {"offending_symbols": offending_symbols or [], **result},
+        )
+        return {
+            "check": check_key,
+            "breached": True,
+            "streak": streak,
+            "action": "shadow_reduce_or_flatten",
+            "detail": {"offending_symbols": offending_symbols or []},
+        }
 
     action_detail = _act_reduce_or_flatten(config, alerts, check_key, reason, offending_symbols)
     if action_detail.get("failed"):
@@ -486,7 +528,16 @@ def check_unified_risk(config: Any, alerts: AlertManager | None = None) -> dict[
     # 4. True live intraday SPY move (new)
     try:
         market_result = _check_live_intraday_spy_move(config)
-        threshold_pct = float(config.get("intraday_spy_drop_halt_pct", -2.0))
+        # REAL-MONEY-READINESS FIX (2026-09-06 audit): this threshold used to be a hardcoded
+        # `.get(..., -2.0)` fallback for a config key that was never registered in
+        # CONFIG_DEFAULTS_RISK/VALIDATION_SCHEMA - invisible to any admin config UI (which
+        # enumerates those registries) and unvalidated (no type/range check, no fail-closed
+        # value) even though a raw algo_config DB row for it would technically still be picked
+        # up. Now registered like every other threshold in this file (portfolio_variance_
+        # threshold, and circuit_breaker_market_conditions.py's sibling
+        # intraday_prior_day_drop_halt_pct), so `config["..."]` is sufficient - AlgoConfig's own
+        # DEFAULTS/critical-value machinery handles the fallback and fail-closed behavior.
+        threshold_pct = float(config["intraday_spy_drop_halt_pct"])
         change = market_result["intraday_change_pct"]
         breached = change <= threshold_pct
         verdict = _apply_risk_verdict(

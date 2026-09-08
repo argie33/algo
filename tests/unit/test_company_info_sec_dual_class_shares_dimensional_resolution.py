@@ -157,3 +157,438 @@ class TestTargetClassLetter:
         """Defensive: something like a ".R" (rights) suffix isn't a single-letter class -
         must not be misread as a class letter."""
         assert CompanyInfoSECLoader._target_class_letter("XYZ.WS") is None
+
+    def test_security_name_missing_class_letter_override_resolves_without_db_lookup(self):
+        """WLY/WLYB (John Wiley & Sons) both carry the identical generic security_name "John
+        Wiley & Sons, Inc. Common Stock" - live-confirmed neither has "Class A"/"Class B" text,
+        unlike every other dual-class family sampled in the same sweep. The curated override
+        must resolve both without ever needing the (unhelpful) security_name lookup."""
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            assert CompanyInfoSECLoader._target_class_letter("WLY") == "A"
+            assert CompanyInfoSECLoader._target_class_letter("WLYB") == "B"
+            mock_db_ctx.assert_not_called()
+
+
+class TestWileyClassLetterOverrideDimensionalResolution:
+    """End-to-end: WLY/WLYB's real current 10-Q (jwa-20260731.htm, CIK 107140) tags both
+    classes with standard dimensions - live-confirmed us-gaap:CommonClassAMember=41,925,511
+    (WLY) and us-gaap:CommonClassBMember=8,758,419 (WLYB). Before the override, both fell
+    through target_letter=None into the ambiguous-reject path despite this being fully
+    resolvable, identical bug shape to BRK.A/BRK.B before that fix landed."""
+
+    _WLY_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-4" name="dei:EntityCommonStockSharesOutstanding">'
+        "41,925,511</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-5" name="dei:EntityCommonStockSharesOutstanding">'
+        "8,758,419</ix:nonFraction>"
+        '<xbrli:context id="c-4"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-5"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassBMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_wly_resolves_to_its_own_class_a_value(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._WLY_FILING_TEXT
+
+        result = loader._fetch_shares_outstanding_from_filing_text(
+            "WLY", "107140", _submissions_with_10k(tickers=["WLY", "WLYB"])
+        )
+
+        assert result == 41_925_511
+
+    def test_wlyb_resolves_to_its_own_class_b_value_not_its_siblings(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._WLY_FILING_TEXT
+
+        result = loader._fetch_shares_outstanding_from_filing_text(
+            "WLYB", "107140", _submissions_with_10k(tickers=["WLY", "WLYB"])
+        )
+
+        assert result == 8_758_419
+
+
+class TestAtroVerifiedCustomDefaultClassMember:
+    """ATRO (Astronics Corporation, CIK 8063) has only ONE registered common ticker - its real
+    current 10-K (atro-20260226) tags its plain "common stock" (the class ATRO actually trades,
+    31,868,534 shares) under a filer-custom `atro:CommonClassUndefinedMember` dimension member
+    instead of the standard `us-gaap:CommonStockMember` - live-confirmed via the filing's own
+    prose ("consisting of 36,107,984 [sic, a later filing's count] shares of common stock ...
+    and ... shares of Class B common stock"). Before the fix, `_context_is_generic_common_class`
+    correctly refused to trust the non-standard member name (same caution that caught the UHAL
+    bug), so ATRO fell through to the ambiguous reject despite having only one real ticker."""
+
+    _ATRO_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-2" name="dei:EntityCommonStockSharesOutstanding">'
+        "31,868,534</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-3" name="dei:EntityCommonStockSharesOutstanding">'
+        "3,822,641</ix:nonFraction>"
+        '<xbrli:context id="c-2"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">atro:CommonClassUndefinedMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-3"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassBMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_atro_resolves_to_its_plain_common_stock_value_via_verified_override(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._ATRO_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Astronics Corporation - Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "ATRO", "8063", _submissions_with_10k(tickers=["ATRO", "ATROB"])
+            )
+
+        assert result == 31_868_534
+
+    def test_unverified_symbol_with_same_shape_stays_unresolved(self):
+        """Guards the allowlist discipline: a DIFFERENT symbol with the identical
+        CommonClassUndefinedMember shape must NOT be trusted just because ATRO's is - only an
+        individually-verified entry in _VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS is trusted."""
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._ATRO_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Some Other Company Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "ZZZZ", "999999", _submissions_with_10k(tickers=["ZZZZ", "ZZZZB"])
+            )
+
+        assert result is None
+
+
+class TestTrSecurityNameOverride:
+    """TR (Tootsie Roll Industries) - same vendor/master-data gap shape as WLY: real current
+    10-K (CIK 98677) embeds the class dimension directly in the contextRef id string (Workiva-
+    style, same shape as the Liberty Media family), fully resolvable once TR's own class letter
+    is known via the override."""
+
+    _TR_FILING_TEXT = (
+        '<ix:nonFraction contextRef="As_Of_2_11_2026_us-gaap_StatementClassOfStockAxis_'
+        'us-gaap_CommonClassAMember_P1fjnRulyUK9I85TyF2i8A" '
+        'name="dei:EntityCommonStockSharesOutstanding">41,820,966</ix:nonFraction>'
+        '<ix:nonFraction contextRef="As_Of_2_11_2026_us-gaap_StatementClassOfStockAxis_'
+        'us-gaap_CommonClassBMember_j2i8fgtt-kWU94OHTVgKLQ" '
+        'name="dei:EntityCommonStockSharesOutstanding">31,165,664</ix:nonFraction>'
+    )
+
+    def test_tr_resolves_to_its_own_class_a_value_without_db_lookup(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._TR_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "TR", "98677", _submissions_with_10k(tickers=["TR", "TROLB"])
+            )
+            mock_db_ctx.assert_not_called()
+
+        assert result == 41_820_966
+
+
+class TestMovVerifiedCustomDefaultClassMember:
+    """MOV (Movado Group) - same non-standard-custom-member shape as ATRO but a DIFFERENT
+    filer-specific string (`mov:CommonStockClassUndefinedMember`, not ATRO's
+    `atro:CommonClassUndefinedMember`) - live-confirmed via the filing's own prose ("shares
+    outstanding of the registrant's Common Stock and Class A Common Stock ... were 15,622,386
+    and 6,455,602")."""
+
+    _MOV_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-mov-1" name="dei:EntityCommonStockSharesOutstanding">'
+        "15,622,386</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-mov-2" name="dei:EntityCommonStockSharesOutstanding">'
+        "6,455,602</ix:nonFraction>"
+        '<xbrli:context id="c-mov-1"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">mov:CommonStockClassUndefinedMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-mov-2"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_mov_resolves_to_its_plain_common_stock_value(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._MOV_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Movado Group Inc. Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "MOV", "72573", _submissions_with_10k(tickers=["MOV", "MOVAA"])
+            )
+
+        assert result == 15_622_386
+
+    def test_atro_custom_member_string_does_not_leak_to_mov(self):
+        """Guards that ATRO's `commonclassundefinedmember` entry doesn't accidentally also
+        match MOV's differently-spelled `commonstockclassundefinedmember` string or vice versa -
+        each filer's exact custom member string is checked independently."""
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        # Same shape as MOV's real filing, but tagged with ATRO's exact custom string instead.
+        loader.sec_client.get_filing_plaintext.return_value = self._MOV_FILING_TEXT.replace(
+            "mov:CommonStockClassUndefinedMember", "mov:CommonClassUndefinedMember"
+        )
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Movado Group Inc. Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "MOV", "72573", _submissions_with_10k(tickers=["MOV", "MOVAA"])
+            )
+
+        # MOV's allowlist entry only covers "commonstockclassundefinedmember" - the ATRO-shaped
+        # string must NOT resolve for MOV even though it happens to match ATRO's own entry.
+        assert result is None
+
+
+class TestAgmSecurityNameOverride:
+    """AGM (Federal Agricultural Mortgage Corp/"Farmer Mac") has THREE classes - live-confirmed
+    via CIK 845877's real current 10-K: Class A (1,030,780, restricted, separately ticketed as
+    AGM.A), Class B (500,301, restricted, no separate ticker), Class C (9,325,900, the actual
+    NYSE-traded public float, ticker AGM). Bare "AGM" has the WLY-shaped security_name gap
+    (generic "...Common Stock", no "Class X" text)."""
+
+    _AGM_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-10" name="dei:EntityCommonStockSharesOutstanding">'
+        "1,030,780</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-11" name="dei:EntityCommonStockSharesOutstanding">'
+        "500,301</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-12" name="dei:EntityCommonStockSharesOutstanding">'
+        "9,325,900</ix:nonFraction>"
+        '<xbrli:context id="c-10"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-11"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassBMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-12"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassCMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_agm_resolves_to_its_own_class_c_value_without_db_lookup(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._AGM_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "AGM", "845877", _submissions_with_10k(tickers=["AGM", "AGM-A"])
+            )
+            mock_db_ctx.assert_not_called()
+
+        assert result == 9_325_900
+
+
+class TestFwonaLetterlessClassMemberOverride:
+    """FWONA (Liberty Media's Formula One tracking stock, Series A) has its own target_letter
+    correctly resolved to "A" via security_name ("...Series A Liberty Formula One Common
+    Stock"), but its real current 10-K tags Series A's own value under a genuinely letterless
+    filer-custom member (`lmca:LibertyFormulaOneGroupCommonClassMember`) - unlike its siblings'
+    `...CommonClassBMember`/`...CommonClassCMember`, which DO carry a letter and already resolve
+    via the standard path."""
+
+    _FWONA_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-a" name="dei:EntityCommonStockSharesOutstanding">'
+        "23,991,058</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-b" name="dei:EntityCommonStockSharesOutstanding">'
+        "2,381,188</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-c" name="dei:EntityCommonStockSharesOutstanding">'
+        "224,102,531</ix:nonFraction>"
+        '<xbrli:context id="c-a"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">lmca:LibertyFormulaOneGroupCommonClassMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-b"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">lmca:LibertyFormulaOneGroupCommonClassBMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-c"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">lmca:LibertyFormulaOneGroupCommonClassCMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_fwona_resolves_to_its_own_series_a_value(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._FWONA_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Liberty Media Corporation - Series A Liberty Formula One Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "FWONA", "1560385", _submissions_with_10k(tickers=["FWONA", "FWONK", "FWONB"])
+            )
+
+        assert result == 23_991_058
+
+    def test_unverified_symbol_with_same_letterless_member_stays_unresolved(self):
+        """Guards the allowlist discipline: a DIFFERENT symbol hitting the identical letterless
+        member shape must NOT be trusted just because FWONA's is - only an individually-
+        verified entry in _VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES is trusted, same as the
+        MKC/MKC.V corruption this replaces was reverted for trying to generalize."""
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._FWONA_FILING_TEXT.replace("FWONA", "ZZZZA").replace(
+            "lmca:LibertyFormulaOneGroupCommonClassMember", "lmca:LibertyFormulaOneGroupCommonClassMember"
+        )
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Some Other Corp - Series A Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "ZZZZA", "999999", _submissions_with_10k(tickers=["ZZZZA", "ZZZZK", "ZZZZB"])
+            )
+
+        assert result is None
+
+
+class TestPreferredClassMemberDoesNotCollideWithCommonClassLetter:
+    """PGY (Pagaya Technologies) - real current 10-K (CIK 1883085) tags THREE contexts:
+    us-gaap:CommonClassAMember (71,237,859, PGY's real Class A ordinary shares),
+    us-gaap:CommonClassBMember (11,288,577), and us-gaap:PreferredClassAMember (2,027,147, an
+    unrelated preferred series that merely happens to share the letter "A"). Before the fix,
+    _class_letter_for_context's letter-extraction regex matched "A" for BOTH the common and
+    preferred Class A contexts, so target_letter="A" (from security_name's "Class A Ordinary
+    Shares") found 2 dimensional matches instead of exactly 1 and fell through to the
+    ambiguous reject despite the common-class value being fully resolvable."""
+
+    _PGY_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-4" name="dei:EntityCommonStockSharesOutstanding">'
+        "71,237,859</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-5" name="dei:EntityCommonStockSharesOutstanding">'
+        "11,288,577</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-6" name="dei:EntityCommonStockSharesOutstanding">'
+        "2,027,147</ix:nonFraction>"
+        '<xbrli:context id="c-4"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-5"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassBMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-6"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:PreferredClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_pgy_resolves_to_its_own_common_class_a_value_not_the_preferred_class_a(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._PGY_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Pagaya Technologies Ltd. - Class A Ordinary Shares",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "PGY", "1883085", _submissions_with_10k(tickers=["PGY", "PGYWW"])
+            )
+
+        assert result == 71_237_859
+
+
+class TestPlainProseUnitsOutstandingFallback:
+    """5 oil/gas royalty trusts (CRT, MTR, PBT, SBR, SJT) tag ZERO inline-XBRL shares-
+    outstanding fact at all - real unit counts live only in free-form cover-page prose, in one
+    of two live-confirmed shapes. Deliberately gated to this exact symbol set - see
+    _VERIFIED_PLAIN_PROSE_UNIT_SYMBOLS' own comment for the false-positive risk this guards."""
+
+    def _loader_with_text(self, text: str) -> CompanyInfoSECLoader:
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = text
+        return loader
+
+    def test_crt_resolves_via_there_were_phrasing(self):
+        loader = self._loader_with_text(
+            "At March 18, 2026, there were 6,000,000 units outstanding and approximately "
+            "145 unitholders of record; 5,968,235 of these units were held by ..."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("CRT", "881787", _submissions_with_10k())
+        assert result == 6_000_000
+
+    def test_mtr_resolves_via_units_outstanding_were_held_by_phrasing(self):
+        loader = self._loader_with_text(
+            "At December 31, 2025, the 1,863,590 units outstanding were held by 374 unitholders of record."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("MTR", "313364", _submissions_with_10k())
+        assert result == 1_863_590
+
+    def test_pbt_resolves_via_units_of_beneficial_interest_phrasing(self):
+        loader = self._loader_with_text(
+            "At March 27, 2026, there were 46,608,796 Units of Beneficial Interest of the Trust outstanding."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("PBT", "319654", _submissions_with_10k())
+        assert result == 46_608_796
+
+    def test_percentage_threshold_mention_is_not_falsely_matched(self):
+        """A trust indenture routinely mentions "75% of all Units outstanding" as a voting
+        threshold, not the total outstanding count - the regex's minimum-digit-length floor
+        must reject this and keep scanning for the real cover-page statement."""
+        loader = self._loader_with_text(
+            "the Trustee may not sell all or any part of the Royalties unless approved by "
+            "holders of 75% of all Units outstanding in which case the sale must be final. "
+            "At March 27, 2026, there were 46,608,796 Units of Beneficial Interest of the "
+            "Trust outstanding."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("PBT", "319654", _submissions_with_10k())
+        assert result == 46_608_796
+
+    def test_unverified_symbol_with_same_units_phrasing_stays_unresolved(self):
+        """Guards the allowlist discipline: an unrelated company's RSU/stock-unit disclosure
+        must NOT be trusted just because it matches the same "N units ... outstanding" shape -
+        only the 5 individually-verified royalty trusts are checked at all."""
+        loader = self._loader_with_text("As of the record date, 500,000 stock units outstanding under the 2024 Plan.")
+        result = loader._fetch_shares_outstanding_from_filing_text("ZZZZ", "999999", _submissions_with_10k())
+        assert result is None
+
+
+class TestPlainProseClassSharesFallback:
+    """BTGO (BitGo Holdings) tags ZERO inline-XBRL shares-outstanding fact - real dual-class
+    counts live only in free-form cover-page prose. BTGO's own ticker is Class A."""
+
+    _BTGO_FILING_TEXT = (
+        "On March 19, 2026, the registrant had 106,611,583 shares of Class A common stock "
+        "and 8,855,382 shares of Class B common stock outstanding."
+    )
+
+    def test_btgo_resolves_to_its_own_class_a_value(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._BTGO_FILING_TEXT
+
+        result = loader._fetch_shares_outstanding_from_filing_text("BTGO", "1740604", _submissions_with_10k())
+
+        assert result == 106_611_583
+
+    def test_unverified_symbol_with_same_class_shares_phrasing_stays_unresolved(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._BTGO_FILING_TEXT
+
+        result = loader._fetch_shares_outstanding_from_filing_text("ZZZZ", "999999", _submissions_with_10k())
+
+        assert result is None

@@ -133,6 +133,39 @@ def _fill_eps_shares_from_dual_class_dimensional_facts(
             if row.get(dest_key) is None and src_key in result:
                 row[dest_key] = result[src_key]
                 filled.append(dest_key)
+
+        # FIXED 2026-09-07 (goal session: scores-review, CWEN live-confirmed): the "never
+        # overwrite a real value" guard above left a pre-existing shares_diluted value alone
+        # even when that value came from a BARE (non-dimensional) tag belonging to a
+        # different class/context than the one just dimensionally resolved for shares_basic -
+        # live-confirmed via CWEN's real companyfacts: bare WeightedAverageNumberOfDiluted
+        # SharesOutstanding=35,000,000 identical for FY2023/2024/2025 (a real per-class
+        # diluted count tracking a growing company should move, not freeze for 3 straight
+        # years), while the dimensionally-resolved Class C shares_basic correctly varies and
+        # is much larger (84,000,000 for FY2025) - diluted < basic is a hard accounting
+        # impossibility (shares_outstanding_diluted must be >= shares_outstanding_basic,
+        # already enforced by tie_out.py's check_diluted_ge_basic_shares), proving the bare
+        # tag is the wrong class's figure, not a real number for the class this row now
+        # represents. Only fires when accepting it would create that impossibility - a bare
+        # diluted value that's merely close to (or above) basic is left untouched, since nothing
+        # then proves it's wrong.
+        basic_key = "weighted_average_number_of_shares_outstanding_basic"
+        diluted_key = "weighted_average_number_of_diluted_shares_outstanding"
+        if (
+            diluted_key not in filled
+            and "shares_diluted" in result
+            and row.get(basic_key) is not None
+            and row.get(diluted_key) is not None
+            and row[diluted_key] < row[basic_key]
+        ):
+            logger.info(
+                f"[DUAL_CLASS_EPS] {symbol} FY{row['fiscal_year']}: replacing implausible bare "
+                f"{diluted_key}={row[diluted_key]} (< basic {row[basic_key]}, wrong class/context) "
+                f"with class '{class_letter}' dimensional match {result['shares_diluted']}"
+            )
+            row[diluted_key] = result["shares_diluted"]
+            filled.append(diluted_key)
+
         if filled:
             logger.info(
                 f"[DUAL_CLASS_EPS] {symbol} FY{row['fiscal_year']}: recovered {filled} via class "
@@ -285,3 +318,110 @@ def _fill_operating_income_from_revenue_minus_costs_and_expenses(rows: list[dict
         if revenue is None:
             continue
         row["operating_income_loss"] = revenue - costs_and_expenses
+
+
+def _fill_operating_income_from_revenue_minus_cogs_and_opex(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: operating_income = Revenues - (COGS ex-D&A) - (COGS D&A) -
+    OperatingExpenses, for single-step-format filers that split cost of revenue into two
+    separate D&A/ex-D&A concepts and report a real OperatingExpenses total, but never tag
+    OperatingIncomeLoss or CostsAndExpenses at all.
+
+    Live-confirmed via real SEC companyfacts JSON: Casey's General Stores (CASY, CIK
+    0000726958, $17.5B FY2026 revenue convenience-store/gas retailer) reports real "Revenues"
+    ($17,561,101,000 FY2026), real "CostOfGoodsAndServiceExcludingDepreciationDepletionAnd
+    Amortization" ($13,240,060,000), real "CostOfGoodsAndServicesSoldDepreciationAnd
+    Amortization" ($449,958,000), and real "OperatingExpenses" ($2,837,426,000) but tags NO
+    OperatingIncomeLoss/CostsAndExpenses concept anywhere in its filing history. Subtracting
+    all three cost terms from revenue yields $1,033,657,000 - a 5.9% operating margin,
+    plausible for a low-margin convenience/fuel retailer (vs. an implausible ~84% if
+    OperatingExpenses alone were treated as total costs, which is exactly why this concept
+    was correctly left unmapped on its own for so long - see get_income_statement()'s
+    "OperatingExpenses" concept comment).
+
+    Deliberately requires ALL FOUR real values (revenue + both COGS components +
+    OperatingExpenses) - a filer missing any one of them gets no derived value rather than a
+    partial, systematically-understated one. Reads (does not pop) the ex-D&A COGS key so
+    load_financial_statements.py's normal field_mapping still maps it to "cost_of_revenue" for
+    every filer, including ones this function doesn't fire for. Writes to
+    "operating_income_loss" (the same raw key the plain OperatingIncomeLoss concept
+    populates - see the sibling function above for why). Never overwrites a real
+    operating_income_loss value (including one this function or the sibling above already
+    filled - whichever runs first wins, and CostsAndExpenges-based derivation runs first).
+    Mutates rows in place and always strips the two raw keys unique to this function.
+    """
+    ex_dda_keys = (
+        "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization",
+        "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization",
+    )
+    for row in rows:
+        operating_expenses = row.pop("operating_expenses", None)
+        cogs_dda = row.pop("cost_of_goods_and_services_sold_depreciation_and_amortization", None)
+        if "operating_income_loss" in row and row["operating_income_loss"] is not None:
+            continue
+        if operating_expenses is None or cogs_dda is None:
+            continue
+        cogs_ex_dda = None
+        for key in ex_dda_keys:
+            if key in row and row[key] is not None:
+                cogs_ex_dda = row[key]
+                break
+        if "revenues" not in row or row["revenues"] is None or cogs_ex_dda is None:
+            continue
+        row["operating_income_loss"] = row["revenues"] - cogs_ex_dda - cogs_dda - operating_expenses
+
+
+def _fill_cost_of_revenue_from_other_operating_cost(rows: list[dict[str, Any]]) -> None:
+    """Add OtherCostOfOperatingRevenue and/or ExciseAndSalesTaxes into
+    cost_of_goods_and_services_sold - see each concept's own comment in
+    get_income_statement() (TTEK/TAP live-verification detail respectively).
+
+    Only fires when a filer tags BOTH a real cost_of_goods_and_services_sold AND at least one
+    of these extra concepts (verified live: each is additive real cost, not a replacement -
+    most filers never tag either concept, and this function is a no-op for them). Mutates
+    "cost_of_goods_and_services_sold" in place so load_financial_statements.py's ordinary
+    field_mapping still maps the corrected total to "cost_of_revenue" for every filer, same
+    technique as the CASY D&A fallback above. Always strips both raw keys (never mapped to a
+    DB column on their own) whether or not either fired.
+
+    FIXED 2026-09-07 (goal session: gross_profit_identity live tie-out run, PM live-confirmed):
+    the addition used to be unconditional whenever both concepts were tagged - correct for TAP
+    (Molson Coors: revenue is reported ex-excise-tax, and the filer's OWN tagged GrossProfit
+    only reconciles once ExciseAndSalesTaxes is added to COGS - $4.2746B, exact match), but
+    live-confirmed WRONG for PM (Philip Morris) FY2025: revenue ($40.648B) is ALSO reported
+    ex-excise-tax (RevenueFromContractWithCustomerExcludingAssessedTax), but PM's own tagged
+    GrossProfit ($27.282B) ALREADY reconciles with COGS alone ($13.366B, no excise addition
+    needed) - adding ExciseAndSalesTaxes ($53.211B) on top produced cost_of_revenue=$66.577B,
+    exceeding revenue entirely and breaking gross_profit_identity. Same raw concepts, opposite
+    correct treatment per filer - there is no single unconditional rule. Now validated against
+    the filer's own tagged "gross_profit" (when present) the same way _fill_pretax_income_
+    from_domestic_foreign_split validates against net_income+tax above: only add extra when
+    doing so makes cost_of_revenue reconcile BETTER with the filer's own tagged gross_profit
+    than leaving it alone would. A filer with no tagged gross_profit at all (the original
+    TTEK/SAM-without-GrossProfit case) still gets the addition unconditionally, unchanged from
+    before - this only tightens the TAP-vs-PM ambiguous case.
+    """
+    for row in rows:
+        other_cost = row.pop("other_cost_of_operating_revenue", None)
+        excise_tax = row.pop("excise_and_sales_taxes", None)
+        extra = sum(v for v in (other_cost, excise_tax) if v is not None)
+        if extra == 0:
+            continue
+        cogs = row.get("cost_of_goods_and_services_sold")
+        if cogs is None:
+            continue
+        tagged_gross_profit = row.get("gross_profit")
+        revenue = None
+        for revenue_key in (
+            "revenues",
+            "revenue_from_contract_with_customer_excluding_assessed_tax",
+            "revenue_from_contract_with_customer_including_assessed_tax",
+        ):
+            if row.get(revenue_key) is not None:
+                revenue = row[revenue_key]
+                break
+        if tagged_gross_profit is not None and revenue is not None:
+            error_without_extra = abs((revenue - cogs) - tagged_gross_profit)
+            error_with_extra = abs((revenue - cogs - extra) - tagged_gross_profit)
+            if error_without_extra <= error_with_extra:
+                continue  # Filer's own tagged gross_profit already reconciles without the addition
+        row["cost_of_goods_and_services_sold"] = cogs + extra

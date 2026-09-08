@@ -48,7 +48,7 @@ class TestOrderIdCorrelation:
         recon = _make_recon([_sell_order(client_order_id="exit-42-abc123")])
         cur = MagicMock()
         cur.fetchone.side_effect = [
-            (42, 50.0, 45.0, 100),
+            (42, 50.0, 45.0, 100, None),
             (0,),
             None,
         ]
@@ -99,10 +99,10 @@ class TestOrderIdCorrelation:
         )
         cur = MagicMock()
         cur.fetchone.side_effect = [
-            (1, 50.0, 45.0, 100),
+            (1, 50.0, 45.0, 100, None),
             (0,),
             None,
-            (2, 55.0, 50.0, 100),
+            (2, 55.0, 50.0, 100, None),
             (0,),
             None,
         ]

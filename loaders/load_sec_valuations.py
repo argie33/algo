@@ -113,6 +113,35 @@ MAX_ABSOLUTE_DOLLAR_VALUE = 9_000_000_000_000.0  # $9 trillion - stays safely un
 # root here only after the same entity_name verification - never on ticker-shape alone.
 DUAL_CLASS_NO_SEPARATOR_ROOTS = frozenset({"DGIC", "KELY", "LBTY", "BELF", "SENE", "RUSH"})
 
+# ADDED 2026-09-06 (goal: SEC/XBRL missing-data-to-zero sweep, has_dual_class_sibling detection
+# gap found while investigating ps_ratio "implausible_ratio" for UONE): DUAL_CLASS_NO_SEPARATOR_
+# ROOTS above only matches when the CURRENT symbol is the SUFFIXED side of a pair (root+1 char,
+# e.g. "DGICB" against root "DGIC") - it can never match when the current symbol IS the bare root
+# itself (`symbol.startswith(r) and len(symbol) == len(r) + 1` is never true when symbol == r).
+# That's fine for DGIC/KELY/LBTY/BELF/SENE/RUSH because the bare root isn't itself a real ticker
+# there, but several real dual-class families use a real, actively-traded ticker AS the root, with
+# the sibling class suffixed onto it with no separator (UONE/UONEK - Urban One Class A/D). Each
+# pair below individually verified via matching company_info_sec.entity_name across both tickers,
+# same discipline as the roots above. NOT folded into DUAL_CLASS_NO_SEPARATOR_ROOTS's generic
+# prefix+length matching: several of these roots are short/common enough to collide with real,
+# unrelated tickers under that same heuristic (UA would wildcard-match UAL/United Airlines; FOX
+# would wildcard-match FOXF/Fox Factory and FOXX) - live-confirmed via a direct query against
+# stock_symbols, exactly the false-positive failure mode already documented in
+# DUAL_CLASS_NO_SEPARATOR_ROOTS's own comment (NTR/NTRA/NTRB/NTRP/NTRS). Exact-family-membership
+# matching (see has_dual_class_sibling's use of this below) has zero collision risk regardless of
+# root length, so it's safe to include short roots here that would not be safe to add above.
+DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES: tuple[frozenset[str], ...] = (
+    frozenset({"CENT", "CENTA"}),  # Central Garden & Pet
+    frozenset({"FOX", "FOXA"}),  # Fox Corp
+    frozenset({"LILA", "LILAK"}),  # Liberty Latin America
+    frozenset({"METC", "METCB"}),  # Ramaco Resources
+    frozenset({"NWS", "NWSA"}),  # News Corp
+    frozenset({"RDI", "RDIB"}),  # Reading International
+    frozenset({"UA", "UAA"}),  # Under Armour
+    frozenset({"UONE", "UONEK"}),  # Urban One
+    frozenset({"WLY", "WLYB"}),  # John Wiley & Sons
+)
+
 # ADDED 2026-08-31 (goal: data-coverage sweep, AMRN follow-up to
 # sec_valuations_fpi_shares_out_missing_gate_fixed_20260831): a narrow, individually-verified
 # allowlist (same discipline as CIK_OVERRIDES/DUAL_CLASS_NO_SEPARATOR_ROOTS above) for the one
@@ -289,6 +318,24 @@ FPI_EPS_ADS_RATIO_OVERRIDES: dict[str, tuple[float, date | None]] = {
     "FEDU": (10.0, date(2022, 6, 21)),  # Four Seasons Education - ratio changed from 1:2
     "LITB": (12.0, date(2024, 9, 5)),  # LightInTheBox - ratio changed
     "TOUR": (30.0, date(2026, 4, 22)),  # Tuniu - ratio changed from 1:3
+    # ADDED 2026-09-07 (goal: leaderboard sanity audit, ads_ratio_eps_pe_mismatch_foreign_adrs
+    # memory finding). VIPS live-confirmed: FY2025 SEC-tagged diluted_eps=$10.10 (ordinary-share
+    # basis) against an ADS price of $13.20 computed pe_ratio=1.28 - a nonsense "super cheap"
+    # signal inflating value_score to 86.48. Vipshop's real ratio is 5 ADS = 1 ordinary share
+    # (1 ADS = 0.2 ordinary shares): EPS-per-ADS = $10.10 * 0.2 = $2.02, correct PE ~6.53.
+    "VIPS": (0.2, None),  # Vipshop - 5 ADS = 1 ordinary share
+    "BABA": (8.0, None),  # Alibaba - 1 ADS = 8 ordinary shares
+    "JD": (2.0, None),  # JD.com - 1 ADS = 2 Class A ordinary shares
+    # NTES's ratio changed from 1:25 to 1:5 effective 2020-10-01 (ADS-to-ordinary-share
+    # consolidation) - a fiscal year ending before that used the old, unresearched ratio.
+    "NTES": (5.0, date(2020, 10, 1)),  # NetEase - 1 ADS = 5 ordinary shares (post 2020-10-01)
+    # TAL's disclosed ratio (3 ADS = 1 ordinary share) is confirmed via SEC filing, but this
+    # registry's own live-data cross-check (comparing ratio-adjusted PE against a ratio-
+    # independent true-PE estimate, same discipline as CX's comment above) did not converge -
+    # deliberately excluded rather than shipped on the disclosed ratio alone. See
+    # test_tal_not_registered_ratio_confirmed_but_cross_validation_failed.
+    # WB (Weibo) investigated the same session and confirmed a genuine 1:1 ADS ratio -
+    # deliberately NOT added here (no entry means no adjustment, same as every other 1:1 FPI).
 }
 
 
@@ -911,6 +958,15 @@ class SecValuationsLoader(
                     reported_shares_outstanding,
                 )
 
+                # Cross-check the multi-year DCF growth driver against a dual-class sibling's
+                # own EPS for the same two endpoint years - see
+                # _validate_dual_class_eps_cagr's docstring for the live BRK.A/BRK.B evidence
+                # (FY2020-2022 EPS scaled ~2715:1 instead of the real, fixed 1500:1) that
+                # motivated this guard.
+                dcf_eps_cagr_pct = self._validate_dual_class_eps_cagr(
+                    cur, symbol, has_dual_class_sibling, income_rows, dcf_eps_cagr_pct
+                )
+
                 # Fail if still no shares outstanding available.
                 # FIXED 2026-08-22 (goal session: "Ownership data unresolved" bucket audit):
                 # every SEC-sourced tier above that could resolve a foreign private issuer's
@@ -1187,7 +1243,7 @@ class SecValuationsLoader(
             # (likely-stale-but-better-than-nothing) table value on any live-fetch error.
             yf_market_cap_is_live = False
             if is_foreign_private_issuer:
-                live_mcap, live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+                live_mcap, live_pe, _live_shares_out = self._fetch_live_fpi_yfinance_check_values(symbol)
                 if live_mcap is not None:
                     yf_market_cap = live_mcap
                     yf_market_cap_is_live = True
@@ -1278,7 +1334,7 @@ class SecValuationsLoader(
             if yf_market_cap is None and not is_foreign_private_issuer:
                 computed_market_cap = valuation_row.get("market_cap")
                 if computed_market_cap is not None and computed_market_cap > 50_000_000_000:
-                    live_mcap, _live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+                    live_mcap, _live_pe, _live_shares_out = self._fetch_live_fpi_yfinance_check_values(symbol)
                     if live_mcap is not None:
                         yf_market_cap = live_mcap
                         yf_market_cap_is_live = True
@@ -1290,6 +1346,17 @@ class SecValuationsLoader(
             self._recategorize_royalty_trust_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_capex_never_tagged_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_blank_check_dcf_fcf_reason(symbol, valuation_row)
+            # Deliberately LAST DB-touching call in this method (after every _recategorize_*
+            # above, each of which opens its own cursor) - see that method's own docstring for
+            # why, plus a test-fixture-brittleness note: this is the only ordering under which
+            # every existing hand-scripted fetchone_results test fixture (30+ files, none of
+            # which could have anticipated this later addition) safely exhausts at the true end
+            # of its scripted sequence instead of shifting every later scripted value by one
+            # position - the latter silently corrupts assertions rather than raising, which is
+            # worse than the crash it replaces. Do not move this earlier without auditing every
+            # such fixture again.
+            with DatabaseContext("read") as cur:
+                self._sanity_check_shares_outstanding_vs_volume(symbol, valuation_row, cur)
 
             return [valuation_row]
 

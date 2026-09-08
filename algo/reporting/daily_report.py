@@ -482,12 +482,24 @@ class DailyFinanceReport:
         return warnings
 
     def _count_open_positions(self, cur: Any, report_date: _date) -> int:
-        """Count open positions."""
+        """Count positions open AS OF report_date (not positions currently open).
+
+        CRITICAL FIX (real-money-readiness audit, found 2026-09-06): this used to filter
+        on the position's CURRENT status = 'open', not its status as-of report_date.
+        generate() explicitly accepts a historical report_date (used for reprocessing/
+        backfill) - for a backdated report, a position that was open ON report_date but
+        has since closed would be silently excluded (current status='closed'), understating
+        the historical open-position count. A report for date D must report "positions open
+        on D", not "positions currently open that already existed by D". Now requires the
+        position to have been created on/before report_date AND either still open (no
+        closed_at) or closed strictly after report_date's end.
+        """
         try:
             cur.execute(
                 """SELECT COUNT(*) FROM algo_positions
-                   WHERE status = 'open' AND created_at <= %s""",
-                (report_date,),
+                   WHERE created_at <= %s
+                     AND (closed_at IS NULL OR closed_at::date > %s)""",
+                (report_date, report_date),
             )
             result = cur.fetchone()
             if result is None:

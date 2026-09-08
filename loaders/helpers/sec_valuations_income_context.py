@@ -14,6 +14,12 @@ from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
 
+# Symbols individually live-verified (2026-09-07, via SEC's own companyfacts API) to have
+# zero real us-gaap/ifrs-full XBRL facts ever filed - only `ffd` (fee-disclosure,
+# registration-statement-only) facts, or no companyfacts entry at all (BIOT). See the
+# reason-assignment call site below for the full rationale.
+_NO_REAL_XBRL_FACTS_SYMBOLS = frozenset({"AIIR", "WATR", "RPGL", "VRXA", "PSQL", "IMC", "BIOT"})
+
 
 class IncomeStatementContextMixin:
     """Income-statement fetch/derivation (revenue/EPS anchor-row fallbacks, EBITDA,
@@ -35,6 +41,10 @@ class IncomeStatementContextMixin:
 
         def _get_total_cash_and_debt(self, cur: Any, symbol: str) -> tuple[float | None, float | None]: ...
 
+        def _get_market_cap_without_income_statement(
+            self, cur: Any, symbol: str
+        ) -> tuple[float | None, float | None, float | None, float | None]: ...
+
         def _unavailable_marker(
             self,
             symbol: str,
@@ -42,6 +52,10 @@ class IncomeStatementContextMixin:
             total_debt: float | None = None,
             total_cash: float | None = None,
             ebitda: float | None = None,
+            current_price: float | None = None,
+            shares_outstanding: float | None = None,
+            market_cap: float | None = None,
+            pb_ratio: float | None = None,
         ) -> dict[str, Any]: ...
 
         @staticmethod
@@ -183,6 +197,13 @@ class IncomeStatementContextMixin:
             # the live-confirmed AADX evidence this was silently losing both to this
             # exact early return.
             total_cash, total_debt = self._get_total_cash_and_debt(cur, symbol)
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same "these
+            # fields don't need X" gap as total_cash/total_debt above - see
+            # _get_market_cap_without_income_statement's own docstring for the 19/22
+            # live-confirmed AADX/DPC/SIND/etc. symbols this recovers.
+            current_price, shares_outstanding, market_cap, pb_ratio = self._get_market_cap_without_income_statement(
+                cur, symbol
+            )
             # FIXED 2026-09-05 (goal session: "implausible values" sweep follow-up): an ETF
             # (stock_symbols.etf = 'true') genuinely has zero annual_income_statement rows -
             # it files N-1A/N-CSR under the Investment Company Act, not a 10-K, so there is no
@@ -196,7 +217,18 @@ class IncomeStatementContextMixin:
             reason = "etf_no_sec_filings" if etf_row and etf_row[0] == "true" else "no_income_statement"
             if reason == "no_income_statement":
                 reason = self._reclassify_fpi_zero_row_currency_gap(cur, symbol, reason)
-            return [self._unavailable_marker(symbol, reason, total_cash=total_cash, total_debt=total_debt)]
+            return [
+                self._unavailable_marker(
+                    symbol,
+                    reason,
+                    total_cash=total_cash,
+                    total_debt=total_debt,
+                    current_price=current_price,
+                    shares_outstanding=shares_outstanding,
+                    market_cap=market_cap,
+                    pb_ratio=pb_ratio,
+                )
+            ]
 
         # len() guard: pre-existing tests mock income_rows as plain 10-element
         # tuples (this method's own pre-2026-08-19 shape) - default to False
@@ -493,7 +525,27 @@ class IncomeStatementContextMixin:
             cur.execute("SELECT etf FROM stock_symbols WHERE symbol = %s", (symbol,))
             etf_row = cur.fetchone()
             reason = (
-                "etf_no_sec_filings" if etf_row and etf_row[0] == "true" else "income_statement_revenue_and_eps_null"
+                "etf_no_sec_filings"
+                if etf_row and etf_row[0] == "true"
+                # FIXED 2026-09-07 (goal: "SEC/XBRL missing data to zero" sweep, follow-up to
+                # sec_xbrl_pen_currency_and_verification_pass_20260906's verification-only
+                # finding): live-reconfirmed via SEC's own companyfacts API today - each of
+                # these symbols' real SEC filing has NO us-gaap/ifrs-full XBRL facts at all,
+                # only `ffd` (fee-disclosure, registration-statement-only) facts (AIIR/WATR/
+                # RPGL/VRXA/PSQL/IMC, 5 ffd facts each and nothing else) or no companyfacts
+                # entry whatsoever (BIOT, 404). This is the exact same "real, permanent,
+                # non-SEC-XBRL-reporting entity" fact "no_xbrl_filings" already exists for
+                # (see its own definition in coverage_category_rules.py) - the generic
+                # "income_statement_revenue_and_eps_null" below wrongly implied a fixable
+                # extraction gap for a filer that structurally has nothing to extract.
+                # Deliberately a static, individually-verified symbol set (not a live
+                # companyfacts-emptiness check per fetch, which would be a network call added
+                # to the hot loader path) - same "individually-verified symbol-level
+                # override" discipline as KNOWN_ETF_MISCLASSIFICATIONS elsewhere in this
+                # codebase, re-verify before adding a new symbol here.
+                else "no_xbrl_filings"
+                if symbol in _NO_REAL_XBRL_FACTS_SYMBOLS
+                else "income_statement_revenue_and_eps_null"
             )
             return [
                 self._unavailable_marker(

@@ -1133,8 +1133,13 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
       # ── Step 8e: Data patrol — validates data quality before orchestrator runs ──
       # Runs algo/algo_data_patrol.py, writes findings to data_patrol_log.
-      # Orchestrator Phase 1 reads data_patrol_log; CRITICAL findings block trading.
-      # Fail-open: if patrol itself errors, pipeline continues (Phase 1 passes vacuously).
+      # Orchestrator Phase 1 reads data_patrol_log; CRITICAL/ERROR findings block trading.
+      # FIXED 2026-09-07: Phase 1 previously never actually read data_patrol_log at all despite
+      # this comment (see algo/orchestrator/phase1_data_freshness.py's _check_data_patrol_results
+      # docstring) - now wired, and also halts if this Step Function state itself errors/times
+      # out (Catch below still routes to TriggerOrchestrator so the pipeline doesn't dead-end at
+      # this state, but Phase 1 then finds no fresh patrol_log row and halts there instead of
+      # passing vacuously).
       DataPatrol = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"

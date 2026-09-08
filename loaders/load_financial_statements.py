@@ -26,7 +26,6 @@ Or directly:
 """
 
 import os
-import statistics
 import sys
 import time
 
@@ -41,6 +40,12 @@ from datetime import date  # noqa: E402
 from typing import Any  # noqa: E402
 
 from loaders.helpers.financial_statements_q4_sweeps import Q4DerivationSweepMixin  # noqa: E402
+from loaders.helpers.financial_statements_share_count_validation import (  # noqa: E402
+    FinancialStatementsShareCountValidationMixin,
+)
+from loaders.helpers.financial_statements_value_validation import (  # noqa: E402
+    FinancialStatementsValueValidationMixin,
+)
 from loaders.helpers.sec_base import SecEdgarStatementLoader  # noqa: E402
 from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
@@ -274,1024 +279,37 @@ _UNSUPPORTED_CURRENCY_CHECK_CONCEPTS: dict[str, tuple[list[str], list[str]]] = {
     ),
 }
 
-# data_unavailable/reason must pass through so marker rows keep their flags.
-_MARKER_FIELDS = {
-    "data_unavailable": "data_unavailable",
-    "reason": "reason",
-    # FIXED 2026-08-16: added alongside the yfinance fallback (loaders/helpers/sec_base.py's
-    # SecEdgarStatementLoader._try_yfinance_fallback) - every row now carries an explicit
-    # 'sec_audited' or 'yfinance' tag (migration 1202) so a lower-fidelity fallback row is
-    # never indistinguishable from a real SEC filing, per the same governance discipline
-    # tests/unit/test_company_info_sec_no_yfinance_pollution.py enforces elsewhere.
-    "data_source": "data_source",
-}
-
-_INCOME_FIELD_MAPPING = {
-    "revenues": "revenue",
-    # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit):
-    # IFRS 17 InsuranceRevenue now gets its own target_key ("insurance_revenue" - see
-    # sec_statements.py's comment on the alias) instead of sharing "revenues" with plain
-    # Revenue/RevenueAndOperatingIncome. Live-confirmed via real SEC companyfacts JSON:
-    # BBVA (a bank with a minority insurance subsidiary) tags a real but small, sometimes
-    # NEGATIVE InsuranceRevenue fact (e.g. FY2025 EUR -3.627B - the segment's net result,
-    # not a revenue total at all) that was winning "revenue" over BBVA's real ~EUR26B
-    # total (tagged InterestRevenueExpense) purely because both facts share the exact
-    # same filed date (same 20-F) and InsuranceRevenue is listed earlier in
-    # _INCOME_IFRS_ALIASES - _aggregate_concepts's tiebreak keeps whichever fact was
-    # inserted first on an exact filed-date tie, so "last-listed wins" never actually
-    # applied here. Same bug independently corrupted HSBC (real total ~$65-68B tagged
-    # RevenueAndOperatingIncome, but InsuranceRevenue's small ~$2-3B insurance-segment
-    # figure - a real but ~20x-too-small number - silently won instead, undetected until
-    # now because it's positive and merely implausibly small rather than negative).
-    # See _REVENUE_TOTAL_CANDIDATE_FIELDS in loaders/helpers/sec_base.py for the new
-    # magnitude-based resolution among the fields below that fixes this generally rather
-    # than special-casing BBVA/HSBC - AEG (a genuine insurer with no bank-interest
-    # concepts) is unaffected since InsuranceRevenue is still its only real candidate.
-    "insurance_revenue": "revenue",
-    # FIXED 2026-08-09: older/narrower goods-revenue tag some pre-2011-ish filers use
-    # instead of "Revenues"/"SalesRevenueNet" - see sec_statements.py's concepts-list
-    # comment on SalesRevenueGoodsNet for the live-verified AGCO case this recovers.
-    "sales_revenue_goods_net": "revenue",
-    "sales_revenue_net": "revenue",
-    "revenue_from_contract_with_customer_including_assessed_tax": "revenue",
-    "revenue_from_contract_with_customer_excluding_assessed_tax": "revenue",
-    # FIXED 2026-08-19: equity REITs' ASC 842 lease-revenue tag - see sec_statements.py's
-    # comment on OperatingLeaseLeaseIncome for the live-verified AMH/EQR cases this
-    # recovers. REIT-gated via _REIT_REVENUE_FALLBACK_ONLY_FIELDS below, not a plain
-    # mapping - see that set's comment for why.
-    "operating_lease_lease_income": "revenue",
-    # ADDED 2026-09-01 (recovered from the growth-multi-input-blend worktree, found stranded
-    # off main): older-era (pre-ASC 842, largely pre-2016) equity REITs used this concept as
-    # their real estate rental revenue total before "OperatingLeaseLeaseIncome" existed as a
-    # tag at all - see utils/external/sec_statements.py's comment on RealEstateRevenueNet for
-    # the live-verified ARE case. Same _REIT_EXCLUSIVE_FIELDS wiring as
-    # operating_lease_lease_income below (never touches "revenue" outside a confirmed REIT).
-    "real_estate_revenue_net": "revenue",
-    # FIXED 2026-08-01: RevenuesNetOfInterestExpense for banks (2020+ data).
-    # Maps to same "revenue" column - this is the standard revenue metric for
-    # financial services companies since 2020. Ordering in sec_statements.py
-    # ensures last-listed concept (this one for banks) wins on overwrite.
-    "revenues_net_of_interest_expense": "revenue",
-    # FIXED 2026-08-22: foreign IFRS-filing banks' gross interest income/expense line - see
-    # sec_statements.py's comment on InterestRevenueExpense (live-verified via WF/Woori
-    # Financial Group) for the full rationale. Same target column as every other revenue
-    # fallback above.
-    "interest_revenue_expense": "revenue",
-    # FIXED 2026-08-03: mortgage REITs (AGNC, NLY live-confirmed) report gross interest
-    # income as their revenue-equivalent line, not any concept above - see sec_statements.py's
-    # comment on InterestIncomeOperating for why InterestIncomeExpenseNet (which goes negative
-    # in real years) was rejected in favor of this gross, always-positive figure.
-    "interest_income_operating": "revenue",
-    # FIXED 2026-08-03: community banks/thrifts (FNWB, AMAL, OCFC, and others - live-confirmed
-    # via real SEC companyfacts JSON for all three) report neither standard revenue concepts
-    # nor RevenuesNetOfInterestExpense (that one's used by larger banks like MS/WFC) - their
-    # primary revenue-equivalent line is InterestAndDividendIncomeOperating. Live-verified for
-    # FNWB: values for FY2022-2025 line up with the same fiscal years NetIncomeLoss already had
-    # real data for, confirming this is the right concept, not a guess. Ordering in
-    # sec_statements.py places this after revenues_net_of_interest_expense so it only wins for
-    # filers that have nothing else.
-    "interest_and_dividend_income_operating": "revenue",
-    # FIXED 2026-08-22: a small number of community banks (AROW live-confirmed) tag their
-    # combined interest+dividend income total under this concept instead of
-    # InterestAndDividendIncomeOperating - see sec_statements.py's comment on
-    # InvestmentIncomeInterestAndDividend for the live-verified arithmetic proving this is
-    # a real total, not a partial line item. Same target column as every revenue fallback
-    # above.
-    "investment_income_interest_and_dividend": "revenue",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): BDCs'
-    # gross-investment-income top line - see sec_statements.py's comment on
-    # GrossInvestmentIncomeOperating for the live-verified CSWC/PFLT/ICMB evidence.
-    # Fallback-only (see _REVENUE_FALLBACK_ONLY_FIELDS below), same convention as every
-    # other revenue proxy above.
-    "gross_investment_income_operating": "revenue",
-    # FIXED 2026-08-19: regulated electric/gas utilities' post-ASC-606 revenue tags - see
-    # sec_statements.py's comments on RegulatedOperatingRevenue/
-    # RegulatedAndUnregulatedOperatingRevenue for the live-verified XEL/DTE/OGS cases this
-    # recovers (7+ years of real revenue that had gone silently NULL despite the company
-    # continuing to file real, current 10-Ks).
-    "regulated_operating_revenue": "revenue",
-    "regulated_and_unregulated_operating_revenue": "revenue",
-    # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit): identity key
-    # ConsolidatedFinancialStatementsLoader.fetch_incremental() sets directly on rows for
-    # symbols in utils/external/sec_custom_xbrl_concepts.py's CUSTOM_REVENUE_CONCEPTS -
-    # see that module's docstring for why (real revenue tagged under a filer-specific
-    # custom XBRL extension taxonomy, structurally invisible to the companyfacts API this
-    # file's normal concept-list extraction depends on). fallback_only (see
-    # _REVENUE_FALLBACK_ONLY_FIELDS below) so it never overwrites a real value the normal
-    # SEC extraction already found.
-    "custom_extension_revenue": "revenue",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, pe_ratio/
-    # peg_ratio investigation): identity keys set directly on rows for symbols in
-    # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_INCOME_DIMENSIONED_CONCEPTS - see
-    # that module's docstring (DB's real net_income/basic_eps/diluted_eps tagged only under
-    # a single-explicitMember dimensioned context, invisible to the normal concept-list
-    # extraction the same way CUSTOM_REVENUE_CONCEPTS is above). fallback_only (see
-    # _REVENUE_FALLBACK_ONLY_FIELDS below) so these never overwrite a real value the normal
-    # SEC extraction already found.
-    "custom_extension_net_income": "net_income",
-    "custom_extension_eps_basic": "earnings_per_share",
-    "custom_extension_eps_diluted": "diluted_eps",
-    "cost_of_revenue": "cost_of_revenue",
-    # FIXED 2026-08-17 (goal: "no SEC data" audit): "CostOfGoodsAndServicesSold" concept
-    # added to sec_statements.py's get_income_statement() concepts list - see that file's
-    # comment above the concept for the live-verified AMZN/COST/CI/JD/SHEL/TTE cases this
-    # recovers. Same target column as "cost_of_revenue" above.
-    "cost_of_goods_and_services_sold": "cost_of_revenue",
-    # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit): see
-    # sec_statements.py's comment on these two concepts for the live-verified LIN case -
-    # industrial/materials filers that break out D&A separately tag this DD&A-excluded COGS
-    # variant instead of any concept above. Same target column, fallback-only (see
-    # _REVENUE_FALLBACK_ONLY_FIELDS below) since excluding D&A makes it a narrower figure
-    # than a full COGS-including-D&A tag when a filer reports both.
-    "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization": "cost_of_revenue",
-    "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization": "cost_of_revenue",
-    # FIXED 2026-08-31 (goal session, same sweep as the DD&A-excluded COGS fix above): see
-    # sec_statements.py's comment on these two concepts (LYV/AWK/WTRG/MSEX/YORW live-
-    # verified). Same target column, fallback-only (see _REVENUE_FALLBACK_ONLY_FIELDS)
-    # since both are narrower, business-model-specific cost measures.
-    "direct_operating_costs": "cost_of_revenue",
-    "utilities_operating_expense_maintenance_and_operations": "cost_of_revenue",
-    "gross_profit": "gross_profit",
-    # ADDED 2026-08-27 (goal: close the R&D intensity/Mohanram G-Score literature-checklist gap -
-    # see sec_statements.py's get_income_statement() comment for the live-verification note).
-    # Both concepts map to the same target column (broader standard tag listed later in that
-    # file's concepts list, so it wins on overwrite for filers reporting both).
-    "research_and_development_expense_excluding_acquired_in_process_cost": "research_development_expense",
-    "research_and_development_expense": "research_development_expense",
-    "operating_income_loss": "operating_income",
-    "net_income_loss": "net_income",
-    # FIXED 2026-08-17 (goal: "no SEC data" audit): "ProfitLoss" added to sec_statements.py's
-    # get_income_statement() concepts list - see that file's comment above the concept for the
-    # live-verified PRI (Primerica) case this recovers: PRI has ZERO NetIncomeLoss entries in
-    # its us-gaap facts (confirmed via companyfacts JSON) but reports the exact same figure
-    # under ProfitLoss instead (FY2025: $751,234,000, matching pretax_income - income_tax_expense
-    # exactly). Same target column as "net_income_loss" above.
-    "profit_loss": "net_income",
-    # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data" sweep): ESOA-class filers that
-    # stop tagging both NetIncomeLoss and ProfitLoss - see sec_statements.py's
-    # get_income_statement() comment on "IncomeLossFromContinuingOperationsIncludingPortion
-    # AttributableToNoncontrollingInterest" for the live evidence. Same target column as
-    # "net_income_loss"/"profit_loss" above; fallback-only via _REVENUE_FALLBACK_ONLY_FIELDS.
-    "income_loss_from_continuing_operations_including_portion_attributable_to_noncontrolling_interest": "net_income",
-    "earnings_per_share_basic": "earnings_per_share",
-    # FIXED 2026-07-28: EarningsPerShareDiluted (GAAP) and DilutedEarningsLossPerShare
-    # (IFRS alias, both target this same key - see sec_statements.py's _INCOME_IFRS_ALIASES)
-    # have been fetched from real SEC XBRL data all along, but this mapping never listed a
-    # target column - unmapped keys are silently skipped by transform() (see this module's
-    # comment above _MARKER_FIELDS), so diluted_eps sat 100% NULL across all 61,427 rows
-    # despite the column existing and real data being available every run. Zero consumers
-    # currently read diluted_eps (grep-confirmed) so this is additive, not fixing a live
-    # scoring bug - but it's a real, standard, already-fetched metric worth actually having.
-    "earnings_per_share_diluted": "diluted_eps",
-    # FIXED 2026-07-28 (migration 1171): WeightedAverageNumberOfSharesOutstandingBasic has
-    # been fetched from real SEC XBRL data all along but had no target column - see
-    # sec_statements.py's comment above this concept. load_sec_valuations.py previously
-    # derived a lossier proxy (net_income/eps) believing it already used this concept.
-    "weighted_average_number_of_shares_outstanding_basic": "shares_outstanding_basic",
-    # FIXED (migration 1192): fallback share count column, kept separate from
-    # shares_outstanding_basic above - see sec_statements.py's comment on this concept.
-    "weighted_average_number_of_diluted_shares_outstanding": "shares_outstanding_diluted",
-    # FIXED 2026-08-03: point-in-time/blended share-count fallbacks for filers that tag
-    # neither weighted-average concept above - see sec_statements.py's comments on
-    # CommonStockSharesOutstanding/WeightedAverageNumberOfShareOutstandingBasicAndDiluted/
-    # NumberOfSharesOutstanding (IFRS) for the live-verified filers (PLNT/WHD/YOU/SPT/JG/
-    # BNR/TV/FMX) this recovers. All three map to shares_outstanding_basic, same as the
-    # real weighted-average concept, since these filers have no separate weighted-average
-    # tag to prefer instead.
-    # FIXED (migration 1195): shares issued (can include treasury stock, so listed before
-    # common_stock_shares_outstanding in sec_statements.py's concepts list to lose on
-    # overwrite whenever the real outstanding count is also present).
-    "common_stock_shares_issued": "shares_outstanding_basic",
-    "common_stock_shares_outstanding": "shares_outstanding_basic",
-    "weighted_average_number_of_share_outstanding_basic_and_diluted": "shares_outstanding_basic",
-    # FIXED (migration 1195): dei:EntityCommonStockSharesOutstanding cover-page fact -
-    # own column, not shares_outstanding_basic, per sec_statements.py's dei_aliases
-    # docstring (this fact is present even for filers that already report a real
-    # weighted-average count, so sharing a column risks a silent downgrade).
-    "entity_common_stock_shares_outstanding": "shares_outstanding_dei",
-    "interest_expense": "interest_expense",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): JKHY (Jack
-    # Henry & Associates) taxonomy-relabeled concept - see sec_statements.py's
-    # get_income_statement() comment on InterestExpenseOperating for the live evidence
-    # (identical value to plain InterestExpense in the one overlap year). Not fallback-
-    # only, same "plain relabel" convention as interest_expense_nonoperating/
-    # interest_expense_debt below.
-    "interest_expense_operating": "interest_expense",
-    # FIXED 2026-08-03: real, live-confirmed concepts some filers use INSTEAD of plain
-    # "InterestExpense" - see sec_statements.py's comment above these concepts. WMT never
-    # reports "InterestExpense" at all (only "InterestExpenseDebt"); JNJ's taxonomy migrated
-    # to "InterestExpenseNonoperating" starting FY2024.
-    "interest_expense_nonoperating": "interest_expense",
-    "interest_expense_debt": "interest_expense",
-    # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): see sec_statements.py's
-    # get_income_statement() comment for the live evidence (TXN/BA use
-    # InterestAndDebtExpense; NEE uses the cash-basis InterestPaidNet as a last resort).
-    "interest_and_debt_expense": "interest_expense",
-    # FIXED 2026-09-03 (same sweep): EPAC (Enerpac Tool Group) has tagged real,
-    # continuous, non-zero interest expense under this concept for its entire filing
-    # history - see sec_statements.py's get_income_statement() comment on
-    # FinancingInterestExpense for the live evidence (EPAC has no "InterestExpense" at
-    # all, and its rare "InterestAndDebtExpense" entries are a genuinely different,
-    # smaller line item, not a duplicate). Fallback-only (added to
-    # _REVENUE_FALLBACK_ONLY_FIELDS below, which despite its name is this file's shared
-    # "only fills an already-empty db_field" bucket for the whole income-statement
-    # config) so it never overwrites InterestAndDebtExpense's rare real value for EPAC.
-    "financing_interest_expense": "interest_expense",
-    "interest_paid_net": "interest_expense",
-    # FIXED 2026-09-03 (same "cash paid" fallback tier as interest_paid_net above - see
-    # sec_statements.py's get_income_statement() comment on "InterestPaid", ARW).
-    "interest_paid": "interest_expense",
-    # This mapping key was always correct - the bug was in sec_statements.py's
-    # get_income_statement(), which fetched concept "DepreciationExpense" (not a real
-    # us-gaap XBRL concept - live-confirmed absent from both AAPL's and MSFT's
-    # companyfacts) instead of "Depreciation" (the real concept, live-confirmed present
-    # for both, which _to_snake()'s to this "depreciation" key). Fixed there 2026-07-28;
-    # live-verified annual_income_statement.depreciation_expense was 0/61,427 populated
-    # before that fix. See that module's comment for the full story.
-    "depreciation": "depreciation_expense",  # Session 398: EBITDA extraction
-    "depreciation_and_amortization": "amortization_expense",  # Fallback if separate D/A not available
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): combined
-    # D&A taxonomy-transition concept - see sec_statements.py's get_income_statement()
-    # comment on DepreciationDepletionAndAmortization for the live-verified PG/WM/ULTA/
-    # WSM/CP evidence. Same target column as depreciation_and_amortization above.
-    "depreciation_depletion_and_amortization": "amortization_expense",
-    "amortization_of_intangibles": "amortization_expense",  # Alt source for amortization
-    # For roic_pct real effective-tax-rate computation (see sec_statements.py's comment
-    # above these concepts for the live-verification note).
-    "income_tax_expense_benefit": "income_tax_expense",
-    # CNX-class filers (E&P/domestic-only) report pretax income under this concept instead -
-    # see sec_statements.py's get_income_statement() comment for the live-verification note.
-    "income_loss_from_continuing_operations_before_income_taxes_domestic": "pretax_income",
-    "income_loss_from_continuing_operations_before_income_taxes_minority_interest_and_income_loss_from_equity_method_investments": "pretax_income",
-    "income_loss_from_continuing_operations_before_income_taxes_extraordinary_items_noncontrolling_interest": "pretax_income",
-    # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data" sweep): identity entries for
-    # the two derived final-column keys sec_statements.py's
-    # _fill_income_tax_expense_from_current_deferred_split()/
-    # _fill_pretax_income_from_results_of_operations_when_validated() write directly (e.g.
-    # row["income_tax_expense"] = current + deferred) - unlike every other fallback in this
-    # dict, those two functions set the DB column name itself, not a raw SEC-concept-derived
-    # key, because they combine two SEPARATE concepts (no single concept alias to hang the
-    # mapping off). Without these entries, transform()'s `if sec_field not in field_mapping`
-    # check silently discarded both computed values on every row that reached this path
-    # (verified empirically: dict(_INCOME_FIELD_MAPPING) has no "income_tax_expense"/
-    # "pretax_income" key without this fix) - the exact "wiring half-landed" bug class
-    # already caught twice before (see debt_fallback_wiring_half_landed_recurring_bug_class
-    # in memory), just for a fill-function's OWN output key instead of a missing concept
-    # string. This silently no-opped the CNS (income_tax_expense) and RRC
-    # (pretax_income) fixes those functions' own docstrings/tests describe - their unit
-    # tests only exercised the pure function in isolation, never round-tripped through
-    # transform(), so the gap passed CI undetected.
-    "income_tax_expense": "income_tax_expense",
-    "pretax_income": "pretax_income",
-    **_MARKER_FIELDS,
-}
-
-# FIXED 2026-08-09: these two concepts are a last-resort revenue proxy for banks/REITs
-# with no standard revenue tag (see the mapping comments above) - the "last-listed wins"
-# overwrite this dict relies on only produces the documented behavior ("wins for filers
-# with nothing else") when a company genuinely never reports one of the concepts above
-# it. Live-confirmed that's not always true: ORLY (a normal retailer) reports a small
-# real InterestAndDividendIncomeOperating line item (interest on cash investments)
-# alongside its real revenue - sec_base.py's transform() now only writes these two into
-# "revenue" if nothing else already has, instead of unconditionally overwriting.
-#
-# FIXED 2026-08-09 (same day, later session): "sales_revenue_net" added to this set too.
-# That key is fed by two different source concepts depending on taxonomy - us-gaap
-# "SalesRevenueNet" (a real total-revenue tag for some legacy/pre-ASC-606 filers, where
-# it's meant to be primary) and ifrs-full "RevenueFromSaleOfGoods" (see
-# sec_statements.py's _INCOME_IFRS_ALIASES) - but the latter is only the GOODS sub-line
-# for companies that also report separate services/subscription revenue, not the total.
-# Live-confirmed via KARO (Karooooo/Cartrack, pure IFRS 20-F filer, live companyfacts
-# JSON): real total "Revenue" FY2025 = ZAR 4,567,459,000 (built from
-# SubscriptionCirculationRevenue ZAR 4,055,394,000 + RevenueFromRenderingOfTransportServices
-# ZAR 2,099,000 + RevenueFromSaleOfGoods ZAR 37,018,000 + other lines), but
-# "RevenueFromSaleOfGoods" alone (ZAR 37,018,000) was overwriting it in the "revenue"
-# column - same "last-listed wins unconditionally" bug class as the ORLY case above, this
-# time triggered by two semantically-different concepts colliding on the same alias
-# target_key rather than a single concept's fallback role. Making it fallback-only is
-# safe for the legacy us-gaap filers this key also serves: when they have no separate
-# "Revenues"/ASC-606 tag (the case the AGCO-style fix for sales_revenue_goods_net below
-# depends on), "revenue" isn't populated yet when this key is reached, so it still writes
-# normally - it only stops clobbering an already-real total. "sales_revenue_goods_net"
-# (a separate, distinctly-keyed us-gaap concept - see the AGCO/pre-2011-filer comment on
-# it in sec_statements.py) is added for the same defensive reason, though not yet
-# live-confirmed as double-booked for any filer.
-_REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
-    {
-        "interest_income_operating",
-        "interest_and_dividend_income_operating",
-        # FIXED 2026-08-22: same fallback-only reasoning as interest_and_dividend_income_
-        # operating just above - see sec_statements.py's comment on
-        # InvestmentIncomeInterestAndDividend and this dict's own comment on that key.
-        "investment_income_interest_and_dividend",
-        # FIXED 2026-09-03: BDC gross-investment-income fallback - see
-        # _INCOME_FIELD_MAPPING's comment on "gross_investment_income_operating" above.
-        "gross_investment_income_operating",
-        # FIXED 2026-08-22 (goal session: "Insufficient history"/revenue-gap audit): IFRS 7
-        # requires ALL filers with financial instruments (not just banks with no other
-        # revenue tag) to disclose interest revenue/expense, so a filer that already reports
-        # a real "Revenue"/"RevenuesNetOfInterestExpense" figure could ALSO separately report
-        # InterestRevenueExpense as a supplementary disclosure - without fallback-only status
-        # sec_base.py's last-processed-wins copy loop would let it silently clobber a correct,
-        # more complete revenue figure with the narrower gross-interest-income one (same risk
-        # class as the cost_of_goods_and_services_sold/CAT incident above). See
-        # sec_statements.py's comment on InterestRevenueExpense (live-verified via WF/Woori
-        # Financial Group, which has zero data under any other revenue concept, for the case
-        # this genuinely does need to fill).
-        "interest_revenue_expense",
-        # WIDENED 2026-08-31: both also added to sec_base.py's _REVENUE_TOTAL_CANDIDATE_
-        # FIELDS (magnitude-resolved group, checked BEFORE this fallback-only set - see
-        # that set's own comment for the ANDE/PRGO/TKR cases that motivated it), same dual-
-        # membership precedent as interest_revenue_expense above. Their fallback-only
-        # membership here is now vestigial for filers that reach that check at all (the
-        # magnitude branch always continues first) but kept rather than removed - harmless,
-        # and this set is still the operative one for any other field that might someday
-        # legitimately need pure fallback-only (never-overwrite-if-populated) semantics
-        # without the magnitude comparison.
-        "sales_revenue_net",
-        "sales_revenue_goods_net",
-        # FIXED 2026-08-17 (goal: "no SEC data" audit continuation): "cost_of_goods_and_
-        # services_sold" (added e1a3ae3b9 as a plain, always-overwrite mapping so retail/
-        # product filers that never tag CostOfRevenue/CostOfSales at all - AMZN et al -
-        # get a real cost_of_revenue) was NOT fallback-only, so on filers that tag BOTH
-        # concepts for unrelated line items it silently clobbered a correct value with a
-        # wrong one via sec_base.py's last-processed-wins copy loop. Live-confirmed via
-        # real SEC EDGAR companyfacts for CAT: CostOfRevenue FY2025=$44.75B (real,
-        # consolidated, ~65% of $67.6B revenue) vs. CostOfGoodsAndServicesSold FY2025=$49M
-        # (some unrelated minor line item) - annual_income_statement.cost_of_revenue was
-        # $49M, wrong by ~900x, with no data_unavailable/reason flag anywhere. A DB-wide
-        # ratio scan (revenue > $1B, cost_of_revenue/revenue < 2%) found 32 symbols with
-        # this same implausible-magnitude signature (CAT, CNC, VICI, JEF, ARCO, ...) - not
-        # proof for every one without a per-symbol EDGAR check the way CAT was, but the
-        # same pattern. Reusing this frozenset (not just "revenue" fields despite the
-        # name - it's really "sec_field keys that only fill an already-empty db_field")
-        # since it's already wired into every income-statement cfg below; this key now
-        # only fills cost_of_revenue when CostOfRevenue/CostOfSales didn't already set it,
-        # same as this set's existing entries, so AMZN-style filers are unaffected.
-        "cost_of_goods_and_services_sold",
-        # FIXED 2026-08-31: see sec_statements.py's comment on these two concepts (LIN
-        # live-verified) - same "fills only an already-empty db_field" reasoning as
-        # cost_of_goods_and_services_sold just above, since excluding D&A makes this a
-        # narrower figure than a full COGS-including-D&A tag when both are reported.
-        "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization",
-        "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization",
-        # FIXED 2026-08-31: same "fills only an already-empty db_field" reasoning - see
-        # sec_statements.py's comments on these two concepts (LYV/AWK/WTRG/MSEX/YORW live-
-        # verified) and _INCOME_FIELD_MAPPING's comment on them above.
-        "direct_operating_costs",
-        "utilities_operating_expense_maintenance_and_operations",
-        # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): see sec_statements.py's
-        # get_income_statement() comment for the live evidence (TXN/BA/NEE). Reusing this
-        # same "fills only an already-empty db_field" set for the same overwrite-safety
-        # reason as cost_of_goods_and_services_sold above - live-confirmed TRV reports
-        # BOTH a real "InterestExpense" ($425M FY2025) AND "InterestPaidNet" ($393M
-        # FY2025, a different, less precise cash-paid figure) for the same fiscal year, so
-        # a plain always-overwrite mapping for interest_paid_net would have silently
-        # downgraded TRV's real interest_expense on every filer that reports both (a very
-        # common combination - "cash paid for interest" is a near-universal ASC 230
-        # supplemental cash-flow disclosure). interest_and_debt_expense made fallback-only
-        # too for the same reason, even though no live overwrite case was found for it
-        # specifically - not exhaustively checked across the universe, so defaulting to
-        # the safe convention this file uses everywhere else.
-        "interest_and_debt_expense",
-        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): same
-        # "fills only an already-empty db_field" reasoning - see
-        # _INCOME_FIELD_MAPPING's comment on "financing_interest_expense" above (EPAC
-        # live-verified). Listed after interest_and_debt_expense in sec_statements.py's
-        # concept list, so a filer with a rare real interest_and_debt_expense value keeps
-        # it.
-        "financing_interest_expense",
-        "interest_paid_net",
-        # FIXED 2026-09-03 (same reasoning as interest_paid_net just above - see
-        # _INCOME_FIELD_MAPPING's comment on "interest_paid" above, ARW live-verified).
-        "interest_paid",
-        # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit): same "fills only an
-        # already-empty db_field" reasoning as this set's other entries - see
-        # _INCOME_FIELD_MAPPING's comment on "custom_extension_revenue" above. Only ever
-        # populated for CUSTOM_REVENUE_CONCEPTS-registered symbols in the first place, so
-        # this is a defensive-in-depth guard rather than a live-confirmed clobber risk.
-        "custom_extension_revenue",
-        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, pe_ratio/
-        # peg_ratio investigation): same "fills only an already-empty db_field" reasoning as
-        # custom_extension_revenue above - see _INCOME_FIELD_MAPPING's comment on these keys.
-        # Only ever populated for CUSTOM_INCOME_DIMENSIONED_CONCEPTS-registered symbols.
-        "custom_extension_net_income",
-        "custom_extension_eps_basic",
-        "custom_extension_eps_diluted",
-        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data" sweep): ESOA-class filers
-        # that stop tagging NetIncomeLoss/ProfitLoss - see _INCOME_FIELD_MAPPING's comment on
-        # this key above.
-        "income_loss_from_continuing_operations_including_portion_attributable_to_noncontrolling_interest",
-    }
+# SEC snake_cased concept -> DB column field mappings and per-statement/period config
+# builders extracted to loaders/helpers/financial_statements_{income,balance,cashflow}_config.py
+# (2026-09-07, file-size ratchet; split three ways rather than one combined module because a
+# single combined module came in at 1394 lines - over the ratchet's 800-line cap for new files)
+# - re-imported here so `from loaders.load_financial_statements import X` keeps working for
+# every existing caller/test (see financial_statements_income_config.py's docstring for the
+# full extraction rationale).
+from loaders.helpers.financial_statements_balance_config import (  # noqa: E402
+    _ANNUAL_BALANCE_EXTRA,  # noqa: F401
+    _BALANCE_FIELD_MAPPING,  # noqa: F401
+    _DEBT_FALLBACK_ONLY_FIELDS,  # noqa: F401
+    _QUARTERLY_BALANCE_EXTRA,  # noqa: F401
+    get_balance_sheet_config,
 )
-
-# FIXED 2026-08-09: REIT-specific fallback (SIC 6798 only, see sec_base.py's
-# _reit_only_fallback_fields comment). Equity REITs' real revenue ("revenues", mostly
-# lease income) is explicitly out of ASC 606's scope, so their ASC-606 contract-revenue
-# tags only ever capture a much smaller non-lease fee-income line - unlike the general
-# case (most post-2018 filers), where the ASC-606 tag legitimately supersedes "revenues"
-# as the fuller, more current figure. Live-confirmed UDR: revenues=$1.67B (real) vs.
-# revenue_from_contract_with_customer_excluding_assessed_tax=$8.3M (real but minor fee
-# income) - the general priority chain let the $8.3M win.
-_REIT_REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
-    {
-        "revenue_from_contract_with_customer_including_assessed_tax",
-        "revenue_from_contract_with_customer_excluding_assessed_tax",
-    }
+from loaders.helpers.financial_statements_cashflow_config import (  # noqa: E402
+    _CASHFLOW_FIELD_MAPPING,  # noqa: F401
+    _SBC_BUYBACK_FALLBACK_ONLY_FIELDS,  # noqa: F401
+    get_cash_flow_config,
 )
-
-# BUG FOUND 2026-08-19 (goal: "no SEC data"/loader audit): "operating_lease_lease_income"
-# used to live in _REIT_REVENUE_FALLBACK_ONLY_FIELDS above, but that set's "unaffected for
-# non-REIT filers" semantics is only correct for the two ASC-606 concepts (which SHOULD
-# also win normally for non-REIT filers via the general priority chain - see
-# test_sec_reit_lease_revenue_not_overwritten.py's AAPL case). OperatingLeaseLeaseIncome is
-# different: for a non-REIT filer it's an unrelated, minor line item (real-estate sublease
-# income), never a revenue analog, and must never touch "revenue" regardless of processing
-# order. Live-confirmed via IHRT (iHeartMedia, SIC 7812, not a REIT): its real annual
-# "Revenues" ($3.75B/$3.85B/$3.86B for FY2023-2025) was silently clobbered by its tiny
-# sublease income under this concept ($2.01M/$787K/$562K - exact match to the corrupted DB
-# values), a ~1000x understatement with no data_unavailable/reason flag anywhere. Wired via
-# sec_base.py's new, stricter "reit_exclusive_fields" - skip (never write) for any symbol
-# that isn't a confirmed REIT, fallback-only (skip if already populated) for symbols that
-# are.
-_REIT_EXCLUSIVE_FIELDS = frozenset(
-    {
-        "operating_lease_lease_income",
-        "real_estate_revenue_net",
-    }
+from loaders.helpers.financial_statements_config_shared import (  # noqa: E402
+    _MARKER_FIELDS,  # noqa: F401
+    _QUARTERLY_EXTRA,  # noqa: F401
 )
-
-# FIXED 2026-08-17 (loader-review goal continuation): see sec_statements.py's
-# get_balance_sheet() comment - these 3 concepts are alternate ways small/micro-cap
-# filers tag real long-term debt when they never use the standard "LongTermDebt" concept
-# at all (live-confirmed real instant-fact debt for MRKR/MODD/ATNM under these tags,
-# part of a live DB scan finding 2,306 symbols with real balance sheet rows but zero
-# long_term_debt ever). Fallback-only (not a plain mapping) so a filer that DOES report
-# the standard LongTermDebt concept always keeps that value - see sec_base.py's copy
-# loop: a non-fallback field always overwrites unconditionally regardless of processing
-# order, so "long_term_debt" (from the real LongTermDebt concept) wins over any of these
-# 3 whenever both are present for the same fiscal year; these only fill genuinely empty
-# years.
-_DEBT_FALLBACK_ONLY_FIELDS = frozenset(
-    {
-        "notes_payable_related_parties_noncurrent",
-        "long_term_notes_payable",
-        "convertible_notes_payable",
-        # FIXED 2026-08-18 (roic_pct "missing_sec_data" follow-up, goal: "no SEC data"
-        # audit): DKNG/DASH-style fallback - see sec_statements.py's get_balance_sheet()
-        # comment for the live evidence (DKNG FY2025 $1.26B, DASH FY2025 $2.72B tagged
-        # only under this concept, never plain "ConvertibleNotesPayable"/"LongTermDebt").
-        "convertible_long_term_notes_payable",
-        # FIXED 2026-08-17 (SEC-vs-yfinance audit): JPM-style bank fallback - see
-        # sec_statements.py's get_balance_sheet() comment for why this concept is needed
-        # (JPM has not tagged plain "LongTermDebt" since FY2013).
-        "long_term_debt_and_capital_lease_obligations_including_current_maturities",
-        # FIXED 2026-08-18 (roic_pct "missing_sec_data" audit): ADM-style fallback for
-        # filers that tag total equity including noncontrolling interest instead of the
-        # parent-only "StockholdersEquity" concept - see sec_statements.py's
-        # get_balance_sheet() comment for the live evidence. Despite the set's name, this
-        # has been the shared "balance-sheet fallback-only fields" bucket since the JPM
-        # entry above; both annual/quarterly balance configs reference it directly.
-        "stockholders_equity_including_portion_attributable_to_noncontrolling_interest",
-        # FIXED 2026-08-18 (roic_pct "missing_sec_data" follow-up): CAT/SLB-style and
-        # XOM-style fallbacks - see sec_statements.py's get_balance_sheet() comment for the
-        # live evidence (CAT FY2025 $30.696B, SLB FY2025 $9.742B, XOM FY2025 $34.241B, none
-        # of which tag plain "LongTermDebt").
-        "long_term_debt_noncurrent",
-        "long_term_debt_and_capital_lease_obligations",
-        # FIXED 2026-08-18 (missing factor inputs audit, roic_pct/total_debt follow-up):
-        # net-lease REITs (ADC/Agree Realty live-confirmed via real SEC companyfacts
-        # JSON) stop tagging "LongTermDebt" mid-history (ADC's last real fact under that
-        # concept is 2022-03-31) and switch to reporting debt only via
-        # "DebtInstrumentCarryingAmount" going forward (ADC FY2022-2025: $1.96B/$2.43B/
-        # $2.81B/$3.32B, a clean sum roughly matching SecuredDebt+UnsecuredDebt+
-        # SeniorNotes reported the same years) - not debt-free, just a taxonomy switch.
-        # Without this fallback, load_sec_valuations.py's total_debt fell back to summing
-        # only ADC's tiny lease liabilities (~$25M) instead of its real ~$3B+ debt load,
-        # producing a wildly understated invested_capital for roic_pct (and any other
-        # consumer of total_debt/long_term_debt).
-        "debt_instrument_carrying_amount",
-        # ADDED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, KKR live-
-        # confirmed): see sec_statements.py's get_balance_sheet() comment on
-        # "PartnersCapitalIncludingPortionAttributableToNoncontrollingInterest" -
-        # limited-partnership-structured filers (KKR pre-2018) tag total consolidated
-        # partner capital (including third-party LP capital in consolidated managed
-        # funds - live-confirmed KKR FY2014 $51.4B under this concept vs $5.38B under
-        # the parent-only "PartnersCapital" concept the same year, a ~10x gap from
-        # consolidated variable-interest entities) under this concept. Fallback-only so
-        # the precise parent-only "partners_capital" mapping below (NOT fallback-only,
-        # same non-fallback precedence as "stockholders_equity" itself) always wins when
-        # both are present for the same fiscal year - same "IncludingPortion" vs.
-        # parent-only precedence convention as the StockholdersEquity pair above.
-        "partners_capital_including_portion_attributable_to_noncontrolling_interest",
-        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): see
-        # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_CONCEPTS module comment
-        # (BRK.A/BRK.B live evidence) - must never win over a real value the normal
-        # concept-list extraction already found.
-        "custom_extension_total_debt",
-        # FIXED 2026-09-03 (same sweep): see
-        # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_SHORTTERM_CONCEPTS
-        # module comment (AES live evidence) - must never win over a real value the normal
-        # concept-list extraction already found.
-        "custom_extension_total_debt_current",
-        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
-        # comment on "NotesPayable" (AFL/MAA live evidence) - must never win over a real,
-        # more complete LongTermDebt/SeniorNotes value.
-        "notes_payable",
-        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
-        # comment on "DebtLongtermAndShorttermCombinedAmount" (PGR live evidence) - must
-        # never win over a real LongTermDebt value from an earlier fiscal year.
-        "debt_longterm_and_shortterm_combined_amount",
-        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
-        # comment on "SubordinatedDebt"/"JuniorSubordinatedDebentureOwedTo
-        # UnconsolidatedSubsidiaryTrust" (IBOC/HBT live evidence) - must never win over
-        # any of the standard debt concepts already fetched above.
-        "subordinated_debt",
-        "junior_subordinated_debenture_owed_to_unconsolidated_subsidiary_trust",
-        # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" sweep): Donegal Group
-        # (DGICA/DGICB) real revolving-credit debt - see sec_statements.py's
-        # get_balance_sheet() comment on "LineOfCredit" for the live evidence ($35M FY2025).
-        "line_of_credit",
-        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
-        # comment on "DebtCurrent" (DE live evidence) - a generic enough concept name
-        # that a filer reporting a more specific standard concept (CommercialPaper/
-        # ShortTermBorrowings/SeniorNotesCurrent/...) must always keep that value; this
-        # only fills the gap when nothing else populated short_term_debt.
-        "debt_current",
-        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
-        # comment on "ShortTermBankLoansAndNotesPayable" (EXPD live evidence).
-        "short_term_bank_loans_and_notes_payable",
-        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): mortgage
-        # REIT repo-agreement financing - see sec_statements.py's get_balance_sheet() comment
-        # on "SecuritiesSoldUnderAgreementsToRepurchase" (AGNC/ARR live evidence, $60.8B/
-        # $10.7B FY2024 respectively, both previously NULL for every debt-component column).
-        "securities_sold_under_agreements_to_repurchase",
-        # FIXED 2026-09-03 (same sweep, SEVN follow-up): see sec_statements.py's
-        # get_balance_sheet() comment on "SecuredDebtRepurchaseAgreements" (SEVN live
-        # evidence).
-        "secured_debt_repurchase_agreements",
-        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
-        # comment on "PublicUtilitiesPropertyPlantAndEquipmentNet" (ES live evidence) and
-        # the finance-lease-combined PP&E concept (DASH/DINO live evidence) - despite this
-        # set's debt-focused name it's the shared balance-sheet fallback-only bucket (see
-        # the stockholders_equity entry's comment above), covers non-debt fields too.
-        "public_utilities_property_plant_and_equipment_net",
-        "property_plant_and_equipment_and_finance_lease_right_of_use_asset_after_accumulated_depreciation_and_amortization",
-        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
-        # comment on "ReceivablesNetCurrent" (WMT/COST/RTX live evidence).
-        "receivables_net_current",
-        # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
-        # comment on "InventoryNetOfAllowancesCustomerAdvancesAndProgressBillings"
-        # (BA/Boeing, HII/Huntington Ingalls live evidence).
-        "inventory_net_of_allowances_customer_advances_and_progress_billings",
-        # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" continuation): ACHV/BENF
-        # real convertible-debt/other-long-term-debt concepts - see sec_statements.py's
-        # get_balance_sheet() comment on "ConvertibleDebt"/"OtherLongTermDebt" for the live
-        # evidence. Must never win over a real value the standard concepts already found.
-        "convertible_debt",
-        "convertible_debt_current",
-        "convertible_debt_noncurrent",
-        "other_long_term_debt",
-        # FIXED 2026-09-05 (same continuation): SCM (Stellus Capital, a BDC) real secured
-        # term-debt concept - see sec_statements.py's get_balance_sheet() comment on
-        # "SecuredLongTermDebt" for the live evidence.
-        "secured_long_term_debt",
-        # FIXED 2026-09-05 (same continuation): KBDC (Kayne Anderson BDC) real fair-value
-        # credit-facility concept - see sec_statements.py's get_balance_sheet() comment on
-        # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and
-        # magnitude cross-check.
-        "line_of_credit_facility_fair_value_of_amount_outstanding",
-    }
+from loaders.helpers.financial_statements_income_config import (  # noqa: E402
+    _INCOME_FIELD_MAPPING,  # noqa: F401
+    _QUARTERLY_INCOME_EXTRA,  # noqa: F401
+    _REIT_EXCLUSIVE_FIELDS,  # noqa: F401
+    _REIT_REVENUE_FALLBACK_ONLY_FIELDS,  # noqa: F401
+    _REVENUE_FALLBACK_ONLY_FIELDS,  # noqa: F401
+    get_income_statement_config,
 )
-
-# FIXED 2026-08-17 (loader-review goal continuation): the fallback-variant search for
-# SBC/buybacks migration 1206's comment flagged as not-yet-done - see sec_statements.py's
-# get_cash_flow() comment for the live evidence (FIP/DC/CNA report SBC only under
-# "AllocatedShareBasedCompensationExpense"; SPWH reports buybacks only under
-# "PaymentsForRepurchaseOfEquity"). Fallback-only for the same reason as
-# _DEBT_FALLBACK_ONLY_FIELDS: a filer that DOES report the standard concept
-# (ShareBasedCompensation / PaymentsForRepurchaseOfCommonStock) always keeps that value.
-_SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
-    {
-        "allocated_share_based_compensation_expense",
-        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): see
-        # sec_statements.py's get_cash_flow() comment on StockOptionPlanExpense (CVX
-        # live-confirmed) - must never win over a real ShareBasedCompensation/
-        # AllocatedShareBasedCompensationExpense value.
-        "stock_option_plan_expense",
-        "payments_for_repurchase_of_equity",
-        # FIXED 2026-08-29 (shipping-sector custom-XBRL-concept capex fallback): must
-        # never win over a real value the normal concept-list extraction already found -
-        # this key only exists for symbols where that extraction structurally can't work
-        # at all (see _CASHFLOW_FIELD_MAPPING's comment on this same key).
-        "custom_extension_vessel_capex",
-        # FIXED 2026-09-03 (same sweep): NJR's dimensioned-sum capex - same "never win
-        # over a real value the normal concept-list extraction already found" reasoning
-        # as custom_extension_vessel_capex above (see CUSTOM_CAPEX_DIMENSIONED_CONCEPTS's
-        # docstring in sec_custom_xbrl_concepts.py).
-        "custom_extension_capex_dimensioned_sum",
-        # FIXED 2026-09-03 (same sweep): CMS's custom-extension dividends_paid - same
-        # "never win over a real value the normal concept-list extraction already found"
-        # reasoning as the capex/revenue custom-extension fields above (see
-        # CUSTOM_DIVIDEND_CONCEPTS's docstring in sec_custom_xbrl_concepts.py).
-        "custom_extension_dividends_paid",
-        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): ED's
-        # narrower "construction work in progress" concept - see this dict's own comment
-        # on "payments_for_construction_in_process" above and sec_statements.py's
-        # get_cash_flow() comment for the live evidence it must never overwrite a real
-        # standard-concept capex value.
-        "payments_for_construction_in_process",
-        # FIXED 2026-08-19 (goal: "no SEC data"/loader audit): see sec_statements.py's
-        # get_cash_flow() comment on "NetCashProvidedByUsedInOperatingActivities
-        # ContinuingOperations" (ASH/Ashland live-confirmed: zero entries under the plain
-        # concept, ever - real OCF stuck NULL for its entire history). Fallback-only so
-        # APD/ANGI (which report both concepts) keep the fuller plain-concept total
-        # whenever it's actually present for that fiscal year.
-        "net_cash_provided_by_used_in_operating_activities_continuing_operations",
-        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): BDC-
-        # specific distribution concept - see sec_statements.py's get_cash_flow() comment
-        # on this concept (MAIN live-confirmed: tags this AND a real, materially LARGER
-        # DividendsCommonStock figure - a narrower/different sub-component, not a
-        # duplicate) - must never overwrite a real standard-concept dividends_paid value.
-        "investment_company_dividend_distribution",
-    }
-)
-
-_BALANCE_FIELD_MAPPING = {
-    "assets": "total_assets",
-    "assets_current": "current_assets",
-    "liabilities": "total_liabilities",
-    "liabilities_current": "current_liabilities",
-    "stockholders_equity": "stockholders_equity",
-    # FIXED 2026-08-18 (roic_pct "missing_sec_data" audit): fallback for filers (ADM
-    # live-confirmed, CIK 0000007084) that tag total equity including noncontrolling/minority
-    # interest instead of the parent-only concept above. Flat lookup, not a priority order -
-    # actual overwrite precedence comes from sec_statements.py's get_balance_sheet() concept
-    # list order (fallback listed before "StockholdersEquity" there), same convention as the
-    # cash fallbacks immediately below.
-    "stockholders_equity_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity",
-    # ADDED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, KKR live-confirmed):
-    # see _DEBT_FALLBACK_ONLY_FIELDS's comment on the IncludingPortion key -
-    # limited-partnership-structured filers (KKR pre-2018) tag total partner capital
-    # instead of any StockholdersEquity concept. "partners_capital" (parent-only, NOT
-    # fallback-only) is the direct partnership analogue of "stockholders_equity" above
-    # and always wins; the IncludingPortion variant only fills years where the
-    # parent-only concept is absent entirely.
-    "partners_capital_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity",
-    "partners_capital": "stockholders_equity",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" audit): LLC-
-    # structured domestic filers (APGE/ARXS/ITG live-confirmed) tag "MembersEquity"
-    # instead of any StockholdersEquity/PartnersCapital concept - see sec_statements.py's
-    # get_balance_sheet() comment on the matching concept-list entry for the live
-    # evidence. Direct legal-structure analogue, not fallback-only, same convention as
-    # "partners_capital" above.
-    "members_equity": "stockholders_equity",
-    # FIXED 2026-07-28: these 6 concepts are fetched from real SEC XBRL data every run
-    # (utils/external/sec_statements.py's get_balance_sheet(), GAAP + IFRS aliases both
-    # present since the module was written) but had no target column here - a commit on
-    # 2026-06-21 ("Clean up loader infrastructure - remove dead code") removed these exact
-    # 6 entries from this mapping and from schema_cols below, mistaking real, actively-used
-    # score-relevant balance sheet fields for dead code. Confirmed live: annual_balance_sheet
-    # kept writing fresh rows every day (294 in the last 7 days) while goodwill/inventory/etc.
-    # silently stopped updating on 2026-07-01 (the last rows written before the June 21
-    # regression's effect worked through the existing per-symbol watermark backlog) - a real,
-    # ~1-month-old active data-loss regression, not historically-always-missing data.
-    "cash_and_cash_equivalents_at_carrying_value": "cash_and_equivalents",
-    # FIXED 2026-08-03: two fallback concepts for filers that never tag the standard
-    # concept above - banks (ZION live-confirmed) tag CashAndDueFromBanks instead, some
-    # non-bank filers only tag the post-ASU-2016-18 combined cash+restricted-cash concept.
-    # This dict is a flat lookup, not a priority order - actual overwrite precedence comes
-    # from sec_statements.py's get_balance_sheet() concept list order (see its comment).
-    "cash_and_due_from_banks": "cash_and_equivalents",
-    "cash_cash_equivalents_restricted_cash_and_restricted_cash_equivalents": "cash_and_equivalents",
-    # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comment
-    # on "ReceivablesNetCurrent" (WMT/COST/RTX live evidence) - fallback-only (see
-    # _DEBT_FALLBACK_ONLY_FIELDS below), must never win over the standard concept.
-    "receivables_net_current": "accounts_receivable",
-    "accounts_receivable_net_current": "accounts_receivable",
-    "inventory_net": "inventory",
-    # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comment
-    # on "InventoryNetOfAllowancesCustomerAdvancesAndProgressBillings" - fallback-only
-    # (see _DEBT_FALLBACK_ONLY_FIELDS above), must never win over the standard concept.
-    "inventory_net_of_allowances_customer_advances_and_progress_billings": "inventory",
-    # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comments
-    # on "PublicUtilitiesPropertyPlantAndEquipmentNet" (ES live evidence) and
-    # "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciation
-    # AndAmortization" (DASH/DINO live evidence) - both fallback-only (see
-    # _DEBT_FALLBACK_ONLY_FIELDS below), must never win over the standard concept.
-    "public_utilities_property_plant_and_equipment_net": "ppe_net",
-    "property_plant_and_equipment_and_finance_lease_right_of_use_asset_after_accumulated_depreciation_and_amortization": "ppe_net",
-    "property_plant_and_equipment_net": "ppe_net",
-    "goodwill": "goodwill",
-    "long_term_debt": "long_term_debt",
-    # FIXED 2026-08-17 (loader-review goal continuation): fallback-only, see
-    # _DEBT_FALLBACK_ONLY_FIELDS comment above.
-    "notes_payable_related_parties_noncurrent": "long_term_debt",
-    "long_term_notes_payable": "long_term_debt",
-    "convertible_notes_payable": "long_term_debt",
-    # FIXED 2026-08-18 (roic_pct "missing_sec_data" follow-up): see
-    # _DEBT_FALLBACK_ONLY_FIELDS comment above (DKNG/DASH live evidence).
-    "convertible_long_term_notes_payable": "long_term_debt",
-    "long_term_debt_and_capital_lease_obligations_including_current_maturities": "long_term_debt",
-    # FIXED 2026-08-18 (roic_pct "missing_sec_data" follow-up): see
-    # _DEBT_FALLBACK_ONLY_FIELDS comment above (CAT/SLB/XOM live evidence).
-    "long_term_debt_noncurrent": "long_term_debt",
-    "long_term_debt_and_capital_lease_obligations": "long_term_debt",
-    # FIXED 2026-08-18 (missing factor inputs audit): see _DEBT_FALLBACK_ONLY_FIELDS
-    # comment above (ADC/net-lease-REIT live evidence - taxonomy switch mid-history, not
-    # a genuine debt-free filer).
-    "debt_instrument_carrying_amount": "long_term_debt",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): BRK.A/BRK.B
-    # (Berkshire Hathaway) real, ~$129B combined debt - see
-    # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_CONCEPTS module comment for
-    # the live evidence (two entity-level segment totals, no single consolidated "total
-    # debt" line exists at all, structurally invisible to companyfacts). No current/
-    # noncurrent split in the source data (Berkshire's balance sheet is unclassified), so
-    # this maps to long_term_debt only, same convention as the other single-figure debt
-    # fallbacks above. Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS below) so it never
-    # overwrites a real value the normal concept-list extraction already found.
-    "custom_extension_total_debt": "long_term_debt",
-    # FIXED 2026-09-03 (same sweep): AES Corporation's real, ~$29.9B combined debt - see
-    # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_LONGTERM_CONCEPTS/
-    # CUSTOM_DEBT_SHORTTERM_CONCEPTS module comment for the live evidence (filer-specific
-    # recourse/non-recourse debt tags, structurally invisible to companyfacts, same class as
-    # CUSTOM_CAPEX_CONCEPTS's DHT/CMRE - not the Berkshire dimensioned-sum case above).
-    # AES's source data DOES have a real current/noncurrent split (unlike Berkshire), so
-    # this is a separate short_term_debt target, distinct from custom_extension_total_debt.
-    "custom_extension_total_debt_current": "short_term_debt",
-    # FIXED 2026-08-17 (migration 1204): real short-term/revolving debt concepts, previously
-    # fetched nowhere - see sec_statements.py's get_balance_sheet() comment on why LongTermDebt
-    # alone (the only debt concept fetched before this fix) misses commercial paper/short-term
-    # notes payable. Companion fix to load_sec_valuations.py's total_debt mislabeling bug
-    # (was reading total_liabilities, not any debt concept at all).
-    "commercial_paper": "short_term_debt",
-    "short_term_borrowings": "short_term_debt",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): DE (Deere &
-    # Company) real short-term debt - see sec_statements.py's get_balance_sheet() comment
-    # on "DebtCurrent" for the live evidence and why its smaller sibling "SecuredDebt" is
-    # deliberately NOT also mapped here (no summing mechanism exists for two concepts on
-    # one target column - see that comment for the full reasoning).
-    "debt_current": "short_term_debt",
-    # FIXED 2026-09-03 (same sweep): EXPD (Expeditors International) real short-term
-    # debt - see sec_statements.py's get_balance_sheet() comment on
-    # "ShortTermBankLoansAndNotesPayable" for the live evidence.
-    "short_term_bank_loans_and_notes_payable": "short_term_debt",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): mortgage
-    # REIT repo-agreement financing - see sec_statements.py's get_balance_sheet() comment
-    # on "SecuritiesSoldUnderAgreementsToRepurchase" for the live evidence (AGNC/ARR).
-    "securities_sold_under_agreements_to_repurchase": "short_term_debt",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, SEVN
-    # follow-up): see sec_statements.py's get_balance_sheet() comment on
-    # "SecuredDebtRepurchaseAgreements" for the live evidence (SEVN).
-    "secured_debt_repurchase_agreements": "short_term_debt",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): VRSN
-    # (VeriSign) real debt concept - see sec_statements.py's get_balance_sheet() comment
-    # on SeniorNotes/SeniorNotesCurrent for the live evidence. Same either/or-alternative,
-    # plain-mapping convention as commercial_paper/short_term_borrowings above.
-    "senior_notes": "long_term_debt",
-    "senior_notes_current": "short_term_debt",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): AFL/MAA
-    # real debt concept - see sec_statements.py's get_balance_sheet() comment on
-    # "NotesPayable" for the live evidence. Same either/or-alternative, plain-mapping
-    # convention as senior_notes above.
-    "notes_payable": "long_term_debt",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): PGR
-    # (Progressive) real debt concept - see sec_statements.py's get_balance_sheet()
-    # comment on "DebtLongtermAndShorttermCombinedAmount" for the live evidence. Same
-    # fallback-only, single-figure convention as notes_payable above.
-    "debt_longterm_and_shortterm_combined_amount": "long_term_debt",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): IBOC/HBT
-    # real trust-preferred/subordinated-debenture debt - see sec_statements.py's
-    # get_balance_sheet() comment on "SubordinatedDebt"/"JuniorSubordinatedDebentureOwedTo
-    # UnconsolidatedSubsidiaryTrust" for the live evidence. Same fallback-only,
-    # single-figure convention as notes_payable/debt_longterm_and_shortterm_combined_
-    # amount above.
-    "subordinated_debt": "long_term_debt",
-    "junior_subordinated_debenture_owed_to_unconsolidated_subsidiary_trust": "long_term_debt",
-    # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" sweep): Donegal Group
-    # (DGICA/DGICB) real revolving-credit debt - see sec_statements.py's get_balance_sheet()
-    # comment on "LineOfCredit" for the live evidence. Same fallback-only, single-figure
-    # convention as notes_payable/subordinated_debt above.
-    "line_of_credit": "long_term_debt",
-    # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" continuation,
-    # total_debt_not_itemized investigation): ACHV/BENF real convertible-note debt - see
-    # sec_statements.py's get_balance_sheet() comment on "ConvertibleDebt" for the live
-    # evidence ($16.66M ACHV FY2023; split into Current/Noncurrent starting FY2024). Same
-    # either/or-alternative convention as senior_notes/senior_notes_current above - a
-    # filer reporting the split never also reports the bare concept for the same year.
-    "convertible_debt": "long_term_debt",
-    "convertible_debt_current": "short_term_debt",
-    "convertible_debt_noncurrent": "long_term_debt",
-    # FIXED 2026-09-05 (same sweep): BENF (Beneficient) real long-term debt - see
-    # sec_statements.py's get_balance_sheet() comment on "OtherLongTermDebt" for the live
-    # evidence ($117.9M FY2025/$96.8M FY2026). Fallback-only, single-figure convention as
-    # notes_payable/subordinated_debt above.
-    "other_long_term_debt": "long_term_debt",
-    # FIXED 2026-09-05 (same sweep): SCM (Stellus Capital, a BDC) real secured term-debt -
-    # see sec_statements.py's get_balance_sheet() comment on "SecuredLongTermDebt" for the
-    # live evidence ($299M FY2025). Fallback-only, single-figure convention as above.
-    "secured_long_term_debt": "long_term_debt",
-    # FIXED 2026-09-05 (same sweep): KBDC (Kayne Anderson BDC) real fair-value credit-
-    # facility balance - see sec_statements.py's get_balance_sheet() comment on
-    # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and
-    # magnitude cross-check against implied total liabilities (96% match). Fallback-only,
-    # single-figure convention as above.
-    "line_of_credit_facility_fair_value_of_amount_outstanding": "long_term_debt",
-    # FIXED 2026-08-17 (migration 1205): post-ASC 842 capitalized lease liabilities -
-    # see sec_statements.py's get_balance_sheet() comment for why these use the combined
-    # (not Current/Noncurrent split) XBRL tags. Included in load_sec_valuations.py's
-    # total_debt per the S&P/Moody's adjusted-debt convention (operating leases) plus
-    # unambiguous debt (finance leases).
-    "operating_lease_liability": "operating_lease_liability",
-    "finance_lease_liability": "finance_lease_liability",
-    **_MARKER_FIELDS,
-}
-
-# ADDED 2026-08-26 (Quality pillar literature audit): Altman Z''-Score's Retained Earnings/
-# Total Assets term - see sec_statements.py's get_balance_sheet() comment. Annual-only: migration
-# 1234 added `retained_earnings` to annual_balance_sheet only (nothing in this codebase consumes
-# a quarterly or TTM Altman Z''), so this must NOT be merged into _BALANCE_FIELD_MAPPING itself -
-# that dict is shared with quarterly_balance_sheet's config below, whose schema_cols has no
-# `retained_earnings` column. Live-caught 2026-08-26: merging it into the shared base dict made
-# every single quarterly_balance_sheet fetch raise sec_base.py's "not in target schema"
-# RuntimeError (self._schema_cols is a hardcoded per-config frozenset, not introspected from the
-# live DB, so it doesn't just silently pass through).
-_ANNUAL_BALANCE_EXTRA = {"retained_earnings_accumulated_deficit": "retained_earnings"}
-
-_CASHFLOW_FIELD_MAPPING = {
-    "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
-    # FIXED 2026-08-19 (goal: "no SEC data"/loader audit): fallback-only, see
-    # _OCF_FALLBACK-style comment on _SBC_BUYBACK_FALLBACK_ONLY_FIELDS above and
-    # sec_statements.py's get_cash_flow() comment for the live ASH evidence.
-    "net_cash_provided_by_used_in_operating_activities_continuing_operations": "operating_cash_flow",
-    "net_cash_provided_by_used_in_investing_activities": "investing_cash_flow",
-    "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
-    # Found 2026-07-20: this mapped to "capital_expenditures", a column that has never
-    # existed in annual_cash_flow/quarterly_cash_flow (real column is "capex") - every
-    # write silently vanished at the schema-validation step below, leaving capex NULL for
-    # all ~140K existing rows across both tables since this loader was created (Session
-    # 274). Renamed to match the real column so new/incremental writes actually land;
-    # existing NULL rows need a backfill (re-run with BACKFILL_DAYS or per-symbol refetch).
-    "payments_to_acquire_property_plant_and_equipment": "capex",
-    # FIXED 2026-08-10: real capex concept some filers use INSTEAD of plain
-    # "PaymentsToAcquirePropertyPlantAndEquipment" - live-confirmed via AAON, KELYB, CPS,
-    # DTIL (all report ONLY "PaymentsToAcquireProductiveAssets", with real recent values -
-    # AAON has 112 entries back through FY2023). This was the direct cause of
-    # free_cash_flow/fcf_to_net_income being stuck at "SEC data not available" for these
-    # symbols despite operating_cash_flow being populated - capex was never NULL because
-    # the filer didn't report capex, it was NULL because this loader only looked for one
-    # of two real capex tags. See sec_statements.py's get_cash_flow() concept list.
-    "payments_to_acquire_productive_assets": "capex",
-    # FIXED 2026-08-18 (goal: "missing SEC data" scores audit, AAON live-confirmed): see
-    # sec_statements.py's get_cash_flow() comment on this concept - AAON (and likely other
-    # filers) switched from PaymentsToAcquireProductiveAssets to this tag starting FY2023,
-    # with zero overlap between the two, so capex was silently NULL for 3+ years.
-    "payments_to_acquire_machinery_and_equipment": "capex",
-    # FIXED 2026-08-18 (goal: "missing factor inputs" audit continuation): see
-    # sec_statements.py's get_cash_flow() comments on these 2 concepts - VZ tags capex
-    # ONLY under "OtherProductiveAssets" (NULL every year 2021-2026 despite real OCF);
-    # LLY/ADP tag it ONLY under "OtherPropertyPlantAndEquipment" (same failure shape).
-    "payments_to_acquire_other_productive_assets": "capex",
-    "payments_to_acquire_other_property_plant_and_equipment": "capex",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep) - see
-    # sec_statements.py's get_cash_flow() comment for the live CTOS evidence: a standard
-    # (not filer-specific) equipment-rental-fleet capex concept, never fetched at all.
-    "payments_to_acquire_equipment_on_lease": "capex",
-    # FIXED 2026-08-24 (goal: "Margin of Safety (DCF)" cash-flow-coverage audit): REIT-sector
-    # capex concepts - see sec_statements.py's get_cash_flow() comment for the live AAT/AHT/
-    # AHR/ABR evidence. Same "capex" target column as the PP&E-family concepts above.
-    "payments_to_acquire_and_develop_real_estate": "capex",
-    "payments_to_acquire_real_estate": "capex",
-    "payments_for_capital_improvements": "capex",
-    # FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR verification of
-    # the 2026-08-24 fix's "pending separate verification" exclusion) - see sec_statements.py's
-    # get_cash_flow() comment for the live SLG (SL Green) evidence: 8 straight years of real,
-    # varying (including genuine $0) values under this concept since it replaced
-    # "payments_to_acquire_real_estate" in SLG's FY2020 10-K.
-    "payments_to_acquire_commercial_real_estate": "capex",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep) - see
-    # sec_statements.py's get_cash_flow() comment for the live DLR/REG evidence: a standard
-    # (not filer-specific) real-estate-development-spend concept, never fetched at all.
-    "payments_to_develop_real_estate_assets": "capex",
-    # FIXED 2026-09-06 (capex_never_tagged_in_recent_filings sweep) - see
-    # sec_cash_flow.py's get_cash_flow() comment for the live MRP (Millrose Properties)
-    # evidence: a land-banking REIT's direct capex-equivalent concept, never fetched at
-    # all. Same "capex" target column as the other REIT concepts above.
-    "payments_to_acquire_land": "capex",
-    # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurer investment-
-    # real-estate capex concepts - see sec_statements.py's get_cash_flow() comment for the
-    # live MET/RGA/BHF/PFG/TRV/WRB evidence.
-    "payments_to_acquire_real_estate_and_real_estate_joint_ventures": "capex",
-    "payments_to_acquire_real_estate_held_for_investment": "capex",
-    # FIXED 2026-08-29 (goal: "full data" audit continuation): oil & gas E&P sector capex
-    # concepts - see sec_statements.py's get_cash_flow() comment for the live APA/AR/CHRD/
-    # CRGY/AMPY/EGY/DVN evidence. Same "capex" target column as the PP&E-family concepts
-    # above.
-    "costs_incurred_oil_and_gas_property_acquisition_exploration_and_development_activities": "capex",
-    "payments_to_acquire_oil_and_gas_property": "capex",
-    "payments_to_explore_and_develop_oil_and_gas_properties": "capex",
-    # FIXED 2026-08-29 (same audit, MGY/GTE follow-up): see sec_statements.py's get_cash_flow()
-    # comment for the live evidence - a distinct concept from payments_to_acquire_oil_and_gas_
-    # property above, not a duplicate.
-    "payments_to_acquire_oil_and_gas_property_and_equipment": "capex",
-    # FIXED 2026-08-29 (same audit, shipping-sector follow-up): identity key
-    # ConsolidatedFinancialStatementsLoader.fetch_incremental() sets directly on rows for
-    # symbols in utils/external/sec_custom_xbrl_concepts.py's CUSTOM_CAPEX_CONCEPTS - see
-    # that module's docstring for why (real capex tagged under a filer-specific custom
-    # XBRL extension taxonomy, structurally invisible to the companyfacts API this file's
-    # normal concept-list extraction depends on). fallback_only (see
-    # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below) so it never overwrites a real value the
-    # normal SEC extraction already found.
-    "custom_extension_vessel_capex": "capex",
-    "custom_extension_capex_dimensioned_sum": "capex",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data" sweep) - see
-    # sec_statements.py's get_cash_flow() comment for the live CWT (water utility)
-    # evidence. Same "capex" target column as the other sector-specific PP&E-family
-    # concepts above.
-    "payments_to_acquire_water_and_waste_water_systems": "capex",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, capex_never_
-    # tagged_in_recent_filings continuation): see sec_statements.py's get_cash_flow()
-    # comment on this concept - D (Dominion Energy) live-confirmed, a pure taxonomy
-    # relabeling of the same real capex line, not fallback-only (value-identical to the
-    # standard concept in every year both are present).
-    "payments_for_proceeds_from_productive_assets": "capex",
-    # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_cash_flow() comment on
-    # this concept - ED (Consolidated Edison) live-confirmed. Fallback-only (added to
-    # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below): unlike the concept above, this is a
-    # narrower "construction work in progress" sub-line that reports a genuinely smaller
-    # figure than the standard concept in years both are present, so it must never
-    # overwrite a real standard-concept value.
-    "payments_for_construction_in_process": "capex",
-    # FIXED 2026-09-05: fetched since the 2026-09-03 PSA fix to sec_statements.py's
-    # get_cash_flow() concept list but never mapped here, so it was silently dropped at
-    # transform() - PSA payments_of_capital_distribution=$2,303,381,000 FY2025
-    # live-confirmed. Least-preferred/first in the concept list so last-listed-wins
-    # ordering still lets a real DividendsCommonStock*/PaymentsOfDividends* value win.
-    "payments_of_capital_distribution": "dividends_paid",
-    # FIXED 2026-09-05: see sec_statements.py's get_cash_flow() comment on this concept -
-    # BDC-specific (TRIN live-confirmed as the only concept it tags at all). Fallback-only
-    # (added to _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below): MAIN tags this AND a real,
-    # materially larger DividendsCommonStock figure, so this must never overwrite a real
-    # standard-concept value.
-    "investment_company_dividend_distribution": "dividends_paid",
-    "payments_of_dividends": "dividends_paid",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): CMS's
-    # filer-specific custom XBRL extension dividends concept - see
-    # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DIVIDEND_CONCEPTS docstring.
-    # fallback_only (see _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below) so it never overwrites a
-    # real value the normal SEC extraction already found.
-    "custom_extension_dividends_paid": "dividends_paid",
-    # FIXED 2026-08-17 (migration 1206): ShareBasedCompensation/
-    # PaymentsForRepurchaseOfCommonStock were added to sec_statements.py's fetch list but
-    # never mapped here - same "fetched but unmapped" bug class this file has hit
-    # repeatedly (see test_financial_statements_field_mapping_completeness.py). Real data
-    # was being fetched from SEC every run and silently dropped at transform().
-    "share_based_compensation": "stock_based_compensation",
-    "payments_for_repurchase_of_common_stock": "common_stock_repurchased",
-    # FIXED 2026-08-17 (loader-review goal continuation): fallback-only, see
-    # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS comment above.
-    "allocated_share_based_compensation_expense": "stock_based_compensation",
-    "payments_for_repurchase_of_equity": "common_stock_repurchased",
-    # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): CVX
-    # (Chevron) live-confirmed - see sec_statements.py's get_cash_flow() comment on this
-    # concept. Fallback-only (added to _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below), least
-    # preferred of the three SBC concepts.
-    "stock_option_plan_expense": "stock_based_compensation",
-    # FIXED 2026-08-03: real dividend-payment concepts some filers use INSTEAD of plain
-    # "PaymentsOfDividends" - see sec_statements.py's comment above these concepts.
-    "payments_of_dividends_common_stock": "dividends_paid",
-    "payments_of_ordinary_dividends": "dividends_paid",
-    # FIXED 2026-08-18 (missing factor inputs audit): ACGL (Arch Capital)/FRT (Federal
-    # Realty)/VSH (Vishay) - all 3 live-confirmed real, currently-paying dividend stocks
-    # (real recent ex_dividend_date on file in dividend_data) - never tag any of the 3
-    # "PaymentsOf*Dividend*" concepts above at all. They report under "DividendsCommonStockCash"
-    # instead (a genuine, well-populated concept: VSH's real values run $35M-$57M/year,
-    # 2014-2025, growing in line with a normal dividend program). 19 confirmed real payers
-    # universe-wide had NULL dividends_paid in every annual_cash_flow row before this fix.
-    # Unlike the "PaymentsOf*" family (a payments/outflow concept, standard-positive by XBRL
-    # convention), "DividendsCommonStockCash" carries a debit-balance definition and
-    # live-confirmed flips sign by filing vintage (VSH: negative 2014-2017, positive
-    # 2019-2025, for the exact same real dividend program) - see the abs() normalization in
-    # ConsolidatedFinancialStatementsLoader.transform() below, required specifically for
-    # this concept so a sign flip can't silently produce a negative payout_ratio/dividend
-    # figure downstream.
-    "dividends_common_stock_cash": "dividends_paid",
-    "dividends_common_stock": "dividends_paid",
-    **_MARKER_FIELDS,
-}
-
-# Quarterly rows carry fiscal_period ("Q1".."Q4"), which transform() converts to the
-# integer fiscal_quarter column. Annual rows' fiscal_period ("FY") stays unmapped -
-# annual tables have no fiscal_quarter column.
-_QUARTERLY_EXTRA = {"fiscal_period": "fiscal_quarter"}
-
-# Migration 1256 ("implausible values" sweep, quarterly fiscal-year-ordering bug): only
-# quarterly_income_statement has a period_end column (see that migration's own header for
-# why fiscal_year/fiscal_quarter alone can't reliably sort into true chronological order for
-# non-December-fiscal-year-end filers) - kept separate from _QUARTERLY_EXTRA (shared by
-# cashflow/balance sheet quarterly configs too) so this doesn't map a field into a column
-# those two tables don't have.
-_QUARTERLY_INCOME_EXTRA = {**_QUARTERLY_EXTRA, "period_end": "period_end"}
 
 
 def get_statement_config(statement_type: str, period: str) -> dict[str, Any]:
@@ -1319,278 +337,6 @@ def get_statement_config(statement_type: str, period: str) -> dict[str, Any]:
         raise ValueError("Use load_all_statements() for statement_type='all', not get_statement_config()")
     else:
         raise ValueError(f"Unknown statement type: {statement_type}")
-
-
-def get_income_statement_config(period: str) -> dict[str, Any]:
-    """Income statement configuration for annual/quarterly/ttm."""
-    if period == "annual":
-        return {
-            "table_name": "annual_income_statement",
-            "field_mapping": dict(_INCOME_FIELD_MAPPING),
-            "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
-            "reit_only_fallback_fields": _REIT_REVENUE_FALLBACK_ONLY_FIELDS,
-            "reit_exclusive_fields": _REIT_EXCLUSIVE_FIELDS,
-            "primary_key": ("symbol", "fiscal_year"),
-            "schema_cols": frozenset(
-                [
-                    "symbol",
-                    "fiscal_year",
-                    "revenue",
-                    "cost_of_revenue",
-                    "gross_profit",
-                    "operating_income",
-                    "net_income",
-                    "earnings_per_share",
-                    "diluted_eps",
-                    "interest_expense",
-                    "depreciation_expense",
-                    "amortization_expense",
-                    "research_development_expense",
-                    "shares_outstanding_basic",
-                    "shares_outstanding_diluted",
-                    "shares_outstanding_dei",
-                    "income_tax_expense",
-                    "pretax_income",
-                    "created_at",
-                    "data_unavailable",
-                    "reason",
-                    "data_source",
-                ]
-            ),
-        }
-    elif period == "quarterly":
-        return {
-            "table_name": "quarterly_income_statement",
-            "field_mapping": {**_INCOME_FIELD_MAPPING, **_QUARTERLY_INCOME_EXTRA},
-            "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
-            "reit_only_fallback_fields": _REIT_REVENUE_FALLBACK_ONLY_FIELDS,
-            "reit_exclusive_fields": _REIT_EXCLUSIVE_FIELDS,
-            "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
-            "schema_cols": frozenset(
-                [
-                    "symbol",
-                    "fiscal_year",
-                    "fiscal_quarter",
-                    "revenue",
-                    "cost_of_revenue",
-                    "gross_profit",
-                    "operating_income",
-                    "net_income",
-                    "earnings_per_share",
-                    "diluted_eps",
-                    "interest_expense",
-                    "depreciation_expense",
-                    "amortization_expense",
-                    "research_development_expense",
-                    "shares_outstanding_basic",
-                    "shares_outstanding_diluted",
-                    "shares_outstanding_dei",
-                    "income_tax_expense",
-                    "pretax_income",
-                    "period_end",
-                    "created_at",
-                    "data_unavailable",
-                    "reason",
-                    "data_source",
-                ]
-            ),
-        }
-    elif period == "ttm":
-        return {
-            "table_name": "ttm_income_statement",
-            "field_mapping": dict(_INCOME_FIELD_MAPPING),
-            "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
-            "reit_only_fallback_fields": _REIT_REVENUE_FALLBACK_ONLY_FIELDS,
-            "reit_exclusive_fields": _REIT_EXCLUSIVE_FIELDS,
-            "primary_key": ("symbol", "report_date"),
-            "schema_cols": frozenset(
-                [
-                    "symbol",
-                    "report_date",
-                    "revenue",
-                    "cost_of_revenue",
-                    "gross_profit",
-                    "operating_income",
-                    "net_income",
-                    "earnings_per_share",
-                    "created_at",
-                    "data_unavailable",
-                    "reason",
-                ]
-            ),
-        }
-    else:
-        raise ValueError(f"Unknown period: {period}")
-
-
-def get_balance_sheet_config(period: str) -> dict[str, Any]:
-    """Balance sheet configuration for annual/quarterly/ttm."""
-    if period == "annual":
-        return {
-            "table_name": "annual_balance_sheet",
-            "field_mapping": {**_BALANCE_FIELD_MAPPING, **_ANNUAL_BALANCE_EXTRA},
-            "fallback_only_fields": _DEBT_FALLBACK_ONLY_FIELDS,
-            "primary_key": ("symbol", "fiscal_year"),
-            "schema_cols": frozenset(
-                [
-                    "symbol",
-                    "fiscal_year",
-                    "total_assets",
-                    "current_assets",
-                    "total_liabilities",
-                    "current_liabilities",
-                    "stockholders_equity",
-                    "cash_and_equivalents",
-                    "accounts_receivable",
-                    "inventory",
-                    "ppe_net",
-                    "goodwill",
-                    "long_term_debt",
-                    "short_term_debt",
-                    "operating_lease_liability",
-                    "finance_lease_liability",
-                    "retained_earnings",
-                    "created_at",
-                    "data_unavailable",
-                    "reason",
-                    "data_source",
-                ]
-            ),
-        }
-    elif period == "quarterly":
-        return {
-            "table_name": "quarterly_balance_sheet",
-            "field_mapping": {**_BALANCE_FIELD_MAPPING, **_QUARTERLY_EXTRA},
-            "fallback_only_fields": _DEBT_FALLBACK_ONLY_FIELDS,
-            "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
-            "schema_cols": frozenset(
-                [
-                    "symbol",
-                    "fiscal_year",
-                    "fiscal_quarter",
-                    "total_assets",
-                    "current_assets",
-                    "total_liabilities",
-                    "current_liabilities",
-                    "stockholders_equity",
-                    "cash_and_equivalents",
-                    "accounts_receivable",
-                    "inventory",
-                    "ppe_net",
-                    "goodwill",
-                    "long_term_debt",
-                    "short_term_debt",
-                    "operating_lease_liability",
-                    "finance_lease_liability",
-                    "created_at",
-                    "data_unavailable",
-                    "reason",
-                    "data_source",
-                ]
-            ),
-        }
-    elif period == "ttm":
-        return {
-            "table_name": "ttm_balance_sheet",
-            "field_mapping": dict(_BALANCE_FIELD_MAPPING),
-            "primary_key": ("symbol", "report_date"),
-            "schema_cols": frozenset(
-                [
-                    "symbol",
-                    "report_date",
-                    "total_assets",
-                    "current_assets",
-                    "total_liabilities",
-                    "current_liabilities",
-                    "stockholders_equity",
-                    "created_at",
-                    "data_unavailable",
-                    "reason",
-                ]
-            ),
-        }
-    else:
-        raise ValueError(f"Unknown period: {period}")
-
-
-def get_cash_flow_config(period: str) -> dict[str, Any]:
-    """Cash flow statement configuration for annual/quarterly/ttm."""
-    if period == "annual":
-        return {
-            "table_name": "annual_cash_flow",
-            "field_mapping": dict(_CASHFLOW_FIELD_MAPPING),
-            "fallback_only_fields": _SBC_BUYBACK_FALLBACK_ONLY_FIELDS,
-            "primary_key": ("symbol", "fiscal_year"),
-            "schema_cols": frozenset(
-                [
-                    "symbol",
-                    "fiscal_year",
-                    "operating_cash_flow",
-                    "investing_cash_flow",
-                    "financing_cash_flow",
-                    "net_change_cash",
-                    "free_cash_flow",
-                    "capex",
-                    "dividends_paid",
-                    "stock_based_compensation",
-                    "common_stock_repurchased",
-                    "created_at",
-                    "data_unavailable",
-                    "reason",
-                    "data_source",
-                ]
-            ),
-        }
-    elif period == "quarterly":
-        return {
-            "table_name": "quarterly_cash_flow",
-            "field_mapping": {**_CASHFLOW_FIELD_MAPPING, **_QUARTERLY_EXTRA},
-            "fallback_only_fields": _SBC_BUYBACK_FALLBACK_ONLY_FIELDS,
-            "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
-            "schema_cols": frozenset(
-                [
-                    "symbol",
-                    "fiscal_year",
-                    "fiscal_quarter",
-                    "operating_cash_flow",
-                    "investing_cash_flow",
-                    "financing_cash_flow",
-                    "net_change_cash",
-                    "free_cash_flow",
-                    "capex",
-                    "dividends_paid",
-                    "stock_based_compensation",
-                    "common_stock_repurchased",
-                    "created_at",
-                    "data_unavailable",
-                    "reason",
-                    "data_source",
-                ]
-            ),
-        }
-    elif period == "ttm":
-        return {
-            "table_name": "ttm_cash_flow",
-            "field_mapping": dict(_CASHFLOW_FIELD_MAPPING),
-            "primary_key": ("symbol", "report_date"),
-            "schema_cols": frozenset(
-                [
-                    "symbol",
-                    "report_date",
-                    "operating_cash_flow",
-                    "investing_cash_flow",
-                    "financing_cash_flow",
-                    "net_change_cash",
-                    "free_cash_flow",
-                    "capex",
-                    "created_at",
-                    "data_unavailable",
-                    "reason",
-                ]
-            ),
-        }
-    else:
-        raise ValueError(f"Unknown period: {period}")
 
 
 def load_all_statements() -> int:
@@ -2193,7 +939,12 @@ def get_conflict_target(primary_key: tuple[str, ...]) -> str:
     return f"({cols})"
 
 
-class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4DerivationSweepMixin):
+class ConsolidatedFinancialStatementsLoader(
+    SecEdgarStatementLoader,
+    Q4DerivationSweepMixin,
+    FinancialStatementsShareCountValidationMixin,
+    FinancialStatementsValueValidationMixin,
+):
     """Unified loader for all financial statements (income, balance, cashflow x annual/quarterly).
 
     Consolidates 8 separate loaders into one, parametrized by:
@@ -2498,16 +1249,110 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         # constant) instead of the full preserve_on_missing_fields set: a row missing every
         # required field has no usable data regardless of what cover-page/share-count
         # fields it also carries.
+        # FIXED 2026-09-07 (goal session: scores-review regression audit, AAPL/JPM/NVDA/KO/
+        # NEE/XOM/F/... live-confirmed): the 2026-09-06 fix above force-nulled a row the
+        # moment THIS run's fetch came back with no required fields, with no check against
+        # what's already stored - a transient single-run fetch gap (rate limiting, timing, a
+        # slow SEC re-serve; see the 2026-08-20/21 "would_downgrade" comment above for the
+        # same class of transient gap, just for the data_unavailable flag instead of the
+        # value itself) got treated identically to a genuine "no annual filing exists" case,
+        # and irreversibly wiped it via _record_explicit_null_rejection's bypass of preserve_
+        # on_missing_fields' COALESCE - no retry, no cross-run confirmation. Live-confirmed
+        # this morning's 07:43-09:03 run: 3,013 of 5,015 symbols hit this path in ONE run
+        # (baseline the two days prior: 3 symbols) - including AAPL FY2024/FY2025, whose real
+        # net_income ($93.7B/$112.0B) a direct fetch_incremental()+transform() call
+        # immediately afterward reproduced correctly, proving the emptiness was this run's
+        # own transient miss, not a real absence. Cascaded into stock_scores.quality_score/
+        # value_score going NULL for hundreds of symbols same-day.
+        #
+        # Fix: apply the same "financial facts are immutable once real" principle preserve_
+        # on_missing_fields itself already uses - only force-null when the row NEVER had real
+        # required-field data on file (checked against the DB, same pattern as the
+        # already_available rescue below), not whenever a single run's fetch happens to miss
+        # it. ALMR/MRLN (this guard's original target) are unaffected by this change - the
+        # specific gross_profit-exceeds-revenue impossibility they exhibited is independently
+        # caught by _reject_implausible_gross_profit's dedicated 3x check above, which doesn't
+        # depend on this run's fetch being empty at all.
         bulk_insert_mgr = getattr(self, "_bulk_insert_mgr", None)
         required_fields = _REQUIRED_STATEMENT_FIELDS.get(self.statement_type, set())
+        # FIXED 2026-09-07 (goal session: scores-review, CELH/DXCM/SHOP/NU live-confirmed):
+        # `rows` here is PRE-transform - its keys are the raw aggregated concept names
+        # (e.g. "revenue_from_contract_with_customer_excluding_assessed_tax",
+        # "net_income_loss"), not the canonical "revenue"/"net_income" column names
+        # `required_fields` names - self._field_mapping (raw concept -> canonical column,
+        # applied later by transform()) is what actually produces those. Checking
+        # `row.get("revenue")`/`row.get("net_income")` directly against a pre-transform row
+        # was therefore checking keys that (almost) never exist pre-mapping, regardless of
+        # how much real data the row actually carried - live-confirmed via a direct
+        # fetch_incremental("CELH") call: FY2025 row had
+        # revenue_from_contract_with_customer_excluding_assessed_tax=2,515,269,000 and
+        # net_income_loss=107,999,000 (both real, matching the raw SEC companyfacts cache
+        # exactly) yet this check saw neither "revenue" nor "net_income" present and force-
+        # nulled the row via _reject_stale_all_none_annual_row - reproduced for all of
+        # CELH/DXCM/SHOP/NU's history in one run (all fiscal years share one force-null
+        # timestamp), which is what a full/first backfill run looks like under this bug
+        # (an incremental run with no new rows never reaches this loop at all, which is why
+        # most already-loaded symbols were unaffected). Fix: check the raw keys that
+        # self._field_mapping maps onto each required canonical field, not the canonical
+        # field name itself.
+        field_mapping = getattr(self, "_field_mapping", None) or {}
+        required_raw_keys = {raw for raw, mapped in field_mapping.items() if mapped in required_fields}
         if self.period == "annual" and bulk_insert_mgr is not None and required_fields:
-            for row in rows:
-                if row.get("data_unavailable"):
-                    continue
-                if any(row.get(field) is not None for field in required_fields):
-                    continue  # Real data present for at least one required field
-                self._reject_stale_all_none_annual_row(symbol, row)
+            self._reject_all_none_annual_rows_without_existing_data(
+                symbol, rows, bulk_insert_mgr, required_fields, required_raw_keys
+            )
         return rows
+
+    def _reject_all_none_annual_rows_without_existing_data(
+        self,
+        symbol: str,
+        rows: list[dict[str, Any]],
+        bulk_insert_mgr: Any,
+        required_fields: set[str],
+        required_raw_keys: set[str],
+    ) -> None:
+        """Force-null an all-none annual row only if the DB has NEVER had real required-field
+        data for that (symbol, primary key) - see the 2026-09-07 fix comment above
+        fetch_incremental's call site for the full incident writeup (AAPL/NVDA/JPM/... force-
+        nulled by treating a transient single-run empty fetch as a genuine absence).
+        """
+        pk_cols = list(bulk_insert_mgr.primary_key)
+        required_cols = sorted(required_fields)
+        already_has_data: set[tuple[Any, ...]] | None = None
+        for row in rows:
+            if row.get("data_unavailable"):
+                continue
+            if any(row.get(field) is not None for field in required_raw_keys):
+                continue  # Real data present for at least one required field
+
+            if already_has_data is None:
+                already_has_data = set()
+                try:
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            f"""
+                            SELECT {", ".join(pk_cols)}, {", ".join(required_cols)}
+                            FROM {self.table_name}
+                            WHERE symbol = %s
+                            """,
+                            (symbol,),
+                        )
+                        n_pk = len(pk_cols)
+                        for existing_row in cur.fetchall():
+                            key = tuple(existing_row[:n_pk])
+                            required_vals = existing_row[n_pk:]
+                            if any(v is not None for v in required_vals):
+                                already_has_data.add(key)
+                except Exception as e:
+                    logger.debug(f"[{self.table_name}] Existing-row lookup failed for {symbol} (non-fatal): {e}")
+
+            pk_row = {pk: (symbol if pk == "symbol" else row.get(pk)) for pk in pk_cols}
+            if any(v is None for v in pk_row.values()):
+                continue  # Can't target an UPDATE without a complete primary key
+            key = tuple(pk_row[pk] for pk in pk_cols)
+            if key in already_has_data:
+                continue  # Already-confirmed real data on file - this run's empty fetch is untrusted, let COALESCE preserve it
+            self._reject_stale_all_none_annual_row(symbol, row)
 
     def _apply_custom_cashflow_extensions(self, symbol: str, rows: list[dict[str, Any]]) -> None:
         """Supplement `rows` with any of this loader's per-symbol custom-XBRL-extension
@@ -2852,429 +1697,6 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         if self.statement_type == "cashflow" and self.table_name == "quarterly_cash_flow":
             self._sweep_derive_missing_q4_cash_flow()
 
-    def _reject_implausible_shares_outstanding(self, transformed: list[dict[str, Any]]) -> None:
-        """Reject shares_outstanding_basic/diluted values that are confidently wrong due to
-        SEC's companyfacts API not always normalizing a filer's "reported in thousands"
-        inline-XBRL scale attribute. Mutates `transformed` in place.
-
-        FIXED 2026-08-21 (goal session - broad shares_outstanding cross-check audit,
-        follow-up to the BRK.A/HEI dual-class fix): live-confirmed against HUB Group's real
-        companyfacts JSON (CIK 0000940942): WeightedAverageNumberOfSharesOutstandingBasic
-        for FY2025Q3 is tagged val=60066 (a real share count in the tens of millions
-        reported "in thousands", not 60,066 actual shares). ~95 active symbols showed this
-        exact ~1,000x-too-small pattern when cross-checked against
-        company_info_sec.shares_outstanding (an independently-extracted, unaffected
-        source). Rejects values below MIN_PLAUSIBLE_SHARES_OUTSTANDING (100,000, same floor
-        already used in load_company_info_sec.py) rather than relying on a downstream
-        consumer's guard to always be present.
-
-        FIXED 2026-08-21 (same session, follow-up): the absolute floor above only catches
-        the thousands-scale bug for SMALLER companies - a large-cap's real share count
-        divided by 1000 can easily still clear 100,000 (e.g. NTNX's real ~270M shares,
-        stored as 267,479 - "267,479 thousand" per the unconverted XBRL scale= attribute -
-        sails right past the floor). Bulk cross-check of
-        annual_income_statement.earnings_per_share against
-        net_income/shares_outstanding_basic surfaced 891 rows where the implied EPS is
-        ~1,000x the reported EPS - live-confirmed NTNX FY2025 exactly this way: stored
-        shares_outstanding_basic=267,479 vs company_info_sec's independently-extracted
-        270,320,509 (real value, ~1010x higher). Extends the guard with a relative
-        cross-check against company_info_sec.shares_outstanding (the same independent
-        source load_sec_valuations.py's own 20x scale-mismatch guard already trusts for
-        exactly this purpose), not just an absolute floor.
-        """
-        min_plausible_shares_outstanding = 100_000
-        for row in transformed:
-            for field in ("shares_outstanding_basic", "shares_outstanding_diluted"):
-                val = row.get(field)
-                if val is not None and 0 < val < min_plausible_shares_outstanding:
-                    logger.warning(
-                        f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
-                        f"{field}={val:,.0f} is implausibly small (< {min_plausible_shares_outstanding:,}) "
-                        "- likely an unconverted 'reported in thousands' XBRL value SEC's "
-                        "companyfacts API didn't normalize. Rejecting rather than storing a "
-                        "confidently-wrong share count."
-                    )
-                    row[field] = None
-                    self._record_explicit_null_rejection(row, field, "implausible_shares_outstanding_scale_error")
-
-        shares_check_symbols = sorted({str(row.get("symbol")) for row in transformed if row.get("symbol")})
-        reference_shares: dict[str, float] = {}
-        if shares_check_symbols:
-            try:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        "SELECT symbol, shares_outstanding FROM company_info_sec "
-                        "WHERE symbol = ANY(%s) AND shares_outstanding > 0",
-                        (shares_check_symbols,),
-                    )
-                    reference_shares = {sym: float(val) for sym, val in cur.fetchall()}
-            except Exception as e:
-                logger.debug(f"[{self.table_name}] company_info_sec cross-check lookup failed (non-fatal): {e}")
-
-        if not reference_shares:
-            return
-        for row in transformed:
-            symbol = row.get("symbol")
-            reference = reference_shares.get(symbol) if symbol else None
-            if not reference:
-                continue
-            for field in ("shares_outstanding_basic", "shares_outstanding_diluted"):
-                val = row.get(field)
-                if val is None or val <= 0:
-                    continue
-                ratio = reference / float(val)
-                if ratio > 20 or ratio < 1 / 20:
-                    # BUG FOUND 2026-08-21 (goal session - log-accuracy audit): `{ratio:.0f}x`
-                    # only reads sensibly when val is too SMALL (ratio > 1). When val is too
-                    # LARGE instead (ratio < 1, e.g. ALMU FY2026's shares_outstanding_basic=
-                    # 17,354,370,000 vs company_info_sec's 18,305,335 - the ~1000x-too-large
-                    # mirror image of the same scale bug), `ratio:.0f` rounds to "0x",
-                    # printing the nonsensical "disagrees ... by 0x" - live-confirmed 241
-                    # occurrences in a single run. Report the magnitude symmetrically
-                    # (always >= 1x) and say which side is off so the log is actually usable
-                    # for diagnosing which direction the scale error went.
-                    times_off = ratio if ratio >= 1 else 1 / ratio
-                    direction = "too small" if ratio >= 1 else "too large"
-                    logger.warning(
-                        f"[{self.table_name}] {symbol} FY{row.get('fiscal_year')}: {field}={val:,.0f} "
-                        f"disagrees with company_info_sec.shares_outstanding={reference:,.0f} - "
-                        f"{field} looks {times_off:.0f}x {direction} - likely an unconverted "
-                        "'reported in thousands' XBRL scale error the absolute floor above didn't "
-                        "catch. Rejecting rather than storing a confidently-wrong share count."
-                    )
-                    row[field] = None
-                    self._record_explicit_null_rejection(row, field, "implausible_shares_outstanding_scale_error")
-
-    def _fill_derived_eps(self, transformed: list[dict[str, Any]]) -> None:
-        """Fill earnings_per_share when the filer never tagged EarningsPerShareBasic/Diluted
-        at all, using data this same row already carries. Mutates `transformed` in place.
-
-        ADDED 2026-09-01 (goal: data-loading gap investigation). Live-verified DB-wide: 7,397
-        annual_income_statement rows have revenue but NULL earnings_per_share; 77 of those
-        already carry a real diluted_eps (a different XBRL concept, EarningsPerShareDiluted,
-        mapped to its own column since the 2026-07-28 fix above but never used as a fallback
-        for earnings_per_share itself) and 4,434 have net_income plus a usable share count
-        that could derive one. Both recover real signal that growth_metrics/quality_metrics/
-        value_metrics currently discard outright (eps_growth_1y/3y/5y, EPS-based quality
-        inputs) purely because one specific EPS tag was never filed - the filer still reported
-        net income and share count, which is all EPS is defined as.
-
-        Order matters: called AFTER _reject_implausible_shares_outstanding (so the shares this
-        derives from have already survived both the absolute-floor and the company_info_sec
-        cross-check scale guards above) and BEFORE _reject_implausible_eps (so a still-bad
-        derived value gets the same implied-shares/absolute-magnitude rejection a directly-
-        reported one would). Both source and derived values come from the SAME row/filing, so
-        unlike the shares=net_income/eps derivation in load_sec_valuations.py (which mixed
-        values that turned out to come from inconsistently-converted sources, see that file's
-        MAX_PLAUSIBLE_SHARES_OUTSTANDING comment for the NMR case) there's no cross-source
-        currency/scale mismatch possible here - net_income and shares_outstanding_basic/
-        diluted are both this filer's own same-period, same-currency figures.
-
-        Never overwrites a real reported earnings_per_share - only fills when it's still None
-        after direct XBRL mapping.
-
-        CROSS-CHECKS ADDED 2026-09-01 (same pass, live-caught while sanity-checking derived
-        values before backfilling): dividing by a scale-corrupted share count would derive a
-        plausible-looking-but-wrong EPS, and neither existing guard reliably catches that here
-        - _reject_implausible_shares_outstanding's company_info_sec cross-check only fires when
-        a reference row exists (foreign large-caps without one, e.g. VALE, sail through), and
-        the absolute floor (100,000) doesn't catch a corrupted value that's still comfortably
-        above it (VALE's own FY2008 shares_outstanding_basic=5,062,148 would derive
-        ~$2,611/share, ~1030x its own FY2009 row of 5,212,406,000). So before dividing:
-        1. Cross-check against company_info_sec.shares_outstanding when a reference exists
-           (same 20x threshold as _reject_implausible_shares_outstanding above).
-        2. Otherwise cross-check against this SAME symbol's OWN other fiscal years already
-           present in this batch (same idea as EPS_SPLIT_GUARD_CLEAN_MULTIPLES's adjacent-year
-           scan in load_value_quality_growth_metrics.py, applied here to catch a scale error
-           rather than a real split).
-        3. If NEITHER cross-check has anything to compare against (a symbol with exactly one
-           ever-fetched share-count data point and no company_info_sec row - live-confirmed on
-           ATHS: shares_outstanding_basic=203,805 alone would derive an uncorroborated
-           ~$13,301/share), don't derive at all rather than trust a single, uncorroborated
-           number - same "missing scores are better than fabricated heuristics" governance this
-           file already applies elsewhere, just applied to a single input instead of a score.
-        """
-        # First fill the zero-risk diluted_eps fallback - no cross-check needed, it's already a
-        # real reported XBRL value under a different concept.
-        needs_division: list[dict[str, Any]] = []
-        # FIXED 2026-09-05 (goal session: "missing SEC/XBRL data" continuation, Visa
-        # investigation): a filer whose EPS/weighted-average-share concepts are tagged
-        # EXCLUSIVELY with a required dimension (live-confirmed via Visa's real SEC data:
-        # its 2025 10-K's own R-file plainly shows "us-gaap:EarningsPerShareBasic"/
-        # "WeightedAverageNumberOfSharesOutstandingBasic" with real values on the primary
-        # income statement, but all three concepts 404 on SEC's own live companyconcept
-        # API and are entirely absent from companyfacts - the same aggregation gap this
-        # loader's own get_income_statement() draws from) has NONE of shares_outstanding_
-        # diluted/basic/dei on this row at all, so the existing needs_division gate above
-        # never even considers it - despite company_info_sec.shares_outstanding having a
-        # real, independently-extracted value (Visa: 1,687,629,770, via that loader's own
-        # dei:EntityCommonStockSharesOutstanding/filing-text fallback chain, a completely
-        # separate, non-dimensional extraction path). Tracked separately from
-        # needs_division since there is no per-row share count to corroborate the
-        # company_info_sec reference AGAINST here (the whole point is none exists) - the
-        # reference is used directly, trusting its own already-applied plausibility floor
-        # (MIN_PLAUSIBLE_SHARES_OUTSTANDING, load_sec_valuations.py) rather than guessed.
-        #
-        # KNOWN LIMITATION (found 2026-09-05, same investigation, verified against Visa's
-        # own real numbers before shipping): company_info_sec.shares_outstanding is a
-        # SINGLE current snapshot, not a per-fiscal-year history - every fiscal year for a
-        # symbol that reaches this tier divides by the exact same share count. This is
-        # fine for a single-year consumer (pe_ratio's TTM EPS), but for a MULTI-YEAR
-        # consumer (growth_metrics' eps_growth_1y/3y/5y, which compares two derived years
-        # against each other), the constant divisor cancels out of the ratio entirely -
-        # the resulting "EPS growth rate" becomes mathematically identical to net_income
-        # growth, silently losing any real EPS growth contributed by share buybacks
-        # (or diluted by issuance). Live-quantified via Visa (an active repurchaser):
-        # real FY25-vs-FY24 basic EPS growth was +4.93% ($10.22 vs $9.74, both real
-        # reported values) - derived-from-this-tier growth using the same net_income
-        # figures would only show +1.62%, roughly 1/3 of the real rate. Not fabricated or
-        # wrong-signed, just a real, quantifiable floor on precision for any buyback-
-        # active symbol in this tier's population - the true fix (recovering the exact
-        # per-year reported EPS) requires parsing each fiscal year's raw XBRL instance
-        # document for a StatementClassOfStockAxis-dimensioned EarningsPerShareBasic fact
-        # (confirmed technically feasible via Visa's real filing - see this session's
-        # notes - but needs the same per-symbol dimensional-member verification the
-        # sec_xbrl_segments.py segment-revenue fixes already do one company at a time,
-        # not a blanket rule), deliberately not attempted here.
-        needs_reference_only_division: list[dict[str, Any]] = []
-        for row in transformed:
-            if row.get("earnings_per_share") is not None:
-                continue
-            diluted = row.get("diluted_eps")
-            if diluted is not None:
-                row["earnings_per_share"] = diluted
-                continue
-            net_income = row.get("net_income")
-            if net_income is None:
-                continue
-            # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, PJT
-            # follow-up): shares_outstanding_diluted/basic (period weighted-average concepts)
-            # are the preferred denominator, but a filer that never tags EITHER - live-
-            # confirmed via PJT Partners (net_income real every year 2019-2026, no
-            # EarningsPerShareBasic/Diluted OR any WeightedAverageNumberOfShares* concept
-            # anywhere in its real companyfacts history since 2016) - can still have a real,
-            # non-fabricated share count via dei:EntityCommonStockSharesOutstanding (the
-            # mandatory SEC cover-page fact, a point-in-time count rather than a period
-            # average, but the same "genuinely reported, not guessed" standard already applied
-            # to shares_outstanding_dei elsewhere in this codebase as a last-resort shares
-            # source). Last in the fallback chain - never overrides a real period-average count.
-            shares = (
-                row.get("shares_outstanding_diluted")
-                or row.get("shares_outstanding_basic")
-                or row.get("shares_outstanding_dei")
-            )
-            if shares is None or shares <= 0:
-                # FIXED 2026-09-05 (same Visa investigation, caught by this file's own
-                # regression suite before shipping): shares is None here for TWO very
-                # different reasons that look identical at this point in the pipeline -
-                # (a) genuinely never tagged (Visa's real case), or (b) a real value WAS
-                # tagged but _reject_implausible_shares_outstanding (which runs before
-                # this method - see this function's own docstring) already nulled it for
-                # being a scale-corrupted VALE-style outlier. Using company_info_sec
-                # directly is only safe for (a) - for (b), the filer's own reporting for
-                # this exact fiscal year is already known-unreliable, so silently
-                # substituting a different source's share count would defeat the
-                # rejection that just ran. Skip whenever this exact row+field pair is in
-                # _explicit_null_rejections (case (b)); a bare `shares is None` case that
-                # was never even in the raw fetch (case (a)) never appears there.
-                pk_cols = list(self._bulk_insert_mgr.primary_key)
-                pk_key = tuple(row.get(pk) for pk in pk_cols)
-                was_rejected = any(
-                    tuple(pk_values.get(pk) for pk in pk_cols) == pk_key
-                    and field in ("shares_outstanding_basic", "shares_outstanding_diluted")
-                    for pk_values, field in self._explicit_null_rejections
-                )
-                # A field that's present but non-positive (e.g. an explicit 0, not simply
-                # absent) is itself a known-bad reported value, the same "don't trust this
-                # filing's own share count, but don't just substitute a different source
-                # either" situation as an explicit rejection above - not the "never tagged
-                # at all" case company_info_sec is meant to fill in for.
-                _share_field_values = (
-                    row.get(f)
-                    for f in ("shares_outstanding_diluted", "shares_outstanding_basic", "shares_outstanding_dei")
-                )
-                any_field_reported_non_positive = any(v is not None and v <= 0 for v in _share_field_values)
-                if not was_rejected and not any_field_reported_non_positive:
-                    needs_reference_only_division.append(row)
-                continue
-            needs_division.append(row)
-
-        if not needs_division and not needs_reference_only_division:
-            return
-
-        # Only issue the company_info_sec round-trip when at least one row actually needs it -
-        # same "skip the query in the common healthy case" pattern the downgrade-guard lookup
-        # above already uses.
-        symbols_needing_division = sorted(
-            {str(row["symbol"]) for row in (*needs_division, *needs_reference_only_division) if row.get("symbol")}
-        )
-        reference_shares: dict[str, float] = {}
-        if symbols_needing_division:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    "SELECT symbol, shares_outstanding FROM company_info_sec "
-                    "WHERE symbol = ANY(%s) AND shares_outstanding > 0",
-                    (symbols_needing_division,),
-                )
-                reference_shares = {sym: float(val) for sym, val in cur.fetchall()}
-
-        shares_history_by_symbol: dict[str, list[float]] = {}
-        for row in transformed:
-            symbol = row.get("symbol")
-            if not symbol:
-                continue
-            for field in ("shares_outstanding_diluted", "shares_outstanding_basic", "shares_outstanding_dei"):
-                val = row.get(field)
-                if val:
-                    shares_history_by_symbol.setdefault(str(symbol), []).append(float(val))
-
-        for row in needs_division:
-            net_income = row["net_income"]
-            shares = (
-                row.get("shares_outstanding_diluted")
-                or row.get("shares_outstanding_basic")
-                or row.get("shares_outstanding_dei")
-            )
-            assert shares is not None  # narrows for mypy; needs_division's filter already guarantees this
-            symbol = str(row.get("symbol") or "")
-
-            reference = reference_shares.get(symbol)
-            if reference:
-                ratio = reference / float(shares)
-                if ratio > 20 or ratio < 1 / 20:
-                    continue
-            else:
-                siblings = [v for v in shares_history_by_symbol.get(symbol, []) if v != float(shares)]
-                if not siblings:
-                    continue
-                ratio = statistics.median(siblings) / float(shares)
-                if ratio > 20 or ratio < 1 / 20:
-                    continue
-            row["earnings_per_share"] = float(net_income) / float(shares)
-
-        for row in needs_reference_only_division:
-            symbol = str(row.get("symbol") or "")
-            reference = reference_shares.get(symbol)
-            if not reference:
-                continue
-            row["earnings_per_share"] = float(row["net_income"]) / reference
-
-    def _reject_implausible_eps(self, transformed: list[dict[str, Any]]) -> None:
-        """Reject earnings_per_share/diluted_eps values that are confidently wrong due to
-        filer-side XBRL tagging errors, not a SEC API normalization issue like the shares
-        guard above. Mutates `transformed` in place.
-
-        FOUND 2026-08-23 (goal session: real-money-readiness "why does earnings_per_share
-        say -$24,852,333/share" audit): live-confirmed via GIBO's real companyfacts JSON -
-        the filer itself tagged EarningsPerShareBasic under the correct "USD/shares" unit
-        but with the SAME raw value as that year's NetIncomeLoss (FY2023: both exactly
-        -12,117,569; FY2024: both exactly -24,852,333) - i.e. the filer's own XBRL reports
-        total net income as if it were per-share, not a unit-parsing bug on our side (no
-        currency/unit filter would catch this - the unit tag is correct, the underlying
-        number is wrong). Also live-confirmed on BTTC, HQ, GROY, BRUN, and EP's FY2013/2014
-        (eps==net_income exactly), plus a related /1000 variant (FLOC: eps=32,729 vs
-        net_income=32,729,000 - implied ~1,000 shares). No consumer downstream (growth_metrics'
-        eps_growth_*) reliably catches this: the resulting YoY growth RATIO between two
-        similarly-corrupted years can look like an ordinary percentage (GIBO's eps_growth_1y
-        computed a plausible-looking -100.00), so a wrong-by-millions per-share value was
-        reaching stock_scores/growth_metrics undetected. Implied-shares floor deliberately
-        low (10,000) - BRK.A (~1.6M real shares) and foreign large-caps reporting in local
-        currency (BSAC ~471M CLP shares, EC ~2.06B COP shares) all clear it comfortably;
-        only implies-basically-no-real-float cases like the ones above trip it.
-        """
-        min_plausible_implied_shares = 10_000
-        # BUG FOUND 2026-08-31 (goal session: "let's check the logs" sweep of live loader
-        # output): SWK/UAMY quarterly rows hit the raw NUMERIC(12,4) column-overflow guard in
-        # sec_base.py instead of this smarter rejection (e.g. "earnings_per_share=150330000")
-        # - live-confirmed the reason: this function's implied-shares check requires
-        # net_income to be present and non-zero for the SAME row, but a quarterly row can
-        # have net_income missing/None while still carrying a garbage per-share value from
-        # the identical filer-side mistagging bug this function already exists to catch. The
-        # `continue` above skipped the whole row, so the garbage value reached the DB-insert
-        # layer's overflow guard instead - which fails safe (data_unavailable) but with a
-        # worse error and none of the informative "why" this function provides. Add an
-        # absolute-magnitude fallback that doesn't need net_income at all: no real company has
-        # ever reported anywhere near $1,000,000/share EPS in a single period (BRK.A's real
-        # historical extremes, driven by unrealized investment gains, stay under $200,000/share
-        # even in exceptional years - this floor leaves >5x headroom above that).
-        max_plausible_abs_eps = 1_000_000
-        for row in transformed:
-            net_income = row.get("net_income")
-            has_net_income = net_income is not None and net_income != 0
-            for field in ("earnings_per_share", "diluted_eps"):
-                eps = row.get(field)
-                if eps is None or eps == 0:
-                    continue
-                if has_net_income:
-                    assert net_income is not None  # narrows for mypy; has_net_income already guarantees this
-                    implied_shares = abs(float(net_income) / float(eps))
-                    if implied_shares < min_plausible_implied_shares:
-                        logger.warning(
-                            f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
-                            f"{field}={eps} implies only {implied_shares:,.0f} shares outstanding "
-                            f"against net_income={net_income:,.0f} - implausibly low for any real "
-                            "public float. Filer-side XBRL tagging error (raw net income reported "
-                            "as per-share), not a currency/scale issue. Rejecting rather than "
-                            "storing a confidently-wrong per-share value."
-                        )
-                        row[field] = None
-                        self._record_explicit_null_rejection(row, field, "implausible_eps_filer_tagging_error")
-                        continue
-                if abs(float(eps)) > max_plausible_abs_eps:
-                    logger.warning(
-                        f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
-                        f"{field}={eps} exceeds ${max_plausible_abs_eps:,}/share - implausible for "
-                        "any real filer regardless of net_income availability (net_income was "
-                        f"{'unavailable/zero' if not has_net_income else f'{net_income:,.0f}'} for "
-                        "this row, so the implied-shares cross-check above couldn't run). Same "
-                        "filer-side XBRL tagging error class, caught via absolute magnitude "
-                        "instead. Rejecting rather than storing a confidently-wrong per-share "
-                        "value or letting it hit the raw column-overflow guard downstream."
-                    )
-                    row[field] = None
-                    self._record_explicit_null_rejection(row, field, "implausible_eps_filer_tagging_error")
-
-    def _reject_stale_gross_profit_without_fresh_concept(self, transformed: list[dict[str, Any]]) -> None:
-        """Force-null a stale `gross_profit` value for any (symbol, fiscal_year) where this
-        run's fresh SEC extraction has both revenue and cost_of_revenue but no fresh
-        gross_profit fact of its own. Mutates nothing in `transformed` directly - records the
-        rejection so post_run() force-nulls the DB column, bypassing preserve_on_missing_
-        fields' COALESCE (see the 2026-08-23 fix comment in __init__ for why that's necessary
-        for a deliberate rejection, as opposed to a transient fetch gap).
-
-        ADDED 2026-09-06 (goal session: tie-out-checker follow-up on the gross_profit_identity
-        magnitude-bug lead flagged by algo/monitoring/data_patrol/checks/tie_out.py's Round 2
-        docstring). Live-confirmed via real SEC companyfacts JSON: ABBV/GILD/AMGN/ABT's only
-        "GrossProfit" XBRL facts are a supplementary Q4-only quarterly-data-table stub (e.g.
-        ABBV FY2024: start=2024-10-01/end=2024-12-31, a 91-day span) - correctly rejected by
-        the annual span_days<330 check in sec_statements_entry_resolution.py, so the CURRENT
-        extraction code produces no gross_profit value for these filers at all (confirmed via a
-        direct get_income_statement() call: fresh rows have revenue/cost_of_revenue populated,
-        no "gross_profit" key). The non-NULL gross_profit already stored for these rows
-        (ABBV FY2025: $12.066B, live-identified by the tie-out checker as failing revenue
-        ($61.16B) - cost_of_revenue($18.204B) ~= gross_profit by a ~3.6x margin - the real
-        implied figure is ~$42.96B) is a leftover from BEFORE that span check existed, silently
-        protected ever since by preserve_on_missing_fields' COALESCE. fetch_incremental()
-        always refetches a symbol's FULL XBRL history in one company-facts API call (no
-        incremental date cutoff), so this run's absence of a gross_profit fact for a fiscal
-        year that DOES have fresh revenue/cost_of_revenue is not the kind of transient gap
-        preserve_on_missing_fields exists to protect - the concept genuinely produces no usable
-        annual value for this filer/year under the current, correct code, so any stored value
-        must be stale. Same force-null-bypasses-COALESCE mechanism as
-        _reject_implausible_eps/_reject_implausible_shares_outstanding above; post_run()'s
-        UPDATE is a no-op for a row where gross_profit is already NULL, so this is safe to run
-        unconditionally for every annual income-statement row with fresh revenue and
-        cost_of_revenue, not just the 4 symbols found so far. Annual-only (self.period ==
-        "annual") - quarterly's own real Q4 GrossProfit fact legitimately has this same ~90-day
-        span, so quarterly extraction isn't affected by (or exposed to) this bug.
-        """
-        if self.period != "annual":
-            return
-        for row in transformed:
-            if row.get("revenue") is None or row.get("cost_of_revenue") is None or row.get("gross_profit") is not None:
-                continue
-            self._record_explicit_null_rejection(row, "gross_profit", "gross_profit_stale_no_fresh_annual_concept")
-
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Transform to schema format and add data_unavailable/reason flags.
 
@@ -3303,10 +1725,20 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
         # present. Same MIN_PLAUSIBLE_SHARES_OUTSTANDING floor (100,000) already used in
         # load_company_info_sec.py.
         self._reject_implausible_shares_outstanding(transformed)
+        self._reject_diluted_shares_below_basic(transformed)
+        self._reject_shares_outstanding_basic_diluted_dei_same_row_mismatch(transformed)
+        self._reject_implausible_debt_field(transformed, "long_term_debt")
+        self._reject_implausible_debt_field(transformed, "short_term_debt")
+        self._reject_implausible_goodwill(transformed)
         if self.statement_type == "income":
             self._fill_derived_eps(transformed)
             self._reject_implausible_eps(transformed)
+            self._reject_scale_mismatched_net_income(transformed)
+            self._reject_scale_mismatched_revenue(transformed)
+            self._reject_implausible_gross_profit(transformed)
             self._reject_stale_gross_profit_without_fresh_concept(transformed)
+            self._reject_partial_segment_gross_profit_for_managed_care_insurers(transformed)
+            self._reject_partial_cost_of_revenue(transformed)
 
         # Get REQUIRED metrics for current statement type (see module-level
         # _REQUIRED_STATEMENT_FIELDS docstring - shared with post_run()'s flag sync).
@@ -3509,6 +1941,25 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader, Q4Derivatio
                     # for them.
                     if self.statement_type == "cashflow" and row.get("dividends_paid") is not None:
                         row["dividends_paid"] = abs(row["dividends_paid"])
+
+                    # FIXED 2026-09-07 (goal: "run all the tie-outs" sweep, live-verified via
+                    # real SEC companyfacts JSON): stock_based_compensation/
+                    # common_stock_repurchased have the EXACT same debit-balance sign-flip
+                    # bug as dividends_paid above, just never extended to them. AAMI's own
+                    # filed 10-K (CIK 0001748824, accn 0001628280-26-012856) tags
+                    # AllocatedShareBasedCompensationExpense as -$23.2M (FY2024) and -$47.7M
+                    # (FY2025) - a real non-cash compensation addback reported negative by the
+                    # filer, not an extraction bug. JCTC's own filed 10-K/10-K/A (CIK
+                    # 0000885307) tags PaymentsForRepurchaseOfCommonStock as -$3,075,559/
+                    # -$7,188 for FY2012/2013 the same way. Both are always cash-flow-statement
+                    # magnitudes (non-cash addback / cash outflow respectively), same as
+                    # dividends_paid - live DB scan found 264+1,370 (annual+quarterly) negative
+                    # stock_based_compensation rows and 99+477 negative common_stock_repurchased
+                    # rows before this fix, all real filer-tagged negatives of this same shape.
+                    if self.statement_type == "cashflow":
+                        for _sign_flip_field in ("stock_based_compensation", "common_stock_repurchased"):
+                            if row.get(_sign_flip_field) is not None:
+                                row[_sign_flip_field] = abs(row[_sign_flip_field])
                 result.append(row)
 
         return result

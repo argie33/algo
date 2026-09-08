@@ -18,6 +18,18 @@ from utils.type_conversion import safe_float
 
 logger = logging.getLogger("loaders.load_stock_scores")
 
+# MOMENTUM_MIN_WEIGHT (added 2026-09-07, /goal real-money-readiness audit): same thin-sample-
+# extrapolation gate already applied to Value (VALUE_MIN_WEIGHT), Growth
+# (GROWTH_MIN_FIELDS_AVAILABLE), and Risk (RISK_MIN_WEIGHT_AVAILABLE) - _score_momentum's old
+# `if total_weight > 0: return weighted_sum / total_weight` treated ANY nonzero nominal weight
+# as a fully-confident 0-100 score, including a single near-zero MACD-sign reading (0.37
+# weight) with no price-return momentum, no RSI, no SMA data at all. Live-confirmed: NCPL and
+# 7 similar thin-coverage symbols (XLAB/CURX/PAAI/SGLD/BOXL/PSQL/VAI) scored momentum_score=70
+# flat off nothing but "MACD is barely positive". Same 0.40 floor as Value/Risk (~40% of
+# nominal weight is this file's established floor for "the score reflects the pillar's actual
+# construction, not a fragment of it").
+MOMENTUM_MIN_WEIGHT = 0.40
+
 
 def _owner() -> Any:
     """Lazy reference to the owner module, resolved at call time (not import time).
@@ -419,8 +431,19 @@ class MomentumScoringMixin:
             weighted_sum += (sum(sma_scores) / len(sma_scores)) * 0.08
             total_weight += 0.08
 
-        if total_weight > 0:
+        if total_weight >= MOMENTUM_MIN_WEIGHT:
             return weighted_sum / total_weight
+        if total_weight > 0:
+            logger.debug(
+                f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol}) - "
+                f"only {total_weight:.2f} weight available, below MOMENTUM_MIN_WEIGHT={MOMENTUM_MIN_WEIGHT}. "
+                f"See that constant's docstring - a thin fragment of the pillar isn't a confident score."
+            )
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "insufficient_momentum_inputs_thin_sample",
+            }
         logger.debug(
             f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol}) - no scoreable fields"
         )

@@ -61,6 +61,20 @@ def _table_has_columns(cur: Any, table: str, columns: set[str]) -> bool:
 
 
 def audit_balance_sheet_identity(cur: Any, min_relative_error: float, limit: int) -> list[tuple[Any, ...]]:
+    """total_assets == total_liabilities + stockholders_equity + noncontrolling_interest.
+
+    Kept in sync with algo/monitoring/data_patrol/checks/tie_out.py's
+    check_balance_sheet_identity (the production check this script's docstring says it
+    mirrors) - that check added the noncontrolling_interest term (migration 1265,
+    2026-09-07) after finding it was the dominant source of "violations" here (large,
+    well-covered names like XOM/CVX/KKR with real minority interests, not data bugs -
+    see that check's own docstring for the XOM evidence). Also restricted to each
+    symbol's latest real fiscal year (DISTINCT ON), same as that check, so a stale
+    superseded old-year XBRL extraction quirk doesn't re-flag forever - see that check's
+    module docstring for the full rationale. Falling behind these two fixes previously
+    made this standalone script flag ~1,000%+ "violations" that were pure NCI-column/
+    stale-year noise, not real extraction bugs.
+    """
     if not _table_has_columns(
         cur,
         "annual_balance_sheet",
@@ -68,9 +82,12 @@ def audit_balance_sheet_identity(cur: Any, min_relative_error: float, limit: int
     ):
         print("  [SKIP] annual_balance_sheet missing required columns")
         return []
+    has_nci = _table_has_columns(cur, "annual_balance_sheet", {"noncontrolling_interest"})
+    nci_col = "b.noncontrolling_interest" if has_nci else "NULL"
     cur.execute(
-        """
-        SELECT b.symbol, b.fiscal_year, b.total_assets, b.total_liabilities, b.stockholders_equity
+        f"""
+        SELECT DISTINCT ON (b.symbol)
+            b.symbol, b.fiscal_year, b.total_assets, b.total_liabilities, b.stockholders_equity, {nci_col}
         FROM annual_balance_sheet b
         JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
         WHERE b.data_unavailable = FALSE
@@ -78,15 +95,17 @@ def audit_balance_sheet_identity(cur: Any, min_relative_error: float, limit: int
           AND b.total_liabilities IS NOT NULL
           AND b.stockholders_equity IS NOT NULL
           AND b.total_assets != 0
+        ORDER BY b.symbol, b.fiscal_year DESC
         """
     )
     flagged = []
-    for symbol, fiscal_year, assets, liabilities, equity in cur.fetchall():
+    for symbol, fiscal_year, assets, liabilities, equity, nci in cur.fetchall():
         assets_f, liabilities_f, equity_f = float(assets), float(liabilities), float(equity)
+        nci_f = float(nci) if nci is not None else 0.0
         # Rows where total_liabilities was derived as assets-equity tie out exactly (0
         # residual) by construction - harmless, just uninformative, not a false pass of a
         # real check that was never actually performed for them.
-        residual = assets_f - (liabilities_f + equity_f)
+        residual = assets_f - (liabilities_f + equity_f + nci_f)
         relative_error = abs(residual) / abs(assets_f)
         if relative_error > min_relative_error:
             flagged.append((symbol, fiscal_year, assets_f, liabilities_f, equity_f, residual, relative_error))
@@ -95,6 +114,20 @@ def audit_balance_sheet_identity(cur: Any, min_relative_error: float, limit: int
 
 
 def audit_cashflow_reconciliation(cur: Any, limit: int) -> list[tuple[Any, ...]]:
+    """prior_year cash + OCF + ICF + FCF ~= current_year cash.
+
+    Kept in sync with algo/monitoring/data_patrol/checks/tie_out.py's
+    check_cashflow_reconciliation: prefers cash_and_restricted_cash_combined over
+    cash_and_equivalents alone (per ASU 2016-18, a filer with material restricted cash -
+    payroll processors, banks, escrow-heavy businesses - reconciles OCF+ICF+FCF to the
+    COMBINED total, not unrestricted cash alone; see migration 1267/that check's ADP
+    evidence), restricted to each symbol's latest fiscal year, and excludes depository
+    institutions/financial intermediaries whose cash-flow statements have a real,
+    non-bug structural mismatch with this identity (see that check's own SIC-code/
+    allowlist comments) - without these, this script previously flagged huge-magnitude
+    "violations" (JPM/BAC/MUFG/KT/SKM et al.) that are the exact known-noise population
+    the production check was tuned to exclude, not real extraction bugs.
+    """
     if not _table_has_columns(
         cur,
         "annual_cash_flow",
@@ -102,18 +135,24 @@ def audit_cashflow_reconciliation(cur: Any, limit: int) -> list[tuple[Any, ...]]
     ) or not _table_has_columns(cur, "annual_balance_sheet", {"symbol", "fiscal_year", "cash_and_equivalents"}):
         print("  [SKIP] annual_cash_flow/annual_balance_sheet missing required columns")
         return []
+    has_combined = _table_has_columns(cur, "annual_balance_sheet", {"cash_and_restricted_cash_combined"})
+    cash_expr = (
+        "COALESCE(cash_and_restricted_cash_combined, cash_and_equivalents)" if has_combined else "cash_and_equivalents"
+    )
     cur.execute(
-        """
+        f"""
         WITH cf AS (
-            SELECT symbol, fiscal_year, operating_cash_flow, investing_cash_flow, financing_cash_flow
+            SELECT DISTINCT ON (symbol)
+                symbol, fiscal_year, operating_cash_flow, investing_cash_flow, financing_cash_flow
             FROM annual_cash_flow
             WHERE data_unavailable = FALSE
               AND operating_cash_flow IS NOT NULL
               AND investing_cash_flow IS NOT NULL
               AND financing_cash_flow IS NOT NULL
+            ORDER BY symbol, fiscal_year DESC
         ),
         cash AS (
-            SELECT symbol, fiscal_year, cash_and_equivalents
+            SELECT symbol, fiscal_year, {cash_expr} AS cash_and_equivalents
             FROM annual_balance_sheet
             WHERE data_unavailable = FALSE AND cash_and_equivalents IS NOT NULL
         )
@@ -126,7 +165,16 @@ def audit_cashflow_reconciliation(cur: Any, limit: int) -> list[tuple[Any, ...]]
         JOIN stock_symbols s ON s.symbol = cf.symbol AND s.active = true
         JOIN cash curr ON curr.symbol = cf.symbol AND curr.fiscal_year = cf.fiscal_year
         JOIN cash prior ON prior.symbol = cf.symbol AND prior.fiscal_year = cf.fiscal_year - 1
-        """
+        WHERE NOT EXISTS (
+            SELECT 1 FROM company_info_sec ci
+            WHERE ci.symbol = cf.symbol AND ci.sic_code = ANY(%(sic_codes)s)
+        )
+        AND NOT (cf.symbol = ANY(%(intermediary_symbols)s))
+        """,
+        {
+            "sic_codes": [6020, 6021, 6022, 6029, 6035, 6036, 6712, 6200, 6211, 6221],
+            "intermediary_symbols": ["MELI", "AXP", "CRCL"],
+        },
     )
     flagged = []
     for symbol, fiscal_year, ocf, icf, fcf, prior_cash, curr_cash in cur.fetchall():

@@ -42,6 +42,7 @@ def mock_config():
         "exit_on_td_sequential": False,
         "exit_on_rs_line_break_50dma": False,
         "require_target_pullback": True,
+        "use_scale_out_targets": True,
         "execution_mode": "paper",
         "alpaca_paper_trading": True,
         "t1_target_r_multiple": 1.5,
@@ -166,7 +167,9 @@ class TestTDSequential:
             decision = engine._evaluate_position(
                 **_BASE_KWARGS, cur_price=Decimal("110.00"), prev_close=Decimal("109.00"), target_hits=1
             )
-        assert decision is None
+        # TD Sequential itself correctly did not fire; the breakeven stop-raise fallback
+        # (added 2026-09-07, see BreakevenStopStrategy) surfaces since R=1.0 >= move_be_at_r.
+        assert decision["stage"] == "raise_stop_breakeven"
 
     def test_gated_on_target_hits_zero(self, mock_config):
         """TD Sequential only applies once T1 has already been taken (target_hits>=1) -
@@ -177,7 +180,7 @@ class TestTDSequential:
             decision = engine._evaluate_position(
                 **_BASE_KWARGS, cur_price=Decimal("110.00"), prev_close=Decimal("109.00"), target_hits=0
             )
-        assert decision is None
+        assert decision["stage"] == "raise_stop_breakeven"
         mocked.assert_not_called()
 
     def test_gated_on_r_multiple_below_half(self, mock_config):
@@ -200,7 +203,9 @@ class TestTDSequential:
             decision = engine._evaluate_position(
                 **_BASE_KWARGS, cur_price=Decimal("110.00"), prev_close=Decimal("109.00"), target_hits=1
             )
-        assert decision is None
+        # TD Sequential disabled by config; breakeven stop-raise fallback still surfaces
+        # (R=1.0 >= move_be_at_r).
+        assert decision["stage"] == "raise_stop_breakeven"
 
     def test_missing_td_state_field_fails_fast(self, mock_config):
         mock_config["exit_on_td_sequential"] = True
@@ -235,7 +240,9 @@ class TestFirstRedDay:
             decision = engine._evaluate_position(
                 **_BASE_KWARGS, cur_price=Decimal("123.00"), prev_close=Decimal("126.00"), target_hits=0
             )
-        assert decision is None
+        # First red day itself correctly did not fire; breakeven stop-raise fallback
+        # surfaces (R=2.3 >= move_be_at_r=1.0).
+        assert decision["stage"] == "raise_stop_breakeven"
 
     def test_no_exit_below_down_pct_threshold(self, mock_config):
         engine = _engine(mock_config)
@@ -246,7 +253,7 @@ class TestFirstRedDay:
                 prev_close=Decimal("126.00"),
                 target_hits=0,
             )
-        assert decision is None
+        assert decision["stage"] == "raise_stop_breakeven"
         mocked.assert_not_called()
 
     def test_no_exit_below_r_multiple_threshold(self, mock_config):
@@ -258,7 +265,9 @@ class TestFirstRedDay:
                 prev_close=Decimal("113.00"),
                 target_hits=0,
             )
-        assert decision is None
+        # Exactly at move_be_at_r=1.0 - breakeven fallback surfaces even though first-red-day
+        # itself is correctly gated out.
+        assert decision["stage"] == "raise_stop_breakeven"
         mocked.assert_not_called()
 
     def test_no_exit_when_prev_close_missing(self, mock_config):
@@ -267,7 +276,7 @@ class TestFirstRedDay:
             decision = engine._evaluate_position(
                 **_BASE_KWARGS, cur_price=Decimal("123.00"), prev_close=None, target_hits=0
             )
-        assert decision is None
+        assert decision["stage"] == "raise_stop_breakeven"
         mocked.assert_not_called()
 
 
@@ -294,7 +303,9 @@ class TestClimaxExhaustion:
                 prev_close=Decimal("144.00"),
                 target_hits=0,
             )
-        assert decision is None
+        # Climax exhaustion itself correctly did not fire; breakeven stop-raise fallback
+        # surfaces (R=4.5 >= move_be_at_r=1.0).
+        assert decision["stage"] == "raise_stop_breakeven"
         mocked.assert_not_called()
 
     def test_no_exit_below_days_held_threshold(self, mock_config):
@@ -305,7 +316,7 @@ class TestClimaxExhaustion:
             decision = engine._evaluate_position(
                 **kwargs, cur_price=Decimal("152.00"), prev_close=Decimal("150.00"), target_hits=0
             )
-        assert decision is None
+        assert decision["stage"] == "raise_stop_breakeven"
         mocked.assert_not_called()
 
     def test_no_exit_below_10d_gain_threshold(self, mock_config):
@@ -314,7 +325,7 @@ class TestClimaxExhaustion:
             decision = engine._evaluate_position(
                 **_BASE_KWARGS, cur_price=Decimal("152.00"), prev_close=Decimal("150.00"), target_hits=0
             )
-        assert decision is None
+        assert decision["stage"] == "raise_stop_breakeven"
 
     def test_no_exit_when_gain_unavailable(self, mock_config):
         engine = _engine(mock_config)
@@ -322,4 +333,4 @@ class TestClimaxExhaustion:
             decision = engine._evaluate_position(
                 **_BASE_KWARGS, cur_price=Decimal("152.00"), prev_close=Decimal("150.00"), target_hits=0
             )
-        assert decision is None
+        assert decision["stage"] == "raise_stop_breakeven"

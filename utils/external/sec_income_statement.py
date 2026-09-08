@@ -12,9 +12,11 @@ current+deferred split, validated pretax-income promotion, and derived operating
 from typing import Any
 
 from utils.external.sec_income_statement_fallbacks import (
+    _fill_cost_of_revenue_from_other_operating_cost,
     _fill_earnings_per_share_from_continuing_discontinued_split,
     _fill_eps_shares_from_dual_class_dimensional_facts,
     _fill_income_tax_expense_from_current_deferred_split,
+    _fill_operating_income_from_revenue_minus_cogs_and_opex,
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
     _fill_pretax_income_from_domestic_foreign_split,
     _fill_pretax_income_from_results_of_operations_when_validated,
@@ -180,6 +182,28 @@ _INCOME_IFRS_ALIASES = [
     # FY2024. target_key matches the us-gaap concept's existing column so no field_mapping
     # changes are needed (same convention as every other alias in this list).
     ("FinanceCosts", "interest_expense"),
+    # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data" sweep, interest_expense_not_itemized
+    # investigation): Brookfield Corporation (BN, CIK 0001001085) tags the plain ifrs-full:
+    # "InterestExpense" concept directly - live-confirmed real, large, growing values ($4.854B
+    # FY2018 -> $10.702B FY2022) consistent with BN's real scale as a holding company with massive
+    # non-recourse subsidiary debt (real estate/infrastructure/renewable power). Listed AFTER
+    # FinanceCosts so the narrower, more precise tag wins on overwrite for any filer reporting
+    # both (same last-listed-wins convention as the rest of this list) - unlike FinanceCosts
+    # (deliberately unmapped for interest_coverage above, too broad), plain "InterestExpense" is
+    # IFRS's own dedicated interest-expense element, not a broader finance-costs aggregate.
+    # Deliberately did NOT add the narrower-sounding "InterestExpenseOnBorrowings" sibling
+    # concept: live-checked on the SAME BN filing, it's only $527M-$742M/year (2022-2025) -
+    # 15x SMALLER than BN's own plain InterestExpense for the same fiscal years - proving it's
+    # a narrow sub-component (e.g. parent-level corporate borrowings only), not BN's real total
+    # consolidated interest expense. No independent value exists to validate
+    # InterestExpenseOnBorrowings against (same problem already correctly identified and
+    # rejected for ARW's InterestIncomeExpenseNet - see
+    # arw_interest_expense_net_concept_candidate_not_fixed_20260903 in memory), so it stays
+    # unmapped rather than risk silently understating interest_expense for filers where it's a
+    # narrow sub-line. Also checked and confirmed absent (safe no-op) for Equinor (EQNR),
+    # Cemex (CX), Canada Goose (GOOS), Ferrovial, Docebo, Global-E, and Huize - this alias only
+    # ever fires for a filer that tags the exact standard concept.
+    ("InterestExpense", "interest_expense"),
 ]
 
 _INCOME_DEI_ALIASES = [
@@ -416,6 +440,58 @@ def get_income_statement(
         # reports both.
         "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
         "CostOfGoodsSoldExcludingDepreciationDepletionAndAmortization",
+        # FIXED 2026-09-07 (goal session: "make sure the list/checks are right, then fix
+        # issues" audit, xbrl_concept_coverage_scan.py surfaced this as an undismissed gap
+        # tagged by 864 real filers): plain "CostOfGoodsSold" - the older, pre-2009-taxonomy
+        # singular-concept COGS tag - was never fetched at all. Live-confirmed via real SEC
+        # companyfacts JSON: 47 real filers (Halliburton, Thermo Fisher Scientific, NCR
+        # Voyix among them) tag ONLY this concept, with NONE of the CostOfRevenue/
+        # CostOfSales/CostOfGoodsAndServicesSold/*ExcludingDepreciation family present at
+        # all - cost_of_revenue/gross_profit/gross_margin were silently NULL for these
+        # filers' entire history. Same target column ("cost_of_revenue") as every other
+        # concept in this group; kept fallback-only (see load_financial_statements.py's
+        # _REVENUE_FALLBACK_ONLY_FIELDS) since it's a legacy/rarer tag that must never
+        # overwrite a real value from the standard concepts above.
+        "CostOfGoodsSold",
+        # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep,
+        # operating_income_not_itemized investigation): Casey's General Stores (CASY, CIK
+        # 0000726958, $17.5B FY2026 revenue convenience-store/gas retailer) splits COGS into
+        # this D&A-only component (FY2026 $449.958M) SEPARATE from the ex-D&A COGS above
+        # (FY2026 $13.240B) - live-confirmed via real companyfacts JSON. Fallback-only (see
+        # _fill_operating_income_from_revenue_minus_cogs_and_opex() below), only ever
+        # consumed by that derivation, never mapped to the plain "cost_of_revenue" column
+        # directly (CASY's ex-D&A COGS concept above already covers the dominant cost
+        # component on its own; this D&A slice is additive, not a replacement).
+        "CostOfGoodsAndServicesSoldDepreciationAndAmortization",
+        # ADDED 2026-09-07 (goal session: stock_scores factor audit + tie-out CI sweep,
+        # gross_profit_identity live triage): Tetra Tech (TTEK, CIK 0000831641, $5.44B FY2025
+        # revenue environmental/engineering consulting firm) tags real subcontractor/pass-
+        # through project costs under this concept ($3.656B FY2025) SEPARATE from its main
+        # CostOfGoodsAndServicesSold ($825.23M) - live-confirmed via real SEC companyfacts
+        # JSON: only their SUM ($4.481B) reconciles with TTEK's own filed GrossProfit
+        # ($961.344M = $5.4426B revenue - $4.481B, exact to the dollar). Checked AECOM/Jacobs
+        # Engineering (peer engineering-services filers) for the same shape - neither tags
+        # this concept at all, so this isn't a blanket industry pattern; kept additive-only
+        # (see _fill_cost_of_revenue_from_other_operating_cost() below) rather than mapped
+        # directly to "cost_of_revenue" via field_mapping, same discipline as CASY's D&A
+        # component above - a filer without this concept is completely unaffected.
+        "OtherCostOfOperatingRevenue",
+        # ADDED 2026-09-07 (same goal session, gross_profit_identity live triage continuation):
+        # Molson Coors (TAP/TAP.A, CIK 0000024545, $13.04B FY2025 revenue brewer) tags real
+        # beer excise/sales tax under this concept ($1.8995B FY2025) that must be subtracted
+        # (like a cost, not added to revenue) between its RevenueFromContractWithCustomer
+        # ExcludingAssessedTax figure and its real, filer-tagged GrossProfit - live-confirmed
+        # via real SEC companyfacts JSON: $13.0403B revenue - $6.8662B CostOfGoodsAndServices
+        # Sold - $1.8995B ExciseAndSalesTaxes = $4.2746B, exact match to TAP's own tagged
+        # GrossProfit. Peer-checked Boston Beer (SAM, CIK 0000949870): its own Revenues
+        # ($1.965B) - CostOfGoodsAndServicesSold ($1.0124B) already reconciles EXACTLY with its
+        # GrossProfit with no excise-tax adjustment needed at all (SAM's "Revenues" concept is
+        # apparently already net of excise tax, unlike TAP's ExcludingAssessedTax concept) -
+        # ruling out a blanket alcoholic-beverage-industry pattern; this is TAP-specific. Same
+        # additive-fallback discipline as OtherCostOfOperatingRevenue above (see
+        # _fill_cost_of_revenue_from_other_operating_cost() below, extended to also sum this
+        # concept in) - a filer without ExciseAndSalesTaxes is completely unaffected.
+        "ExciseAndSalesTaxes",
         # FIXED 2026-08-31 (same sweep): live-events/venue-based filers tag their pass-through
         # artist/venue/ticketing costs under this concept instead of any concept above - live-
         # confirmed Live Nation Entertainment (LYV, $23B market cap): zero data under every
@@ -454,13 +530,63 @@ def get_income_statement(
         # Revenues=$3,115,515,000/CostsAndExpenses=$2,283,825,000, ARDT FY2025
         # Revenues=$6,324,339,000/CostsAndExpenses=$6,037,981,000, both yielding a plausible
         # operating margin once subtracted. "OperatingExpenses" (the sibling concept) is
-        # deliberately NOT re-added - not re-verified against this new evidence, no known
-        # real filer needing it. See _fill_operating_income_from_revenue_minus_costs_and_
+        # deliberately NOT re-added at the time - not re-verified against this new evidence,
+        # no known real filer needing it. See _fill_operating_income_from_revenue_minus_costs_and_
         # expenses() below for the derivation - fallback-only, only fires when
         # OperatingIncomeLoss is absent for that fiscal year.
+        #
+        # RE-ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep,
+        # operating_income_not_itemized investigation): now verified against a real filer.
+        # Casey's General Stores (CASY, $17.5B FY2026 revenue) reports real "Revenues" and a
+        # real "OperatingExpenses" total (FY2026 $2.837B) but tags NO "OperatingIncomeLoss"/
+        # "CostsAndExpenses" concept at all - live-confirmed via real companyfacts JSON.
+        # Unlike RRC/ARDT's single combined CostsAndExpenses line, CASY's OperatingExpenses is
+        # ONLY the non-COGS opex portion - real operating_income = Revenues - (COGS ex-D&A) -
+        # (COGS D&A) - OperatingExpenses = $17,561,101,000 - $13,240,060,000 - $449,958,000 -
+        # $2,837,426,000 = $1,033,657,000, a 5.9% operating margin, plausible for a low-margin
+        # convenience-store/fuel retailer (vs. an implausible 84% if OperatingExpenses alone
+        # were subtracted from revenue, which is why this concept stayed unmapped for years -
+        # it is genuinely not usable alone, only as one term of a 4-value sum). See
+        # _fill_operating_income_from_revenue_minus_cogs_and_opex() below for the derivation -
+        # fallback-only, requires ALL FOUR real values present, never overwrites a real
+        # OperatingIncomeLoss/CostsAndExpenses-derived value.
+        "OperatingExpenses",
         "CostsAndExpenses",
         "GrossProfit",
         "OperatingIncomeLoss",
+        # ADDED 2026-09-07 (goal: SEC/XBRL missing-data audit, migration 1264, found via
+        # scripts/xbrl_concept_coverage_scan.py's systematic gap scan): 2,820+ real filers tag
+        # this concept and it was never fetched at all - no operating_expenses/SG&A-shaped
+        # column existed anywhere in the schema before migration 1264. This is a DIFFERENT,
+        # standalone-usable concept from "OperatingExpenses" above (which is only a narrower
+        # non-COGS remainder for single-step filers - see that concept's comment) -
+        # SellingGeneralAndAdministrativeExpense is the standard combined SG&A total most
+        # filers tag directly. Live-confirmed via real SEC companyfacts JSON: WMT FY2026 =
+        # $147,943,000,000 (~21.7% of revenue), TGT FY2026 = $21,535,000,000, AAR CORP FY2026 =
+        # $349,300,000, Abbott Labs FY2025 = $12,332,000,000 (~27.8% of revenue) - all single,
+        # real, sane SG&A figures. No known taxonomy-variant/IFRS fallback verified yet (none
+        # of the 4 filers checked tag "GeneralAndAdministrativeExpense" as a separate line) -
+        # add one only with the same live-evidence standard as every other fallback in this
+        # file, not by guessing a plausible-sounding concept name.
+        "SellingGeneralAndAdministrativeExpense",
+        # ADDED 2026-09-07 (goal session: XBRL extraction/tie-out hardening, migration 1271,
+        # found via scripts/xbrl_concept_coverage_scan.py's systematic gap scan): 2,567 real
+        # filers tag "GoodwillImpairmentLoss" and it was never fetched anywhere in this
+        # codebase - no goodwill_impairment_loss-shaped column existed. This is a P&L
+        # (income-statement) concept - the period impairment CHARGE taken against goodwill,
+        # distinct from annual_balance_sheet.goodwill (the balance-sheet carrying amount) and
+        # from _reject_implausible_goodwill in loaders/helpers/financial_statements_value_
+        # validation.py (which sanity-checks that balance-sheet figure, unrelated to this new
+        # column). Live-confirmed via real SEC companyfacts JSON cache: Kraft Heinz Co FY2025
+        # (period end 2025-12-27) = $6,734,000,000, CVS Health Corporation FY2025 (period end
+        # 2025-12-31) = $5,725,000,000, Centene Corporation FY2025 (period end 2025-09-30) =
+        # $6,723,000,000 - all real, material, sane impairment charges consistent with each
+        # company's well-known recent goodwill write-downs. Plain (non-fallback) concept, same
+        # convention as operating_expenses/accounts_payable (migrations 1263/1264) - data-
+        # availability only, not consumed by any scoring/quality-pillar logic yet. Naturally
+        # sparse/NULL for the vast majority of company-years (goodwill impairment is an
+        # episodic, not recurring, charge) - expected and correct, not a bug to chase.
+        "GoodwillImpairmentLoss",
         # ADDED 2026-08-27 (goal: close the R&D intensity/Mohanram G-Score literature-checklist
         # gap - see MEMORY.md growth_missing_metrics_swept_20260827, which had incorrectly
         # marked these permanently blocked on "no research_development column exists anywhere").
@@ -501,6 +627,15 @@ def get_income_statement(
         # value - only fills the gap for a filer like ESOA that stops tagging either. Maps to
         # the same "net_income" column via _INCOME_FIELD_MAPPING's matching key.
         "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+        # ADDED 2026-09-07 (goal session: continuing the EPS-side NCI gap documented in memory
+        # as eps_reconciliation_post_reload_nci_attributable_income_gap_20260907 - EPS-side
+        # twin of migration 1265's balance-sheet noncontrolling_interest fix). Diluted (nets
+        # out preferred dividends too, not just NCI) listed before Basic so it wins on
+        # overwrite when a filer tags both, same last-listed-wins convention as every other
+        # concept in this list. Maps to "net_income_attributable_to_common" via
+        # _INCOME_FIELD_MAPPING - see migration 1270's docstring.
+        "NetIncomeLossAvailableToCommonStockholdersBasic",
+        "NetIncomeLossAvailableToCommonStockholdersDiluted",
         "EarningsPerShareBasic",
         "EarningsPerShareDiluted",
         # FIXED 2026-08-03: live-confirmed against real companyfacts JSON that several
@@ -634,6 +769,12 @@ def get_income_statement(
         # figure" semantics.
         "DepreciationDepletionAndAmortization",
         "AmortizationOfIntangibles",
+        # FIXED 2026-09-07 (goal session: tie-out/XBRL check audit, xbrl_concept_coverage_scan.py
+        # surfaced this as an undismissed gap): live-confirmed 0/5,373 filers tag the concept
+        # above, while AmortizationOfIntangibleAssets is tagged by 3,268/5,373 (61%) and was
+        # wrongly dismissed as a duplicate - never actually fetched. Listed last so it wins per
+        # this file's "last-listed wins" precedence convention.
+        "AmortizationOfIntangibleAssets",
         # For roic_pct (quality_metrics) = EBIT*(1-effective_tax_rate)/invested_capital.
         # Live-confirmed against AAPL/MSFT companyfacts (2026-08-03): both real GAAP
         # concepts, not guessed. IncomeTaxExpenseBenefit is the real tax provision (was
@@ -725,11 +866,13 @@ def get_income_statement(
     rows = _aggregate_concepts(
         client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES, dei_aliases=_INCOME_DEI_ALIASES
     )
+    _fill_cost_of_revenue_from_other_operating_cost(rows)
     _fill_earnings_per_share_from_continuing_discontinued_split(rows)
     _fill_income_tax_expense_from_current_deferred_split(rows)
     _fill_pretax_income_from_domestic_foreign_split(rows)
     _fill_pretax_income_from_results_of_operations_when_validated(rows)
     _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
+    _fill_operating_income_from_revenue_minus_cogs_and_opex(rows)
     if period == "annual":
         _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol, security_name)
     return rows

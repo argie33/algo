@@ -71,11 +71,11 @@ enable_premarket_orchestrator = false                       # Disabled: no marke
 # and auto-repairs missing/wrong-sized protective stops every 15 min during market hours,
 # independent of the full orchestrator's own less-frequent schedule above). Real-money-
 # readiness audit (2026-09-05) found the full orchestrator's cadence alone leaves a real
-# window where a position can sit without a live broker-side stop. Deliberately left false
-# here: this is a real, ongoing AWS Scheduler cost and a live-account behavior change, not
-# just a code readiness question - flip to true only with an explicit go-ahead to deploy it,
-# then `terraform apply`.
-enable_stop_loss_guardian = false
+# window where a position can sit without a live broker-side stop - with only the morning
+# orchestrator enabled (line 65 above), that window is effectively the entire rest of the
+# trading day. ENABLED 2026-09-06 with explicit go-ahead: closes that gap before real-money
+# trading begins. Requires `terraform apply` to take effect.
+enable_stop_loss_guardian = true
 
 # High-frequency intraday beta/concentration risk re-check (modules/services/intraday-
 # risk-monitor.tf, alert-only - see that file's header and algo/risk/intraday_risk_
@@ -91,11 +91,21 @@ enable_intraday_risk_monitor = false
 # circuit-breaker.tf/execution-monitor.tf's separate Lambdas) with one check that, unlike
 # intraday-risk-monitor's alert-only stance, actually acts (automated halt, then automated
 # reduce/flatten if a breach persists past the halt - see algo/risk/unified_risk_monitor.py's
-# docstring). Deployed disabled first: soak in paper mode with the old mechanisms running in
-# shadow for direct comparison before enabling, and do not delete the old resources until
-# that soak is clean (see the rollout plan in memory/ for this real-money-readiness
-# architecture rebuild, 2026-09-06).
-enable_unified_risk_monitor = false
+# docstring).
+#
+# REAL-MONEY-READINESS (2026-09-07 audit): was deployed disabled since 2026-09-06 pending
+# a soak period that never actually started. A fresh code review confirmed
+# unified_risk_monitor.py's design is sound (fail-closed on infra errors, requires
+# independent re-confirmation against FRESH live data across
+# CONSECUTIVE_BREACH_RUNS_TO_HALT consecutive runs before acting, advisory-lock race
+# protection) - enabling now to actually begin that soak. Enabling deployment here does
+# NOT enable live auto-remediation on its own: unified_risk_monitor_shadow_mode
+# (algo/infrastructure/config_defaults_risk.py) independently defaults to True, so this
+# starts the monitor running/alerting in shadow mode only, alongside the old mechanisms
+# (still running, not yet removed) for direct comparison. Do not flip shadow_mode off,
+# and do not remove the old mechanisms, until this soak has actually run and been
+# reviewed for false positives/negatives.
+enable_unified_risk_monitor = true
 
 # Always-on Alpaca trade_updates websocket listener (modules/loaders/trade-update-
 # listener.tf) - event-driven order/fill state to replace pure REST polling for latency
@@ -197,6 +207,19 @@ alert_smtp_port     = 587                     # TLS port
 alert_smtp_user     = ""                      # Set via GitHub Actions secrets
 alert_smtp_password = ""                      # Set via GitHub Actions secrets
 alert_smtp_from     = ""                      # Set via GitHub Actions secrets
+
+# Critical-alert PAGING (2026-09-06 real-money-readiness audit): email/SNS above are fine
+# for business-hours monitoring but nothing pages a human outside that window - an
+# overnight/weekend halt or a failed stop-loss repair would sit in an inbox unseen for
+# hours. Leaving both unset here (paging stays disabled, matching the app-code default) is
+# a real gap before trading real money, not a placeholder to ignore - set at least one
+# channel via TF_VAR_pagerduty_routing_key or TF_VAR_twilio_*/TF_VAR_alert_sms_to in CI/CD
+# before going live. Both channels are independently optional.
+pagerduty_routing_key = "" # Set via TF_VAR_pagerduty_routing_key in CI/CD
+twilio_account_sid    = "" # Set via TF_VAR_twilio_account_sid in CI/CD
+twilio_auth_token     = "" # Set via TF_VAR_twilio_auth_token in CI/CD
+twilio_from_number    = "" # Set via TF_VAR_twilio_from_number in CI/CD
+alert_sms_to          = "" # Set via TF_VAR_alert_sms_to in CI/CD (comma-separated E.164 numbers)
 
 # ============================================================
 # LAMBDA CONFIGURATION (PRODUCTION)

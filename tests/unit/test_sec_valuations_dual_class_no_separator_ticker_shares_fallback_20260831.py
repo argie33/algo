@@ -49,6 +49,13 @@ class _FakeCursor:
         return result
 
     def fetchone(self) -> Any:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -87,7 +94,9 @@ _FETCHONE_BASE = [
 class TestDualClassNoSeparatorTickerSharesFallback:
     def test_no_separator_dual_class_falls_back_to_live_yfinance(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             *_FETCHONE_BASE,
+            None,  # separate-class entity-wide-shares sibling lookup (466a485d6) - no sibling row
             (25.50,),  # price_daily.close
             (300_000_000.0,),  # stockholders_equity
             (1.0,),  # beta
@@ -117,6 +126,7 @@ class TestDualClassNoSeparatorTickerSharesFallback:
         of one company) - guards against ever widening the curated list to a blind heuristic.
         The live yfinance dual-class fallback must never even be attempted for it."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (10_000_000.0, None, None, None),  # debt_row
             None,  # dot-based sibling check - no match

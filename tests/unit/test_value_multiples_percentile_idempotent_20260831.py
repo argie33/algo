@@ -43,6 +43,8 @@ def _row(
     fwd_pe_reason: str | None = None,
     components: dict | None = None,
     sector: str | None = None,
+    data_completeness: float | None = 99.99,
+    data_unavailable: bool = False,
 ) -> tuple:
     return (
         symbol,
@@ -61,6 +63,8 @@ def _row(
         fwd_pe_reason,
         components if components is not None else {},
         sector,
+        data_completeness,
+        data_unavailable,
     )
 
 

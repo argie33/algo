@@ -47,10 +47,16 @@ class TestPreflightReusesExistingRestingStop:
         assert result["order_id"] == "existing-order-1"
         mock_post.assert_not_called()
 
-    def test_preflight_check_failure_falls_through_to_normal_submission(self):
-        """If the preflight check itself errors (e.g. transient API failure), fail open -
-        proceed with normal submission rather than blocking a real repair on a check that
-        exists purely to avoid an unlikely duplicate."""
+    def test_preflight_check_failure_skips_submission_rather_than_risking_a_duplicate(self):
+        """REAL-MONEY-READINESS FIX (2026-09-06 audit): if the preflight check itself errors
+        (e.g. transient API failure), a failed-open fall-through to normal submission always
+        generates a FRESH client_order_id (no client_order_id is passed by the only real
+        caller), so the client_order_id ground-truth lookup below can never catch a genuine
+        duplicate either - it only matches a retry of the SAME id. That left duplicate-order
+        prevention resting entirely on Alpaca's own 422 qty-reservation rejection, in exactly
+        the failure mode (broker API instability) where that backstop is least trustworthy.
+        Skip this repair cycle instead - the position stays protected by whatever stop
+        already exists, and the next cycle retries once the broker is reachable again."""
         manager = _make_manager()
 
         mock_resp = MagicMock()
@@ -59,12 +65,12 @@ class TestPreflightReusesExistingRestingStop:
 
         with (
             patch.object(manager, "_find_open_sell_stop_order", side_effect=RuntimeError("API down")),
-            patch("algo.trading.order_manager_stop_repair.requests.post", return_value=mock_resp),
+            patch("algo.trading.order_manager_stop_repair.requests.post", return_value=mock_resp) as mock_post,
         ):
             result = manager.submit_standalone_protective_stop("AAPL", 10.0, 150.0)
 
-        assert result["success"] is True
-        assert result["order_id"] == "new-order-1"
+        assert result["success"] is False
+        mock_post.assert_not_called()
 
 
 class TestClientOrderIdGroundTruthRecovery:

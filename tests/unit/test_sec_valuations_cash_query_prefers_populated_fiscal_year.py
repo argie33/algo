@@ -75,6 +75,13 @@ class _RecordingCursor:
         return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -97,6 +104,7 @@ def _run_fetch_incremental(
 class TestCashQueryPrefersPopulatedFiscalYear:
     def test_cash_query_orders_by_cash_populated_before_fiscal_year(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (50.0,),  # price_daily.close
             (5_157_000_000.0,),  # annual_balance_sheet.stockholders_equity
             (68_111_000.0,),  # annual_balance_sheet.cash_and_equivalents
