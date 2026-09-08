@@ -144,17 +144,24 @@ class HaltFlagManager:
         decision to submit a NEW order - an order already sent to Alpaca before the halt fired
         (e.g. a bracket entry sitting as `new`/`accepted`/`pending_new`) was left completely
         untouched and could still fill minutes later, adding exactly the exposure the halt was
-        meant to prevent. A repo-wide grep for cancel_order/cancel_all_orders found exactly one
-        caller of the underlying primitive (`OrderManager.cancel_all_open_orders_for_symbol`)
-        outside this fix: scripts/flatten_all_positions.py, a manual operator tool - there was no
-        automatic path. This reuses that exact same primitive (real Alpaca cancel, same
-        transaction-safety story) rather than writing a second cancel implementation.
+        meant to prevent.
 
-        Deliberately does NOT touch already-FILLED positions' resting bracket (stop-loss/
-        take-profit) legs - those are the position's own protection and cancelling them on a
-        routine halt would make things worse, not safer (see flatten_all_positions.py's docstring
-        for the same design decision - a full flatten remains a separate, explicit operator
-        action). Only PENDING/OPEN (unfilled) entries are cancelled here.
+        REAL-MONEY-READINESS FIX (2026-09-07, second pass): the first version of this fix
+        cancelled by calling `OrderManager.cancel_all_open_orders_for_symbol(symbol)`, which
+        cancels every open order Alpaca reports for the symbol regardless of whose order it is.
+        That's fine for a symbol with only the one pending entry, but pyramiding (see
+        position_sizer.py's max_reentries_per_name) means an already-FILLED position's own live
+        protective stop-loss/take-profit legs can rest at the broker for the same symbol as a
+        new, still-unfilled pyramid entry - cancelling by symbol during a halt could strip that
+        filled position's stop-loss exactly when the system is trying to get safer. Now cancels
+        via `OrderManager.cancel_pending_entry_order(symbol, idempotency_key)`, which matches
+        only the specific still-open order whose client_order_id is this entry's own
+        idempotency_key - see that method's docstring. Deliberately does NOT touch already-
+        FILLED positions' resting bracket (stop-loss/take-profit) legs - those are the
+        position's own protection and cancelling them on a routine halt would make things
+        worse, not safer (see flatten_all_positions.py's docstring for the same design decision
+        - a full flatten remains a separate, explicit operator action). Only PENDING/OPEN
+        (unfilled) entries are cancelled here.
 
         Must never raise or block the halt flag write that already succeeded by the time this
         runs - failures are logged and alerted, never propagated.
@@ -187,19 +194,25 @@ class HaltFlagManager:
             placeholders = ", ".join(["%s"] * len(unfilled_statuses))
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    f"SELECT DISTINCT symbol FROM algo_trades WHERE status IN ({placeholders})",
+                    f"SELECT DISTINCT symbol, idempotency_key FROM algo_trades "
+                    f"WHERE status IN ({placeholders}) AND idempotency_key IS NOT NULL",
                     unfilled_statuses,
                 )
-                symbols = [row[0] for row in cur.fetchall()]
+                pending_entries = [(row[0], row[1]) for row in cur.fetchall()]
 
-            if not symbols:
+            if not pending_entries:
                 logger.info("[HALT_FLAG] No pending/unfilled entry orders to cancel on halt")
                 return
 
+            # Cancel by client_order_id (idempotency_key), NOT cancel_all_open_orders_for_symbol -
+            # a pyramided position's already-FILLED entry can leave its own live protective
+            # stop-loss/take-profit legs resting for the same symbol as this still-unfilled
+            # entry, and cancelling by symbol would strip that filled position's stop-loss too.
+            # See cancel_pending_entry_order's docstring for the full incident/rationale.
             cancelled: list[str] = []
             failed: list[str] = []
-            for symbol in symbols:
-                result = order_mgr.cancel_all_open_orders_for_symbol(symbol)
+            for symbol, idempotency_key in pending_entries:
+                result = order_mgr.cancel_pending_entry_order(symbol, idempotency_key)
                 if result.get("success"):
                     cancelled.append(symbol)
                 else:

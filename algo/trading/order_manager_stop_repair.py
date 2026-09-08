@@ -85,6 +85,90 @@ class StopLossRepairMixin:
             return None
         return sell_stop_orders[0] if sell_stop_orders else None
 
+    def cancel_pending_entry_order(self, symbol: str, client_order_id: str) -> dict[str, Any]:
+        """Cancel ONLY the still-unfilled entry bracket order matching client_order_id -
+        used on a halt, where cancelling every open order for the symbol is NOT safe.
+
+        REAL-MONEY-READINESS FIX (2026-09-07): halt_flag_manager.py's pending-entry-cancel
+        used to call cancel_all_open_orders_for_symbol(symbol), which cancels every open
+        order Alpaca reports for that symbol with no regard for whose order it is. Pyramiding
+        (see position_sizer.py's max_reentries_per_name) means a FILLED position's own live
+        protective stop-loss/take-profit legs can rest at the broker for the same symbol as a
+        new, still-unfilled pyramid entry. Cancelling by symbol during a halt could strip that
+        already-filled position's stop-loss exactly when the system is trying to get safer,
+        not less safe.
+
+        Every entry order is submitted with client_order_id=idempotency_key (see
+        order_manager.py's send_bracket_order docstring) - a value unique to this specific
+        entry attempt and never reused by a stop-loss leg or by any other position's orders.
+        An unfilled bracket order is still a single order object in the open-orders list (its
+        legs don't split into independent orders until the parent fills), so matching on the
+        top-level client_order_id and cancelling only that one order id is sufficient to
+        cancel the whole pending bracket without touching anything else resting for the symbol.
+
+        Returns: {"success": bool, "cancelled_order_ids": list[str], "message": str}.
+        Not finding a matching order is treated as success (nothing to cancel - it may have
+        already filled or been cancelled by another path).
+        """
+        if not self.alpaca_key or not self.alpaca_secret:  # type: ignore[attr-defined]
+            return {"success": False, "cancelled_order_ids": [], "message": "Alpaca credentials missing"}
+        if not client_order_id:
+            return {"success": False, "cancelled_order_ids": [], "message": "client_order_id required"}
+
+        try:
+            resp = requests.get(
+                f"{self.alpaca_base_url}/v2/orders",  # type: ignore[attr-defined]
+                params={"status": "open", "symbols": symbol},
+                headers={
+                    "APCA-API-KEY-ID": self.alpaca_key,  # type: ignore[attr-defined]
+                    "APCA-API-SECRET-KEY": self.alpaca_secret,  # type: ignore[attr-defined]
+                },
+                timeout=get_api_timeout(),
+            )
+            resp.raise_for_status()
+            open_orders = resp.json()
+        except (requests.RequestException, requests.Timeout, ValueError) as e:
+            return {
+                "success": False,
+                "cancelled_order_ids": [],
+                "message": f"Could not list open orders for {symbol}: {e}",
+            }
+        if not isinstance(open_orders, list) or not open_orders:
+            return {"success": True, "cancelled_order_ids": [], "message": f"No open orders for {symbol}"}
+
+        matches = [o for o in open_orders if o.get("client_order_id") == client_order_id]
+        if not matches:
+            return {
+                "success": True,
+                "cancelled_order_ids": [],
+                "message": f"No open order for {symbol} matches client_order_id={client_order_id} - nothing to cancel",
+            }
+
+        cancelled: list[str] = []
+        failures: list[str] = []
+        for order in matches:
+            order_id = order.get("id")
+            if not order_id:
+                continue
+            try:
+                result = self.cancel_bracket_orders(order_id)  # type: ignore[attr-defined]
+            except Exception as e:
+                failures.append(f"{order_id}: {e}")
+                continue
+            if result.get("success"):
+                cancelled.append(order_id)
+            else:
+                failures.append(f"{order_id}: {result.get('message')}")
+
+        return {
+            "success": not failures,
+            "cancelled_order_ids": cancelled,
+            "message": (
+                f"Cancelled {len(cancelled)} pending entry order(s) for {symbol}"
+                + (f"; {len(failures)} failed: {'; '.join(failures)}" if failures else "")
+            ),
+        }
+
     def cancel_all_open_orders_for_symbol(self, symbol: str) -> dict[str, Any]:
         """Cancel every open order resting at the broker for a symbol - used when a
         position has been confirmed CLOSED at the broker (Alpaca's own /v2/positions no

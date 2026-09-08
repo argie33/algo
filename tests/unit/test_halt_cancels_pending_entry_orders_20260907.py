@@ -5,9 +5,15 @@ REAL-MONEY-READINESS FIX (2026-09-07 audit): before this fix, a halt only ever b
 FUTURE order submission - an entry already sent to Alpaca before the halt fired stayed
 resting at the broker and could still fill, silently adding the exposure the halt was
 meant to prevent. A repo-wide grep for cancel_order/cancel_all_orders found no automatic
-caller at all, only scripts/flatten_all_positions.py's manual operator path. This locks in
-that set_halt_flag() now drives the same OrderManager.cancel_all_open_orders_for_symbol
-primitive automatically, for PENDING/OPEN (unfilled) trades only.
+caller at all, only scripts/flatten_all_positions.py's manual operator path.
+
+REAL-MONEY-READINESS FIX (2026-09-07, second pass): the first version drove
+OrderManager.cancel_all_open_orders_for_symbol, which cancels every open order for the
+symbol with no regard for whose it is - unsafe under pyramiding, where a FILLED position's
+own live protective stop-loss/take-profit legs can rest for the same symbol as a new,
+still-unfilled pyramid entry. This now locks in OrderManager.cancel_pending_entry_order,
+which matches only the specific order whose client_order_id is this entry's own
+idempotency_key, for PENDING/OPEN (unfilled) trades only.
 """
 
 from unittest.mock import MagicMock, patch
@@ -51,16 +57,18 @@ def test_set_halt_flag_cancels_pending_entry_orders_via_rds_fallback_path():
 
 
 def test_cancel_pending_entry_orders_only_touches_unfilled_trades_not_filled_positions():
-    """The helper must query only PENDING/OPEN trades - never cancel a filled position's
-    resting stop-loss/take-profit bracket legs, which are the position's own protection."""
+    """The helper must query only PENDING/OPEN trades and cancel by client_order_id
+    (idempotency_key), never by symbol - a filled position's resting stop-loss/take-profit
+    bracket legs (the position's own protection) can share a symbol with a still-unfilled
+    pyramid entry and must not be touched."""
     manager = _manager()
     mock_cursor = MagicMock()
-    mock_cursor.fetchall.return_value = [("AAPL",), ("MSFT",)]
+    mock_cursor.fetchall.return_value = [("AAPL", "key-aapl"), ("MSFT", "key-msft")]
     mock_db_context = MagicMock()
     mock_db_context.__enter__.return_value = mock_cursor
 
     mock_order_mgr = MagicMock()
-    mock_order_mgr.cancel_all_open_orders_for_symbol.return_value = {
+    mock_order_mgr.cancel_pending_entry_order.return_value = {
         "success": True,
         "cancelled_order_ids": ["o1"],
         "message": "ok",
@@ -74,13 +82,15 @@ def test_cancel_pending_entry_orders_only_touches_unfilled_trades_not_filled_pos
     ):
         manager._cancel_pending_entry_orders_on_halt("reason", "phase2_circuit_breaker")
 
-    assert mock_order_mgr.cancel_all_open_orders_for_symbol.call_count == 2
-    called_symbols = {c.args[0] for c in mock_order_mgr.cancel_all_open_orders_for_symbol.call_args_list}
-    assert called_symbols == {"AAPL", "MSFT"}
+    assert mock_order_mgr.cancel_pending_entry_order.call_count == 2
+    called_args = {c.args for c in mock_order_mgr.cancel_pending_entry_order.call_args_list}
+    assert called_args == {("AAPL", "key-aapl"), ("MSFT", "key-msft")}
+    mock_order_mgr.cancel_all_open_orders_for_symbol.assert_not_called()
 
     executed_sql = mock_cursor.execute.call_args[0][0]
     assert "algo_trades" in executed_sql
     assert "status IN" in executed_sql
+    assert "idempotency_key" in executed_sql
 
 
 def test_cancel_pending_entry_orders_is_best_effort_never_raises():
