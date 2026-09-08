@@ -962,10 +962,18 @@ def run(
         # DRY-RUN: Process counts of what WOULD happen, then skip actual execution
         # (Don't return early - we still need to count exits for logging/dashboard visibility)
 
-        # Initialize TradeExecutor only in non-dry-run mode
-        # CRITICAL FIX: Preserve passed-in executor parameter for accessing Phase 5 constraints
-        # even in dry-run mode. Concentration check MUST use tier limits (from Phase 5),
-        # not fall back to config individual position limits (6%).
+        # CLARIFIED (real-money-readiness audit, 2026-09-08): `exposure_constraints` above is
+        # unused here - not a live gap. Phase 5's max_concentration_pct tier limit is already
+        # enforced by the time this runs (policy.review_existing_positions() turns it into
+        # tighten_stop/partial_exit/force_exit actions BEFORE Phase 6, executed here via the
+        # `exposure_actions` param below), and the two local checks just below use different,
+        # deliberately-separate metrics (position count/sector, %-of-portfolio/position) - see
+        # _check_position_size_concentration's own comment for why substituting
+        # max_concentration_pct into them was already tried and reverted as a bug.
+        #
+        # Initialize TradeExecutor only in non-dry-run mode. Preserve passed-in executor param
+        # even in dry-run mode so downstream code reading Phase 5 data off the executor object
+        # still works.
         trade_executor = None
         if not dry_run:
             # ISSUE #4 FIX: Check if paper mode is active before initializing TradeExecutor
