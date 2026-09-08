@@ -55,7 +55,18 @@ CONCEPT_SOURCE_FILES = [
 # A real us-gaap/dei/ifrs-full concept name is PascalCase, letters+digits only, at least ~5
 # characters. Matches some non-concept PascalCase identifiers too, but those simply never
 # appear in real companyfacts data and get filtered out at diff time.
-_CONCEPT_LITERAL_RE = re.compile(r'"([A-Z][A-Za-z0-9]{4,90})"')
+#
+# FIXED 2026-09-07 (goal session: "make sure the list/checks are right" audit): the {4,90}
+# upper bound silently excluded any ALREADY-fetched concept whose literal is over 90 chars
+# from load_known_concepts()'s output - live-confirmed 9 real concepts we do fetch exceed 90
+# chars (up to 110, e.g. sec_income_statement.py's "IncomeLossFromContinuingOperationsBefore
+# IncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments", sec_cash_flow.py's two
+# Cash...RestrictedCash...PeriodIncreaseDecrease variants). Each falsely reappeared as an
+# "undismissed gap" in xbrl_concept_coverage_scan.py output despite being fully wired up - a
+# false positive in the checker itself, not a real gap. Raised to 160 (headroom above the
+# longest real concept literal found, 110 chars) rather than removing the cap entirely, so a
+# truly malformed/non-concept PascalCase run-on string still gets excluded.
+_CONCEPT_LITERAL_RE = re.compile(r'"([A-Z][A-Za-z0-9]{4,160})"')
 
 # Concept-name substrings that are almost always footnote/disclosure detail rather than a
 # statement-level number we'd ever score - see scripts/xbrl_concept_coverage_scan.py's
@@ -77,6 +88,44 @@ NOISE_SUBSTRINGS = [
     "GuaranteeObligations",
     "DerivativeInstrument",
     "FairValue",
+    # Added 2026-09-07 (goal session: comprehensive tie-out/XBRL coverage audit) after
+    # reviewing the top ~250 undismissed gaps by company count and finding every single one
+    # fell into one of these same already-established categories (deferred-tax schedule detail,
+    # tax-reconciliation footnote lines, equity/APIC rollforward detail, debt-maturity/lease
+    # schedules, cash-flow footnote detail already reflected net at the aggregate level this
+    # schema tracks, etc) - see scripts/xbrl_concept_coverage_dismissed.json for the individual
+    # per-concept precedents each pattern generalizes (e.g. "DeferredTaxAssetsNet" already
+    # dismissed as "Deferred-tax footnote schedule component" - every DeferredTax* sibling is
+    # the same class of footnote breakdown, not worth re-litigating one at a time).
+    "DeferredTax",
+    "IncomeTaxReconciliation",
+    "UnrecognizedTaxBenefit",
+    "IncomeTaxPaid",  # jurisdiction/refund-split variants of the already-dismissed IncomeTaxesPaidNet
+    "TreasuryStock",
+    "AdjustmentsToAdditionalPaidInCapital",
+    "AdditionalPaidInCapital",
+    "StockIssuedDuringPeriod",
+    "StockRepurchase",
+    "LongTermDebtMaturitiesRepaymentsOfPrincipal",
+    "FiniteLivedIntangibleAssetsAmortizationExpense",
+    "FiniteLivedIntangibleAssets",
+    "FinanceLease",
+    "OperatingLease",
+    "ClassOfWarrantOrRight",
+    "RestrictedCash",
+    "DefinedContributionPlan",
+    "DefinedBenefitPlan",
+    "AvailableForSale",
+    "ContractWithCustomerLiability",
+    # Cash-flow-statement working-capital/investing/financing footnote detail already
+    # reflected net in this schema's operating_cash_flow/investing_cash_flow/
+    # financing_cash_flow totals - same rationale as the already-dismissed
+    # IncreaseDecreaseInAccountsReceivable/PaymentsToAcquireBusinessesNetOfCashAcquired.
+    "IncreaseDecreaseIn",
+    "ProceedsFrom",
+    "PaymentsFor",
+    "PaymentsTo",
+    "RepaymentsOf",
 ]
 
 
