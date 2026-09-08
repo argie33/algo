@@ -361,6 +361,47 @@ def _get_prices_batch(symbols: list[str], target_date: date) -> dict[str, float]
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch prices for symbols: {e}") from e
 
 
+def _get_prices_batch_with_range(symbols: list[str], target_date: date) -> dict[str, tuple[float, float, float]]:
+    """Same as _get_prices_batch, but also returns the day's high/low - needed to detect an
+    intraday stop-loss/profit-target breach that _get_prices_batch's close-only price would
+    miss entirely (2026-09-07 real-money-readiness audit fix; see run_backtest()'s own former
+    "KNOWN SIMPLIFICATION - no intraday data" docstring note this closes). price_daily already
+    stores daily high/low from the same OHLC bar - this is NOT new intraday tick data, just
+    columns the backtest previously never fetched.
+
+    Returns symbol -> (close, high, low). A day with NULL high/low (a data gap) degrades that
+    symbol back to close-only detection for that day by defaulting high=low=close, rather than
+    fabricating a range or dropping the symbol.
+    """
+    if not symbols:
+        raise ValueError("symbols list cannot be empty for backtest price fetch")
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (symbol) symbol, close, high, low
+                FROM price_daily
+                WHERE symbol = ANY(%s) AND date <= %s
+                ORDER BY symbol, date DESC
+                """,
+                (symbols, target_date),
+            )
+            result: dict[str, tuple[float, float, float]] = {}
+            for row in cur.fetchall():
+                symbol, close_val, high_val, low_val = row
+                if close_val is None:
+                    continue
+                close_f = float(close_val)
+                result[symbol] = (
+                    close_f,
+                    float(high_val) if high_val is not None else close_f,
+                    float(low_val) if low_val is not None else close_f,
+                )
+            return result
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch OHLC prices for symbols: {e}") from e
+
+
 def _get_avg_dollar_volume_batch(symbols: list[str], as_of_date: date) -> dict[str, float]:
     """20-trading-day trailing average dollar volume (volume * close) as of as_of_date,
     batched across symbols - same windowing/methodology as position_sizer.py's live
@@ -442,16 +483,20 @@ def run_backtest(  # noqa: C901
     live's max_position_size_pct role) - risk-based sizing can only shrink a position relative
     to that cap, never grow it past the cap.
 
-    KNOWN SIMPLIFICATION - no intraday data: _get_prices_batch() only fetches `close` from
-    price_daily, so a stop-loss or profit-target exit is priced as if filled at exactly the
-    theoretical stop/target level (entry_price * (1 +/- pct/100)), never at a worse price on a
-    day the close gapped through that level (e.g. an overnight gap-down past the stop). Real
-    stop-loss orders are typically stop-market, which fill at the actual (worse) price on a
-    gap-through day, not the trigger price - so this systematically slightly overstates
-    backtested performance during volatile/gapping periods relative to live execution. This is
-    an inherent limitation of daily-bar-only backtesting (no code fix possible without loading
-    intraday price data), not a calculation bug - noted here so backtest results aren't read as
-    more precise than the underlying data supports.
+    INTRADAY RANGE DETECTION (fixed 2026-09-07, real-money-readiness audit - this previously
+    used _get_prices_batch()'s close-only price, so a stop-loss or profit-target that was hit
+    and then recovered by close was missed ENTIRELY, not just mispriced). Now uses
+    _get_prices_batch_with_range()'s daily high/low (already stored in price_daily's own OHLC
+    bar - not new intraday tick data) to detect whether the day's range crossed the stop/target
+    level, even when the close didn't. STILL A SIMPLIFICATION: the fill is priced at exactly
+    the theoretical stop/target level (entry_price * (1 +/- pct/100)), never at a worse price
+    on a day the price gapped through that level (e.g. an overnight gap-down past the stop) -
+    real stop-market orders fill at the actual (worse) price on a gap-through day, not the
+    trigger price, so backtested performance can still be slightly overstated during volatile/
+    gapping periods relative to live execution. This narrower remaining gap has no code fix
+    without true intraday tick sequencing (daily OHLC can tell you the range was crossed, not
+    the exact fill price within it) - noted here so backtest results aren't read as more
+    precise than the underlying daily-bar data supports.
 
     SLIPPAGE MODELING (fixed 2026-08-25, goal session - this previously modeled every fill as
     perfectly costless): every entry and exit fill now applies `slippage_bps` (default
@@ -472,10 +517,9 @@ def run_backtest(  # noqa: C901
     investigation could not identify a root cause locally; zero-slippage backtesting was a
     concrete candidate it did not consider).
 
-    KNOWN SIMPLIFICATION - no intraday data (unchanged, see the module's `_get_prices_batch()`
-    docstring): a stop-loss or profit-target exit is still priced at the theoretical
-    `entry_price * (1 +/- pct/100)` level (now slippage-adjusted), not at a worse price on a day
-    the close gapped through that level - no code fix possible without intraday price data.
+    (Slippage above stacks with the INTRADAY RANGE DETECTION note further up: fill price is
+    the theoretical stop/target level, then slippage-adjusted - still not the exact worse
+    price a real gap-through would produce, see that note for why.)
 
     ENTRY LAG MODELING (fixed 2026-08-27, real-money-readiness review - this previously entered
     at the exact signal day's own close, zero lag): each sim_date's entry candidates are now
@@ -539,9 +583,12 @@ def run_backtest(  # noqa: C901
     prev_sim_date: date | None = None
 
     for sim_date in trading_dates:
-        # Mark-to-market: update portfolio value at day open
+        # Mark-to-market: update portfolio value at day open. Fetches high/low alongside
+        # close (2026-09-07 fix) so stop-loss/profit-target detection below can check the
+        # day's actual range, not just where it closed.
         position_symbols = list(positions.keys())
-        current_prices = _get_prices_batch(position_symbols, sim_date) if position_symbols else {}
+        current_price_ranges = _get_prices_batch_with_range(position_symbols, sim_date) if position_symbols else {}
+        current_prices = {symbol: ohlc[0] for symbol, ohlc in current_price_ranges.items()}
 
         # Validate all position prices are available (fail-fast if data missing)
         for symbol in position_symbols:
@@ -567,6 +614,7 @@ def run_backtest(  # noqa: C901
         for symbol in list(positions.keys()):
             pos = positions[symbol]
             current_price = current_prices[symbol]
+            _close, day_high, day_low = current_price_ranges[symbol]
             # Trading-day-aware (not calendar days) to match the live max_hold_days semantics
             # in algo/trading/exit_engine.py - a naive calendar diff would let a weekend
             # inflate hold_days and trigger max_hold earlier here than live actually would.
@@ -575,19 +623,31 @@ def run_backtest(  # noqa: C901
             if pos["entry_price"] <= 0:
                 raise ValueError(f"Invalid entry price for {symbol}: {pos['entry_price']} <= 0. Cannot calculate P&L.")
 
-            pnl_pct = (current_price - pos["entry_price"]) / pos["entry_price"] * 100
+            stop_level = pos["entry_price"] * (1 - stop_loss_pct / 100)
+            target_level = pos["entry_price"] * (1 + profit_target_pct / 100)
 
             exit_reason = None
             exit_price = current_price
 
+            # INTRADAY RANGE CHECK (2026-09-07 fix - see _get_prices_batch_with_range's
+            # docstring): checks the day's actual low/high against the stop/target levels,
+            # not just where the day closed - a close-only check could miss a stop-out or
+            # profit-target hit entirely if the price dipped/spiked and recovered by close.
+            # Still prices the fill at the theoretical stop/target level (not the exact worse
+            # price a real gap-through would produce) - that remains a separate, smaller,
+            # already-documented simplification (no code fix possible without true intraday
+            # tick sequencing). When both stop and target were touched the same day, daily
+            # OHLC alone can't tell which happened first - stop takes priority as the
+            # conservative assumption, consistent with this backtest's general bias toward
+            # not overstating performance (see slippage/entry-lag modeling above).
             if symbol in sell_signals:
                 exit_reason = "sell_signal"
-            elif pnl_pct >= profit_target_pct:
-                exit_reason = "profit_target"
-                exit_price = pos["entry_price"] * (1 + profit_target_pct / 100)
-            elif pnl_pct <= -stop_loss_pct:
+            elif day_low <= stop_level:
                 exit_reason = "stop_loss"
-                exit_price = pos["entry_price"] * (1 - stop_loss_pct / 100)
+                exit_price = stop_level
+            elif day_high >= target_level:
+                exit_reason = "profit_target"
+                exit_price = target_level
             elif hold_days >= max_hold_days:
                 exit_reason = "max_hold"
 
