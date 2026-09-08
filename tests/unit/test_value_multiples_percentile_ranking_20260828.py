@@ -455,6 +455,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 0.005,
                 None,
                 None,
+                None,
                 {"quality": 70.0},
                 "Technology",
                 99.99,  # data_completeness
@@ -472,6 +473,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 None,
                 2.0,
                 3.0,
+                None,
                 None,
                 None,
                 "unprofitable_stock",
@@ -495,6 +497,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 2.5,
                 None,
                 0.01,
+                None,
                 None,
                 "negative_forward_eps",
                 "{}",

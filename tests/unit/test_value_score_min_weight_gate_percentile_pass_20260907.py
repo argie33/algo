@@ -61,6 +61,7 @@ class TestValueMinWeightGateInPercentilePass:
                 0.22,  # ps_ratio
                 None,  # forward_pe
                 None,  # dividend_yield
+                None,  # fcf_yield
                 None,  # pe_ratio_unavailable_reason
                 None,  # forward_pe_unavailable_reason
                 {"value": 97.61},  # components
@@ -117,10 +118,11 @@ class TestValueMinWeightGateInPercentilePass:
                 15.0,  # pe_ratio
                 2.0,  # pb_ratio
                 None,  # ps_ratio
-                None,
-                None,
-                None,
-                None,
+                None,  # forward_pe
+                None,  # dividend_yield
+                None,  # fcf_yield
+                None,  # pe_ratio_unavailable_reason
+                None,  # forward_pe_unavailable_reason
                 {"value": 55.0},
                 "Technology",
                 90.0,  # data_completeness
