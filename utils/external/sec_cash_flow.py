@@ -185,7 +185,23 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # discontinued) and must keep winning whenever it's actually present.
         "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
         "NetCashProvidedByUsedInOperatingActivities",
+        # FIXED 2026-09-07 (goal session: "make sure the list/checks are right, then fix
+        # issues" audit): same "discontinued-operations filer" failure shape as the Operating
+        # pair above, live-confirmed via real companyfacts JSON. Air Products and Chemicals
+        # (APD, a major real 10-K filer) tags investing/financing cash flow ONLY under these
+        # ContinuingOperations concepts for EVERY fiscal year 2016-2025 - the plain concepts
+        # below have zero entries for APD in that entire span - so investing_cash_flow/
+        # financing_cash_flow were silently NULL for APD's whole recent history despite real
+        # data being available. More broadly: of 1,887/1,925 filers that tag the financing/
+        # investing ContinuingOperations concepts at all, 1,391/1,373 have at least one
+        # individual fiscal year present ONLY under the ContinuingOperations tag (not just
+        # APD - a widespread partial-year gap, not a single-filer quirk). Listed BEFORE the
+        # plain concepts (this file's "last-listed wins on overwrite" convention) so a filer
+        # that reports BOTH for the same fiscal year keeps the fuller plain-concept total
+        # whenever it's actually present, same precedent as Operating above.
+        "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations",
         "NetCashProvidedByUsedInInvestingActivities",
+        "NetCashProvidedByUsedInFinancingActivitiesContinuingOperations",
         "NetCashProvidedByUsedInFinancingActivities",
         "PaymentsToAcquirePropertyPlantAndEquipment",
         # FIXED 2026-08-10: real capex concept some filers use INSTEAD of the concept

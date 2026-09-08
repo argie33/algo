@@ -44,6 +44,15 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # APD/ANGI (which report both concepts) keep the fuller plain-concept total
         # whenever it's actually present for that fiscal year.
         "net_cash_provided_by_used_in_operating_activities_continuing_operations",
+        # FIXED 2026-09-07 (goal session: "make sure the list/checks are right, then fix
+        # issues" audit): same fallback-only rationale as the Operating entry above - see
+        # sec_statements.py's get_cash_flow() comment on these 2 concepts for the live APD
+        # evidence (investing/financing cash flow tagged ONLY under ContinuingOperations for
+        # APD's entire FY2016-2025 history) and the broader 1,391/1,373-filer partial-year
+        # gap. Must never overwrite a real plain-concept value when both are present for the
+        # same fiscal year.
+        "net_cash_provided_by_used_in_investing_activities_continuing_operations",
+        "net_cash_provided_by_used_in_financing_activities_continuing_operations",
         # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): BDC-
         # specific distribution concept - see sec_statements.py's get_cash_flow() comment
         # on this concept (MAIN live-confirmed: tags this AND a real, materially LARGER
@@ -62,6 +71,11 @@ _CASHFLOW_FIELD_MAPPING = {
     "net_cash_provided_by_used_in_operating_activities_continuing_operations": "operating_cash_flow",
     "net_cash_provided_by_used_in_investing_activities": "investing_cash_flow",
     "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
+    # FIXED 2026-09-07 (goal session: "make sure the list/checks are right, then fix issues"
+    # audit): fallback-only, see _SBC_BUYBACK_FALLBACK_ONLY_FIELDS above and
+    # sec_statements.py's get_cash_flow() comment for the live APD evidence.
+    "net_cash_provided_by_used_in_investing_activities_continuing_operations": "investing_cash_flow",
+    "net_cash_provided_by_used_in_financing_activities_continuing_operations": "financing_cash_flow",
     # Found 2026-07-20: this mapped to "capital_expenditures", a column that has never
     # existed in annual_cash_flow/quarterly_cash_flow (real column is "capex") - every
     # write silently vanished at the schema-validation step below, leaving capex NULL for
