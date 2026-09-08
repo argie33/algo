@@ -337,6 +337,40 @@ NOISE_SUBSTRINGS = [
     "NotionalAmount",
     "BorrowingsInterestRate",
     "AllowanceAccountForCreditLossesOfFinancialAssets",
+    # Added 2026-09-08 (goal session: "get XBRL data issues to zero" exhaustive triage,
+    # continuing the 146-concept backlog after the 4th real-alias batch landed). Spot-checked
+    # each directly against Agnico Eagle's/Bank of Nova Scotia's real companyfacts JSON -
+    # every one confirmed to be a rollforward/reconciliation sub-line, never a statement-level
+    # headline figure.
+    #
+    # PP&E disposal-rollforward detail (spot-checked DisposalsPropertyPlantAndEquipment=
+    # USD 46,692,000 and GainsLossesOnDisposalsOfPropertyPlantAndEquipment=USD -41,219,000 on
+    # Agnico Eagle's FY2025 40-F - the rollforward "disposals" component and its gain/loss,
+    # not the ppe_net balance itself).
+    "DisposalsPropertyPlantAndEquipment",
+    "GainsLossesOnDisposalsOfPropertyPlantAndEquipment",
+    # Deprecated/versioned taxonomy element (spot-checked InventoryWritedown2011=USD 0 on
+    # Agnico Eagle's FY2025 40-F - the "2011" suffix marks a legacy taxonomy-version element;
+    # a period-writedown reconciliation line, not the inventory balance).
+    "InventoryWritedown2011",
+    # Impairment-reversal sub-detail (spot-checked ImpairmentLossReversalOfImpairmentLoss
+    # RecognisedInProfitOrLoss=USD -229,000,000 on Agnico Eagle's FY2025 40-F - a reversal
+    # component of the broader impairment-loss family already left undismissed pending a
+    # dedicated impairment column, not itself a headline total).
+    "ImpairmentLossReversalOfImpairmentLoss",
+    # Cash-flow indirect-method catch-all reconciliation lines (spot-checked
+    # OtherAdjustmentsToReconcileProfitLoss=CAD -8,048,000,000 and OtherInflowsOutflowsOfCash
+    # ClassifiedAsFinancingActivities=CAD -120,000,000 on Bank of Nova Scotia's FY2026 Q1 6-K,
+    # and OtherInflowsOutflowsOfCashClassifiedAsInvestingActivities=USD 1,611,000 on Agnico
+    # Eagle's FY2025 40-F - all indirect-method reconciliation/catch-all sub-lines, not the
+    # operating/investing/financing cash flow totals this schema already tracks).
+    "AdjustmentsToReconcileProfitLoss",
+    "OtherInflowsOutflowsOfCash",
+    # Lease-liability rollforward detail (the "increase through new leases" movement line,
+    # sibling of the already-noise AdditionsToRightofuseAssets/DepreciationRightofuseAssets
+    # rollforward pair above - not the bare LeaseLiabilities/CurrentLeaseLiabilities/
+    # NoncurrentLeaseLiabilities balance, which stays undismissed).
+    "IncreaseThroughNewLeasesLiabilitiesArisingFromFinancingActivities",
 ]
 
 
