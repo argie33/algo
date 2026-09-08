@@ -5,7 +5,6 @@
   "us-gaap:AccumulatedOtherComprehensiveIncomeLossNetOfTax": "AOCI balance - same deliberate comprehensive-income scope boundary as above",
   "us-gaap:AdditionalPaidInCapital": "APIC balance - equity-rollforward footnote detail, not a scoring input (stockholders_equity total already tracked)",
   "us-gaap:AdjustmentsToAdditionalPaidInCapitalSharebasedCompensationRequisiteServicePeriodRecognitionValue": "Stock-comp APIC-rollforward footnote line - not a primary statement line",
-  "us-gaap:AmortizationOfIntangibleAssets": "Duplicate of cash-flow-statement amortization already captured via depreciation_and_amortization",
   "us-gaap:CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect": "Alias of the already-wired-up net-change-in-cash concept - restricted-cash-inclusive variant, not a distinct primary fact",
   "us-gaap:CommonStockParOrStatedValuePerShare": "Par/stated value per share - administrative, no scoring use",
   "us-gaap:CommonStockSharesAuthorized": "Authorized (not outstanding) share count - administrative par-value field, not used in any pillar score",

@@ -756,6 +756,12 @@ def get_income_statement(
         # figure" semantics.
         "DepreciationDepletionAndAmortization",
         "AmortizationOfIntangibles",
+        # FIXED 2026-09-07 (goal session: tie-out/XBRL check audit, xbrl_concept_coverage_scan.py
+        # surfaced this as an undismissed gap): live-confirmed 0/5,373 filers tag the concept
+        # above, while AmortizationOfIntangibleAssets is tagged by 3,268/5,373 (61%) and was
+        # wrongly dismissed as a duplicate - never actually fetched. Listed last so it wins per
+        # this file's "last-listed wins" precedence convention.
+        "AmortizationOfIntangibleAssets",
         # For roic_pct (quality_metrics) = EBIT*(1-effective_tax_rate)/invested_capital.
         # Live-confirmed against AAPL/MSFT companyfacts (2026-08-03): both real GAAP
         # concepts, not guessed. IncomeTaxExpenseBenefit is the real tax provision (was

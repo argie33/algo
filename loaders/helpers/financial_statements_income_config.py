@@ -258,6 +258,13 @@ _INCOME_FIELD_MAPPING = {
     # WSM/CP evidence. Same target column as depreciation_and_amortization above.
     "depreciation_depletion_and_amortization": "amortization_expense",
     "amortization_of_intangibles": "amortization_expense",  # Alt source for amortization
+    # FIXED 2026-09-07 (goal session: tie-out/XBRL check audit): AmortizationOfIntangibles
+    # above is essentially never tagged in practice (0/5,373 filers in the on-disk
+    # companyfacts cache) - wrongly dismissed as a duplicate of this concept in
+    # scripts/xbrl_concept_coverage_dismissed.json, which is actually tagged by
+    # 3,268/5,373 filers (61%) and was never fetched anywhere. Same target column per
+    # this file's "last-listed wins" convention.
+    "amortization_of_intangible_assets": "amortization_expense",
     # For roic_pct real effective-tax-rate computation (see sec_statements.py's comment
     # above these concepts for the live-verification note).
     "income_tax_expense_benefit": "income_tax_expense",
