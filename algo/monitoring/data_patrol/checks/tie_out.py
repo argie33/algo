@@ -515,6 +515,9 @@ class TieOutChecker(BaseCheck):
         # stock_scores has no prior guard that pillar/composite values stay within their
         # percentile-rank contract of [0, 100].
         self.check_stock_scores_bounds(cur)
+        # Round 6 (same session): no prior check reconciled quarterly figures against their
+        # own annual total at all - live-caught APA's genuine quarterly-revenue duplicate bug.
+        self.check_quarterly_revenue_annual_duplicate(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -3776,6 +3779,84 @@ class TieOutChecker(BaseCheck):
                 "stock_scores_bounds",
                 ERROR,
                 "stock_scores",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_revenue_annual_duplicate(self, cur: Any) -> None:
+        """quarterly_income_statement.revenue should not be IDENTICAL across all 4 quarters
+        of a fiscal year AND equal to that year's annual_income_statement.revenue.
+
+        ADDED 2026-09-08 (goal: "check the scores make sense" stock_scores/tie-out sweep,
+        quarterly-sum-to-annual reconciliation gap). A live spot-check of quarterly-sum-vs-
+        annual revenue reconciliation (no prior tie-out check covered this cross-table
+        relationship at all) surfaced 51 latest-fiscal-year symbol/year pairs off by >5% -
+        the overwhelming majority were legitimate (discontinued operations, restatements,
+        FX), EXCEPT one exact, repeating, single-symbol signature: APA (Apache/APA
+        Corporation, a real active S&P 500 energy major, not an obscure filer) has all 4
+        quarterly_income_statement.revenue rows identically equal to that year's full annual
+        total for FY2023/2024/2025 running (live-confirmed: $8.327B/$9.739B/$8.951B), i.e.
+        the loader is stamping the ANNUAL duration fact onto all four quarters instead of
+        real per-quarter figures - not a business fact, a duration-context extraction bug.
+        This narrower "identical-across-all-4-quarters AND equals annual" signature is
+        deliberately used instead of a generic sum-mismatch tolerance check: a same-quarter-
+        as-annual match for a SINGLE quarter is common and legitimate for small/pre-revenue
+        filers whose revenue is concentrated in one quarter (spot-checked separately, 160+
+        such cases, all real), but four-for-four is only reachable by this duration-context
+        bug. NOT yet root-caused in the loader itself (that's sec_base.py's/sec_income_
+        statement.py's quarterly duration-context selection for APA specifically) - flagging
+        here is the mechanism to surface it, same as gross_profit_identity/pretax_to_net_income
+        above.
+        """
+        try:
+            cur.execute(
+                """
+                WITH latest_fy AS (
+                    SELECT symbol, MAX(fiscal_year) AS fiscal_year
+                    FROM annual_income_statement
+                    WHERE data_unavailable = FALSE AND revenue IS NOT NULL
+                    GROUP BY symbol
+                )
+                SELECT q.symbol, q.fiscal_year, MIN(q.revenue) AS q_revenue, a.revenue AS a_revenue,
+                       COUNT(*) AS n_quarters, COUNT(DISTINCT q.revenue) AS n_distinct
+                FROM quarterly_income_statement q
+                JOIN annual_income_statement a ON a.symbol = q.symbol AND a.fiscal_year = q.fiscal_year
+                    AND a.data_unavailable = FALSE
+                JOIN latest_fy l ON l.symbol = q.symbol AND l.fiscal_year = q.fiscal_year
+                JOIN stock_symbols s ON s.symbol = q.symbol AND s.active = true
+                WHERE q.data_unavailable = FALSE AND q.revenue IS NOT NULL AND q.revenue != 0
+                GROUP BY q.symbol, q.fiscal_year, a.revenue
+                HAVING COUNT(*) = 4 AND COUNT(DISTINCT q.revenue) = 1
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                q_revenue, a_revenue = float(row["q_revenue"]), float(row["a_revenue"])
+                if abs(q_revenue - a_revenue) < 1.0:
+                    flagged.append(
+                        {
+                            "symbol": row["symbol"],
+                            "fiscal_year": row["fiscal_year"],
+                            "quarterly_revenue": q_revenue,
+                            "annual_revenue": a_revenue,
+                        }
+                    )
+            if flagged:
+                flagged.sort(key=lambda r: r["symbol"])
+                self.log(
+                    "quarterly_revenue_annual_duplicate",
+                    WARN,
+                    "quarterly_income_statement",
+                    f"{len(flagged)} symbol(s) have all 4 quarters of revenue identically "
+                    f"equal to the full annual revenue (duration-context extraction bug, "
+                    f"not a real quarterly figure)",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quarterly_revenue_annual_duplicate failed: {e}", exc_info=True)
+            self.log(
+                "quarterly_revenue_annual_duplicate",
+                ERROR,
+                "quarterly_income_statement",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
             )
 
