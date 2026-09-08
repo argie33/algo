@@ -360,7 +360,7 @@
   "lambda/api/routes/algo_handlers/dashboard/circuit_breakers.py": 723,
   "lambda/api/routes/algo_handlers/dashboard/equity_curve.py": 77,
   "lambda/api/routes/algo_handlers/dashboard/positions.py": 669,
-  "lambda/api/routes/algo_handlers/dashboard/scores.py": 322,
+  "lambda/api/routes/algo_handlers/dashboard/scores.py": 342,
   "lambda/api/routes/algo_handlers/dashboard/signals.py": 301,
   "lambda/api/routes/algo_handlers/dashboard/status.py": 261,
   "lambda/api/routes/algo_handlers/dashboard/trades.py": 79,
