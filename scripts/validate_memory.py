@@ -156,8 +156,17 @@ def check_structure(filepath: Path, content: str) -> list[str]:
             # class on a second real memory file the same day. Widened again to any non-newline
             # character (still capped at 60, still requires has_shown_command as an AND
             # condition above, so this alone can't pass a claim with no shown command at all).
+            #
+            # BUG FOUND 2026-09-08: `pass(ed|ing)?\b` doesn't match the present-tense
+            # third-person form "passes" ("test suite ... passes") - the word boundary check
+            # right after the optional (ed|ing) group fails because "passes" continues with
+            # "es", not a boundary. False-positive-blocked a real memory file
+            # (coverage_13f_other_bucket_data_unavailable_crosscheck_fix_20260908.md, "Full
+            # `scores_coverage` test suite (100 tests) passes") that had both a shown command
+            # (backticked table/module name) and a concrete pass count. Same false-positive
+            # class as 2026-08-11/2026-09-04/2026-09-07 above, just a missed verb form - added.
             has_result_line = bool(re.search(r"\d+\s*(passed|/\d+)", lowered)) or bool(
-                re.search(r"\d+[\s\S]{0,60}\bpass(ed|ing)?\b", lowered)
+                re.search(r"\d+[\s\S]{0,60}\bpass(ed|ing|es)?\b", lowered)
             )
             has_method = has_shown_command and has_result_line
         if not has_method:

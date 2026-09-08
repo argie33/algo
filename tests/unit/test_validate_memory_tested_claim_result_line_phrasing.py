@@ -52,6 +52,28 @@ Unit-tested (`tests/unit/test_example_20260904.py`), mypy clean, 88 existing
     assert issues == []
 
 
+def test_present_tense_passes_phrasing_is_not_flagged_unverified() -> None:
+    # Third occurrence of this false-positive class (2026-09-08): the fallback regex matched
+    # "pass"/"passed"/"passing" but not the present-tense third-person "passes" - the word
+    # boundary right after the optional (ed|ing) group fails to match because "passes"
+    # continues with "es". Live-reproduced on
+    # coverage_13f_other_bucket_data_unavailable_crosscheck_fix_20260908.md ("Full
+    # `scores_coverage` test suite (100 tests) passes").
+    content = """---
+name: example_memory
+description: "example"
+metadata:
+  type: project
+---
+
+Live-verified: fixed via `_resolve_factor_value_col`. Full `scores_coverage` test suite
+(100 tests) passes.
+"""
+    issues = check_structure(Path("example_memory.md"), content)
+
+    assert issues == []
+
+
 def test_bare_tested_claim_with_no_evidence_is_still_flagged() -> None:
     content = """---
 name: example_memory
