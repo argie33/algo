@@ -90,6 +90,7 @@ BASE_CONFIG: dict[str, Any] = {
     "volume_decay_gate_enabled": False,
     # Exit Rules
     "require_target_pullback": False,
+    "use_scale_out_targets": True,
     "t1_target_r_multiple": 1.5,
     "t2_target_r_multiple": 3.0,
     "t3_target_r_multiple": 4.0,

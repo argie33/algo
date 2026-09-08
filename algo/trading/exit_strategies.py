@@ -13,17 +13,51 @@ Exit hierarchy (by priority):
    no-trigger today.
 3. RS line break (relative strength breakdown)
 4. Time-based (held >= max_days)
-5. Profit target T1 (1.5R)
-6. Profit target T2 (3R)
-7. Profit target T3 (4R)
-8. Breakeven stop raise (move_be_at_r, default 1.0R - stop-raise only, added 2026-09-07,
-   see BreakevenStopStrategy/PositionContext.check_move_to_breakeven docstrings; move_be_at_r
-   was previously dead config, required at ExitEngine init but never consulted)
-9. Chandelier trail (3xATR from high)
+5. Profit target T1 (1.5R) - DISABLED BY DEFAULT since 2026-09-07 (see check_target_t1's
+   docstring and the module note below): a validation backtest found a pure trail beats this.
+   `use_scale_out_targets` config; T2/T3 are deliberately left ungated (see check_target_t1's
+   docstring) so a pre-existing position that already sold its T1 leg completes normally.
+6. Profit target T2 (3R) - see #5; naturally inert for NEW trades (target_hits never leaves 0)
+7. Profit target T3 (4R) - see #5; naturally inert for NEW trades (target_hits never leaves 0)
+8. Chandelier trail (3xATR from high)
+9. Move to breakeven (unconditional stop floor once R >= move_be_at_r, default 1.0 - added
+   2026-09-07, see BreakevenStopStrategy/check_move_to_breakeven)
 10. TD Sequential (9-count or 13-count exhaustion)
 11. First red day (after 2.5R+ gain)
 12. Climax exhaustion (30+ days, 5R+ gain)
 13. Distribution (market distribution days exceed limit)
+
+2026-09-07 exit-strategy literature review (goal session): compared this stack against
+trading literature/academic research, then validated the one concrete, actionable finding
+against our own data before touching live behavior (the user's explicit bar: literature AND
+our own validation, not literature alone). Findings: the swing-low initial stop + ATR-based
+chandelier trail already match best-practice direction (volatility-scaled stops beat fixed-%
+stops - Kaufman-style systems literature); the O'Neil 8-week time-stop extension is a
+reasonable adaptive time-stop. `move_be_at_r` (added above) - a required config key since
+inception that no code had ever actually wired up (confirmed dead via full-repo grep) - now
+enforces an unconditional breakeven-stop floor, distinct from T1's later breakeven raise,
+without touching position sizing or profit-taking.
+
+T1/T2/T3 scaling out at fixed R-multiples was flagged as the one place trend-following
+literature (Covel, Faber-style momentum research) is fairly consistent against this system's
+approach - scaling out lowers blended expectancy vs. a pure trail by capping the fat-tail
+winners a trend system's edge depends on. RESOLVED (same session, follow-up): built
+scripts/backtest_exit_strategy_comparison_20260907.py, a standalone paired backtest that
+replays the real price-technical BUY entry trigger (buy_signal_generator.py's swing-pivot
+breakout above a rising 50-day SMA - no fundamentals dependency, so it doesn't hit the
+buy_sell_daily ~83-day depth blocker that closed off regime-adaptive-exit validation, see
+tests/unit/test_regime_adaptive_exits_backtest_infeasible_20260825.py) across 2,885 symbols
+with 10+ years of price_daily history. Result, 471,972 paired trades (1962-2026): the pure-
+trail design (chandelier + breakeven floor, no scale-out) beat this T1/T2/T3 chain on mean
+R-multiple (+0.096 vs +0.085), geometric per-trade growth (+0.088% vs +0.079% at 1% account
+risk/trade), and tail capture (57.5% vs 52.7% of total profit from the top-decile of trades) -
+paired mean-R difference -0.0114, 95% bootstrap CI [-0.0132, -0.0096], excludes zero. T1/T2/T3
+scale-out is now gated OFF by default (`use_scale_out_targets`, see check_target_t1's
+docstring) - literature AND our own data now agree. TD Sequential 9/13-count exhaustion exits
+remain a genuinely open, thin-evidence question (independent academic validation is
+thin-to-mixed, regime-dependent at best) - not addressed this session; IBD's specific
+7-8%/20-25% numeric thresholds are moot here since this system already uses a swing-low pivot
+stop instead of a fixed %, the stronger choice per literature.
 """
 
 from __future__ import annotations

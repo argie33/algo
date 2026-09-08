@@ -278,7 +278,42 @@ class PositionContext:
 
     def check_target_t1(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
         """T1 target exit (2026-08-25: R-multiple in the reason string is read live from
-        config, not hardcoded - see _target_r_label): 50% position reduction."""
+        config, not hardcoded - see _target_r_label): 50% position reduction.
+
+        GATED OFF BY DEFAULT since 2026-09-07 (exit-strategy literature review + validation
+        backtest, scripts/backtest_exit_strategy_comparison_20260907.py): trend-following
+        literature (Covel, Faber-style momentum research) argues scaling out at fixed
+        R-multiples lowers blended expectancy vs. a pure trail by capping the fat-tail winners
+        a trend system's edge depends on. Validated against our own data, not just literature
+        (the user's explicit bar for changing this): a paired backtest replaying the real
+        price-technical BUY entry trigger (buy_signal_generator.py's swing-pivot breakout)
+        across 2,885 symbols with 10+ years of price_daily history (471,972 paired trades,
+        1962-2026) found the pure-trail design (chandelier + breakeven floor, no scale-out)
+        beat this T1/T2/T3 chain on mean R-multiple (+0.096 vs +0.085), geometric per-trade
+        growth (+0.088% vs +0.079% at 1% risk/trade), and tail capture (57.5% vs 52.7% of
+        total profit from the top decile of trades) - paired mean-R difference -0.0114, 95%
+        bootstrap CI [-0.0132, -0.0096], excludes zero. Gating T1 alone is sufficient for every
+        NEW trade opened while this is off: check_target_t2/t3 require target_hits==1/2, which
+        only a real T1 (then T2) fire ever sets, so with T1 gated off target_hits never leaves
+        0 and T2/T3 go naturally inert - deliberately NOT gating T2/T3 themselves means a
+        position that already recorded target_hits=1 BEFORE this was deployed (a real T1 sale
+        under the old default) still completes T2/T3 normally instead of being stranded
+        half-exited by the config change. Controlled by `use_scale_out_targets` (schema default True, matching every other
+        exit-rule config's schema-default-vs-live-value split already in this file; live
+        algo_config value False per this backtest - see the migration seeding it). Required
+        config, no implicit default here (matches this whole file's fail-fast convention) -
+        existing test fixtures were updated to set it explicitly True so their T1/T2/T3
+        coverage keeps exercising the (still fully intact) scale-out machinery. Re-enable by
+        setting use_scale_out_targets=true in algo_config if a future backtest finds the
+        opposite on a larger/different sample - nothing here is deleted, just gated.
+        """
+        if "use_scale_out_targets" not in self.config:
+            raise ValueError(
+                "CRITICAL: 'use_scale_out_targets' config missing. "
+                "Cannot proceed with target exits without explicit configuration."
+            )
+        if not bool(self.config["use_scale_out_targets"]):
+            return False, None
         if self.target_hits == 0 and self.cur_price >= self.t1_price:
             if self._was_target_hit_today(self.t1_hit_time):
                 return False, None

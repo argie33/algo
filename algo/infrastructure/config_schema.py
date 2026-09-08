@@ -157,6 +157,16 @@ VALIDATION_SCHEMA = {
     "volume_decay_gate_enabled": ("bool", None, None, False, None),
     # Exit Rules
     "require_target_pullback": ("bool", None, None, False, None),
+    # DISABLED 2026-09-07: T1/T2/T3 scale-out disabled by default after a validation backtest
+    # (scripts/backtest_exit_strategy_comparison_20260907.py, 471,972 paired trades across
+    # 2,885 symbols/10+yrs price_daily history) found a pure trailing-stop design (chandelier +
+    # breakeven floor, no partial profit-taking) beat this scale-out chain on mean R-multiple,
+    # geometric per-trade growth, AND tail capture - matching trend-following literature
+    # (scaling out caps the fat-tail winners a trend system's edge depends on). Schema default
+    # stays True (matches every existing test fixture / doesn't retroactively change behavior
+    # for anything that doesn't explicitly read algo_config); the LIVE value is False via
+    # migration. See exit_position_context.py's check_target_t1 docstring for full results.
+    "use_scale_out_targets": ("bool", None, None, False, True),
     "t1_target_r_multiple": ("float", 0.5, 10.0, False, 1.5),
     "t2_target_r_multiple": ("float", 0.5, 10.0, False, 3.0),
     "t3_target_r_multiple": ("float", 0.5, 10.0, False, 4.0),
