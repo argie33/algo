@@ -54,13 +54,31 @@ _OUTLIER_MULTIPLE = 5.0
 # the LARGEST raw value (FCF yield/ROE/ROCE/dividend_yield). percentile_rank_reference is which
 # tail percentile anchors the "normal extreme" the outlier multiple is measured against - p05
 # for "low" fields (the already-cheap tail), p95 for "high" fields (the already-rich tail).
+#
+# ADDED 2026-09-08 (goal: score/tie-out sanity sweep - direct follow-up to hand-fixing
+# forward_pe/interest_coverage's own immaterial-denominator distortions the same session, see
+# [[forward_pe_immaterial_eps_floor_fix_20260908]]/[[interest_coverage_materiality_floor_fix_20260908]]
+# in memory): this checker already existed for exactly this bug class (SOAR/LX/ROC/MSB-shaped
+# single-extreme-ratio leaderboard distortions) but neither field was in _RATIO_FIELDS - the
+# same reactive "a human eyeballed a leaderboard" pattern this checker's own module docstring
+# says it exists to get away from. forward_pe uses the existing "low" direction (same cheap-is-
+# good convention as pe_ratio - an implausibly LOW forward_pe is the dangerous "fakes a #1 value
+# rank" direction; the implausibly HIGH direction this session actually fixed is already guarded
+# by MAX_PLAUSIBLE_FORWARD_PE_RATIO at write time, so this check adds the complementary
+# distribution-aware layer on the other tail, same as pe/pb/ps already have). interest_coverage
+# needed a NEW "abs_high" direction: unlike PE/ROE, it's legitimately signed (a company with an
+# operating loss shows negative coverage), and the actual bug this session found produced BOTH
+# large-positive (NSSC ~996) AND large-negative (SXTP ~-994) distorted values - "high" direction
+# alone only catches the positive tail.
 _RATIO_FIELDS: list[tuple[str, str, str]] = [
     ("value_metrics", "pe_ratio", "low"),
     ("value_metrics", "pb_ratio", "low"),
     ("value_metrics", "ps_ratio", "low"),
+    ("value_metrics", "forward_pe", "low"),
     ("value_metrics", "fcf_yield", "high"),
     ("quality_metrics", "roe", "high"),
     ("quality_metrics", "roce_pct", "high"),
+    ("quality_metrics", "interest_coverage", "abs_high"),
 ]
 
 
@@ -105,6 +123,21 @@ class ScoreRatioOutlierChecker(BaseCheck):
                 bound = reference / _OUTLIER_MULTIPLE
                 flagged = [(s, v) for s, v in rows if 0 < v < bound]
                 flagged.sort(key=lambda sv: sv[1])
+            elif direction == "abs_high":
+                # ADDED 2026-09-08: for a legitimately-signed ratio (interest_coverage can be
+                # negative for a company with an operating loss - unlike PE/ROE, where a
+                # negative value means something else entirely and is excluded), the outlier
+                # tail is symmetric: an extreme value on EITHER side is equally suspect (a
+                # near-zero denominator blows the ratio up in whichever direction the numerator
+                # happens to be signed). Reference is p95 of the ABSOLUTE values; flag anything
+                # whose magnitude exceeds reference * _OUTLIER_MULTIPLE, in either sign.
+                abs_values = sorted(abs(v) for v in values)
+                reference = abs_values[min(n - 1, int(n * 0.95))]
+                if reference <= 0:
+                    return
+                bound = reference * _OUTLIER_MULTIPLE
+                flagged = [(s, v) for s, v in rows if abs(v) > bound]
+                flagged.sort(key=lambda sv: abs(sv[1]), reverse=True)
             else:
                 reference = values[min(n - 1, int(n * 0.95))]
                 if reference <= 0:
@@ -125,8 +158,9 @@ class ScoreRatioOutlierChecker(BaseCheck):
                 WARN,
                 table,
                 f"{len(flagged)} symbol(s) have a {field} more than {_OUTLIER_MULTIPLE:.0f}x "
-                f"{'below' if direction == 'low' else 'above'} the universe's own "
-                f"{'p05' if direction == 'low' else 'p95'} ({reference:.4f}) - review queue, not a "
+                f"{'below' if direction == 'low' else 'in magnitude beyond' if direction == 'abs_high' else 'above'} "
+                f"the universe's own {'p05' if direction == 'low' else 'p95 (by absolute value)' if direction == 'abs_high' else 'p95'} "
+                f"({reference:.4f}) - review queue, not a "
                 "confirmed bug: a single most-extreme raw value always wins percentile-rank 100 "
                 "outright regardless of whether it's genuine (real deep-value/distress) or an "
                 "extraction/scale artifact - see this check's own module docstring for the "

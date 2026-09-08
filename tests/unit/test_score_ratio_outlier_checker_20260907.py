@@ -78,6 +78,41 @@ class TestHighDirectionOutlier:
         assert checker.results == []
 
 
+class TestAbsHighDirectionOutlier:
+    """interest_coverage: legitimately signed (operating losses -> negative), so the outlier
+    tail is symmetric - an extreme value on EITHER side is equally suspect. ADDED 2026-09-08
+    (goal: score/tie-out sanity sweep, direct follow-up to hand-fixing the real interest_coverage
+    immaterial-denominator bug this same session - SXTP -994.05/NSSC 996.22-shaped)."""
+
+    def test_flags_symbol_far_above_p95_in_magnitude(self) -> None:
+        rows = [{"symbol": f"SYM{i}", "val": float(i)} for i in range(1, 100)]
+        rows.append({"symbol": "NSSC_SHAPED", "val": 996.22})
+        cur = _mock_cursor(rows)
+        checker = _checker()
+        checker._check_ratio_outliers(cur, "quality_metrics", "interest_coverage", "abs_high")
+        assert len(checker.results) == 1
+        examples = checker.results[0].details["examples"]
+        assert any(e["symbol"] == "NSSC_SHAPED" for e in examples)
+
+    def test_flags_symbol_far_below_negative_p95_in_magnitude(self) -> None:
+        # Same magnitude as the positive-tail case, just negative sign - must be flagged too.
+        rows = [{"symbol": f"SYM{i}", "val": float(i)} for i in range(1, 100)]
+        rows.append({"symbol": "SXTP_SHAPED", "val": -994.05})
+        cur = _mock_cursor(rows)
+        checker = _checker()
+        checker._check_ratio_outliers(cur, "quality_metrics", "interest_coverage", "abs_high")
+        assert len(checker.results) == 1
+        examples = checker.results[0].details["examples"]
+        assert any(e["symbol"] == "SXTP_SHAPED" for e in examples)
+
+    def test_does_not_flag_a_normal_signed_population(self) -> None:
+        rows = [{"symbol": f"SYM{i}", "val": float(i) - 50.0} for i in range(1, 101)]
+        cur = _mock_cursor(rows)
+        checker = _checker()
+        checker._check_ratio_outliers(cur, "quality_metrics", "interest_coverage", "abs_high")
+        assert checker.results == []
+
+
 class TestSmallPopulationGuard:
     def test_population_under_100_skipped_entirely(self) -> None:
         rows = [{"symbol": f"SYM{i}", "val": float(i)} for i in range(1, 50)]
@@ -99,12 +134,13 @@ class TestErrorHandling:
 
 
 class TestRunExecutesAllFields:
-    def test_run_covers_all_six_ratio_fields_without_crashing(self) -> None:
+    def test_run_covers_all_eight_ratio_fields_without_crashing(self) -> None:
         rows = [{"symbol": f"SYM{i}", "val": float(i + 1)} for i in range(150)]
         cur = _mock_cursor(rows)
         checker = _checker()
         results = checker.run(cur)
         assert isinstance(results, list)
-        # 6 fields queried, none should error given well-formed mock data.
-        assert cur.execute.call_count == 6
+        # 8 fields queried (pe/pb/ps/forward_pe/fcf_yield/roe/roce_pct/interest_coverage), none
+        # should error given well-formed mock data.
+        assert cur.execute.call_count == 8
         assert all(r.severity != "error" for r in results)
