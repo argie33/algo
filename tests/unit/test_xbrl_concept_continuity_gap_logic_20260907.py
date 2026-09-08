@@ -135,3 +135,49 @@ class TestFindContinuityGaps:
 
     def test_no_cache_returns_empty(self, _fake_cache_dir: Path) -> None:
         assert mod.find_continuity_gaps(min_prior_years=3) == []
+
+
+class TestNetIncomeLossSynonymFallback:
+    """ADDED 2026-09-08 (goal session: score/XBRL sanity sweep, live scan of the on-disk
+    companyfacts cache via scripts/xbrl_concept_continuity_scan.py). Live-confirmed via Ford
+    Motor Co (CIK 0000037996, real FY2025 10-K filed 2026-02-11) and Primerica (PRI, already
+    documented in sec_income_statement.py's 2026-08-17 fix comment): the checker's original
+    literal "NetIncomeLoss" tag check false-positived on every filer whose real bottom-line tag
+    is "ProfitLoss" instead - 23 of 33 originally-flagged gaps in one live scan were this exact
+    pattern, since our own extraction pipeline (financial_statements_income_config.py's
+    _INCOME_FIELD_MAPPING) already maps both tags to the same "net_income" column, so no data
+    is actually lost. CONTINUITY_CONCEPT_SYNONYMS fixes this by treating a synonym tag as
+    satisfying continuity the same way the real tag would.
+    """
+
+    def test_profit_loss_synonym_satisfies_net_income_loss_continuity(self, _fake_cache_dir: Path) -> None:
+        _write_companyfacts(
+            _fake_cache_dir,
+            "0000037996",
+            "FORD MOTOR CO",
+            {
+                "Assets": ["2025-12-31", "2024-12-31", "2023-12-31", "2022-12-31"],
+                "Liabilities": ["2025-12-31", "2024-12-31", "2023-12-31", "2022-12-31"],
+                "NetIncomeLoss": ["2024-12-31", "2023-12-31", "2022-12-31"],
+                # Latest year's bottom line is tagged ProfitLoss instead of NetIncomeLoss - a
+                # synonym switch, not a real gap.
+                "ProfitLoss": ["2025-12-31"],
+            },
+        )
+        assert mod.find_continuity_gaps(min_prior_years=3) == []
+
+    def test_missing_with_no_synonym_present_still_flags(self, _fake_cache_dir: Path) -> None:
+        # Same shape, but nothing tags the latest year under ANY known synonym - still a real gap.
+        _write_companyfacts(
+            _fake_cache_dir,
+            "0000037997",
+            "GENUINELY STOPPED REPORTING INC",
+            {
+                "Assets": ["2025-12-31", "2024-12-31", "2023-12-31", "2022-12-31"],
+                "Liabilities": ["2025-12-31", "2024-12-31", "2023-12-31", "2022-12-31"],
+                "NetIncomeLoss": ["2024-12-31", "2023-12-31", "2022-12-31"],
+            },
+        )
+        gaps = mod.find_continuity_gaps(min_prior_years=3)
+        assert len(gaps) == 1
+        assert gaps[0]["concept"] == "us-gaap:NetIncomeLoss"

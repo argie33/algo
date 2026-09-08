@@ -42,6 +42,28 @@ CONTINUITY_DISMISSED_FILE = REPO_ROOT / "scripts" / "xbrl_concept_continuity_dis
 # case this check exists for) or a real discontinuation (bankruptcy, going-private, final 10-K).
 CORE_CONTINUITY_CONCEPTS = ["Assets", "Liabilities", "NetIncomeLoss"]
 
+# Known synonym tags our own extraction pipeline already treats as equivalent to a
+# CORE_CONTINUITY_CONCEPTS entry (see loaders/helpers/financial_statements_income_config.py's
+# _INCOME_FIELD_MAPPING, where "net_income_loss"/"profit_loss"/the continuing-ops-incl-NCI key
+# all map to the same "net_income" column, and sec_income_statement.py's _INCOME_CONCEPTS
+# fallback chain, which already tries ProfitLoss/IncomeLossFromContinuingOperationsIncluding...
+# whenever NetIncomeLoss itself is absent). Without this, the continuity checker false-positives
+# on every filer whose real bottom-line tag has always been one of these synonyms (live-
+# confirmed 2026-09-08 via Ford Motor Co's real FY2025 10-K, filed 2026-02-11: Assets/Liabilities
+# both tagged for 2025-12-31 as expected, but the income statement's net income - a real $8.162B
+# loss - is tagged solely as "ProfitLoss" that year, not "NetIncomeLoss"; Primerica's PRI is the
+# same already-documented case per sec_income_statement.py's own 2026-08-17 fix comment). The
+# actual extracted/scored net_income value is unaffected by this switch - it is exactly the kind
+# of "filer switched to a synonym tag" case this checker's own docstring says needs no fix, only
+# a dismissal - so treat these synonyms as satisfying continuity instead of manually dismissing
+# every such filer one CIK at a time.
+CONTINUITY_CONCEPT_SYNONYMS: dict[str, list[str]] = {
+    "NetIncomeLoss": [
+        "ProfitLoss",
+        "IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest",
+    ],
+}
+
 # Every place a real (non-test, non-fallback-table) concept list lives today.
 CONCEPT_SOURCE_FILES = [
     "utils/external/sec_income_statement.py",
@@ -241,14 +263,15 @@ def find_continuity_gaps(min_prior_years: int = 3) -> list[dict[str, object]]:
         per_concept_ends: dict[str, set[str]] = {}
         anchor_ends: set[str] = set()
         for concept in CORE_CONTINUITY_CONCEPTS:
-            concept_data = usgaap.get(concept)
-            if not concept_data:
-                per_concept_ends[concept] = set()
-                continue
-            entries: list[dict[str, object]] = []
-            for unit_entries in (concept_data.get("units") or {}).values():
-                entries.extend(unit_entries)
-            ends = _annual_end_dates(entries)
+            ends: set[str] = set()
+            for tag in (concept, *CONTINUITY_CONCEPT_SYNONYMS.get(concept, [])):
+                concept_data = usgaap.get(tag)
+                if not concept_data:
+                    continue
+                entries: list[dict[str, object]] = []
+                for unit_entries in (concept_data.get("units") or {}).values():
+                    entries.extend(unit_entries)
+                ends.update(_annual_end_dates(entries))
             per_concept_ends[concept] = ends
             anchor_ends.update(ends)
 
