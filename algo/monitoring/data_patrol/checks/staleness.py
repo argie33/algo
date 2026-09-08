@@ -6,6 +6,7 @@ from datetime import date as _date
 from datetime import datetime
 from typing import Any
 
+from algo.infrastructure.market_calendar import MarketCalendar
 from utils.db import assert_safe_column, assert_safe_table, safe_select_count
 
 from ..base import BaseCheck, CheckResult
@@ -220,7 +221,17 @@ class StalenessChecker(BaseCheck):
                         raise RuntimeError(error_msg)
                     continue
 
-                age = (today - latest).days
+                # Trading-day-aware for daily-freq tables (fixed 2026-09-08, goal: score-sanity
+                # sweep): a plain calendar-day diff false-positives CRIT across any weekend or
+                # holiday (Fri->Mon is already 3 calendar days > the 1-day threshold; a Friday
+                # before a Monday holiday is 4) even though only 1 trading session has actually
+                # elapsed - live-caught 2026-09-08 (Tuesday after Labor Day): latest=2026-09-04
+                # (Friday, the correct latest trading day) read as 4 calendar days old, which
+                # would fire CRIT and halt Phase 1 (CLAUDE.md's _check_data_patrol_results rule)
+                # despite the data being exactly as fresh as it should be. Weekly/monthly/
+                # quarterly freqs keep calendar-day math - their thresholds already comfortably
+                # absorb a holiday's worth of skew and MarketCalendar has no such periodicity.
+                age = MarketCalendar.trading_days_elapsed(latest, today) if freq == "daily" else (today - latest).days
                 if age > max_days:
                     self.log(
                         "staleness",
