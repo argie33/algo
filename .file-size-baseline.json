@@ -193,7 +193,7 @@
   "algo/research/value_percentile_rank_winsorization_test_20260907.py": 383,
   "algo/risk/__init__.py": 20,
   "algo/risk/capital_routing.py": 515,
-  "algo/risk/circuit_breaker.py": 361,
+  "algo/risk/circuit_breaker.py": 359,
   "algo/risk/circuit_breaker_alerting.py": 64,
   "algo/risk/circuit_breaker_market_conditions.py": 467,
   "algo/risk/circuit_breaker_portfolio_risk.py": 623,
