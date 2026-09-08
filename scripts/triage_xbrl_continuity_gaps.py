@@ -2,63 +2,105 @@
 """Triage XBRL concept continuity gaps — determine if each is fixable or dismissable.
 
 For each filer/concept pair flagged by find_continuity_gaps(), this script:
-1. Fetches the filer's most recent 10-K from SEC EDGAR companyfacts API
-2. Checks if the missing concept has a synonym that IS present
-3. Classifies the gap as:
-   - SYNONYM_FOUND: we fetch a synonym, no action needed
-   - MISSING_ENTIRELY: legitimate absence (final filing, bankruptcy, etc.) — dismissable
-   - UNCLEAR: requires manual inspection
+1. Reads the filer's cached companyfacts JSON (the SAME on-disk cache
+   find_continuity_gaps() itself reads, populated by normal loader runs -
+   %TEMP%/algo-sec-edgar-cache/companyfacts) to look for a synonym concept
+2. Classifies the gap as:
+   - SYNONYM_FOUND: a synonym concept has a real fact for the missing fiscal year
+   - MISSING_ENTIRELY: no synonym found in the cache — dismissable after a
+     manual read of the actual filing (this script only proves absence from
+     OUR cache, not from the filing itself)
+   - NO_CACHE: filer isn't in the local companyfacts cache at all — can't triage
+
+FIXED 2026-09-08: the original version of this script called the live SEC
+companyconcept API directly via bare `requests.get(url)` with no User-Agent
+header. SEC EDGAR requires a descriptive User-Agent with a contact email
+(see utils/external/sec_edgar_client.py's DEFAULT_USER_AGENT/SEC_USER_AGENT)
+and returns 403 Forbidden without one - EVERY request this script ever made
+was silently rejected, and the `except .../elif 404/else: warning, return
+None` fallthrough treated a 403 identically to a real 404 (concept doesn't
+exist). The script therefore classified every single gap as MISSING_ENTIRELY
+regardless of the real answer, and a prior session used those results to
+auto-dismiss all 9 live gaps with a generic "final filing or legitimate
+absence" reason with no real per-filer verification behind it (commit
+`b91874637`, reverted 2 minutes later as `fc20e5b8d`). Live re-verification
+via the local companyfacts cache directly (bypassing this broken fetch
+entirely) found the opposite of what the broken script reported for 7 of
+the 9 gaps: SEI Investments/BioRestorative/Datacentrex/EDESA/Healthcare
+Triangle/Indaptus all have a real, current-fiscal-year "LiabilitiesCurrent"
++ "LiabilitiesAndStockholdersEquity" fact (they switched to itemized-only
+balance sheet tagging, not a real absence) and Teucrium Commodity Trust has
+a real "AssetsNet" fact (investment-trust taxonomy convention) where plain
+"Assets"/"Liabilities" are genuinely never tagged at all. Rewritten to read
+the local cache (same source as find_continuity_gaps()) instead of a live,
+header-less HTTP call - no network requests, no 403s, and reuses data the
+loaders already fetched.
 
 Usage:
     python scripts/triage_xbrl_continuity_gaps.py
-    python scripts/triage_xbrl_continuity_gaps.py --cik 0000350894 --concept "Assets"
 """
 
+import json
 import logging
-
-import requests
+import tempfile
+from pathlib import Path
+from typing import Any
 
 from utils.external.xbrl_concept_coverage import find_continuity_gaps
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Synonym mappings: if we're missing A, look for these fallbacks in order
+# Synonym mappings: if we're missing A, look for these fallbacks in order.
+# "AssetsNet"/"LiabilitiesAndStockholdersEquity" cover the investment-company/
+# itemized-only-balance-sheet patterns live-confirmed above; the others were
+# already present before this fix.
 CONCEPT_SYNONYMS = {
-    "Assets": ["AssetsCurrentAndNoncurrent"],
-    "Liabilities": ["LiabilitiesCurrent", "LiabilitiesNoncurrent"],
+    "Assets": ["AssetsCurrentAndNoncurrent", "AssetsNet", "AssetsCurrent"],
+    "Liabilities": ["LiabilitiesCurrent", "LiabilitiesNoncurrent", "LiabilitiesAndStockholdersEquity"],
     "Equity": ["StockholdersEquity"],
     "NetIncomeLoss": ["IncomeLossFromContinuingOperationsBeforeIncomeTaxes"],
 }
 
-SEC_COMPANYCONCEPT_URL = "https://data.sec.gov/api/xbrl/companyconcept/CIK{cik_padded}/us-gaap-{concept}.json"
+_CACHE_DIR = Path(tempfile.gettempdir()) / "algo-sec-edgar-cache" / "companyfacts"
 
 
-def fetch_sec_companyconcept(cik: str, concept: str) -> dict | None:
-    """Fetch a filer's specific concept from SEC companyconcept API."""
-    try:
-        cik_padded = cik.lstrip("0").zfill(10)
-        url = SEC_COMPANYCONCEPT_URL.format(cik_padded=cik_padded, concept=concept.lower())
-        resp = requests.get(url, timeout=10)
-        if resp.status_code == 200:
-            return resp.json()
-        elif resp.status_code == 404:
-            return None
-        else:
-            logger.warning(f"SEC API returned {resp.status_code} for {cik}/{concept}")
-            return None
-    except Exception as e:
-        logger.error(f"Failed to fetch {cik}/{concept} from SEC: {e}")
+def _load_cached_companyfacts(cik: str) -> dict[str, Any] | None:
+    """Read a filer's companyfacts JSON straight from the on-disk loader cache.
+
+    Cache files are named "<10-digit CIK>.json" (not "CIK<...>.json" - the SEC
+    API's own URL path convention, which this cache does NOT use) and wrap the
+    real companyfacts payload under a top-level "data" key alongside a fetch
+    "timestamp" (see utils/external/sec_edgar_client.py's _disk_cache_write).
+    """
+    f = _CACHE_DIR / f"{cik}.json"
+    if not f.exists():
         return None
+    try:
+        raw = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return raw.get("data", raw)
 
 
-def check_synonym_exists(cik: str, missing_concept: str) -> str | None:
-    """Check if a synonym for the missing concept is present."""
-    synonyms = CONCEPT_SYNONYMS.get(missing_concept, [])
-    for synonym in synonyms:
-        data = fetch_sec_companyconcept(cik, synonym)
-        if data:
-            logger.info(f"  → Found synonym '{synonym}'")
+def _has_fact_for_year(facts: dict[str, Any], concept: str, expected_end: str) -> bool:
+    """True if `concept` has a us-gaap fact whose end date matches expected_end
+    (the fiscal year the gap was flagged for), in any unit/currency."""
+    entry = facts.get("facts", {}).get("us-gaap", {}).get(concept)
+    if not entry:
+        return False
+    for unit_facts in entry.get("units", {}).values():
+        for fact in unit_facts:
+            if fact.get("end") == expected_end:
+                return True
+    return False
+
+
+def check_synonym_exists(facts: dict[str, Any], missing_concept: str, expected_end: str) -> str | None:
+    """Check if a synonym for the missing concept has a fact for the expected fiscal year."""
+    for synonym in CONCEPT_SYNONYMS.get(missing_concept, []):
+        if _has_fact_for_year(facts, synonym, expected_end):
+            logger.info(f"  → Found synonym '{synonym}' for {expected_end}")
             return synonym
     return None
 
@@ -82,26 +124,35 @@ def triage_gap(gap_data: dict) -> dict:
     logger.info(f"\nTriaging {entity_name} ({cik}) / us-gaap:{concept}")
     logger.info(f"  Was present in: {years_present}")
 
-    # Check if concept data exists in SEC API (should be null if truly absent)
-    data = fetch_sec_companyconcept(cik, concept)
-    if data:
-        # Concept exists in SEC data, but our cache doesn't have it for the latest year
-        # This could mean:
-        # 1. Stale cache (loader hasn't re-fetched yet)
-        # 2. Real filer change
-        result["status"] = "POSSIBLY_STALE_CACHE"
-        result["notes"] = "Concept exists in SEC API but not in our cached companyfacts"
+    expected_end = gap_data["latest_expected_end"]
+    facts = _load_cached_companyfacts(cik)
+    if facts is None:
+        result["status"] = "NO_CACHE"
+        result["notes"] = f"{cik} not in local companyfacts cache - can't triage without a loader run first"
+        return result
+
+    if _has_fact_for_year(facts, concept, expected_end):
+        # find_continuity_gaps() itself already excludes this case (it wouldn't be a
+        # gap), but re-check directly against the cache in case the cache was refreshed
+        # between that scan and this one.
+        result["status"] = "ALREADY_PRESENT"
+        result["notes"] = f"{concept} now has a {expected_end} fact - cache was refreshed since the gap was found"
+        return result
+
+    synonym = check_synonym_exists(facts, concept, expected_end)
+    if synonym:
+        result["status"] = "SYNONYM_FOUND"
+        result["notes"] = (
+            f"Synonym '{synonym}' has a real {expected_end} fact - filer switched tags, not a real absence. "
+            f"NOT dismissable as-is: our schema doesn't map '{synonym}' to the same column '{concept}' feeds, "
+            f"so this fiscal year's {concept.lower()} will read NULL until a fetch-support fix adds that mapping."
+        )
     else:
-        # Concept truly absent in SEC data for this filer
-        synonym = check_synonym_exists(cik, concept)
-        if synonym:
-            result["status"] = "SYNONYM_FOUND"
-            result["notes"] = (
-                f"Synonym '{synonym}' is available — no action needed (will be picked up on next loader run)"
-            )
-        else:
-            result["status"] = "MISSING_ENTIRELY"
-            result["notes"] = "No synonym found — likely legitimate (final filing, bankruptcy, going-private, etc.)"
+        result["status"] = "MISSING_ENTIRELY"
+        result["notes"] = (
+            f"No synonym has a {expected_end} fact in our cache - MANUALLY read the actual "
+            f"{expected_end} filing before dismissing (this only proves absence from our cache)."
+        )
 
     return result
 
