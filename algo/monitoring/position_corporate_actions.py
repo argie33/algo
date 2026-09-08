@@ -80,6 +80,17 @@ class CorporateActionsMixin:
                     )
                     logger.error(error_msg)
                     raise RuntimeError(error_msg) from e
+                except RuntimeError as e:
+                    # FIX (2026-09-07 real-money-readiness audit): a genuine per-symbol failure
+                    # (malformed Alpaca response, an unexpected non-200/404 status, missing qty
+                    # field) used to propagate out of this loop entirely - a DB error is a
+                    # systemic problem worth halting the whole cycle for (caught above), but one
+                    # symbol's own API oddity is not, and must not block split-detection/
+                    # reconciliation for every OTHER open position in the same run.
+                    logger.error(
+                        f"[CORP_ACTION] {symbol}: skipping this symbol's corporate-action check "
+                        f"after an unexpected error, continuing with remaining positions: {e}"
+                    )
 
             return adjustments
 
@@ -100,11 +111,24 @@ class CorporateActionsMixin:
             raise RuntimeError("Alpaca credentials unavailable - cannot detect corporate actions. Halted.")
         return alpaca_base_url, alpaca_key, alpaca_secret
 
-    def _fetch_alpaca_qty(self, alpaca_base_url: str, alpaca_key: str, alpaca_secret: str, symbol: str) -> int:
+    def _fetch_alpaca_qty(self, alpaca_base_url: str, alpaca_key: str, alpaca_secret: str, symbol: str) -> int | None:
         """Fetch position quantity from Alpaca API.
 
+        Returns None when Alpaca has no position for this symbol (404) - matching the
+        established 200/204/404 pattern already used elsewhere in this codebase for the
+        identical endpoint (position_order_management.py:332, order_manager.py:1153) - a
+        symbol that closed, was delisted, or was renamed by a merger/ticker change legitimately
+        has no position at the broker, not a data-integrity failure. FIX (2026-09-07 real-money-
+        readiness audit): this used to raise RuntimeError on ANY non-200, including 404, making
+        _handle_qty_variance's own `alpaca_qty == 0` "position closed at broker" branch
+        unreachable in practice and, worse, propagating an uncaught RuntimeError out of
+        check_corporate_actions's per-symbol loop (only psycopg2 errors were caught there) -
+        one delisted/renamed symbol could silently abort corporate-action detection, including
+        split-adjustment, for every OTHER open position in the same cycle.
+
         Raises:
-            RuntimeError: If qty field is missing from Alpaca response (fail-fast for data integrity)
+            RuntimeError: On any other non-200 status, or if qty is missing from a 200 response
+                (fail-fast for data integrity).
         """
         url = f"{alpaca_base_url}/v2/positions/{symbol}"
         headers = {
@@ -145,6 +169,9 @@ class CorporateActionsMixin:
             break
 
         assert resp is not None, "Response should be set after loop"
+        if resp.status_code == 404:
+            logger.info(f"[CORP_ACTION] {symbol}: no position at Alpaca (404) - treating as closed at broker.")
+            return None
         if resp.status_code != 200:
             raise RuntimeError(f"Alpaca API returned {resp.status_code} for {symbol}")
 
@@ -167,12 +194,17 @@ class CorporateActionsMixin:
         symbol: str,
         db_qty: int,
         db_stop: float,
-        alpaca_qty: int,
+        alpaca_qty: int | None,
         trade_ids_arr: list[int] | None,
         adjustments: list[dict[str, Any]],
     ) -> None:
-        """Handle quantity changes between DB and Alpaca."""
-        if alpaca_qty == 0:
+        """Handle quantity changes between DB and Alpaca.
+
+        alpaca_qty is None when Alpaca has no position for this symbol at all (404) - treated
+        identically to a real qty of 0 (position closed at broker), since both mean "nothing to
+        reconcile a split against."
+        """
+        if alpaca_qty is None or alpaca_qty == 0:
             # FIX: Calculate profit_loss_dollars before closing position (was leaving it NULL)
             cur.execute(
                 """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
