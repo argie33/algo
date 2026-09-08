@@ -459,6 +459,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 "Technology",
                 99.99,  # data_completeness
                 False,  # data_unavailable
+                {},  # unavailable_metrics
             ),
             (
                 "UNPROFIT",
@@ -479,6 +480,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 None,
                 99.99,  # data_completeness
                 False,  # data_unavailable
+                {},  # unavailable_metrics
             ),
             (
                 "NEGFWD",
@@ -499,6 +501,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 "Financial Services",
                 99.99,  # data_completeness
                 False,  # data_unavailable
+                {},  # unavailable_metrics
             ),
         ]
         cur = self._make_mock_cursor(rows)

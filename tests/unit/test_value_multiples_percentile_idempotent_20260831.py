@@ -45,6 +45,7 @@ def _row(
     sector: str | None = None,
     data_completeness: float | None = 99.99,
     data_unavailable: bool = False,
+    unavailable_metrics: dict | None = None,
 ) -> tuple:
     return (
         symbol,
@@ -65,6 +66,7 @@ def _row(
         sector,
         data_completeness,
         data_unavailable,
+        unavailable_metrics if unavailable_metrics is not None else {},
     )
 
 

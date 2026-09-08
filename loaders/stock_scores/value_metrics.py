@@ -537,7 +537,8 @@ class ValueMetricsMixin:
                            vm.pe_ratio, vm.pb_ratio, vm.ps_ratio, vm.forward_pe,
                            vm.dividend_yield,
                            vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason,
-                           ss.components, cp.sector, ss.data_completeness, ss.data_unavailable
+                           ss.components, cp.sector, ss.data_completeness, ss.data_unavailable,
+                           ss.unavailable_metrics
                     FROM stock_scores ss
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
@@ -605,7 +606,7 @@ class ValueMetricsMixin:
             # reading (2026-09-07 real-money-readiness audit).
             min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
 
-            updates: list[tuple[str, float | None, float, str | None, float, bool]] = []
+            updates: list[tuple[str, float | None, float, str | None, float, bool, str, str | None]] = []
             for row in rows:
                 symbol, value_score_old, composite_score_old, risk_score = row[0], row[1], row[2], row[3]
                 quality_score, growth_score, momentum_score = row[4], row[5], row[6]
@@ -614,6 +615,7 @@ class ValueMetricsMixin:
                 components_old = row[14]
                 data_completeness_old = float(row[16]) if row[16] is not None else None
                 data_unavailable_old = bool(row[17]) if row[17] is not None else False
+                unavailable_metrics_old: dict[str, str] = dict(row[18]) if row[18] else {}
                 value_score_old = float(value_score_old)
                 composite_score_old = float(composite_score_old)
 
@@ -723,11 +725,33 @@ class ValueMetricsMixin:
                 data_completeness_new = min(99.99, round(available_weight * 100, 2))
                 data_unavailable_new = data_completeness_new < min_completeness_threshold
 
+                # unavailable_metrics/reason resync (2026-09-08, live-found via LTGO: DB row had
+                # value_score=NULL but unavailable_metrics only listed
+                # growth/risk/momentum, and reason still read the stale higher completeness
+                # from before this pass withheld value_score - same inconsistency class the
+                # data_completeness/data_unavailable fix above closed, just missed for these two
+                # sibling fields - a coverage/debugging consumer reading `reason` or
+                # `unavailable_metrics` off this row undercounts "value" as a missing factor and
+                # misstates the real completeness %.
+                unavailable_metrics_new = dict(unavailable_metrics_old)
+                if value_score_new is None:
+                    unavailable_metrics_new["value"] = "value_min_weight_gate_below_threshold"
+                else:
+                    unavailable_metrics_new.pop("value", None)
+                if data_unavailable_new:
+                    reason_new = (
+                        f"Completeness {data_completeness_new:.2f}% < {min_completeness_threshold}% "
+                        f"threshold (missing metrics: {', '.join(sorted(unavailable_metrics_new.keys()))})"
+                    )
+                else:
+                    reason_new = None
+
                 if (
                     value_score_new != value_score_old
                     or composite_score_new != composite_score_old
                     or data_completeness_new != data_completeness_old
                     or data_unavailable_new != data_unavailable_old
+                    or unavailable_metrics_new != unavailable_metrics_old
                 ):
                     # BUG FIX 2026-08-29 (goal-mode composite-score validation pass): components
                     # must be kept in sync with the corrected value_score here, or it silently
@@ -742,6 +766,8 @@ class ValueMetricsMixin:
                             components_json,
                             data_completeness_new,
                             data_unavailable_new,
+                            json.dumps(unavailable_metrics_new),
+                            reason_new,
                         )
                     )
 
@@ -763,13 +789,16 @@ class ValueMetricsMixin:
                         components = v.components::jsonb,
                         data_completeness = v.data_completeness,
                         data_unavailable = v.data_unavailable,
+                        unavailable_metrics = v.unavailable_metrics::jsonb,
+                        reason = v.reason,
                         updated_at = CURRENT_TIMESTAMP
                     FROM (VALUES %s) AS v(symbol, value_score, composite_score, components,
-                                           data_completeness, data_unavailable)
+                                           data_completeness, data_unavailable,
+                                           unavailable_metrics, reason)
                     WHERE ss.symbol = v.symbol
                     """,
                     updates,
-                    template="(%s, %s, %s, %s, %s, %s)",
+                    template="(%s, %s, %s, %s, %s, %s, %s, %s)",
                 )
             logger.info(
                 f"[STOCK_SCORES] Value multiples cross-sectional percentile pass corrected "
