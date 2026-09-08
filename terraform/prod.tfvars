@@ -91,11 +91,21 @@ enable_intraday_risk_monitor = false
 # circuit-breaker.tf/execution-monitor.tf's separate Lambdas) with one check that, unlike
 # intraday-risk-monitor's alert-only stance, actually acts (automated halt, then automated
 # reduce/flatten if a breach persists past the halt - see algo/risk/unified_risk_monitor.py's
-# docstring). Deployed disabled first: soak in paper mode with the old mechanisms running in
-# shadow for direct comparison before enabling, and do not delete the old resources until
-# that soak is clean (see the rollout plan in memory/ for this real-money-readiness
-# architecture rebuild, 2026-09-06).
-enable_unified_risk_monitor = false
+# docstring).
+#
+# REAL-MONEY-READINESS (2026-09-07 audit): was deployed disabled since 2026-09-06 pending
+# a soak period that never actually started. A fresh code review confirmed
+# unified_risk_monitor.py's design is sound (fail-closed on infra errors, requires
+# independent re-confirmation against FRESH live data across
+# CONSECUTIVE_BREACH_RUNS_TO_HALT consecutive runs before acting, advisory-lock race
+# protection) - enabling now to actually begin that soak. Enabling deployment here does
+# NOT enable live auto-remediation on its own: unified_risk_monitor_shadow_mode
+# (algo/infrastructure/config_defaults_risk.py) independently defaults to True, so this
+# starts the monitor running/alerting in shadow mode only, alongside the old mechanisms
+# (still running, not yet removed) for direct comparison. Do not flip shadow_mode off,
+# and do not remove the old mechanisms, until this soak has actually run and been
+# reviewed for false positives/negatives.
+enable_unified_risk_monitor = true
 
 # Always-on Alpaca trade_updates websocket listener (modules/loaders/trade-update-
 # listener.tf) - event-driven order/fill state to replace pure REST polling for latency
