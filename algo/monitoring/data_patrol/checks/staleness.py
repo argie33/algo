@@ -335,6 +335,14 @@ class StalenessChecker(BaseCheck):
                     f"Database connection corrupted during frozen-symbol check cleanup: {release_err}"
                 ) from release_err
 
+        # PER-SYMBOL FROZEN-PRICE CHECK (added 2026-09-08, goal session score-sanity sweep):
+        # mirrors the frozen-stock_scores check above for the same underlying gap, one table
+        # over. See _check_frozen_price_symbols's own docstring for the full evidence trail.
+        # Extracted to a helper (not inlined here like its stock_scores sibling) to keep run()'s
+        # cyclomatic complexity under ruff's C901 limit - this method was already near the
+        # threshold before this addition would have pushed it over.
+        self._check_frozen_price_symbols(cur)
+
         # Alert on stale critical signals
         if stale_critical_signals:
             from algo.reporting.notifications import notify_signal_staleness
@@ -350,3 +358,84 @@ class StalenessChecker(BaseCheck):
                 ) from e
 
         return self.results
+
+    def _check_frozen_price_symbols(self, cur: Any) -> None:
+        """PER-SYMBOL FROZEN-PRICE CHECK (added 2026-09-08, goal session score-sanity sweep).
+
+        price_daily's table-level staleness check (top of run()) only looks at MAX(date)
+        across the whole table, so it stays "fresh" (satisfying the 1-day CRIT threshold) even
+        when a subpopulation of active symbols silently stops getting new rows -
+        [[data_loader_status_completed_can_be_stale_from_earlier_partial_run_20260902]]'s same
+        bug class, recurring here for price loading specifically. Live-caught 2026-09-06 (see
+        price_daily_stale_symbol_cohort_backfilled_20260906 in memory): 107-115 active symbols
+        sat 10-20+ days stale - closed-end funds frozen at a handful of shared dates plus
+        liquid names with no excuse (AVB, LEG, RMAX, TWO, ISSC) - completely invisible to the
+        standard freshness monitor the whole time, found only by a manual spot-check session.
+        That session explicitly flagged this as "a real gap worth a future session's
+        attention, not touched this session to avoid more churn" - closing it now.
+
+        WARN only, matching the frozen-score check's own reasoning: a residual handful of
+        symbols hitting a genuine per-symbol vendor data ceiling (confirmed at the
+        yf.download() response level for ~23 names in that same session - not fixable by
+        retrying or code changes on our side) is expected, not an automatic halt. This is a
+        signal to go investigate WHY a population is stuck (the exact silent-backlog pattern
+        documented above), not a guarantee every flagged symbol is actionable.
+        """
+        sp_frozen_price = "sp_stale_price_daily_frozen_symbols"
+        try:
+            cur.execute(f"SAVEPOINT {sp_frozen_price}")
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM stock_symbols sy
+                JOIN (
+                    SELECT symbol, MAX(date) AS latest_date
+                    FROM price_daily
+                    GROUP BY symbol
+                ) pd ON pd.symbol = sy.symbol
+                WHERE sy.active = true
+                  AND pd.latest_date < (SELECT MAX(date) - INTERVAL '7 days' FROM price_daily)
+                """
+            )
+            frozen_price_count = cur.fetchone()[0]
+            if frozen_price_count > 0:
+                self.log(
+                    "staleness",
+                    WARN,
+                    "price_daily",
+                    f"{frozen_price_count} active symbols have price_daily rows more than 7 "
+                    f"days behind the table's latest date - check for a silent per-symbol "
+                    f"loader backlog (see price_daily_stale_symbol_cohort_backfilled_20260906 "
+                    f"in memory for the last confirmed occurrence and known vendor-ceiling "
+                    f"exceptions)",
+                    {"frozen_price_symbol_count": frozen_price_count},
+                )
+            else:
+                self.log(
+                    "staleness",
+                    INFO,
+                    "price_daily",
+                    "no active symbols frozen more than 7 days behind latest price_daily date",
+                    {"frozen_price_symbol_count": 0},
+                )
+        except Exception as e:
+            self.log("staleness", ERROR, "price_daily", f"Frozen-price check failed: {e}", None)
+            try:
+                cur.execute(f"ROLLBACK TO SAVEPOINT {sp_frozen_price}")
+            except Exception as rollback_err:
+                logger.error(
+                    f"CRITICAL: ROLLBACK TO SAVEPOINT {sp_frozen_price} failed: {rollback_err}. Connection corrupted."
+                )
+                raise RuntimeError(
+                    f"Database connection corrupted during frozen-price check rollback: {rollback_err}"
+                ) from rollback_err
+        finally:
+            try:
+                cur.execute(f"RELEASE SAVEPOINT {sp_frozen_price}")
+            except Exception as release_err:
+                logger.error(
+                    f"CRITICAL: RELEASE SAVEPOINT {sp_frozen_price} failed: {release_err}. Connection corrupted."
+                )
+                raise RuntimeError(
+                    f"Database connection corrupted during frozen-price check cleanup: {release_err}"
+                ) from release_err
