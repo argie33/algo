@@ -140,6 +140,12 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and
         # magnitude cross-check.
         "line_of_credit_facility_fair_value_of_amount_outstanding",
+        # FIXED 2026-09-07 (goal session: XBRL concept-coverage backlog sweep):
+        # AccountsPayableTradeCurrent real fallback - see sec_balance_sheet.py's
+        # get_balance_sheet() comment on "AccountsPayableTradeCurrent" for the live evidence
+        # (223/485 tagging filers, including Abbott Labs/Air Products/Brown-Forman, have no
+        # "AccountsPayableCurrent" at all). Must never win over the standard concept.
+        "accounts_payable_trade_current",
     }
 )
 
@@ -220,6 +226,11 @@ _BALANCE_FIELD_MAPPING = {
     # live WMT/TGT evidence. Not fallback-only - this is the only concept fetched for this
     # column, same single-concept convention as accounts_receivable/inventory above.
     "accounts_payable_current": "accounts_payable",
+    # ADDED 2026-09-07 (goal session: XBRL concept-coverage backlog sweep): see
+    # sec_balance_sheet.py's get_balance_sheet() comment on "AccountsPayableTradeCurrent" for
+    # the live evidence. Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS above), must never win
+    # over the standard "AccountsPayableCurrent" concept.
+    "accounts_payable_trade_current": "accounts_payable",
     # ADDED 2026-09-07 (goal: check_balance_sheet_identity NCI gap rootcaused, migration
     # 1265): see sec_balance_sheet.py's get_balance_sheet() comment on "MinorityInterest" for
     # the live XOM FY2009 evidence ($4,823,000,000, closing the assets vs.

@@ -592,6 +592,16 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # coverage scan at any company-count threshold checked) - add one only with the same
         # live-evidence standard as every other fallback in this file, not by guessing a
         # plausible-sounding concept name.
+        # ADDED 2026-09-07 (goal session: XBRL concept-coverage backlog sweep, found via
+        # scripts/xbrl_concept_coverage_scan.py's systematic gap scan): 485 real filers tag
+        # this concept and 223 of them (46%) - including Abbott Labs, Air Products and
+        # Chemicals, Armstrong World Industries, Balchem, Brown-Forman - tag NO
+        # "AccountsPayableCurrent" at all, live-confirmed against the real on-disk companyfacts
+        # cache. Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS in field_mapping) so a filer
+        # reporting the standard concept always keeps that value - listed BEFORE
+        # "AccountsPayableCurrent" so the standard concept wins on last-listed-wins overwrite
+        # when a filer reports both.
+        "AccountsPayableTradeCurrent",
         "AccountsPayableCurrent",
         # ADDED 2026-09-07 (goal session: check_balance_sheet_identity NCI gap rootcaused -
         # see tie_out.py's check_balance_sheet_identity docstring): our schema's
