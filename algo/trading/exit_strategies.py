@@ -16,11 +16,14 @@ Exit hierarchy (by priority):
 5. Profit target T1 (1.5R)
 6. Profit target T2 (3R)
 7. Profit target T3 (4R)
-8. Chandelier trail (3xATR from high)
-9. TD Sequential (9-count or 13-count exhaustion)
-10. First red day (after 2.5R+ gain)
-11. Climax exhaustion (30+ days, 5R+ gain)
-12. Distribution (market distribution days exceed limit)
+8. Breakeven stop raise (move_be_at_r, default 1.0R - stop-raise only, added 2026-09-07,
+   see BreakevenStopStrategy/PositionContext.check_move_to_breakeven docstrings; move_be_at_r
+   was previously dead config, required at ExitEngine init but never consulted)
+9. Chandelier trail (3xATR from high)
+10. TD Sequential (9-count or 13-count exhaustion)
+11. First red day (after 2.5R+ gain)
+12. Climax exhaustion (30+ days, 5R+ gain)
+13. Distribution (market distribution days exceed limit)
 """
 
 from __future__ import annotations
@@ -274,6 +277,13 @@ class T3Strategy(ProfitTargetStrategy):
     target_level = 3
 
 
+class BreakevenStopStrategy(ExitStrategy):
+    """Raise stop to breakeven once price reaches move_be_at_r (stop-raise only, never exits)."""
+
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
+        return self._evaluate_engine_strategy(lambda engine: ctx.check_move_to_breakeven(engine), include_new_stop=True)
+
+
 class ChandelierTrailStrategy(ExitStrategy):
     """Exit on chandelier stop trail (3xATR from highest high or 21-EMA after 10d)."""
 
@@ -341,6 +351,7 @@ class ExitStrategyChain:
             T1Strategy(config),
             T2Strategy(config),
             T3Strategy(config),
+            BreakevenStopStrategy(config),
             ChandelierTrailStrategy(config),
             TDSequentialStrategy(config),
             FirstRedDayStrategy(config),

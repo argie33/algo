@@ -338,6 +338,46 @@ class PositionContext:
                 )
         return False, None
 
+    def check_move_to_breakeven(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
+        """Raise stop to breakeven once price reaches move_be_at_r (config, default 1.0R).
+
+        FIXED 2026-09-07 (real-money-readiness audit): move_be_at_r was required by
+        ExitEngine._validate_config (fail-fast if missing) but never actually read anywhere -
+        pure dead config. The only existing breakeven-raise logic was hardcoded to other
+        strategies' own thresholds (T1's configured r_multiple, or a hardcoded 0.5R gate on
+        TD Sequential/first-red-day/climax-exhaustion, all of which additionally require
+        target_hits >= 1 or a specific technical pattern before ever running) - so a position
+        that ran up past move_be_at_r's intended trigger with none of those conditions met kept
+        its original (below-entry) stop the whole way back down. This closes that gap directly:
+        independent check, no gating on target_hits or any other exit condition, fraction=0.0
+        (stop-raise only, never forces an exit - see ExitStrategyChain.evaluate's docstring for
+        why a fraction==0.0 signal doesn't short-circuit real exits from lower-priority checks).
+        """
+        risk_per_share = self.entry_price - self.init_stop
+        r_mult = (
+            ((Decimal(str(self.cur_price)) - self.entry_price) / risk_per_share).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            if risk_per_share > 0
+            else Decimal(0)
+        )
+
+        move_be_at_r = self.config.get("move_be_at_r")
+        if move_be_at_r is None:
+            raise ValueError("CRITICAL: move_be_at_r config missing.")
+
+        if r_mult >= Decimal(str(move_be_at_r)) and self.active_stop < self.entry_price:
+            return (
+                True,
+                {
+                    "stage": "raise_stop_breakeven",
+                    "fraction": 0.0,
+                    "reason": f"Breakeven stop raise at {float(r_mult):.2f}R >= move_be_at_r={move_be_at_r}",
+                    "new_stop": float(self.entry_price),
+                },
+            )
+        return False, None
+
     def check_chandelier_trail(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
         """Chandelier/EMA trailing stop: tightens stop after 1R profit."""
         risk_per_share = self.entry_price - self.init_stop

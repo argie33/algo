@@ -104,8 +104,19 @@ class TestChandelierDoesNotStarveClimaxExhaustion:
         assert decision["fraction"] == 0.50
 
     def test_pure_stop_raise_still_returned_when_no_real_exit_triggers(self, mock_config):
-        """Sanity counterpart: with no climax/TD/first-red-day condition present, the
-        chandelier stop-raise must still be the returned signal (not swallowed by the fix)."""
+        """Sanity counterpart: with no climax/TD/first-red-day condition present, a pure
+        stop-raise-only signal must still be the returned signal (not swallowed by the fix).
+
+        UPDATED 2026-09-07 (BreakevenStopStrategy added, see exit_position_context.py's
+        check_move_to_breakeven): BreakevenStopStrategy now sits ahead of
+        ChandelierTrailStrategy in priority order and also triggers at R=2.0 (above
+        move_be_at_r=1.0), so it - not chandelier - is the first stop-raise-only signal the
+        chain encounters and returns. ExitStrategyChain.evaluate() keeps only the FIRST
+        stop-raise signal it sees among fraction==0.0 triggers, not necessarily the tightest
+        one available that cycle; chandelier's own (possibly higher) trail would still apply
+        on a subsequent day once active_stop >= entry_price makes breakeven's own condition
+        false. Both are real, active risk-reducing actions - this test only pins down which
+        one wins the tie-break today."""
         engine = _engine(mock_config)
         with (
             patch("algo.trading.exit_engine.ExitEngine._compute_gain_last_n_days", return_value=5.0),
@@ -113,11 +124,11 @@ class TestChandelierDoesNotStarveClimaxExhaustion:
         ):
             decision = engine._evaluate_position(
                 **_BASE_KWARGS,
-                cur_price=Decimal("110.00"),  # R = 2.0 - well above chandelier's 1R gate
+                cur_price=Decimal("110.00"),  # R = 2.0 - well above both breakeven's and chandelier's gates
                 prev_close=Decimal("109.00"),
                 target_hits=0,
             )
         assert decision is not None
-        assert decision["stage"] == "raise_stop_trail"
+        assert decision["stage"] == "raise_stop_breakeven"
         assert decision["fraction"] == 0.0
-        assert decision["new_stop"] == 95.00
+        assert decision["new_stop"] == 100.00
