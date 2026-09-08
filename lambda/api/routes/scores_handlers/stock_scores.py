@@ -23,6 +23,8 @@ from routes.utils import (
     json_response,
 )
 
+from utils.loaders.helpers import _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS
+
 from .stock_scores_helpers import (
     _build_stock_score_items,
     _build_stock_scores_query,
@@ -172,6 +174,21 @@ def _get_stock_scores(
         # from a real tradeable idea. The scores loader keeps scoring inactive symbols (last-
         # known-state bookkeeping is useful internally) but this user-facing endpoint should
         # only ever surface the current tradeable universe.
+        #
+        # STRUCTURALLY-EXCLUDED BDC FILTER (found 2026-09-08, same sweep, follow-up to the
+        # active-universe fix above): utils/loaders/helpers.py's get_active_symbols() has
+        # excluded _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS (MAIN, HTGC, GAIN, TSLX and 26
+        # siblings) from the operating-company universe fed into every metrics/scores loader
+        # since 2026-09-03 (that fix's own comment: BDCs are "structurally unable to report
+        # interest_coverage/total_debt/free_cash_flow/etc. the way an operating company
+        # does"). Live-verified consequence: those 29 symbols' stock_scores rows simply never
+        # get touched again after that date - `ss.active` stays true (they're still real,
+        # tradeable BDCs) so they sailed straight through the active-universe filter above
+        # with a plausible-looking composite_score that is actually a permanently frozen
+        # 2026-09-03 snapshot, indistinguishable from a live one, same failure shape as the
+        # delisted-symbol bug above. A fresh `--now signals` reload (same day) confirmed this
+        # is not a "just needs a reload" staleness gap - it can never self-heal, since the
+        # loader that would refresh it now deliberately skips these symbols by design.
         where_clause = """
             WHERE sc.composite_score > 0
             AND ss.active = true
@@ -184,13 +201,14 @@ def _get_stock_scores(
                 ss.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6221)
                 AND ss.security_name ~* '(Gold|Silver|Platinum|Palladium|Bullion) Trust'
             )
+            AND ss.symbol NOT IN ({bdc_symbols})
             AND (ss.security_name IS NULL OR (
                 ss.security_name !~* '(Rights?|Warrants?)$'
                 AND ss.security_name NOT ILIKE '%%Acquisition Corp%%'
                 AND ss.security_name !~* '(Subordinated Debentures?|First Mortgage Bonds?|Collateral Trust Mortgage Bonds?)'
                 AND ss.security_name !~* '(ETNs?|Exchange[- ]Traded Notes?)'
             ))
-            """
+            """.format(bdc_symbols=", ".join(f"'{sym}'" for sym in sorted(_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS)))
         params_list: list[Any] = []
 
         if sp500_only:
