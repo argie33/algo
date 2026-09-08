@@ -179,6 +179,16 @@ _INCOME_FIELD_MAPPING = {
     # ADDED 2026-09-07 (migration 1270): see sec_income_statement.py's comment on these concepts.
     "net_income_loss_available_to_common_stockholders_basic": "net_income_attributable_to_common",
     "net_income_loss_available_to_common_stockholders_diluted": "net_income_attributable_to_common",
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 3rd batch this
+    # session): IFRS's "ordinary equity holders" concept pair - see
+    # sec_income_statement.py's own comment on these two _INCOME_IFRS_ALIASES entries for the
+    # live BNS evidence (real, material gap vs. "ProfitLossAttributableToOwnersOfParent",
+    # confirming it's the genuine IFRS analog of the two us-gaap keys immediately above, not a
+    # relabeled duplicate). Same target column.
+    "profit_loss_attributable_to_ordinary_equity_holders_of_parent_entity": "net_income_attributable_to_common",
+    "profit_loss_attributable_to_ordinary_equity_holders_of_parent_entity_including_dilutive_effects": (
+        "net_income_attributable_to_common"
+    ),
     "earnings_per_share_basic": "earnings_per_share",
     # FIXED 2026-07-28: EarningsPerShareDiluted (GAAP) and DilutedEarningsLossPerShare
     # (IFRS alias, both target this same key - see sec_statements.py's _INCOME_IFRS_ALIASES)

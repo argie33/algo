@@ -283,6 +283,52 @@ _INCOME_IFRS_ALIASES = [
     # a filer that DOES itemize selling costs separately elsewhere and would be understated
     # by this alias alone is unaffected as long as it also tags a combined total.
     ("AdministrativeExpense", "selling_general_and_administrative_expense"),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 3rd batch this
+    # session - continuation of the Borrowings/NoncontrollingInterests, TradeReceivables/
+    # TradeAndOtherCurrentPayables/DepreciationAndAmortisationExpense, and WeightedAverageShares/
+    # DepreciationPropertyPlantAndEquipment/AmortisationIntangibleAssetsOtherThanGoodwill/
+    # AdministrativeExpense triage passes earlier today): the assigned candidate list flagged
+    # this concept as a possible duplicate label for the already-mapped
+    # "ProfitLossAttributableToOwnersOfParent" (target: net_income_loss) - live-verified via
+    # Bank of Nova Scotia's real companyfacts JSON (CIK 0000009631) that this hypothesis was
+    # WRONG: FY2025 (period end 2025-10-31, 40-F) ProfitLossAttributableToOwnersOfParent=
+    # CAD 7,789,000,000 vs. this concept's own value for the SAME period=CAD 7,283,000,000 - a
+    # real, material CAD 506M gap, not rounding/restatement noise. The IFRS "ordinary equity
+    # holders" qualifier is doing real work: it's net income attributable to COMMON (ordinary)
+    # shareholders only, after deducting preferred-share dividends - the genuine IFRS analog of
+    # us-gaap's "NetIncomeLossAvailableToCommonStockholdersBasic" (already mapped to
+    # "net_income_attributable_to_common" above), not a relabeled duplicate of the broader
+    # "attributable to owners of parent" total. Target key is this concept's own raw
+    # _to_snake() output (not a direct override to the db column name, unlike the balance-
+    # sheet "NoncontrollingInterests"/"minority_interest" precedent - there is no existing
+    # us-gaap concept whose _to_snake() key already matches this one) - a new
+    # _INCOME_FIELD_MAPPING entry routes "profit_loss_attributable_to_ordinary_equity_
+    # holders_of_parent_entity" to "net_income_attributable_to_common", same target column as
+    # the us-gaap concept it mirrors ("net_income_loss_available_to_common_stockholders_basic").
+    # A bank with several outstanding preferred series (like BNS) would otherwise have its
+    # real net_income_loss silently understated by the preferred-dividend deduction if this
+    # were aliased to the broader "ProfitLossAttributableToOwnersOfParent" concept's target
+    # instead.
+    (
+        "ProfitLossAttributableToOrdinaryEquityHoldersOfParentEntity",
+        "profit_loss_attributable_to_ordinary_equity_holders_of_parent_entity",
+    ),
+    # ADDED 2026-09-08 (same triage batch, found while investigating the concept above): the
+    # IFRS diluted-EPS-basis sibling, same "IncludingDilutiveEffects" suffix pattern as this
+    # taxonomy uses elsewhere (see BasicEarningsLossPerShare/DilutedEarningsLossPerShare) -
+    # further nets out dilutive securities (e.g. convertible preferred), same convention as
+    # us-gaap's "NetIncomeLossAvailableToCommonStockholdersDiluted" (also mapped to the same
+    # net_income_attributable_to_common target, listed after its Basic sibling so Diluted wins
+    # on overwrite - see that concept's own comment above). Live-confirmed via the same BNS
+    # filing, same period: this concept=CAD 7,080,000,000 (CAD 203M below the
+    # "OrdinaryEquityHolders" figure above, a plausible dilutive-securities adjustment, not a
+    # duplicate or wildly different figure). Own raw _to_snake() target key too (routed to the
+    # same db column via the same new _INCOME_FIELD_MAPPING entry as its Basic-equivalent
+    # sibling) - listed AFTER it for the same last-listed-wins reasoning.
+    (
+        "ProfitLossAttributableToOrdinaryEquityHoldersOfParentEntityIncludingDilutiveEffects",
+        "profit_loss_attributable_to_ordinary_equity_holders_of_parent_entity_including_dilutive_effects",
+    ),
 ]
 
 _INCOME_DEI_ALIASES = [

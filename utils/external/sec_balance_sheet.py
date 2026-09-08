@@ -182,6 +182,33 @@ _BALANCE_IFRS_ALIASES = [
     # doesn't separate the two anyway - the combined total lands intact either way.
     # Foreign filers previously got NULL lease liabilities entirely.
     ("LeaseLiabilities", "operating_lease_liability"),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 3rd batch this
+    # session - CurrentLeaseLiabilities/NoncurrentLeaseLiabilities, 438/426 undismissed
+    # filers, the single highest-count pair left in the backlog): NOT plain aliases to
+    # "operating_lease_liability" - a filer reporting BOTH the combined "LeaseLiabilities"
+    # concept above AND this split pair for the same fiscal year (live-confirmed via Agnico
+    # Eagle's real companyfacts JSON, CIK 0000002809: FY2025 LeaseLiabilities=
+    # USD 125,199,000 == CurrentLeaseLiabilities USD 30,480,000 +
+    # NoncurrentLeaseLiabilities USD 94,719,000, exact match, same identity holds FY2023-2024
+    # too) would have this plain-alias pair silently racing the combined concept for the same
+    # target column on ordinary last-listed-wins semantics - harmless when they agree (as for
+    # AEM), but not verified to always agree for every filer, and unnecessary risk when a
+    # dedicated fallback-only mechanism (matching this file's own
+    # _fill_long_term_debt_from_noncurrent_current_split precedent below) can express "only
+    # sum the split when the combined concept found nothing" exactly. A real, non-trivial gap
+    # exists for filers that tag ONLY the split pair, never the combined concept: a scan of
+    # this session's full on-disk companyfacts cache found 38 such filers (POSCO Holdings,
+    # LATAM Airlines, Fresenius Medical Care AG, Franco-Nevada, MakeMyTrip among them) -
+    # live-confirmed via POSCO Holdings' real companyfacts JSON (CIK 0000889132): FY2024
+    # (period end 2024-12-31) CurrentLeaseLiabilities=KRW 161,601,000,000 +
+    # NoncurrentLeaseLiabilities=KRW 744,500,000,000, with zero "LeaseLiabilities" fact for
+    # any fiscal year - a real, material combined lease liability (~KRW 906B) previously
+    # invisible to this extractor entirely. Raw keys deliberately reuse this file's own
+    # "current_lease_liabilities"/"noncurrent_lease_liabilities" _to_snake() output (not a
+    # new naming scheme) - see _fill_operating_lease_liability_from_current_noncurrent_split
+    # below for the summing logic.
+    ("CurrentLeaseLiabilities", "current_lease_liabilities"),
+    ("NoncurrentLeaseLiabilities", "noncurrent_lease_liabilities"),
     # FIXED 2026-09-03 (same sweep): Altman Z''-Score's Retained Earnings/Total Assets
     # term (see get_balance_sheet()'s "RetainedEarningsAccumulatedDeficit" comment - that
     # concept is us-gaap only, and its own comment's "no known taxonomy-variant fallback
@@ -708,11 +735,38 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
     ]
     rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
     _fill_long_term_debt_from_noncurrent_current_split(rows)
+    _fill_operating_lease_liability_from_current_noncurrent_split(rows)
     if period == "annual":
         _fill_long_term_debt_from_segment_dimensional_facts(rows, client, symbol)
     _fill_cash_and_restricted_cash_combined(rows, client, symbol, period)
     _fill_liabilities_from_assets_minus_equity(rows, client, symbol, period)
     return rows
+
+
+def _fill_operating_lease_liability_from_current_noncurrent_split(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: operating_lease_liability = CurrentLeaseLiabilities + NoncurrentLeaseLiabilities
+    (both ifrs-full concepts, see the "CurrentLeaseLiabilities"/"NoncurrentLeaseLiabilities"
+    comment in _BALANCE_IFRS_ALIASES above for the live evidence - Agnico Eagle's combined
+    "LeaseLiabilities" concept exactly equals this pair's sum, and 38 real filers in this
+    session's on-disk companyfacts cache, POSCO Holdings among them, tag ONLY this split pair
+    and never the combined concept at all).
+
+    Only fires when the primary "operating_lease_liability" column (from the combined
+    "LeaseLiabilities" ifrs-full alias, or the us-gaap "OperatingLeaseLiability" concept, both
+    fetched above) is still empty for that fiscal year - never overwrites a real value. Same
+    "both halves must be present" discipline as
+    _fill_income_tax_expense_from_current_deferred_split in sec_income_statement_fallbacks.py
+    (not the LongTermDebtCurrent "defaults to 0 when absent" convention just above this
+    function) - a filer with only one half tagged hasn't reported a lease-liability split this
+    way, so summing a partial figure would silently understate real lease debt rather than
+    leave an honest NULL. Mutates rows in place and always strips both raw keys.
+    """
+    for row in rows:
+        current = row.pop("current_lease_liabilities", None)
+        noncurrent = row.pop("noncurrent_lease_liabilities", None)
+        if row.get("operating_lease_liability") is not None or current is None or noncurrent is None:
+            continue
+        row["operating_lease_liability"] = current + noncurrent
 
 
 def _fill_liabilities_from_assets_minus_equity(

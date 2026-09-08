@@ -109,6 +109,13 @@ _FALLBACK_ONLY_ALIAS_KEYS = {
     "earnings_per_share_basic_discontinued",
     "earnings_per_share_diluted_continuing",
     "earnings_per_share_diluted_discontinued",
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 3rd batch this
+    # session): "CurrentLeaseLiabilities"/"NoncurrentLeaseLiabilities" ifrs-full aliases -
+    # popped and summed into the already-mapped "operating_lease_liability" column by
+    # sec_balance_sheet.py's _fill_operating_lease_liability_from_current_noncurrent_split(),
+    # same fallback-only-key pattern as the earnings-per-share keys above.
+    "current_lease_liabilities",
+    "noncurrent_lease_liabilities",
 }
 
 
