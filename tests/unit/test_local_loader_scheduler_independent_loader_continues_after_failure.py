@@ -64,6 +64,17 @@ class TestIndependentLoaderContinuesAfterUpstreamFailure:
         with (
             patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis", "sector_industry"]}),
             patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            # ISOLATION FIX 2026-09-07: run_pipeline() unconditionally calls
+            # _cleanup_stale_lock_files() -> FileLockManager(...).cleanup_expired_locks(),
+            # which touches the REAL %TEMP%/algo-locks dir shared by every process on this
+            # machine (including other concurrent sessions' real, currently-held locks) -
+            # live-traced via Popen call-site tracing: this was silently consuming extra
+            # mocked-Popen call slots for real "tasklist /FI PID eq <other session's real
+            # PID>" liveness checks, breaking assert_called_once()-style assertions whenever
+            # another Claude Code session happened to be running concurrently (see
+            # local_loader_scheduler_tests_flaky_under_concurrent_sessions_20260907 in
+            # memory). Not what this test is about - mocked out entirely.
+            patch.object(module, "_cleanup_stale_lock_files", return_value=None),
             patch.object(module.subprocess, "Popen", side_effect=procs) as mock_popen,
             patch.object(module, "_mark_loader_failed_after_crash") as mock_mark,
         ):
@@ -86,6 +97,17 @@ class TestIndependentLoaderContinuesAfterUpstreamFailure:
             patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis", "sector_industry"]}),
             patch.object(module, "LOADER_DEPENDENCIES", {"sector_industry": ["trend_analysis"]}),
             patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            # ISOLATION FIX 2026-09-07: run_pipeline() unconditionally calls
+            # _cleanup_stale_lock_files() -> FileLockManager(...).cleanup_expired_locks(),
+            # which touches the REAL %TEMP%/algo-locks dir shared by every process on this
+            # machine (including other concurrent sessions' real, currently-held locks) -
+            # live-traced via Popen call-site tracing: this was silently consuming extra
+            # mocked-Popen call slots for real "tasklist /FI PID eq <other session's real
+            # PID>" liveness checks, breaking assert_called_once()-style assertions whenever
+            # another Claude Code session happened to be running concurrently (see
+            # local_loader_scheduler_tests_flaky_under_concurrent_sessions_20260907 in
+            # memory). Not what this test is about - mocked out entirely.
+            patch.object(module, "_cleanup_stale_lock_files", return_value=None),
             patch.object(module.subprocess, "Popen", return_value=_mock_proc(returncode=1)) as mock_popen,
             patch.object(module, "_mark_loader_failed_after_crash"),
         ):
@@ -101,6 +123,17 @@ class TestIndependentLoaderContinuesAfterUpstreamFailure:
         with (
             patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis", "sector_industry"]}),
             patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            # ISOLATION FIX 2026-09-07: run_pipeline() unconditionally calls
+            # _cleanup_stale_lock_files() -> FileLockManager(...).cleanup_expired_locks(),
+            # which touches the REAL %TEMP%/algo-locks dir shared by every process on this
+            # machine (including other concurrent sessions' real, currently-held locks) -
+            # live-traced via Popen call-site tracing: this was silently consuming extra
+            # mocked-Popen call slots for real "tasklist /FI PID eq <other session's real
+            # PID>" liveness checks, breaking assert_called_once()-style assertions whenever
+            # another Claude Code session happened to be running concurrently (see
+            # local_loader_scheduler_tests_flaky_under_concurrent_sessions_20260907 in
+            # memory). Not what this test is about - mocked out entirely.
+            patch.object(module, "_cleanup_stale_lock_files", return_value=None),
             patch.object(module.subprocess, "Popen", return_value=_mock_proc(returncode=0)) as mock_popen,
         ):
             rc = module.run_pipeline("test_pipeline")

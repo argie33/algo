@@ -68,6 +68,17 @@ class TestCrossPipelineDependencyNotBlocking:
             ),
             patch.object(module, "LOADER_DEPENDENCIES", {"scores": ["value_quality_growth"]}),
             patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            # ISOLATION FIX 2026-09-07: run_pipeline() unconditionally calls
+            # _cleanup_stale_lock_files() -> FileLockManager(...).cleanup_expired_locks(),
+            # which touches the REAL %TEMP%/algo-locks dir shared by every process on this
+            # machine (including other concurrent sessions' real, currently-held locks) -
+            # live-traced via Popen call-site tracing: this was silently consuming extra
+            # mocked-Popen call slots for real "tasklist /FI PID eq <other session's real
+            # PID>" liveness checks, breaking assert_called_once()-style assertions whenever
+            # another Claude Code session happened to be running concurrently (see
+            # local_loader_scheduler_tests_flaky_under_concurrent_sessions_20260907 in
+            # memory). Not what this test is about - mocked out entirely.
+            patch.object(module, "_cleanup_stale_lock_files", return_value=None),
             patch.object(module.subprocess, "Popen", return_value=_mock_proc(returncode=0)) as mock_popen,
         ):
             rc = module.run_pipeline("test_signals")  # no --loaders - the real-world failure mode
@@ -89,6 +100,17 @@ class TestCrossPipelineDependencyNotBlocking:
             ),
             patch.object(module, "LOADER_DEPENDENCIES", {"enhanced_quality_growth": ["value_quality_growth"]}),
             patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            # ISOLATION FIX 2026-09-07: run_pipeline() unconditionally calls
+            # _cleanup_stale_lock_files() -> FileLockManager(...).cleanup_expired_locks(),
+            # which touches the REAL %TEMP%/algo-locks dir shared by every process on this
+            # machine (including other concurrent sessions' real, currently-held locks) -
+            # live-traced via Popen call-site tracing: this was silently consuming extra
+            # mocked-Popen call slots for real "tasklist /FI PID eq <other session's real
+            # PID>" liveness checks, breaking assert_called_once()-style assertions whenever
+            # another Claude Code session happened to be running concurrently (see
+            # local_loader_scheduler_tests_flaky_under_concurrent_sessions_20260907 in
+            # memory). Not what this test is about - mocked out entirely.
+            patch.object(module, "_cleanup_stale_lock_files", return_value=None),
             patch.object(module.subprocess, "Popen", return_value=_mock_proc(returncode=1)) as mock_popen,
             patch.object(module, "_mark_loader_failed_after_crash"),
         ):
