@@ -39,6 +39,7 @@ from collections.abc import Iterable  # noqa: E402
 from datetime import date  # noqa: E402
 from typing import Any  # noqa: E402
 
+from loaders.helpers.financial_statements_prefetch import start_companyfacts_prefetch  # noqa: E402
 from loaders.helpers.financial_statements_q4_sweeps import Q4DerivationSweepMixin  # noqa: E402
 from loaders.helpers.financial_statements_share_count_validation import (  # noqa: E402
     FinancialStatementsShareCountValidationMixin,
@@ -567,6 +568,7 @@ def _run_symbol_pass(
     to trigger watermark logic for retry). This prevents the entire 5300-symbol load
     from stalling on one bad symbol.
     """
+    import queue
     import threading
 
     # CRITICAL FIX (Session 96): Use centralized timeout config instead of hardcoded 10800s (3h)
@@ -598,7 +600,27 @@ def _run_symbol_pass(
     # abandoned via daemon=True once the final grace join also times out.
     abandoned_threads: list[tuple[threading.Thread, str, str]] = []
 
+    # PERF FIX (goal session 20260908, "optimize all loading activity"): see
+    # loaders/helpers/financial_statements_prefetch.py's module docstring for the full
+    # rationale (why overlapping just the companyfacts network fetch is safe here, unlike
+    # real per-symbol pipelining across the loaders module boundary, which was ruled out
+    # separately as a multi-day rearchitecture not safe to attempt mid-reload). Fails open on
+    # any setup error (e.g. a test double/loader subclass without a _sec_client) - this is a
+    # pure cache-warming optimization, never load-bearing, so an empty never-filled queue
+    # (every get_nowait() below raises Empty) reproduces exactly the pre-existing behavior.
+    try:
+        prefetch_queue, _prefetch_thread = start_companyfacts_prefetch(active[0]._sec_client, symbols, shutdown_watcher)
+    except Exception as prefetch_setup_err:
+        logger.debug(f"[FINANCIAL_STATEMENTS ALL MODE] Prefetch warm-up not started: {prefetch_setup_err}")
+        prefetch_queue = queue.Queue()
+
     for i, symbol in enumerate(symbols, 1):
+        try:
+            prefetch_queue.get_nowait()
+        except queue.Empty:
+            # Prefetcher hasn't reached this symbol yet (or already failed/skipped it) -
+            # the loop below falls through to the pre-existing synchronous fetch.
+            pass
         if time.time() - start > sla_timeout_seconds:
             logger.critical(
                 f"[FINANCIAL_STATEMENTS ALL MODE] HARD LIMIT: exceeded {sla_timeout_seconds}s SLA "
