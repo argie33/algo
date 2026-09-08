@@ -426,7 +426,7 @@
   "lambda/api/routes/scores_handlers/__init__.py": 3,
   "lambda/api/routes/scores_handlers/coverage.py": 520,
   "lambda/api/routes/scores_handlers/coverage_category_rules.py": 896,
-  "lambda/api/routes/scores_handlers/coverage_classification.py": 369,
+  "lambda/api/routes/scores_handlers/coverage_classification.py": 391,
   "lambda/api/routes/scores_handlers/coverage_sources.py": 314,
   "lambda/api/routes/scores_handlers/incomplete_and_coverage.py": 105,
   "lambda/api/routes/scores_handlers/stock_details.py": 758,
