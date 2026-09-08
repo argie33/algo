@@ -621,12 +621,11 @@ class QualityMetricsMixin(SymbolGateMixin):
             # an infinite/undefined ratio to fake a max score for).
             if interest_expense is not None and interest_expense > 0 and interest_coverage_operating_income is not None:
                 computed_interest_coverage = interest_coverage_operating_income / interest_expense
-                # A negligibly small interest_expense denominator blows this ratio up into
-                # noise (real but meaningless), not a real coverage signal.
-                if abs(computed_interest_coverage) > 1000:
-                    # Same cross-year fallback as operating_margin/net_margin/roic_pct above -
-                    # search for an older fiscal year with a plausible same-year
-                    # (operating_income, interest_expense) pair.
+                # Negligibly small denominator = noise; also floor interest_expense < 1% of
+                # |op_income| (RESTORED 2026-09-08, dropped by c9b0e2088; `70e20b7b8`).
+                _ic_immaterial = interest_expense < abs(interest_coverage_operating_income) * 0.01
+                if abs(computed_interest_coverage) > 1000 or _ic_immaterial:
+                    # Same cross-year fallback as operating_margin/net_margin/roic_pct above.
                     interest_coverage_fallback = self._find_plausible_cross_year_ratio(
                         symbol, "operating_income", "interest_expense", as_percentage=False
                     )
