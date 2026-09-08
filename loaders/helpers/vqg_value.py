@@ -759,6 +759,56 @@ class ValueMetricsMixin(SymbolGateMixin):
                 )
                 eps_row = cur.fetchone()
             latest_eps = eps_row[0] if eps_row else None
+            # FIXED 2026-09-07 (goal session: real-money-readiness audit): sec_valuations_
+            # ratios.py's _compute_pe_ratio deliberately nulls a real, positive, plausible
+            # pe_ratio when _pe_earnings_too_volatile/_pe_earnings_tax_benefit_inflated fire
+            # (see those methods' own docstrings - live-confirmed BA/RILY and AES/RIGL/AXON),
+            # but only logs a warning, recording no reason on the row - so this cascade, which
+            # only ever sees a real positive latest_eps for these symbols, fell all the way
+            # through to the generic "missing_sec_data" catch-all instead of the correct
+            # "Implausible / rejected value" bucket (coverage_category_rules.py maps both
+            # strings there, same bucket as eps_scale_mismatch/implausible_dcf_result above).
+            # Re-derives both checks directly (same "recompute the real gate's logic here"
+            # convention as every other guard in this cascade, e.g. the implausible_ratio pe/
+            # pb/ps bound rechecks just below) since this loader is a different class than
+            # SecValuationsLoader and has no access to its instance methods. Checked BEFORE the
+            # implausible-ratio/unprofitable/never-tagged branches below: a real, in-bounds pe
+            # that was excluded for earnings-quality reasons is a more specific, more accurate
+            # cause than any of those generic fallbacks.
+            _pe_too_volatile = False
+            _pe_tax_benefit_inflated = False
+            if latest_eps is not None and latest_eps > 0:
+                with _owner().DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT net_income FROM annual_income_statement
+                        WHERE symbol = %s AND net_income IS NOT NULL AND data_unavailable IS NOT TRUE
+                        ORDER BY fiscal_year DESC LIMIT 3
+                        """,
+                        (symbol,),
+                    )
+                    _volatility_rows = cur.fetchall()
+                if len(_volatility_rows) >= 3:
+                    _negative_years = sum(1 for (ni,) in _volatility_rows if ni < 0)
+                    _pe_too_volatile = _negative_years >= 2
+                if not _pe_too_volatile:
+                    with _owner().DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT pretax_income, income_tax_expense FROM annual_income_statement
+                            WHERE symbol = %s AND pretax_income IS NOT NULL AND income_tax_expense IS NOT NULL
+                              AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        _tax_row = cur.fetchone()
+                    if _tax_row and len(_tax_row) == 2:
+                        _pretax_income, _income_tax_expense = _tax_row
+                        if _pretax_income is not None and _pretax_income > 0:
+                            _pretax_f = float(_pretax_income)
+                            _tax_f = float(_income_tax_expense)
+                            _pe_tax_benefit_inflated = _tax_f < 0 and abs(_tax_f) >= 0.30 * _pretax_f
             # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): mirrors
             # load_sec_valuations.py's own pe_ratio bounds check (MIN_PLAUSIBLE_PE_RATIO..10000)
             # - a real, positive, tiny EPS (near-zero-denominator) produces a real but
@@ -786,7 +836,11 @@ class ValueMetricsMixin(SymbolGateMixin):
                     if _implied_pe > 10000 or _implied_pe < 0.05 or float(latest_eps) < 0.10:
                         _pe_implausible_from_eps = True
             pe_ratio_reason = (
-                "implausible_ratio"
+                "pe_earnings_too_volatile"
+                if _pe_too_volatile
+                else "pe_earnings_tax_benefit_inflated"
+                if _pe_tax_benefit_inflated
+                else "implausible_ratio"
                 if _pe_implausible_from_eps
                 else "unprofitable_stock"
                 if latest_eps is not None and latest_eps <= 0

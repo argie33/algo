@@ -543,6 +543,18 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # the same "computed but rejected as implausible" class as implausible_dcf_result
             # above, not a genuine SEC/XBRL data gap. See that reason's own write-site comment.
             "dcf_fcf_nulled_by_net_borrowing_distortion",
+            # ADDED 2026-09-07 (real-money-readiness /goal audit): loaders/helpers/vqg_value.py's
+            # pe_ratio_reason cascade resolves to these two strings when sec_valuations_ratios.py's
+            # _pe_earnings_too_volatile/_pe_earnings_tax_benefit_inflated guards deliberately null a
+            # real, positive, anchor-year-EPS-backed pe_ratio as an earnings-quality distortion (a
+            # loss-then-profit-year swing or a one-off tax-benefit-inflated net income) rather than
+            # a genuine bargain. Same "computed but deliberately rejected" class as implausible_
+            # ratio/implausible_dcf_result above - live-confirmed BA/RILY (too_volatile) and AES/
+            # AXON/RIGL (tax_benefit_inflated), all real S&P/mid-cap names with complete SEC
+            # financials, not data gaps. Was unmapped and would have fallen through to
+            # "Other (errors / excluded)".
+            "pe_earnings_too_volatile",
+            "pe_earnings_tax_benefit_inflated",
         },
     ),
     (
