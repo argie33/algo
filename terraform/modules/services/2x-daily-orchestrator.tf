@@ -285,14 +285,88 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
 }
 
 # ============================================================
-# Data Patrol Schedule (Handled by Step Functions EOD Pipeline)
+# Intraday Data Patrol Schedules (direct ECS RunTask, no Step Functions)
 # ============================================================
-# Data patrol runs as part of the EOD pipeline (4:05 PM ET) in Step Functions,
-# validating data quality before the orchestrator runs. No separate scheduler needed.
-# The orchestrator Phase 1 checks for CRITICAL findings and can halt trading if detected.
-#
-# If a pre-market patrol is needed in the future, create a separate EventBridge rule
-# that invokes the patrol ECS task directly (not via Lambda, which doesn't handle it).
+# REAL-MONEY-READINESS FIX (2026-09-08 audit): the EOD Step Functions pipeline only runs
+# DataPatrol once/day (~4:05 PM ET), but the five aws_scheduler_schedule resources above
+# (premarket 4:30 AM, morning 9:30 AM, afternoon 1:00 PM, preclose 3:00 PM) invoke the
+# orchestrator Lambda directly and do NOT depend on that Step Function at all. Phase 1's
+# _check_data_patrol_results (algo/orchestrator/phase1_data_freshness.py) halts trading in
+# execution_mode="auto" if the latest patrol row is >8h old - with only the 4:05 PM run, the
+# premarket/morning/afternoon/preclose runs would all see stale (12-23h old) patrol data and
+# halt every single day, indefinitely (ALLOW_MISSING_DATA_PATROL is forced off in auto mode).
+# These two extra invocations plus the existing EOD one keep every scheduled run within the
+# 8h window: 4:00 AM covers premarket (0.5h) and morning (5.5h); 12:00 PM covers afternoon
+# (1h) and preclose (3h); the EOD 4:05 PM run covers evening (1.4h). Invokes the ECS task
+# directly (EventBridge Scheduler -> ecs:RunTask), same IAM role/permission already granted
+# for the EOD pipeline's Step Function ECS steps - see modules/iam/main.tf's
+# aws_iam_role_policy.eventbridge_scheduler (ECSRunTask + IAMPassRole statements).
+
+resource "aws_scheduler_schedule" "algo_data_patrol_premarket" {
+  count                        = var.patrol_task_definition_arn != "" ? 1 : 0
+  name                         = "${var.project_name}-algo-schedule-patrol-premarket-${var.environment}"
+  description                  = "Intraday DataPatrol run: 4:00 AM ET, keeps premarket/morning orchestrator runs within Phase 1's 8h freshness window"
+  schedule_expression          = "cron(0 4 ? * MON-FRI *)" # 4:00 AM ET (America/New_York auto-handles EST/EDT)
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = var.ecs_cluster_arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    ecs_parameters {
+      task_definition_arn = var.patrol_task_definition_arn
+      launch_type         = "FARGATE"
+
+      network_configuration {
+        subnets          = var.public_subnet_ids
+        security_groups  = [var.ecs_tasks_sg_id]
+        assign_public_ip = true
+      }
+    }
+
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
+  }
+}
+
+resource "aws_scheduler_schedule" "algo_data_patrol_midday" {
+  count                        = var.patrol_task_definition_arn != "" ? 1 : 0
+  name                         = "${var.project_name}-algo-schedule-patrol-midday-${var.environment}"
+  description                  = "Intraday DataPatrol run: 12:00 PM ET, keeps afternoon/preclose orchestrator runs within Phase 1's 8h freshness window"
+  schedule_expression          = "cron(0 12 ? * MON-FRI *)" # 12:00 PM ET (America/New_York auto-handles EST/EDT)
+  schedule_expression_timezone = "America/New_York"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = var.ecs_cluster_arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    ecs_parameters {
+      task_definition_arn = var.patrol_task_definition_arn
+      launch_type         = "FARGATE"
+
+      network_configuration {
+        subnets          = var.public_subnet_ids
+        security_groups  = [var.ecs_tasks_sg_id]
+        assign_public_ip = true
+      }
+    }
+
+    retry_policy {
+      maximum_retry_attempts = 0
+    }
+  }
+}
 
 # ============================================================
 # Pre-Warm Schedule (9:25 AM ET) — 5 minutes before market open

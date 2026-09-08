@@ -755,11 +755,25 @@ def _check_data_patrol_results(
     CLOSES the fail-open half of that terraform comment too ("if patrol itself errors,
     pipeline continues... Phase 1 passes vacuously"): missing or stale patrol data now halts
     by default, same as CRITICAL/ERROR findings - a patrol infra crash/timeout must not read
-    as "nothing to report". Confirmed safe to make this the default: terraform's pipeline
-    DAG always runs the DataPatrol ECS step immediately before TriggerOrchestrator
-    (terraform/modules/pipeline/main.tf), so production Phase 1 always has a fresh patrol run
-    to read - the only way this branch fires in production is the exact infra failure it
-    exists to catch. scripts/run_local_orchestrator.py, confirmed via grep, never invokes
+    as "nothing to report".
+
+    CORRECTION (2026-09-08 real-money-readiness audit): this docstring used to claim
+    "terraform's pipeline DAG always runs the DataPatrol ECS step immediately before
+    TriggerOrchestrator, so production Phase 1 always has a fresh patrol run to read" - that
+    was false. The EOD Step Functions pipeline (terraform/modules/pipeline/main.tf) runs
+    DataPatrol once/day (~4:05 PM ET) but the actual live-trading triggers are five
+    aws_scheduler_schedule resources in terraform/modules/services/2x-daily-orchestrator.tf
+    (premarket 4:30 AM, morning 9:30 AM, afternoon 1:00 PM, preclose 3:00 PM) that invoke the
+    orchestrator Lambda directly and never touch that Step Function at all. With only the one
+    daily patrol run, every one of those four would have seen patrol data 12-23h old - always
+    past this function's 8h window - and halted every single day, indefinitely, in
+    execution_mode="auto" (ALLOW_MISSING_DATA_PATROL is forced off there, so no escape hatch).
+    FIXED by adding two more direct EventBridge Scheduler -> ecs:RunTask DataPatrol invocations
+    (4:00 AM and 12:00 PM ET) in that same terraform file, so every scheduled orchestrator run
+    now has a patrol run within the 8h window. Re-verify this cadence math against
+    patrol_freshness_hours below any time either changes.
+
+    scripts/run_local_orchestrator.py, confirmed via grep, never invokes
     DataPatrol itself, so local/dev runs need `python algo/algo_data_patrol.py` run first (see
     CLAUDE.md) or ALLOW_MISSING_DATA_PATROL=true set explicitly - mirrors the
     ALLOW_OUTSIDE_MARKET_HOURS pattern (algo/orchestration/orchestrator.py): opt-in only,

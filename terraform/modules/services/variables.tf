@@ -773,6 +773,19 @@ variable "private_subnet_ids_for_patrol" {
   default     = []
 }
 
+# REAL-MONEY-READINESS FIX (2026-09-08 audit): private_subnet_ids_for_patrol above has no NAT
+# gateway egress in this VPC (removed deliberately - see modules/vpc/main.tf's "NAT Gateway -
+# REMOVED" section) and no VPC endpoints for ECR were found either, so a Fargate task placed
+# there cannot even pull its container image. The EOD Step Functions pipeline's own patrol
+# invocation (modules/pipeline/main.tf's network_config local) uses public subnets +
+# AssignPublicIp=ENABLED instead - that's the actually-proven-working pattern, reused here for
+# the new intraday patrol schedules below rather than copying the untested private-subnet one.
+variable "public_subnet_ids" {
+  description = "Public subnet IDs for patrol task networking (no NAT gateway in this VPC)"
+  type        = list(string)
+  default     = []
+}
+
 variable "ecs_tasks_sg_id" {
   description = "Security group ID for ECS tasks (patrol)"
   type        = string

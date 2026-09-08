@@ -316,6 +316,7 @@ module "services" {
   patrol_task_definition_arn             = module.loaders.data_patrol_task_definition_arn
   patrol_task_container_name             = "${var.project_name}-data-patrol"
   private_subnet_ids_for_patrol          = module.vpc.private_subnet_ids
+  public_subnet_ids                      = module.vpc.public_subnet_ids
   ecs_tasks_sg_id                        = module.vpc.ecs_tasks_security_group_id
   rds_port                               = module.database.rds_port
   rds_master_username                    = module.database.rds_username
