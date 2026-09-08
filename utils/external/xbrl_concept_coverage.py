@@ -248,6 +248,95 @@ NOISE_SUBSTRINGS = [
     "ShorttermEmployeeBenefitsExpense",  # sibling employee-benefit expense detail
     "CapitalCommitments",  # capital-commitment footnote disclosure, not a recognized statement balance
     "ContractualCapitalCommitments",  # sibling of the above
+    # Added 2026-09-08 (goal: continue the ifrs-full backlog from the batch above). A
+    # --min-companies 100 scan still showed 206 undismissed concepts, ~all ifrs-full. Spot-
+    # checked 2-3 concepts per category directly in the on-disk companyfacts cache (Agnico
+    # Eagle, Bank of Nova Scotia, Barclays, Scully Royalty) - every one confirmed to be
+    # footnote/reconciliation-schedule detail (a tax-reconciliation percentage or dollar
+    # sub-line, a per-share/count disclosure tag, a lease/provision/business-combination
+    # movement-schedule line), never the statement-level headline figure. Deliberately scoped
+    # to NOT catch the bare headline concepts a separate live task is mapping as real aliases:
+    # CurrentTaxLiabilities/CurrentTaxAssets (only the duplicate-suffixed *Current variant is
+    # noise), OtherComprehensiveIncome bare, RightofuseAssets/CurrentLeaseLiabilities/
+    # NoncurrentLeaseLiabilities bare, Provisions/OtherProvisions/CurrentProvisions/
+    # NoncurrentProvisions bare (only the *UsedOtherProvisions/*ProvisionsOtherProvisions
+    # rollforward lines are noise).
+    #
+    # Tax-rate reconciliation detail (spot-checked ApplicableTaxRate=0.26 (a rate, not a
+    # dollar amount) and TaxExpenseIncomeAtApplicableTaxRate on AGNICO EAGLE MINES LIMITED's
+    # 2017 40-F, TaxEffectOfForeignTaxRates=-9,370,000 same filing - all reconciliation-table
+    # sub-lines that foot into the single effective-tax-rate/tax-expense figures this schema
+    # already scores).
+    "ApplicableTaxRate",  # also catches TaxExpenseIncomeAtApplicableTaxRate
+    "AverageEffectiveTaxRate",
+    "TaxEffectOf",  # TaxEffectOfForeignTaxRates/ExpenseNotDeductible.../TaxLosses/RevenuesExemptFromTaxation2011
+    "TaxEffectFromChangeInTaxRate",
+    "TaxEffectsForReconciliation",  # OtherTaxEffectsForReconciliationBetweenAccountingProfitAndTaxExpenseIncome
+    "CurrentTaxLiabilitiesCurrent",  # duplicate-suffixed dimensional variant of the real CurrentTaxLiabilities concept
+    "CurrentTaxAssetsCurrent",  # sibling of the above
+    # OCI net-of-tax component breakdowns (spot-checked OtherComprehensiveIncomeNetOfTax
+    # ExchangeDifferencesOnTranslation=396,000,000 on BANK OF NOVA SCOTIA's 2018 40-F and
+    # ReserveOfExchangeDifferencesOnTranslation=3,054,000,000 on BARCLAYS PLC's 2019 20-F -
+    # both are the per-component breakdown of the single OtherComprehensiveIncome total this
+    # schema already scores, not a new headline figure).
+    "OtherComprehensiveIncomeNetOfTax",  # bare OtherComprehensiveIncome (the headline total) is unaffected
+    "ReclassifiedToProfitOrLossNetOfTax",  # ThatWillBeReclassified.../ThatWillNotBeReclassified... variants
+    "GainsLossesOnExchangeDifferencesOnTranslation",
+    "ReserveOfExchangeDifferencesOnTranslation",
+    "ReserveOfSharebasedPayments",
+    # IFRS-16 lease footnote/disclosure detail (movement schedule and rate disclosure, not the
+    # headline RightofuseAssets/CurrentLeaseLiabilities/NoncurrentLeaseLiabilities balances,
+    # which stay undismissed for the parallel live-alias-mapping task). Spot-checked
+    # PaymentsOfLeaseLiabilitiesClassifiedAsFinancingActivities=3,382,000 and
+    # InterestExpenseOnLeaseLiabilities=1,909,000 on AGNICO EAGLE MINES LIMITED's 40-Fs -
+    # both are cash-flow-statement/interest sub-components of the aggregate figures this
+    # schema tracks net.
+    "PaymentsOfLeaseLiabilitiesClassifiedAsFinancingActivities",
+    "InterestExpenseOnLeaseLiabilities",
+    "AdditionsToRightofuseAssets",
+    "DepreciationRightofuseAssets",
+    "CashOutflowForLeases",
+    "ExpenseRelatingTo",  # ShorttermLeases/VariableLeasePayments/LeasesOfLowvalueAssets exemption-disclosure lines
+    "WeightedAverageLesseesIncrementalBorrowingRateAppliedToLeaseLiabilities",  # rate disclosure, not a $ line item
+    # Share-issuance/equity mechanics disclosure (spot-checked IssueOfEquity=215,000,000 (a
+    # roll-forward addition, not a balance) and NumberOfSharesIssued=225,465,654 (a share
+    # count, not a dollar figure) on AGNICO EAGLE MINES LIMITED's 40-Fs).
+    "IssueOfEquity",
+    "NumberOfSharesIssued",  # also catches the NumberOfSharesIssuedAndFullyPaid variant
+    "NumberOfSharesAuthorised",
+    "ParValuePerShare",  # spot-checked val=0 on AGNICO EAGLE - per-share, not a $ line item
+    "ShareIssueRelatedCost",
+    "DividendsPaidOrdinaryShares",  # also catches the DividendsPaidOrdinarySharesPerShare variant
+    "BasicAndDilutedEarningsLossPerShare",  # spot-checked val=-3.81 on Scully Royalty - per-share, not $
+    # JV/associates equity-method detail (spot-checked ShareOfProfitLossOfAssociatesAnd
+    # JointVenturesAccountedForUsingEquityMethod=414,000,000 and InvestmentAccountedForUsing
+    # EquityMethod=4,586,000,000 on BANK OF NOVA SCOTIA's 40-F - equity-method sub-line
+    # breakdowns, not statement-level totals this schema scores).
+    "ShareOfProfitLossOfAssociates",  # also catches the ...AndJointVenturesAccountedForUsingEquityMethod variant
+    "InvestmentAccountedForUsingEquityMethod",
+    "InvestmentsInSubsidiariesJointVenturesAndAssociates",
+    # Provision movement-schedule detail (opening/closing/used/reversed roll-forward, not the
+    # balance itself - bare Provisions/OtherProvisions/CurrentProvisions/NoncurrentProvisions
+    # stay undismissed). Spot-checked ProvisionUsedOtherProvisions=212,000,000 and
+    # AdditionalProvisionsOtherProvisions=27,000,000 on BANK OF NOVA SCOTIA's 40-F - both are
+    # roll-forward movement lines, not the provision balance.
+    "ProvisionUsedOtherProvisions",
+    "AdditionalProvisionsOtherProvisions",
+    "UnusedProvisionReversedOtherProvisions",
+    # Business-combination/disposal-group detail (spot-checked CashFlowsUsedInObtainingControl
+    # OfSubsidiariesOrOtherBusinessesClassifiedAsInvestingActivities=12,434,000 on AGNICO EAGLE
+    # and LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale=29,897,000 on Scully
+    # Royalty - PPA/disposal-group footnote sub-lines, not statement-level totals).
+    "ObtainingControlOfSubsidiariesOrOtherBusinesses",  # CashFlowsUsedIn... investing-activities line
+    "LosingControlOfSubsidiariesOrOtherBusinesses",  # CashFlowsFrom... sibling
+    "LiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale",
+    # Bank/derivative notional & rate disclosure - this schema doesn't score bank-specific
+    # derivative books. Spot-checked NotionalAmount=4,547,246,000,000 (a derivative-book
+    # notional, not a recognized balance) and BorrowingsInterestRate=0.0465 (a rate, not a $
+    # figure) on BANK OF NOVA SCOTIA's 40-F.
+    "NotionalAmount",
+    "BorrowingsInterestRate",
+    "AllowanceAccountForCreditLossesOfFinancialAssets",
 ]
 
 
