@@ -49,7 +49,14 @@ def _patch_company_info_sec(rows):
     mock_ctx = MagicMock()
     mock_ctx.__enter__.return_value = mock_cursor
     mock_ctx.__exit__.return_value = False
-    return patch("loaders.load_financial_statements.DatabaseContext", return_value=mock_ctx)
+    # FIXED 2026-09-07: the relative-scale cross-check moved to its own helper module
+    # (loaders/helpers/financial_statements_share_count_validation.py, own `from
+    # utils.db.context import DatabaseContext`) during the bloater-decomposition split -
+    # this patch target was left pointing at the old loaders.load_financial_statements
+    # location, a completely separate name binding, so it silently patched nothing and the
+    # cross-check ran against the real DB instead (which has no fixture row for these test
+    # symbols), always returning early and letting bad values through untouched.
+    return patch("loaders.helpers.financial_statements_share_count_validation.DatabaseContext", return_value=mock_ctx)
 
 
 class TestSharesOutstandingRelativeScaleCheck:
@@ -112,7 +119,10 @@ class TestSharesOutstandingRelativeScaleCheck:
             "weighted_average_number_of_shares_outstanding_basic": 50_000_000,
         }
 
-        with patch("loaders.load_financial_statements.DatabaseContext", side_effect=RuntimeError("db down")):
+        with patch(
+            "loaders.helpers.financial_statements_share_count_validation.DatabaseContext",
+            side_effect=RuntimeError("db down"),
+        ):
             transformed = loader.transform([raw_row])
 
         assert transformed[0]["shares_outstanding_basic"] == 50_000_000
