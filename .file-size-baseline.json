@@ -566,7 +566,7 @@
   "loaders/stock_scores/quality_scoring.py": 192,
   "loaders/stock_scores/risk_scoring.py": 525,
   "loaders/stock_scores/value_metrics.py": 810,
-  "loaders/stock_scores/value_score.py": 918,
+  "loaders/stock_scores/value_score.py": 976,
   "loaders/technical_indicators.py": 329,
   "loaders/timeout_config.py": 254,
   "loaders/validators/__init__.py": 28,
