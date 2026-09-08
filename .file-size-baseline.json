@@ -147,7 +147,7 @@
   "algo/research/cross_pillar_interaction_sweep_20260828.py": 258,
   "algo/research/ev_multiples_pillar_classification_20260828.py": 140,
   "algo/research/fama_macbeth_composite_weights.py": 1092,
-  "algo/research/fama_macbeth_growth_factors.py": 235,
+  "algo/research/fama_macbeth_growth_factors.py": 323,
   "algo/research/fama_macbeth_liquidity_factor.py": 226,
   "algo/research/fama_macbeth_momentum_factors.py": 211,
   "algo/research/fama_macbeth_positioning_factors.py": 146,
