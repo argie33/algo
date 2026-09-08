@@ -1886,3 +1886,83 @@ class SymbolGateMixin:
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
+
+    # Fields covered by the recategorize loop below - same list as the RIC block's
+    # _ric_recategorize_fields in vqg_quality.py (the most complete of that file's sibling
+    # ETF-trust/RIC/blank-check loops), reused here since this gate is a superset of those
+    # narrower membership tests. Kept as a module-level-style constant on the class (not
+    # inlined in the method body) purely to keep vqg_quality.py's per-file line count from
+    # growing further - that file is already past the 2000-line hard ceiling the file-size
+    # ratchet enforces with zero tolerance for growth, see _apply_structural_entity_type_
+    # exemption_reasons's own docstring for why this landed here instead.
+    _STRUCTURAL_ENTITY_EXEMPT_FIELDS: tuple[str, ...] = (
+        "operating_profitability",
+        "roe",
+        "debt_to_equity",
+        "roic_pct",
+        "roce_pct",
+        "sustainable_growth_rate",
+        "total_debt",
+        "interest_coverage",
+        "total_cash",
+        "cash_per_share",
+        "payout_ratio",
+        "ebitda_margin",
+        "gross_profitability",
+        "asset_turnover",
+        "roa",
+        "operating_margin",
+        "net_margin",
+        "current_ratio",
+        "quick_ratio",
+        "debt_to_assets",
+        "gross_margin",
+        "ebitda",
+        "fcf_margin",
+        "fcf_to_net_income",
+        "free_cash_flow",
+        "ocf_to_net_income",
+        "operating_cash_flow",
+        "accruals_ratio",
+    )
+    _STRUCTURAL_ENTITY_EXEMPT_SOURCE_REASONS: frozenset[str] = frozenset(
+        {
+            "missing_sec_data",
+            "total_debt_not_itemized",
+            "no_recent_cash_reported",
+            "interest_expense_not_itemized",
+            "stockholders_equity_not_reported",
+            "operating_income_not_itemized",
+            "total_liabilities_not_reported",
+        }
+    )
+
+    def _apply_structural_entity_type_exemption_reasons(self, symbol: str, metrics: dict[str, Any]) -> None:
+        """Recategorize any field in _STRUCTURAL_ENTITY_EXEMPT_FIELDS still stuck on a generic
+        missing-data reason to "entity_type_structurally_exempt_10k_filing" for a symbol
+        covered by _get_structural_entity_type_exemptions().
+
+        ADDED 2026-09-07 (goal: "1600 missing XBRL" reduction sweep). That gate was built
+        2026-09-06 specifically to catch CEF/BDC/ETF-trust symbols across ALL metrics in one
+        place (its own docstring: "Creates a single gate that captures all entity-type-based
+        structural exemptions") but was never actually called anywhere - a fully half-wired
+        fix. Live-confirmed via a fresh coverage query against the local DB: 76 active-universe
+        symbols carry roce_pct_unavailable_reason='missing_sec_data' alone, and 60/76 (79%) are
+        covered by this gate (BlackRock B-ticker/Invesco V-ticker CEFs, SPY, and siblings) - the
+        same population vqg_quality.py's own ETF-trust/RIC/blank-check recategorize loops
+        already handle for their own narrower membership tests, but this gate's broader
+        SIC-code/entity_type criterion catches symbols those three miss.
+
+        Extracted as its own method (rather than an inline block in vqg_quality.py, where the
+        three sibling loops live) purely because that file is already past the file-size
+        ratchet's 2000-line hard ceiling with zero tolerance for further growth - not a design
+        preference. Call this AFTER the narrower ETF-trust/RIC/blank-check loops so it only
+        fills in fields still on a generic reason, never overwriting an already-correct, more
+        specific recategorization those loops already made.
+        """
+        if symbol not in self._get_structural_entity_type_exemptions():
+            return
+        for field in self._STRUCTURAL_ENTITY_EXEMPT_FIELDS:
+            reason_key = f"{field}_unavailable_reason"
+            if metrics.get(field) is None and metrics.get(reason_key) in self._STRUCTURAL_ENTITY_EXEMPT_SOURCE_REASONS:
+                metrics[reason_key] = "entity_type_structurally_exempt_10k_filing"

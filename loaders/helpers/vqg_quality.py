@@ -3592,7 +3592,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     _reason_key = f"{_field}_unavailable_reason"
                     if metrics.get(_field) is None and metrics.get(_reason_key) in _ric_source_reasons:
                         metrics[_reason_key] = "registered_investment_company_no_xbrl"
-
+            self._apply_structural_entity_type_exemption_reasons(symbol, metrics)
             # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up):
             # a pre-merger blank-check SPAC (SIC 6770) already gets "no_revenue_reported"
             # ("Legitimate / not applicable") directly wired into gross_profitability/
