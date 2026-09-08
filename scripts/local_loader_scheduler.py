@@ -72,8 +72,41 @@ os.environ["ENVIRONMENT"] = "development"
 # self-triggered the yfinance shared-IP circuit breaker from a single local machine, causing
 # 84%+ false-failure rates on analyst loaders (same fix applied to scripts/run_loader.py).
 # Default to 1 to match the value actually verified safe.
-if "LOADER_PARALLELISM" not in os.environ:
+#
+# _LOADER_PARALLELISM_AUTO_DEFAULTED (goal session 20260908, "optimize all loading
+# activity"): tracks whether THIS block is what set LOADER_PARALLELISM=1, as opposed to an
+# operator explicitly exporting it themselves before running this script. Needed below:
+# utils/loaders/config.py's LOADER_CONSTRAINTS already designs company_info_sec/
+# earnings_calendar_sec for parallelism up to 2 ("SEC EDGAR allows ~10 requests/second
+# globally... Parallelism=1-2 keeps us well under limit" - these loaders share nothing with
+# the yfinance concern this default exists for; SecEdgarClient's RateLimiter is thread-safe
+# and shared across OptimalLoader's _run_parallel worker threads, so 2 concurrent SEC
+# fetches is exactly what that constraint was designed to allow). But get_parallelism()
+# checks the LOADER_PARALLELISM env var BEFORE per-loader LOADER_CONSTRAINTS, so this
+# blanket "1" - meant only to protect yfinance - was also silently halving these SEC-only
+# loaders' designed throughput on every local run. Deliberately excludes financial_statements
+# despite LOADER_CONSTRAINTS listing income_statements/balance_sheets/cash_flow_statements at
+# the same (1,2): local runs always set LOADER_STATEMENT_TYPE=all (below), which routes
+# through load_all_statements() - that function's own args.parallelism branch logs
+# "--parallelism ignored (serial symbol-major pass)" and always runs serially by design (one
+# companyfacts fetch covers all 6 statement/period combos per symbol; parallelizing would
+# multiply SEC calls, not just speed things up), so a LOADER_PARALLELISM override would be a
+# silent no-op there - worse than doing nothing, since it would look like a fix without
+# being one. Only override per-loader below when this script is the one that chose "1" -
+# never override an operator's own explicit choice.
+_LOADER_PARALLELISM_AUTO_DEFAULTED = "LOADER_PARALLELISM" not in os.environ
+if _LOADER_PARALLELISM_AUTO_DEFAULTED:
     os.environ["LOADER_PARALLELISM"] = "1"
+
+# SEC-only loaders (no yfinance involvement at all) that utils/loaders/config.py's
+# LOADER_CONSTRAINTS already designs for parallelism up to 2 - see
+# _LOADER_PARALLELISM_AUTO_DEFAULTED's comment above for the full rationale, including why
+# financial_statements is deliberately NOT in this set.
+# Scheduler shorthand names (loaders/loader_registry.py), NOT their table_name/filename -
+# "company_info" -> load_company_info_sec.py (table_name "company_info_sec"), "earnings_sec"
+# -> load_earnings_calendar_sec.py (table_name "earnings_calendar_sec"). The `loader` value
+# checked against this set below is always the raw PIPELINES shorthand, pre-normalization.
+_SEC_ONLY_HIGHER_PARALLELISM_LOADERS = frozenset({"company_info", "earnings_sec"})
 
 
 # LIVE BUG FOUND 2026-08-17: insider_transaction_velocity killed at exactly the generic
@@ -922,6 +955,11 @@ def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> i
             # Convert shorthand name to filename (e.g., "prices" → "load_prices.py")
             loader_filename = normalize_loader_name(loader)
             env = os.environ.copy()
+            # PERF FIX (goal session 20260908): see _SEC_ONLY_HIGHER_PARALLELISM_LOADERS'
+            # definition above for the full rationale - only overrides this script's own
+            # auto-chosen "1" default, never an operator's explicit LOADER_PARALLELISM.
+            if _LOADER_PARALLELISM_AUTO_DEFAULTED and loader in _SEC_ONLY_HIGHER_PARALLELISM_LOADERS:
+                env["LOADER_PARALLELISM"] = "2"
             # FIX 2026-08-25: on Windows, a redirected (non-console) child stdout defaults to
             # the ANSI codepage (cp1252 here) rather than UTF-8. sla_monitor.py/logging/sla.py/
             # db/pool_monitor.py all log status emoji (🔴🟡🟢🟠) - under cp1252 those silently
