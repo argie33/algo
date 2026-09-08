@@ -160,6 +160,18 @@ _INCOME_IFRS_ALIASES = [
     # ADS-ratio source.
     # Session 398: EBITDA extraction from IFRS filers
     ("DepreciationAndAmortisation", "depreciation_and_amortization"),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 328 undismissed
+    # filers): a DIFFERENT IFRS taxonomy literal from "DepreciationAndAmortisation" above,
+    # not a duplicate - live-confirmed via real companyfacts JSON that Bank of Nova Scotia
+    # (CIK 0000009631), PLDT (CIK 0000078150), Scully Royalty (CIK 0000016859), and Avino
+    # Silver & Gold Mines (CIK 0000316888) all tag ONLY this concept and never
+    # "DepreciationAndAmortisation" at all - e.g. BNS FY2025 (period end 2025-10-31)
+    # DepreciationAndAmortisationExpense=CAD 1,604,000,000, a sane figure for a major bank's
+    # combined D&A. Same target key as "DepreciationAndAmortisation" - genuinely the same
+    # concept (a P&L expense line), just a separate real XBRL element filers choose between,
+    # same "either/or alternative, plain concept" convention as this file's other IFRS
+    # aliases sharing a target with a sibling concept (e.g. RevenueAndOperatingIncome above).
+    ("DepreciationAndAmortisationExpense", "depreciation_and_amortization"),
     ("DepreciationExpense", "depreciation"),
     # FIXED 2026-08-03: no IFRS income-tax/pretax-income aliases existed at all, so
     # roic_pct's NOPAT computation (needs both to derive an effective tax rate) was stuck

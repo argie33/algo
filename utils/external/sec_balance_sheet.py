@@ -64,6 +64,28 @@ _BALANCE_IFRS_ALIASES = [
     # year, so no summing gap here). Listed AFTER the bare concept for the same first-
     # populated-wins reasoning as the assets-side fallback above.
     ("CurrentLiabilitiesOtherThanLiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale", "liabilities_current"),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 403 undismissed
+    # filers - the single highest-count undismissed concept after the IFRS namespace fix
+    # earlier this session): IFRS's combined trade-plus-other current-payables concept, the
+    # closest IFRS analog to us-gaap "AccountsPayableCurrent" - live-confirmed via Agnico
+    # Eagle's real companyfacts JSON (CIK 0000002809, an ifrs-full-only filer with no
+    # us-gaap accounts_payable-shaped concept tagged at all): FY2025 (period end
+    # 2025-12-31) TradeAndOtherCurrentPayables=USD 1,033,444,000, a sane ~42% of that same
+    # period's CurrentLiabilities (USD 2,472,206,000) - plausible for a mining major's real
+    # trade-payables scale, not a placeholder or an implausible near-total figure. Target
+    # key "accounts_payable_current" (not a new column) is deliberate - it's the
+    # _to_snake() raw key the us-gaap "AccountsPayableCurrent" concept already produces,
+    # which _BALANCE_FIELD_MAPPING already routes to the accounts_payable column (reused
+    # here, not duplicated, same convention as this file's own "NoncontrollingInterests"/
+    # "minority_interest" entry above). Deliberately did NOT alias the bare (no "Current")
+    # "TradeAndOtherPayables"/"TradeAndOtherReceivables" sibling concepts elsewhere in the
+    # ifrs-full taxonomy to this or the accounts-receivable target - live-checked via
+    # PLDT's real companyfacts JSON (CIK 0000078150) that those bare concepts are NOT
+    # equivalent to their Current-suffixed counterparts for the same fiscal year (e.g.
+    # FY2022: bare TradeAndOtherPayables=PHP 1,745,000,000 vs.
+    # TradeAndOtherCurrentPayables=PHP 105,187,000,000 - a ~60x difference, not the same
+    # line item at all), so those stay unmapped rather than risk a wildly wrong figure.
+    ("TradeAndOtherCurrentPayables", "accounts_payable_current"),
     ("Equity", "stockholders_equity"),
     ("EquityAttributableToOwnersOfParent", "stockholders_equity"),
     # ADDED 2026-09-08 (goal session: scores-reload due-diligence audit, IFRS coverage-scan
@@ -88,6 +110,25 @@ _BALANCE_IFRS_ALIASES = [
     # receivables only" IFRS taxonomy element (not a combined trade+other concept), close
     # enough in meaning to the us-gaap "AccountsReceivableNetCurrent" target it feeds.
     ("CurrentTradeReceivables", "accounts_receivable_net_current"),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 227 undismissed
+    # filers): "TradeReceivables" - live-confirmed via Himax Technologies' real companyfacts
+    # JSON (CIK 0001342338, a fabless semiconductor 20-F filer with none of the concepts
+    # above tagged at all): FY2024 (period end 2024-12-31) TradeReceivables=USD 89,527,000,
+    # a sane ~7.7% of that year's CurrentAssets (USD 1,168,043,000) - previously invisible,
+    # not a placeholder. Cross-checked against Agnico Eagle (which already has a working
+    # "CurrentTradeReceivables" alias above): AEM's own TradeReceivables FY2025 value (USD
+    # 18,690,000) is within 0.05% of its CurrentTradeReceivables value for the same period
+    # (USD 18,700,000) - confirms this is genuinely the same "current trade receivables"
+    # concept, not a broader/noncurrent-inclusive one (ruled out via PLDT's real
+    # companyfacts JSON for the analogous bare-vs-Current "TradeAndOtherReceivables" pair
+    # below, where the bare concept is ~50% LARGER than its Current-suffixed sibling - a
+    # genuinely different, noncurrent-inclusive scope, correctly NOT aliased here). Same
+    # target as CurrentTradeReceivables/TradeAndOtherCurrentReceivables above - listed
+    # LAST in this same-target group so this aggregation's first-populated-wins tiebreak
+    # (see the "Borrowings" comment further below for the live-verified mechanics) defers
+    # to either of those more-established concepts for a filer reporting more than one in
+    # the same fiscal year.
+    ("TradeReceivables", "accounts_receivable_net_current"),
     ("Inventories", "inventory_net"),
     ("PropertyPlantAndEquipment", "property_plant_and_equipment_net"),
     ("Goodwill", "goodwill"),
