@@ -41,10 +41,10 @@ from math import isnan, sqrt
 from typing import Any, cast
 
 import psycopg2
-from psycopg2.extras import execute_values
 
 from loaders.helpers.vqg_growth import GrowthMetricsMixin
 from loaders.helpers.vqg_quality import QualityMetricsMixin
+from loaders.helpers.vqg_quality_batch import QualityBatchMixin
 from loaders.helpers.vqg_shared import (
     _SHARED_TREND_FIELDS,
     MAX_ABSOLUTE_DOLLAR_VALUE,  # noqa: F401 -- re-exported, see comment below
@@ -186,7 +186,7 @@ def _mirror_shared_trend_fields(quality_dict: dict[str, Any], growth_dict: dict[
 
 
 class ValueQualityGrowthMetricsLoader(
-    ValueMetricsMixin, QualityMetricsMixin, GrowthMetricsMixin, OptimalLoader, SymbolGateMixin
+    ValueMetricsMixin, QualityMetricsMixin, QualityBatchMixin, GrowthMetricsMixin, OptimalLoader, SymbolGateMixin
 ):
     """Consolidated value + quality + growth metrics from SEC + valuations.
 
@@ -2380,217 +2380,7 @@ class ValueQualityGrowthMetricsLoader(
         """Runs automatically after fetch_incremental() completes for every symbol - see
         loaders/runner.py's `hasattr(loader, "post_run")` dispatch (the same generic mechanism
         loaders/load_stock_scores.py's own post_run()/update_rs_percentiles() already use)."""
-        self.update_quality_roe_roce_percentiles()
-
-    @staticmethod
-    def _margin_curve(value: float, breakpoints: list[tuple[float, float]]) -> float:
-        """breakpoints: [(x0,y0), (x1,y1), ...] increasing x; value<x0 -> 0-ramp to y0,
-        value>=last x -> last y. Piecewise-linear between points.
-
-        Shared by `_compute_quality_metrics`'s ROE/ROA/gross_profitability/roce_pct/fcf_margin/
-        asset_turnover/margin_volatility score curves and `update_quality_roe_roce_percentiles()`'s
-        reconciliation math (which must reconstruct what Pass 1 originally scored ROE/ROCE at) -
-        one shared definition so the two call sites can't silently diverge.
-        """
-        if value < 0:
-            return 0.0
-        if value < breakpoints[0][0]:
-            x1, y1 = breakpoints[0]
-            return (value / x1) * y1 if x1 > 0 else y1
-        for (x0, y0), (x1, y1) in itertools.pairwise(breakpoints):
-            if value < x1:
-                return y0 + (value - x0) / (x1 - x0) * (y1 - y0)
-        return breakpoints[-1][1]
-
-    @staticmethod
-    def _weighted_avg(components: list[tuple[float | None, float]], min_weight_pct: float = 0.0) -> float | None:
-        """components: [(score_or_None, weight), ...]. Renormalizes over whichever
-        components are actually available, same "1/n over available" spirit as the old
-        equal-weighted average, just weighted instead of equal. Returns None if the
-        available weight doesn't clear min_weight_pct - renormalizing a 1-2 component
-        sample up to a full 0-100 score is a thin-sample extrapolation, not an honest
-        partial score (see quality_score's own call site for the live-verified case)."""
-        available = [(v, w) for v, w in components if v is not None]
-        total_weight = sum(w for _, w in available)
-        if not available or total_weight <= 0 or total_weight < min_weight_pct:
-            return None
-        return sum(v * w for v, w in available) / total_weight
-
-    @staticmethod
-    def _percent_rank_higher_is_better(values: dict[str, float]) -> dict[str, float]:
-        """symbol -> percentile in [0, 100], HIGHEST raw value = HIGHEST percentile (ROE/ROCE
-        convention - more return-on-capital is better, the opposite direction from
-        load_stock_scores.py's `_percent_rank_cheap_high`, which is for "lower is better"
-        metrics like P/E - deliberately NOT importing that one across loader files to avoid a
-        sign mixup like the one caught by this repo's own
-        tests/unit/test_size_percentile_ranking_20260828.py). Ties share the same percentile
-        (RANK()-style). A universe of 1 gets 50.0; empty input returns an empty mapping (not a
-        silent fallback for missing/failed data - this is a pure function over an
-        already-validated `values` dict, so an empty input mathematically has nothing to
-        rank; `dict()` here, not the `{}` literal, so this doesn't false-positive-trip
-        .pre-commit-scripts/check-silent-fallbacks.py's return-empty-dict pattern check)."""
-        n = len(values)
-        if n == 0:
-            return dict()  # noqa: C408 - see docstring: intentional, not the `{}` literal
-        if n == 1:
-            return dict.fromkeys(values, 50.0)
-        sorted_items = sorted(values.items(), key=lambda kv: kv[1])
-        result: dict[str, float] = {}
-        i = 0
-        while i < n:
-            j = i
-            while j < n and sorted_items[j][1] == sorted_items[i][1]:
-                j += 1
-            pct = 100.0 * i / (n - 1)  # LOWEST raw value here (i=0) -> percentile 0
-            for sym, _ in sorted_items[i:j]:
-                result[sym] = pct
-            i = j
-        return result
-
-    def update_quality_roe_roce_percentiles(self) -> None:
-        """Batch pass: replace ROE's and ROCE's Pass-1 PROVISIONAL fixed-curve scores with a
-        true cross-sectional percentile rank against the current run's universe, then
-        FULLY RECOMPUTE quality_score from scratch off the raw stored ratio columns (not
-        patched relative to whatever quality_score currently holds) - mirrors
-        `update_rs_percentiles()`'s pure-overwrite pattern, NOT
-        `update_value_multiples_percentiles()`'s additive-delta one.
-
-        Only ROE/ROCE are percentile-ranked (of the 8 Quality components) - a sweep found
-        those two the only ones where cross-sectional percentile consistently beat the fixed
-        curve across eras; the other 6 keep their Pass-1 curve formulas.
-
-        MUST be a pure function of the raw stored ratio columns, never reading
-        quality_score itself as an input: an earlier additive-delta design read/wrote the
-        same mutable column every run, so the same delta re-applied on top of an
-        already-corrected value each pipeline cycle with no convergence except the 0/100
-        clamp - over time this pinned ~30% of the universe at exactly 100.00.
-
-        ROE/ROCE percentile ranking is computed only over the non-negative population, with
-        negative-raw-value symbols explicitly floored to percentile 0.0 (matching curve-based
-        Pass-1's own `if value < 0: return 0.0`) - a plain percentile rank doesn't floor at 0
-        for a non-worst performer, which otherwise systematically over-scores unprofitable
-        companies (e.g. negative ROE still landing mid-percentile).
-
-        Raises on failure, same as every other post_run() batch pass - an inconsistent
-        quality_score is a live-trading-relevant correctness issue.
-
-        Skips Financial Services/Real Estate/Utilities: those sectors' quality_score uses a
-        two-cluster (profitability + safety) structure, not the flat 8-input weighted average
-        this method recomputes: reconciling ROE/ROCE through that structure needs its own
-        derivation. Utilities added 2026-09-07 alongside that sector's own ROA/ROCE/D-E curve
-        fixes (see UTILITY_INDUSTRIES's own comment) - same structural reason.
-        """
-        try:
-            with DatabaseContext("write") as cur:
-                cur.execute("""
-                    SELECT qm.symbol, qm.quality_score, qm.roe, qm.roa, qm.roce_pct, qm.fcf_margin,
-                           qm.debt_to_equity, qm.margin_volatility, qm.asset_turnover, qm.gross_profitability
-                    FROM quality_metrics qm
-                    LEFT JOIN company_profile cp ON cp.symbol = qm.symbol
-                    WHERE qm.quality_score IS NOT NULL
-                      AND COALESCE(qm.data_unavailable, false) = false
-                      AND COALESCE(cp.sector, '') NOT IN ('Financial Services', 'Real Estate', 'Utilities')
-                """)
-                rows = cur.fetchall()
-
-            if not rows:
-                logger.warning(
-                    "[QUALITY_METRICS] update_quality_roe_roce_percentiles: no eligible rows found - skipping."
-                )
-                return
-
-            # Percentile universe restricted to non-negative raw values (same "floor, don't
-            # dilute the ranking" precedent as load_stock_scores.py's unprofitable-P/E fix) -
-            # a negative ROE/ROCE symbol is floored to 0.0 directly below, never ranked.
-            roe_raw = {row[0]: float(row[2]) for row in rows if row[2] is not None and float(row[2]) >= 0.0}
-            roce_raw = {row[0]: float(row[4]) for row in rows if row[4] is not None and float(row[4]) >= 0.0}
-            roe_pct = self._percent_rank_higher_is_better(roe_raw)
-            roce_pct = self._percent_rank_higher_is_better(roce_raw)
-            logger.info(
-                f"[QUALITY_METRICS] ROE/ROCE percentile universe: ROE {len(roe_pct)}, ROCE {len(roce_pct)} symbols"
-            )
-
-            updates: list[tuple[str, float]] = []
-            for row in rows:
-                symbol, quality_score_old = row[0], float(row[1])
-                roe, roa, roce_pct_val, fcf_margin, d2e, margin_vol, asset_turnover, gross_prof = row[2:10]
-
-                components: list[tuple[float, float]] = []
-
-                if roe is not None and roa is not None:  # roa<0 = sign-flip distress artifact; missing roa omits it
-                    roe_component = 0.0 if float(roe) < 0.0 or float(roa) < 0.0 else roe_pct[symbol]
-                    components.append((roe_component, 11.0))
-                if roa is not None:
-                    components.append((self._margin_curve(float(roa), [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)]), 18.0))
-                if roce_pct_val is not None:
-                    roce_component = 0.0 if float(roce_pct_val) < 0.0 else roce_pct[symbol]
-                    components.append((roce_component, 18.0))
-                if fcf_margin is not None:
-                    components.append(
-                        (
-                            self._margin_curve(float(fcf_margin), [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)]),
-                            15.0,
-                        )
-                    )
-                if d2e is not None:
-                    d2e_val = float(d2e)
-                    d2e_score = 0.0 if d2e_val < 0.0 else max(0.0, min(100.0, 100.0 - (d2e_val / 2.0) * 100.0))
-                    components.append((d2e_score, 18.0))
-                if margin_vol is not None:
-                    components.append(
-                        (
-                            100.0 - self._margin_curve(float(margin_vol), [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)]),
-                            7.0,
-                        )
-                    )
-                if asset_turnover is not None:
-                    components.append(
-                        (
-                            self._margin_curve(float(asset_turnover), [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)]),
-                            7.0,
-                        )
-                    )
-                if gross_prof is not None:
-                    components.append(
-                        (
-                            self._margin_curve(float(gross_prof), [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)]),
-                            7.0,
-                        )
-                    )
-
-                total_weight = sum(w for _, w in components)
-                if total_weight <= 0:
-                    continue  # defensive only - can't happen if quality_score is real
-
-                quality_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
-                if quality_score_new != quality_score_old:
-                    updates.append((symbol, quality_score_new))
-
-            if not updates:
-                logger.info("[QUALITY_METRICS] ROE/ROCE percentile pass: no symbol's quality_score changed.")
-                return
-
-            with DatabaseContext("write") as cur:
-                execute_values(
-                    cur,
-                    """
-                    UPDATE quality_metrics AS qm
-                    SET quality_score = v.quality_score,
-                        updated_at = CURRENT_TIMESTAMP
-                    FROM (VALUES %s) AS v(symbol, quality_score)
-                    WHERE qm.symbol = v.symbol
-                    """,
-                    updates,
-                    template="(%s, %s)",
-                )
-            logger.info(
-                f"[QUALITY_METRICS] ROE/ROCE cross-sectional percentile pass corrected "
-                f"{len(updates)}/{len(rows)} symbols' quality_score (post_run completed)"
-            )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            error_msg = f"ROE/ROCE percentile batch update failed - quality_metrics cannot be finalized: {e}"
-            logger.error(error_msg)
-            raise RuntimeError(error_msg) from e
+        self.update_quality_sector_neutral_scores()
 
 
 if __name__ == "__main__":

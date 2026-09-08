@@ -18,6 +18,7 @@ period BAC showed +11.15%, the same "deposit flows swamp cash flow" root cause
 tie_out.py's cashflow_reconciliation check already exempts depository institutions from).
 """
 
+from loaders.helpers.vqg_quality_batch import QualityBatchMixin
 from loaders.load_value_quality_growth_metrics import (
     DEPOSITORY_BANK_INDUSTRIES,
     INSURANCE_UNDERWRITER_INDUSTRIES,
@@ -138,7 +139,7 @@ class TestFcfMarginScoreDepositoryBankExclusion:
         loader._sector_cache = {"BANKCO": "Financial Services"}
 
         captured_calls = []
-        original_weighted_avg = mod.ValueQualityGrowthMetricsLoader.__dict__["_weighted_avg"].__func__
+        original_weighted_avg = QualityBatchMixin.__dict__["_weighted_avg"].__func__
 
         def spy_weighted_avg(components, min_weight_pct=0.0):
             captured_calls.append(components)
@@ -155,12 +156,15 @@ class TestFcfMarginScoreDepositoryBankExclusion:
         assert metrics["fcf_margin"] is not None
         assert metrics["fcf_margin"] < 0
 
-        # profitability_cluster_score call (Financial Services branch: 5 components
-        # [roe, roa, roce, fcf_margin, gross_profitability]) - the fcf_margin_score component
-        # (index 3) must be None, not a punishing near-zero score.
-        profitability_cluster_calls = [c for c in captured_calls if len(c) == 5]
-        assert len(profitability_cluster_calls) == 1
-        fcf_margin_score = profitability_cluster_calls[0][3][0]
+        # REWRITE 2026-09-07: Financial Services no longer gets a separate 5-component
+        # profitability-cluster call - every sector uses the same 8-component universal call
+        # [roe, roa, roce, fcf_margin, debt_to_equity, margin_volatility, asset_turnover,
+        # gross_profitability]. fcf_margin_score (index 3) must still be None for a bank - that
+        # exclusion is a metric-composition decision (real cash-flow noise), not curve-shape,
+        # and survives the two-cluster-to-flat collapse unchanged.
+        universal_calls = [c for c in captured_calls if len(c) == 8]
+        assert len(universal_calls) == 1
+        fcf_margin_score = universal_calls[0][3][0]
         assert fcf_margin_score is None
 
     def test_non_bank_fcf_margin_still_scored(self, monkeypatch):
@@ -171,7 +175,7 @@ class TestFcfMarginScoreDepositoryBankExclusion:
         loader._sector_cache = {"INDCO": "Technology"}
 
         captured_calls = []
-        original_weighted_avg = mod.ValueQualityGrowthMetricsLoader.__dict__["_weighted_avg"].__func__
+        original_weighted_avg = QualityBatchMixin.__dict__["_weighted_avg"].__func__
 
         def spy_weighted_avg(components, min_weight_pct=0.0):
             captured_calls.append(components)

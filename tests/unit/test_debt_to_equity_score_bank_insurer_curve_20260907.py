@@ -16,6 +16,7 @@ recalibrated to each sector's typical deposit/reserve-inclusive leverage range i
 industrial 0.5/1.0/2.0x scale.
 """
 
+from loaders.helpers.vqg_quality_batch import QualityBatchMixin
 from loaders.load_value_quality_growth_metrics import (
     DEPOSITORY_BANK_INDUSTRIES,
     ValueQualityGrowthMetricsLoader,
@@ -110,7 +111,9 @@ class TestDebtToEquityScoreBankInsurerCurve:
         loader._sector_cache = {"BANKCO": "Financial Services"}
 
         captured_calls = []
-        original_weighted_avg = mod.ValueQualityGrowthMetricsLoader.__dict__["_weighted_avg"].__func__
+        # _weighted_avg now lives on QualityBatchMixin (extracted 2026-09-08, file-size
+        # ratchet), not directly on ValueQualityGrowthMetricsLoader's own __dict__.
+        original_weighted_avg = QualityBatchMixin.__dict__["_weighted_avg"].__func__
 
         def spy_weighted_avg(components, min_weight_pct=0.0):
             captured_calls.append(components)
@@ -120,11 +123,13 @@ class TestDebtToEquityScoreBankInsurerCurve:
 
         loader._compute_quality_metrics("BANKCO", _bank_row(), ev_metrics=None)
 
-        # Financial Services branch: profitability_cluster_score (5 components) called first,
-        # safety_cluster_score ([(debt_to_equity_score, 1.0), (margin_volatility_score, 1.0)])
-        # called second.
-        safety_cluster_call = captured_calls[1]
-        debt_to_equity_score = safety_cluster_call[0][0]
+        # REWRITE 2026-09-07 (sector-neutral-zscore rewrite): the old Financial Services
+        # two-cluster branch (profitability cluster called first, safety cluster second) was
+        # collapsed to the same single flat 8-component call every sector uses -
+        # debt_to_equity_score is the 5th component: [roe, roa, roce, fcf_margin,
+        # debt_to_equity, margin_volatility, asset_turnover, gross_profitability].
+        flat_call = captured_calls[0]
+        debt_to_equity_score = flat_call[4][0]
 
         assert debt_to_equity_score is not None
         assert debt_to_equity_score == 50.0  # 100 - (10.0 / 20.0) * 100

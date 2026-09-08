@@ -2071,9 +2071,9 @@ class QualityMetricsMixin(SymbolGateMixin):
             # curve already accounts for) - hand-calibrated to credit P&C-typical ROCE highly
             # without being so generous it validates a genuinely weak life-insurer ROCE.
             # Breakpoints hand-set (not FM-backtested), same as every other curve in this
-            # function. Financial Services/Real Estate's two-cluster branch is the only consumer
-            # of roce_score, and update_quality_roe_roce_percentiles() already explicitly skips
-            # those sectors (see its own docstring) - no reconciliation-math interaction here.
+            # function - this curve-scored roce_score is provisional only, see the quality_
+            # components comment below: update_quality_sector_neutral_scores() overwrites the
+            # final quality_score for every sector via sector-neutral z-scoring of raw roce_pct.
             # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, same
             # utility evidence as roa_score/debt_to_equity_score): capital_employed for a
             # regulated utility is ~its entire rate-base-financed balance sheet, same structural
@@ -2325,71 +2325,50 @@ class QualityMetricsMixin(SymbolGateMixin):
             # min_quality_weight_pct below is calibrated to ~40% of the composite's nominal
             # weight sum - above any thin-sample case found so far.
             #
-            # Financial Services and Real Estate use a 7-input, two-cluster (profitability +
-            # safety) structure instead of the flat 8-input tiered average - asset_turnover_score
-            # is the one input confirmed (via isolated testing) to actively hurt Quality's
-            # signal for these two sectors. Matches AQR QMJ's own profitability/safety cluster
-            # construction. Both clusters and the top-level blend are internally renormalized
-            # (same _weighted_avg helper) - a symbol missing part of one cluster still scores
-            # off whatever it has.
+            # REWRITE 2026-09-07 ("best and brightest" scoring-methodology directive): this used
+            # to be a sector-conditional structure - Financial Services/Real Estate/Utilities got
+            # a 7-input two-cluster (profitability+safety) blend with asset_turnover_score dropped
+            # entirely, because isolated FM testing under the OLD absolute-curve architecture found
+            # asset_turnover hurt those sectors' signal. That finding doesn't carry over: it was
+            # diagnosed against symbols scored on an industrial-calibrated absolute curve with zero
+            # sector peer context, not against the sector-neutral z-score this composite now feeds
+            # (see update_quality_sector_neutral_scores() below) - within-sector z-scoring compares
+            # a bank's asset turnover to OTHER banks/insurers, not to industrials, which is a
+            # different (and per Barra/AQR, the correct) comparison. One flat, uniformly-weighted
+            # structure for every sector now, matching Risk/Momentum/Growth's own single-formula
+            # convention and published multi-factor methodology (no per-sector aggregation shape).
             #
-            # update_quality_roe_roce_percentiles() (further below) assumes every symbol was
-            # scored via the flat 8-input structure - it does NOT reconcile through this
-            # two-cluster structure, so it explicitly SKIPS Financial Services/Real Estate/
-            # Utilities symbols (see its own SQL filter); those symbols keep the Pass-1
-            # curve-based ROE/ROCE scores rather than the cross-sectional-percentile correction.
+            # This composite is PROVISIONAL - update_quality_sector_neutral_scores() (further
+            # below) unconditionally overwrites quality_score for every symbol, every sector, via
+            # sector-neutral z-scoring of the raw metrics stored below. This flat structure exists
+            # so a symbol still has a sane quality_score in the window between Pass 1 and that
+            # batch pass (or if it's ever skipped), not because Pass 1's curve math is the final
+            # word.
             #
-            # ADDED 2026-09-07 (goal: stock_scores factor/composite sanity audit): Utilities
-            # joins this branch for the same reason as Financial Services/Real Estate -
-            # asset_turnover_score is equally incoherent for a regulated utility's enormous
-            # rate-base asset structure (live-confirmed 0.13-0.23x turnover across the same
-            # 16-symbol utility set, see UTILITY_INDUSTRIES's own comment) as it is for a bank's
-            # loan book or a REIT's portfolio.
-            sector = self._get_symbol_sector(symbol)
-            if sector in ("Financial Services", "Real Estate", "Utilities"):
-                profitability_cluster_score = self._weighted_avg(
-                    [
-                        (roe_score, 1.0),
-                        (roa_score, 1.0),
-                        (roce_score, 1.0),
-                        (fcf_margin_score, 1.0),
-                        (gross_profitability_score, 1.0),
-                    ],
-                    min_weight_pct=2.0,  # >=2 of 5 available - proportional to the 40%-of-101 floor below
-                )
-                safety_cluster_score = self._weighted_avg(
-                    [(debt_to_equity_score, 1.0), (margin_volatility_score, 1.0)],
-                    min_weight_pct=1.0,  # >=1 of 2 available
-                )
-                # Cluster weights (69/25, summing to 94 = universal branch's 101 minus
-                # asset_turnover's 7) reflect each cluster's ACTUAL share of the universal
-                # branch's nominal weight - a flat 1.0/1.0 split previously let a single
-                # cluster, down to one raw field once its own internal floor was barely
-                # cleared, produce a full undiscounted quality_score (e.g. an Oil Royalty
-                # Trust scoring 97 off margin_volatility alone with every other input NULL).
-                quality_components = [(profitability_cluster_score, 69.0), (safety_cluster_score, 25.0)]
-                # Proportional to the universal branch's 40/101 (~39.6%) floor: 40 * (94/101) =
-                # 37.2. Safety alone is only 25 points (below this floor), so a safety-only
-                # symbol correctly returns None instead of a single-field score.
-                min_quality_weight_pct = 37.2
-            else:
-                quality_components = [
-                    (roe_score, 11.0),
-                    (roa_score, 18.0),
-                    (roce_score, 18.0),
-                    (fcf_margin_score, 15.0),
-                    (debt_to_equity_score, 18.0),
-                    (margin_volatility_score, 7.0),
-                    (asset_turnover_score, 7.0),
-                    (gross_profitability_score, 7.0),
-                ]
+            # Weights are set from both full-sample t-stat magnitude and a half-split
+            # time-stability check - a component whose t-stat holds up identically across both
+            # eras is weighted higher relative to its raw t-stat than one whose apparent
+            # strength was concentrated in a short/recent window. debt_to_equity/roa/roce/
+            # fcf_margin/roe (the "core five", 80% of the composite) have either the strongest
+            # full-sample evidence or the best demonstrated time-stability. current_ratio was
+            # tested and deliberately excluded (sign-flips across the half-split).
+            # min_quality_weight_pct below is calibrated to ~40% of the composite's nominal
+            # weight sum - above any thin-sample case found so far.
+            quality_components = [
+                (roe_score, 11.0),
+                (roa_score, 18.0),
+                (roce_score, 18.0),
+                (fcf_margin_score, 15.0),
+                (debt_to_equity_score, 18.0),
+                (margin_volatility_score, 7.0),
+                (asset_turnover_score, 7.0),
+                (gross_profitability_score, 7.0),
+            ]
             # COMPLETENESS FLOOR: without it, renormalizing over 1-3 available components lets
             # a single extreme raw ratio (e.g. an oil/gas royalty trust's ROA of 700%+) drive
             # quality_score to 100.00 even though data_completeness/GOVERNANCE's eligibility
-            # floor should treat this as thin data. Only applies to the universal (non-FS/RE)
-            # branch - the sector-conditional branch sets its own proportional floor inline.
-            if sector not in ("Financial Services", "Real Estate", "Utilities"):
-                min_quality_weight_pct = 40.0
+            # floor should treat this as thin data.
+            min_quality_weight_pct = 40.0
             available_quality_weight = sum(w for v, w in quality_components if v is not None)
             weighted_score = self._weighted_avg(quality_components, min_weight_pct=min_quality_weight_pct)
 

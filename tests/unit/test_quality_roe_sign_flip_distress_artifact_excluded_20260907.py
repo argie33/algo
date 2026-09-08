@@ -1,6 +1,8 @@
 """Regression test for the 2026-09-07 fix (goal: "huge scoring bug" audit, common-sense
-sweep of the Quality leaderboard) to update_quality_roe_roce_percentiles() (loaders/
-load_value_quality_growth_metrics.py).
+sweep of the Quality leaderboard) to what is now update_quality_sector_neutral_scores()
+(loaders/load_value_quality_growth_metrics.py) - renamed and generalized to all 8 Quality
+components/all sectors by the same-day "best and brightest" scoring-methodology rewrite, but
+the sign-flip guard this file tests is unchanged by that rewrite.
 
 Live-confirmed on the real local DB: a LOSS-MAKING company (negative net_income, i.e.
 negative ROA - total_assets is never negative, so ROA's sign always matches net income's)
@@ -33,7 +35,7 @@ def _run_with_mocked_rows(rows: list[tuple]) -> list[tuple[str, float]]:
     ):
         mock_ctx.return_value.__enter__.return_value = mock_cur
         loader = L.__new__(L)
-        loader.update_quality_roe_roce_percentiles()
+        loader.update_quality_sector_neutral_scores()
     if not mock_execute_values.called:
         return []
     _cur_arg, _sql, updates = mock_execute_values.call_args[0][:3]
@@ -46,13 +48,14 @@ class TestRoeSignFlipDistressArtifactExcluded:
         term must contribute 0, the same as a directly-negative ROE, not win a high
         percentile off the sign-flip artifact."""
         rows = [
-            ("GOOD", 999.0, 25.0, 15.0, 20.0, 12.0, 0.2, 3.0, 90.0, 35.0),  # genuinely profitable peer
-            ("ROC_SHAPED", 999.0, 915.88, -38.43, None, None, None, None, None, None),
+            ("GOOD", "Technology", 25.0, 15.0, 20.0, 12.0, 0.2, 3.0, 90.0, 35.0, 999.0),  # genuinely profitable peer
+            ("ROC_SHAPED", "Technology", 915.88, -38.43, None, None, None, None, None, None, 999.0),
         ]
         updates = dict(_run_with_mocked_rows(rows))
         assert "ROC_SHAPED" in updates
-        # ROC_SHAPED's only components are roe (floored to 0) and roa (negative, curve-floors
-        # to 0 too) - quality_score must be 0.0, not inflated by the fake "best ROE" rank.
+        # ROC_SHAPED's only components are roe (floored to 0, sign-flip guard) and roa
+        # (negative, floors to 0 too) - quality_score must be 0.0, not inflated by the fake
+        # "best ROE" rank.
         assert updates["ROC_SHAPED"] == 0.0
 
     def test_positive_roe_with_positive_roa_still_ranks_normally(self) -> None:
@@ -60,12 +63,13 @@ class TestRoeSignFlipDistressArtifactExcluded:
         profit, just a small buyback-thinned equity base) - must NOT be excluded from the
         ranking the way the distress-artifact case above is."""
         rows = [
-            ("LOWER_REAL_ROE", 0.0, 20.0, 10.0, None, None, None, None, None, None),
-            ("HRB_SHAPED", 0.0, 624.40, 18.59, None, None, None, None, None, None),
+            ("LOWER_REAL_ROE", "Technology", 20.0, 10.0, None, None, None, None, None, None, 0.0),
+            ("HRB_SHAPED", "Technology", 624.40, 18.59, None, None, None, None, None, None, 0.0),
         ]
         updates = dict(_run_with_mocked_rows(rows))
-        # Both are real, non-negative roe/roa - HRB_SHAPED has the higher roe and must win
-        # the higher percentile (100.0 with a 2-symbol universe), not be floored to 0.
+        # Both are real, non-negative roe/roa - HRB_SHAPED has the higher roe AND roa, so its
+        # sector-neutral z-score (and therefore composite) must come out higher, not be
+        # floored to 0.
         assert updates["HRB_SHAPED"] > updates["LOWER_REAL_ROE"]
 
     def test_roe_positive_but_roa_missing_omits_roe_component(self) -> None:
@@ -76,18 +80,16 @@ class TestRoeSignFlipDistressArtifactExcluded:
         missing), never flip roe to a hard 0 and consume its full weight for an unrelated
         data gap (2026-09-07 real-money-readiness audit fix). With every other input also
         missing here, total_weight is 0 and the symbol gets no update at all."""
-        rows = [("NOROA", 999.0, 30.0, None, None, None, None, None, None, None)]
+        rows = [("NOROA", "Technology", 30.0, None, None, None, None, None, None, None, 999.0)]
         updates = dict(_run_with_mocked_rows(rows))
         assert "NOROA" not in updates
 
     def test_roe_positive_roa_missing_other_components_present_not_penalized(self) -> None:
-        """Same missing-roa shape as above, but with other real components present (fcf_margin)
-        so the row does produce a score - that score must reflect ONLY the real components,
-        never a floored-to-0 ROE term dragging it down for the unrelated roa gap."""
-        rows = [("NOROA_WITH_FCF", 999.0, 30.0, None, None, 20.0, None, None, None, None)]
+        """Same missing-roa shape as above, but with another real component present
+        (fcf_margin) so the row does produce a score - that score must reflect ONLY the real
+        component, never a floored-to-0 ROE term dragging it down for the unrelated roa gap.
+        fcf_margin is alone in its sector-neutral z-score pool (no peer) -> neutral z=0.0 ->
+        percentile 50.0, weight 15 as the only component, so the composite equals it exactly."""
+        rows = [("NOROA_WITH_FCF", "Technology", 30.0, None, None, 20.0, None, None, None, None, 999.0)]
         updates = dict(_run_with_mocked_rows(rows))
-        # fcf_margin=20.0 interpolates to 83.33 between the (15.0, 75.0)/(30.0, 100.0)
-        # _margin_curve breakpoints, with weight 15.0 as the only component - so
-        # quality_score must equal that exactly, not be diluted by a floored-to-0 ROE term
-        # that shouldn't be in the average at all.
-        assert updates["NOROA_WITH_FCF"] == 83.33
+        assert updates["NOROA_WITH_FCF"] == 50.0

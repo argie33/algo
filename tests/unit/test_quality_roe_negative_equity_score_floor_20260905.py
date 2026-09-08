@@ -15,6 +15,7 @@ Fixed by flooring roe_score (and roa_score, for total_assets<=0 completeness) to
 the denominator itself is non-positive, regardless of the computed ratio's sign.
 """
 
+from loaders.helpers.vqg_quality_batch import QualityBatchMixin
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
 
 
@@ -103,7 +104,7 @@ class TestQualityRoeNegativeEquityScoreFloor:
         import loaders.load_value_quality_growth_metrics as mod
 
         captured_calls = []
-        original_weighted_avg = mod.ValueQualityGrowthMetricsLoader.__dict__["_weighted_avg"].__func__
+        original_weighted_avg = QualityBatchMixin.__dict__["_weighted_avg"].__func__
 
         def spy_weighted_avg(components, min_weight_pct=0.0):
             captured_calls.append(components)
