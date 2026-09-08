@@ -511,6 +511,10 @@ class TieOutChecker(BaseCheck):
         self.check_quarterly_common_stock_repurchased_nonnegative(cur)
         self.check_shares_outstanding_dei_plausible_scale(cur)
         self.check_quarterly_shares_outstanding_dei_plausible_scale(cur)
+        # Round 6 (2026-09-08, goal: "check the scores make sense" + tie-out gap sweep):
+        # stock_scores has no prior guard that pillar/composite values stay within their
+        # percentile-rank contract of [0, 100].
+        self.check_stock_scores_bounds(cur)
         return self.results
 
     def check_balance_sheet_identity(self, cur: Any) -> None:
@@ -3715,6 +3719,63 @@ class TieOutChecker(BaseCheck):
                 check_name,
                 ERROR,
                 table,
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_stock_scores_bounds(self, cur: Any) -> None:
+        """composite_score/quality_score/growth_score/value_score/risk_score/momentum_score
+        must all fall within [0, 100] (stock_scores).
+
+        ADDED 2026-09-08 (goal: "check the factor/composite scores make sense" + "make sure
+        we have all the right tie outs" sweep). Every pillar and the composite are built as
+        cross-sectional percentile ranks (0-100 by construction, see GOVERNANCE.md's
+        BASE_PILLAR_WEIGHTS), so a value outside that range can only mean a percentile-rank
+        bug, a unit/scale mixup, or a stale non-percentile raw value leaking through - never a
+        legitimate business fact the way e.g. a negative growth rate can be. Live-checked
+        2026-09-08: 0 violations across all 5,448 rows (min composite_score 0.00, max 99.62) -
+        this is a pure regression guard for a currently-clean invariant, not a fix for an
+        existing violation.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT symbol, date, composite_score, quality_score, growth_score,
+                       value_score, risk_score, momentum_score
+                FROM stock_scores
+                WHERE date = (SELECT MAX(date) FROM stock_scores)
+                """
+            )
+            score_cols = (
+                "composite_score",
+                "quality_score",
+                "growth_score",
+                "value_score",
+                "risk_score",
+                "momentum_score",
+            )
+            flagged = []
+            for row in cur.fetchall():
+                for col in score_cols:
+                    value = row[col]
+                    if value is not None and not (0 <= float(value) <= 100):
+                        flagged.append(
+                            {"symbol": row["symbol"], "date": str(row["date"]), "field": col, "value": float(value)}
+                        )
+            if flagged:
+                flagged.sort(key=lambda r: abs(r["value"] - 50), reverse=True)
+                self.log(
+                    "stock_scores_bounds",
+                    WARN,
+                    "stock_scores",
+                    f"{len(flagged)} symbol/field pair(s) have a pillar or composite score outside [0, 100]",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] stock_scores_bounds failed: {e}", exc_info=True)
+            self.log(
+                "stock_scores_bounds",
+                ERROR,
+                "stock_scores",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
             )
 
