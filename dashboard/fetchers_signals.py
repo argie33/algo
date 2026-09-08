@@ -250,6 +250,46 @@ def fetch_signal_eval(c: None) -> dict[str, Any]:
         return FetcherValidator.build_error_response(error_msg)
 
 
+def _validate_scores_optional_fields(
+    response_data_dict: dict[str, Any], fetcher_validator: Any
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Validate the optional avg_composite/grades/top_sp500 fields together.
+
+    Returns ({"avg_composite": ..., "grades": ..., "top_sp500": ...}, error_response_or_None).
+    Split out of fetch_scores (2026-09-07, alongside adding top_sp500) to keep it under the
+    C901 complexity limit - these three checks are identical-shaped "optional, type-checked
+    if present" validations with no interdependency, so bundling them costs nothing.
+    """
+    avg_composite = response_data_dict.get("avg_composite")
+    if avg_composite is not None and not isinstance(avg_composite, (int, float)):
+        error_msg = f"Scores response 'avg_composite' must be numeric, got {type(avg_composite).__name__}"
+        logger.error(error_msg)
+        record_data_quality_issue("scores", "validation", "avg_composite_invalid_type")
+        return None, fetcher_validator.build_error_response(error_msg)
+
+    grades = response_data_dict.get("grades")
+    if grades is not None and not isinstance(grades, dict):
+        error_msg = f"Scores response 'grades' must be dict, got {type(grades).__name__}"
+        logger.error(error_msg)
+        record_data_quality_issue("scores", "validation", "grades_invalid_type")
+        return None, fetcher_validator.build_error_response(error_msg)
+
+    # top_sp500 (2026-09-07) - optional, older API versions/mocks won't have it; the panel
+    # simply omits that section if absent. Same list, same unmodified scores as "top", just
+    # restricted to stock_symbols.is_sp500=TRUE so recognizable large-cap names can be seen
+    # ranked against each other instead of diluted by the full ~5000-symbol universe. See
+    # _get_dashboard_scores's inline comment for why this exists as a second lens rather
+    # than a change to composite_score itself.
+    top_sp500 = response_data_dict.get("top_sp500")
+    if top_sp500 is not None and not isinstance(top_sp500, list):
+        error_msg = f"Scores response 'top_sp500' must be list, got {type(top_sp500).__name__}"
+        logger.error(error_msg)
+        record_data_quality_issue("scores", "validation", "top_sp500_invalid_type")
+        return None, fetcher_validator.build_error_response(error_msg)
+
+    return {"avg_composite": avg_composite, "grades": grades, "top_sp500": top_sp500}, None
+
+
 def fetch_scores(c: None) -> dict[str, Any]:
     """Fetch top stock scores from /api/algo/scores. Used by signals panel for composite score display.
 
@@ -405,19 +445,16 @@ def fetch_scores(c: None) -> dict[str, Any]:
             record_data_quality_issue("scores", "validation", "universe_total_invalid_type")
             return FetcherValidator.build_error_response(error_msg)
 
-        avg_composite = response_data_dict.get("avg_composite")
-        if avg_composite is not None and not isinstance(avg_composite, (int, float)):
-            error_msg = f"Scores response 'avg_composite' must be numeric, got {type(avg_composite).__name__}"
-            logger.error(error_msg)
-            record_data_quality_issue("scores", "validation", "avg_composite_invalid_type")
-            return FetcherValidator.build_error_response(error_msg)
-
-        grades = response_data_dict.get("grades")
-        if grades is not None and not isinstance(grades, dict):
-            error_msg = f"Scores response 'grades' must be dict, got {type(grades).__name__}"
-            logger.error(error_msg)
-            record_data_quality_issue("scores", "validation", "grades_invalid_type")
-            return FetcherValidator.build_error_response(error_msg)
+        # avg_composite/grades/top_sp500 validation split into
+        # _validate_scores_optional_fields() (rather than inlined here) to keep fetch_scores
+        # under the C901 complexity limit.
+        optional_fields, optional_fields_error = _validate_scores_optional_fields(response_data_dict, FetcherValidator)
+        if optional_fields_error is not None:
+            return optional_fields_error
+        assert optional_fields is not None
+        avg_composite = optional_fields["avg_composite"]
+        grades = optional_fields["grades"]
+        top_sp500 = optional_fields["top_sp500"]
 
         # BUG FOUND 2026-08-10: this "timestamp" was always datetime.now(ET) (client fetch
         # time), which can never detect genuinely stale underlying score data - the same class
@@ -427,6 +464,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
         # in the response the whole time but never read here.
         return {
             "top": top,
+            "top_sp500": top_sp500,
             "universe_total": universe_total,
             "avg_composite": avg_composite,
             "grades": grades,
