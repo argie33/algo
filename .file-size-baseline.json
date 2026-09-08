@@ -581,6 +581,7 @@
   "scripts/audit_statement_tie_outs.py": 232,
   "scripts/audit_unavailable_reasons.py": 233,
   "scripts/backfill_economic_data_history.py": 78,
+  "scripts/backtest_exit_strategy_comparison_20260907.py": 642,
   "scripts/backtest_regime_reconstruction.py": 453,
   "scripts/block_seed_prices.py": 107,
   "scripts/check_loader_status_schema.py": 26,
