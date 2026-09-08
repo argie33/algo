@@ -216,6 +216,73 @@ _INCOME_IFRS_ALIASES = [
     # Cemex (CX), Canada Goose (GOOS), Ferrovial, Docebo, Global-E, and Huize - this alias only
     # ever fires for a filer that tags the exact standard concept.
     ("InterestExpense", "interest_expense"),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, follow-up to the
+    # same day's Borrowings/NoncontrollingInterests and TradeReceivables/TradeAndOther
+    # CurrentPayables/DepreciationAndAmortisationExpense alias passes): IFRS's weighted-
+    # average basic share count, the direct equivalent of us-gaap's
+    # "WeightedAverageNumberOfSharesOutstandingBasic" (already in the plain "concepts" list
+    # above, target_key "weighted_average_number_of_shares_outstanding_basic", routed by
+    # loaders/load_financial_statements.py's field_mapping to
+    # annual/quarterly_income_statement.shares_outstanding_basic) - 524 undismissed filers,
+    # the single highest-count concept in this session's triage batch. Live-confirmed via
+    # real companyfacts JSON: Agnico Eagle (CIK 0000002809, ifrs-full-only, no matching
+    # us-gaap concept tagged at all) FY2025 WeightedAverageShares=501,993,000 shares, and
+    # Bank of Nova Scotia (CIK 0000009631) FY2025 (period end 2025-10-31)=1,244,000,000
+    # shares - both sane, real share counts consistent with each filer's known public float
+    # (AEM ~$50B market cap / ~$100/share; BNS ~$90B market cap / ~$70/share). Reuses the
+    # us-gaap concept's own target_key (not a new one) since the gaap-source spec is always
+    # processed before ifrs_aliases in _aggregate_concepts_build_specs - see that function's
+    # docstring - so this only ever fills the gap for a filer with no us-gaap weighted-
+    # average fact, never overwrites a real one.
+    ("WeightedAverageShares", "weighted_average_number_of_shares_outstanding_basic"),
+    # ADDED 2026-09-08 (same triage batch): "DepreciationPropertyPlantAndEquipment" - the
+    # IFRS-taxonomy equivalent of the plain us-gaap "Depreciation" concept above (target_key
+    # "depreciation", PP&E depreciation only, not combined with amortization) - 264
+    # undismissed filers. Live-confirmed via real companyfacts JSON: Barrick Mining Corp
+    # (CIK 0000756894) FY2023 DepreciationPropertyPlantAndEquipment=USD 2,045,000,000, a
+    # sane ~18% of that year's Revenue (USD 11,397,000,000) for a capital-intensive miner,
+    # and PLDT Inc. (CIK 0000078150) FY2022=PHP 92,998,000,000 which (summed with the
+    # AmortisationIntangibleAssetsOtherThanGoodwill entry below, PHP 228,000,000) accounts
+    # for ~94% of PLDT's own separately-tagged DepreciationAndAmortisationExpense total for
+    # the same period (PHP 98,631-98,714M, the small remainder plausibly right-of-use-asset
+    # depreciation this extractor doesn't separately track) - confirms this is genuinely the
+    # PP&E-only depreciation component, not a broader or narrower figure. Same gaap-source-
+    # processed-first reasoning as WeightedAverageShares above - fallback-only, never
+    # overwrites a real us-gaap "Depreciation" fact.
+    ("DepreciationPropertyPlantAndEquipment", "depreciation"),
+    # ADDED 2026-09-08 (same triage batch): "AmortisationIntangibleAssetsOtherThanGoodwill" -
+    # 223 undismissed filers. Maps to the same target as us-gaap "AmortizationOfIntangible
+    # Assets" above (target_key "amortization_of_intangible_assets") - "other than goodwill"
+    # matches that concept's own scope exactly (goodwill isn't amortized under either GAAP
+    # or IFRS, so "amortization of intangible assets" implicitly always excludes it). Live-
+    # confirmed via PLDT's real companyfacts JSON (CIK 0000078150): FY2022=PHP 228,000,000,
+    # a small, plausible fraction of PLDT's total D&A (see the depreciation entry above) -
+    # sane for a telecom whose D&A is dominated by network PP&E, not software/intangibles.
+    # Fallback-only, same gaap-first-in-iteration-order reasoning as the two aliases above.
+    ("AmortisationIntangibleAssetsOtherThanGoodwill", "amortization_of_intangible_assets"),
+    # ADDED 2026-09-08 (same triage batch): "AdministrativeExpense" - 189 undismissed
+    # filers, maps to the same target as us-gaap "SellingGeneralAndAdministrativeExpense"
+    # above (target_key "selling_general_and_administrative_expense"). Narrower on paper
+    # (IFRS filers by-function P&L presentations often split "selling"/"distribution" costs
+    # out from "administrative" costs as separate lines), so this was checked carefully
+    # against 3 real filers of different types for a genuinely separate selling/marketing/
+    # distribution line that would make this an understatement if aliased directly - found
+    # none: Barrick Mining Corp (CIK 0000756894, a miner) and Methanex Corporation (CIK
+    # 0000886977, a chemicals producer) each tag ONLY AdministrativeExpense with no
+    # SellingExpense/DistributionCosts/MarketingExpense/SellingAndMarketingExpense/
+    # SalesAndMarketingExpense concept anywhere in their real companyfacts JSON (both sane
+    # vs. revenue: Barrick FY2023 $101M/$11.4B~=0.9%, Methanex FY2023 $109M/$3.7B~=2.9%,
+    # both plausible low-SG&A ratios for B2B commodity producers with minimal marketing
+    # spend); Smith & Nephew plc (CIK 0000845982, a medtech filer with a real sales force,
+    # a much likelier case for a narrow "admin-only" figure to understate) also tags ONLY
+    # AdministrativeExpense (FY2023 $837M) with the same absence of any selling/marketing/
+    # distribution concept - in every filer checked, this functions as that filer's complete
+    # SG&A-equivalent total in XBRL, regardless of the "administrative" label. Fallback-only
+    # (same gaap-first-in-iteration-order reasoning as the aliases above) - only fires when
+    # a filer tags neither SellingGeneralAndAdministrativeExpense nor OperatingExpenses, so
+    # a filer that DOES itemize selling costs separately elsewhere and would be understated
+    # by this alias alone is unaffected as long as it also tags a combined total.
+    ("AdministrativeExpense", "selling_general_and_administrative_expense"),
 ]
 
 _INCOME_DEI_ALIASES = [
