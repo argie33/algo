@@ -407,6 +407,22 @@ NOISE_SUBSTRINGS = [
     # rollforward pair above - not the bare LeaseLiabilities/CurrentLeaseLiabilities/
     # NoncurrentLeaseLiabilities balance, which stays undismissed).
     "IncreaseThroughNewLeasesLiabilitiesArisingFromFinancingActivities",
+    # Added 2026-09-08 (goal session, 6th XBRL coverage batch): IFRS's own by-activity-
+    # classification suffix for cash-flow-statement sub-line detail (InterestPaid/
+    # InterestReceived/PurchaseOf.../IncomeTaxesPaid split out by which activity section they
+    # fall under) - same "cash-flow footnote detail already reflected net in the aggregate
+    # operating_cash_flow/investing_cash_flow/financing_cash_flow totals" rationale as the
+    # us-gaap IncreaseDecreaseIn/ProceedsFrom/PaymentsFor/PaymentsTo/RepaymentsOf block above.
+    # Verified this doesn't collide with any already-fetched concept: DividendsPaidClassified
+    # AsFinancingActivities/DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities/
+    # DividendsPaidToNoncontrollingInterestsClassifiedAsFinancingActivities/
+    # IncomeTaxesPaidRefundClassifiedAsOperatingActivities/PurchaseOfPropertyPlantAndEquipment
+    # ClassifiedAsInvestingActivities are all individually reviewed and already in the fetch
+    # allowlist (utils/external/sec_cash_flow.py) - they're excluded from the gap scan as
+    # "known" BEFORE this noise filter ever runs, so narrowing isn't needed for them.
+    "ClassifiedAsFinancingActivities",
+    "ClassifiedAsOperatingActivities",
+    "ClassifiedAsInvestingActivities",
 ]
 
 
