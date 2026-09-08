@@ -58,7 +58,7 @@ class TestBatchFetchTechnicalDataATRFix:
         rows = _synthetic_ohlc_rows("SYNTH", 100, run_date)
         expected = _expected_atr(rows)
 
-        with patch("algo.orchestrator.phase8_entry_execution.DatabaseContext") as mock_db:
+        with patch("algo.orchestrator.phase8_technical_data.DatabaseContext") as mock_db:
             mock_cur = MagicMock()
             # First execute(): sma_50/close query. Second execute(): OHLC history query.
             mock_cur.fetchall.side_effect = [
@@ -78,7 +78,7 @@ class TestBatchFetchTechnicalDataATRFix:
         run_date = date(2026, 8, 24)
         thin_rows = _synthetic_ohlc_rows("THIN", 5, run_date)  # < period=14
 
-        with patch("algo.orchestrator.phase8_entry_execution.DatabaseContext") as mock_db:
+        with patch("algo.orchestrator.phase8_technical_data.DatabaseContext") as mock_db:
             mock_cur = MagicMock()
             mock_cur.fetchall.side_effect = [
                 [{"symbol": "THIN", "sma_50": 101.0, "close": thin_rows[-1][4]}],
@@ -99,7 +99,7 @@ class TestBatchFetchTechnicalDataATRFix:
         expected_a = _expected_atr(rows_a)
         expected_b = _expected_atr(rows_b)
 
-        with patch("algo.orchestrator.phase8_entry_execution.DatabaseContext") as mock_db:
+        with patch("algo.orchestrator.phase8_technical_data.DatabaseContext") as mock_db:
             mock_cur = MagicMock()
             mock_cur.fetchall.side_effect = [
                 [

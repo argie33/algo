@@ -245,7 +245,7 @@ class TestBatchFetchTechnicalData:
             "MSFT": {"atr_14": 3.0, "sma_50": 420.0, "close": 425.0},
         }
 
-        with patch("algo.orchestrator.phase8_entry_execution.DatabaseContext") as mock_db:
+        with patch("algo.orchestrator.phase8_technical_data.DatabaseContext") as mock_db:
             # Should NOT execute any DB queries since all data is precomputed
             result = _batch_fetch_technical_data(symbols_with_data, date(2026, 8, 31))
 
@@ -264,7 +264,7 @@ class TestBatchFetchTechnicalData:
             "MSFT": {"close": 425.0},  # Missing atr_14 and sma_50
         }
 
-        with patch("algo.orchestrator.phase8_entry_execution.DatabaseContext") as mock_db:
+        with patch("algo.orchestrator.phase8_technical_data.DatabaseContext") as mock_db:
             mock_cursor = MagicMock()
             mock_db.return_value.__enter__.return_value = mock_cursor
 
@@ -292,7 +292,7 @@ class TestBatchFetchTechnicalData:
 
         # When precomputed data is incomplete, DB fetch would be triggered
         # This test just verifies the symbol is marked as needing fetch
-        with patch("algo.orchestrator.phase8_entry_execution.DatabaseContext") as mock_db:
+        with patch("algo.orchestrator.phase8_technical_data.DatabaseContext") as mock_db:
             mock_cursor = MagicMock()
             mock_db.return_value.__enter__.return_value = mock_cursor
             # Simulate DB returning no data (symbol really is incomplete)
