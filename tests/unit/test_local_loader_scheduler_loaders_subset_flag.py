@@ -180,6 +180,7 @@ class TestLoadersFlagCliWiring:
             with (
                 patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
                 patch.object(module, "run_pipeline", return_value=0) as mock_run_pipeline,
+                patch.object(module, "_run_data_patrol_and_report", return_value=0),
             ):
                 rc = module.main()
         finally:

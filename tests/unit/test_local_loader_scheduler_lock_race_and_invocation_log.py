@@ -89,6 +89,7 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
             patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
             patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
             patch.object(module, "run_pipeline") as mock_run_pipeline,
+            patch.object(module, "_run_data_patrol_and_report", return_value=0),
         ):
             result = module.main()
 
@@ -116,6 +117,7 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
             patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
             patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
             patch.object(module, "run_pipeline", return_value=0) as mock_run_pipeline,
+            patch.object(module, "_run_data_patrol_and_report", return_value=0),
         ):
             result = module.main()
 
@@ -144,6 +146,7 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
             patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
             patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
             patch.object(module, "run_pipeline") as mock_run_pipeline,
+            patch.object(module, "_run_data_patrol_and_report", return_value=0),
         ):
             result = module.main()
 
@@ -181,6 +184,7 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
             patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
             patch.object(module, "_try_acquire_lock", side_effect=_try_acquire_then_release_on_second_attempt),
             patch.object(module, "run_pipeline", return_value=0) as mock_run_pipeline,
+            patch.object(module, "_run_data_patrol_and_report", return_value=0),
         ):
             result = module.main()
 
@@ -205,6 +209,7 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
             patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
             patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
             patch.object(module, "run_pipeline", side_effect=_capture_lock_content_while_held),
+            patch.object(module, "_run_data_patrol_and_report", return_value=0),
         ):
             result = module.main()
 
@@ -225,6 +230,7 @@ class TestSchedulerLockIsAtomicNotCheckThenAct:
             patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
             patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
             patch.object(module, "run_pipeline", return_value=0) as mock_run_pipeline,
+            patch.object(module, "_run_data_patrol_and_report", return_value=0),
         ):
             result = module.main()
 
@@ -331,6 +337,7 @@ class TestWaiterSlotDedup:
             patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
             patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
             patch.object(module, "run_pipeline") as mock_run_pipeline,
+            patch.object(module, "_run_data_patrol_and_report", return_value=0),
         ):
             result = module.main()
 
@@ -482,6 +489,7 @@ class TestSchedulerInvocationIsDurablyLogged:
             patch.object(module, "LOCK_POLL_INTERVAL_SECONDS", 0.1),
             patch.object(module.tempfile, "gettempdir", return_value=str(tmp_path)),
             patch.object(module.sys, "argv", ["local_loader_scheduler.py", "--now", "metrics"]),
+            patch.object(module, "_run_data_patrol_and_report", return_value=0),
         ):
             result = module.main()
 
