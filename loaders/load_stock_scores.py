@@ -53,6 +53,7 @@ import psycopg2  # noqa: E402
 # keeps working.
 from psycopg2.extras import execute_values  # noqa: E402, F401
 
+from algo.infrastructure import MarketCalendar  # noqa: E402
 from loaders.runner import run_loader  # noqa: E402
 from loaders.stock_scores.growth_scoring import (  # noqa: E402
     GROWTH_INPUT_IMPLAUSIBLE_PCT,
@@ -75,10 +76,13 @@ from loaders.stock_scores.risk_scoring import (  # noqa: E402
 from loaders.stock_scores.value_metrics import ValueMetricsMixin  # noqa: E402
 from loaders.stock_scores.value_score import ValueScoreMixin  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
+from utils.infrastructure.timezone import EASTERN_TZ  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 from utils.type_conversion import safe_float  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+STALE_PRICE_TRADING_DAYS_THRESHOLD = 3  # 2026-09-07: mirrors load_risk_metrics_daily.py's constant
 
 # BASE_PILLAR_WEIGHTS / VALUE_RISK_INTERACTION_MAX_SHIFT (from pillar_weights.py) and
 # GROWTH_SCORE_FIELDS / GROWTH_INPUT_IMPLAUSIBLE_PCT / GROWTH_MIN_FIELDS_AVAILABLE (from
@@ -549,10 +553,16 @@ class StockScoresLoader(
             # signal of price-return momentum (it's price-vs-trend, not windowed % return), so
             # there's no double-weighting concern here.
             cur.execute(
-                "SELECT DISTINCT ON (symbol) symbol, rsi_14, macd, sma_50, sma_200, close "
+                "SELECT DISTINCT ON (symbol) symbol, rsi_14, macd, sma_50, sma_200, close, date "
                 "FROM technical_data_daily ORDER BY symbol, date DESC"
             )
-            self._technical_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
+            now_et = datetime.now(EASTERN_TZ).date()
+            self._technical_cache: dict[str, tuple[Any, ...]] = {}
+            for row in cur.fetchall():
+                symbol, rsi_14, macd, sma_50, sma_200, close, tech_date = row
+                if MarketCalendar.trading_days_elapsed(tech_date, now_et) > STALE_PRICE_TRADING_DAYS_THRESHOLD:
+                    continue
+                self._technical_cache[symbol] = (rsi_14, macd, sma_50, sma_200, close)
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol. Returns data_unavailable dict if unable to compute.

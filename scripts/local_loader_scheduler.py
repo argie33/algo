@@ -75,6 +75,7 @@ os.environ["ENVIRONMENT"] = "development"
 if "LOADER_PARALLELISM" not in os.environ:
     os.environ["LOADER_PARALLELISM"] = "1"
 
+
 # LIVE BUG FOUND 2026-08-17: insider_transaction_velocity killed at exactly the generic
 # formula's 900s floor ("0% stall for >900s") while genuinely mid-download, not hung. Unlike
 # company_info_sec (fixed 2026-08-16 by shrinking LOADER_CHUNK_SIZE so a partial flush lands
@@ -99,6 +100,19 @@ if "LOADER_PARALLELISM" not in os.environ:
 # reproduced the same 900s-floor kill this fix was meant to prevent (killed at 931s, not
 # 1500s) via that invocation path today. Match that established pattern instead of introducing
 # a normalization step this dict didn't have before.
+def _is_sec_rate_limit_error(error_msg: str) -> bool:
+    """True when error_msg indicates a genuine SEC EDGAR rate-limit/throttling failure.
+
+    FIXED 2026-09-07: originally matched the bare substring "rate limit", which
+    false-matched company_info_sec's own BACKFILL_DAYS config-validation error - a static
+    warning baked into that ValueError's message text, unrelated to any real SEC EDGAR
+    throttling. Genuine SEC 429s are always logged as "rate limited (429)" - past tense,
+    singular - which the config warning's "rate limits." (plural/present) never matches.
+    """
+    msg = error_msg.lower()
+    return "rate limited" in msg or "sec edgar" in msg or "429" in msg
+
+
 STALL_TIMEOUT_FLOOR_OVERRIDES = {
     "insider_transaction_velocity": 1500,  # 1080s download budget + 420s margin
     "insider_velocity": 1500,  # Alias for insider_transaction_velocity - see above
@@ -825,11 +839,7 @@ def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> i
                 if isinstance(failures, (int, float)):
                     failures_int = int(failures)
                     error_msg = error_msg or "(no error message)"
-                    is_sec_issue = (
-                        "rate limit" in error_msg.lower()
-                        or "sec edgar" in error_msg.lower()
-                        or "429" in error_msg.lower()
-                    )
+                    is_sec_issue = _is_sec_rate_limit_error(error_msg)
                     # ROOT-CAUSE FIX 2026-08-16: reap_stale_running_loaders() marks an abandoned
                     # (no owning process alive) loader FAILED with an "[REAPED]" error_message,
                     # incrementing consecutive_failures exactly like a real repeated failure would.

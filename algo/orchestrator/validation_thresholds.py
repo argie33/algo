@@ -116,6 +116,11 @@ BUY_SELL_DAILY_ANOMALY_THRESHOLD = 40  # Post edge-trigger-fix baseline; see bc0
 # RATIONALE: Performance vs completeness tradeoff
 LIQUIDITY_CHECK_LIMIT = 20  # Increased from 10 to 20 (AUDIT FIX Session 276)
 
+# BUG FOUND + FIXED 2026-09-07: _run_liquidity_checks used to check only a single fixed
+# top-slice, never backfilling from liquid candidates ranked past LIQUIDITY_CHECK_LIMIT.
+# Live-confirmed CIG.C/JFIN/SGU/XYF all below the ADV floor sitting in the live top-20.
+MAX_LIQUIDITY_CANDIDATES_CONSIDERED = LIQUIDITY_CHECK_LIMIT * 5
+
 # Number of worker threads for parallel liquidity checks in Phase 7
 # RATIONALE: Limits I/O contention on database connections
 PHASE7_LIQUIDITY_CHECK_WORKERS = 4
