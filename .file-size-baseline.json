@@ -168,6 +168,7 @@
   "algo/research/momentum_52wk_industry_residual_reversal_candidates.py": 207,
   "algo/research/momentum_residual_univariate_isolation_check.py": 111,
   "algo/research/momentum_risk_interaction_effects_20260828.py": 225,
+  "algo/research/pillar_weight_reallocation_test_20260907.py": 142,
   "algo/research/quality_asset_turnover_piotroski_candidates.py": 202,
   "algo/research/quality_curve_recalibration_validation_20260907.py": 298,
   "algo/research/quality_ebitda_margin_ocf_conversion_candidates.py": 152,
