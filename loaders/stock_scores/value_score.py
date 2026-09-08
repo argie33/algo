@@ -36,6 +36,59 @@ logger = logging.getLogger("loaders.load_stock_scores")
 # little evidence, same principle, not a new one invented here.
 VALUE_MIN_WEIGHT = 0.40
 
+# DIVIDEND PAYOUT-SUSTAINABILITY GATE (added 2026-09-08, real-money-readiness audit: "does the
+# dividend_yield term correctly penalize a high yield that's funded by negative FCF, or does it
+# reward a value-trap the same as a genuinely cheap, well-covered dividend?"). Confirmed real
+# gap: dividend_yield's scoring block (below) only ever looked at yield magnitude - a stock
+# with a 21%+ yield funded entirely by negative free cash flow (a classic, well-documented
+# value-trap pattern: the dividend is one downgrade/cut away from a price collapse) scored the
+# SAME as an equally-high yield backed by strong FCF coverage. fcf_yield is already
+# fetched into `metrics` (value_metrics.py's _get_value_metrics) but unused here - it was
+# REMOVED as its own standalone scored input 2026-08-28 ("FCF YIELD - RESOLVED" docstring note
+# below) because it was robustly WRONG-SIGNED as an independent cheapness signal (higher
+# fcf_yield predicted LOWER forward returns). That finding does not apply here: this is not
+# re-adding fcf_yield as an alpha input, it's using it as a risk GATE on a different input
+# (dividend_yield) - conceptually distinct, same way this pillar already treats
+# "unprofitable_stock"/"negative_book_value" as floors on PE/PB rather than standalone inputs.
+# Since dividend_yield and fcf_yield are both yield-on-price (dividends/price, fcf/price), their
+# ratio is exactly the FCF payout ratio (dividends/FCF) with price canceling out - no new data
+# needed. FCF_PAYOUT_UNSUSTAINABLE_RATIO=1.0: paying out 100%+ of FCF as dividends is the
+# standard unsustainable-payout threshold (any coverage ratio below 1x means the dividend is
+# funded by debt/asset sales/equity issuance, not organic cash generation). Below 1.0x: no
+# penalty (this is what a well-covered dividend looks like). 1.0x-2.0x: linearly taper the
+# dividend score to 0 (this file's existing "worst" floor value, see PE/PB's own floors) by
+# 2.0x. Negative or zero FCF while paying any dividend at all is floored straight to 0 -
+# unambiguously the worst case, not merely "high payout ratio" (division would give a
+# meaningless negative "ratio" otherwise). Missing fcf_yield (no coverage available) leaves
+# dividend_yield scored on magnitude alone, same fail-safe-on-missing-data convention as every
+# other input in this pillar - this gate only fires when there's real evidence to fire on.
+FCF_PAYOUT_UNSUSTAINABLE_RATIO = 1.0
+FCF_PAYOUT_ZERO_SCORE_RATIO = 2.0
+
+
+def _dividend_sustainability_factor(dividend_yield: float, fcf_yield: float | None) -> float:
+    """Scale factor (0.0-1.0) to apply to the raw dividend_yield score.
+
+    See FCF_PAYOUT_UNSUSTAINABLE_RATIO's module-level docstring for the full reasoning. Pure
+    function, no I/O - dividend_yield/fcf_yield are both already-fetched value_metrics fields.
+    """
+    if dividend_yield <= 0 or fcf_yield is None:
+        return 1.0
+    if fcf_yield <= 0:
+        # Dividend funded by negative (or zero) free cash flow - the classic value-trap
+        # pattern (e.g. a stock scoring well on a double-digit yield that's actually being
+        # paid out of debt/asset sales while operations burn cash). Unambiguously the worst
+        # case - floor straight to 0 rather than computing a meaningless negative "ratio".
+        return 0.0
+    payout_ratio = dividend_yield / fcf_yield
+    if payout_ratio <= FCF_PAYOUT_UNSUSTAINABLE_RATIO:
+        return 1.0
+    if payout_ratio >= FCF_PAYOUT_ZERO_SCORE_RATIO:
+        return 0.0
+    # Linear taper between 1.0x (fully covered, no penalty) and 2.0x (floor)
+    span = FCF_PAYOUT_ZERO_SCORE_RATIO - FCF_PAYOUT_UNSUSTAINABLE_RATIO
+    return 1.0 - (payout_ratio - FCF_PAYOUT_UNSUSTAINABLE_RATIO) / span
+
 
 class ValueScoreMixin:
     """See module docstring.
@@ -816,6 +869,11 @@ class ValueScoreMixin:
         if metrics.get("dividend_yield") is not None:
             div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
             div_score = min(100, div * 16.7)
+            # PAYOUT-SUSTAINABILITY GATE - see FCF_PAYOUT_UNSUSTAINABLE_RATIO's module-level
+            # docstring above. Penalizes (does not just cap) a high yield that isn't covered by
+            # free cash flow - the CATO-pattern value trap this pillar previously scored
+            # identically to a well-covered dividend of the same magnitude.
+            div_score *= _dividend_sustainability_factor(metrics["dividend_yield"], metrics.get("fcf_yield"))
             weighted_sum += div_score * 0.10
             total_weight += 0.10
 
