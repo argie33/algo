@@ -114,7 +114,7 @@
   "algo/orchestrator/phase5_exposure_policy.py": 420,
   "algo/orchestrator/phase6_exit_execution.py": 1854,
   "algo/orchestrator/phase7_candidate_builder.py": 249,
-  "algo/orchestrator/phase7_run_steps.py": 790,
+  "algo/orchestrator/phase7_run_steps.py": 791,
   "algo/orchestrator/phase7_signal_generation.py": 1681,
   "algo/orchestrator/phase8_entry_execution.py": 3733,
   "algo/orchestrator/phase8_guards.py": 274,
