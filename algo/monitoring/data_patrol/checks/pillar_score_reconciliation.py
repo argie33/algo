@@ -32,6 +32,8 @@ was: tie_out.py is already past its size-ratchet ceiling.
 import logging
 from typing import Any
 
+from utils.loaders.helpers import _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS
+
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, WARN
 
@@ -50,6 +52,20 @@ class PillarScoreReconciliationChecker(BaseCheck):
 
     def check_quality_score_reconciliation(self, cur: Any) -> None:
         try:
+            # FIXED 2026-09-08 (goal session: scores-reload due-diligence audit): excludes
+            # closed-end funds/investment trusts (company_info_sec.entity_type='other' AND
+            # sic_code IS NULL - same shape utils/loaders/helpers.py's fundamentals-universe
+            # query already uses to keep them out of stock_scores entirely) and BDCs
+            # (_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS - SEC classifies these entity_type=
+            # 'operating' despite sic_code=NULL, so the CEF shape alone misses them). Both
+            # populations are DELIBERATELY excluded from load_stock_scores.py's own universe
+            # query (they file N-CSR/N-2, not a 10-K, so there's nothing for it to recompute),
+            # so their stock_scores row is permanently frozen at whatever date they last had
+            # one while quality_metrics.quality_score can still move (fed by a different,
+            # broader universe query) - a structural mismatch, not a stale-copy bug. Live-
+            # confirmed: of 143 active symbols with no stock_scores row at all for a fresh
+            # reload date, 87 matched the CEF entity_type/sic_code shape and the rest were
+            # BDCs on this list (MAIN/TSLX/BBDC/LIEN spot-checked directly).
             cur.execute(
                 """
                 SELECT ss.symbol, ss.date, ss.quality_score AS stock_scores_quality_score,
@@ -61,9 +77,13 @@ class PillarScoreReconciliationChecker(BaseCheck):
                     ORDER BY symbol, date DESC
                 ) ss
                 JOIN quality_metrics qm ON qm.symbol = ss.symbol
+                LEFT JOIN company_info_sec c ON c.symbol = ss.symbol
                 WHERE qm.quality_score IS NOT NULL
                   AND COALESCE(qm.data_unavailable, false) = false
-                """
+                  AND NOT (c.entity_type = 'other' AND c.sic_code IS NULL)
+                  AND ss.symbol != ALL(%(bdc_symbols)s)
+                """,
+                {"bdc_symbols": sorted(_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS)},
             )
             flagged = []
             for row in cur.fetchall():
