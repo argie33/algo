@@ -165,6 +165,45 @@ NOISE_SUBSTRINGS = [
     "PaymentsFor",
     "PaymentsTo",
     "RepaymentsOf",
+    # Added 2026-09-08 (goal session: "keep working through XBRL stuff") after a min-companies
+    # 50 scan surfaced 776 undismissed concepts, hand-reviewed by category. Every one below is
+    # bank/insurance regulatory schedule detail, business-combination purchase-price-allocation
+    # detail, or lease/receivable maturity-schedule footnote breakdown - never a statement-level
+    # figure this schema scores. Verified none of these substrings collide with any concept
+    # literal we already fetch (utils/external/xbrl_concept_coverage.py's load_known_concepts()
+    # checked directly before adding). Same "generalize the established per-concept precedent
+    # instead of re-litigating one at a time" rationale as the DeferredTax/BusinessCombination
+    # additions above.
+    "BusinessAcquisition",  # purchase-price-allocation/pro-forma detail, distinct literal prefix from the already-noise "BusinessCombination"
+    "FutureMinimumPayments",  # capital/sales-type lease receivable maturity schedules (CapitalLeasesFutureMinimumPaymentsReceivable*)
+    "AllowanceForLoanAndLeaseLosses",  # bank ALLL rollforward detail (period increase/decrease, provision, adjustments)
+    "LossContingency",  # litigation schedule detail (range of loss, claims dismissed/settled counts, accrual rollforward)
+    "FinancingReceivable",  # bank financing-receivable schedule/aging/modification detail
+    "CertainLoansAcquiredInTransfer",  # purchased-credit-impaired loan schedule detail
+    "InterestBearingDomesticDeposit",  # bank deposit-mix schedule (checking/savings/money-market/CD breakdown)
+    "InterestBearingDepositLiabilities",  # sibling of the deposit-mix schedule above
+    "AccrualForEnvironmentalLossContingencies",  # environmental-remediation accrual rollforward
+    "LiabilityForUnpaidClaimsAndClaimsAdjustmentExpense",  # insurance claims-reserve rollforward (current/prior year paid/incurred)
+    "MarketLease",  # above/below-market lease intangible amortization schedule
+    "BankingRegulation",  # regulatory capital-ratio disclosure (Tier 1, well-capitalized minimums)
+    "LineOfCreditFacility",  # credit-facility footnote detail (periodic payment, additional borrowings) - distinct from the single fair-value concept we already fetch
+    "InterestExpenseFederal",  # bank funding-cost breakdown (fed funds purchased/FHLB advances)
+    "InterestExpenseJunior",  # junior subordinated debenture interest detail
+    "InterestExpenseLessee",  # capital-lease interest sub-component, already reflected in aggregate interest_expense
+    "InterestExpenseSavingsDeposits",  # bank deposit-cost breakdown sibling of InterestBearingDomesticDeposit above
+    "InterestExpenseSecuritiesSoldUnderAgreementsToRepurchase",  # repo funding-cost detail
+    "InterestExpenseTimeDeposits",  # CD funding-cost detail
+    "InterestIncomeFederalFundsSold",  # bank interest-income breakdown sibling of InterestExpenseFederal above
+    "CededPremiumsWritten",  # reinsurance premium-ceding schedule
+    "AssumedPremiumsWritten",  # reinsurance premium-assumption schedule
+    "LoansAndLeasesReceivable",  # bank loan-portfolio-mix schedule (commercial/related-party/etc breakdown)
+    "LoansReceivable",  # sibling loan-type breakdown (commercial real estate, fixed-rate, etc)
+    "LoansHeldForSale",  # loan-type breakdown of held-for-sale mortgages
+    "AssetRetirementObligation",  # ARO rollforward detail (cash settled, FX translation, period change)
+    "IncomeTaxExamination",  # tax-audit contingency detail (estimate of loss, interest/penalties accrued)
+    "IndefiniteLivedIntangibleAssets",  # intangible-asset rollforward detail, distinct from the amortizable-intangible noise already covered by "FiniteLivedIntangibleAssets"
+    "MultiemployerPlan",  # multiemployer pension-plan disclosure detail
+    "SelfInsuranceReserve",  # self-insurance reserve rollforward
 ]
 
 
