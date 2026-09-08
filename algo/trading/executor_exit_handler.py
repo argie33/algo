@@ -782,6 +782,11 @@ class ExitHandler:
 
         # Calculate shares to exit
         shares_to_exit, full_exit = self._calculate_exit_shares(current_qty, exit_fraction)
+        # Captured before any race/partial-fill reconciliation below overwrites shares_to_exit
+        # with the verified ACTUAL filled quantity - TCA's fill_rate_pct needs the originally
+        # REQUESTED amount, not the (possibly identical) reconciled one, mirroring the entry
+        # side's shares_requested/shares_filled distinction (executor_entry_handler.py).
+        requested_shares_to_exit = shares_to_exit
 
         # Needed earlier than before (moved up from just above the order-submission block) so
         # the cancel-race handling below can distinguish a genuine auto-mode cancel failure from
@@ -1060,6 +1065,34 @@ class ExitHandler:
                         actual_fill_price = float(blended_price_dec)
 
                     full_exit = shares_to_exit >= current_qty
+
+                    # TCA (2026-09-07 real-money-readiness audit): the entry side has recorded
+                    # every fill's execution quality since 2026-08-xx (see
+                    # executor_entry_handler.py's _record_entry_phase), but no exit ever called
+                    # record_fill() - stop-loss/profit-target/time exits (the fills most likely
+                    # to slip, especially a market-order stop in a fast decline) were completely
+                    # invisible to slippage measurement. Only recorded for a REAL confirmed fill
+                    # (not the PENDING_FILL_RECONCILIATION placeholder path above, where
+                    # actual_fill_price is just the evaluation-time quote, not a real fill) - same
+                    # "never let TCA revert an already-happened trade" non-blocking contract as
+                    # the entry side.
+                    if not is_estimated_price:
+                        try:
+                            self.context.tca.record_fill(
+                                trade_id=trade_id,
+                                symbol=symbol,
+                                signal_price=exit_price,
+                                fill_price=actual_fill_price,
+                                shares_requested=int(requested_shares_to_exit),
+                                shares_filled=int(shares_to_exit),
+                                side="SELL",
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"[TCA] Failed to record exit execution-quality data for {symbol} "
+                                f"trade {trade_id} (non-blocking, trade already committed): "
+                                f"{type(e).__name__}: {e}"
+                            )
             else:
                 # Explicit message handling - log if missing instead of defaulting
                 error_message = exit_order_result.get("message")
