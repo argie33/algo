@@ -126,7 +126,7 @@
   "algo/orchestrator/phase_error_handling.py": 124,
   "algo/orchestrator/phase_executor.py": 554,
   "algo/orchestrator/phase_prerequisites.py": 98,
-  "algo/orchestrator/phase_registry.py": 295,
+  "algo/orchestrator/phase_registry.py": 309,
   "algo/orchestrator/phase_result.py": 119,
   "algo/orchestrator/type_converters.py": 42,
   "algo/orchestrator/validation_thresholds.py": 219,
