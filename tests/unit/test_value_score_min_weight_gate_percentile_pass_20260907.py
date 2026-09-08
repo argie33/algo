@@ -67,6 +67,7 @@ class TestValueMinWeightGateInPercentilePass:
                 "Financial Services",  # sector
                 80.0,  # data_completeness
                 False,  # data_unavailable
+                None,  # unavailable_metrics
             )
         ]
         cur = _make_mock_cursor(rows)
@@ -88,9 +89,16 @@ class TestValueMinWeightGateInPercentilePass:
             loader.update_value_multiples_percentiles()
 
         assert "updates" in captured, "expected an UPDATE for THINPS (score changed from 97.61)"
-        (symbol, value_score_new, _composite_new, _components_json, _completeness_new, _unavailable_new) = captured[
-            "updates"
-        ][0]
+        (
+            symbol,
+            value_score_new,
+            _composite_new,
+            _components_json,
+            _completeness_new,
+            _unavailable_new,
+            _unavailable_metrics_json,
+            _reason_new,
+        ) = captured["updates"][0]
         assert symbol == "THINPS"
         assert value_score_new is None
 
@@ -117,6 +125,7 @@ class TestValueMinWeightGateInPercentilePass:
                 "Technology",
                 90.0,  # data_completeness
                 False,  # data_unavailable
+                None,  # unavailable_metrics
             )
         ]
         cur = _make_mock_cursor(rows)
@@ -136,7 +145,14 @@ class TestValueMinWeightGateInPercentilePass:
             loader.update_value_multiples_percentiles()
 
         if "updates" in captured:
-            (_symbol, value_score_new, _composite_new, _components_json, _completeness_new, _unavailable_new) = (
-                captured["updates"][0]
-            )
+            (
+                _symbol,
+                value_score_new,
+                _composite_new,
+                _components_json,
+                _completeness_new,
+                _unavailable_new,
+                _unavailable_metrics_json,
+                _reason_new,
+            ) = captured["updates"][0]
             assert isinstance(value_score_new, float)
