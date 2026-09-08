@@ -328,7 +328,9 @@ class TestGetSymbolSector:
         loader = _make_loader()
         mock_cur = MagicMock()
         mock_cur.fetchall.return_value = [("AAPL", "Technology"), ("JPM", "Financial Services")]
-        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_ctx:
+        # _get_symbol_sector lives in SectorIndustryCacheMixin (loaders/helpers/vqg_shared.py)
+        # since the 20260908 extraction - patch DatabaseContext where it's actually called.
+        with patch("loaders.helpers.vqg_shared.DatabaseContext") as mock_ctx:
             mock_ctx.return_value.__enter__.return_value = mock_cur
 
             assert loader._get_symbol_sector("AAPL") == "Technology"
@@ -342,7 +344,7 @@ class TestGetSymbolSector:
         import psycopg2
 
         loader = _make_loader()
-        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_ctx:
+        with patch("loaders.helpers.vqg_shared.DatabaseContext") as mock_ctx:
             mock_ctx.side_effect = psycopg2.OperationalError("connection refused")
 
             assert loader._get_symbol_sector("AAPL") is None

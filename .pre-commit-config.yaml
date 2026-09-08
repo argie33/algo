@@ -1,13 +1,31 @@
 repos:
-  # Code formatting with Ruff (single tool for format + lint)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.18
+  # Code formatting with Ruff (single tool for format + lint).
+  #
+  # LOCAL, NOT astral-sh/ruff-pre-commit (2026-09-08): that repo hook downloads its own
+  # isolated ruff.exe into .cache/pre-commit on first use. On a machine with Windows Smart
+  # App Control enforced (HKLM\SYSTEM\CurrentControlSet\Control\CI\Policy
+  # VerifiedAndReputablePolicyState=1), a freshly-extracted unsigned binary in a
+  # user-writable cache dir gets blocked outright ("[WinError 4551] An Application Control
+  # policy has blocked this file" - not a lint failure, ruff.exe itself refuses to even
+  # start, confirmed via direct invocation returning "Permission denied"). SAC can't be
+  # turned off without a full OS reinstall, so this hook could never run there. `python -m
+  # ruff` from the repo's normal installed environment isn't newly-written/unsigned in the
+  # same way and isn't blocked - `language: system` here runs that same already-installed
+  # binary (confirmed identical version, 0.15.18, to the rev this replaced) instead of a
+  # fresh isolated copy. No change in what gets checked, same version pinned via
+  # requirements - only which already-trusted copy of the binary executes it.
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
         name: Ruff lint and auto-fix
+        entry: python -m ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types: [python]
       - id: ruff-format
         name: Ruff format code
+        entry: python -m ruff format
+        language: system
+        types: [python]
 
   # Type checking — run on full directories for accurate cross-module analysis
   - repo: local

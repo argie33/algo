@@ -40,7 +40,7 @@ from datetime import date, datetime, timezone
 from math import isnan, sqrt
 from typing import Any, cast
 
-import psycopg2
+import psycopg2  # noqa: F401 - used via _owner().psycopg2 in vqg_quality_batch.py
 from psycopg2.extras import execute_values  # noqa: F401 - used via _owner().execute_values in vqg_quality_batch.py
 
 from loaders.helpers.vqg_growth import GrowthMetricsMixin
@@ -48,12 +48,18 @@ from loaders.helpers.vqg_quality import QualityMetricsMixin
 from loaders.helpers.vqg_quality_batch import QualityBatchMixin
 from loaders.helpers.vqg_shared import (
     _SHARED_TREND_FIELDS,
+    DEPOSITORY_BANK_INDUSTRIES,  # noqa: F401 -- re-exported, see comment below
+    INSURANCE_UNDERWRITER_INDUSTRIES,  # noqa: F401 -- re-exported, see comment below
     MAX_ABSOLUTE_DOLLAR_VALUE,  # noqa: F401 -- re-exported, see comment below
     MAX_PLAUSIBLE_GROWTH_PCT,
     MAX_TREND_PERCENTAGE_POINTS,  # noqa: F401 -- re-exported, see comment below
+    UTILITY_INDUSTRIES,  # noqa: F401 -- re-exported, see comment below
+    SectorIndustryCacheMixin,
+    acquire_pooled_connection,
     get_loader_timestamp,
     intrinsic_value_reason_from_fcf_yield,  # noqa: F401 -- re-exported, see comment below
     peg_ratio_reason_from_eps_history,  # noqa: F401 -- re-exported, see comment below
+    release_pooled_connection,
 )
 from loaders.helpers.vqg_symbol_gates import SymbolGateMixin
 from loaders.helpers.vqg_value import ValueMetricsMixin
@@ -80,92 +86,10 @@ logger = logging.getLogger(__name__)
 # delisted/inactive or a genuine data gap.
 MAX_FISCAL_YEAR_AGE_YEARS = 3
 
-# SIC-derived company_profile.industry values covering depository institutions (commercial
-# banks, savings institutions/thrifts) - a strict subset of the "Financial Services" sector.
-# FIXED 2026-09-06 (stock_scores symbol spot-check, see
-# stock_scores_symbol_spotcheck_20260906/bank_deposit_debt_to_equity_gap_fixed_20260906 in
-# memory): debt_for_roic (interest-bearing debt: long_term_debt/total_debt_ev) structurally
-# excludes customer deposits, because SEC filers tag deposits under concepts this pipeline
-# doesn't map to "long_term_debt". For an operating company that's the right call (Total
-# Liabilities/Equity is a bad debt proxy - see this file's own "NOT Total Liabilities / Equity"
-# comment - because it's contaminated by AP/accrued expenses/deferred revenue). For a
-# depository institution, deposits ARE the core interest-bearing liability funding its loan
-# book, so excluding them isn't a narrower, more precise "debt" figure - it's missing most of
-# the bank's real leverage, and disproportionately so for small banks with little wholesale
-# borrowing (live-verified: TCBX/PEBK's debt_to_equity computed near 0.11-0.12, inflating both
-# debt_to_equity_score and ROCE's capital_employed-based return for exactly this cohort -
-# Financial Services quality_score averaged 53.5 vs the universe's ~38-44, and small commercial
-# banks took 14/20 of the day's top BUY signals by composite_score). AP/accrued/deferred-revenue
-# contamination that makes total_liabilities a bad proxy for an operating company is a rounding
-# error against a bank's deposit base, so total_liabilities is the better proxy here - narrowly
-# scoped to this industry list (not the whole Financial Services sector, which also includes
-# payment networks/asset managers/insurance brokers whose liabilities aren't deposit-shaped -
-# see INSURANCE_UNDERWRITER_INDUSTRIES just below for the separate, analogous fix for
-# risk-bearing insurers, whose core liability is loss reserves, not deposits) via
-# _get_symbol_industry(), a sibling of _get_symbol_sector() with the same fail-open contract.
-DEPOSITORY_BANK_INDUSTRIES = frozenset(
-    {
-        "State Commercial Banks",
-        "National Commercial Banks",
-        "Commercial Banks, NEC",
-        "Savings Institution, Federally Chartered",
-        "Savings Institutions, Not Federally Chartered",
-        "Functions Related To Depository Banking, NEC",
-    }
-)
-
-# SIC-derived company_profile.industry values covering risk-bearing insurance underwriters -
-# same bug class as DEPOSITORY_BANK_INDUSTRIES above, found the same session while checking why
-# Financial Services still dominated the top of composite_score after the bank fix landed.
-# An underwriter's core liability is policy/loss reserves and unearned premium - functionally
-# its "debt" (the capital it owes against future claims), same role deposits play for a bank -
-# but SEC filers tag reserves under concepts this pipeline doesn't map to "long_term_debt"
-# either, so debt_for_roic understates underwriters' real leverage the same way. Live-verified
-# against annual_balance_sheet.total_liabilities/stockholders_equity: RGA (Reinsurance Group of
-# America) computed debt_to_equity=0.42 vs a real ~11.5x; ACGL (Arch Capital)=0.01 vs ~2.5x;
-# HIG (Hartford)=0.24 vs ~3.5x - all in the "Fire, Marine & Casualty Insurance"/"Life Insurance"
-# SIC buckets. Confirmed narrowly scoped, not the whole insurance-adjacent space: "Insurance
-# Agents, Brokers & Service" (non-risk-bearing intermediaries who don't hold reserves - MRSH/AON
-# both show real 1.4-1.7x debt_to_equity already, genuine corporate bonds, not understated)
-# deliberately excluded.
-INSURANCE_UNDERWRITER_INDUSTRIES = frozenset(
-    {
-        "Fire, Marine & Casualty Insurance",
-        "Life Insurance",
-        "Accident & Health Insurance",
-        "Surety Insurance",
-        "Title Insurance",
-        "Insurance Carriers, NEC",
-    }
-)
-
-# SIC-derived company_profile.industry values covering regulated rate-base utilities - same bug
-# class as DEPOSITORY_BANK_INDUSTRIES/INSURANCE_UNDERWRITER_INDUSTRIES above, found the same
-# session while sanity-checking Quality scores across a broader known-symbol set (goal: stock_scores
-# factor/composite sanity audit). A regulated utility's enormous rate-base asset structure
-# structurally compresses ROA/ROCE and requires more leverage than a typical industrial by design
-# (regulators set allowed ROE against a rate base financed partly by debt) - live-verified across
-# 10 electric utilities (NEE/DUK/SO/D/AEP/EXC/XEL/WEC/ED/PEG): ROA clustered 2.37-3.67% (industrial
-# curve's (3.0,40)/(8.0,80)/(15.0,100) floors nearly all of them near the bottom), debt_to_equity
-# clustered 1.11-1.91x (industrial curve's 2.0-floors-to-0 crushes every one of them toward zero),
-# ROCE clustered 3.96-7.23%. Water/gas distribution utilities (CWT/OGS/WTRG/YORW/ARTNA/NGG)
-# independently confirmed the same 2.26-3.17% ROA/0.71-1.42x D/E range - same regulated-rate-base
-# economics, included here; midstream/pipeline gas transmission names (WMB/AROC) were spot-checked
-# and show materially different (healthier, unregulated-economics) ROA/quality already, deliberately
-# excluded pending their own evidence. fcf_margin_score is also excluded for this group (same
-# "raw value kept, not scored" treatment as DEPOSITORY_BANK_INDUSTRIES) - heavy, continuous grid/
-# generation capex routinely drives utility FCF margin deeply negative (NEE -42%, XEL -46%, D -44%
-# live-confirmed) even for fundamentally healthy, dividend-growing utilities, the same "raw ratio
-# reflects an unrelated structural cash-flow pattern, not real operating profitability" problem
-# fcf_margin has for depository banks.
-UTILITY_INDUSTRIES = frozenset(
-    {
-        "Electric Services",
-        "Electric & Other Services Combined",
-        "Water Supply",
-        "Natural Gas Distribution",
-    }
-)
+# DEPOSITORY_BANK_INDUSTRIES/INSURANCE_UNDERWRITER_INDUSTRIES/UTILITY_INDUSTRIES moved to
+# loaders/helpers/vqg_shared.py (goal session 20260908, shrinking this file back toward the
+# file-size ratchet's hard ceiling) - re-imported below under the same names, full rationale
+# comments live at their new definitions.
 
 
 def _mirror_shared_trend_fields(quality_dict: dict[str, Any], growth_dict: dict[str, Any]) -> None:
@@ -187,7 +111,13 @@ def _mirror_shared_trend_fields(quality_dict: dict[str, Any], growth_dict: dict[
 
 
 class ValueQualityGrowthMetricsLoader(
-    ValueMetricsMixin, QualityMetricsMixin, QualityBatchMixin, GrowthMetricsMixin, OptimalLoader, SymbolGateMixin
+    ValueMetricsMixin,
+    QualityMetricsMixin,
+    QualityBatchMixin,
+    GrowthMetricsMixin,
+    OptimalLoader,
+    SymbolGateMixin,
+    SectorIndustryCacheMixin,
 ):
     """Consolidated value + quality + growth metrics from SEC + valuations.
 
@@ -289,7 +219,14 @@ class ValueQualityGrowthMetricsLoader(
 
         parallelism = parallelism or get_default_parallelism("value_quality_growth_metrics")
 
+        # PERF FIX (goal session 20260908): this loader never calls super().run(), so it
+        # missed OptimalLoader's pooled-connection reuse - see acquire_pooled_connection's
+        # docstring for the full rationale (~13 fresh DatabaseContext connections/symbol x
+        # ~5,100 symbols, all avoidable).
+        conn_manager = None
         try:
+            conn_manager = acquire_pooled_connection(self.table_name)
+
             # Mark all 3 tables as loading via LoaderStatusManager (uses advisory locks)
             managers = {}
             for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
@@ -506,6 +443,12 @@ class ValueQualityGrowthMetricsLoader(
                 manager.mark_failed(error_msg)
             _log_sla_status()
             raise
+        finally:
+            # Must run on every exit path so the pooled connection is always returned.
+            try:
+                release_pooled_connection(conn_manager)
+            except Exception as cleanup_err:
+                logger.warning(f"[VALUE_QUALITY_GROWTH] Failed to clean up pooled connection: {cleanup_err}")
 
     def fetch_incremental(
         self, symbol: str, since: date | None
@@ -1532,56 +1475,9 @@ class ValueQualityGrowthMetricsLoader(
             return None, True
         return float(computed), False
 
-    def _get_symbol_sector(self, symbol: str) -> str | None:
-        """Lazily fetches and caches symbol -> company_profile.sector (GICS) once per loader
-        run, reused across every _compute_quality_metrics call (no per-symbol query).
-
-        Financial Services and Real Estate get a 7-input variant of quality_score (see
-        quality_components below) that drops asset_turnover_score - Revenue/Total Assets isn't a
-        coherent "operating efficiency" measure for a bank's loan book or a REIT's portfolio the
-        way it is for an operating company (confirmed via isolated testing, matches Fama-French's
-        practice of excluding financials from similar factor constructions).
-
-        Returns None (falls through to the universal formula) if the sector map can't be
-        fetched or the symbol isn't in company_profile - fails open to the well-tested
-        universal formula rather than silently miscategorizing a symbol."""
-        if not hasattr(self, "_sector_cache"):
-            self._sector_cache: dict[str, str] = {}
-            try:
-                with DatabaseContext("read") as cur:
-                    cur.execute("SELECT symbol, sector FROM company_profile WHERE sector IS NOT NULL")
-                    self._sector_cache = dict(cur.fetchall())
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(
-                    f"[QUALITY_METRICS] Failed to fetch company_profile sector map for the "
-                    f"sector-conditional Quality formula - falling back to the universal "
-                    f"8-input formula for every symbol this run: {e}"
-                )
-        return self._sector_cache.get(symbol)
-
-    def _get_symbol_industry(self, symbol: str) -> str | None:
-        """Lazily fetches and caches symbol -> company_profile.industry (SIC-derived) once per
-        loader run, sibling to _get_symbol_sector above with the same caching/fail-open
-        contract (see DEPOSITORY_BANK_INDUSTRIES for why this is a separate, narrower lookup
-        than sector: depository institutions need a debt_for_roic override that the rest of
-        the broader Financial Services sector - payment networks, asset managers, insurers -
-        must not get).
-
-        Returns None (falls through to the universal debt_for_roic) if the industry map can't
-        be fetched or the symbol isn't in company_profile."""
-        if not hasattr(self, "_industry_cache"):
-            self._industry_cache: dict[str, str] = {}
-            try:
-                with DatabaseContext("read") as cur:
-                    cur.execute("SELECT symbol, industry FROM company_profile WHERE industry IS NOT NULL")
-                    self._industry_cache = dict(cur.fetchall())
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(
-                    f"[QUALITY_METRICS] Failed to fetch company_profile industry map for the "
-                    f"depository-bank debt_for_roic override - falling back to the universal "
-                    f"debt figure for every symbol this run: {e}"
-                )
-        return self._industry_cache.get(symbol)
+    # _get_symbol_sector/_get_symbol_industry moved to SectorIndustryCacheMixin in
+    # loaders/helpers/vqg_shared.py (see this class's base-class list and the MOVED HERE
+    # comment at their new definition) - kept as plain inherited methods, no behavior change.
 
     @staticmethod
     def _cagr(latest: float, previous: float, years: int) -> float | None:
