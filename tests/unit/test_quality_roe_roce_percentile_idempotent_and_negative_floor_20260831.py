@@ -122,20 +122,19 @@ class TestNegativeRoeRoceFloor:
         verified by comparing two universes where the only difference is whether a very-bad
         (but not literally most-negative) ROE symbol would otherwise rank favorably.
 
-        PRE-EXISTING FAILURE, unrelated to the 2026-09-07 sector-neutral-zscore rewrite:
-        confirmed via `git stash` that this assertion already failed against HEAD before this
-        session's changes. The 2026-09-07 sign-flip-distress fix (see
+        The 2026-09-07 sign-flip-distress fix (see
         test_quality_roe_sign_flip_distress_artifact_excluded_20260907.py) made the ROE
         component require `roa` to be present at all (omitted, not floored, when roa is
-        missing) - this test's rows never set roa, so both symbols now get NO update
-        (total_weight=0) instead of the 0.0 this test expects. Left as-is per instructions not
-        to fix pre-existing unrelated failures; only the row shape/function name below were
-        updated so this test still runs against the current method signature."""
+        missing). Both rows below now also set a negative `roa` (consistent with the
+        deeply-negative-ROE distress shape this test is modeling) so the ROE component is
+        actually included and its floor-at-0-for-negative-values behavior gets exercised,
+        instead of being omitted entirely (total_weight=0, no update issued)."""
         rows = [
-            ("WORST_NEG", "Technology", None, -40.0, None, None, None, None, None, None, None, 99.0),
-            ("MID_NEG", "Technology", None, -5.0, None, None, None, None, None, None, None, 99.0),
+            ("WORST_NEG", "Technology", None, -40.0, -30.0, None, None, None, None, None, None, 99.0),
+            ("MID_NEG", "Technology", None, -5.0, -3.0, None, None, None, None, None, None, 99.0),
         ]
         updates = dict(_run_with_mocked_rows(rows))
-        # Both symbols' ONLY component is ROE (weight 11) - floored to 0 for both -> quality_score 0.0.
+        # Both symbols' only components are ROE (weight 11) and ROA (weight 18) - both
+        # negative, both floored to 0 -> weighted average is still 0.0.
         assert updates.get("WORST_NEG") == 0.0
         assert updates.get("MID_NEG") == 0.0

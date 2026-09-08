@@ -42,6 +42,10 @@ def _prices_batch(symbols: list[str], target_date: date) -> dict[str, float]:
     return dict.fromkeys(symbols, ENTRY_PRICE)
 
 
+def _prices_batch_with_range(symbols: list[str], target_date: date) -> dict[str, tuple[float, float, float]]:
+    return {symbol: (price, price, price) for symbol, price in _prices_batch(symbols, target_date).items()}
+
+
 def _run(max_pct_of_adv_dollars, avg_dollar_vol, position_size_pct=10.0, initial_capital=100_000.0):
     def _adv_batch(symbols: list[str], as_of_date: date) -> dict[str, float]:
         return {} if avg_dollar_vol is None else dict.fromkeys(symbols, avg_dollar_vol)
@@ -51,6 +55,7 @@ def _run(max_pct_of_adv_dollars, avg_dollar_vol, position_size_pct=10.0, initial
         patch("algo.backtest.run_backtest._get_daily_buy_signals", side_effect=_buy_signals),
         patch("algo.backtest.run_backtest._get_daily_sell_signals", side_effect=_sell_signals),
         patch("algo.backtest.run_backtest._get_prices_batch", side_effect=_prices_batch),
+        patch("algo.backtest.run_backtest._get_prices_batch_with_range", side_effect=_prices_batch_with_range),
         patch("algo.backtest.run_backtest._get_avg_dollar_volume_batch", side_effect=_adv_batch),
     ):
         return run_backtest(

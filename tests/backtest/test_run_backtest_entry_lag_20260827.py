@@ -50,6 +50,10 @@ def _prices_batch(symbols: list[str], target_date: date) -> dict[str, float]:
     return dict.fromkeys(symbols, price)
 
 
+def _prices_batch_with_range(symbols: list[str], target_date: date) -> dict[str, tuple[float, float, float]]:
+    return {symbol: (price, price, price) for symbol, price in _prices_batch(symbols, target_date).items()}
+
+
 class TestRunBacktestEntryLag:
     def test_entry_fills_one_day_after_signal_not_on_signal_day(self) -> None:
         with (
@@ -57,6 +61,7 @@ class TestRunBacktestEntryLag:
             patch("algo.backtest.run_backtest._get_daily_buy_signals", side_effect=_buy_signals),
             patch("algo.backtest.run_backtest._get_daily_sell_signals", side_effect=_sell_signals),
             patch("algo.backtest.run_backtest._get_prices_batch", side_effect=_prices_batch),
+            patch("algo.backtest.run_backtest._get_prices_batch_with_range", side_effect=_prices_batch_with_range),
         ):
             results = run_backtest(
                 start_date=DAY1_SIGNAL,
@@ -87,6 +92,7 @@ class TestRunBacktestEntryLag:
             patch("algo.backtest.run_backtest._get_daily_buy_signals", side_effect=_buy_signals),
             patch("algo.backtest.run_backtest._get_daily_sell_signals", side_effect=_sell_signals),
             patch("algo.backtest.run_backtest._get_prices_batch", side_effect=_prices_batch),
+            patch("algo.backtest.run_backtest._get_prices_batch_with_range", side_effect=_prices_batch_with_range),
         ):
             results = run_backtest(
                 start_date=DAY1_SIGNAL,

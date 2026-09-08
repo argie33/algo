@@ -70,11 +70,15 @@ class TestAvgWinAvgLossGenuinelyComputed:
                     result[s] = last_known
             return result
 
+        def fake_prices_batch_with_range(symbols, target_date):
+            return {s: (p, p, p) for s, p in fake_prices_batch(symbols, target_date).items()}
+
         with (
             patch("algo.backtest.run_backtest._get_trading_dates", return_value=trading_dates),
             patch("algo.backtest.run_backtest._get_daily_buy_signals", side_effect=fake_buy_signals),
             patch("algo.backtest.run_backtest._get_daily_sell_signals", return_value=set()),
             patch("algo.backtest.run_backtest._get_prices_batch", side_effect=fake_prices_batch),
+            patch("algo.backtest.run_backtest._get_prices_batch_with_range", side_effect=fake_prices_batch_with_range),
         ):
             results = run_backtest(
                 start_date=trading_dates[0],
@@ -128,6 +132,12 @@ class TestAvgWinAvgLossGenuinelyComputed:
                 "algo.backtest.run_backtest._get_prices_batch",
                 side_effect=lambda syms, d: {
                     s: prices_by_date.get(d, {})[s] for s in syms if s in prices_by_date.get(d, {})
+                },
+            ),
+            patch(
+                "algo.backtest.run_backtest._get_prices_batch_with_range",
+                side_effect=lambda syms, d: {
+                    s: (prices_by_date.get(d, {})[s],) * 3 for s in syms if s in prices_by_date.get(d, {})
                 },
             ),
         ):

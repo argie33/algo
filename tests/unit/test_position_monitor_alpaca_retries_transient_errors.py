@@ -136,16 +136,18 @@ class TestFetchAlpacaQtyRetriesTransientErrors:
         mock_sleep.assert_called_once()
 
     def test_404_does_not_retry(self):
+        # Updated for the 2026-09-07 real-money-readiness audit fix
+        # (position_corporate_actions.py's _fetch_alpaca_qty docstring): a 404 means Alpaca
+        # has no position for this symbol - closed, delisted, or renamed - and is now treated
+        # as "position closed at broker" (returns None), not a data-integrity failure. It must
+        # still not retry, since 404 isn't one of the transient statuses (429/503).
         monitor = _monitor()
         not_found = MagicMock(status_code=404, text="not found")
 
         with patch("algo.monitoring.position_monitor.requests.get", return_value=not_found) as mock_get:
-            try:
-                monitor._fetch_alpaca_qty("https://paper-api.alpaca.markets", "k", "s", "AAPL")
-                raise AssertionError("expected RuntimeError")
-            except RuntimeError:
-                pass
+            qty = monitor._fetch_alpaca_qty("https://paper-api.alpaca.markets", "k", "s", "AAPL")
 
+        assert qty is None
         assert mock_get.call_count == 1
 
     def test_timeout_then_success_retries_and_returns_qty(self):
