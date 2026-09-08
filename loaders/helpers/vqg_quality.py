@@ -1056,7 +1056,19 @@ class QualityMetricsMixin(SymbolGateMixin):
                 # interest_coverage above - invested_capital > 0 only rules out literal zero,
                 # not an implausibly tiny-but-positive value that explodes the ratio.
                 computed_roic_pct = (nopat / invested_capital) * 100
-                if abs(computed_roic_pct) > 1000:
+                # ADDED 2026-09-08 (goal: score/tie-out sanity sweep - live-caught via
+                # ScoreRatioOutlierChecker's roce_pct batch, see roce_pct's own materiality-floor
+                # fix immediately below for the INR evidence this shares a root cause with):
+                # invested_capital > 0 only rules out literal zero, exactly the gap this
+                # block's own comment above already flagged without closing it - a real-but-
+                # immaterial invested_capital (e.g. a company funded almost entirely by current
+                # liabilities, with only a token sliver of equity+debt-minus-cash) can still
+                # produce a computed_roic_pct UNDER the |ratio|>1000 bound while still being a
+                # near-zero-denominator artifact, same bug class as interest_coverage's
+                # interest_expense floor. Folded into the existing >1000 branch (rather than a
+                # separate gate) so it gets the identical treatment: try the cross-year
+                # fallback first, only fail as implausible_ratio if that also comes up empty.
+                if abs(computed_roic_pct) > 1000 or invested_capital < 0.01 * abs(nopat):
                     roic_fallback = self._find_plausible_cross_year_roic_ratio(symbol, "roic_pct")
                     if roic_fallback is not None:
                         metrics["roic_pct"] = roic_fallback
@@ -1082,7 +1094,16 @@ class QualityMetricsMixin(SymbolGateMixin):
             roce_pct_negative_capital_employed = capital_employed is not None and capital_employed <= 0
             if roic_operating_income is not None and capital_employed is not None and capital_employed > 0:
                 computed_roce_pct = (roic_operating_income / capital_employed) * 100
-                if abs(computed_roce_pct) > 1000:
+                # ADDED 2026-09-08 (goal: score/tie-out sanity sweep, live-caught via
+                # ScoreRatioOutlierChecker's newly-added roce_pct outlier batch): INR live-
+                # confirmed the exact same immaterial-denominator bug class as interest_coverage/
+                # forward_pe this session - stockholders_equity=$0.00 (exactly) and
+                # debt_for_roic~$1.2M against $1.24B total_assets, so capital_employed > 0 was
+                # real but economically negligible, producing roce_pct=989.60 (just under the
+                # >1000 ceiling, so never excluded) off a capital base worth ~0.1% of the
+                # balance sheet. Folded into the existing >1000 branch (same treatment as
+                # roic_pct's own fix above) so it tries the cross-year fallback first.
+                if abs(computed_roce_pct) > 1000 or capital_employed < 0.01 * abs(roic_operating_income):
                     roce_fallback = self._find_plausible_cross_year_roic_ratio(symbol, "roce_pct")
                     if roce_fallback is not None:
                         metrics["roce_pct"] = roce_fallback
