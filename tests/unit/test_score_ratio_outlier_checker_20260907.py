@@ -134,13 +134,13 @@ class TestErrorHandling:
 
 
 class TestRunExecutesAllFields:
-    def test_run_covers_all_eight_ratio_fields_without_crashing(self) -> None:
+    def test_run_covers_all_nine_ratio_fields_without_crashing(self) -> None:
         rows = [{"symbol": f"SYM{i}", "val": float(i + 1)} for i in range(150)]
         cur = _mock_cursor(rows)
         checker = _checker()
         results = checker.run(cur)
         assert isinstance(results, list)
-        # 8 fields queried (pe/pb/ps/forward_pe/fcf_yield/roe/roce_pct/interest_coverage), none
-        # should error given well-formed mock data.
-        assert cur.execute.call_count == 8
+        # 9 fields queried (pe/pb/ps/forward_pe/fcf_yield/roe/roce_pct/interest_coverage/
+        # roic_pct), none should error given well-formed mock data.
+        assert cur.execute.call_count == 9
         assert all(r.severity != "error" for r in results)

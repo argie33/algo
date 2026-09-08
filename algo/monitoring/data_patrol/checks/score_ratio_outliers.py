@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Cross-sectional outlier detection for the percentile-ranked Value/Quality ratio inputs
-(pe_ratio, pb_ratio, ps_ratio, fcf_yield, roe, roce_pct).
+(pe_ratio, pb_ratio, ps_ratio, forward_pe, fcf_yield, roe, roce_pct, interest_coverage,
+roic_pct).
 
 Added 2026-09-07 (goal session: "automate the XBRL stuff for the future, identify and address
 gaps as needed" - direct follow-up to a live "huge scoring bug" audit that found SOAR/LX/ROC/
@@ -79,6 +80,10 @@ _RATIO_FIELDS: list[tuple[str, str, str]] = [
     ("quality_metrics", "roe", "high"),
     ("quality_metrics", "roce_pct", "high"),
     ("quality_metrics", "interest_coverage", "abs_high"),
+    # ADDED 2026-09-08: roic_pct shares roce_pct's exact same immaterial-invested_capital
+    # bug class (see this session's fix in loaders/helpers/vqg_quality.py) but was never
+    # added here even though roce_pct - its closest sibling, same numerator convention - was.
+    ("quality_metrics", "roic_pct", "high"),
 ]
 
 
