@@ -878,7 +878,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                         # Third priority: position's current_price (fallback for intraday closes before EOD price_daily loads)
                         if exit_price is None and current_price is not None and current_price > 0:
                             exit_price = float(current_price)
-                            price_source = "position current_price (price_daily not yet loaded for today)"
+                            price_source = "position current_price (EOD pending)"
                             logger.info(
                                 f"[PHASE 9] {symbol}: Using position current_price ${exit_price:.2f} "
                                 f"(price_daily EOD not available for {run_date})"
@@ -1057,7 +1057,18 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                     cumulative_pnl_dollars,
                                     cumulative_pnl_pct,
                                     cumulative_r_multiple,
-                                    f"Closed position recorded during reconciliation (exit price source: {price_source})",
+                                    # BUG FOUND (2026-09-08, live orchestrator dry-run against paper
+                                    # trading): exit_reason is VARCHAR(100) but this template with the
+                                    # current_price-fallback price_source was 129 chars, crashing Phase 9
+                                    # with StringDataRightTruncation on a live position (ING) and halting
+                                    # the whole run. Shortened the variable suffix (kept the
+                                    # "Closed position recorded during reconciliation" prefix intact -
+                                    # _repair_missing_exit_prices() ILIKE-matches on that exact substring
+                                    # to find trades needing exit-price recovery) plus a defensive [:100]
+                                    # slice (same convention as this file's log_phase_result_fn(9, ...)
+                                    # truncation elsewhere) so this bug class can't recur even if
+                                    # price_source grows again later.
+                                    f"Closed position recorded during reconciliation (src: {price_source})"[:100],
                                     run_date,
                                     f"Recorded from {price_source} on {run_date} (P&L: ${cumulative_pnl_dollars:.2f}, {cumulative_pnl_pct:+.2f}%, {cumulative_r_multiple:+.2f}R)",
                                     trade_id,
@@ -1118,7 +1129,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                         exit_price,
                                         cumulative_pnl_dollars,
                                         cumulative_pnl_pct,
-                                        f"Closed position recorded during reconciliation (from {price_source})",
+                                        f"Closed position recorded during reconciliation (src: {price_source})"[:100],
                                         position_id,
                                     ),
                                 )
@@ -1139,7 +1150,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                         exit_price,
                                         cumulative_pnl_dollars,
                                         cumulative_pnl_pct,
-                                        f"Closed position recorded during reconciliation (from {price_source})",
+                                        f"Closed position recorded during reconciliation (src: {price_source})"[:100],
                                         symbol,
                                     ),
                                 )
