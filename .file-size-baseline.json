@@ -39,7 +39,7 @@
   "algo/infrastructure/config/config_defaults_data_quality.py": 293,
   "algo/infrastructure/config/config_defaults_market.py": 195,
   "algo/infrastructure/config/config_defaults_risk.py": 446,
-  "algo/infrastructure/config/config_defaults_signals.py": 363,
+  "algo/infrastructure/config/config_defaults_signals.py": 371,
   "algo/infrastructure/config/config_defaults_system.py": 222,
   "algo/infrastructure/config/data_patrol_config.py": 471,
   "algo/infrastructure/config/economic_stress_config.py": 229,
