@@ -291,24 +291,62 @@ def _resolve_factor_sources(
 
 def _resolve_factor_value_col(
     cur: cursor, table: str, column: str, table_all_cols_cache: dict[str, set[str]]
-) -> tuple[str, str | None]:
+) -> tuple[str, str | None, str | None]:
     """Derives the factor name from a `*_unavailable_reason` column and, if a same-named
     value column exists on `table`, returns it too - see _get_scores_coverage's own
     2026-09-01 call-site comment for why: some loaders deliberately keep a real value (e.g.
     dividend_yield=0.0 for a confirmed non-payer) alongside a non-NULL reason "for
     transparency", so the reason column alone isn't sufficient to infer "missing". Returns
-    (factor_name, None) when no matching value column exists (the bare_reason_tables case,
-    where "reason" describes the whole row rather than one specific field) - callers fall
-    back to reason-only behavior in that case. `table_all_cols_cache` is populated lazily,
-    once per table, and shared across every factor column on that table."""
+    (factor_name, None, unavailable_col) when no matching value column exists (the
+    bare_reason_tables case, where "reason" describes the whole row rather than one specific
+    field).
+
+    unavailable_col (2026-09-08 fix, live-found via the scores/coverage "Other" bucket audit):
+    a bare "reason" column on these tables isn't reliably "row is missing" either -
+    load_institutional_holdings_13f.py writes a real, non-NULL institutional_ownership_pct
+    (just capped at 100.0, a documented SEC 13F double-counting quirk) ALONGSIDE a non-NULL
+    `reason` purely as an explanatory annotation, `data_unavailable=False` throughout - the
+    same "value present, reason non-NULL 'for transparency'" shape the value_col cross-check
+    above already handles, just on a bare-reason table so there's no single matching value
+    column to check. 1,647 institutional_holdings_13f rows (and 30 sec_valuations rows) were
+    being counted as coverage gaps despite having real data, because this bare-reason branch
+    never had an analogous cross-check. Falls back to the table's own `data_unavailable`
+    boolean when present (all 7 bare_reason_tables have one) - a row only counts as missing
+    if BOTH `reason IS NOT NULL` AND `data_unavailable = true`, mirroring the value_col
+    cross-check's "reason alone isn't sufficient" principle for tables where no per-field
+    value column exists to check directly."""
     factor_name_candidate = re.sub(r"_?unavailable_reason$", "", column).rstrip("_")
-    if not factor_name_candidate or factor_name_candidate in ("data", "reason"):
-        return factor_name_candidate, None
     if table not in table_all_cols_cache:
         cur.execute(
             "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",
             (table,),
         )
         table_all_cols_cache[table] = {r[0] for r in cur.fetchall()}
+    if not factor_name_candidate or factor_name_candidate in ("data", "reason"):
+        unavailable_col = "data_unavailable" if "data_unavailable" in table_all_cols_cache[table] else None
+        return factor_name_candidate, None, unavailable_col
     value_col = factor_name_candidate if factor_name_candidate in table_all_cols_cache[table] else None
-    return factor_name_candidate, value_col
+    return factor_name_candidate, value_col, None
+
+
+def _value_missing_clause(table: str, value_col: str | None, unavailable_col: str | None) -> str:
+    """SQL fragment (leading " AND ..." or "") for whether a row's actual value is missing,
+    on top of its reason column being non-NULL - see _resolve_factor_value_col's docstring
+    for why reason-non-NULL alone isn't sufficient. Extracted out of _get_scores_coverage's
+    two call sites to keep that function's cyclomatic complexity under the repo's ruff C901
+    limit."""
+    if value_col:
+        return f" AND {table}.{value_col} IS NULL"
+    if unavailable_col:
+        return f" AND {table}.{unavailable_col} = true"
+    return ""
+
+
+def _never_available_clause(table: str, column: str, value_col: str | None, unavailable_col: str | None) -> str:
+    """SQL fragment for the has_symbol+order_col branch's "this symbol's latest real-value
+    row" NOT EXISTS check - the t2-aliased counterpart to _value_missing_clause above."""
+    if value_col:
+        return f"t2.{value_col} IS NOT NULL"
+    if unavailable_col:
+        return f"t2.{unavailable_col} IS NOT TRUE"
+    return f"t2.{column} IS NULL"
