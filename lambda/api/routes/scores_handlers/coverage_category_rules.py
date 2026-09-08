@@ -203,6 +203,14 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # same outcome. Still live-firing today (17 rows, most recent within the last
             # day), not stale debris - was falling through to "Other (errors / excluded)".
             "Form345_download_timeout",
+            # ADDED 2026-09-08 (/goal score-sanity sweep): same
+            # sec_form345_transaction_velocity_cached.py CachedForm345Aggregator.get_velocity_
+            # metrics call site as Form345_download_timeout directly above, but the branch hit
+            # while the shared background Form 3/4/5 bulk download is still actively in
+            # progress (not yet timed out) - same "the SEC bulk feed isn't ready yet" fact,
+            # just the in-flight case instead of the gave-up-waiting case. Was unmapped,
+            # falling through to "Other (errors / excluded)".
+            "Form345_download_in_progress",
             # filing_date_unavailable/segment_data_unavailable: load_sec_segment_info.py/
             # load_sec_segment_metrics.py's own "SEC segment XBRL data isn't there" facts,
             # same class as the other segment-data reasons already above. These two tables
@@ -572,6 +580,20 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "missing_price_data",
             "excluded_by_naming_pattern",
             "no_recent_price",
+            # ADDED 2026-09-08 (/goal score-sanity sweep): utils/loaders/exception_handler.py's
+            # generic exception-classification handlers, called by handle_exception() from
+            # load_sec_valuations.py, load_sec_segment_metrics.py, load_earnings_calendar_sec.py,
+            # load_company_info_sec.py, and loaders/helpers/sec_base.py on real TimeoutError/
+            # ConnectionError/HTTPError(429,503)/KeyError/ValueError/no-results outcomes - the
+            # same operational-error class as fetch_error:ValueError/unable to fetch after
+            # retries already in this bucket. Was unmapped, falling through to this bucket
+            # anyway via the default but silently.
+            "timeout_retryable",
+            "connection_error",
+            "rate_limit_or_service_unavailable",
+            "api_schema_mismatch",
+            "data_invalid",
+            "no_data_found",
             # ADDED 2026-09-02 (SEC/XBRL missing-data sweep, live audit_unavailable_reasons.py
             # cross-check): loaders/load_risk_metrics_daily.py writes this literal (see the
             # STALE_PRICE FIX 2026-09-01 comment at its write site, ~line 411) onto
