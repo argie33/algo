@@ -242,7 +242,7 @@
   "algo/trading/exit_strategies.py": 408,
   "algo/trading/handler_context.py": 82,
   "algo/trading/helpers.py": 141,
-  "algo/trading/order_manager.py": 1784,
+  "algo/trading/order_manager.py": 1794,
   "algo/trading/order_manager_stop_repair.py": 432,
   "algo/trading/position_sizer.py": 1828,
   "algo/trading/position_tracker.py": 231,
