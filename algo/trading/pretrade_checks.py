@@ -503,13 +503,23 @@ class PreTradeChecks:
         names across sectors during a risk-off day), so a book could pass every taxonomy check
         while still holding several near-duplicate return streams.
 
-        Fails OPEN (returns True, treats as "no correlation data available", never raises) when
-        there are no open positions, or when a pair lacks correlation_min_overlap_days of
-        overlapping real price history - unlike the sector/industry check, this is a
-        supplementary control, and this codebase's own documented data-maturity gap
-        (position_sizer.py's get_data_maturity_multiplier: real full-universe price history is
-        still filling in) means blocking entries over a data gap here would be overly
-        aggressive for a non-primary check.
+        Fails open (returns True) only when there are no open positions to correlate against -
+        with nothing in the book, a correlation check is vacuously satisfied, not a data gap.
+
+        REAL-MONEY-READINESS FIX (2026-09-08 audit): the candidate-side "insufficient price
+        history" case used to fail OPEN here too, justified by this codebase's own documented
+        data-maturity gap (position_sizer.py's get_data_maturity_multiplier: real full-universe
+        price history "still filling in"). Independently re-verified against the live DB this
+        session: that framing is now stale. Of 5,139 active universe symbols, 5,073 (98.7%)
+        already have sufficient correlation_min_overlap_days of price history within
+        correlation_lookback_days - only 66 (1.3%) don't. Continuing to fail open for that
+        narrow remainder was an unforced, avoidable gap, not a considered tradeoff proportional
+        to today's actual data coverage: for a diversification risk control, the standard,
+        conservative-by-design posture is to block when correlation cannot be verified, not to
+        assume zero correlation. Fails CLOSED now for a candidate with insufficient overlap
+        history whenever the book is non-empty; still passes cleanly when a specific PEER
+        (not the candidate) lacks overlap data, since other peers are still checked in that
+        case - this only tightens the "we can say nothing at all about this candidate" case.
         """
         cur.execute("SELECT symbol FROM algo_positions WHERE status = %s", ("open",))
         open_symbols = [r[0] for r in cur.fetchall() if r[0] != symbol]
@@ -539,7 +549,13 @@ class PreTradeChecks:
 
         candidate_closes = closes_by_symbol.get(symbol)
         if not candidate_closes or len(candidate_closes) < min_overlap_days + 1:
-            return True, None
+            have = len(candidate_closes) if candidate_closes else 0
+            return False, (
+                f"{symbol} has only {have}d of price history within the {lookback_days}d "
+                f"correlation lookback (needs {min_overlap_days + 1}d) - cannot verify "
+                f"diversification against {len(open_symbols)} open position(s), failing closed "
+                "rather than assuming zero correlation"
+            )
 
         worst_corr: float | None = None
         worst_symbol: str | None = None
