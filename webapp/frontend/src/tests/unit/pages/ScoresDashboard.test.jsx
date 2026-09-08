@@ -286,7 +286,7 @@ describe("ScoresDashboard Page", () => {
     });
   });
 
-  it("filters out nano-caps when a Min Market Cap floor is selected", async () => {
+  it("filters out nano-caps by default ($300M floor) and shows them once cleared", async () => {
     const mockApi = await import("../../../services/api");
     mockApi.api.get.mockResolvedValue({
       data: { items: [...mockStocks, nanoStock] },
@@ -294,16 +294,18 @@ describe("ScoresDashboard Page", () => {
 
     renderScoresDashboard();
     await waitFor(() => {
-      expect(screen.getAllByText("NANO").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
     });
+    // Default floor is $300M (algo_config.min_market_cap_millions) - NANO's $2.5M cap
+    // should never reach the list without the user explicitly widening the filter.
+    expect(screen.queryAllByText("NANO").length).toBe(0);
 
     fireEvent.change(screen.getByTitle(/thinly-traded micro\/nano-caps/i), {
-      target: { value: "50000000" },
+      target: { value: "0" },
     });
 
     await waitFor(() => {
-      expect(screen.queryAllByText("NANO").length).toBe(0);
-      expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("NANO").length).toBeGreaterThan(0);
     });
   });
 
