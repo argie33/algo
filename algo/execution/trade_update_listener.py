@@ -113,8 +113,8 @@ def _run_reconciliation_now(config: Any, trigger_event_type: str, trigger_symbol
         )
     except Exception as e:
         # Never let a reconciliation hiccup kill the listener process itself - the next
-        # trade_updates event (or the next scheduled orchestrator/unified-risk-monitor
-        # cycle, which calls these same reconciliation paths independently) will retry.
+        # trade_updates event (or the next scheduled orchestrator cycle, which calls these
+        # same reconciliation paths independently) will retry.
         logger.error(
             f"[TRADE_UPDATE_LISTENER] Reconciliation trigger failed for {trigger_event_type} "
             f"event ({trigger_symbol}): {e}. Will retry on the next event/scheduled cycle.",

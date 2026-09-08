@@ -33,9 +33,7 @@
  * NOT ENABLED BY DEFAULT - a new, ongoing Fargate compute cost (runs 24/7, not just
  * market hours, since websocket reconnect/backoff needs a live process even overnight)
  * and a new infrastructure pattern for this repo. Deploying it (terraform apply with
- * enable_trade_update_listener = true) needs an explicit go-ahead, and per the rollout
- * plan, only after the unified-risk-monitor.tf consolidation (a separate, independent
- * piece) has already soaked cleanly.
+ * enable_trade_update_listener = true) needs an explicit go-ahead.
  */
 
 variable "enable_trade_update_listener" {

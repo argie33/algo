@@ -205,42 +205,14 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
         "Prior-day SPY drop % that halts new entries (must be negative)",
         "Drawdown Defense",
     ),
-    "intraday_spy_drop_halt_pct": (
-        "-2.0",
-        "float",
-        "Live intraday SPY move % (vs. prior close) that unified_risk_monitor treats as a "
-        "market-health breach (must be negative) - distinct from "
-        "intraday_prior_day_drop_halt_pct, which compares yesterday's close to the day before",
-        "Drawdown Defense",
-    ),
     "sector_drawdown_halt_pct": (
         "-12.0",
         "float",
         "Sector drawdown % to halt trading",
         "Drawdown Defense",
     ),
-    # REAL-MONEY-READINESS (2026-09-07): unified_risk_monitor.py's confirmed-breach ladder
-    # (HALT -> automated reduce/flatten) is fully built and correct, but has never been
-    # soak-tested against a live paper account - the auto-remediation actions are real,
-    # irreversible trades. This flag lets the monitor run its FULL detection/escalation
-    # logic (every check, every consecutive-breach streak, every alert) with zero live
-    # trading impact: while true, a confirmed breach is loudly alerted as "SHADOW MODE -
-    # would have halted/flattened" instead of actually calling set_halt_flag or the exit
-    # path. Defaults true (observe-only) so simply enabling the monitor itself
-    # (enable_unified_risk_monitor in terraform) never silently turns on live
-    # auto-remediation - that requires this SEPARATE, explicit operator decision.
-    "unified_risk_monitor_shadow_mode": (
-        "true",
-        "bool",
-        "unified_risk_monitor observes and alerts on confirmed breaches but does NOT "
-        "auto-halt or auto-flatten while true. Set false only after a deliberate, "
-        "explicit operator decision to enable live automated remediation.",
-        "Risk Management",
-    ),
-    # REAL-MONEY-READINESS (2026-09-07, deliberate operator decision): unlike
-    # unified_risk_monitor_shadow_mode above (auto-flatten/reduce - real, irreversible
-    # trades, stays shadow-mode until separately soak-tested), this check's only action is
-    # set_halt_flag - it blocks new entries, never touches or exits an existing position
+    # REAL-MONEY-READINESS (2026-09-07, deliberate operator decision): this check's only
+    # action is set_halt_flag - it blocks new entries, never touches or exits an existing position
     # (verified: Phase 6 exits, Phase 3/4/5/7 all always_run=True regardless of halt state).
     # A halt is cheap to be wrong about and expensive to be missing: >5% confirmed broker-
     # vs-DB equity drift, sustained across 2 consecutive reconciliation runs (not a single

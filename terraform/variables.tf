@@ -652,22 +652,15 @@ variable "enable_intraday_risk_monitor" {
   default     = false
 }
 
-# FIX (2026-09-06 real-money-readiness audit): this variable and enable_trade_update_listener
-# below were declared only inside their respective modules (modules/services/
-# unified-risk-monitor.tf, modules/loaders/trade-update-listener.tf) with no root-module
-# declaration and no pass-through in main.tf's module "services"/"loaders" blocks. prod.tfvars
-# already sets both (currently to `false`, matching each module's own default, so no behavioral
+# FIX (2026-09-06 real-money-readiness audit): enable_trade_update_listener below was
+# declared only inside its module (modules/loaders/trade-update-listener.tf) with no
+# root-module declaration and no pass-through in main.tf's module "loaders" block. prod.tfvars
+# already sets it (currently to `false`, matching the module's own default, so no behavioral
 # difference today) - but `terraform plan/apply -var-file=prod.tfvars` only WARNS
 # ("Value for undeclared variable") and silently drops the value; it never reaches the module.
-# Whoever eventually flips either to `true` to actually deploy these real-money safety upgrades
+# Whoever eventually flips it to `true` to actually deploy this real-money safety upgrade
 # would get a clean-looking apply that deploys nothing, believing the flag took effect. Root
 # declaration + explicit pass-through below closes that gap.
-variable "enable_unified_risk_monitor" {
-  description = "Enable the consolidated 5-minute intraday risk monitor (modules/services/unified-risk-monitor.tf) - real, ongoing AWS Scheduler invocation cost, and this schedule both halts trading and can submit real exit orders automatically; needs explicit sign-off per that file's header comment before flipping true in an environment's tfvars."
-  type        = bool
-  default     = false
-}
-
 variable "enable_trade_update_listener" {
   description = "Enable the always-on Alpaca trade_updates websocket listener (modules/loaders/trade-update-listener.tf) - new ongoing Fargate cost + new infrastructure pattern for this repo; needs explicit sign-off per that file's header comment before flipping true in an environment's tfvars."
   type        = bool

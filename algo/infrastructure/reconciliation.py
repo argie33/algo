@@ -506,20 +506,18 @@ class DailyReconciliation(
                             logger.warning(f"Failed to send notification: {e}")
 
                     # AUTO-HALT ON SUSTAINED DRIFT (2026-09-07, real-money-readiness): a halt
-                    # (unlike unified_risk_monitor's auto-flatten) is low-risk and reversible -
-                    # it only blocks NEW entries, never touches existing positions or places
-                    # any order, and is already this codebase's standard automated response to
-                    # far less severe conditions (Phase 1 data staleness, Phase 2 circuit
-                    # breakers). What made this alert-only originally was false-positive risk
-                    # from a SINGLE transient reading (unsettled cash, a pending dividend) - not
-                    # the halt action itself being too risky to automate. Requiring the >5%
-                    # drift to persist across 2 CONSECUTIVE reconciliation runs (Phase 4 runs
-                    # 5x/day, so this spans a meaningful time gap, not sub-minute noise) before
-                    # halting closes that gap the same way unified_risk_monitor's
-                    # consecutive-breach ladder does, without needing a separate risk-tolerance
-                    # sign-off - reuses algo_risk_monitor_state's existing generic check_key
-                    # schema (migration 1260) rather than a new table. Any non-critical run
-                    # (including no drift at all) resets the streak - only a run where the
+                    # is low-risk and reversible - it only blocks NEW entries, never touches
+                    # existing positions or places any order, and is already this codebase's
+                    # standard automated response to far less severe conditions (Phase 1 data
+                    # staleness, Phase 2 circuit breakers). What made this alert-only originally
+                    # was false-positive risk from a SINGLE transient reading (unsettled cash, a
+                    # pending dividend) - not the halt action itself being too risky to automate.
+                    # Requiring the >5% drift to persist across 2 CONSECUTIVE reconciliation runs
+                    # (Phase 4 runs 5x/day, so this spans a meaningful time gap, not sub-minute
+                    # noise) before halting closes that gap without needing a separate
+                    # risk-tolerance sign-off - reuses algo_risk_monitor_state's existing generic
+                    # check_key schema (migration 1260) rather than a new table. Any non-critical
+                    # run (including no drift at all) resets the streak - only a run where the
                     # PRIOR run was also critical actually halts.
                     self._track_and_maybe_halt_on_sustained_drift(
                         cur, is_critical_drift, drift_pct, alpaca_portfolio_value_dec, total_equity_db_dec
@@ -601,12 +599,11 @@ class DailyReconciliation(
         alpaca_value: Decimal,
         db_value: Decimal,
     ) -> None:
-        """Debounce/escalate broker-vs-DB equity drift into an automatic halt, mirroring
-        unified_risk_monitor.py's consecutive-breach ladder (2 consecutive confirmations
-        required) but reusing that module's own algo_risk_monitor_state table rather than a
-        dedicated one - see this call site's own comment for the full rationale (a halt is
-        low-risk/reversible, unlike unified_risk_monitor's auto-flatten, so this doesn't need
-        a separate risk-tolerance sign-off the way that did).
+        """Debounce/escalate broker-vs-DB equity drift into an automatic halt via a
+        consecutive-breach ladder (2 consecutive confirmations required), using the shared
+        algo_risk_monitor_state table (migration 1260) rather than a dedicated one - see this
+        call site's own comment for the full rationale (a halt is low-risk/reversible, so this
+        doesn't need a separate risk-tolerance sign-off).
 
         Best-effort: any failure here is logged and swallowed, never allowed to fail the
         reconciliation run itself over a debounce-bookkeeping problem.
@@ -659,9 +656,8 @@ class DailyReconciliation(
                 f"{new_count} consecutive reconciliation runs - Alpaca ${float(alpaca_value):,.2f} "
                 f"vs DB-computed ${float(db_value):,.2f}"
             )
-            # SHADOW MODE (2026-09-07, real-money-readiness): defaults True, mirrors
-            # unified_risk_monitor_shadow_mode's own rationale exactly - this call site landed
-            # on main (commit 3103b5652) calling set_halt_flag unconditionally, before the
+            # SHADOW MODE (2026-09-07, real-money-readiness): defaults True - this call site
+            # landed on main (commit 3103b5652) calling set_halt_flag unconditionally, before the
             # question of whether an automated real-money halt should go live at all had
             # actually been put to the user (see this method's docstring: that was framed as
             # settled here, but it's a risk-tolerance call the user gets to make, not

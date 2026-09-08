@@ -155,53 +155,15 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 "body": json.dumps({"status": "error", "message": "Event must be a JSON object"}),
             }
 
-        # REAL-MONEY-READINESS CONSOLIDATION (2026-09-06): this mode used to be two separate
-        # dispatches - `stop_loss_guardian` (Phase 9's stop-loss verify/repair step, run on a
-        # tighter schedule) and `intraday_risk_monitor` (algo/risk/intraday_risk_monitor.py's
-        # alert-only live beta/concentration re-check) - plus two entirely separate Lambdas
-        # (lambda/circuit-breaker, lambda/execution-monitor) not dispatched through this file
-        # at all. All 4 are now one consolidated check, algo/risk/unified_risk_monitor.py::
-        # check_unified_risk, run on one 5-minute schedule (terraform/modules/services/
-        # unified-risk-monitor.tf) instead of 4 uncoordinated ones - see that module's
-        # docstring for the full architecture rationale, including why it now acts (halt,
-        # then automated reduce/flatten on a sustained breach) rather than only alerting.
-        if event.get("mode") == "unified_risk_monitor":
-            from algo.infrastructure import get_config
-            from algo.risk.unified_risk_monitor import check_unified_risk
-
-            try:
-                result = check_unified_risk(get_config())
-                logger.info(f"[UNIFIED_RISK_MONITOR] result={result}")
-            except Exception as monitor_err:
-                logger.critical(
-                    f"[UNIFIED_RISK_MONITOR CRITICAL] Check failed unexpectedly: {monitor_err}",
-                    exc_info=True,
-                )
-                return {
-                    "statusCode": 500,
-                    "body": json.dumps({"status": "error", "message": str(monitor_err)}),
-                }
-            return {"statusCode": 200, "body": json.dumps({"status": "success", "mode": "unified_risk_monitor"})}
-
         # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): these two modes used to
-        # forward to the new consolidated check_unified_risk() - which, unlike either mode's
-        # own original narrow behavior, can automatically HALT trading and automatically
-        # FLATTEN/reduce real positions on a confirmed portfolio-variance or beta/
-        # concentration breach (see unified_risk_monitor.py's escalation ladder). That
-        # forwarding was introduced by the same commit that added check_unified_risk, with
-        # NO new terraform sign-off - it silently upgraded whatever schedule already sends
-        # these mode strings to the new aggressive behavior. `enable_stop_loss_guardian =
-        # true` in terraform/prod.tfvars was explicitly approved (2026-09-06) for the OLD,
-        # narrow stop-loss verify/repair-only behavior - self-healing only, never a halt or
-        # a flatten - months before check_unified_risk existed. Meanwhile
-        # `enable_unified_risk_monitor = false` is deliberately kept off with an explicit
-        # "deploy disabled first, soak in paper mode... before enabling" rollout plan
-        # specifically because of that automated halt/flatten behavior. Forwarding here
-        # means an operator reading prod.tfvars (unified_risk_monitor disabled, soak not yet
-        # done) would have no way to know the *already-enabled* stop_loss_guardian schedule
-        # was silently invoking the exact same automated-halt-and-flatten logic - a real
-        # bypass of the documented staged rollout, not a bug in the ladder logic itself.
-        # Each mode now runs ONLY its own original, already-approved, narrower check again.
+        # forward to a since-removed consolidated risk check that could automatically HALT
+        # trading and automatically FLATTEN/reduce real positions on a confirmed portfolio-
+        # variance or beta/concentration breach. That forwarding was introduced with NO new
+        # terraform sign-off - it silently upgraded whatever schedule already sends these mode
+        # strings to that aggressive behavior. `enable_stop_loss_guardian = true` in
+        # terraform/prod.tfvars was explicitly approved (2026-09-06) for the OLD, narrow
+        # stop-loss verify/repair-only behavior - self-healing only, never a halt or a flatten.
+        # Each mode runs ONLY its own original, already-approved, narrower check.
         if event.get("mode") == "stop_loss_guardian":
             from algo.infrastructure import get_config
             from algo.orchestrator.phase9_reconciliation import _verify_open_position_stop_loss_protection_step

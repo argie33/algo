@@ -1,7 +1,7 @@
 """Regression tests for DailyReconciliation._track_and_maybe_halt_on_sustained_drift -
 the auto-halt-on-sustained-broker/DB-equity-drift escalation added 2026-09-07 real-money-
-readiness audit, mirroring unified_risk_monitor.py's consecutive-breach ladder but for a
-halt (not the riskier auto-flatten), reusing algo_risk_monitor_state's generic schema.
+readiness audit, using a consecutive-breach ladder for a halt (never a flatten), reusing
+algo_risk_monitor_state's generic schema.
 """
 
 from decimal import Decimal

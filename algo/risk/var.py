@@ -997,8 +997,8 @@ class ValueAtRisk:
             # consistency audit): these three alert thresholds were hardcoded literals
             # (2.0, 30, 2.0) even though the exact same limits are live, config-driven
             # values (max_simulated_var_pct/max_top5_concentration_pct/max_portfolio_beta)
-            # already enforced by pretrade_checks.py and unified_risk_monitor.py/
-            # intraday_risk_monitor.py. If an admin ever tightens or loosens any of these
+            # already enforced by pretrade_checks.py and intraday_risk_monitor.py. If an
+            # admin ever tightens or loosens any of these
             # in algo_config, the pretrade gate and intraday monitor immediately enforce
             # the new value, but this report kept alerting only against the stale
             # hardcoded default - a real drift between what's enforced and what's

@@ -219,13 +219,6 @@ VALIDATION_SCHEMA = {
         True,
         -2.0,
     ),  # Must be negative; halts new entries if SPY fell more than this the prior trading day
-    "intraday_spy_drop_halt_pct": (
-        "float",
-        -100.0,
-        -0.1,
-        True,
-        -2.0,
-    ),  # Must be negative; unified_risk_monitor's live intraday (vs. prior close) SPY move breach
     "sector_drawdown_halt_pct": (
         "float",
         -100.0,
@@ -423,10 +416,8 @@ VALIDATION_SCHEMA = {
     "max_risk_per_trade_pct": ("float", 0.1, 100.0, False, 2.0),  # Max risk per individual trade
     # Orchestrator Halt Configuration
     "orchestrator_halt_enabled": ("bool", None, None, False, True),  # Enable orchestrator halt on data issues
-    # unified_risk_monitor.py: observe-only until an explicit operator decision flips this off
-    "unified_risk_monitor_shadow_mode": ("bool", None, None, False, True),
     # reconciliation.py's sustained-broker/DB-drift auto-halt: observe-only until an explicit
-    # operator decision flips this off (same rationale as unified_risk_monitor_shadow_mode)
+    # operator decision flips this off
     "reconciliation_drift_halt_shadow_mode": ("bool", None, None, False, True),
     # Exposure Constraints (derived from ExposurePolicy, not directly used from AlgoConfig)
     "halt_new_entries": ("bool", None, None, False, False),  # Legacy: use exposure constraints instead

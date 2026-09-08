@@ -25,7 +25,7 @@ from algo.risk.var import ValueAtRisk
 def var_calculator():
     # max_simulated_var_pct/max_top5_concentration_pct/max_portfolio_beta added 2026-09-06:
     # generate_daily_risk_report()'s alert thresholds now read these config-driven values
-    # (fixed cross-layer drift vs. pretrade_checks.py/unified_risk_monitor.py, which already
+    # (fixed cross-layer drift vs. pretrade_checks.py/intraday_risk_monitor.py, which already
     # enforced them) instead of hardcoded literals - required whenever the corresponding
     # metric dict is non-empty.
     return ValueAtRisk(
@@ -109,7 +109,7 @@ class TestAlertThresholdsUseConfigNotHardcodedLiterals:
     """Regression for the 2026-09-06 cross-layer risk threshold consistency audit:
     generate_daily_risk_report()'s beta/concentration/VaR alert thresholds used to be
     hardcoded literals (2.0, 30, 2.0) even though pretrade_checks.py and
-    unified_risk_monitor.py/intraday_risk_monitor.py already enforce the exact same limits
+    intraday_risk_monitor.py already enforce the exact same limits
     from algo_config (max_portfolio_beta/max_top5_concentration_pct/max_simulated_var_pct).
     If an admin ever changed one of those config values, the enforcement layers picked it
     up immediately but this report kept alerting against the stale default - a real drift
