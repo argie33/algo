@@ -66,6 +66,17 @@ class PillarScoreReconciliationChecker(BaseCheck):
             # confirmed: of 143 active symbols with no stock_scores row at all for a fresh
             # reload date, 87 matched the CEF entity_type/sic_code shape and the rest were
             # BDCs on this list (MAIN/TSLX/BBDC/LIEN spot-checked directly).
+            #
+            # FIXED 2026-09-08 (same audit, second pass): also requires stock_symbols.active -
+            # the CEF/BDC exclusions above dropped the count from 125 to 19, but 8 of those 19
+            # were INACTIVE symbols (delisted/liquidated SPAC shells - Iron Horse Acquisitions,
+            # Churchill Capital XII, Social Commerce Partners, TRG Latin America, SilverBox Corp
+            # V, KPET Ultra Paceline, Dynamix Corp, National Storage Affiliates - live-confirmed
+            # via stock_symbols.active=false for all 8), which load_stock_scores.py's own
+            # universe query already excludes via `WHERE s.active = true` - comparing a
+            # never-scored, delisted symbol's frozen stock_scores row against a quality_metrics
+            # row some other, less-selective process may still be touching is the same class of
+            # false positive as the CEF/BDC case, just a different exclusion reason.
             cur.execute(
                 """
                 SELECT ss.symbol, ss.date, ss.quality_score AS stock_scores_quality_score,
@@ -77,6 +88,7 @@ class PillarScoreReconciliationChecker(BaseCheck):
                     ORDER BY symbol, date DESC
                 ) ss
                 JOIN quality_metrics qm ON qm.symbol = ss.symbol
+                JOIN stock_symbols sym ON sym.symbol = ss.symbol AND sym.active = true
                 LEFT JOIN company_info_sec c ON c.symbol = ss.symbol
                 WHERE qm.quality_score IS NOT NULL
                   AND COALESCE(qm.data_unavailable, false) = false
