@@ -199,6 +199,45 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                     except Exception as e:
                         logger.error(f"[SCORES] Failed to query enrichment for {symbol}: {e}")
 
+        # S&P 500 SUB-LEADERBOARD (added 2026-09-07, /goal session - "I know 500 S&P
+        # companies that are amazing and I don't see any of them anywhere near the top").
+        # Root-caused, not just a complaint to dismiss: live-verified that even restricted
+        # to the S&P 500 alone, Technology has the HIGHEST average quality_score (66.6) and
+        # growth_score (67.1) of any sector but the WORST average value_score (31.3) - Value
+        # is 27% of BASE_PILLAR_WEIGHTS, the single largest pillar, and it structurally
+        # penalizes any company whose greatness is already priced in (that's what
+        # "expensive" means) - so famous megacaps can never win a universe-wide cheapness
+        # screen against a boring small-cap insurer with a low P/B, no matter how good the
+        # megacap's underlying business is. Tested the "obvious" fix (shifting weight from
+        # Value/Risk toward Growth/Quality via
+        # algo/research/pillar_weight_reallocation_test_20260907.py, true disjoint fit
+        # 2017-2021/holdout 2022-2026 split) - it makes forward-return IC WORSE in holdout
+        # (0.0194 -> 0.0152) while barely moving Technology's relative standing, so that
+        # fix is rejected on the same evidence bar as
+        # barra_style_neutralized_composite_20260907.py's sector-neutral-ranking test.
+        # Rather than degrade the (already-validated) full-universe score to chase
+        # familiarity, this adds a SECOND lens on the exact same, unmodified scores: how do
+        # the S&P 500 names people actually recognize rank against EACH OTHER. No new
+        # methodology, no backtest risk - same query pattern as the main list, restricted to
+        # stock_symbols.is_sp500 = TRUE.
+        cur.execute(
+            """
+            SELECT s.symbol, s.composite_score, s.growth_score, s.momentum_score,
+                   s.quality_score, s.value_score, s.risk_score, s.data_completeness,
+                   COALESCE(c.short_name, s.symbol) as company_name, c.sector
+            FROM stock_scores s
+            JOIN stock_symbols ss ON ss.symbol = s.symbol
+            LEFT JOIN company_profile c ON s.symbol = c.symbol
+            WHERE s.composite_score > 0
+              AND s.data_completeness >= 70
+              AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
+              AND ss.is_sp500 = TRUE
+            ORDER BY s.composite_score DESC
+            LIMIT 15
+            """
+        )
+        top_sp500 = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+
         freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
 
         # Summary metrics over the FULL filtered universe (not just the returned page) - same
@@ -259,6 +298,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
 
         response = {
             "top": top_scores,
+            "top_sp500": top_sp500,
             "total": len(top_scores),
             "universe_total": summary.get("universe_total"),
             "avg_composite": round(float(avg_composite), 1) if avg_composite is not None else None,
