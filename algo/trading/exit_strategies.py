@@ -349,19 +349,33 @@ class ExitStrategyChain:
         ]
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
-        """Evaluate all strategies in priority order; return first triggered signal.
-
-        Args:
-            ctx: PositionContext with all position data
-            cur: Database cursor
+        """Evaluate all strategies in priority order; return first triggered REAL exit signal.
 
         Returns:
-            ExitSignal from first triggered strategy, or hold if none triggered
+            ExitSignal from the first triggered strategy with fraction > 0 (a real share
+            reduction), or hold if none triggered.
+
+        FIX (2026-09-07 pre-live audit): a triggered signal with fraction == 0.0 (a pure
+        stop-tightening, e.g. ChandelierTrailStrategy) used to return immediately like any
+        other trigger, short-circuiting evaluation of every lower-priority strategy for that
+        cycle - including TDSequentialStrategy/FirstRedDayStrategy/ClimaxExhaustionStrategy,
+        whose real partial/full exits are most likely to fire in exactly the strong-uptrend
+        condition that also raises the chandelier trail on the same day. A routine stop
+        tightening could silently starve a genuine exhaustion exit for an entire cycle. Now
+        keeps scanning past a stop-raise-only trigger for a real (fraction > 0) exit among
+        remaining strategies; only falls back to the stop-raise if nothing else fires.
         """
+        stop_raise_signal: ExitSignal | None = None
         for strategy in self.strategies:
             signal = strategy.evaluate(ctx, cur)
             if signal.triggered:
-                return signal
+                if signal.fraction > 0:
+                    return signal
+                if stop_raise_signal is None:
+                    stop_raise_signal = signal
+
+        if stop_raise_signal is not None:
+            return stop_raise_signal
 
         return ExitSignal(
             triggered=False,
