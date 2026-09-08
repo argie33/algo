@@ -4,6 +4,7 @@
 from .alignment import AlignmentChecker
 from .composite_score_reconciliation import CompositeScoreReconciliationChecker
 from .coverage import CoverageChecker
+from .pillar_score_reconciliation import PillarScoreReconciliationChecker
 from .price_sanity import PriceSanityChecker
 from .quality import QualityChecker
 from .score_ratio_outliers import ScoreRatioOutlierChecker
@@ -19,6 +20,7 @@ __all__ = [
     "CompositeScoreReconciliationChecker",
     "CoverageChecker",
     "NewXbrlConceptChecker",
+    "PillarScoreReconciliationChecker",
     "PriceSanityChecker",
     "QualityChecker",
     "ScoreRatioOutlierChecker",
