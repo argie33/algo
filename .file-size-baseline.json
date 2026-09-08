@@ -571,6 +571,7 @@
   "monitoring/__init__.py": 0,
   "monitoring/data_patrol/checks/specialized.py": 433,
   "monitoring/metrics_context.py": 214,
+  "scripts/audit_statement_tie_outs.py": 232,
   "scripts/audit_unavailable_reasons.py": 233,
   "scripts/backfill_economic_data_history.py": 78,
   "scripts/backtest_regime_reconstruction.py": 453,
