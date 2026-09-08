@@ -46,6 +46,7 @@ def _mock_config():
         "exit_on_td_sequential": False,
         "exit_on_rs_line_break_50dma": False,
         "require_target_pullback": True,
+        "use_scale_out_targets": True,
         "execution_mode": "paper",
         "alpaca_paper_trading": True,
         "t1_target_r_multiple": 1.5,

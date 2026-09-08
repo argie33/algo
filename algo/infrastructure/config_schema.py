@@ -157,6 +157,7 @@ VALIDATION_SCHEMA = {
     "volume_decay_gate_enabled": ("bool", None, None, False, None),
     # Exit Rules
     "require_target_pullback": ("bool", None, None, False, None),
+    "use_scale_out_targets": ("bool", None, None, False, True),
     "t1_target_r_multiple": ("float", 0.5, 10.0, False, 1.5),
     "t2_target_r_multiple": ("float", 0.5, 10.0, False, 3.0),
     "t3_target_r_multiple": ("float", 0.5, 10.0, False, 4.0),

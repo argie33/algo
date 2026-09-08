@@ -278,7 +278,28 @@ class PositionContext:
 
     def check_target_t1(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
         """T1 target exit (2026-08-25: R-multiple in the reason string is read live from
-        config, not hardcoded - see _target_r_label): 50% position reduction."""
+        config, not hardcoded - see _target_r_label): 50% position reduction.
+
+        GATED 2026-09-07 (exit-strategy validation backtest,
+        scripts/backtest_exit_strategy_comparison_20260907.py, 471,972 paired trades across
+        2,885 symbols 1962-2026): a pure trailing-stop exit (chandelier trail + breakeven
+        floor, no scale-out) beat this T1/T2/T3 chain on mean R-multiple, geometric per-trade
+        growth, and tail capture (top-decile profit share) - scaling out caps the fat-tail
+        winners a trend system's edge depends on. `use_scale_out_targets` defaults True in
+        schema (existing tests/behavior unaffected unless algo_config is read for real) but is
+        seeded False in live algo_config (migration 1273). Only T1 is gated: T2/T3 need no gate
+        of their own since target_hits only ever advances past 0 via a real T1 fire, so for any
+        brand-new trade with the gate off, T2/T3 are naturally unreachable. A pre-existing
+        position that already recorded target_hits=1 before this gate shipped still completes
+        T2/T3 normally - not stranded half-exited.
+        """
+        if "use_scale_out_targets" not in self.config:
+            raise ValueError(
+                "Exit engine config missing 'use_scale_out_targets' flag. "
+                "Cannot proceed with target exits without explicit configuration."
+            )
+        if not bool(self.config["use_scale_out_targets"]):
+            return False, None
         if self.target_hits == 0 and self.cur_price >= self.t1_price:
             if self._was_target_hit_today(self.t1_hit_time):
                 return False, None
