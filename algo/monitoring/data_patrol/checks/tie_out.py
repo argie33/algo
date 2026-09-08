@@ -3802,10 +3802,10 @@ class TieOutChecker(BaseCheck):
         as-annual match for a SINGLE quarter is common and legitimate for small/pre-revenue
         filers whose revenue is concentrated in one quarter (spot-checked separately, 160+
         such cases, all real), but four-for-four is only reachable by this duration-context
-        bug. NOT yet root-caused in the loader itself (that's sec_base.py's/sec_income_
-        statement.py's quarterly duration-context selection for APA specifically) - flagging
-        here is the mechanism to surface it, same as gross_profit_identity/pretax_to_net_income
-        above.
+        bug. ROOT-CAUSED 2026-09-08: not a live bug - a fresh extraction call returns
+        revenue=None for APA every quarter now, so the DB rows were stale, pre-dating the
+        quarterly duration guards; corrected via targeted UPDATE reusing the identical
+        2026-09-03 'quarterly_row_orphaned_annual_duplicate' reason (coverage_category_rules.py).
         """
         try:
             cur.execute(
