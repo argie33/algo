@@ -165,8 +165,16 @@ def _get_stock_scores(
         # utils/loaders/helpers.py::get_active_symbols(exclude_etfs=True), see that function's
         # 2026-08-20 comment for the live investigation. Name-based catch, verified against the
         # live active universe to match only GRN.
+        # ACTIVE-UNIVERSE FILTER (found 2026-09-08, goal session score-sanity sweep): this
+        # endpoint had no `ss.active` check anywhere - live-verified 3 delisted/deactivated
+        # symbols (TOI, KORE, PSNYW) still cleared every other filter below and would render
+        # on the live leaderboard with a plausible-looking composite_score, indistinguishable
+        # from a real tradeable idea. The scores loader keeps scoring inactive symbols (last-
+        # known-state bookkeeping is useful internally) but this user-facing endpoint should
+        # only ever surface the current tradeable universe.
         where_clause = """
             WHERE sc.composite_score > 0
+            AND ss.active = true
             AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
             AND ss.symbol NOT IN (SELECT symbol FROM company_info_sec WHERE sic_code IN (6770, 6792, 6189))
             AND ss.symbol NOT IN (
