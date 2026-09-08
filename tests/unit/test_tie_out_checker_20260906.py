@@ -3478,10 +3478,96 @@ class TestQuarterlySharesOutstandingDeiPlausibleScale:
         assert checker.results[0].severity == ERROR
 
 
+class TestStockScoresBounds:
+    def test_flags_out_of_range_score(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "ZZZZ",
+                        "date": "2026-09-08",
+                        "composite_score": 104.2,
+                        "quality_score": 50.0,
+                        "growth_score": 50.0,
+                        "value_score": 50.0,
+                        "risk_score": 50.0,
+                        "momentum_score": -3.5,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_stock_scores_bounds(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "stock_scores_bounds"
+        assert checker.results[0].details["count"] == 2
+        flagged_fields = {e["field"] for e in checker.results[0].details["examples"]}
+        assert flagged_fields == {"composite_score", "momentum_score"}
+
+    def test_does_not_flag_in_range_scores(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "AAPL",
+                        "date": "2026-09-08",
+                        "composite_score": 59.57,
+                        "quality_score": 82.83,
+                        "growth_score": 68.51,
+                        "value_score": 15.54,
+                        "risk_score": 66.13,
+                        "momentum_score": 75.98,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_stock_scores_bounds(cur)
+        assert checker.results == []
+
+    def test_does_not_flag_null_scores(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QQQ",
+                        "date": "2026-09-08",
+                        "composite_score": None,
+                        "quality_score": None,
+                        "growth_score": None,
+                        "value_score": None,
+                        "risk_score": None,
+                        "momentum_score": None,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_stock_scores_bounds(cur)
+        assert checker.results == []
+
+    def test_query_uses_latest_date(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_stock_scores_bounds(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "stock_scores" in executed_sql
+        assert "SELECT MAX(date) FROM stock_scores" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_stock_scores_bounds(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "stock_scores_bounds"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_fifty_three_checks(self) -> None:
-        cur = _mock_cursor([[]] * 53)
+    def test_run_calls_all_fifty_four_checks(self) -> None:
+        cur = _mock_cursor([[]] * 54)
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 53
+        assert cur.execute.call_count == 54
