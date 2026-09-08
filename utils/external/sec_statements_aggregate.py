@@ -80,6 +80,34 @@ def _aggregate_concepts(
         if units is None:
             continue
 
+        # FIXED 2026-09-07 (score-sanity audit, BWMX/Betterware de Mexico live-confirmed):
+        # a foreign private issuer can tag the exact SAME raw (unconverted) local-currency
+        # number under BOTH its real local-currency unit AND a "USD" unitRef for the same
+        # concept+period - a filer-side XBRL tagging error, not a real USD-denominated fact.
+        # BWMX's 20-F tags ifrs-full:RevenueFromContractsWithCustomers as both
+        # MXN 10,067,683,000 and USD 10,067,683,000 for FY2023 (real revenue is ~MXN 10.07B,
+        # roughly $500-600M USD - the "USD" tag is off by the full MXN/USD rate, ~18-20x).
+        # Since MXN isn't in MAJOR_CURRENCIES, the MXN-tagged fact is correctly skipped below,
+        # but nothing previously cross-checked the USD-tagged sibling against it, so the
+        # spurious raw-MXN-value-as-USD fact sailed through untouched, inflating revenue
+        # (and cascading into ps_ratio/ev_revenue/pe_ratio) by an order of magnitude.
+        # Precompute every (start, end, val) triple from this concept's rejected (non-major,
+        # non-USD) currency units so the USD branch below can refuse to trust a USD-tagged
+        # entry that exactly duplicates one - a real independent USD fact would essentially
+        # never coincide in both value AND period with a raw local-currency figure this way.
+        _suspect_foreign_entries: set[tuple[Any, Any, float]] = set()
+        for _u, _entries in units.items():
+            _u_currency = _aggregate_concepts_currency_code(_u)
+            if _u_currency == "USD" or _u_currency in MAJOR_CURRENCIES:
+                continue
+            if not (len(_u_currency) == 3 and _u_currency.isalpha() and _u_currency.isupper()):
+                continue
+            for _e in _entries:
+                _val = _e.get("val")
+                if _val is None:
+                    continue
+                _suspect_foreign_entries.add((_e.get("start"), _e.get("end"), _val))
+
         for _unit, entries in units.items():
             _currency_code = _aggregate_concepts_currency_code(_unit)
             is_major_currency = _currency_code != "USD" and _currency_code in MAJOR_CURRENCIES
@@ -91,6 +119,15 @@ def _aggregate_concepts(
                 and not is_major_currency
             ):
                 continue
+
+            if _currency_code == "USD" and _suspect_foreign_entries:
+                entries = [
+                    _e
+                    for _e in entries
+                    if (_e.get("start"), _e.get("end"), _e.get("val")) not in _suspect_foreign_entries
+                ]
+                if not entries:
+                    continue
 
             (
                 has_annual_report_form,
