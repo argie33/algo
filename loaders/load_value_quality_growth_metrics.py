@@ -41,6 +41,7 @@ from math import isnan, sqrt
 from typing import Any, cast
 
 import psycopg2
+from psycopg2.extras import execute_values  # noqa: F401 - used via _owner().execute_values in vqg_quality_batch.py
 
 from loaders.helpers.vqg_growth import GrowthMetricsMixin
 from loaders.helpers.vqg_quality import QualityMetricsMixin
@@ -2378,8 +2379,7 @@ class ValueQualityGrowthMetricsLoader(
 
     def post_run(self) -> None:
         """Runs automatically after fetch_incremental() completes for every symbol - see
-        loaders/runner.py's `hasattr(loader, "post_run")` dispatch (the same generic mechanism
-        loaders/load_stock_scores.py's own post_run()/update_rs_percentiles() already use)."""
+        loaders/runner.py's `hasattr(loader, "post_run")` dispatch (same mechanism load_stock_scores.py's own post_run() uses)."""
         self.update_quality_sector_neutral_scores()
 
 
