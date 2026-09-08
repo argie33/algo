@@ -1263,6 +1263,13 @@ class StockScoresLoader(
         # CORRECTED value_score/composite_score, not Pass 1's provisional fixed-curve values -
         # see update_value_multiples_percentiles()'s own docstring for the full evidence trail.
         self.update_value_multiples_percentiles()
+        # Growth sector-neutral z-score pass (2026-09-08, follow-up to Quality's 2026-09-07
+        # rewrite - see update_growth_sector_neutral_scores()'s own docstring for the full
+        # evidence trail). MUST run after update_value_multiples_percentiles(): both passes fully
+        # recompute composite_score from the current stock_scores columns, so running Growth's
+        # pass second means its own composite recompute sees Value's already-finalized
+        # value_score, not Pass 1's provisional one.
+        self.update_growth_sector_neutral_scores()
         # update_size_percentiles() REMOVED 2026-08-28 (Size retired as a composite pillar -
         # see BASE_PILLAR_WEIGHTS for the full evidence trail).
         self.snapshot_score_history()

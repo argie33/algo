@@ -13,13 +13,31 @@ defines it.
 """
 
 import itertools
+import json
 import logging
 from typing import TYPE_CHECKING, Any
 
+import psycopg2
+
+from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
+from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
 from utils.loaders.unavailable_markers import marker_loader_failed
 from utils.type_conversion import safe_float
 
 logger = logging.getLogger("loaders.load_stock_scores")
+
+
+def _owner() -> Any:
+    """Lazy reference to the owner module (loaders.load_stock_scores), resolved at call time -
+    see loaders/stock_scores/value_metrics.py's identical `_owner()` for the full rationale
+    (test monkeypatching of DatabaseContext/execute_values on the owner module, and avoiding a
+    top-level import of a module that may still be mid-import when run as a script). Copied
+    verbatim, not re-derived, per this file's own "reuse the established pattern" mandate.
+    """
+    from loaders import load_stock_scores as _owner_mod
+
+    return _owner_mod
+
 
 # GROWTH_SCORE_FIELDS: the multi-input equal-weighted blend _score_growth scores (RESTORED
 # 2026-08-28, user directive - see _score_growth's docstring for the full history/evidence
@@ -531,3 +549,259 @@ class GrowthScoringMixin:
             f"field could be computed for this symbol."
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_growth_inputs_available"}
+
+    @staticmethod
+    def _components_with_corrected_growth(components_old: Any, growth_score_new: float | None) -> str:
+        """Return components (the Pass-1 JSON breakdown dict) re-serialized with its 'growth'
+        key set to growth_score_new, every other pillar untouched. Mirrors
+        ValueMetricsMixin._components_with_corrected_value exactly (loaders/stock_scores/
+        value_metrics.py) - same bug class this repo already fixed there (components silently
+        disagreeing with the real *_score column after a batch-pass correction), just for the
+        'growth' key instead of 'value'.
+        """
+        if isinstance(components_old, dict):
+            components_new = dict(components_old)
+        elif components_old:
+            components_new = json.loads(components_old)
+        else:
+            components_new = {}
+        components_new["growth"] = growth_score_new
+        return json.dumps(components_new)
+
+    def update_growth_sector_neutral_scores(self) -> None:
+        """Batch pass: replace Growth's Pass-1 PROVISIONAL absolute-curve scores
+        (`_score_single_growth`'s fixed [-50%,cap%] -> [0,100] mapping, identical for every
+        sector) with a true sector-neutral z-score against the current run's universe, then
+        FULLY RECOMPUTE growth_score and composite_score from scratch off the raw stored
+        growth_metrics columns (not patched relative to whatever growth_score/composite_score
+        currently hold) - mirrors `update_value_multiples_percentiles()`'s pure-overwrite
+        pattern (loaders/stock_scores/value_metrics.py) exactly, which itself mirrors
+        `update_rs_percentiles()`'s.
+
+        WHY (2026-09-08, follow-up to the Quality pillar's own 2026-09-07 sector-neutral-zscore
+        rewrite - see loaders/helpers/factor_normalization.py's module docstring and
+        loaders/helpers/vqg_quality_batch.py's `update_quality_sector_neutral_scores()`, the
+        method this one is modeled on). After Quality's rewrite landed, `composite_score`'s
+        leaderboard was still dominated by Financial Services (~60-66% of the top 50), and
+        `growth_score` itself led every sector average for the exact reason Quality used to:
+        `_score_single_growth` is an ABSOLUTE curve, identical across every sector, with no
+        peer-group context - the same architectural gap this rewrite closes for Growth using the
+        SAME shared primitive Quality already validated (`sector_neutral_zscore()`/
+        `zscore_to_percentile_scale()`), not a bespoke re-derivation.
+
+        MECHANISM: Pass 1 (`_score_growth`, per-symbol, no access to the universe distribution)
+        still runs first via `_compute_stock_score` so growth_score/composite_score are never
+        NULL mid-run - `_score_single_growth`'s absolute curve is now PROVISIONAL scaffolding
+        this method always overwrites, the identical relationship Quality's Pass-1 curve
+        (`_margin_curve` in vqg_quality.py) has to its own batch pass. This method runs after
+        every symbol in this run has a growth_score, winsorizes+z-scores each of the 12
+        GROWTH_SCORE_FIELDS candidates WITHIN each symbol's own GICS sector
+        (`company_profile.sector`, via `sector_neutral_zscore`), maps each z-score onto [0,100]
+        (`zscore_to_percentile_scale`), then re-applies the SAME equal-weighted blend / minimum-
+        coverage floor / implausible-value exclusion `_score_growth` already used - only the
+        per-field TRANSFORM changes (absolute curve -> sector-neutral z-score), not the field
+        list, the weighting, or either guard. This is an explicit, non-negotiable user directive
+        (see GROWTH_SCORE_FIELDS/_score_growth's own docstrings) - not re-litigated here.
+
+        GROWTH_INPUT_IMPLAUSIBLE_PCT is still applied BEFORE the z-score (a raw value more than
+        150% away from 0% is excluded from a field's z-score population entirely, same as Pass
+        1's exclusion from the curve-blend) - `sector_neutral_zscore`'s own [1st,99th] percentile
+        winsorization is a separate, milder safeguard against ordinary sector-distribution tails
+        and does not substitute for excluding a value this codebase has already identified as a
+        likely one-off (KARO's eps_growth_1y=1889%, DX's fcf_growth_yoy=739.5% - see that
+        constant's own docstring for the full evidence).
+
+        GROWTH_MIN_FIELDS_AVAILABLE is preserved exactly: a symbol with fewer than 5/12 fields
+        available (after implausible-value exclusion) gets growth_score=None here (withheld,
+        same "thin-sample extrapolation, not an honest partial score" principle as Pass 1's
+        marker-dict return, adapted to this pass's "None is a valid overwrite" convention -
+        see `update_value_multiples_percentiles()`'s VALUE_MIN_WEIGHT gate for the precedent).
+
+        Composite_score is recomputed exactly as `update_value_multiples_percentiles()` recomputes
+        it - from quality_score/value_score/risk_score/momentum_score as they currently stand
+        (untouched by this pass) plus the new growth_score, via `_value_risk_adjusted_weights`.
+        Runs AFTER `update_value_multiples_percentiles()` in `post_run()` specifically so this
+        pass's own composite recompute sees Value's own already-finalized value_score, not its
+        Pass-1 provisional one - see `post_run()`'s own "ORDER MATTERS" comment.
+
+        Raises on failure, same as every other post_run() batch pass - an inconsistent
+        growth_score/composite_score is a live-trading-relevant correctness issue.
+        """
+        try:
+            with _owner().DatabaseContext("write") as cur:
+                cur.execute("""
+                    SELECT ss.symbol, ss.growth_score, ss.composite_score, ss.quality_score,
+                           ss.value_score, ss.risk_score, ss.momentum_score, ss.components,
+                           ss.data_completeness, ss.data_unavailable,
+                           gm.revenue_growth_1y, gm.eps_growth_1y, gm.revenue_growth_3y, gm.eps_growth_3y,
+                           gm.revenue_growth_5y, gm.eps_growth_5y, gm.forward_eps_growth_current_fy,
+                           gm.forward_eps_growth_next_fy, gm.forward_revenue_growth_next_fy,
+                           gm.sustainable_growth_rate, gm.quarterly_growth_momentum, gm.earnings_growth_4q_avg,
+                           cp.sector
+                    FROM stock_scores ss
+                    JOIN growth_metrics gm ON gm.symbol = ss.symbol
+                    LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
+                    WHERE ss.growth_score IS NOT NULL
+                      AND COALESCE(gm.data_unavailable, false) = false
+                """)
+                rows = cur.fetchall()
+
+            if not rows:
+                logger.warning(
+                    "[STOCK_SCORES] update_growth_sector_neutral_scores: no eligible rows found "
+                    "(growth_score IS NOT NULL joined to growth_metrics) - skipping, nothing to correct."
+                )
+                return
+
+            # forward_eps_growth_current_fy/next_fy and forward_revenue_growth_next_fy are stored
+            # as raw fractions in growth_metrics (0.18 = 18%), same as _get_growth_metrics's own
+            # _scale_fraction_to_pct helper handles for Pass 1 - scale to percentage points here
+            # too so they're on the same scale as every other GROWTH_SCORE_FIELDS candidate before
+            # winsorization/z-scoring.
+            fraction_fields = {
+                "forward_eps_growth_current_fy",
+                "forward_eps_growth_next_fy",
+                "forward_revenue_growth_next_fy",
+            }
+            # Column index (within the 12-field slice starting at row[10]) for each
+            # GROWTH_SCORE_FIELDS candidate, matching the SELECT's column order above exactly.
+            field_col_offset = {field: 10 + i for i, field in enumerate(GROWTH_SCORE_FIELDS)}
+
+            sector_map: dict[str, str] = {}
+            for row in rows:
+                sector = row[22]
+                if sector is not None:
+                    sector_map[row[0]] = sector
+
+            raw_by_field: dict[str, dict[str, float]] = {field: {} for field in GROWTH_SCORE_FIELDS}
+            for row in rows:
+                symbol = row[0]
+                for field in GROWTH_SCORE_FIELDS:
+                    val = row[field_col_offset[field]]
+                    if val is None:
+                        continue
+                    val_f = float(val) * 100 if field in fraction_fields else float(val)
+                    if val_f > GROWTH_INPUT_IMPLAUSIBLE_PCT:
+                        # See GROWTH_INPUT_IMPLAUSIBLE_PCT's own docstring - excluded from the
+                        # z-score population entirely, not merely winsorized down to the 99th
+                        # percentile, same as Pass 1's exclusion from the curve-blend.
+                        continue
+                    raw_by_field[field][symbol] = val_f
+
+            pct_by_field: dict[str, dict[str, float]] = {
+                field: zscore_to_percentile_scale(sector_neutral_zscore(values, sector_map))
+                for field, values in raw_by_field.items()
+            }
+            logger.info(
+                "[STOCK_SCORES] Growth sector-neutral z-score universe ("
+                f"{len(sector_map)}/{len(rows)} symbols mapped to a GICS sector): "
+                + ", ".join(f"{field}={len(pct_by_field[field])}" for field in GROWTH_SCORE_FIELDS)
+            )
+
+            min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
+
+            updates: list[tuple[str, float | None, float, str | None, float, bool]] = []
+            for row in rows:
+                symbol = row[0]
+                growth_score_old = float(row[1])
+                composite_score_old = float(row[2])
+                quality_score, value_score, risk_score, momentum_score = row[3], row[4], row[5], row[6]
+                components_old = row[7]
+                data_completeness_old = float(row[8]) if row[8] is not None else None
+                data_unavailable_old = bool(row[9]) if row[9] is not None else False
+
+                component_scores = [
+                    pct_by_field[field][symbol] for field in GROWTH_SCORE_FIELDS if symbol in pct_by_field[field]
+                ]
+
+                if len(component_scores) >= GROWTH_MIN_FIELDS_AVAILABLE:
+                    growth_score_new: float | None = round(sum(component_scores) / len(component_scores), 2)
+                else:
+                    if component_scores:
+                        logger.info(
+                            f"[STOCK_SCORES] {symbol} growth_score withheld in sector-neutral pass: only "
+                            f"{len(component_scores)}/{len(GROWTH_SCORE_FIELDS)} inputs available, below "
+                            f"GROWTH_MIN_FIELDS_AVAILABLE={GROWTH_MIN_FIELDS_AVAILABLE}."
+                        )
+                    growth_score_new = None
+
+                risk_score_float = float(risk_score) if risk_score is not None else None
+                weights = _value_risk_adjusted_weights(risk_score_float)
+                composite_val = 0.0
+                for pillar_name, pillar_score in (
+                    ("quality", quality_score),
+                    ("growth", growth_score_new),
+                    ("value", value_score),
+                    ("risk", risk_score),
+                    ("momentum", momentum_score),
+                ):
+                    if pillar_score is not None:
+                        composite_val += float(pillar_score) * weights[pillar_name]
+                composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+
+                all_scores_new: dict[str, float | None] = {
+                    "quality": float(quality_score) if quality_score is not None else None,
+                    "growth": growth_score_new,
+                    "value": float(value_score) if value_score is not None else None,
+                    "risk": float(risk_score) if risk_score is not None else None,
+                    "momentum": float(momentum_score) if momentum_score is not None else None,
+                }
+                available_weight = sum(
+                    BASE_PILLAR_WEIGHTS[pillar] for pillar, score in all_scores_new.items() if score is not None
+                )
+                data_completeness_new = min(99.99, round(available_weight * 100, 2))
+                data_unavailable_new = data_completeness_new < min_completeness_threshold
+
+                if (
+                    growth_score_new != growth_score_old
+                    or composite_score_new != composite_score_old
+                    or data_completeness_new != data_completeness_old
+                    or data_unavailable_new != data_unavailable_old
+                ):
+                    components_json = self._components_with_corrected_growth(components_old, growth_score_new)
+                    updates.append(
+                        (
+                            symbol,
+                            growth_score_new,
+                            composite_score_new,
+                            components_json,
+                            data_completeness_new,
+                            data_unavailable_new,
+                        )
+                    )
+
+            if not updates:
+                logger.info(
+                    "[STOCK_SCORES] Growth sector-neutral z-score pass: no symbol's growth_score/"
+                    "composite_score changed (expected on a repeat run with unchanged inputs - "
+                    "this pass is a pure function of the raw stored ratios, same idempotency "
+                    "property as update_value_multiples_percentiles())."
+                )
+                return
+
+            with _owner().DatabaseContext("write") as cur:
+                _owner().execute_values(
+                    cur,
+                    """
+                    UPDATE stock_scores AS ss
+                    SET growth_score = v.growth_score,
+                        composite_score = v.composite_score,
+                        components = v.components::jsonb,
+                        data_completeness = v.data_completeness,
+                        data_unavailable = v.data_unavailable,
+                        updated_at = CURRENT_TIMESTAMP
+                    FROM (VALUES %s) AS v(symbol, growth_score, composite_score, components,
+                                           data_completeness, data_unavailable)
+                    WHERE ss.symbol = v.symbol
+                    """,
+                    updates,
+                    template="(%s, %s, %s, %s, %s, %s)",
+                )
+            logger.info(
+                f"[STOCK_SCORES] Growth sector-neutral z-score pass corrected "
+                f"{len(updates)}/{len(rows)} symbols' growth_score/composite_score (post_run completed)"
+            )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            error_msg = f"Growth sector-neutral z-score batch update failed - stock scores cannot be finalized: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
