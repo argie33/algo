@@ -74,7 +74,7 @@
   "algo/monitoring/data_patrol/checks/coverage.py": 326,
   "algo/monitoring/data_patrol/checks/price_sanity.py": 223,
   "algo/monitoring/data_patrol/checks/quality.py": 356,
-  "algo/monitoring/data_patrol/checks/score_ratio_outliers.py": 138,
+  "algo/monitoring/data_patrol/checks/score_ratio_outliers.py": 172,
   "algo/monitoring/data_patrol/checks/specialized.py": 616,
   "algo/monitoring/data_patrol/checks/staleness.py": 441,
   "algo/monitoring/data_patrol/checks/statistical_anomaly.py": 122,
