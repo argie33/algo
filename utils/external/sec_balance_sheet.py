@@ -140,6 +140,50 @@ _BALANCE_IFRS_ALIASES = [
     # us-gaap's LongTermDebt); live-confirmed present with real 2018-2024 values for
     # ASR. This alias had never worked for any filer.
     ("LongtermBorrowings", "long_term_debt"),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan exhaustive triage, "get data issues to
+    # zero"): the SAME "LongtermBorrowings" concept, fetched a SECOND time under a different
+    # target key purely so _fill_long_term_debt_from_noncurrent_current_split below can detect
+    # "this filer's long_term_debt came from LongtermBorrowings specifically (not Borrowings)"
+    # and add the current-maturities figure it was otherwise missing. Live-confirmed via Agnico
+    # Eagle's real companyfacts JSON (CIK 0000002809): FY2024 LongtermBorrowings=
+    # USD 1,052,956,000 is a DIFFERENT, smaller figure than that plus
+    # CurrentPortionOfLongtermBorrowings=USD 90,000,000 - i.e. LongtermBorrowings alone is the
+    # noncurrent-only portion, not the total, silently understating total debt by the current
+    # maturities every time (the tuple above, mapping straight to "long_term_debt", has no way
+    # to add a second concept's value on top of it). Deliberately did NOT simply retarget the
+    # tuple above to "long_term_debt_noncurrent" instead of adding this duplicate: that would
+    # let "Borrowings" (also a direct "long_term_debt" writer, listed further below) populate
+    # first whenever both are present, silently dropping the more-precise LongtermBorrowings/
+    # current-portion split - a real regression caught by
+    # tests/unit/test_ifrs_borrowings_and_nci_aliases_20260908.py's existing
+    # test_split_concepts_win_over_borrowings_fallback (asserts the split wins over Borrowings).
+    # Keeping BOTH the direct mapping above (preserves that existing win-over-Borrowings
+    # precedence) and this second fetch (only consumed by the equality check in
+    # _fill_long_term_debt_from_noncurrent_current_split, never written directly) avoids the
+    # regression while still fixing the current-maturities understatement.
+    ("LongtermBorrowings", "long_term_debt_noncurrent"),
+    # ADDED 2026-09-08 (same fix as immediately above): IFRS's current-maturities-of-long-term-
+    # debt concept, the direct analog of us-gaap's "LongTermDebtCurrent" - 174 undismissed
+    # filers. Same raw key ("long_term_debt_current") as that us-gaap concept so it's consumed
+    # by the identical existing _fill_long_term_debt_from_noncurrent_current_split fallback,
+    # fallback-only (never overwrites a real value; only fires when "long_term_debt" is still
+    # unset after the direct-concept pass, e.g. no "Borrowings"/other combined total tagged).
+    ("CurrentPortionOfLongtermBorrowings", "long_term_debt_current"),
+    # ADDED 2026-09-08 (same triage batch): "CurrentBorrowingsAndCurrentPortionOfNoncurrent
+    # Borrowings" - IFRS's COMBINED current-debt concept (short-term borrowings + current
+    # maturities of long-term debt together), 158 undismissed filers. Live-confirmed via PLDT's
+    # real companyfacts JSON (CIK 0000078150) FY2024: LongtermBorrowings (PHP 258,246,000,000)
+    # + this concept (PHP 23,340,000,000) = PHP 281,586,000,000, an EXACT match to PLDT's own
+    # separately-tagged combined "Borrowings" total for the same period - confirms this concept
+    # is genuinely the correct current-side addend to sum with LongtermBorrowings, not a
+    # narrower or broader figure. Mapped to the same "long_term_debt_current" raw key as
+    # CurrentPortionOfLongtermBorrowings above; per this codebase's "first-populated-wins for
+    # cross-concept collisions on the same raw key" rule (see
+    # _aggregate_concepts_should_replace_entry's 2026-09-07 CVE fix comment), the
+    # earlier-listed CurrentPortionOfLongtermBorrowings would win if a filer ever tagged both
+    # for the same period - no filer checked (Agnico, PLDT) tags both, so this ordering is
+    # low-risk/arbitrary rather than load-bearing.
+    ("CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings", "long_term_debt_current"),
     # FIXED 2026-08-17 (loader-review goal, continued): "ShorttermBorrowings" is IFRS's
     # paired current-portion concept for the above (same convention as us-gaap's
     # CommercialPaper/ShortTermBorrowings, which already map to the same short_term_debt
@@ -167,6 +211,15 @@ _BALANCE_IFRS_ALIASES = [
     # fallback here must be listed LAST for a filer reporting both to keep the split value).
     # Maps to the same long_term_debt raw key as "DebtLongtermAndShorttermCombinedAmount" (PGR,
     # us-gaap) uses for the identical no-current/noncurrent-split shape.
+    #
+    # CORRECTED 2026-09-08: the "listed after the split pair" reasoning above no longer
+    # describes a same-raw-key race - LongtermBorrowings was retargeted (see its own comment
+    # above) from "long_term_debt" to "long_term_debt_noncurrent", so this "Borrowings" entry
+    # is now the ONLY concept in this list that writes "long_term_debt" directly during
+    # aggregation. It still behaves as intended (a combined-total filer's real figure always
+    # wins over the noncurrent+current fallback sum): the fallback in
+    # _fill_long_term_debt_from_noncurrent_current_split only fires when "long_term_debt" is
+    # still None post-aggregation, so a populated Borrowings value is never overwritten.
     ("Borrowings", "long_term_debt"),
     # FIXED 2026-08-17 (loader-review goal continuation): IFRS 16 lessee accounting
     # doesn't distinguish operating vs. finance leases the way US GAAP does - IFRS
@@ -976,12 +1029,27 @@ def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]
     genuinely more authoritative combined-total concept, fetched separately) already
     resolved this fiscal year - guards against this lower-priority pair racing ahead of a
     better total that the field_mapping stage would otherwise have picked.
+
+    Third pass (2026-09-08, IFRS current-portion-of-Borrowings triage): unlike
+    LongTermDebtNoncurrent above, IFRS's "LongtermBorrowings" concept IS mapped directly to
+    "long_term_debt" (see its own comment in the concepts list - deliberately kept that way so
+    a filer reporting the precise split still outranks a same-period "Borrowings" combined-total
+    fact, per this aggregation's first-populated-wins rule and
+    test_ifrs_borrowings_and_nci_aliases_20260908.py's existing regression coverage) AND fetched
+    a second time under the "long_term_debt_noncurrent" raw key purely so this function can
+    detect that case. When "long_term_debt" already equals "noncurrent" exactly, it can only
+    have come from LongtermBorrowings itself (Borrowings/other combined concepts would produce
+    a different total) - safe to add the current-maturities addend on top without any risk of
+    double-counting a Borrowings-sourced total (which already includes its own current portion
+    and never equals the noncurrent-only figure).
     """
     for row in rows:
         noncurrent = row.pop("long_term_debt_noncurrent", None)
         current = row.pop("long_term_debt_current", None)
         if row.get("long_term_debt") is None and noncurrent is not None:
             row["long_term_debt"] = noncurrent + (current or 0)
+        elif noncurrent is not None and current is not None and row.get("long_term_debt") == noncurrent:
+            row["long_term_debt"] = noncurrent + current
 
         combined_current = row.pop("long_term_debt_and_capital_lease_obligations_current", None)
         if (

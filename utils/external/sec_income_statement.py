@@ -329,6 +329,16 @@ _INCOME_IFRS_ALIASES = [
         "ProfitLossAttributableToOrdinaryEquityHoldersOfParentEntityIncludingDilutiveEffects",
         "profit_loss_attributable_to_ordinary_equity_holders_of_parent_entity_including_dilutive_effects",
     ),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan exhaustive triage, "get data issues
+    # to zero" - continuation of the 3rd batch's rejection of bare "ImpairmentLoss" as too
+    # broad/ambiguous across impairment types): "ImpairmentLossRecognisedInProfitOrLossGoodwill"
+    # is IFRS's own goodwill-SPECIFIC impairment concept (IAS 36), the direct analog of
+    # us-gaap's "GoodwillImpairmentLoss" (already mapped to the same "goodwill_impairment_loss"
+    # raw key/db column) - not the ambiguous broad concept rejected earlier. 156 undismissed
+    # filers. Reuses the us-gaap concept's own raw key so it's fallback-only (gaap-source specs
+    # are always processed before ifrs_aliases per _aggregate_concepts_build_specs - never
+    # overwrites a real us-gaap fact).
+    ("ImpairmentLossRecognisedInProfitOrLossGoodwill", "goodwill_impairment_loss"),
 ]
 
 _INCOME_DEI_ALIASES = [
