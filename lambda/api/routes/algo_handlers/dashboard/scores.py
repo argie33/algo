@@ -24,6 +24,8 @@ from routes.utils import (
     validate_api_response,
 )
 
+from utils.loaders.helpers import _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,6 +69,16 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         # lookups (price_daily/technical_data_daily) only against that small row set -
         # joining before the LIMIT would pay for a per-symbol index scan on every row
         # of stock_scores. See lambda/api/routes/scores.py for the same pattern.
+        # ACTIVE-UNIVERSE + STRUCTURALLY-EXCLUDED-BDC FILTER (added 2026-09-08, /goal session
+        # score-sanity sweep): this handler had neither filter, unlike the near-identical
+        # /api/scores endpoint (scores_handlers/stock_scores.py) that already fixed both same
+        # day - same "fix landed on the wrong endpoint" gap as this file's own tradability-
+        # floor comment above (dashboard/fetchers_signals.py's fetch_scores calls THIS
+        # handler, not /api/scores). Live-verified consequence: LIEN (a BDC, frozen at its
+        # 2026-09-03 stock_scores snapshot since utils/loaders/helpers.py's
+        # get_active_symbols() excluded BDCs from the scores loader's universe that day - see
+        # that fix's own comment, "can never self-heal") ranked #13 in today's (2026-09-08)
+        # top-25 composite leaderboard, a 5-day-stale score indistinguishable from a live one.
         cur.execute(
             """
             WITH max_price_date AS (
@@ -88,13 +100,16 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             filtered_scores AS (
                 SELECT s.*, COALESCE(c.short_name, s.symbol) as company_name, c.sector
                 FROM stock_scores s
+                JOIN stock_symbols ss ON ss.symbol = s.symbol
                 LEFT JOIN company_profile c ON s.symbol = c.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = s.symbol
                 LEFT JOIN liquidity liq ON liq.symbol = s.symbol
                 WHERE s.composite_score > 0
                 AND s.data_completeness >= 70
                 AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
+                AND ss.active = true
                 AND s.symbol NOT IN (SELECT symbol FROM etf_symbols)
+                AND s.symbol NOT IN %s
                 AND COALESCE(vm.market_cap, 0) >= %s
                 AND COALESCE(liq.avg_dollar_volume_20d, 0) >= %s
                 ORDER BY s.composite_score DESC
@@ -132,7 +147,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             ) tl ON true
             ORDER BY fs.composite_score DESC
         """,
-            (min_market_cap_dollars, min_adv_dollars, limit),
+            (tuple(_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS), min_market_cap_dollars, min_adv_dollars, limit),
         )
         rows = cur.fetchall()
         logger.debug(f"[SCORES_DASHBOARD] Query returned {len(rows)} rows for /api/algo/scores endpoint")
@@ -231,10 +246,13 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             WHERE s.composite_score > 0
               AND s.data_completeness >= 70
               AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
+              AND ss.active = true
               AND ss.is_sp500 = TRUE
+              AND s.symbol NOT IN %s
             ORDER BY s.composite_score DESC
             LIMIT 15
-            """
+            """,
+            (tuple(_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS),),
         )
         top_sp500 = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
@@ -268,16 +286,19 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 COUNT(*) FILTER (WHERE s.composite_score >= 40 AND s.composite_score < 60) AS c,
                 COUNT(*) FILTER (WHERE s.composite_score < 40) AS d
             FROM stock_scores s
+            JOIN stock_symbols ss ON ss.symbol = s.symbol
             LEFT JOIN value_metrics vm ON vm.symbol = s.symbol
             LEFT JOIN liquidity liq ON liq.symbol = s.symbol
             WHERE s.composite_score > 0
               AND s.data_completeness >= 70
               AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
+              AND ss.active = true
               AND s.symbol NOT IN (SELECT symbol FROM etf_symbols)
+              AND s.symbol NOT IN %s
               AND COALESCE(vm.market_cap, 0) >= %s
               AND COALESCE(liq.avg_dollar_volume_20d, 0) >= %s
         """,
-            (min_market_cap_dollars, min_adv_dollars),
+            (tuple(_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS), min_market_cap_dollars, min_adv_dollars),
         )
         summary_row = cur.fetchone()
         if summary_row is None:
