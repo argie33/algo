@@ -120,6 +120,7 @@ class DataPatrol:
 
         from .checks import (
             AlignmentChecker,
+            CompositeScoreReconciliationChecker,
             CoverageChecker,
             NewXbrlConceptChecker,
             PriceSanityChecker,
@@ -151,6 +152,7 @@ class DataPatrol:
                 NewXbrlConceptChecker(self.config),
                 StatisticalAnomalyChecker(self.config),
                 ScoreRatioOutlierChecker(self.config),
+                CompositeScoreReconciliationChecker(self.config),
             ]
 
             for checker in checkers:

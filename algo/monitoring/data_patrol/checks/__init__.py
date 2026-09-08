@@ -2,6 +2,7 @@
 """Data patrol check modules."""
 
 from .alignment import AlignmentChecker
+from .composite_score_reconciliation import CompositeScoreReconciliationChecker
 from .coverage import CoverageChecker
 from .price_sanity import PriceSanityChecker
 from .quality import QualityChecker
@@ -14,6 +15,7 @@ from .xbrl_new_concepts import NewXbrlConceptChecker
 
 __all__ = [
     "AlignmentChecker",
+    "CompositeScoreReconciliationChecker",
     "CoverageChecker",
     "NewXbrlConceptChecker",
     "PriceSanityChecker",
