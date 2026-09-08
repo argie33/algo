@@ -1952,11 +1952,11 @@ class QualityMetricsMixin(SymbolGateMixin):
             # live-verified evidence (ROA clustered 2.26-3.67% across 16 symbols).
             _symbol_industry_for_roa = self._get_symbol_industry(symbol)
             if _symbol_industry_for_roa in _owner().DEPOSITORY_BANK_INDUSTRIES:
-                _roa_breakpoints = [(0.5, 40.0), (1.0, 75.0), (1.5, 100.0)]
+                _roa_breakpoints = [(0.85, 40.0), (1.3, 80.0), (1.7, 100.0)]  # recalibrated+IC-validated 20260907
             elif _symbol_industry_for_roa in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
-                _roa_breakpoints = [(1.0, 40.0), (2.5, 75.0), (5.0, 100.0)]
+                _roa_breakpoints = [(2.5, 40.0), (5.5, 80.0), (10.0, 100.0)]
             elif _symbol_industry_for_roa in _owner().UTILITY_INDUSTRIES:
-                _roa_breakpoints = [(2.0, 40.0), (3.0, 75.0), (4.5, 100.0)]
+                _roa_breakpoints = [(2.2, 40.0), (3.3, 80.0), (5.0, 100.0)]
             else:
                 _roa_breakpoints = [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)]
             roa_score = self._margin_curve(metrics["roa"], _roa_breakpoints) if metrics["roa"] is not None else None
@@ -2084,9 +2084,9 @@ class QualityMetricsMixin(SymbolGateMixin):
             if _symbol_industry_for_roce in _owner().DEPOSITORY_BANK_INDUSTRIES:
                 _roce_breakpoints = [(3.0, 40.0), (6.0, 75.0), (10.0, 100.0)]
             elif _symbol_industry_for_roce in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
-                _roce_breakpoints = [(2.0, 40.0), (5.0, 75.0), (10.0, 100.0)]
+                _roce_breakpoints = [(3.5, 40.0), (7.0, 80.0), (12.0, 100.0)]  # recalibrated+IC-validated 20260907
             elif _symbol_industry_for_roce in _owner().UTILITY_INDUSTRIES:
-                _roce_breakpoints = [(3.0, 40.0), (6.0, 75.0), (9.0, 100.0)]
+                _roce_breakpoints = [(5.2, 40.0), (8.0, 80.0), (13.0, 100.0)]
             else:
                 _roce_breakpoints = [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)]
             roce_score = self._margin_curve(roce_pct_val, _roce_breakpoints) if roce_pct_val is not None else None
