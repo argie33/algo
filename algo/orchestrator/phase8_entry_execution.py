@@ -92,6 +92,7 @@ from algo.infrastructure.constants import (
 from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase8_guards import (
+    _check_drawdown_daily_loss_guard,
     _check_market_hours_guards,
     _check_pending_orders_guard,
     _check_price_freshness_guard,
@@ -1471,11 +1472,8 @@ def run(
         )
         raise RuntimeError(f"Signal persistence failed (dashboard sync broken): {e}") from e
 
-    # Halt flag check before any trades
-    # SESSION 396 FIX: When halt flag is set (circuit breaker triggered), Phase 8 should
-    # gracefully skip entries without failing. This is expected behavior - it means the
-    # circuit breaker prevented new positions due to existing risk or market conditions.
-    # Circuit breaker active - entries blocked. This is a safety guard, not a failure.
+    # Halt flag check before any trades - a set flag means the circuit breaker already
+    # prevented new positions; skip gracefully, this is a safety guard, not a failure.
     if check_halt_flag and check_halt_flag():
         msg = "[PHASE 8] Circuit breaker active (halt flag set) - entries blocked to protect portfolio"
         logger.warning(msg)
@@ -1489,6 +1487,8 @@ def run(
             msg,
         )
 
+    if (guard_result := _check_drawdown_daily_loss_guard(config, run_date, log_phase_result_fn)) is not None:
+        return guard_result
     # CRITICAL FIX 2026-08-01: Ensure exposure_constraints always has required fields
     # Either Phase 5 provided them, or safe defaults were applied earlier.
     # As a final safety check, ensure all required fields exist before proceeding.
