@@ -128,7 +128,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from algo.research.fama_macbeth_growth_factors import REPORTING_LAG_DAYS, merge_asof_monthly
+from algo.research.fama_macbeth_growth_factors import compute_known_dates, merge_asof_monthly
 from algo.research.fama_macbeth_liquidity_factor import compute_monthly_amihud, fetch_daily_panel
 from algo.research.fama_macbeth_price_factors import _fama_macbeth, fetch_month_end_prices
 from utils.db.context import DatabaseContext
@@ -265,9 +265,7 @@ def build_value_panel(fund: pd.DataFrame) -> pd.DataFrame:
     prior_eps = out.groupby("symbol")["eps"].shift(1)
     out["eps_growth_pct"] = np.where(prior_eps > 0, (out["eps"] / prior_eps - 1.0) * 100.0, np.nan)
 
-    out["known_date"] = pd.to_datetime(fund["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(
-        days=REPORTING_LAG_DAYS
-    )
+    out["known_date"] = compute_known_dates(out)
     return out.dropna(subset=["known_date"])
 
 

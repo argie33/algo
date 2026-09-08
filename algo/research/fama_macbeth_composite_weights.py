@@ -132,7 +132,7 @@ import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import Lasso, Ridge
 
-from algo.research.fama_macbeth_growth_factors import REPORTING_LAG_DAYS, build_growth_panel, merge_asof_monthly
+from algo.research.fama_macbeth_growth_factors import build_growth_panel, compute_known_dates, merge_asof_monthly
 from algo.research.fama_macbeth_momentum_factors import (
     build_month_end_panel,
     compute_daily_indicators,
@@ -505,9 +505,7 @@ def build_value_panel_raw() -> pd.DataFrame:
     out["book_value_per_share"] = fund["stockholders_equity"] / shares
     out["sales_per_share"] = fund["revenue"] / shares
     out["shares_diluted"] = shares
-    out["known_date"] = pd.to_datetime(fund["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(
-        days=REPORTING_LAG_DAYS
-    )
+    out["known_date"] = compute_known_dates(out)
     return out.dropna(subset=["known_date"])
 
 
