@@ -17,14 +17,17 @@ from unittest.mock import MagicMock, patch
 from algo.monitoring.data_patrol.base import CheckResult, DataPatrol
 from algo.monitoring.data_patrol.checks import (
     AlignmentChecker,
+    CompositeScoreReconciliationChecker,
     CoverageChecker,
     NewXbrlConceptChecker,
     PriceSanityChecker,
     QualityChecker,
+    ScoreRatioOutlierChecker,
     SpecializedChecker,
     StalenessChecker,
     StatisticalAnomalyChecker,
     TieOutChecker,
+    XbrlConceptContinuityChecker,
 )
 from algo.monitoring.data_patrol.config import CRIT, ERROR, WARN, PatrolConfig
 
@@ -35,8 +38,15 @@ def _run_patrol_with_results(results_by_checker: dict) -> dict:
 
     Must mock every checker DataPatrol.run() registers (base.py), not just a subset -
     an unmocked checker runs for real against the MagicMock() DB connection and, for
-    checkers that read outside the DB (e.g. NewXbrlConceptChecker reads the on-disk SEC
-    EDGAR cache), can produce real findings that leak into "clean run" assertions below.
+    checkers that read outside the DB (e.g. NewXbrlConceptChecker/
+    XbrlConceptContinuityChecker read the on-disk SEC EDGAR cache), can produce real
+    findings that leak into "clean run" assertions below. FIXED 2026-09-08 (goal
+    session, live-caught): XbrlConceptContinuityChecker's addition to base.py's checker
+    list wasn't mirrored here, so test_clean_run_does_not_notify started failing on 9
+    real, live continuity gaps the checker legitimately found in the on-disk cache -
+    same trap this docstring already warns about, just not kept in sync when
+    ScoreRatioOutlierChecker/CompositeScoreReconciliationChecker were added earlier
+    either (added here too, alongside the fix, since both were also missing).
     """
     patrol = DataPatrol(PatrolConfig())
 
@@ -49,7 +59,10 @@ def _run_patrol_with_results(results_by_checker: dict) -> dict:
         "SpecializedChecker": SpecializedChecker,
         "TieOutChecker": TieOutChecker,
         "NewXbrlConceptChecker": NewXbrlConceptChecker,
+        "XbrlConceptContinuityChecker": XbrlConceptContinuityChecker,
         "StatisticalAnomalyChecker": StatisticalAnomalyChecker,
+        "ScoreRatioOutlierChecker": ScoreRatioOutlierChecker,
+        "CompositeScoreReconciliationChecker": CompositeScoreReconciliationChecker,
     }
 
     mock_conn = MagicMock()
@@ -151,7 +164,10 @@ class TestDataPatrolNotifyWiring:
             patch.object(SpecializedChecker, "run", return_value=[]),
             patch.object(TieOutChecker, "run", return_value=[]),
             patch.object(NewXbrlConceptChecker, "run", return_value=[]),
+            patch.object(XbrlConceptContinuityChecker, "run", return_value=[]),
             patch.object(StatisticalAnomalyChecker, "run", return_value=[]),
+            patch.object(ScoreRatioOutlierChecker, "run", return_value=[]),
+            patch.object(CompositeScoreReconciliationChecker, "run", return_value=[]),
         ):
             # Must not raise despite notify() failing internally.
             summary = patrol.run()
