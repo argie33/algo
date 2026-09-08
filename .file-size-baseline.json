@@ -231,7 +231,7 @@
   "algo/trading/exceptions.py": 104,
   "algo/trading/executor.py": 1064,
   "algo/trading/executor_entry_handler.py": 1810,
-  "algo/trading/executor_exit_handler.py": 1567,
+  "algo/trading/executor_exit_handler.py": 1600,
   "algo/trading/executor_exit_standalone_stop.py": 151,
   "algo/trading/executor_strategies.py": 217,
   "algo/trading/exit_engine.py": 1822,
