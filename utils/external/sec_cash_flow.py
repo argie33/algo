@@ -32,6 +32,31 @@ _CASHFLOW_IFRS_ALIASES = [
     # everything downstream: free_cash_flow, fcf_margin, accruals_ratio) was blocked by
     # this gap.
     ("CashFlowsFromUsedInOperatingActivitiesContinuingOperations", "net_cash_provided_by_used_in_operating_activities"),
+    # FIXED 2026-09-08 (goal session: "Missing SEC/XBRL data" 993 sweep, dcf_fcf/fcf_margin
+    # "missing_cash_flow_data" investigation): SU (Suncor Energy, $50B+ Canadian oil major,
+    # CIK 0000311337, 40-F/IFRS filer) and several smaller miners (GLDG/SLI/SLSR) and other
+    # 20-F/40-F filers (LPA/CDRO) tag NEITHER "CashFlowsFromUsedInOperatingActivities" NOR
+    # the "...ContinuingOperations" variant above - live-confirmed via real companyfacts
+    # JSON, the ONLY operating-cash-flow-shaped concept they report at all is
+    # "CashFlowsFromUsedInOperations" (SU FY2025: CAD 12.781B, real, current, full 12-month
+    # annual duration from a 40-F). The comment above this list's own NGG entry documents
+    # this same concept as "a before-tax subtotal" that normally needs
+    # "IncomeTaxesPaidRefundClassifiedAsOperatingActivities" subtracted to reconcile with
+    # the final post-tax figure - but NGG separately tags an
+    # "...OperatingActivitiesContinuingOperations" concept that already IS the correct
+    # final figure, so that subtraction was never actually needed to populate NGG's
+    # operating_cash_flow (see that entry's own comment: "operating_cash_flow ... was
+    # already populated for NGG via a separate concept"). For SU/GLDG/SLI/SLSR/LPA/CDRO,
+    # live-confirmed via the same real companyfacts JSON: none of them tag ANY
+    # "IncomeTaxesPaidRefundClassifiedAsOperatingActivities" fact either - i.e. these
+    # filers don't disaggregate a separate tax-paid line at all, so
+    # "CashFlowsFromUsedInOperations" is the only, and therefore the best-available, real
+    # total operating cash flow figure on file for them (same "partial but far better than
+    # missing" precedent as RevenueFromSaleOfGold below in the revenue aliases). Listed
+    # last (lowest priority) so it only ever fills the gap when both more precise concepts
+    # above are absent - never overrides a real, more complete figure a filer that
+    # separately itemizes tax already provides via the higher-priority entries.
+    ("CashFlowsFromUsedInOperations", "net_cash_provided_by_used_in_operating_activities"),
     ("CashFlowsFromUsedInInvestingActivities", "net_cash_provided_by_used_in_investing_activities"),
     ("CashFlowsFromUsedInFinancingActivities", "net_cash_provided_by_used_in_financing_activities"),
     (
