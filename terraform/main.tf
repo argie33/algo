@@ -191,35 +191,35 @@ module "loaders" {
   # DISABLED: Redis cache references (cache module incomplete)
   # redis_endpoint_address      = module.cache.redis_endpoint_address
   # redis_port                  = module.cache.redis_port
-  ecs_cluster_arn             = module.compute.ecs_cluster_arn
-  task_execution_role_arn     = module.iam.ecs_task_execution_role_arn
-  task_role_arn               = module.iam.ecs_task_role_arn
-  private_subnet_ids          = module.vpc.private_subnet_ids
-  public_subnet_ids           = module.vpc.public_subnet_ids
-  ecs_tasks_sg_id             = module.vpc.ecs_tasks_security_group_id
-  db_secret_arn               = module.database.rds_credentials_secret_arn
-  db_host                     = module.database.rds_proxy_address
-  db_port                     = local.db_port
-  db_ssl_mode                 = local.db_ssl_mode
-  db_name                     = var.rds_db_name
-  db_user                     = module.database.rds_username
-  ecr_repository_uri          = module.compute.ecr_repository_url
-  vpc_id                      = module.vpc.vpc_id
-  common_tags                 = local.common_tags
-  sns_alert_topic_arn         = coalesce(module.services.sns_alerts_topic_arn, "")
-  fred_api_key                = var.fred_api_key
-  algo_secrets_arn            = module.database.algo_secrets_arn
-  alpaca_paper_trading        = var.alpaca_paper_trading
-  alpaca_api_base_url         = var.alpaca_api_base_url
-  execution_mode              = var.execution_mode
-  orchestrator_dry_run        = var.orchestrator_dry_run
-  orchestrator_log_level      = var.orchestrator_log_level
-  backfill_days               = var.backfill_days
-  price_data_source           = var.price_data_source
-  disable_provenance_tracking = var.disable_provenance_tracking
-  alert_email_to              = var.alert_email_to
-  alert_webhook_url           = var.alert_webhook_url
-  db_security_group_id        = module.vpc.rds_security_group_id
+  ecs_cluster_arn              = module.compute.ecs_cluster_arn
+  task_execution_role_arn      = module.iam.ecs_task_execution_role_arn
+  task_role_arn                = module.iam.ecs_task_role_arn
+  private_subnet_ids           = module.vpc.private_subnet_ids
+  public_subnet_ids            = module.vpc.public_subnet_ids
+  ecs_tasks_sg_id              = module.vpc.ecs_tasks_security_group_id
+  db_secret_arn                = module.database.rds_credentials_secret_arn
+  db_host                      = module.database.rds_proxy_address
+  db_port                      = local.db_port
+  db_ssl_mode                  = local.db_ssl_mode
+  db_name                      = var.rds_db_name
+  db_user                      = module.database.rds_username
+  ecr_repository_uri           = module.compute.ecr_repository_url
+  vpc_id                       = module.vpc.vpc_id
+  common_tags                  = local.common_tags
+  sns_alert_topic_arn          = coalesce(module.services.sns_alerts_topic_arn, "")
+  fred_api_key                 = var.fred_api_key
+  algo_secrets_arn             = module.database.algo_secrets_arn
+  alpaca_paper_trading         = var.alpaca_paper_trading
+  alpaca_api_base_url          = var.alpaca_api_base_url
+  execution_mode               = var.execution_mode
+  orchestrator_dry_run         = var.orchestrator_dry_run
+  orchestrator_log_level       = var.orchestrator_log_level
+  backfill_days                = var.backfill_days
+  price_data_source            = var.price_data_source
+  disable_provenance_tracking  = var.disable_provenance_tracking
+  alert_email_to               = var.alert_email_to
+  alert_webhook_url            = var.alert_webhook_url
+  db_security_group_id         = module.vpc.rds_security_group_id
   enable_trade_update_listener = var.enable_trade_update_listener
 }
 
@@ -449,6 +449,7 @@ module "monitoring" {
   cluster_name        = "algo-cluster" # Session 199: Used by auto-kill Lambda
   alert_email_to      = var.alert_email_to
   alert_email_address = var.alert_email_address
+  alert_sms_to        = var.alert_sms_to
 
   # CloudWatch logs retention
   cloudwatch_log_retention_days = var.cloudwatch_log_retention_days

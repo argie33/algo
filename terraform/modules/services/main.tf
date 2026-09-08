@@ -1084,6 +1084,20 @@ resource "aws_sns_topic_subscription" "algo_alerts_email" {
   endpoint  = var.sns_alert_email
 }
 
+# REAL-MONEY-READINESS FIX (2026-09-07 audit): this topic carries orchestrator_failure and the
+# price/scores/signals staleness alarms below - the exact "the orchestrator process itself never
+# ran" scenario that algo/reporting/alerts.py's in-process AlertManager.page_critical() cannot
+# cover (no Python code executes to call it). Email-only here meant that specific scenario only
+# ever reached an inbox, contradicting the after-hours-paging intent already established for
+# in-process criticals (see the algo_paging secret above). One subscription per configured
+# number, same comma-separated E.164 format as services/variables.tf's alert_sms_to.
+resource "aws_sns_topic_subscription" "algo_alerts_sms" {
+  for_each  = var.sns_alerts_enabled ? toset([for n in split(",", var.alert_sms_to) : trimspace(n) if trimspace(n) != ""]) : []
+  topic_arn = aws_sns_topic.algo_alerts[0].arn
+  protocol  = "sms"
+  endpoint  = each.value
+}
+
 # ============================================================
 # Loader Failure Handler Lambda (Issue #4: Graceful Degradation)
 # ============================================================
