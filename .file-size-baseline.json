@@ -243,7 +243,7 @@
   "algo/trading/order_manager_stop_repair.py": 348,
   "algo/trading/position_sizer.py": 1813,
   "algo/trading/position_tracker.py": 231,
-  "algo/trading/pretrade_checks.py": 888,
+  "algo/trading/pretrade_checks.py": 901,
   "algo/trading/quote_fetcher.py": 305,
   "algo/trading/tca.py": 396,
   "algo/trading/trade_context.py": 182,
