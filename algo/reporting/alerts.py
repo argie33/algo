@@ -334,9 +334,17 @@ class AlertManager:
 
         body_text = "\n".join(body_lines)
 
+        # BUG FOUND (2026-09-07 real-money-readiness audit): "HALT" added alongside
+        # CRITICAL/BLOCK - HALT_FLAG_ACTIVE (halt_flag_manager.py's _alert_halt_detected,
+        # fired every time any phase finds an active halt) matched neither substring, so a
+        # halted-trading condition - arguably the single most operator-actionable state this
+        # system can be in - was always classified "warning" here despite page_critical()'s
+        # own docstring listing "a halt trigger" as exactly the kind of event meant to page.
+        severity = "critical" if any(kw in alert_type.upper() for kw in ("CRITICAL", "BLOCK", "HALT")) else "warning"
+
         self._persist_to_db(
             kind="position",
-            severity="critical" if "CRITICAL" in alert_type.upper() or "BLOCK" in alert_type.upper() else "warning",
+            severity=severity,
             title=subject,
             message=body_text,
             symbol=symbol,
@@ -360,6 +368,13 @@ class AlertManager:
                 self._publish_sns(subject, body_text)
             except Exception as e:
                 logger.error(f"Position alert SNS failed (non-blocking): {e}")
+
+        # BUG FOUND (2026-09-07 real-money-readiness audit): unlike send_data_patrol_alert
+        # above, this method never called page_critical() at all - a critical position alert
+        # (including the HALT_FLAG_ACTIVE case just fixed above) structurally could never
+        # reach PagerDuty/Twilio regardless of severity, only email/SNS.
+        if severity == "critical":
+            self.page_critical(subject, body_text)
 
     def send_loader_alert(self, findings: list[tuple[str, str, str]]) -> None:
         """Send alert when loader fails or data is stale. Non-blocking.

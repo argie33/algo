@@ -132,7 +132,7 @@
   "algo/orchestrator/type_converters.py": 42,
   "algo/orchestrator/validation_thresholds.py": 219,
   "algo/reporting/__init__.py": 16,
-  "algo/reporting/alerts.py": 563,
+  "algo/reporting/alerts.py": 559,
   "algo/reporting/alerts_file_fallback.py": 76,
   "algo/reporting/daily_report.py": 521,
   "algo/reporting/metrics.py": 350,
