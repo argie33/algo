@@ -1260,76 +1260,6 @@ class ExitEngine:
         except (RuntimeError, ValueError):
             raise
 
-    # Below this fraction of price, a raw-vs-adjusted-close divergence is treated as noise
-    # (rounding, thin-volume last-tick artifacts) rather than a real corporate-action event -
-    # see _dividend_gap_adjustment's docstring for the detection math.
-    _DIVIDEND_GAP_TOLERANCE_PCT = 0.003
-
-    def _dividend_gap_adjustment(self, cur: PsycopgCursor[Any], symbol: str, as_of_date: _date | datetime) -> float:
-        """Detect an ex-dividend price gap on as_of_date and return the per-share amount to add
-        back to that day's raw close before comparing it against a stop/target level.
-
-        REAL-MONEY-READINESS FIX (2026-09-08 audit): _fetch_recent_prices below has always
-        compared raw price_daily.close against stop/target levels, on both the live-quote and
-        DB-fallback paths. A real ex-dividend gap-down (the stock legitimately opens lower by
-        the dividend amount - not a data error) reads identically to an adverse price decline
-        to a stop-loss/swing-low check, even though it reflects a scheduled cash distribution,
-        not the trade thesis deteriorating. Confirmed live (this session): price_daily.adj_close
-        is already populated independently of the raw close (loaders/price_transformer.py, from
-        yfinance's own "Adj Close" field) and NOT previously read anywhere in the exit path.
-
-        Detection: adj_close is a backward-adjusted series that stays smooth across a dividend
-        (the drop is normalized away), while raw close visibly drops by the dividend amount on
-        the ex-div date. Comparing the two days' raw return vs adjusted return isolates that
-        drop: if raw_return is more negative than adj_return by more than
-        _DIVIDEND_GAP_TOLERANCE_PCT, the gap between them approximates the per-share dividend.
-
-        Deliberately narrow in scope to avoid the retroactive-rewrite problem adjusted-close
-        series have (a later dividend declaration can shift adj_close for dates before it,
-        which would be wrong to bake into a stop level or ATR/swing-low computed at entry
-        time): this only ever compares the two most recent rows AT EVALUATION TIME, and only
-        nudges the single current_price value used for THIS check, never rewrites any stored
-        history, stop level, or technical indicator. Fails to a no-op (returns 0.0) on any
-        missing/insufficient data - this is a strictly-improving refinement to an existing
-        comparison, not a required gate, so there is no fail-open/fail-closed safety concern
-        the way there is for a blocking risk check.
-        """
-        cur.execute(
-            "SELECT date, close, adj_close FROM price_daily WHERE symbol = %s AND date <= %s "
-            "ORDER BY date DESC LIMIT 2",
-            (symbol, as_of_date),
-        )
-        rows = cur.fetchall()
-        # Defensive shape check, not just a length check: this is a strictly best-effort
-        # refinement (see docstring), so any row shape this SELECT couldn't actually produce
-        # (e.g. a test double sharing one fetchall() fixture across a differently-shaped query)
-        # is a no-op rather than a crash - never worth raising for a non-required enhancement.
-        if len(rows) < 2 or any(len(r) != 3 for r in rows[:2]):
-            return 0.0
-        (_, close_today, adj_today), (_, close_prev, adj_prev) = rows[0], rows[1]
-        if None in (close_today, close_prev, adj_today, adj_prev):
-            return 0.0
-        close_today, close_prev, adj_today, adj_prev = (
-            float(close_today),
-            float(close_prev),
-            float(adj_today),
-            float(adj_prev),
-        )
-        if close_prev <= 0 or adj_prev <= 0:
-            return 0.0
-        raw_return = close_today / close_prev - 1
-        adj_return = adj_today / adj_prev - 1
-        divergence = adj_return - raw_return
-        if divergence <= self._DIVIDEND_GAP_TOLERANCE_PCT:
-            return 0.0
-        implied_dividend = close_prev * divergence
-        logger.info(
-            f"[EXIT ENGINE] {symbol}: detected likely ex-dividend gap on {as_of_date} "
-            f"(raw return {raw_return:.4f} vs adjusted return {adj_return:.4f}) - adding back "
-            f"${implied_dividend:.4f}/share before stop/target comparison"
-        )
-        return implied_dividend
-
     def _fetch_recent_prices(
         self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime
     ) -> tuple[float | None, float | None]:
@@ -1343,8 +1273,14 @@ class ExitEngine:
 
         For 404 (delisted symbols in paper trading), use database fallback instead.
 
-        Both the live-quote and DB-fallback branches below apply _dividend_gap_adjustment to
-        current_price before returning - see that method's docstring for why and how.
+        Deliberately compares raw (not dividend/split-adjusted) prices against stop/target
+        levels: a heuristic adjustment based on raw-vs-adjusted-close divergence was tried and
+        reverted (real-money-readiness audit, 2026-09-08) because it mutated the price used for
+        every exit decision, including hard stops, based on an unverified guess - any raw/adjusted
+        divergence (data artifacts, split-adjustment glitches, vendor anomalies), not just a real
+        dividend, could inflate current_price enough to suppress a genuine stop trigger. Hard
+        stop-loss must stay unconditional; see _gap_risk_note for the safe, annotation-only way
+        to flag a suspected ex-dividend gap without altering the comparison.
         """
 
         # CRITICAL FIX: `_fetch_alpaca_quote`'s own docstring documents that when the market is
@@ -1386,8 +1322,6 @@ class ExitEngine:
             prev_row = cur.fetchone()
 
             prev_close = float(prev_row[0]) if prev_row and prev_row[0] is not None else None
-
-            current_price += self._dividend_gap_adjustment(cur, symbol, current_date)
 
             return current_price, prev_close
 
@@ -1457,8 +1391,6 @@ class ExitEngine:
             error_msg = f"Cannot convert previous close to float for {symbol}: {prev_close_raw}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
-
-        cur_price += self._dividend_gap_adjustment(cur, symbol, rows[0][0])
 
         return cur_price, prev_close
 
