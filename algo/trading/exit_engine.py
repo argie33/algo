@@ -78,6 +78,41 @@ State tracked on algo_positions:
 
 logger = logging.getLogger(__name__)
 
+# price_daily has no reliable dividend/split-adjusted close (loaders/price_transformer.py's
+# adj_close silently falls back to raw close whenever yfinance omits "Adj Close", which is most
+# responses) - so a stop-loss comparison here has no way to distinguish a genuine intraday
+# decline from an overnight gap caused by a large/special ex-dividend distribution. A real fix
+# needs a proper corporate-actions data feed (not yet integrated - business/vendor decision).
+# Until then, this threshold does NOT suppress or alter the stop (capital preservation must stay
+# unconditional - silently skipping a real stop on a guess is far more dangerous than an
+# occasional false-positive dividend flag), it only annotates the exit reason and logs a warning
+# so a human reviewing the trade/alert knows to check for a corporate action before assuming the
+# stop reflects genuine price deterioration. 7% is well above ordinary single-day volatility for
+# a position that was already near its stop, but within range of an unusual special dividend.
+_GAP_RISK_PCT_THRESHOLD = 0.07
+
+
+def _gap_risk_note(cur_price: Decimal, prev_close: Decimal | float | None) -> str:
+    """Return a diagnostic suffix for a stop-loss reason when the trigger looks gap-driven.
+
+    Does not affect whether the stop fires - see _GAP_RISK_PCT_THRESHOLD comment above.
+    """
+    if prev_close is None:
+        return ""
+    prev_close_dec = Decimal(str(prev_close)) if not isinstance(prev_close, Decimal) else prev_close
+    if prev_close_dec <= 0:
+        return ""
+    pct_drop = (prev_close_dec - cur_price) / prev_close_dec
+    if pct_drop < Decimal(str(_GAP_RISK_PCT_THRESHOLD)):
+        return ""
+    note = (
+        f" [GAP RISK: {float(pct_drop) * 100:.1f}% single-day drop from prev close "
+        f"${float(prev_close_dec):.2f} - verify no ex-dividend/special distribution before "
+        "treating as a genuine technical breakdown; price_daily is not dividend-adjusted]"
+    )
+    logger.warning("[EXIT_ENGINE] Stop triggered with large single-day gap:%s", note)
+    return note
+
 
 def _persist_exit_check_error(
     error_date: _date,
@@ -622,6 +657,7 @@ class ExitEngine:
                                 "reason": (
                                     f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(hard_stop_dec):.2f} "
                                     "(hard capital preservation - bypasses min_hold_days)"
+                                    f"{_gap_risk_note(cur_price_dec, prev_close)}"
                                 ),
                                 "exit_price_override": float(exit_price_for_stop),  # Use stop price as fill
                             }
@@ -942,6 +978,7 @@ class ExitEngine:
                 reason = (
                     f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(active_stop_dec):.2f} "
                     "(hard capital preservation - not subject to min_hold_days)"
+                    f"{_gap_risk_note(cur_price_dec, prev_close)}"
                 )
             return {
                 "stage": "stop",
