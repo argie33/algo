@@ -641,7 +641,56 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
     if period == "annual":
         _fill_long_term_debt_from_segment_dimensional_facts(rows, client, symbol)
     _fill_cash_and_restricted_cash_combined(rows, client, symbol, period)
+    _fill_liabilities_from_assets_minus_equity(rows, client, symbol, period)
     return rows
+
+
+def _fill_liabilities_from_assets_minus_equity(
+    rows: list[dict[str, Any]], client: Any, symbol: str, period: str
+) -> None:
+    """Derive `liabilities` = LiabilitiesAndStockholdersEquity - StockholdersEquity for a filer
+    that stops tagging plain "Liabilities" for its most recent fiscal year/quarter but keeps
+    tagging the standard cover-page total "LiabilitiesAndStockholdersEquity" concept (a real,
+    balance-sheet-identity-guaranteed equivalent: Assets = Liabilities + StockholdersEquity =
+    LiabilitiesAndStockholdersEquity by definition, so this is subtraction of two directly-tagged
+    facts, not an estimate).
+
+    ADDED 2026-09-08 (goal session: XBRL continuity gap triage follow-up - see
+    scripts/triage_xbrl_continuity_gaps.py's SYNONYM_FOUND output). Live-confirmed via real SEC
+    companyfacts JSON for all 4 affected filers found by that triage - SEI Investments (CIK
+    0000350894), BioRestorative Therapies (0001505497), Datacentrex (0001853825), and Edesa
+    Biotech (0001540159) - each has a real, current-period LiabilitiesAndStockholdersEquity fact
+    (e.g. BioRestorative 2025-12-31: $4,079,635, EXACTLY matching that period's own Assets fact)
+    plus a real StockholdersEquity fact for the same period, while plain "Liabilities" itself is
+    absent. The earlier triage script's own SYNONYM_FOUND guess (mapping LiabilitiesCurrent
+    directly to the total_liabilities column) was wrong - LiabilitiesCurrent is a genuinely
+    smaller, current-only figure, not the total; this derivation is the actual fix.
+
+    Also fills `assets` the same way (assets == LiabilitiesAndStockholdersEquity directly, no
+    subtraction needed) when plain "Assets" is itself absent - live-confirmed SEI Investments'
+    OWN most recent quarter (2026 Q2) has dropped "Assets" too, not just "Liabilities" (a filer
+    that has fully stopped tagging the classified-balance-sheet concepts in favor of the
+    cover-page total), so treating only the liabilities side as the gap would have been an
+    incomplete fix for the same filer this function was written for.
+
+    Fallback-only: only fills a fiscal year/quarter where the standard concept (already in
+    `concepts` above) found nothing - never overwrites a real value.
+    """
+    combined_rows = _aggregate_concepts(client, symbol, ["LiabilitiesAndStockholdersEquity"], period)
+    combined_by_key = {
+        (r.get("fiscal_year"), r.get("fiscal_period")): r.get("liabilities_and_stockholders_equity")
+        for r in combined_rows
+    }
+    for row in rows:
+        total = combined_by_key.get((row.get("fiscal_year"), row.get("fiscal_period")))
+        if total is None:
+            continue
+        if row.get("assets") is None:
+            row["assets"] = total
+        if row.get("liabilities") is None:
+            equity = row.get("stockholders_equity")
+            if equity is not None:
+                row["liabilities"] = total - equity
 
 
 def _fill_cash_and_restricted_cash_combined(rows: list[dict[str, Any]], client: Any, symbol: str, period: str) -> None:
