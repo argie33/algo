@@ -137,8 +137,8 @@ class QualityMetricsMixin(SymbolGateMixin):
             # never actually fixed SPY. Reuses "etf_no_sec_filings" (already correctly mapped
             # to "Legitimate / not applicable") - the identical underlying fact
             # sec_valuations_income_context.py's own ETF carve-out already uses for the same
-            # "no 10-K, no SEC financial statements at all" case.
-            reason = "etf_no_sec_filings" if symbol in self._get_etf_symbols() else None
+            # "no 10-K" case. FIXED 2026-09-07: also covers RIC/CEF - see _no_balance_sheet_row_reason().
+            reason = self._no_balance_sheet_row_reason(symbol)
             return self._unavailable_marker("quality_metrics", symbol, reason=reason)
 
         if not isinstance(quality_row, (tuple, list)):
