@@ -258,10 +258,23 @@ class MarketFactorCalculator:
     # ============= Factor Implementations =============
 
     def trend_30wk(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Trend factor: SPY vs 30-week MA (critical).
+        """Trend factor: SPY vs 30-week MA (critical), 3-day-majority confirmed.
 
         Raises RuntimeError if data unavailable - SPY trend is foundational to veto logic.
         Trend is a 15pt factor. Missing weekly price data is a data error, not a skip condition.
+
+        CONFIRMATION FILTER (added 2026-09-08, real-money-readiness audit): this factor is
+        W_PILLAR_TREND=100/SUBW_TREND_30WK=1.0 in market_exposure.py's composite - i.e. it is
+        THE ENTIRE scored composite, and above_30wma=False alone can drop scaled_score to 0,
+        landing in EXPOSURE_TIERS' min_pct=0 tier (halt_new_entries=True). A raw single-day
+        close-vs-MA comparison had zero hysteresis: one noisy day straddling a slow-moving
+        30-week MA could flip halt_new_entries on/off with no dampening - the textbook
+        whipsaw failure mode of any MA-crossover system. Fix: require a 2-of-3 majority vote
+        across the last 3 SPY trading-day closes against the (unchanged) 30-week SMA, rather
+        than a single day's close. This is a standard, well-known confirmation filter (not a
+        new/arbitrary threshold) - it only delays a genuine, sustained trend change by up to
+        ~2 trading days, while absorbing a single-day fakeout around the MA. No new
+        persisted state needed: purely a function of price_daily's most recent 3 rows.
         """
         try:
             cur.execute(
@@ -272,33 +285,58 @@ class MarketFactorCalculator:
                            ROW_NUMBER() OVER (ORDER BY date DESC) as rn
                     FROM price_weekly WHERE symbol = 'SPY' AND date <= %s
                 )
-                SELECT close, sma30 FROM w WHERE rn = 1
+                SELECT sma30 FROM w WHERE rn = 1
                 """,
                 (eval_date,),
             )
-            row = cur.fetchone()
-            if row and row[0] is not None and row[1] is not None:
-                spy = float(row[0])
-                sma = float(row[1])
-                if math.isnan(spy) or math.isinf(spy) or math.isnan(sma) or math.isinf(sma):
-                    raise RuntimeError(
-                        f"[TREND CRITICAL] Non-finite SPY trend data: close={spy!r}, sma30={sma!r}. "
-                        f"Cannot compute trend score from NaN/Infinity prices."
-                    )
-                # Calculate price vs MA percentage for dashboard display
-                price_vs_ma_pct = ((spy - sma) / sma) * 100 if sma > 0 else 0
-                # Score: 100 if above MA (bullish), 0 if below (bearish)
-                score = 100.0 if spy > sma else 0.0
-                return {
-                    "above_30wma": spy > sma,
-                    "score": score,
-                    "price_vs_ma_pct": price_vs_ma_pct,
-                    "value": "bullish" if spy > sma else "bearish",
-                }
-            raise RuntimeError(
-                "[TREND CRITICAL] SPY 30-week trend data unavailable. "
-                "Check: (1) price_weekly table has recent SPY prices, (2) eval_date is not in future"
+            sma_row = cur.fetchone()
+            if not sma_row or sma_row[0] is None:
+                raise RuntimeError(
+                    "[TREND CRITICAL] SPY 30-week trend data unavailable. "
+                    "Check: (1) price_weekly table has recent SPY prices, (2) eval_date is not in future"
+                )
+            sma = float(sma_row[0])
+            if math.isnan(sma) or math.isinf(sma):
+                raise RuntimeError(
+                    f"[TREND CRITICAL] Non-finite SPY 30-week SMA: sma30={sma!r}. "
+                    f"Cannot compute trend score from NaN/Infinity prices."
+                )
+
+            cur.execute(
+                """
+                SELECT close FROM price_daily
+                WHERE symbol = 'SPY' AND date <= %s
+                ORDER BY date DESC LIMIT 3
+                """,
+                (eval_date,),
             )
+            day_rows = cur.fetchall()
+            if len(day_rows) < 3:
+                raise RuntimeError(
+                    f"[TREND CRITICAL] Only {len(day_rows)}/3 recent SPY daily closes available "
+                    f"for 30-week-MA confirmation vote. Check: price_daily table has recent SPY prices."
+                )
+            recent_closes = [float(r[0]) for r in day_rows if r[0] is not None]
+            if len(recent_closes) < 3 or any(math.isnan(c) or math.isinf(c) for c in recent_closes):
+                raise RuntimeError(
+                    f"[TREND CRITICAL] Non-finite/missing SPY daily close among last 3 rows: {day_rows!r}. "
+                    f"Cannot compute trend score from NaN/Infinity/missing prices."
+                )
+
+            spy = recent_closes[0]  # most recent close, for display/price_vs_ma_pct only
+            above_votes = sum(1 for c in recent_closes if c > sma)
+            above_30wma = above_votes >= 2  # 2-of-3 majority confirmation
+
+            # Calculate price vs MA percentage for dashboard display (most recent close)
+            price_vs_ma_pct = ((spy - sma) / sma) * 100 if sma > 0 else 0
+            # Score: 100 if confirmed above MA (bullish), 0 if confirmed below (bearish)
+            score = 100.0 if above_30wma else 0.0
+            return {
+                "above_30wma": above_30wma,
+                "score": score,
+                "price_vs_ma_pct": price_vs_ma_pct,
+                "value": "bullish" if above_30wma else "bearish",
+            }
         except RuntimeError:
             raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:

@@ -230,7 +230,7 @@
   "algo/risk/market_exposure_cache.py": 370,
   "algo/risk/market_exposure_macro.py": 274,
   "algo/risk/market_exposure_technicals.py": 508,
-  "algo/risk/market_factor_calculator.py": 800,
+  "algo/risk/market_factor_calculator.py": 786,
   "algo/risk/stale_signal_circuit_breaker.py": 111,
   "algo/risk/unified_risk_monitor.py": 574,
   "algo/risk/var.py": 1144,
