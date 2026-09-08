@@ -316,6 +316,24 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # Both fallback-only, same convention as the rest of this block.
         "LongTermDebtNoncurrent",
         "LongTermDebtAndCapitalLeaseObligations",
+        # FIXED 2026-09-07 (goal session: XBRL concept-coverage backlog sweep): the SAME
+        # "noncurrent-alone understates real debt" gap the LongTermDebtCurrent fix above
+        # already closed for the plain LongTermDebtNoncurrent concept, but for THIS
+        # concept's own current-portion sibling instead. Live-confirmed via real SEC
+        # companyfacts JSON: for filers that tag "LongTermDebtAndCapitalLeaseObligations"
+        # (fetched above, fallback-only into long_term_debt as if it were the total) AND
+        # this concept for the same fiscal year, with no plain LongTermDebt/
+        # LongTermDebtNoncurrent/"...IncludingCurrentMaturities" fact present that year -
+        # 258 distinct filers, 1,263 filer-years, including Adobe, AT&T, AbbVie, Best Buy,
+        # Amphenol, and American Water Works - "LongTermDebtAndCapitalLeaseObligations" is
+        # the NONCURRENT-only portion, not the total (e.g. AMD FY2015: noncurrent-tagged
+        # concept=$2,032,000,000, this concept=$230,000,000 current maturities, real total
+        # $2,262,000,000 - the current portion was silently dropped every such year).
+        # _fill_long_term_debt_from_noncurrent_current_split() below sums both into
+        # "long_term_debt" (same mechanism as the LongTermDebtNoncurrent/Current pair,
+        # only firing as a second-priority fallback when that pair's own fill didn't
+        # already resolve it) and pops both raw keys before returning.
+        "LongTermDebtAndCapitalLeaseObligationsCurrent",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): the
         # SAME "wiring half-landed" bug the comment immediately above this one already
         # describes and fixed once - the 2026-08-18 ADC/net-lease-REIT fix added
@@ -768,10 +786,35 @@ def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]
     keys, including "long_term_debt_noncurrent" (fetched above as a plain fallback concept
     for a different, concurrent fix) - this function's sum is strictly more accurate, so it
     always supersedes that field_mapping-level fallback rather than leaving both to race.
+
+    Second, lower-priority pass (2026-09-07, XBRL concept-coverage backlog sweep):
+    long_term_debt = LongTermDebtAndCapitalLeaseObligations + ...Current, the same
+    noncurrent-alone understatement bug for XOM/CAT-style filers' OWN concept instead of
+    the plain LongTermDebtNoncurrent one - see "LongTermDebtAndCapitalLeaseObligations
+    Current"'s own comment in the concepts list above for the live evidence (258 filers,
+    1,263 filer-years, Adobe/AT&T/AbbVie/Best Buy among them). Only fires when BOTH halves
+    are present for that fiscal year (unlike the primary pair above, a missing current-
+    portion tag here is left as the existing, already-correct single-figure fallback
+    behavior - the field_mapping-level fallback-only mapping for
+    "long_term_debt_and_capital_lease_obligations" alone, untouched by this function,
+    still needs that raw key when there is no current-portion sibling to sum it with) and
+    only when neither the primary pair above nor a real
+    "long_term_debt_and_capital_lease_obligations_including_current_maturities" fact (a
+    genuinely more authoritative combined-total concept, fetched separately) already
+    resolved this fiscal year - guards against this lower-priority pair racing ahead of a
+    better total that the field_mapping stage would otherwise have picked.
     """
     for row in rows:
         noncurrent = row.pop("long_term_debt_noncurrent", None)
         current = row.pop("long_term_debt_current", None)
-        if row.get("long_term_debt") is not None or noncurrent is None:
-            continue
-        row["long_term_debt"] = noncurrent + (current or 0)
+        if row.get("long_term_debt") is None and noncurrent is not None:
+            row["long_term_debt"] = noncurrent + (current or 0)
+
+        combined_current = row.pop("long_term_debt_and_capital_lease_obligations_current", None)
+        if (
+            row.get("long_term_debt") is None
+            and combined_current is not None
+            and row.get("long_term_debt_and_capital_lease_obligations") is not None
+            and row.get("long_term_debt_and_capital_lease_obligations_including_current_maturities") is None
+        ):
+            row["long_term_debt"] = row.pop("long_term_debt_and_capital_lease_obligations") + combined_current
