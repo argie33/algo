@@ -821,13 +821,26 @@ class PreTradeChecks:
             closes_by_symbol.setdefault(row_symbol, {})[row_date] = float(row_close)
 
         # Fails open if ANY position (candidate or existing) lacks price history - see
-        # docstring above for why a partial series isn't an acceptable substitute.
+        # docstring above for why a partial series isn't an acceptable substitute. Unlike
+        # _check_portfolio_beta's missing-data handling (which still runs with a conservative
+        # assumed beta), there's no analogous safe substitute for a missing return series here,
+        # so this check is fully skipped - silently, until now - exactly when data is choppy
+        # (new listing, gap, halt) and risk oversight matters most (2026-09-07 audit).
         missing = [s for s in all_symbols if s not in closes_by_symbol or len(closes_by_symbol[s]) < 2]
         if missing:
+            logger.warning(
+                f"[PRETRADE_CHECKS] Simulated portfolio VaR check SKIPPED for {symbol}: "
+                f"{len(missing)} symbol(s) lack sufficient price history: {missing}."
+            )
             return True, None
 
         common_dates = sorted(set.intersection(*(set(closes_by_symbol[s].keys()) for s in all_symbols)))
         if len(common_dates) - 1 < _SIMULATED_VAR_MIN_OVERLAP_DAYS:
+            logger.warning(
+                f"[PRETRADE_CHECKS] Simulated portfolio VaR check SKIPPED for {symbol}: only "
+                f"{len(common_dates) - 1} overlapping trading day(s) across all positions, below "
+                f"the required {_SIMULATED_VAR_MIN_OVERLAP_DAYS}."
+            )
             return True, None
 
         weight_by_symbol = {symbol: position_value / portfolio_value}
