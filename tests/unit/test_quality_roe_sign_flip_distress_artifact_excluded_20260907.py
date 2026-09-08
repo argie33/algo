@@ -48,8 +48,9 @@ class TestRoeSignFlipDistressArtifactExcluded:
         term must contribute 0, the same as a directly-negative ROE, not win a high
         percentile off the sign-flip artifact."""
         rows = [
-            ("GOOD", "Technology", 25.0, 15.0, 20.0, 12.0, 0.2, 3.0, 90.0, 35.0, 999.0),  # genuinely profitable peer
-            ("ROC_SHAPED", "Technology", 915.88, -38.43, None, None, None, None, None, None, 999.0),
+            # genuinely profitable peer
+            ("GOOD", "Technology", None, 25.0, 15.0, 20.0, 12.0, 0.2, 3.0, 90.0, 35.0, 999.0),
+            ("ROC_SHAPED", "Technology", None, 915.88, -38.43, None, None, None, None, None, None, 999.0),
         ]
         updates = dict(_run_with_mocked_rows(rows))
         assert "ROC_SHAPED" in updates
@@ -63,8 +64,8 @@ class TestRoeSignFlipDistressArtifactExcluded:
         profit, just a small buyback-thinned equity base) - must NOT be excluded from the
         ranking the way the distress-artifact case above is."""
         rows = [
-            ("LOWER_REAL_ROE", "Technology", 20.0, 10.0, None, None, None, None, None, None, 0.0),
-            ("HRB_SHAPED", "Technology", 624.40, 18.59, None, None, None, None, None, None, 0.0),
+            ("LOWER_REAL_ROE", "Technology", None, 20.0, 10.0, None, None, None, None, None, None, 0.0),
+            ("HRB_SHAPED", "Technology", None, 624.40, 18.59, None, None, None, None, None, None, 0.0),
         ]
         updates = dict(_run_with_mocked_rows(rows))
         # Both are real, non-negative roe/roa - HRB_SHAPED has the higher roe AND roa, so its
@@ -80,7 +81,7 @@ class TestRoeSignFlipDistressArtifactExcluded:
         missing), never flip roe to a hard 0 and consume its full weight for an unrelated
         data gap (2026-09-07 real-money-readiness audit fix). With every other input also
         missing here, total_weight is 0 and the symbol gets no update at all."""
-        rows = [("NOROA", "Technology", 30.0, None, None, None, None, None, None, None, 999.0)]
+        rows = [("NOROA", "Technology", None, 30.0, None, None, None, None, None, None, None, 999.0)]
         updates = dict(_run_with_mocked_rows(rows))
         assert "NOROA" not in updates
 
@@ -90,6 +91,6 @@ class TestRoeSignFlipDistressArtifactExcluded:
         component, never a floored-to-0 ROE term dragging it down for the unrelated roa gap.
         fcf_margin is alone in its sector-neutral z-score pool (no peer) -> neutral z=0.0 ->
         percentile 50.0, weight 15 as the only component, so the composite equals it exactly."""
-        rows = [("NOROA_WITH_FCF", "Technology", 30.0, None, None, 20.0, None, None, None, None, 999.0)]
+        rows = [("NOROA_WITH_FCF", "Technology", None, 30.0, None, None, 20.0, None, None, None, None, 999.0)]
         updates = dict(_run_with_mocked_rows(rows))
         assert updates["NOROA_WITH_FCF"] == 50.0

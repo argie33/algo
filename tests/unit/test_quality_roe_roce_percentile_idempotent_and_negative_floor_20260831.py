@@ -61,15 +61,16 @@ class TestIdempotentAcrossRepeatedRuns:
         `quality_score` (simulating a second consecutive run with zero underlying data
         change) and it must NOT drift further - a fixed point, not a ratchet."""
         # Two symbols so z-scores aren't the single-symbol neutral-50.0 special case.
-        row_a = ("A", "Technology", 20.0, 10.0, 15.0, 8.0, 0.5, 10.0, 60.0, 20.0, 999.0)  # quality_score placeholder
-        row_b = ("B", "Technology", -18.31, -1.68, -11.99, -5.29, 0.0, 0.87, 97.03, None, 999.0)
+        # quality_score placeholder
+        row_a = ("A", "Technology", None, 20.0, 10.0, 15.0, 8.0, 0.5, 10.0, 60.0, 20.0, 999.0)
+        row_b = ("B", "Technology", None, -18.31, -1.68, -11.99, -5.29, 0.0, 0.87, 97.03, None, 999.0)
 
         first_pass_updates = _run_with_mocked_rows([row_a, row_b])
         assert first_pass_updates, "expected the first pass to correct the placeholder quality_score"
         corrected = dict(first_pass_updates)
 
-        row_a_2 = ("A", "Technology", 20.0, 10.0, 15.0, 8.0, 0.5, 10.0, 60.0, 20.0, corrected["A"])
-        row_b_2 = ("B", "Technology", -18.31, -1.68, -11.99, -5.29, 0.0, 0.87, 97.03, None, corrected["B"])
+        row_a_2 = ("A", "Technology", None, 20.0, 10.0, 15.0, 8.0, 0.5, 10.0, 60.0, 20.0, corrected["A"])
+        row_b_2 = ("B", "Technology", None, -18.31, -1.68, -11.99, -5.29, 0.0, 0.87, 97.03, None, corrected["B"])
         second_pass_updates = _run_with_mocked_rows([row_a_2, row_b_2])
 
         assert second_pass_updates == [], (
@@ -82,13 +83,13 @@ class TestIdempotentAcrossRepeatedRuns:
         """Broader sanity check across more symbols, including a negative-ROE/ROCE one -
         three passes in a row must reach a fixed point by pass 2, never keep moving."""
         rows = [
-            ("POS", "Technology", 25.0, 12.0, 18.0, 10.0, 0.3, 5.0, 80.0, 30.0, 999.0),
-            ("NEG", "Technology", -30.0, -10.0, -20.0, -15.0, 1.0, 20.0, 40.0, -5.0, 999.0),
-            ("MIX", "Technology", 5.0, 3.0, -2.0, 2.0, 0.8, 15.0, 55.0, 12.0, 999.0),
+            ("POS", "Technology", None, 25.0, 12.0, 18.0, 10.0, 0.3, 5.0, 80.0, 30.0, 999.0),
+            ("NEG", "Technology", None, -30.0, -10.0, -20.0, -15.0, 1.0, 20.0, 40.0, -5.0, 999.0),
+            ("MIX", "Technology", None, 5.0, 3.0, -2.0, 2.0, 0.8, 15.0, 55.0, 12.0, 999.0),
         ]
 
         def _next_pass_rows(prior_rows: list[tuple], prior_updates: dict[str, float]) -> list[tuple]:
-            return [(r[0], *r[1:10], prior_updates.get(r[0], r[10])) for r in prior_rows]
+            return [(r[0], *r[1:11], prior_updates.get(r[0], r[11])) for r in prior_rows]
 
         pass1 = dict(_run_with_mocked_rows(rows))
         rows_after_1 = _next_pass_rows(rows, pass1)
@@ -104,8 +105,9 @@ class TestNegativeRoeRoceFloor:
         """GLIBK-shaped case: ROE/ROCE both deeply negative alongside otherwise-mediocre
         inputs must NOT land anywhere near 100 - the exact live-observed failure mode."""
         rows = [
-            ("GOOD", "Technology", 25.0, 15.0, 20.0, 12.0, 0.2, 3.0, 90.0, 35.0, 0.0),  # a genuinely strong peer
-            ("GLIBK", "Technology", -18.31, -9.55, -11.99, 11.66, 0.72, None, 32.34, -10.73, 0.0),
+            # a genuinely strong peer
+            ("GOOD", "Technology", None, 25.0, 15.0, 20.0, 12.0, 0.2, 3.0, 90.0, 35.0, 0.0),
+            ("GLIBK", "Technology", None, -18.31, -9.55, -11.99, 11.66, 0.72, None, 32.34, -10.73, 0.0),
         ]
         updates = dict(_run_with_mocked_rows(rows))
         assert "GLIBK" in updates
@@ -130,8 +132,8 @@ class TestNegativeRoeRoceFloor:
         to fix pre-existing unrelated failures; only the row shape/function name below were
         updated so this test still runs against the current method signature."""
         rows = [
-            ("WORST_NEG", "Technology", -40.0, None, None, None, None, None, None, None, 99.0),
-            ("MID_NEG", "Technology", -5.0, None, None, None, None, None, None, None, 99.0),
+            ("WORST_NEG", "Technology", None, -40.0, None, None, None, None, None, None, None, 99.0),
+            ("MID_NEG", "Technology", None, -5.0, None, None, None, None, None, None, None, 99.0),
         ]
         updates = dict(_run_with_mocked_rows(rows))
         # Both symbols' ONLY component is ROE (weight 11) - floored to 0 for both -> quality_score 0.0.

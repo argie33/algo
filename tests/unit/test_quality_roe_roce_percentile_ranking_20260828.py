@@ -59,8 +59,12 @@ def _run_with_mocked_rows(rows: list[tuple]) -> list[tuple[str, float]]:
 
 class TestUpdateQualitySectorNeutralScoresReconciliation:
     """End-to-end test against a fully mocked DB. Row shape:
-    (symbol, sector, roe, roa, roce_pct, fcf_margin, debt_to_equity, margin_volatility,
+    (symbol, sector, industry, roe, roa, roce_pct, fcf_margin, debt_to_equity, margin_volatility,
      asset_turnover, gross_profitability, quality_score_old).
+
+    `industry` (added 2026-09-08 for the D2E/ROA/ROCE Financial-Services-subdivision fix) is
+    only consulted when sector == "Financial Services" - every row here uses "Technology" and
+    None, so it's inert for this file's own arithmetic.
 
     Every case here uses a sector with fewer than sector_neutral_zscore's min_sector_size=15
     members, so each metric pools into ONE shared residual group across all rows in the test
@@ -72,7 +76,7 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
         # A lone symbol, no peers anywhere: every metric's pool has exactly 1 member, so
         # sector_neutral_zscore's z-score is 0.0 for lack of anything to compare against ->
         # zscore_to_percentile_scale maps that to the neutral 50.0 for every component.
-        row = ("ONLY", "Technology", 15.0, 10.0, 12.0, 8.0, 0.5, 10.0, 60.0, 20.0, 0.0)
+        row = ("ONLY", "Technology", None, 15.0, 10.0, 12.0, 8.0, 0.5, 10.0, 60.0, 20.0, 0.0)
         updates = dict(_run_with_mocked_rows([row]))
         assert updates["ONLY"] == 50.0
 
@@ -81,7 +85,7 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
         # negative - each floors to 0.0 directly (the "if value < 0: floor" convention this
         # pass preserves from Pass 1's _margin_curve), never entering the z-score population.
         # margin_volatility=10.0 (>=0, no floor case) is alone in its pool -> neutral 50.0.
-        row = ("NEG", "Technology", -1.0, -1.0, -1.0, -1.0, -1.0, 10.0, -1.0, -1.0, 999.0)
+        row = ("NEG", "Technology", None, -1.0, -1.0, -1.0, -1.0, -1.0, 10.0, -1.0, -1.0, 999.0)
         updates = dict(_run_with_mocked_rows([row]))
         components = [
             (0.0, 11.0),  # roe: sign-flip-guard floor (roe<0 and roa<0)
@@ -102,19 +106,19 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
     def test_missing_metrics_omitted_not_defaulted(self) -> None:
         # Only fcf_margin present - every other component's weight must be excluded from the
         # denominator entirely, not defaulted to 0 and diluting the average.
-        row = ("SPARSE", "Technology", None, None, None, 20.0, None, None, None, None, 0.0)
+        row = ("SPARSE", "Technology", None, None, None, None, 20.0, None, None, None, None, 0.0)
         updates = dict(_run_with_mocked_rows([row]))
         # fcf_margin=20.0 alone in its pool -> z-scores to neutral -> percentile 50.0, weight
         # 15 is the ENTIRE denominator, so the composite equals it exactly.
         assert updates["SPARSE"] == 50.0
 
     def test_all_components_missing_produces_no_update(self) -> None:
-        row = ("EMPTY", "Technology", None, None, None, None, None, None, None, None, 0.0)
+        row = ("EMPTY", "Technology", None, None, None, None, None, None, None, None, None, 0.0)
         assert _run_with_mocked_rows([row]) == []
 
     def test_score_unchanged_produces_no_write(self) -> None:
         # Same shape as the lone-symbol case above, but quality_score_old already matches the
         # recomputed 50.0 - no write should be issued (this pass never rewrites a row whose
         # recomputed score is identical, to avoid needless updated_at churn every run).
-        row = ("SAME", "Technology", 15.0, 10.0, 12.0, 8.0, 0.5, 10.0, 60.0, 20.0, 50.0)
+        row = ("SAME", "Technology", None, 15.0, 10.0, 12.0, 8.0, 0.5, 10.0, 60.0, 20.0, 50.0)
         assert _run_with_mocked_rows([row]) == []

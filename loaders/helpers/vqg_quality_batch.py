@@ -123,7 +123,7 @@ class QualityBatchMixin:
         try:
             with _owner().DatabaseContext("write") as cur:
                 cur.execute("""
-                    SELECT qm.symbol, cp.sector, qm.roe, qm.roa, qm.roce_pct, qm.fcf_margin,
+                    SELECT qm.symbol, cp.sector, cp.industry, qm.roe, qm.roa, qm.roce_pct, qm.fcf_margin,
                            qm.debt_to_equity, qm.margin_volatility, qm.asset_turnover, qm.gross_profitability,
                            qm.quality_score
                     FROM quality_metrics qm
@@ -144,6 +144,31 @@ class QualityBatchMixin:
             # group rather than dropping (see that function's own docstring).
             sectors: dict[str, str] = {row[0]: row[1] for row in rows if row[1]}
 
+            # D2E/ROA/ROCE-only peer-group refinement (2026-09-08, quality_value_sector_
+            # neutral_zscore_rewrite follow-up): the single "Financial Services" GICS sector
+            # z-score bucket mixes deposit-funded banks, reserve-funded insurers, and
+            # unregulated other-FS (asset managers, payment networks, brokers) whose leverage
+            # and capital-efficiency profiles aren't comparable - same underlying economics
+            # DEPOSITORY_BANK_INDUSTRIES/INSURANCE_UNDERWRITER_INDUSTRIES already carve out for
+            # the Pass-1 curves in vqg_quality.py (banks/insurers understate leverage against
+            # total_liabilities the same way against each other's capital structure). Scoped to
+            # just these 3 metrics per that memory - roe/fcf_margin/margin_volatility/
+            # asset_turnover/gross_profitability aren't flagged and keep the coarser sector.
+            _fs_industry_peer_group: dict[str, str] = {
+                symbol: (
+                    "Financial Services - Banks"
+                    if industry in _owner().DEPOSITORY_BANK_INDUSTRIES
+                    else "Financial Services - Insurance"
+                    if industry in _owner().INSURANCE_UNDERWRITER_INDUSTRIES
+                    else "Financial Services - Other"
+                )
+                for symbol, sector, industry, *_ in rows
+                if sector == "Financial Services"
+            }
+            d2e_roa_roce_sectors: dict[str, str] = {
+                symbol: _fs_industry_peer_group.get(symbol, sector) for symbol, sector in sectors.items()
+            }
+
             def _nonneg_raw(idx: int) -> dict[str, float]:
                 return {row[0]: float(row[idx]) for row in rows if row[idx] is not None and float(row[idx]) >= 0.0}
 
@@ -156,23 +181,23 @@ class QualityBatchMixin:
             # above; a roe<0 or roa<0 symbol is excluded from the z-score population and
             # floored to 0.0 directly in the per-symbol loop below, same as every other metric.
             roe_raw = {
-                row[0]: float(row[2])
+                row[0]: float(row[3])
                 for row in rows
-                if row[2] is not None and row[3] is not None and float(row[2]) >= 0.0 and float(row[3]) >= 0.0
+                if row[3] is not None and row[4] is not None and float(row[3]) >= 0.0 and float(row[4]) >= 0.0
             }
-            roa_raw = _nonneg_raw(3)
-            roce_raw = _nonneg_raw(4)
-            fcf_margin_raw = _nonneg_raw(5)
-            d2e_raw = _negated_nonneg_raw(6)
-            margin_vol_raw = _negated_nonneg_raw(7)
-            asset_turnover_raw = _nonneg_raw(8)
-            gross_prof_raw = _nonneg_raw(9)
+            roa_raw = _nonneg_raw(4)
+            roce_raw = _nonneg_raw(5)
+            fcf_margin_raw = _nonneg_raw(6)
+            d2e_raw = _negated_nonneg_raw(7)
+            margin_vol_raw = _negated_nonneg_raw(8)
+            asset_turnover_raw = _nonneg_raw(9)
+            gross_prof_raw = _nonneg_raw(10)
 
             roe_pct = zscore_to_percentile_scale(sector_neutral_zscore(roe_raw, sectors))
-            roa_pct = zscore_to_percentile_scale(sector_neutral_zscore(roa_raw, sectors))
-            roce_pct = zscore_to_percentile_scale(sector_neutral_zscore(roce_raw, sectors))
+            roa_pct = zscore_to_percentile_scale(sector_neutral_zscore(roa_raw, d2e_roa_roce_sectors))
+            roce_pct = zscore_to_percentile_scale(sector_neutral_zscore(roce_raw, d2e_roa_roce_sectors))
             fcf_margin_pct = zscore_to_percentile_scale(sector_neutral_zscore(fcf_margin_raw, sectors))
-            d2e_pct = zscore_to_percentile_scale(sector_neutral_zscore(d2e_raw, sectors))
+            d2e_pct = zscore_to_percentile_scale(sector_neutral_zscore(d2e_raw, d2e_roa_roce_sectors))
             margin_vol_pct = zscore_to_percentile_scale(sector_neutral_zscore(margin_vol_raw, sectors))
             asset_turnover_pct = zscore_to_percentile_scale(sector_neutral_zscore(asset_turnover_raw, sectors))
             gross_prof_pct = zscore_to_percentile_scale(sector_neutral_zscore(gross_prof_raw, sectors))
@@ -185,8 +210,8 @@ class QualityBatchMixin:
 
             updates: list[tuple[str, float]] = []
             for row in rows:
-                symbol, quality_score_old = row[0], float(row[10])
-                roe, roa, roce_pct_val, fcf_margin, d2e, margin_vol, asset_turnover, gross_prof = row[2:10]
+                symbol, quality_score_old = row[0], float(row[11])
+                roe, roa, roce_pct_val, fcf_margin, d2e, margin_vol, asset_turnover, gross_prof = row[3:11]
 
                 components: list[tuple[float, float]] = []
 

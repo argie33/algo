@@ -509,7 +509,7 @@
   "loaders/helpers/sec_valuations_yield_dcf.py": 522,
   "loaders/helpers/vqg_growth.py": 366,
   "loaders/helpers/vqg_quality.py": 3678,
-  "loaders/helpers/vqg_quality_batch.py": 280,
+  "loaders/helpers/vqg_quality_batch.py": 278,
   "loaders/helpers/vqg_shared.py": 157,
   "loaders/helpers/vqg_symbol_gates.py": 1995,
   "loaders/helpers/vqg_value.py": 1237,
