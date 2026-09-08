@@ -116,6 +116,17 @@ _FALLBACK_ONLY_ALIAS_KEYS = {
     # same fallback-only-key pattern as the earnings-per-share keys above.
     "current_lease_liabilities",
     "noncurrent_lease_liabilities",
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan exhaustiveness audit, found while
+    # fixing an unrelated noise-filter gap): the 4th batch's IFRS current-portion-of-
+    # borrowings fix (commit d725cc8ca) added "LongtermBorrowings"/"CurrentPortionOf
+    # LongtermBorrowings"/"CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings" ifrs
+    # aliases targeting "long_term_debt_noncurrent"/"long_term_debt_current" but never added
+    # those two keys here - popped and summed into the already-mapped "long_term_debt" column
+    # by _fill_long_term_debt_from_noncurrent_current_split(), same fallback-only-key pattern
+    # as current_lease_liabilities/noncurrent_lease_liabilities above. Pre-existing test gap,
+    # not a live data-loss bug (the fallback function itself was correct and tested).
+    "long_term_debt_current",
+    "long_term_debt_noncurrent",
 }
 
 

@@ -123,7 +123,6 @@ NOISE_SUBSTRINGS = [
     "ShareBasedCompensationArrangementByShareBasedPaymentAward",
     "BusinessCombination",
     "IncomeLossFromDiscontinuedOperations",
-    "AssetImpairmentCharges",
     "GuaranteeObligations",
     "DerivativeInstrument",
     "FairValue",
@@ -140,7 +139,30 @@ NOISE_SUBSTRINGS = [
     "IncomeTaxReconciliation",
     "UnrecognizedTaxBenefit",
     "IncomeTaxPaid",  # jurisdiction/refund-split variants of the already-dismissed IncomeTaxesPaidNet
-    "TreasuryStock",
+    # NOT bare "TreasuryStock" (found 2026-09-08, exhaustiveness audit): that blanket substring
+    # was silently swallowing TreasuryStockValue/TreasuryStockCommonValue (1,863/~1,800 filers) -
+    # a real primary balance-sheet figure, not rollforward detail - without ever individually
+    # reviewing or dismissing it (see NOISE_SUBSTRINGS docstring: this list is only for
+    # footnote/disclosure detail, not a way to silently hide an unreviewed statement-level
+    # concept). Narrowed to just the genuinely-noisy share-count/rollforward/reissuance variants;
+    # TreasuryStockValue/TreasuryStockCommonValue/TreasuryStockPreferredValue now surface and are
+    # explicitly dismissed in xbrl_concept_coverage_dismissed.json (same "equity-rollforward
+    # component, not scored" precedent as the already-dismissed us-gaap:CommonStockValue/
+    # AdditionalPaidInCapital - stockholders_equity total is what's tracked).
+    "TreasuryStockAcquired",
+    "TreasuryStockCarryingBasis",
+    "TreasuryStockCommonShares",
+    "TreasuryStockDeferredEmployeeStockOwnershipPlan",
+    "TreasuryStockNumberOfSharesHeld",
+    "TreasuryStockPreferredShares",
+    "TreasuryStockReissuedAtLowerThanRepurchasePrice",
+    "TreasuryStockRetired",
+    "TreasuryStockShares",
+    "TreasuryStockValueAcquired",
+    "TreasuryStockValueRetired",
+    "WeightedAverageNumberOfSharesTreasuryStock",
+    "StockholdersEquityBeforeTreasuryStock",
+    "ProceedsFromSaleOfTreasuryStock",
     "AdjustmentsToAdditionalPaidInCapital",
     "AdditionalPaidInCapital",
     "StockIssuedDuringPeriod",
@@ -155,7 +177,21 @@ NOISE_SUBSTRINGS = [
     "DefinedContributionPlan",
     "DefinedBenefitPlan",
     "AvailableForSale",
-    "ContractWithCustomerLiability",
+    # NOT bare "ContractWithCustomerLiability" (found 2026-09-08, same exhaustiveness audit as
+    # TreasuryStock above): that blanket substring was silently swallowing
+    # ContractWithCustomerLiability/Current/Noncurrent (2,226/1,679/1,037 filers) - the modern
+    # ASC 606 deferred-revenue tag - without ever individually reviewing it. Narrowed to just the
+    # genuinely-noisy cumulative-catch-up/business-combination/revenue-recognized rollforward
+    # variants (IncreaseDecreaseInContractWithCustomerLiability is separately covered by the
+    # existing bare "IncreaseDecreaseIn" noise rule below). The 3 base concepts now surface and
+    # are explicitly dismissed in xbrl_concept_coverage_dismissed.json with the same reasoning
+    # already used for the already-dismissed us-gaap:DeferredRevenueCurrent (same underlying
+    # deferred-revenue concept, older tag): balance-sheet sub-line this schema's aggregate
+    # current_liabilities/total_liabilities already reflects.
+    "ContractWithCustomerLiabilityChangeInTimeframePerformanceObligationSatisfiedRevenueRecognized",
+    "ContractWithCustomerLiabilityCumulativeCatchUpAdjustmentToRevenue",
+    "ContractWithCustomerLiabilityIncreaseDecreaseForContractAcquiredInBusinessCombination",
+    "ContractWithCustomerLiabilityRevenueRecognized",
     # Cash-flow-statement working-capital/investing/financing footnote detail already
     # reflected net in this schema's operating_cash_flow/investing_cash_flow/
     # financing_cash_flow totals - same rationale as the already-dismissed

@@ -792,6 +792,7 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
     if period == "annual":
         _fill_long_term_debt_from_segment_dimensional_facts(rows, client, symbol)
     _fill_cash_and_restricted_cash_combined(rows, client, symbol, period)
+    _fill_cash_and_restricted_cash_combined_from_split(rows, client, symbol, period)
     _fill_liabilities_from_assets_minus_equity(rows, client, symbol, period)
     return rows
 
@@ -903,6 +904,90 @@ def _fill_cash_and_restricted_cash_combined(rows: list[dict[str, Any]], client: 
         value = combined_by_key.get(key)
         if value is not None:
             row["cash_and_restricted_cash_combined"] = value
+
+
+def _fill_cash_and_restricted_cash_combined_from_split(
+    rows: list[dict[str, Any]], client: Any, symbol: str, period: str
+) -> None:
+    """Fallback-only: cash_and_restricted_cash_combined = cash_and_equivalents + RestrictedCash
+    (or its current/noncurrent split), for filers that never tag the single combined
+    "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents" concept
+    `_fill_cash_and_restricted_cash_combined` above reads.
+
+    ADDED 2026-09-08 (goal session: XBRL coverage-scan exhaustiveness audit - us-gaap:
+    RestrictedCash/RestrictedCashCurrent were being silently swallowed by an over-broad
+    "RestrictedCash" noise substring instead of being individually reviewed; see this
+    concept's dismissal-reversal in xbrl_concept_coverage_dismissed.json's history and the
+    NOISE_SUBSTRINGS comment in xbrl_concept_coverage.py). Live-confirmed via Eastman Kodak's
+    real companyfacts JSON (CIK 0000031235): FY2025 CashAndCashEquivalentsAtCarryingValue =
+    $337,000,000 + RestrictedCashCurrent = $9,000,000, zero
+    CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents fact ever filed - the
+    combined column was NULL for this real, material (2.7% of cash) restricted-cash balance
+    before this fix.
+
+    Only fires when the combined column is still empty for that fiscal year (never overwrites
+    a real directly-tagged combined total) and an unrestricted-cash figure is already populated
+    for that year - the restricted-cash addend is meaningless without a base to add it to. Reads
+    the raw "cash_and_cash_equivalents_at_carrying_value"/"cash_and_due_from_banks" concept keys
+    directly (this function runs before load_financial_statements.py's field_mapping stage folds
+    those, plus this same function's own combined-concept fallback, into the single
+    "cash_and_equivalents" column - see field_mapping's cash_and_equivalents entries). Tiered
+    preference (first tier with any data for that fiscal year wins, no
+    cross-tier summing - a filer only ever uses one of these tagging conventions):
+    1. RestrictedCashCurrent + RestrictedCashNoncurrent (both default to 0 when only one half
+       is tagged for that year).
+    2. Bare "RestrictedCash" (single combined figure, no current/noncurrent split).
+    3. Bare "RestrictedCashAndCashEquivalents" (alternate-label single figure some filers use
+       instead of "RestrictedCash" - live-confirmed via Air Products' real companyfacts JSON,
+       CIK 0000002969: FY2011 = $77,200,000, real material restricted-cash balance).
+    4. Bare "RestrictedCashAndCashEquivalentsNoncurrent" alone (rare filers reporting only the
+       noncurrent portion of this alternate label with no current-portion sibling tagged) - a
+       closer approximation than leaving the figure at cash_and_equivalents alone.
+    ifrs_aliases folds the IFRS analogs (Scully Royalty and others tag
+    "ifrs-full:RestrictedCashAndCashEquivalents" bare, or split into Current/Noncurrent) into
+    the same tiers so foreign private issuers get the identical fallback treatment.
+    """
+    concepts = [
+        "RestrictedCash",
+        "RestrictedCashCurrent",
+        "RestrictedCashNoncurrent",
+        "RestrictedCashAndCashEquivalents",
+        "RestrictedCashAndCashEquivalentsNoncurrent",
+    ]
+    ifrs_aliases = [
+        ("RestrictedCashAndCashEquivalents", "restricted_cash_and_cash_equivalents"),
+        ("CurrentRestrictedCashAndCashEquivalents", "restricted_cash_current"),
+        ("NoncurrentRestrictedCashAndCashEquivalents", "restricted_cash_noncurrent"),
+    ]
+    restricted_rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=ifrs_aliases)
+    restricted_by_key = {(r.get("fiscal_year"), r.get("fiscal_period")): r for r in restricted_rows}
+    for row in rows:
+        if row.get("cash_and_restricted_cash_combined") is not None:
+            continue
+        cash = row.get("cash_and_cash_equivalents_at_carrying_value")
+        if cash is None:
+            cash = row.get("cash_and_due_from_banks")
+        if cash is None:
+            continue
+        restricted_row = restricted_by_key.get((row.get("fiscal_year"), row.get("fiscal_period")))
+        if not restricted_row:
+            continue
+        current = restricted_row.get("restricted_cash_current")
+        noncurrent = restricted_row.get("restricted_cash_noncurrent")
+        if current is not None or noncurrent is not None:
+            row["cash_and_restricted_cash_combined"] = cash + (current or 0) + (noncurrent or 0)
+            continue
+        bare = restricted_row.get("restricted_cash")
+        if bare is not None:
+            row["cash_and_restricted_cash_combined"] = cash + bare
+            continue
+        alt_bare = restricted_row.get("restricted_cash_and_cash_equivalents")
+        if alt_bare is not None:
+            row["cash_and_restricted_cash_combined"] = cash + alt_bare
+            continue
+        alt_noncurrent = restricted_row.get("restricted_cash_and_cash_equivalents_noncurrent")
+        if alt_noncurrent is not None:
+            row["cash_and_restricted_cash_combined"] = cash + alt_noncurrent
 
 
 def _fill_long_term_debt_from_segment_dimensional_facts(rows: list[dict[str, Any]], client: Any, symbol: str) -> None:
