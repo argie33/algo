@@ -41,7 +41,15 @@ logger = logging.getLogger(__name__)
 
 _MIN_COMPANIES = 50
 _MAX_REPORTED = 20
-_NAMESPACES = ["us-gaap", "dei"]
+# FIXED 2026-09-08 (goal session: "is the coverage scan catching everything it should" audit):
+# this list previously omitted "ifrs-full" despite this module's own docstring and
+# utils/external/xbrl_concept_coverage.py's header comment both describing it as a supported
+# namespace - live-confirmed via a manual --namespace ifrs-full run that IFRS filers (Agnico
+# Eagle, Bank of Nova Scotia, Unilever, Sony, PLDT, Barclays, ...) have hundreds of undismissed
+# concepts tagged by 50-250+ companies each that this checker has never once scanned since it
+# was added. WARN-only (see class docstring below), so enabling this does not risk a false
+# halt - it only starts surfacing what was previously invisible.
+_NAMESPACES = ["us-gaap", "dei", "ifrs-full"]
 
 
 class NewXbrlConceptChecker(BaseCheck):

@@ -204,6 +204,50 @@ NOISE_SUBSTRINGS = [
     "IndefiniteLivedIntangibleAssets",  # intangible-asset rollforward detail, distinct from the amortizable-intangible noise already covered by "FiniteLivedIntangibleAssets"
     "MultiemployerPlan",  # multiemployer pension-plan disclosure detail
     "SelfInsuranceReserve",  # self-insurance reserve rollforward
+    # Added 2026-09-08 (goal session: "is the coverage scan catching everything it should"
+    # audit, ifrs-full now scanned for the first time - see xbrl_concept_coverage_scan.py's
+    # namespace default fix same commit). Hand-reviewed the top ~110 ifrs-full concepts by
+    # company count (50-250+ filers each: Agnico Eagle, Bank of Nova Scotia, Unilever, Sony,
+    # PLDT, Barclays, Scully Royalty). These are IFRS's own footnote/reconciliation naming
+    # idioms ("AdjustmentsFor...", "IncreaseDecreaseThrough...", cash-flow-statement
+    # indirect-method reconciliation lines, share-option/actuarial/employee-benefit schedule
+    # detail, business-combination and tax-rate-reconciliation detail) that don't share
+    # literal substrings with the existing us-gaap-oriented patterns above despite being the
+    # same class of non-statement-level disclosure. Deliberately did NOT dismiss items that
+    # look like they could be real statement-level balance-sheet/income-statement lines this
+    # schema might actually want (OtherCurrentAssets/OtherNoncurrentAssets/OtherPayables/
+    # TradeReceivables/Prepayments/CurrentInvestments/CashEquivalents/CashOnHand/ContractAssets/
+    # NetDebt/RawMaterials/CapitalCommitments/DividendsPaidOrdinaryShares/etc.) - those need a
+    # deliberate per-concept review (cross-check against this schema's existing IFRS aliases in
+    # sec_balance_sheet.py/sec_income_statement.py/sec_cash_flow.py) before either fetching or
+    # dismissing, not a blanket substring generalization; left undismissed on purpose so they
+    # keep surfacing for that follow-up instead of silently disappearing.
+    "AdjustmentsFor",  # cash-flow indirect-method reconciliation lines (interest/tax/FX/disposal add-backs)
+    "IncreaseDecreaseThrough",  # rollforward/reconciliation detail (FX, ownership changes, conversions)
+    "ShareOption",  # share-option scheme detail (exercise price, expiry, forfeiture counts)
+    "SharebasedPaymentArrangement",  # sibling of the above, IFRS 2 disclosure schedule
+    "ExercisePriceShareOptionsGranted",  # share-option pricing detail
+    "WeightedAverageExercisePriceOfShareOptions",  # sibling share-option pricing detail
+    "WeightedAverageSharePriceShareOptionsGranted",  # sibling share-option pricing detail
+    "NumberOfShareOptions",  # share-option count rollforward
+    "DescriptionOf",  # narrative/assumption-description text tags (volatility, risk-free rate, etc.)
+    "ActuarialAssumption",  # pension actuarial-assumption disclosure detail
+    "DefinedBenefitObligation",  # pension obligation rollforward, sibling of us-gaap DefinedBenefitPlan noise
+    "NetDefinedBenefitLiabilityAsset",  # pension service-cost/interest-expense sub-component detail
+    "KeyManagementPersonnelCompensation",  # executive-comp disclosure detail
+    "DirectorsRemuneration",  # director-comp disclosure detail
+    "TaxRateEffectFrom",  # tax-rate-reconciliation footnote line, sibling of us-gaap TaxRateReconciliation
+    "IncomeTaxRelatingTo",  # OCI tax-effect breakdown detail
+    "TemporaryDifferencesAssociatedWith",  # deferred-tax footnote detail, IFRS sibling of us-gaap DeferredTax noise
+    "IdentifiableAssetsAcquiredLiabilitiesAssumed",  # business-combination PPA detail, IFRS sibling of us-gaap BusinessCombination noise
+    "ConsiderationPaidReceived",  # business-combination consideration detail
+    "PercentageOf",  # ownership/revenue-concentration percentage disclosure tags, not a statement figure
+    "ClosingForeignExchangeRate",  # FX-translation footnote rate disclosure, not a statement figure
+    "SocialSecurityContributions",  # payroll-tax footnote detail
+    "ShorttermEmployeeBenefitsAccruals",  # employee-benefit accrual detail
+    "ShorttermEmployeeBenefitsExpense",  # sibling employee-benefit expense detail
+    "CapitalCommitments",  # capital-commitment footnote disclosure, not a recognized statement balance
+    "ContractualCapitalCommitments",  # sibling of the above
 ]
 
 

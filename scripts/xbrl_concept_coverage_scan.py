@@ -61,7 +61,7 @@ def main() -> None:
         "--namespace",
         action="append",
         dest="namespaces",
-        help="XBRL namespace to scan (repeatable). Default: us-gaap, dei. "
+        help="XBRL namespace to scan (repeatable). Default: us-gaap, dei, ifrs-full. "
         "companyfacts also carries 'ffd'/'ecd' (SEC-specific, mostly executive-comp/proxy - "
         "not statement data) which are excluded unless explicitly requested.",
     )
@@ -118,7 +118,7 @@ def main() -> None:
         print(f"Dismissed {args.dismiss}: {args.reason}")
         return
 
-    namespaces = args.namespaces or ["us-gaap", "dei"]
+    namespaces = args.namespaces or ["us-gaap", "dei", "ifrs-full"]
 
     known = load_known_concepts()
     print(f"Loaded {len(known)} known concept literals from {len(CONCEPT_SOURCE_FILES)} source files.")
