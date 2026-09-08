@@ -130,6 +130,7 @@ class DataPatrol:
             StalenessChecker,
             StatisticalAnomalyChecker,
             TieOutChecker,
+            XbrlConceptContinuityChecker,
         )
         from .config import CRIT, ERROR
 
@@ -150,6 +151,7 @@ class DataPatrol:
                 SpecializedChecker(self.config),
                 TieOutChecker(self.config),
                 NewXbrlConceptChecker(self.config),
+                XbrlConceptContinuityChecker(self.config),
                 StatisticalAnomalyChecker(self.config),
                 ScoreRatioOutlierChecker(self.config),
                 CompositeScoreReconciliationChecker(self.config),
