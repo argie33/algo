@@ -171,6 +171,14 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "Require 2%+ pullback before partial profit exits at T1/T2 (false = exit immediately at target)",
         "Exit Rules",
     ),
+    "use_scale_out_targets": (
+        "true",
+        "bool",
+        "Enable T1/T2/T3 partial-exit scale-out (code-fallback default; live algo_config "
+        "is seeded false by migration 1273 after a validation backtest found a pure trail "
+        "design superior - see exit_position_context.py check_target_t1 docstring)",
+        "Exit Rules",
+    ),
     "t1_target_r_multiple": ("1.5", "float", "Tier 1 profit target R-mult", "Exit Rules"),
     "t2_target_r_multiple": ("3.0", "float", "Tier 2 profit target R-mult", "Signal Quality Thresholds"),
     "t3_target_r_multiple": ("4.0", "float", "Tier 3 profit target R-mult", "Signal Quality Thresholds"),
