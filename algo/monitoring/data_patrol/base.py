@@ -123,6 +123,7 @@ class DataPatrol:
             CompositeScoreReconciliationChecker,
             CoverageChecker,
             NewXbrlConceptChecker,
+            PillarScoreReconciliationChecker,
             PriceSanityChecker,
             QualityChecker,
             ScoreRatioOutlierChecker,
@@ -155,6 +156,7 @@ class DataPatrol:
                 StatisticalAnomalyChecker(self.config),
                 ScoreRatioOutlierChecker(self.config),
                 CompositeScoreReconciliationChecker(self.config),
+                PillarScoreReconciliationChecker(self.config),
             ]
 
             for checker in checkers:
