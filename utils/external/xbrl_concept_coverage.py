@@ -276,7 +276,7 @@ def find_continuity_gaps(min_prior_years: int = 3) -> list[dict[str, object]]:
     """
     files = iter_companyfacts_cache()
     if not files:
-        return []
+        return []  # No cache populated yet - nothing to process, not a data gap.
     dismissed = load_continuity_dismissed()
 
     gaps: list[dict[str, object]] = []

@@ -14,6 +14,12 @@ through the instance regardless of which mixin file defines it.
 import logging
 from typing import TYPE_CHECKING, Any
 
+from loaders.helpers.vqg_quality_sector_curves import (
+    compute_gross_profitability_through_asset_turnover_reasons,
+    debt_to_equity_score_for_industry,
+    roa_breakpoints_for_industry,
+    roce_breakpoints_for_industry,
+)
 from loaders.helpers.vqg_shared import (
     MAX_ABSOLUTE_DOLLAR_VALUE,
     MAX_PLAUSIBLE_GROWTH_PCT,
@@ -1930,35 +1936,10 @@ class QualityMetricsMixin(SymbolGateMixin):
                 # meaningless. Floors to worst score rather than inverting into a spuriously
                 # high one, same treatment as debt_to_equity_score below for the same reason.
                 roe_score = 0.0
-            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, JPM/BAC/WFC/C/GS
-            # live-confirmed): same industrial-curve-applied-to-every-sector bug class as
-            # debt_to_equity_score below, for a DIFFERENT input - ROA (net_income/total_assets)
-            # is structurally deflated for depository banks by their huge deposit-funded balance
-            # sheet (a healthy bank's ROA is ~1-1.5%; the (3.0,40)/(8.0,80)/(15.0,100) industrial
-            # curve, calibrated for asset-light industrial/services margins, floors JPM's real
-            # ROA=1.29% to a ~17 score, WFC's 0.99% to ~13, etc.) - not a quality problem, the same
-            # leverage-by-design fact the debt_to_equity bank/insurer curve fix already accounts
-            # for on the liability side. Insurers get their own, less extreme curve: P&C
-            # underwriters (PGR/TRV/ALL live-confirmed ROA 4.4-9.2%) run meaningfully higher than
-            # life insurers (MET/PRU live-confirmed ROA ~0.45%) whose reserve-heavy balance sheets
-            # behave more bank-like - INSURANCE_UNDERWRITER_INDUSTRIES lumps both (same precedent
-            # as debt_to_equity_score's single blended insurer curve just below), hand-calibrated
-            # to credit P&C-typical ROA highly without being so generous it validates a genuinely
-            # weak life-insurer ROA. Thresholds hand-set (not FM-backtested), same as every other
-            # curve in this function.
-            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, 10-electric-
-            # utility + water/gas-distribution live-confirmed): same bug class again, for
-            # regulated rate-base utilities - see UTILITY_INDUSTRIES's own comment for the full
-            # live-verified evidence (ROA clustered 2.26-3.67% across 16 symbols).
-            _symbol_industry_for_roa = self._get_symbol_industry(symbol)
-            if _symbol_industry_for_roa in _owner().DEPOSITORY_BANK_INDUSTRIES:
-                _roa_breakpoints = [(0.85, 40.0), (1.3, 80.0), (1.7, 100.0)]  # recalibrated+IC-validated 20260907
-            elif _symbol_industry_for_roa in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
-                _roa_breakpoints = [(2.5, 40.0), (5.5, 80.0), (10.0, 100.0)]
-            elif _symbol_industry_for_roa in _owner().UTILITY_INDUSTRIES:
-                _roa_breakpoints = [(2.2, 40.0), (3.3, 80.0), (5.0, 100.0)]
-            else:
-                _roa_breakpoints = [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)]
+            # Sector-conditioned ROA breakpoints (bank/insurer/utility overrides) live in
+            # roa_breakpoints_for_industry() (loaders/helpers/vqg_quality_sector_curves.py) -
+            # see that function's own docstring for the live-verified evidence.
+            _roa_breakpoints = roa_breakpoints_for_industry(self._get_symbol_industry(symbol))
             roa_score = self._margin_curve(metrics["roa"], _roa_breakpoints) if metrics["roa"] is not None else None
             if total_assets is not None and total_assets <= 0:
                 roa_score = 0.0
@@ -2050,45 +2031,14 @@ class QualityMetricsMixin(SymbolGateMixin):
                     implausible_ratio_metrics.append("accruals_ratio")
                 else:
                     accruals_ratio = float(computed_accruals_ratio)
-            # ROCE score: same curve shape as the old roic_score (both are "return on capital
-            # deployed" measures, similar scale) - see the roce_pct computation's own comment
-            # (near roic_pct above) for why ROCE replaces ROIC in the composite.
-            #
-            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, JPM/BAC/WFC/C/
-            # GS/MS/MET/PRU live-confirmed): same industrial-curve-applied-to-every-sector bug
-            # class as debt_to_equity_score/roa_score above, for the SAME underlying cause -
-            # capital_employed (line ~1053-1054) already uses debt_for_roic=total_liabilities
-            # for depository banks/insurers (see that override's own comment), so a bank's
-            # capital_employed is ~its entire (deposit-funded, hence enormous) balance sheet,
-            # structurally floors roce_pct into single digits regardless of real capital
-            # efficiency (JPM=3.85%, BAC=3.40%, WFC=3.03%, C=3.87%, GS=12.55%, MS=4.21% - the
-            # 8.0-floors-to-~19/25.0-caps-to-100 industrial curve scored JPM/BAC/WFC/C around
-            # 15-20 despite GS's genuinely-higher 12.55% showing real cross-sectional variation
-            # exists to reward). Insurers get the same single blended curve precedent as
-            # debt_to_equity_score/roa_score's INSURANCE_UNDERWRITER_INDUSTRIES override (P&C
-            # underwriters PGR/TRV/ALL live-confirmed 5.72-11.79% run meaningfully higher than
-            # life insurers MET/PRU's ~0.82-0.85%, same reserve-heavy-balance-sheet split ROA's
-            # curve already accounts for) - hand-calibrated to credit P&C-typical ROCE highly
-            # without being so generous it validates a genuinely weak life-insurer ROCE.
-            # Breakpoints hand-set (not FM-backtested), same as every other curve in this
-            # function - this curve-scored roce_score is provisional only, see the quality_
-            # components comment below: update_quality_sector_neutral_scores() overwrites the
-            # final quality_score for every sector via sector-neutral z-scoring of raw roce_pct.
-            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, same
-            # utility evidence as roa_score/debt_to_equity_score): capital_employed for a
-            # regulated utility is ~its entire rate-base-financed balance sheet, same structural
-            # compression as banks/insurers - live-confirmed ROCE 3.96-7.23% across the same
-            # 16-symbol utility set (see UTILITY_INDUSTRIES's own comment).
+            # Sector-conditioned ROCE breakpoints (bank/insurer/utility overrides) live in
+            # roce_breakpoints_for_industry() (loaders/helpers/vqg_quality_sector_curves.py) -
+            # see that function's own docstring for the live-verified evidence. This
+            # curve-scored roce_score is provisional only - update_quality_sector_neutral_scores()
+            # overwrites the final quality_score for every sector via sector-neutral z-scoring
+            # of raw roce_pct.
             roce_pct_val = metrics.get("roce_pct")
-            _symbol_industry_for_roce = self._get_symbol_industry(symbol)
-            if _symbol_industry_for_roce in _owner().DEPOSITORY_BANK_INDUSTRIES:
-                _roce_breakpoints = [(3.0, 40.0), (6.0, 75.0), (10.0, 100.0)]
-            elif _symbol_industry_for_roce in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
-                _roce_breakpoints = [(3.5, 40.0), (7.0, 80.0), (12.0, 100.0)]  # recalibrated+IC-validated 20260907
-            elif _symbol_industry_for_roce in _owner().UTILITY_INDUSTRIES:
-                _roce_breakpoints = [(5.2, 40.0), (8.0, 80.0), (13.0, 100.0)]
-            else:
-                _roce_breakpoints = [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)]
+            _roce_breakpoints = roce_breakpoints_for_industry(self._get_symbol_industry(symbol))
             roce_score = self._margin_curve(roce_pct_val, _roce_breakpoints) if roce_pct_val is not None else None
             # FCF Margin (free_cash_flow / revenue): cash-conversion efficiency net of capex,
             # independent of Accruals Ratio (never nets out capex). Replaces accruals_score in
@@ -2250,45 +2200,14 @@ class QualityMetricsMixin(SymbolGateMixin):
                 if asset_turnover is not None
                 else None
             )
-            # Debt-to-Equity score: inverted (lower leverage = higher score), 0.5 maps to 75,
-            # 1.0 to 50, 2.0+ to 0. Negative D/E (negative book equity, real financial distress)
-            # floors to 0 rather than inverting into a spuriously high score.
-            #
-            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit): this
-            # industrial-leverage curve was being fed the SAME debt_to_equity value the
-            # depository-bank/insurance-underwriter override above deliberately inflates by
-            # using total_liabilities (deposits/policy reserves) as the debt numerator - see
-            # that override's comment. A deposit-funded bank sits at 8-15x by construction
-            # (JPM/BAC/WFC live-verified at 10.25/11.21/10.85), so the 2.0-floors-to-0 curve
-            # zeroed this component for essentially every bank/insurer in the universe
-            # regardless of actual balance-sheet health, dragging down ~25-27% of their
-            # Quality safety_cluster_score (see the Financial Services/Real Estate branch
-            # below) no matter how well-capitalized they actually were. The curve's breakpoints
-            # were never recalibrated when the metric definition changed for these two sectors.
-            # Separate curves below, scaled to each sector's typical deposit/reserve-inclusive
-            # range (banks ~8-15x, insurers ~2.5-11.5x per the override comment's live-verified
-            # figures) rather than the industrial 0.5/1.0/2.0x scale.
-            # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, 16-utility
-            # live-confirmed): regulated rate-base utilities run 1.11-1.91x debt_to_equity by
-            # design (regulators set allowed ROE against a rate base partly debt-financed) - see
-            # UTILITY_INDUSTRIES's own comment. Unlike the bank/insurer overrides above, this
-            # uses the SAME debt_to_equity value (long_term_debt-based, not total_liabilities) -
-            # utilities don't get the deposit/reserve-style debt_for_roic override, so no
-            # separate inflated-input caveat applies here, just a rescaled curve.
+            # Debt-to-Equity score: inverted (lower leverage = higher score), sector-conditioned
+            # (bank/insurer/utility overrides) - see debt_to_equity_score_for_industry()'s own
+            # docstring (loaders/helpers/vqg_quality_sector_curves.py) for the live-verified
+            # evidence behind each curve.
             debt_to_equity_val = metrics.get("debt_to_equity")
-            _symbol_industry_for_de = self._get_symbol_industry(symbol)
-            if debt_to_equity_val is None:
-                debt_to_equity_score = None
-            elif debt_to_equity_val < 0:
-                debt_to_equity_score = 0.0
-            elif _symbol_industry_for_de in _owner().DEPOSITORY_BANK_INDUSTRIES:
-                debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 20.0) * 100.0))
-            elif _symbol_industry_for_de in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
-                debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 12.0) * 100.0))
-            elif _symbol_industry_for_de in _owner().UTILITY_INDUSTRIES:
-                debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 4.0) * 100.0))
-            else:
-                debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 2.0) * 100.0))
+            debt_to_equity_score = debt_to_equity_score_for_industry(
+                debt_to_equity_val, self._get_symbol_industry(symbol)
+            )
             # Margin volatility (QMJ 2013 Safety leg proxy): precomputed by the caller from
             # multi-year income_rows this function doesn't have (see _compute_margin_volatility).
             # Inverted curve: LOWER volatility (more stable margins) scores higher.
@@ -2372,202 +2291,31 @@ class QualityMetricsMixin(SymbolGateMixin):
             available_quality_weight = sum(w for v, w in quality_components if v is not None)
             weighted_score = self._weighted_avg(quality_components, min_weight_pct=min_quality_weight_pct)
 
-            metrics["gross_profitability"] = gross_profitability
-            metrics["gross_profitability_unavailable_reason"] = (
-                (
-                    "implausible_ratio"
-                    if "gross_profitability" in implausible_ratio_metrics
-                    else "reit_special_entity"
-                    if no_gross_profit_concept
-                    else "no_revenue_reported"
-                    if symbol in self._get_blank_check_symbols()
-                    or symbol in self._get_no_recent_revenue_symbols()
-                    or symbol in self._get_never_tagged_revenue_symbols()
-                    else "no_recent_total_assets_reported"
-                    if (total_assets is None or total_assets <= 0)
-                    and (
-                        symbol in self._get_no_recent_total_assets_symbols()
-                        or symbol in self._get_never_tagged_total_assets_symbols()
-                    )
-                    else "missing_sec_data"
+            # gross_profitability/operating_profitability/accruals_ratio/margin_volatility/
+            # fcf_margin/asset_turnover value+reason assignments live in
+            # compute_gross_profitability_through_asset_turnover_reasons() (loaders/helpers/
+            # vqg_quality_sector_curves.py) - moved verbatim, no behavior change.
+            metrics.update(
+                compute_gross_profitability_through_asset_turnover_reasons(
+                    self,
+                    symbol,
+                    gross_profitability=gross_profitability,
+                    no_gross_profit_concept=no_gross_profit_concept,
+                    total_assets=total_assets,
+                    operating_profitability=operating_profitability,
+                    operating_profitability_negative_equity=operating_profitability_negative_equity,
+                    no_operating_income_concept=no_operating_income_concept,
+                    operating_income_for_margin=operating_income_for_margin,
+                    stockholders_equity=stockholders_equity,
+                    accruals_ratio=accruals_ratio,
+                    operating_cash_flow=operating_cash_flow,
+                    net_income=net_income,
+                    margin_volatility=margin_volatility,
+                    fcf_margin=fcf_margin,
+                    asset_turnover=asset_turnover,
+                    revenue=revenue,
+                    implausible_ratio_metrics=implausible_ratio_metrics,
                 )
-                if gross_profitability is None
-                else None
-            )
-            metrics["operating_profitability"] = operating_profitability
-            metrics["operating_profitability_unavailable_reason"] = (
-                (
-                    "implausible_ratio"
-                    if "operating_profitability" in implausible_ratio_metrics
-                    else "negative_book_value"
-                    if operating_profitability_negative_equity
-                    else "reit_special_entity"
-                    if no_operating_income_concept
-                    # Label-only: the anchor year's income statement can lack operating_income
-                    # (and its EBIT fallback) even when the symbol reports it in other years.
-                    else "operating_income_absent_from_anchor_year"
-                    if operating_income_for_margin is None
-                    and symbol in self._get_operating_income_available_elsewhere_symbols()
-                    # operating_profitability_negative_equity only fires when stockholders_equity
-                    # is a real value <=0 - stays False (not caught) when equity is None.
-                    else "stockholders_equity_not_reported"
-                    if stockholders_equity is None
-                    and (
-                        symbol in self._get_no_recent_stockholders_equity_symbols()
-                        or symbol in self._get_never_tagged_stockholders_equity_symbols()
-                    )
-                    else "operating_income_not_itemized"
-                    if symbol in self._get_no_recent_operating_income_symbols()
-                    or symbol in self._get_never_tagged_operating_income_symbols()
-                    else "missing_sec_data"
-                )
-                if operating_profitability is None
-                else None
-            )
-            metrics["accruals_ratio"] = accruals_ratio
-            metrics["accruals_ratio_unavailable_reason"] = (
-                (
-                    "implausible_ratio"
-                    if "accruals_ratio" in implausible_ratio_metrics
-                    # FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" follow-up): a
-                    # registered investment company files a "Statement of Changes in Net
-                    # Assets" instead of a conventional cash-flow statement, leaving it with
-                    # ZERO fiscal_year>0 annual_cash_flow rows - too sparse to match
-                    # _get_no_recent_operating_cash_flow_symbols()'s own pattern. Live-confirmed
-                    # GGN (GAMCO Global Gold, Natural Resources & Income Trust). Checked first,
-                    # same priority as fcf_margin/fcf_yield's identical RIC check elsewhere.
-                    else "registered_investment_company_no_xbrl"
-                    if accruals_ratio is None and symbol in self._get_registered_investment_company_symbols()
-                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same
-                    # ETF-trust sibling-wiring gap ocf_to_net_income/fcf_to_net_income already
-                    # closed (an ETF/commodity/currency trust files no cash-flow statement at
-                    # all, same as a RIC) - accruals_ratio shares operating_cash_flow as an
-                    # input but was never given the matching ETF check.
-                    else "etf_trust_no_gaap_financials"
-                    if operating_cash_flow is None and symbol in self._get_etf_trust_no_stockholders_equity_symbols()
-                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): OR in the
-                    # full-history sibling gate - see _get_never_tagged_operating_cash_flow_symbols()'s
-                    # docstring for why this was a real, unmirrored gap versus free_cash_flow's
-                    # own identical pair of gates.
-                    else "no_recent_operating_cash_flow_reported"
-                    if operating_cash_flow is None
-                    and (
-                        symbol in self._get_no_recent_operating_cash_flow_symbols()
-                        or symbol in self._get_never_tagged_operating_cash_flow_symbols()
-                    )
-                    # Label-only: operating_cash_flow is None because the anchor year's own
-                    # cash-flow row is unavailable, not because the symbol lacks real OCF.
-                    else "operating_cash_flow_absent_from_anchor_year"
-                    if operating_cash_flow is None
-                    and symbol in self._get_operating_cash_flow_available_elsewhere_symbols()
-                    else "no_recent_total_assets_reported"
-                    if (total_assets is None or total_assets <= 0)
-                    and (
-                        symbol in self._get_no_recent_total_assets_symbols()
-                        or symbol in self._get_never_tagged_total_assets_symbols()
-                    )
-                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): accruals_ratio
-                    # = (net_income - operating_cash_flow) / total_assets - the OCF numerator and
-                    # total_assets denominator were both already gated above, but the net_income
-                    # numerator never was, so a symbol with real net_income missing only for this
-                    # anchor year (or never tagged at all) fell straight to the generic fallback.
-                    # Same fcf_to_net_income/ocf_to_net_income sibling gate pair just above in this
-                    # file.
-                    else "net_income_not_reported"
-                    if net_income is None
-                    and (
-                        symbol in self._get_no_recent_net_income_symbols()
-                        or symbol in self._get_never_tagged_net_income_symbols()
-                    )
-                    else "net_income_absent_from_anchor_year"
-                    if net_income is None and symbol in self._get_net_income_available_elsewhere_symbols()
-                    else "missing_sec_data"
-                )
-                if accruals_ratio is None
-                else None
-            )
-            metrics["margin_volatility"] = margin_volatility
-            metrics["margin_volatility_unavailable_reason"] = (
-                "insufficient_history" if margin_volatility is None else None
-            )
-            # Gate on `X is None` directly (not `"X" in failed_metrics`) - the compute blocks
-            # above don't append fcf_margin/asset_turnover to failed_metrics when inputs are
-            # merely missing (only when the |ratio|>1000 bound fires), so gating on
-            # failed_metrics left many rows with a NULL value and no reason recorded.
-            metrics["fcf_margin"] = fcf_margin
-            metrics["fcf_margin_unavailable_reason"] = (
-                (
-                    "implausible_ratio"
-                    if "fcf_margin" in implausible_ratio_metrics
-                    # Closed-end funds/investment trusts file no cash-flow statement at all
-                    # (see _get_registered_investment_company_symbols' docstring) - checked
-                    # before the generic never-tagged-FCF gate below so this more specific,
-                    # correctly-categorized ("Legitimate / not applicable") reason wins.
-                    else "registered_investment_company_no_xbrl"
-                    if symbol in self._get_registered_investment_company_symbols()
-                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): fcf_yield's
-                    # own reason chain (vqg_value.py) already checks
-                    # _get_etf_trust_no_stockholders_equity_symbols() alongside the RIC gate;
-                    # fcf_margin's sibling chain here never did, despite ETF/commodity/currency
-                    # trusts (FXY, AAAU, GLDM, GBTC, ETHE, BITB/BITW, CANE/CORN/SOYB/WEAT/TAGS/
-                    # USCI, ...) filing no cash-flow statement at all for the identical reason a
-                    # RIC doesn't. Live-confirmed 32 universe symbols mislabeled
-                    # capex_never_tagged_in_recent_filings/no_recent_free_cash_flow_reported/
-                    # no_revenue_reported instead of this correctly-categorized
-                    # ("Legitimate / not applicable") reason.
-                    else "etf_trust_no_gaap_financials"
-                    if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
-                    # ADDED 2026-09-05: fcf_yield's own reason chain already checks this gate;
-                    # fcf_margin's sibling chain here never did (AIG-verified: real OCF every
-                    # year, capex-shaped concept stops after FY2023, not PPE-delta-recoverable
-                    # since AIG never tags depreciation either).
-                    else "capex_never_tagged_in_recent_filings"
-                    if symbol in self._get_no_recent_capex_symbols()
-                    # fcf_margin's own cross-year fallback (fcf_margin_free_cash_flow/
-                    # fcf_margin_revenue above) already looks past the anchor row, so a
-                    # remaining None here means both inputs are genuinely absent across recent
-                    # fiscal years, not just off the anchor.
-                    else "no_recent_free_cash_flow_reported"
-                    if symbol in self._get_no_recent_free_cash_flow_symbols()
-                    or symbol in self._get_never_tagged_free_cash_flow_symbols()
-                    else "no_revenue_reported"
-                    if symbol in self._get_no_recent_revenue_symbols()
-                    or symbol in self._get_never_tagged_revenue_symbols()
-                    # A real free_cash_flow value exists somewhere in the symbol's history but
-                    # not in the same fiscal year as a real revenue value (the cross-year
-                    # fallback above requires both in the SAME year) - live-confirmed FTW/OBX/
-                    # AADX/AVEX/ALLO. Same reason free_cash_flow_unavailable_reason already
-                    # uses for this exact gate above - label-only, no value recomputed.
-                    else "free_cash_flow_absent_from_anchor_year"
-                    if symbol in self._get_free_cash_flow_available_elsewhere_symbols()
-                    else "missing_sec_data"
-                )
-                if fcf_margin is None
-                else None
-            )
-            metrics["asset_turnover"] = asset_turnover
-            metrics["asset_turnover_unavailable_reason"] = (
-                (
-                    "implausible_ratio"
-                    if "asset_turnover" in implausible_ratio_metrics
-                    else "no_revenue_reported"
-                    if symbol in self._get_no_recent_revenue_symbols()
-                    or symbol in self._get_never_tagged_revenue_symbols()
-                    else "no_recent_total_assets_reported"
-                    if (total_assets is None or total_assets <= 0)
-                    and (
-                        symbol in self._get_no_recent_total_assets_symbols()
-                        or symbol in self._get_never_tagged_total_assets_symbols()
-                    )
-                    # Label-only: revenue is None because the balance-sheet anchor year's own
-                    # income-statement row is unavailable, not because the symbol lacks real
-                    # revenue - the windowed gate above already ruled that out.
-                    else "revenue_absent_from_anchor_year"
-                    if revenue is None and symbol in self._get_revenue_available_elsewhere_symbols()
-                    else "missing_sec_data"
-                )
-                if asset_turnover is None
-                else None
             )
 
             # An unprofitable company still has a real, computed quality score (0,

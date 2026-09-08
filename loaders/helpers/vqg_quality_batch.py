@@ -190,8 +190,17 @@ class QualityBatchMixin:
 
                 components: list[tuple[float, float]] = []
 
-                if roe is not None and roa is not None:  # roa<0 = sign-flip distress artifact; missing roa omits it
-                    roe_component = 0.0 if float(roe) < 0.0 or float(roa) < 0.0 else roe_pct[symbol]
+                # A negative roe is floored to 0.0 outright, regardless of whether roa is
+                # available - the roa-presence requirement below exists only to catch the
+                # sign-flip case (roe spuriously POSITIVE while roa is negative), which is
+                # moot once roe is already negative. Requiring roa unconditionally previously
+                # omitted the component entirely (not floored) for a negative-roe symbol with
+                # no roa on file, silently excluding a genuinely bad performer from
+                # quality_score instead of scoring it 0 - fixed 2026-09-08.
+                if roe is not None and float(roe) < 0.0:
+                    components.append((0.0, 11.0))
+                elif roe is not None and roa is not None:  # roa<0 = sign-flip distress artifact
+                    roe_component = 0.0 if float(roa) < 0.0 else roe_pct[symbol]
                     components.append((roe_component, 11.0))
                 if roa is not None:
                     roa_component = 0.0 if float(roa) < 0.0 else roa_pct[symbol]
