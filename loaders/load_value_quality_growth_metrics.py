@@ -666,6 +666,27 @@ class ValueQualityGrowthMetricsLoader(
                     -- revenue/matched-income preference is only a tiebreak within the fresh tier
                     -- and, separately, within the stale-fallback tier - a fresh but revenue-poor
                     -- balance sheet must never lose to an older year just for having revenue.
+                    --
+                    -- FIXED 2026-09-07 (goal: "anchor-year tiebreak masked profit/loss flips" -
+                    -- re-applied after this fix was lost to concurrent-session churn the same
+                    -- day it first landed): this sort used to have a THIRD tiebreak here, keyed
+                    -- off cash-flow-statement availability, running ahead of plain year recency
+                    -- within the same fresh/revenue-present tier. Since fiscal year is unique per
+                    -- symbol in this table, that extra tiebreak could actually fire and WIN over
+                    -- recency: among two fresh years that both have real revenue, the one with a
+                    -- cash-flow row tagged always won the anchor row, regardless of which was more
+                    -- recent. Live-confirmed PHOE: FY2026 (a genuine swing to a $1.2M loss, no
+                    -- cash-flow row tagged yet) lost anchor selection to FY2025 (profitable, had
+                    -- one) - quality_score came out 88.76, built entirely on last year's positive
+                    -- margins as if they were current, one of 42 universe symbols with the same
+                    -- profit/loss-flip-masking shape. Removed entirely rather than reordered below
+                    -- year recency (a lower-priority tiebreak on a per-symbol-unique column could
+                    -- never fire anyway) - the free-cash-flow-derived ratios already have their
+                    -- own per-field fallback to a prior year for exactly this missing-data case
+                    -- (matching stockholders_equity/interest_expense/etc elsewhere in this file),
+                    -- so dropping the row-level tiebreak doesn't lose that coverage, it just stops
+                    -- it from silently overriding net_income/revenue/margins for unrelated,
+                    -- already-available, more-current fields.
                     ORDER BY (CASE WHEN abs.data_unavailable THEN 1 ELSE 0 END),
                              (CASE
                                    WHEN abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
@@ -676,9 +697,7 @@ class ValueQualityGrowthMetricsLoader(
                                    WHEN ais.revenue IS NOT NULL THEN 3
                                    WHEN ais.symbol IS NOT NULL THEN 4
                                    ELSE 5 END),
-                             (CASE WHEN acf.free_cash_flow IS NOT NULL
-                                    AND abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
-                                    THEN 0 ELSE 1 END), abs.fiscal_year DESC
+                             abs.fiscal_year DESC
                     LIMIT 1
                     """,
                     (
@@ -696,7 +715,6 @@ class ValueQualityGrowthMetricsLoader(
                         symbol,
                         symbol,
                         symbol,
-                        MAX_FISCAL_YEAR_AGE_YEARS,
                         MAX_FISCAL_YEAR_AGE_YEARS,
                         MAX_FISCAL_YEAR_AGE_YEARS,
                         MAX_FISCAL_YEAR_AGE_YEARS,

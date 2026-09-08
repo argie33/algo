@@ -16,6 +16,12 @@ an earlier year does).
 Fixed by adding a higher-priority ORDER BY tier that prefers fiscal years where the
 annual_income_statement join actually matched (ais.symbol IS NOT NULL), ahead of the existing
 FCF-recency tiebreaker.
+
+NOTE (2026-09-07): the FCF-recency tiebreaker referenced above has since been removed entirely -
+see [[anchor_year_fcf_tiebreak_masked_profit_loss_flips_20260907]] in memory. It let a year with
+FCF tagged win anchor selection over a more recent year without FCF tagged yet, regardless of
+actual recency (live-confirmed PHOE: masked a genuine profit-to-loss flip). This test now checks
+that fiscal_year DESC, not an FCF check, is the tiebreak after income-statement usability.
 """
 
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
@@ -58,11 +64,16 @@ def test_primary_row_query_prioritizes_usable_income_statement_over_bare_recency
     primary_query = next(q for q in cursor.queries if "FROM annual_balance_sheet abs" in q)
 
     # The income-statement-usability tier must be checked, and it must be the FIRST ORDER BY
-    # key - ahead of the FCF-recency tier and the bare fiscal_year DESC fallback - so a year
-    # with no usable income statement is never preferred over one that has it.
+    # key - ahead of the bare fiscal_year DESC fallback - so a year with no usable income
+    # statement is never preferred over one that has it.
     order_by_clause = primary_query.split("ORDER BY", 1)[1]
     usability_pos = order_by_clause.find("ais.symbol IS NOT NULL")
-    fcf_pos = order_by_clause.find("acf.free_cash_flow IS NOT NULL")
+    fiscal_year_pos = order_by_clause.find("abs.fiscal_year DESC")
     assert usability_pos != -1, "ORDER BY must prefer years where the income statement join matched"
-    assert fcf_pos != -1
-    assert usability_pos < fcf_pos, "income-statement usability must outrank the FCF-recency tiebreaker"
+    assert fiscal_year_pos != -1, "fiscal_year recency must remain the final tiebreak"
+    assert usability_pos < fiscal_year_pos, "income-statement usability must outrank plain recency"
+    assert "acf.free_cash_flow IS NOT NULL" not in order_by_clause, (
+        "the FCF-recency tiebreaker must be GONE, not reordered - it let FCF-tagged-but-older "
+        "years win over fresher, FCF-untagged years, masking real profit/loss flips (see "
+        "anchor_year_fcf_tiebreak_masked_profit_loss_flips_20260907 in memory)"
+    )
