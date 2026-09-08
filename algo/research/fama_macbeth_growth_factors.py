@@ -65,10 +65,10 @@ def _load_symbol_to_cik() -> dict[str, str]:
             data = json.load(f)
         return dict(data["mapping"]) if data.get("mapping") else {}
     except (OSError, json.JSONDecodeError, ValueError):
-        # No local ticker cache yet (never populated by a loader run on this machine) is not
-        # an error for this best-effort accuracy improvement - real_10k_filing_dates() fails
-        # open by design (see its own docstring) and every caller already handles an empty
-        # mapping as "no real filing dates available, fall back to the calendar approximation".
+        # No local ticker cache yet (never populated by a loader run on this machine) - not an
+        # error for this best-effort accuracy improvement, real_10k_filing_dates() fails open by
+        # design (see its own docstring) and every caller already handles an empty mapping as
+        # "no real filing dates available, fall back to the calendar approximation".
         return {}
 
 
