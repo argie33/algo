@@ -133,6 +133,10 @@ _INCOME_FIELD_MAPPING = {
     # than a full COGS-including-D&A tag when a filer reports both.
     "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization": "cost_of_revenue",
     "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization": "cost_of_revenue",
+    # FIXED 2026-09-07 (goal session: "make sure the list/checks are right, then fix issues"
+    # audit): fallback-only, see sec_statements.py's get_income_statement() comment on
+    # "CostOfGoodsSold" for the live Halliburton/Thermo Fisher/NCR Voyix evidence.
+    "cost_of_goods_sold": "cost_of_revenue",
     # FIXED 2026-08-31 (goal session, same sweep as the DD&A-excluded COGS fix above): see
     # sec_statements.py's comment on these two concepts (LYV/AWK/WTRG/MSEX/YORW live-
     # verified). Same target column, fallback-only (see _REVENUE_FALLBACK_ONLY_FIELDS)
@@ -385,6 +389,7 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # narrower figure than a full COGS-including-D&A tag when both are reported.
         "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization",
         "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization",
+        "cost_of_goods_sold",
         # FIXED 2026-08-31: same "fills only an already-empty db_field" reasoning - see
         # sec_statements.py's comments on these two concepts (LYV/AWK/WTRG/MSEX/YORW live-
         # verified) and _INCOME_FIELD_MAPPING's comment on them above.

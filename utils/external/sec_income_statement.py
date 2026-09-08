@@ -440,6 +440,19 @@ def get_income_statement(
         # reports both.
         "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
         "CostOfGoodsSoldExcludingDepreciationDepletionAndAmortization",
+        # FIXED 2026-09-07 (goal session: "make sure the list/checks are right, then fix
+        # issues" audit, xbrl_concept_coverage_scan.py surfaced this as an undismissed gap
+        # tagged by 864 real filers): plain "CostOfGoodsSold" - the older, pre-2009-taxonomy
+        # singular-concept COGS tag - was never fetched at all. Live-confirmed via real SEC
+        # companyfacts JSON: 47 real filers (Halliburton, Thermo Fisher Scientific, NCR
+        # Voyix among them) tag ONLY this concept, with NONE of the CostOfRevenue/
+        # CostOfSales/CostOfGoodsAndServicesSold/*ExcludingDepreciation family present at
+        # all - cost_of_revenue/gross_profit/gross_margin were silently NULL for these
+        # filers' entire history. Same target column ("cost_of_revenue") as every other
+        # concept in this group; kept fallback-only (see load_financial_statements.py's
+        # _REVENUE_FALLBACK_ONLY_FIELDS) since it's a legacy/rarer tag that must never
+        # overwrite a real value from the standard concepts above.
+        "CostOfGoodsSold",
         # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep,
         # operating_income_not_itemized investigation): Casey's General Stores (CASY, CIK
         # 0000726958, $17.5B FY2026 revenue convenience-store/gas retailer) splits COGS into
