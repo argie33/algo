@@ -269,6 +269,72 @@ class StalenessChecker(BaseCheck):
                         f"Database connection corrupted during staleness check cleanup: {release_err}"
                     ) from release_err
 
+        # PER-SYMBOL FROZEN-SCORE CHECK (added 2026-09-08, goal session score-sanity sweep):
+        # the table-level stock_scores staleness check above only looks at MAX(updated_at)
+        # across the whole table, so it stays "fresh" even when a subpopulation of active
+        # symbols never gets refreshed again. Live-caught exactly this: utils/loaders/
+        # helpers.py's get_active_symbols() started excluding 29 BDCs (MAIN, HTGC, GAIN, TSLX,
+        # ...) from every metrics/scores loader on 2026-09-03, so their stock_scores rows froze
+        # permanently that day while `ss.active` stayed true and the table-level check kept
+        # reporting fresh - a fresh --now signals reload live-confirmed this population never
+        # self-heals (see lambda/api/routes/scores_handlers/stock_scores.py's matching fix,
+        # same day). This check generalizes the guard: any future population silently dropped
+        # from get_active_symbols() (a new exclusion list, a new entity-type carve-out) freezes
+        # the same way and would otherwise go undetected until someone happens to spot-check
+        # symbols by hand again. WARN only (not CRIT/ERROR) - a handful of legitimately-excluded
+        # symbols (BDCs, CEF/trust exemptions) frozen by design is expected, this is a signal to
+        # go investigate WHY a population is stuck, not an automatic halt.
+        sp_frozen = "sp_stale_stock_scores_frozen_symbols"
+        try:
+            cur.execute(f"SAVEPOINT {sp_frozen}")
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM stock_symbols sy
+                JOIN stock_scores ss ON ss.symbol = sy.symbol
+                WHERE sy.active = true
+                  AND ss.date < (SELECT MAX(date) - INTERVAL '7 days' FROM stock_scores)
+                """
+            )
+            frozen_count = cur.fetchone()[0]
+            if frozen_count > 0:
+                self.log(
+                    "staleness",
+                    WARN,
+                    "stock_scores",
+                    f"{frozen_count} active symbols have stock_scores rows more than 7 days "
+                    f"behind the table's latest date - check whether they were silently "
+                    f"dropped from get_active_symbols()",
+                    {"frozen_symbol_count": frozen_count},
+                )
+            else:
+                self.log(
+                    "staleness",
+                    INFO,
+                    "stock_scores",
+                    "no active symbols frozen more than 7 days behind latest stock_scores date",
+                    {"frozen_symbol_count": 0},
+                )
+        except Exception as e:
+            self.log("staleness", ERROR, "stock_scores", f"Frozen-symbol check failed: {e}", None)
+            try:
+                cur.execute(f"ROLLBACK TO SAVEPOINT {sp_frozen}")
+            except Exception as rollback_err:
+                logger.error(
+                    f"CRITICAL: ROLLBACK TO SAVEPOINT {sp_frozen} failed: {rollback_err}. Connection corrupted."
+                )
+                raise RuntimeError(
+                    f"Database connection corrupted during frozen-symbol check rollback: {rollback_err}"
+                ) from rollback_err
+        finally:
+            try:
+                cur.execute(f"RELEASE SAVEPOINT {sp_frozen}")
+            except Exception as release_err:
+                logger.error(f"CRITICAL: RELEASE SAVEPOINT {sp_frozen} failed: {release_err}. Connection corrupted.")
+                raise RuntimeError(
+                    f"Database connection corrupted during frozen-symbol check cleanup: {release_err}"
+                ) from release_err
+
         # Alert on stale critical signals
         if stale_critical_signals:
             from algo.reporting.notifications import notify_signal_staleness
