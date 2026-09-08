@@ -1640,10 +1640,34 @@ def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this c
         try:
             _verify_open_position_stop_loss_protection_step(log_phase_result_fn, config)
         except Exception as protection_err:
-            logger.warning(
+            logger.critical(
                 f"[PHASE 9] Stop-loss protection check encountered unexpected error: {protection_err}", exc_info=True
             )
-            # Don't halt Phase 9 for this check's own failures - proceed with reconciliation
+            # Don't halt Phase 9 for this check's own failures - proceed with reconciliation.
+            # But this check is the system's sole dedicated defense against a live position
+            # with no broker-side stop, so its own failure must reach a human, not just a log
+            # line - matching the notify()-on-critical convention used elsewhere in this file
+            # (see _validate_pnl_step/_audit_exit_prices_step error paths).
+            try:
+                from algo.reporting.notifications import notify
+
+                notify(
+                    "critical",
+                    title="Phase 9 stop-loss protection check failed",
+                    message=(
+                        f"The naked-position (missing broker-side stop-loss) verification step "
+                        f"raised an unexpected error and was skipped this cycle: {protection_err}. "
+                        f"No positions were checked for stop-loss protection this run - "
+                        f"investigate immediately."
+                    ),
+                    strict=True,
+                )
+            except Exception as notify_err:
+                logger.critical(
+                    f"[PHASE 9] CRITICAL: Failed to send stop-loss-protection-check-failed alert: "
+                    f"{notify_err}. Operator was NOT notified that this cycle's naked-position "
+                    f"check was skipped."
+                )
 
         # CRITICAL: Validate that local P&L matches Broker P&L
         # Skip if reconciliation failed (recon object may be incomplete or paper mode)

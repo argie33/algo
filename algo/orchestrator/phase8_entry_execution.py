@@ -2323,10 +2323,9 @@ def run(
                                 None,
                             )
                             continue
-                except Exception as e:
-                    logger.warning(
-                        f"[PHASE 8] {symbol}: Error checking for duplicate entry: {type(e).__name__}: {e}. Proceeding with caution."
-                    )
+                except Exception as e:  # FAIL CLOSED (2026-09-07): was "proceed with caution"
+                    logger.warning(f"[PHASE 8] {symbol}: duplicate_check_error: {e}. Skipping (fail closed).")
+                    continue
 
                 try:
                     symbol_key = str(symbol)

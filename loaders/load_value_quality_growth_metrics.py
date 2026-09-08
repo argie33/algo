@@ -2517,8 +2517,8 @@ class ValueQualityGrowthMetricsLoader(
 
                 components: list[tuple[float, float]] = []
 
-                if roe is not None:
-                    roe_component = 0.0 if float(roe) < 0.0 else roe_pct[symbol]
+                if roe is not None and roa is not None:  # roa<0 = sign-flip distress artifact; missing roa omits it
+                    roe_component = 0.0 if float(roe) < 0.0 or float(roa) < 0.0 else roe_pct[symbol]
                     components.append((roe_component, 11.0))
                 if roa is not None:
                     components.append((self._margin_curve(float(roa), [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)]), 18.0))

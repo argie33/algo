@@ -231,6 +231,52 @@ class ValueMetricsMixin:
         return result
 
     _MIN_SECTOR_SLICE = 20
+    _WINSORIZE_MIN_GROUP_SIZE = 5
+
+    @staticmethod
+    def _winsorize_group_values(values: dict[str, float]) -> dict[str, float]:
+        """Clip a group's raw values to its own [1st, 99th] percentile before ranking.
+
+        FIX (2026-09-07, real-money-readiness leaderboard audit): `_percent_rank_cheap_high`/
+        `_percent_rank_cheap_high_sector_relative` are pure rank transforms with no cross-check
+        between metrics - the single most extreme raw value in a group always monopolized
+        percentile 100 alone, even when the extremeness was a data/accounting artifact rather
+        than genuine mispricing. Live-confirmed: VCIG's pb_ratio=0.01/ps_ratio=0.02, each the
+        single cheapest in the whole 4,500+-symbol universe, won percentile 100/99.8 outright
+        off that one observation.
+
+        Below `_WINSORIZE_MIN_GROUP_SIZE`, an empirical quantile isn't a trustworthy clip
+        boundary (too few points to estimate one reliably) - values pass through unchanged,
+        same "too small to trust" precedent as `_MIN_SECTOR_SLICE`'s residual-pool fallback.
+        Since this only clips, never reorders, non-extreme values are always untouched and
+        ranking is otherwise rank-order-preserving except at the newly-shared boundary - two
+        near-tied extreme peers now SHARE the top percentile instead of one arbitrarily
+        winning it alone.
+
+        Validated in `algo/research/value_percentile_rank_winsorization_test_20260907.py`
+        (Fama-MacBeth + Spearman IC, fit 2017-2021 / holdout 2022-2026): winsorized-then-ranked
+        is statistically indistinguishable from raw-then-ranked on every aggregate spec - this
+        closes a real correctness gap at zero measured aggregate cost, not because it improved
+        predictive power.
+        """
+        n = len(values)
+        if n < ValueMetricsMixin._WINSORIZE_MIN_GROUP_SIZE:
+            return dict(values)
+
+        sorted_vals = sorted(values.values())
+
+        def _percentile(pct: float) -> float:
+            # Linear-interpolation percentile (matches numpy's default 'linear' method) -
+            # no numpy dependency needed for a single-array quantile.
+            rank = pct / 100.0 * (n - 1)
+            lo = int(rank)
+            hi = min(lo + 1, n - 1)
+            frac = rank - lo
+            return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * frac
+
+        low = _percentile(1.0)
+        high = _percentile(99.0)
+        return {symbol: min(max(val, low), high) for symbol, val in values.items()}
 
     @classmethod
     def _percent_rank_cheap_high_sector_relative(
@@ -242,7 +288,8 @@ class ValueMetricsMixin:
         universe. Symbols with no sector_map entry, or belonging to a sector with fewer than
         `_MIN_SECTOR_SLICE` members among `values`, are pooled into one residual group and ranked
         via the plain universe-wide `_percent_rank_cheap_high` instead - never dropped, never
-        left unranked.
+        left unranked. Each group (per-sector and the residual pool) is winsorized via
+        `_winsorize_group_values` before ranking - see that method's docstring for why.
 
         ADDED 2026-09-04 (real-money-readiness review, "always do what is best" directive - see
         this method's caller, `update_value_multiples_percentiles()`, for the full evidence
@@ -265,10 +312,10 @@ class ValueMetricsMixin:
                     residual[symbol] = values[symbol]
                 continue
             sector_values = {symbol: values[symbol] for symbol in symbols}
-            result.update(cls._percent_rank_cheap_high(sector_values))
+            result.update(cls._percent_rank_cheap_high(cls._winsorize_group_values(sector_values)))
 
         if residual:
-            result.update(cls._percent_rank_cheap_high(residual))
+            result.update(cls._percent_rank_cheap_high(cls._winsorize_group_values(residual)))
         return result
 
     @staticmethod

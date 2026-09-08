@@ -1366,6 +1366,30 @@ class ExitHandler:
                     f"{resize_result.get('message')}. The broker's stop-loss order may still be "
                     f"sized for the pre-partial-exit quantity until the next Phase 9 cycle corrects it."
                 )
+                # A critical log alone is invisible to anything that isn't tailing logs - this
+                # file uses notify() alongside logger.critical everywhere else it needs a human
+                # to actually act (see lines 833/900/1070), both already relying on this file's
+                # own module-level `notify`/`NotificationError` import (no local re-import here -
+                # that shadows the module-level name for this whole method, breaking those
+                # earlier unconditional call sites, per ruff F823).
+                try:
+                    notify(
+                        "critical",
+                        title=f"Stop-loss resize failed after partial exit: {symbol}",
+                        message=(
+                            f"Trade {trade_id}: partial exit succeeded but the resting bracket "
+                            f"stop-loss leg (order {alpaca_order_id}) could not be resized to "
+                            f"{new_qty} shares @ ${effective_stop:.2f} - {resize_result.get('message')}. "
+                            f"The broker-side stop may still be sized for the pre-partial-exit "
+                            f"quantity until the next Phase 9 cycle corrects it. Investigate now."
+                        ),
+                        strict=True,
+                    )
+                except NotificationError as e:
+                    raise RuntimeError(
+                        f"CRITICAL: Failed to send stop-resize-failed alert for {symbol}: {e}. "
+                        f"Trader was NOT notified of a stale broker-side stop-loss leg."
+                    ) from e
 
         # A position auto-repaired onto a standalone stop (Phase 9) needs the SAME resize -
         # see executor_exit_standalone_stop.py's resize_standalone_stop_after_partial_exit
