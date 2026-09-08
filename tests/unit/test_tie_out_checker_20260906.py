@@ -3564,10 +3564,74 @@ class TestStockScoresBounds:
         assert checker.results[0].severity == ERROR
 
 
+class TestQuarterlyRevenueAnnualDuplicate:
+    def test_flags_four_identical_quarters_equal_to_annual(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "APA",
+                        "fiscal_year": 2025,
+                        "q_revenue": 8_951_000_000.0,
+                        "a_revenue": 8_951_000_000.0,
+                        "n_quarters": 4,
+                        "n_distinct": 1,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_revenue_annual_duplicate(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_revenue_annual_duplicate"
+        assert checker.results[0].details["examples"][0]["symbol"] == "APA"
+
+    def test_does_not_flag_when_quarterly_differs_from_annual(self) -> None:
+        # The SQL's own HAVING clause requires n_quarters=4 and n_distinct=1, so a real
+        # implementation would never return this row - included to confirm the Python-side
+        # equality check is still a genuine second guard, not dead code.
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "AAPL",
+                        "fiscal_year": 2025,
+                        "q_revenue": 90_000_000_000.0,
+                        "a_revenue": 391_000_000_000.0,
+                        "n_quarters": 4,
+                        "n_distinct": 1,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_revenue_annual_duplicate(cur)
+        assert checker.results == []
+
+    def test_query_filters_to_four_identical_nonzero_quarters(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_revenue_annual_duplicate(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "HAVING COUNT(*) = 4 AND COUNT(DISTINCT q.revenue) = 1" in executed_sql
+        assert "q.revenue != 0" in executed_sql
+        assert "quarterly_income_statement" in executed_sql
+        assert "annual_income_statement" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_revenue_annual_duplicate(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_revenue_annual_duplicate"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_fifty_four_checks(self) -> None:
-        cur = _mock_cursor([[]] * 54)
+    def test_run_calls_all_fifty_five_checks(self) -> None:
+        cur = _mock_cursor([[]] * 55)
         checker = _checker()
         results = checker.run(cur)
         assert results == []
-        assert cur.execute.call_count == 54
+        assert cur.execute.call_count == 55
