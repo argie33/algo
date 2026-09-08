@@ -29,11 +29,9 @@ import {
   Layers,
   Wallet,
   History,
-  GitBranch,
   HeartPulse,
   Zap,
   Crosshair,
-  Bot,
   Bell,
   FileText,
   Map,
@@ -43,8 +41,6 @@ import {
   Newspaper,
   Calculator,
   PiggyBank,
-  AlertCircle,
-  Shield,
   Calendar,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -82,19 +78,6 @@ const NAV_SECTIONS = [
     items: [
       { text: "Portfolio", icon: Wallet, path: "/app/portfolio" },
       { text: "Trade Tracker", icon: History, path: "/app/trades" },
-      {
-        text: "Pre-Trade Impact",
-        icon: AlertCircle,
-        path: "/app/pre-trade-impact",
-      },
-      { text: "Risk Analytics", icon: Shield, path: "/app/risk-analytics" },
-    ],
-  },
-  {
-    title: "Algo",
-    items: [
-      { text: "Algo Dashboard", icon: Bot, path: "/app/algo-dashboard" },
-      { text: "Backtests", icon: GitBranch, path: "/app/backtests" },
     ],
   },
   {

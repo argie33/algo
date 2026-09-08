@@ -16,7 +16,6 @@ import CTASection from "../../components/marketing/CTASection";
 import ImagePlaceholder from "../../components/marketing/ImagePlaceholder";
 import {
   AccountBalance as AccountBalanceIcon,
-  TrackChanges as TrackChangesIcon,
   BarChart as BarChartIcon,
   Shield as ShieldIcon,
   ShowChart as ShowChartIcon,
@@ -28,13 +27,6 @@ const WealthManagement = () => {
   const navigate = useNavigate();
 
   const features = [
-    {
-      icon: <TrackChangesIcon />,
-      title: "Pre-Trade Simulation",
-      description:
-        "Run hypothetical trades through our risk model before you place them. Evaluate position sizing, expected drawdown, and portfolio impact based on historical volatility and current market regime.",
-      link: "/app/pre-trade-impact",
-    },
     {
       icon: <BarChartIcon />,
       title: "Portfolio Dashboard",

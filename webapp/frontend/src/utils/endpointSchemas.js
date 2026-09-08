@@ -250,18 +250,6 @@ export const ENDPOINT_SCHEMAS = {
     requireNonEmptyList: false,
   },
 
-  // Backtests
-  "/api/research/backtests": {
-    type: "paginated",
-    itemFields: ["id", "status"],
-    paginationFields: ["page", "limit", "total"],
-  },
-  "/api/research/backtests/*": {
-    type: "object",
-    requiredFields: ["id", "status"],
-    requireNonEmpty: true,
-  },
-
   // Economic indicators
   "/api/economic/leading-indicators": {
     type: "object",

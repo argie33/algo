@@ -7,7 +7,6 @@ const StockDetail = React.lazy(() => import("./pages/StockDetail"));
 const DeepValueStocks = React.lazy(() => import("./pages/DeepValueStocks"));
 const TradingSignals = React.lazy(() => import("./pages/TradingSignals"));
 const SwingCandidates = React.lazy(() => import("./pages/SwingCandidates"));
-const BacktestResults = React.lazy(() => import("./pages/BacktestResults"));
 const EconomicDashboard = React.lazy(() => import("./pages/EconomicDashboard"));
 const SectorAnalysis = React.lazy(() => import("./pages/SectorAnalysis"));
 const Sentiment = React.lazy(() => import("./pages/Sentiment"));
@@ -18,9 +17,6 @@ const PortfolioDashboard = React.lazy(
 );
 const ServiceHealth = React.lazy(() => import("./pages/ServiceHealth"));
 const Settings = React.lazy(() => import("./pages/Settings"));
-const AlgoTradingDashboard = React.lazy(
-  () => import("./pages/AlgoTradingDashboard")
-);
 const AuditViewer = React.lazy(() => import("./pages/AuditViewer"));
 const NotificationCenter = React.lazy(
   () => import("./pages/NotificationCenter")
@@ -30,8 +26,6 @@ const SystemBlueprint = React.lazy(() => import("./pages/SystemBlueprint"));
 const ConfigurationViewer = React.lazy(
   () => import("./pages/ConfigurationViewer")
 );
-const PreTradeSimulator = React.lazy(() => import("./pages/PreTradeSimulator"));
-const RiskAnalytics = React.lazy(() => import("./pages/RiskAnalytics"));
 const EarningsCalendar = React.lazy(() => import("./pages/EarningsCalendar"));
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -240,41 +234,6 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/app/pre-trade-impact"
-              element={
-                <ProtectedRoute requireAuth>
-                  <PreTradeSimulator />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/app/risk-analytics"
-              element={
-                <ProtectedRoute requireAuth>
-                  <RiskAnalytics />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Algo */}
-            <Route
-              path="/app/algo-dashboard"
-              element={
-                <ProtectedRoute requireAuth requireRole="admin">
-                  <AlgoTradingDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/app/backtests"
-              element={
-                <ProtectedRoute requireAuth>
-                  <BacktestResults />
-                </ProtectedRoute>
-              }
-            />
-
             {/* Admin & Settings */}
             <Route
               path="/app/configuration"

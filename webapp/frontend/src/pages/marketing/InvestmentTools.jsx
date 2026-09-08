@@ -20,7 +20,6 @@ import {
   Business as _BusinessIcon,
   Psychology as PsychologyIcon,
   Timeline as TimelineIcon,
-  Calculate as CalculateIcon,
   Assessment as AssessmentIcon,
   BarChart as BarChartIcon,
 } from "@mui/icons-material";
@@ -84,14 +83,6 @@ const InvestmentTools = () => {
       description:
         "Institutional sentiment tracking using analyst positioning, upgrade/downgrade flows, and market psychology indicators. Useful for identifying when consensus positioning is extreme&#8212;often a contrarian signal.",
       link: "/app/sentiment",
-      badge: null,
-    },
-    {
-      icon: <CalculateIcon />,
-      title: "Pre-Trade Simulator",
-      description:
-        "Simulate any trade before placing it. Input ticker, size, and entry price to see projected risk, position weight, and how the trade affects overall portfolio exposure and drawdown limits.",
-      link: "/app/pre-trade-impact",
       badge: null,
     },
   ];

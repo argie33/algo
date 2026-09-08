@@ -314,6 +314,14 @@ function PortfolioDashboardPage() {
   } = useApiQuery(["algo-stage-distribution"], () =>
     api.get("/api/algo/stage-distribution")
   );
+  const {
+    data: riskMetrics,
+    loading: riskMetricsLoading,
+    error: riskMetricsError,
+    refetch: refetchRiskMetrics,
+  } = useApiQuery(["algo-risk-metrics"], () =>
+    api.get("/api/algo/risk-metrics")
+  );
 
   // Check if primary data is still loading (avoid flickering by holding skeletons until main data arrives)
   // Includes all query states to prevent skeleton loaders from showing/hiding at different times
@@ -551,9 +559,9 @@ function PortfolioDashboardPage() {
         >
           <button
             className="btn btn-outline btn-sm"
-            onClick={() => navigate("/app/algo-dashboard")}
+            onClick={() => navigate("/app/health")}
           >
-            Terminal Dashboard
+            Service Health
           </button>
           <button
             className="btn btn-outline btn-sm"
@@ -569,6 +577,7 @@ function PortfolioDashboardPage() {
               refetchDistribution();
               refetchHolding();
               refetchStage();
+              refetchRiskMetrics();
             }}
           >
             <RefreshCw size={14} /> Refresh
@@ -1045,6 +1054,15 @@ function PortfolioDashboardPage() {
           />
         </ErrorBoundary>
       </div>
+
+      {/* Risk metrics: VaR / CVaR / stressed VaR / beta / concentration */}
+      <ErrorBoundary>
+        <RiskMetricsCard
+          metrics={riskMetrics}
+          loading={riskMetricsLoading}
+          error={riskMetricsError}
+        />
+      </ErrorBoundary>
 
       {/* Position-health table */}
       <ErrorBoundary>
@@ -2554,6 +2572,142 @@ function SectorConcentration({ sector_allocation, loading, error }) {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Risk metrics (VaR / CVaR / stressed VaR / beta / concentration) ──────
+// Folded in from the removed Risk Analytics page — same /api/algo/risk-metrics
+// endpoint, condensed into a KPI row alongside the rest of the risk widgets.
+function RiskMetricsCard({ metrics: raw, loading, error }) {
+  const metrics = raw?.data || raw || {};
+  const hasData = metrics.var_pct_95 !== null && metrics.var_pct_95 !== undefined;
+
+  const kpis = [
+    {
+      label: "Value at Risk (95%)",
+      value:
+        metrics.var_pct_95 !== null && metrics.var_pct_95 !== undefined
+          ? `${Math.abs(metrics.var_pct_95).toFixed(2)}%`
+          : "—",
+      tone: "var(--danger)",
+      sub: "Max expected loss, 95% confidence",
+    },
+    {
+      label: "Conditional VaR (95%)",
+      value:
+        metrics.cvar_pct_95 !== null && metrics.cvar_pct_95 !== undefined
+          ? `${Math.abs(metrics.cvar_pct_95).toFixed(2)}%`
+          : "—",
+      tone: "var(--danger)",
+      sub: "Avg loss beyond VaR (tail risk)",
+    },
+    {
+      label: "Stressed VaR",
+      value:
+        metrics.stressed_var_pct !== null &&
+        metrics.stressed_var_pct !== undefined
+          ? `${Math.abs(metrics.stressed_var_pct).toFixed(2)}%`
+          : "—",
+      tone: "var(--danger)",
+      sub: "Loss under adverse market conditions",
+    },
+    {
+      label: "Portfolio Beta",
+      value:
+        metrics.portfolio_beta !== null && metrics.portfolio_beta !== undefined
+          ? metrics.portfolio_beta.toFixed(2)
+          : "—",
+      tone:
+        metrics.portfolio_beta > 1 ? "var(--danger)" : "var(--success)",
+      sub:
+        metrics.portfolio_beta > 1
+          ? "More volatile than market"
+          : metrics.portfolio_beta < 1
+            ? "Less volatile than market"
+            : "Matches market volatility",
+    },
+    {
+      label: "Top 5 Concentration",
+      value:
+        metrics.top_5_concentration !== null &&
+        metrics.top_5_concentration !== undefined
+          ? `${metrics.top_5_concentration.toFixed(1)}%`
+          : "—",
+      tone:
+        metrics.top_5_concentration > 50 ? "var(--danger)" : "var(--success)",
+      sub:
+        metrics.top_5_concentration > 50
+          ? "High concentration risk"
+          : "Healthy diversification",
+    },
+  ];
+
+  return (
+    <div className="card" style={{ marginTop: "var(--space-4)" }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">Risk Metrics</div>
+          <div className="card-sub">
+            VaR / CVaR / stress scenarios · report date{" "}
+            {metrics.report_date
+              ? new Date(metrics.report_date).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                })
+              : "—"}
+          </div>
+        </div>
+      </div>
+      <div className="card-body">
+        {error ? (
+          <Empty title="Risk metrics unavailable" desc="Failed to load." />
+        ) : loading ? (
+          <SkeletonChartContent />
+        ) : !hasData ? (
+          <Empty
+            title="No risk metrics yet"
+            desc="Available after sufficient trading history."
+          />
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5, 1fr)",
+              gap: "var(--space-4)",
+            }}
+          >
+            {kpis.map((k) => (
+              <div key={k.label}>
+                <div
+                  style={{
+                    fontSize: "var(--t-xl)",
+                    fontWeight: "var(--w-bold)",
+                    color: k.tone,
+                  }}
+                >
+                  {k.value}
+                </div>
+                <div
+                  className="t-xs"
+                  style={{
+                    fontWeight: "var(--w-medium)",
+                    marginTop: 2,
+                  }}
+                >
+                  {k.label}
+                </div>
+                <div
+                  className="t-xs muted"
+                  style={{ marginTop: 2, lineHeight: 1.4 }}
+                >
+                  {k.sub}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

@@ -155,11 +155,11 @@ describe("Dashboard Page", () => {
       });
     });
 
-    it("should have a Terminal Dashboard button", async () => {
+    it("should have a Service Health button", async () => {
       renderWithProviders(<Dashboard />);
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /Terminal Dashboard/i })
+          screen.getByRole("button", { name: /Service Health/i })
         ).toBeInTheDocument();
       });
     });
