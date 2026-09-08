@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import psycopg2
 
 from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
-from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT
+from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT, _dividend_sustainability_factor
 from utils.type_conversion import safe_float
 
 logger = logging.getLogger("loaders.load_stock_scores")
@@ -448,15 +448,13 @@ class ValueMetricsMixin:
         only ever WRITE targets here, never also read inputs, so running this any number of
         times with unchanged inputs produces the identical result every time.
 
-        NOTE (separate, NOT fixed by this pass): `_percent_rank_cheap_high` itself has no
-        winsorization - the single most extreme raw P/B or P/S in the entire universe always
-        wins percentile 100 regardless of whether that extremeness is genuine undervaluation or
-        a data/accounting artifact (live-confirmed: VCIG's pb_ratio=0.01/ps_ratio=0.02, tied for
-        the cheapest in a 4,500+-symbol universe, both win percentile 100/99.8 outright). This is
-        a real, standard-practice gap (MSCI's own cited z-score methodology conventionally
-        winsorizes before ranking) distinct from the compounding bug above, and is a candidate
-        for a future pass - not addressed here to keep this fix scoped to the confirmed
-        correctness bug.
+        STALE NOTE, RESOLVED (originally: `_percent_rank_cheap_high` had no winsorization, so
+        the single most extreme raw P/B or P/S always won percentile 100/0 regardless of whether
+        that extremeness was genuine or a data artifact, e.g. VCIG's pb_ratio=0.01/ps_ratio=0.02).
+        `_winsorize_group_values` (see `_percent_rank_cheap_high_sector_relative` below) now
+        winsorizes each sector group at the 1st/99th percentile before ranking, matching MSCI's
+        cited convention - kept here only so a future reader doesn't re-litigate an already-fixed
+        gap (real-money-readiness audit, 2026-09-08).
 
         SECTOR-RELATIVE RANKING ADOPTED 2026-09-04 (real-money-readiness review, user directive
         "always do what is best, dig in and do the right best things around all of this",
@@ -535,7 +533,7 @@ class ValueMetricsMixin:
                     SELECT ss.symbol, ss.value_score, ss.composite_score, ss.risk_score,
                            ss.quality_score, ss.growth_score, ss.momentum_score,
                            vm.pe_ratio, vm.pb_ratio, vm.ps_ratio, vm.forward_pe,
-                           vm.dividend_yield,
+                           vm.dividend_yield, vm.fcf_yield,
                            vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason,
                            ss.components, cp.sector, ss.data_completeness, ss.data_unavailable,
                            ss.unavailable_metrics
@@ -567,8 +565,8 @@ class ValueMetricsMixin:
             sector_map: dict[str, str] = {}
             for row in rows:
                 symbol, pe, pb, ps, fwd_pe = row[0], row[7], row[8], row[9], row[10]
-                pe_reason, fwd_pe_reason = row[12], row[13]
-                sector = row[15]
+                pe_reason, fwd_pe_reason = row[13], row[14]
+                sector = row[16]
                 if sector is not None:
                     sector_map[symbol] = sector
                 if pe is not None and float(pe) > 0:
@@ -611,11 +609,12 @@ class ValueMetricsMixin:
                 symbol, value_score_old, composite_score_old, risk_score = row[0], row[1], row[2], row[3]
                 quality_score, growth_score, momentum_score = row[4], row[5], row[6]
                 pe, pb, ps, fwd_pe, dividend_yield = row[7], row[8], row[9], row[10], row[11]
-                pe_reason, fwd_pe_reason = row[12], row[13]
-                components_old = row[14]
-                data_completeness_old = float(row[16]) if row[16] is not None else None
-                data_unavailable_old = bool(row[17]) if row[17] is not None else False
-                unavailable_metrics_old: dict[str, str] = dict(row[18]) if row[18] else {}
+                fcf_yield = safe_float(row[12], f"{symbol}.fcf_yield") if row[12] is not None else None
+                pe_reason, fwd_pe_reason = row[13], row[14]
+                components_old = row[15]
+                data_completeness_old = float(row[17]) if row[17] is not None else None
+                data_unavailable_old = bool(row[18]) if row[18] is not None else False
+                unavailable_metrics_old: dict[str, str] = dict(row[19]) if row[19] else {}
                 value_score_old = float(value_score_old)
                 composite_score_old = float(composite_score_old)
 
@@ -654,6 +653,14 @@ class ValueMetricsMixin:
                 if dividend_yield is not None:
                     div = min(float(dividend_yield) * 100, 6)  # decimal -> percent, cap 6%
                     div_score = min(100, div * 16.7)
+                    # REAL-MONEY-READINESS FIX 2026-09-08: this recompute pass unconditionally
+                    # overwrote _score_value's gated value_score with this magnitude-only
+                    # dividend term, silently undoing the CATO value-trap payout-sustainability
+                    # gate (value_score.py's _dividend_sustainability_factor) on every run of
+                    # this post_run() pass - the exact stock that gate exists to catch (high
+                    # yield funded by negative FCF) got its full ungated score written to the
+                    # real stock_scores/composite_score row that trading reads.
+                    div_score *= _dividend_sustainability_factor(float(dividend_yield), fcf_yield)
                     components.append((div_score, 0.10))
 
                 total_weight = sum(w for _, w in components)
@@ -668,8 +675,8 @@ class ValueMetricsMixin:
                 # cleared Pass 1 off a thicker component set, but loses components by the time
                 # THIS batch pass runs (e.g. PE excluded by _pe_earnings_too_volatile with no PB
                 # available), could end up with total_weight as low as 0.27 - a single multiple -
-                # and since _percent_rank_cheap_high_sector_relative has no winsorization, that
-                # one raw percentile became the entire value_score verbatim. Live-confirmed RILY
+                # and that one raw (winsorized) percentile became the entire value_score
+                # verbatim. Live-confirmed RILY
                 # (B. Riley Financial): PE excluded, PB missing, only PS available (ratio 0.22) -
                 # value_score=97.61, #1 in the whole 5,047-symbol universe off a single metric
                 # with no PE/PB cross-check. Same "insufficient data, don't fabricate a score"

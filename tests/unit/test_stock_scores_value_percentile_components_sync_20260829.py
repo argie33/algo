@@ -74,6 +74,7 @@ class TestValuePercentileComponentsSync:
             ps,
             fwd_pe,
             dividend_yield,
+            None,  # fcf_yield
             None,
             None,  # pe_reason, fwd_pe_reason
             components_old,
