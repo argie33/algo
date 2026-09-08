@@ -489,6 +489,15 @@ class ValueMetricsMixin(SymbolGateMixin):
                 # intrinsic_value/margin_of_safety's reasons below, which derive from this value.
                 else "shares_outstanding_scale_mismatch"
                 if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
+                # FIXED 2026-09-07 (goal: "1600 missing XBRL" reduction sweep):
+                # _get_structural_entity_type_exemptions() (broader SIC-code/entity_type CEF/
+                # BDC/ETF-trust gate than the RIC/etf_trust/royalty-trust checks above, which
+                # only cover their own narrower membership tests) was wired into quality_metrics
+                # but never checked here. Live-confirmed 64 of 153 active-universe fcf_yield
+                # "missing_sec_data" symbols are covered by this gate but fall through every
+                # narrower check above to the generic fallback.
+                else "entity_type_structurally_exempt_10k_filing"
+                if symbol in self._get_structural_entity_type_exemptions()
                 else "missing_sec_data"
             )
             if fcf_yield is None
