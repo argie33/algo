@@ -268,7 +268,38 @@ class SecValuationYieldDcfMixin:
             if 0 < ev_revenue <= 10000 and _ev_revenue_per_share_ok:
                 result["ev_revenue"] = round(ev_revenue, 2)
             else:
-                logger.debug(f"[{symbol}] EV/Revenue out of bounds ({ev_revenue:.0f}), marking as NULL")
+                # FIXED 2026-09-07 (goal: "1600 missing XBRL" reduction sweep, data-accuracy
+                # finding): sec_valuations_ratios.py's _compute_ps_ratio already falls back to
+                # an older fiscal year's revenue when the anchor year's revenue-per-share fails
+                # this exact $0.10 floor (both divide by the identical ttm_revenue/shares_out
+                # pair) - this method never mirrored that fallback, so a real, computable
+                # EV/Revenue was silently dropped to None on rows where ps_ratio recovers fine.
+                # Live-confirmed ABUS: anchor FY2025 revenue $14.08M/191.6M shares=$0.0735/share
+                # fails the floor here, while ps_ratio=25.29 is real and comes from FY2022's
+                # $39.02M/191.6M=$0.2037/share (the exact fallback this mirrors) - EV/Revenue
+                # was left None instead of the equally-computable ~68.8 from that same year.
+                if entity_shares_out is not None and entity_shares_out > 0:
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT revenue FROM annual_income_statement
+                            WHERE symbol = %s AND revenue IS NOT NULL AND revenue > 0
+                              AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC
+                            """,
+                            (symbol,),
+                        )
+                        older_revenue_rows = cur.fetchall()
+                    for (older_revenue,) in older_revenue_rows:
+                        older_rps = float(older_revenue) / entity_shares_out
+                        if older_rps < 0.10:
+                            continue
+                        candidate_ev_revenue = result["enterprise_value"] / float(older_revenue)
+                        if 0 < candidate_ev_revenue <= 10000:
+                            result["ev_revenue"] = round(candidate_ev_revenue, 2)
+                            break
+                if result["ev_revenue"] is None:
+                    logger.debug(f"[{symbol}] EV/Revenue out of bounds ({ev_revenue:.0f}), marking as NULL")
 
         # Intrinsic Value / Margin of Safety: 2-stage FCFE DCF (migration 1208, Value factor
         # goal 2026-08-17). Reuses the same FCF base (OCF - CapEx - SBC, see the 2026-08-25
