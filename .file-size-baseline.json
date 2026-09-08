@@ -430,7 +430,7 @@
   "lambda/api/routes/scores_handlers/incomplete_and_coverage.py": 105,
   "lambda/api/routes/scores_handlers/stock_details.py": 758,
   "lambda/api/routes/scores_handlers/stock_details_history.py": 112,
-  "lambda/api/routes/scores_handlers/stock_scores.py": 330,
+  "lambda/api/routes/scores_handlers/stock_scores.py": 338,
   "lambda/api/routes/scores_handlers/stock_scores_helpers.py": 818,
   "lambda/api/routes/sectors.py": 468,
   "lambda/api/routes/sentiment.py": 678,
