@@ -181,3 +181,47 @@ class TestNetIncomeLossSynonymFallback:
         gaps = mod.find_continuity_gaps(min_prior_years=3)
         assert len(gaps) == 1
         assert gaps[0]["concept"] == "us-gaap:NetIncomeLoss"
+
+
+class TestInstantDurationContextDateSkew:
+    """ADDED 2026-09-08 (goal session continuation: "are the XBRL numbers going down").
+    Live-confirmed via BT BRANDS, INC. (CIK 0001718224, real FY2024 10-K, accn
+    0001477932-25-002248): the SAME filing tags Assets/Liabilities (balance-sheet instant
+    context) with end="2024-12-31" but NetIncomeLoss (income-statement duration context) with
+    end="2024-12-29" - the filer's real 52/53-week fiscal year-end. Before this fix,
+    find_continuity_gaps()'s exact-string date match compared NetIncomeLoss's own end-dates
+    against the cross-concept anchor built from Assets/Liabilities and never matched, so a
+    concept that WAS filed, unchanged, every year got flagged as a continuity regression
+    (10 -> 9 live gaps after this fix, BT BRANDS was the false positive removed)."""
+
+    def test_two_day_instant_duration_skew_not_flagged(self, _fake_cache_dir: Path) -> None:
+        _write_companyfacts(
+            _fake_cache_dir,
+            "0001718224",
+            "BT BRANDS, INC.",
+            {
+                "Assets": ["2025-12-31", "2024-12-31", "2023-12-31", "2022-12-31"],
+                "Liabilities": ["2025-12-31", "2024-12-31", "2023-12-31", "2022-12-31"],
+                # Same fiscal years as Assets/Liabilities, but the filer's true duration-context
+                # end dates land a couple of days earlier each year (52/53-week fiscal calendar).
+                "NetIncomeLoss": ["2025-12-29", "2024-12-29", "2023-12-31", "2022-12-29"],
+            },
+        )
+        assert mod.find_continuity_gaps(min_prior_years=3) == []
+
+    def test_real_gap_beyond_tolerance_still_flags(self, _fake_cache_dir: Path) -> None:
+        # A skew far larger than any real instant/duration reporting-date drift (60 days) must
+        # still be treated as a genuine gap, not silently tolerated.
+        _write_companyfacts(
+            _fake_cache_dir,
+            "0000000008",
+            "REAL GAP FAR PAST TOLERANCE INC",
+            {
+                "Assets": ["2025-12-31", "2024-12-31", "2023-12-31", "2022-12-31"],
+                "Liabilities": ["2025-12-31", "2024-12-31", "2023-12-31", "2022-12-31"],
+                "NetIncomeLoss": ["2024-12-31", "2023-12-31", "2022-12-31"],
+            },
+        )
+        gaps = mod.find_continuity_gaps(min_prior_years=3)
+        assert len(gaps) == 1
+        assert gaps[0]["concept"] == "us-gaap:NetIncomeLoss"

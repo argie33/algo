@@ -13,6 +13,7 @@ or a tie-out check happened to catch a downstream symptom.
 
 from __future__ import annotations
 
+import datetime
 import json
 import re
 import tempfile
@@ -214,6 +215,34 @@ def save_continuity_dismissed(dismissed: dict[str, str]) -> None:
     CONTINUITY_DISMISSED_FILE.write_text(json.dumps(dict(sorted(dismissed.items())), indent=2) + "\n", encoding="utf-8")
 
 
+# FIXED 2026-09-08 (goal: "is the XBRL data going down" sweep): find_continuity_gaps() below
+# used to require an EXACT string match between a concept's own annual end-dates and the
+# filer's cross-concept "anchor" end-date. Live-confirmed BT BRANDS, INC. (CIK 0001718224)
+# false-positived on this: its FY2024 10-K (accn 0001477932-25-002248) tags Assets/Liabilities
+# with end="2024-12-31" (balance-sheet instant context) but NetIncomeLoss with end="2024-12-29"
+# (income-statement duration context, the filer's REAL 52/53-week fiscal year-end) - the exact
+# same filing, same fiscal year, just a 2-day skew between an instant and a duration XBRL
+# context that SEC EDGAR's own renderer doesn't reconcile. NetIncomeLoss WAS genuinely present
+# and unchanged; the checker just never matched its "2024-12-29" against the anchor's
+# "2024-12-31". A small tolerance window (same-fact reporting-date skew is always a few days,
+# never close to a real fiscal year's ~365-day gap) fixes this without risking a false
+# negative - two genuinely different fiscal years can never collide within this window.
+_CONTINUITY_DATE_TOLERANCE_DAYS = 7
+
+
+def _dates_close(a: str, b: str, tolerance_days: int = _CONTINUITY_DATE_TOLERANCE_DAYS) -> bool:
+    try:
+        da = datetime.date.fromisoformat(a)
+        db = datetime.date.fromisoformat(b)
+    except ValueError:
+        return a == b
+    return abs((da - db).days) <= tolerance_days
+
+
+def _has_close_match(target: str, candidates: set[str]) -> bool:
+    return any(_dates_close(target, c) for c in candidates)
+
+
 def _annual_end_dates(fact_entries: list[dict[str, object]]) -> set[str]:
     """Distinct fiscal-period-end dates ('end') this concept has an annual (10-K/10-K/A) fact
     for, in ANY unit (USD covers the three CORE_CONTINUITY_CONCEPTS; a filer using a non-USD
@@ -286,9 +315,9 @@ def find_continuity_gaps(min_prior_years: int = 3) -> list[dict[str, object]]:
             own_ends = per_concept_ends[concept]
             if not own_ends:
                 continue  # Never tagged at all - a coverage gap, not a continuity regression
-            if latest in own_ends:
-                continue  # Still present this year - no gap
-            if not all(p in own_ends for p in prior_window):
+            if _has_close_match(latest, own_ends):
+                continue  # Still present this year (within the instant/duration skew tolerance) - no gap
+            if not all(_has_close_match(p, own_ends) for p in prior_window):
                 continue  # Wasn't consistently present before either - not a new regression
             key = f"{fp.stem}:{concept}"
             if key in dismissed:
