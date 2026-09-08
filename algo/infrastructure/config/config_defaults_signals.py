@@ -101,6 +101,19 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "held-at-today's-weights over historical per-symbol price returns) above this pct of equity",
         "Filter Thresholds",
     ),
+    "max_cvar_pct": (
+        "3.0",
+        "float",
+        "Alert (informational only, algo/risk/var.py's daily report - not a pretrade entry gate) "
+        "when realized 95%/252d CVaR (Expected Shortfall - the average loss on days worse than "
+        "VaR) exceeds this pct of equity. Default is 1.5x max_simulated_var_pct's 2.0%, matching "
+        "the standard fat-tailed-equity-returns ES/VaR multiplier (~1.25x under normality; higher "
+        "for real equity tails) - not independently backtested against this portfolio's own "
+        "return distribution, so treat as a reasonable starting point to tune once real CVaR "
+        "history accumulates, not a validated number. Added 2026-09-07 (real-money-readiness "
+        "audit) - CVaR was computed and persisted everywhere but never alerted on anywhere.",
+        "Filter Thresholds",
+    ),
     # Entry Rules (Minervini)
     "require_sma50_above_sma200": ("true", "bool", "Price and MA alignment", "Entry Rules"),
     "min_percent_from_52w_low": (

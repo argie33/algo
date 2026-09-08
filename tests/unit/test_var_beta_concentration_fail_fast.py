@@ -168,3 +168,57 @@ class TestAlertThresholdsUseConfigNotHardcodedLiterals:
 
         assert any("Concentration Risk" in a for a in result["alerts"])
         assert any("15.0" in a for a in result["alerts"])
+
+    def test_cvar_alert_fires_when_configured_threshold_exceeded(self):
+        """Regression test for the 2026-09-07 real-money-readiness audit fix: CVaR was
+        computed and persisted every run but never alerted on anywhere - two portfolios with
+        identical, compliant VaR can have very different uncaught tail severity."""
+        var_calculator = ValueAtRisk(
+            {
+                "var_percentile": 5,
+                "cvar_percentile": 5,
+                "stressed_var_percentile": 10,
+                "max_simulated_var_pct": 2.0,
+                "max_top5_concentration_pct": 30.0,
+                "max_portfolio_beta": 2.0,
+                "max_cvar_pct": 3.0,
+            }
+        )
+        mock_cur = MagicMock()
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+        _stub_out_everything_except(
+            var_calculator,
+            cvar=lambda: {"cvar_pct": 4.5, "data_unavailable": False},
+        )
+
+        with patch("algo.risk.var.DatabaseContext", return_value=mock_ctx):
+            result = var_calculator.generate_daily_risk_report(date(2026, 8, 4))
+
+        assert any("CVaR Risk" in a for a in result["alerts"])
+        assert any("3.0" in a for a in result["alerts"])
+
+    def test_cvar_alert_does_not_fire_below_threshold(self):
+        var_calculator = ValueAtRisk(
+            {
+                "var_percentile": 5,
+                "cvar_percentile": 5,
+                "stressed_var_percentile": 10,
+                "max_simulated_var_pct": 2.0,
+                "max_top5_concentration_pct": 30.0,
+                "max_portfolio_beta": 2.0,
+                "max_cvar_pct": 3.0,
+            }
+        )
+        mock_cur = MagicMock()
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+        _stub_out_everything_except(
+            var_calculator,
+            cvar=lambda: {"cvar_pct": 1.0, "data_unavailable": False},
+        )
+
+        with patch("algo.risk.var.DatabaseContext", return_value=mock_ctx):
+            result = var_calculator.generate_daily_risk_report(date(2026, 8, 4))
+
+        assert not any("CVaR Risk" in a for a in result["alerts"])

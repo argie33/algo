@@ -94,6 +94,12 @@ VALIDATION_SCHEMA = {
     # historical price returns, what would VaR have been" - and reuses the same var_pct > 2%
     # convention var.py already documents for its report-only historical_var() alert.
     "max_simulated_var_pct": ("float", 0.5, 10.0, False, 2.0),
+    # Informational-only alert threshold (var.py's daily report, not a pretrade gate) for
+    # realized 95%/252d CVaR/Expected Shortfall - CVaR was computed and persisted everywhere
+    # but never alerted on anywhere before 2026-09-07. Default 3.0 = 1.5x max_simulated_var_pct,
+    # a standard fat-tailed-equity ES/VaR multiplier, not independently backtested against this
+    # portfolio's own return distribution - tune once real CVaR history accumulates.
+    "max_cvar_pct": ("float", 0.5, 15.0, False, 3.0),
     "max_total_invested_pct": ("float", 50.0, 100.0, False, 95.0),
     # Market Conditions
     "max_distribution_days": ("int", 0, 30, False, 4),

@@ -1182,6 +1182,21 @@ class PositionSizer:
             ) from None
         max_position_value = pv_dec * max_position_pct
 
+        # DOCUMENTED (2026-09-07 real-money-readiness audit): this cap is a FLAT ceiling on
+        # position value with no knowledge of stop distance, while `shares` above was sized to
+        # a stop-distance-aware RISK target (base_risk_pct). For a tight-stop (typically lower-
+        # volatility/higher-quality) candidate, this branch routinely binds before the risk
+        # target does - the crossover is stop_pct > base_risk_pct/max_position_size_pct (at
+        # live config defaults, ~0.75%/4.75% = ~15.8% stop distance; Phase 8's ATR-derived
+        # stops usually run 2-8%). Net effect: actual dollar risk for tighter-stop names is
+        # often well under the stated base_risk_pct target - conservative (under-risks), not
+        # dangerous, but the system's real behavior ("risk scales with stop width, capped at
+        # ~max_position_size_pct x stop_pct") doesn't match the "base_risk_pct target" framing
+        # this config key's name implies. Not fixed here - deliberate business decision needed
+        # on whether max_position_size_pct should scale with intended risk instead of being a
+        # flat ceiling. The actual pre-cap vs post-cap share counts are already persisted per-
+        # trade in algo_position_sizing_audit (base_shares/final_shares below) for anyone
+        # auditing how often and how severely this cap is the binding constraint in practice.
         if existing_symbol_value + position_value > max_position_value:
             # ROUND_DOWN, not ROUND_HALF_UP: this caps position_value to a hard ceiling
             # (max_position_size_pct), so rounding the share count up can let the capped

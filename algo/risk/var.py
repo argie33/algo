@@ -1025,6 +1025,28 @@ class ValueAtRisk:
                     alerts.append(msg)
                     logger.warning(msg)
 
+            # Alert if CVaR/Expected Shortfall exceeds the configured max_cvar_pct (2026-09-07
+            # real-money-readiness audit fix - CVaR was computed and persisted every run but
+            # never alerted on anywhere; two portfolios with identical, compliant VaR can have
+            # very different uncaught tail severity, which is exactly what CVaR measures).
+            # Informational only, like the VaR alert above - this report does not gate trading.
+            if cvar_metrics:
+                if "cvar_pct" not in cvar_metrics:
+                    raise RuntimeError(
+                        f"[CVaR CRITICAL] cvar_metrics dict missing 'cvar_pct' key. "
+                        f"Cannot evaluate tail-risk threshold without valid CVaR metric. "
+                        f"Available keys: {list(cvar_metrics.keys())}"
+                    )
+                cvar_pct = float(cvar_metrics["cvar_pct"])
+                try:
+                    max_cvar_pct = float(self.config["max_cvar_pct"])
+                except KeyError as e:
+                    raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+                if cvar_pct > max_cvar_pct:
+                    msg = f"CVaR Risk: Portfolio CVaR (tail loss) is {cvar_pct:.2f}% (>{max_cvar_pct:.2f}% threshold)"
+                    alerts.append(msg)
+                    logger.warning(msg)
+
             # Alert if concentration exceeds the configured max_top5_concentration_pct
             if concentration:
                 if "top_5_concentration_pct" not in concentration:
