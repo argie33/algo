@@ -66,6 +66,19 @@ _BALANCE_IFRS_ALIASES = [
     ("CurrentLiabilitiesOtherThanLiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale", "liabilities_current"),
     ("Equity", "stockholders_equity"),
     ("EquityAttributableToOwnersOfParent", "stockholders_equity"),
+    # ADDED 2026-09-08 (goal session: scores-reload due-diligence audit, IFRS coverage-scan
+    # follow-up): IFRS's own noncontrolling-interest equity concept, direct equivalent of the
+    # us-gaap "MinorityInterest" concept already mapped to the same target below via
+    # _BALANCE_FIELD_MAPPING's "minority_interest": "noncontrolling_interest" entry (reused
+    # here, not duplicated) - live-confirmed via Bank of Nova Scotia's real companyfacts JSON
+    # (CIK 0000009631): FY2026 Q1 (period end 2026-01-31) NoncontrollingInterests=
+    # CAD 1,434,000,000, and EquityAttributableToOwnersOfParent (CAD 87,588,000,000) +
+    # NoncontrollingInterests exactly equals the filer's own total Equity fact
+    # (CAD 89,022,000,000) - confirms this is the real, complete NCI figure, not a partial
+    # component. Target key "minority_interest" (not "noncontrolling_interest" directly) is
+    # deliberate - it's the _to_snake() raw key the us-gaap concept produces, which
+    # _BALANCE_FIELD_MAPPING already routes to the noncontrolling_interest column.
+    ("NoncontrollingInterests", "minority_interest"),
     ("CashAndCashEquivalents", "cash_and_cash_equivalents_at_carrying_value"),
     ("TradeAndOtherCurrentReceivables", "accounts_receivable_net_current"),
     # FIXED 2026-09-03 (same sweep): TSM (Taiwan Semiconductor) live-confirmed via real
@@ -98,6 +111,22 @@ _BALANCE_IFRS_ALIASES = [
     # sec_ifrs_sbc_buyback_alias_gap_fixed_20260817 memory for this exact class of bug
     # caught before shipping on the SBC/buyback aliases below).
     ("ShorttermBorrowings", "short_term_borrowings"),
+    # ADDED 2026-09-08 (goal session: scores-reload due-diligence audit, IFRS coverage-scan
+    # follow-up): "Borrowings" is IFRS's single COMBINED debt concept for filers that don't
+    # split current/noncurrent the way the LongtermBorrowings/ShorttermBorrowings pair above
+    # assumes - live-confirmed via Unilever PLC's real companyfacts JSON (CIK 0000217410):
+    # FY2025 (period end 2025-12-31) Borrowings=EUR 26,038,000,000, and Unilever tags NO
+    # LongtermBorrowings/ShorttermBorrowings/CurrentBorrowings/NoncurrentBorrowings concept at
+    # all - a real, ~EUR 26B debt load previously invisible to this extractor entirely for a
+    # major global filer. Listed AFTER the split pair above (this aggregation's own
+    # first-populated-wins tiebreak - live-verified via a real test that listing a fallback
+    # BEFORE its more-precise sibling lets the fallback win when both are present for the same
+    # period, the opposite of what's wanted - so unlike the "list fallback first" IFRS-alias
+    # convention documented on the CurrentAssetsOtherThan... entry further up, a same-column
+    # fallback here must be listed LAST for a filer reporting both to keep the split value).
+    # Maps to the same long_term_debt raw key as "DebtLongtermAndShorttermCombinedAmount" (PGR,
+    # us-gaap) uses for the identical no-current/noncurrent-split shape.
+    ("Borrowings", "long_term_debt"),
     # FIXED 2026-08-17 (loader-review goal continuation): IFRS 16 lessee accounting
     # doesn't distinguish operating vs. finance leases the way US GAAP does - IFRS
     # filers report a single combined "LeaseLiabilities" concept, not separate
