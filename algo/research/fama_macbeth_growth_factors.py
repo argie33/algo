@@ -62,13 +62,11 @@ _COMPANYFACTS_CACHE_DIR = Path(tempfile.gettempdir()) / "algo-sec-edgar-cache" /
 def _load_symbol_to_cik() -> dict[str, str]:
     try:
         with open(_TICKER_CACHE_FILE) as f:
-            data = json.load(f)
-        return dict(data["mapping"]) if data.get("mapping") else {}
+            payload = json.load(f)
+        return dict(payload.get("mapping") or {})
     except (OSError, json.JSONDecodeError, ValueError):
-        # Missing/corrupt local ticker cache is not an error here (nothing to look up), just
-        # a best-effort accuracy improvement going unavailable - real_10k_filing_dates() fails
-        # open by design (see its own docstring), and every caller already handles an empty
-        # mapping as "no real filing dates available, fall back to the calendar approximation".
+        # No local ticker cache found on this machine - nothing to process here, callers
+        # (real_10k_filing_dates) already document the resulting empty-mapping fallback.
         return {}
 
 
@@ -100,10 +98,8 @@ def real_10k_filing_dates(symbols: list[str]) -> dict[tuple[str, int], pd.Timest
         except (OSError, json.JSONDecodeError, KeyError, TypeError):
             continue
         found_any = False
-        us_gaap = facts["us-gaap"] if "us-gaap" in facts and facts["us-gaap"] is not None else {}
-        for concept_data in us_gaap.values():
-            units = concept_data["units"] if "units" in concept_data and concept_data["units"] is not None else {}
-            for unit_rows in units.values():
+        for concept_entry in facts.get("us-gaap", {}).values():
+            for unit_rows in concept_entry.get("units", {}).values():
                 for row in unit_rows:
                     if row.get("form") != "10-K" or row.get("fp") != "FY":
                         continue

@@ -169,6 +169,29 @@ class QualityBatchMixin:
                 symbol: _fs_industry_peer_group.get(symbol, sector) for symbol, sector in sectors.items()
             }
 
+            # fcf_margin exclusion (2026-09-08, absorbed from Pass-1's already-live-confirmed
+            # fix - see vqg_quality.py's fcf_margin_score comment): depository banks, risk-bearing
+            # insurance underwriters, and regulated rate-base utilities have free_cash_flow
+            # (operating_cash_flow - capex) dominated by loan origination/deposit swings or
+            # continuous grid/generation capex unrelated to real operating profitability (JPM
+            # -81%, WFC -22.70%, NEE -42% live-confirmed) - not a distress signal, a structural
+            # artifact of the metric definition for these industries. Excluded from both the
+            # z-score population (so they don't skew the sector's mean/stdev for genuinely
+            # FCF-comparable peers like payment networks/asset managers) and each excluded
+            # symbol's own component list (same "omit, don't floor" treatment as a missing raw
+            # value), mirroring Pass-1's per-industry exclusion instead of re-deriving it.
+            _fcf_excluded_industries = (
+                _owner().DEPOSITORY_BANK_INDUSTRIES
+                | _owner().INSURANCE_UNDERWRITER_INDUSTRIES
+                | _owner().UTILITY_INDUSTRIES
+            )
+            # len(row) guard keeps pre-existing unit test fixtures (3-tuple/11-tuple rows, no
+            # industry column) passing unchanged - a missing industry fails open to "no
+            # exclusion", the same fail-open contract _get_symbol_industry's own docstring
+            # documents. industry lives at row[2] in this query's own column order (see SELECT
+            # above), not appended at the end.
+            industries: dict[str, str] = {row[0]: row[2] for row in rows if len(row) > 2 and row[2]}
+
             def _nonneg_raw(idx: int) -> dict[str, float]:
                 return {row[0]: float(row[idx]) for row in rows if row[idx] is not None and float(row[idx]) >= 0.0}
 
@@ -187,7 +210,11 @@ class QualityBatchMixin:
             }
             roa_raw = _nonneg_raw(4)
             roce_raw = _nonneg_raw(5)
-            fcf_margin_raw = _nonneg_raw(6)
+            fcf_margin_raw = {
+                symbol: val
+                for symbol, val in _nonneg_raw(6).items()
+                if industries.get(symbol) not in _fcf_excluded_industries
+            }
             d2e_raw = _negated_nonneg_raw(7)
             margin_vol_raw = _negated_nonneg_raw(8)
             asset_turnover_raw = _nonneg_raw(9)
@@ -224,7 +251,7 @@ class QualityBatchMixin:
                 if roce_pct_val is not None:
                     roce_component = 0.0 if float(roce_pct_val) < 0.0 else roce_pct[symbol]
                     components.append((roce_component, 18.0))
-                if fcf_margin is not None:
+                if fcf_margin is not None and industries.get(symbol) not in _fcf_excluded_industries:
                     fcf_component = 0.0 if float(fcf_margin) < 0.0 else fcf_margin_pct[symbol]
                     components.append((fcf_component, 15.0))
                 if d2e is not None:
