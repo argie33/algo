@@ -531,7 +531,7 @@
   "loaders/load_earnings_metrics.py": 172,
   "loaders/load_economic_calendar.py": 227,
   "loaders/load_economic_data.py": 454,
-  "loaders/load_enhanced_quality_growth_metrics.py": 988,
+  "loaders/load_enhanced_quality_growth_metrics.py": 1020,
   "loaders/load_financial_statements.py": 1973,
   "loaders/load_insider_transaction_velocity.py": 218,
   "loaders/load_institutional_holdings_13f.py": 1062,
