@@ -617,6 +617,11 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # exposure aggregation failure reasons for when the composite weighting couldn't
             # be computed from individual pillar scores (rare, all-or-nothing result).
             "exposure_no_result",
+            # RESTORED 2026-09-07 (regression: landed in 97c7a2590, silently dropped by a bad
+            # merge in 0cbce77c0 - real-money-readiness audit re-verified write-site still emits
+            # this exact string). load_value_quality_growth_metrics.py's _get_positioning_data
+            # writes this on a real DB/fetch exception, an operational error, not a data gap.
+            "positioning_metrics_unavailable",
         },
     ),
     (
@@ -844,6 +849,16 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # rows, >50%), silently making the "which loaders need fixing" report itself look
             # far noisier than the real gap.
             "no_8k_filings_in_recent_submissions",
+            # RESTORED 2026-09-07 (regression: landed in 97c7a2590, silently dropped by a bad
+            # merge in 0cbce77c0 - real-money-readiness audit re-verified both write-sites in
+            # load_market_constituents.py still emit these exact strings). Both are permanent,
+            # confirmed business facts: blank_check_shell_sic_6770_no_revenue fires only after
+            # confirming SEC SIC 6770 + zero revenue ever; delisted_or_removed_from_exchange_feed
+            # fires only after vanishing from the NASDAQ/otherlisted feed AND going stale in
+            # price_daily (second orthogonal signal, added 2026-09-01 after a live EQR false
+            # positive) - neither is a loader gap.
+            "blank_check_shell_sic_6770_no_revenue",
+            "delisted_or_removed_from_exchange_feed",
             # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep): symbol is
             # structurally unable to file traditional 10-K/10-Q filings due to entity type
             # (CEF/BDC/ETF/post-2024 banks), so it has no annual financial statements data -
