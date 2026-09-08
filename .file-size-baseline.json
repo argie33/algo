@@ -699,7 +699,7 @@
   "utils/external/sec_xbrl_segment_revenue.py": 702,
   "utils/external/sec_xbrl_segment_revenue_2.py": 412,
   "utils/external/sec_xbrl_segments.py": 1325,
-  "utils/external/xbrl_concept_coverage.py": 223,
+  "utils/external/xbrl_concept_coverage.py": 366,
   "utils/external/yfinance_analyst_ratings.py": 765,
   "utils/external/yfinance_circuit_breaker.py": 374,
   "utils/external/yfinance_financials.py": 359,
