@@ -611,6 +611,7 @@
   "scripts/setup_production_monitoring.py": 359,
   "scripts/test_yfinance_parallelism_2.py": 154,
   "scripts/test_yfinance_parallelism_optimization.py": 371,
+  "scripts/triage_xbrl_continuity_gaps.py": 161,
   "scripts/validate_loader_systems_sync.py": 214,
   "scripts/validate_loading_system_fixes.py": 265,
   "scripts/validate_memory.py": 305,
