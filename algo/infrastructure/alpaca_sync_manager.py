@@ -9,6 +9,7 @@ import json
 import logging
 import math
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -20,6 +21,43 @@ from algo.trading.executor_strategies import create_execution_mode_strategy
 from utils.db.advisory_locks import ALGO_POSITIONS_LOCK_ID, acquire_advisory_lock, release_advisory_lock
 
 logger = logging.getLogger(__name__)
+
+# A position missing at Alpaca for more than this long has had many reconciliation cycles
+# (the orchestrator runs multiple passes/day) to resolve a genuine fill-pending/API-lag
+# condition on its own - continued absence past this window is a real, persistent divergence,
+# not transient sync noise. See _find_stale_missing_symbols's docstring.
+STALE_MISSING_ESCALATION_HOURS = 24
+
+
+def _find_stale_missing_symbols(missing_rows: list[tuple[str, Any]]) -> list[str]:
+    """Of the symbols found "in DB but not at Alpaca" this cycle, return the ones that have
+    been missing for more than STALE_MISSING_ESCALATION_HOURS - see the FIXED 2026-09-07
+    comment at this function's call site in _sync_alpaca_positions_impl for the full
+    rationale. Split out of that function (same C901-complexity-budget reason as
+    _cancel_stale_orders_for_missing_positions below) rather than inlined.
+
+    algo_positions.updated_at is the only signal ever written for an open position by the
+    matched-position branch of _sync_alpaca_positions_impl - a row still missing this cycle
+    keeps whatever updated_at it had from its last successful match, so its staleness is a
+    direct, real measurement of how long the divergence has actually persisted.
+    """
+    stale_missing = []
+    for symbol, updated_at in missing_rows:
+        if updated_at is None:
+            continue
+        # algo_positions.updated_at is written via SQL CURRENT_TIMESTAMP - a naive value here
+        # is in the DB session's local wall-clock timezone, not UTC (same documented
+        # convention as position_order_management.py's stale-order age check; see
+        # get_db_timezone()'s docstring). Mislabeling it as UTC would silently shift the
+        # staleness window by the DB session's UTC offset.
+        if updated_at.tzinfo is None:
+            from utils.db.timezone_utils import get_db_timezone
+
+            updated_at = updated_at.replace(tzinfo=get_db_timezone())
+        age_hours = (datetime.now(timezone.utc) - updated_at).total_seconds() / 3600
+        if age_hours > STALE_MISSING_ESCALATION_HOURS:
+            stale_missing.append(symbol)
+    return stale_missing
 
 
 def _is_non_finite_qty(symbol: str, raw_qty: Any, qty_float: float) -> bool:
@@ -746,33 +784,65 @@ class AlpacaSyncManager:
         # - NOT just because Alpaca didn't list it (could be sync lag)
 
         try:
+            # FIXED 2026-09-07 (real-money-readiness audit): also fetch each missing symbol's
+            # updated_at, which the matched-position branch above (lines ~639/681) is the ONLY
+            # thing that ever bumps for an open position - a row excluded from that branch (i.e.
+            # still missing at Alpaca this cycle) keeps whatever updated_at it had from its last
+            # successful match. That makes staleness of updated_at a direct, real measurement of
+            # "how long has this position actually been missing," not just "missing this one
+            # check." Before this fix, every cycle re-alerted at the SAME "warning" severity
+            # forever with no escalation - a position genuinely closed outside the algo (a stop
+            # filled with nobody watching) could sit "open" in the DB indefinitely as long as the
+            # recurring warning kept getting missed, with no automatic path to operator attention
+            # rising to match how stale the divergence actually is.
             cur.execute(
                 """
-                SELECT DISTINCT symbol FROM algo_positions
+                SELECT symbol, updated_at FROM algo_positions
                 WHERE status = 'open' AND symbol != ALL(%s)
             """,
                 (list(alpaca_symbols),),
             )
-            missing_positions = [row[0] for row in cur.fetchall()]
+            missing_rows = cur.fetchall()
+            missing_positions = [row[0] for row in missing_rows]
 
             if missing_positions:
+                stale_missing = _find_stale_missing_symbols(missing_rows)
+                escalate = bool(stale_missing)
+
                 # ALERT but do NOT close - log for manual operator review
                 logger.warning(
                     f"[POSITION_SYNC] ALERT: {len(missing_positions)} positions in DB but not in Alpaca: "
                     f"{', '.join(missing_positions[:10])}{'...' if len(missing_positions) > 10 else ''}. "
                     f"NOT automatically closing - may be fill-pending, API lag, or network sync issue. "
                     f"Manual review required if these should actually be closed."
+                    + (
+                        f" ESCALATED: {len(stale_missing)} of these have been missing for over "
+                        f"{STALE_MISSING_ESCALATION_HOURS}h - this is no longer transient sync lag."
+                        if escalate
+                        else ""
+                    )
                 )
                 try:
                     from algo.reporting import notify
 
                     notify(
-                        severity="warning",
-                        title="Position Sync Alert - Missing at Broker",
+                        severity="critical" if escalate else "warning",
+                        title=(
+                            "Position Sync CRITICAL - Persistently Missing at Broker"
+                            if escalate
+                            else "Position Sync Alert - Missing at Broker"
+                        ),
                         message=f"{len(missing_positions)} positions in DB but not found at Alpaca. "
                         f"May indicate fill-pending orders or broker sync lag. "
-                        f"Review: {', '.join(missing_positions[:5])}{'...' if len(missing_positions) > 5 else ''}",
-                        details={"missing_positions": missing_positions},
+                        f"Review: {', '.join(missing_positions[:5])}{'...' if len(missing_positions) > 5 else ''}"
+                        + (
+                            f" {len(stale_missing)} have been missing for over "
+                            f"{STALE_MISSING_ESCALATION_HOURS}h: {', '.join(stale_missing[:5])} - "
+                            f"treat as confirmed-closed pending manual verification, not sync lag."
+                            if escalate
+                            else ""
+                        ),
+                        details={"missing_positions": missing_positions, "stale_missing": stale_missing},
                     )
                 except Exception as notify_err:
                     logger.error(f"[POSITION_SYNC] Failed to send alert: {notify_err}")

@@ -6,6 +6,7 @@ indefinitely. Fixed 2026-09-06: the sync now also cancels every open order for t
 (a pure risk-reduction action) while leaving the deliberate DB alert-only behavior untouched.
 """
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
@@ -35,10 +36,11 @@ def test_missing_position_triggers_stale_order_cancel_not_db_close():
     manager._session.get.return_value = _mock_response([])
 
     cur = MagicMock()
-    # First fetchall(): distinct open DB positions not in Alpaca's symbol set.
+    # First fetchall(): (symbol, updated_at) for open DB positions not in Alpaca's symbol set
+    # (updated_at recent - not past the escalation window, so this stays a "warning").
     # Second fetchall(): distinct open DB symbols (used to compute orphan_symbols).
     cur.fetchall.side_effect = [
-        [("MANUALCLOSED",)],  # missing_positions query
+        [("MANUALCLOSED", datetime.now(timezone.utc))],  # missing_positions query
         [],  # db_symbols query (nothing else open)
     ]
     cur.rowcount = 0
