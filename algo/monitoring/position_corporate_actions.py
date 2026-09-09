@@ -200,19 +200,30 @@ class CorporateActionsMixin:
     ) -> None:
         """Handle quantity changes between DB and Alpaca.
 
-        alpaca_qty is None when Alpaca has no position for this symbol at all (404) - treated
-        identically to a real qty of 0 (position closed at broker), since both mean "nothing to
-        reconcile a split against."
+        alpaca_qty is None specifically means Alpaca has NO position for this symbol at all
+        (404). A real qty of 0 never reaches this branch by a different route: this whole
+        method only runs against rows this query already filtered to `status = 'open'`, and
+        our own exit path (executor_exit_handler.py) always flips status to 'closed' as part
+        of the same transaction that reduces quantity to 0 - so a position landing here as
+        'open' in our DB while Alpaca shows qty 0/404 was NOT closed by an exit WE recorded.
+        It's an unexplained broker-side discrepancy: possibly a genuine liquidation, but
+        _fetch_alpaca_qty's own docstring notes 404 is indistinguishable from a ticker
+        rename/merger, where the real position still exists at the broker under a new symbol
+        - fabricating a P&L and marking this 'closed' as if it were a routine, self-initiated
+        exit would silently orphan that still-open (and possibly still-protected-under-the-
+        old-symbol-only) position from all further stop/exit monitoring. FIX (2026-09-09
+        real-money-readiness audit): treat this as requiring human confirmation, the same way
+        exit_engine.py's delisted/unavailable branch refuses to compute P&L off a price it
+        can't trust, rather than a routine close.
         """
         if alpaca_qty is None or alpaca_qty == 0:
-            # FIX: Calculate profit_loss_dollars before closing position (was leaving it NULL)
             cur.execute(
                 """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                    exit_reason = %s,
-                   profit_loss_dollars = (current_price - avg_entry_price) * quantity,
+                   profit_loss_dollars = NULL,
                    unrealized_pnl = NULL
                    WHERE id = %s""",
-                ("position_closed_at_broker", pos_id),
+                ("broker_position_not_found|requires_manual_review", pos_id),
             )
             adjustments.append(
                 {
@@ -222,6 +233,28 @@ class CorporateActionsMixin:
                     "alpaca_qty": alpaca_qty,
                 }
             )
+            try:
+                from algo.reporting.notifications import notify
+
+                notify(
+                    "critical",
+                    title="Position closed at broker without a matching exit - verify not a rename/merger",
+                    message=(
+                        f"{symbol} (position id {pos_id}, {db_qty} shares) showed no position at "
+                        f"Alpaca (404/qty=0) despite being 'open' in our DB with no exit we recorded. "
+                        f"Marked closed with NO computed P&L (unknown - do not trust current_price for "
+                        f"this). This can be a genuine liquidation, OR a ticker rename/merger where the "
+                        f"real position still exists at the broker under a NEW symbol and is no longer "
+                        f"being monitored/protected by this system under either symbol. Verify at Alpaca "
+                        f"directly before treating this as resolved."
+                    ),
+                )
+            except Exception as notify_err:
+                logger.critical(
+                    f"[CORP_ACTION] Failed to alert on unexplained broker-side close for {symbol} "
+                    f"(position id {pos_id}): {notify_err}",
+                    exc_info=True,
+                )
             return
 
         if alpaca_qty == db_qty:
