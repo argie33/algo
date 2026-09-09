@@ -10,6 +10,7 @@ from datetime import datetime
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any, cast
 
+import pandas as pd
 import psycopg2
 import requests
 from psycopg2.extensions import cursor as PsycopgCursor
@@ -24,6 +25,7 @@ from algo.signals import SignalComputer
 from algo.trading import TradeExecutor
 from algo.trading.exceptions import DatabaseError, ExchangeAPIError
 from algo.trading.exit_position_context import PositionContext as PositionContext
+from loaders.technical_indicators import detect_and_adjust_splits
 from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
 from utils.trading import PositionStatus, TradeStatus
@@ -1686,7 +1688,18 @@ class ExitEngine:
                         f"Invalid close price {r[0]!r} in price_daily for {symbol} - cannot calculate 21-EMA stop"
                     )
 
-            closes = [Decimal(str(r[0])) for r in rows]
+            # FIX (2026-09-09 real-money-readiness audit): price_daily stores raw/unadjusted
+            # prices, so a real split inside this 30-row window used to read as a fake ~50%+
+            # single-day move straight into the EMA, potentially triggering a false 21-EMA-
+            # break stop (or masking a real one) on a live open position. The offline
+            # technical_data_daily loader already guards against exactly this via
+            # detect_and_adjust_splits (loaders/technical_indicators.py) - reuse the same
+            # function here rather than inventing a second split-detection method, so this
+            # live path and the offline loader agree on what counts as a split. `rows` is
+            # already ascending by date (rn DESC on a DESC-numbered window = oldest first),
+            # matching what detect_and_adjust_splits expects.
+            adjusted_df = detect_and_adjust_splits(pd.DataFrame({"close": [float(r[0]) for r in rows]}))
+            closes = [Decimal(str(c)) for c in adjusted_df["close"]]
 
             k = Decimal(2) / Decimal(22)
 

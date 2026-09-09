@@ -94,47 +94,34 @@ def _batch_fetch_technical_data(
 
     try:
         with DatabaseContext("read") as cur:
+            # FIX (2026-09-09 real-money-readiness audit): sma_50 used to be computed as a
+            # flat SQL AVG(close) over the trailing 50 raw price_daily rows. price_daily
+            # stores raw/unadjusted prices, so a real split inside that window read as a fake
+            # step straight into sma_50, which feeds live entry-sizing/technical-gate
+            # decisions. Dropped the SQL-side average entirely - sma_50 is now computed below
+            # in the same per-symbol pandas loop already used for ATR, reusing
+            # detect_and_adjust_splits (loaders/technical_indicators.py, the same function the
+            # offline technical_data_daily loader uses) before averaging, so this path and the
+            # offline loader agree on what counts as a split.
             cur.execute(
-                f"""WITH latest_prices AS (
-                    SELECT DISTINCT ON (symbol) symbol, close
+                f"""SELECT DISTINCT ON (symbol) symbol, close
                     FROM price_daily
                     WHERE symbol IN ({symbol_placeholders}) AND date <= %s
-                    ORDER BY symbol, date DESC
-                ),
-                sma_50_data AS (
-                    SELECT symbol, AVG(close) AS sma_50
-                    FROM (
-                        SELECT symbol, close,
-                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-                        FROM price_daily
-                        WHERE symbol IN ({symbol_placeholders}) AND date <= %s
-                    ) t
-                    WHERE rn <= 50
-                    GROUP BY symbol
-                )
-                SELECT lp.symbol, sma.sma_50, lp.close
-                FROM latest_prices lp
-                INNER JOIN sma_50_data sma ON sma.symbol = lp.symbol""",
-                [
-                    *symbols_needing_fetch,
-                    run_date,
-                    *symbols_needing_fetch,
-                    run_date,
-                ],
+                    ORDER BY symbol, date DESC""",
+                [*symbols_needing_fetch, run_date],
             )
 
-            sma_close_by_symbol: dict[str, tuple[Any, Any]] = {}
+            close_by_symbol: dict[str, Any] = {}
             for row in cur.fetchall():
                 if isinstance(row, dict):
                     row_symbol = row.get("symbol")
-                    sma_50 = row.get("sma_50")
                     close = row.get("close")
                 else:
-                    if len(row) < 3:
-                        raise IndexError(f"Row has {len(row)} columns, expected 3")
-                    row_symbol, sma_50, close = row
+                    if len(row) < 2:
+                        raise IndexError(f"Row has {len(row)} columns, expected 2")
+                    row_symbol, close = row
                 if row_symbol is not None:
-                    sma_close_by_symbol[row_symbol] = (sma_50, close)
+                    close_by_symbol[row_symbol] = close
 
             # FIXED 2026-08-24 (was: flat SMA-of-True-Range, a documented methodology mismatch -
             # see batch_fetch_atr_methodology_mismatch_found_20260824 in memory for the original
@@ -168,30 +155,36 @@ def _batch_fetch_technical_data(
             ohlc_rows = cur.fetchall()
 
         atr_by_symbol: dict[str, float] = {}
+        sma50_by_symbol: dict[str, float] = {}
         if ohlc_rows:
             import math as _math
 
             import pandas as pd
 
-            from loaders.technical_indicators import compute_atr
+            from loaders.technical_indicators import compute_atr, detect_and_adjust_splits
 
             ohlc_records = [dict(r) if isinstance(r, dict) else r for r in ohlc_rows]
             ohlc_df = pd.DataFrame(ohlc_records, columns=["symbol", "date", "high", "low", "close"])
             for col in ("high", "low", "close"):
                 ohlc_df[col] = ohlc_df[col].astype(float)
             for sym, group in ohlc_df.groupby("symbol"):
-                if len(group) < period:
-                    # Not enough history for a real ATR (same as the old fallback's implicit
-                    # behavior when insufficient rows existed) - leave missing, handled below.
-                    continue
                 group = group.sort_values("date")
-                atr_series = compute_atr(group["high"], group["low"], group["close"], period)
-                last_atr = atr_series.iloc[-1]
-                if last_atr is not None and not (_math.isnan(last_atr) or _math.isinf(last_atr)):
-                    atr_by_symbol[sym] = float(last_atr)
+                if len(group) >= period:
+                    atr_series = compute_atr(group["high"], group["low"], group["close"], period)
+                    last_atr = atr_series.iloc[-1]
+                    if last_atr is not None and not (_math.isnan(last_atr) or _math.isinf(last_atr)):
+                        atr_by_symbol[sym] = float(last_atr)
+                # SMA-50: same trailing-50-row window the old flat SQL AVG(close) used, but
+                # split-adjusted first (see FIX note above the SQL query). If fewer than 50
+                # rows exist in the fetch window, average what's available - same implicit
+                # behavior the old AVG(close) had for a symbol with limited history.
+                sma_window = group.tail(50)
+                adjusted = detect_and_adjust_splits(sma_window[["close"]])
+                sma50_by_symbol[sym] = float(adjusted["close"].mean())
 
-        for row_symbol, (sma_50, close) in sma_close_by_symbol.items():
+        for row_symbol, close in close_by_symbol.items():
             atr = atr_by_symbol.get(row_symbol)
+            sma_50 = sma50_by_symbol.get(row_symbol)
             if atr is None or sma_50 is None or close is None:
                 logger.warning(
                     f"[PHASE 8] Symbol {row_symbol}: Technical data incomplete (ATR={atr}, SMA_50={sma_50}, close={close}). "
