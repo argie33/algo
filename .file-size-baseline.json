@@ -492,7 +492,7 @@
   "loaders/helpers/__init__.py": 9,
   "loaders/helpers/company_info_sec_reason_cleanup.py": 49,
   "loaders/helpers/factor_normalization.py": 105,
-  "loaders/helpers/financial_statements_balance_config.py": 533,
+  "loaders/helpers/financial_statements_balance_config.py": 547,
   "loaders/helpers/financial_statements_cashflow_config.py": 339,
   "loaders/helpers/financial_statements_config_shared.py": 24,
   "loaders/helpers/financial_statements_income_config.py": 629,
