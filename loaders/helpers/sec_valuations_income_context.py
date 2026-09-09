@@ -94,6 +94,72 @@ class IncomeStatementContextMixin:
             return "unsupported_currency_no_fx_rate"
         return reason
 
+    @staticmethod
+    def _fetch_ttm_income_statement_row(cur: Any, symbol: str) -> list[tuple[Any, ...]]:
+        """Build a synthetic "annual" row (same 13-column shape
+        _fetch_income_statement_context's own query returns) from the 4 most recent real
+        quarterly_income_statement rows, for symbols with zero annual_income_statement rows
+        (recent IPOs: real 10-Qs filed, no 10-K yet). Returns [] unless all 4 quarters have
+        real revenue, net_income, AND earnings_per_share - never fabricates a partial-year
+        figure from fewer/incomplete quarters (the caller ORs this onto an empty
+        `cur.fetchall()` result, so an empty list here correctly falls through to the existing
+        "no data at all" handling). Other fields (operating_income/pretax_income/D&A/tax/
+        interest_expense/shares_outstanding_basic) are summed where present and left None
+        otherwise - the existing per-field fallbacks in _fetch_income_statement_context already
+        tolerate those being absent.
+        """
+        cur.execute(
+            """
+            SELECT revenue, net_income, earnings_per_share, operating_income, pretax_income,
+                   depreciation_expense, amortization_expense, shares_outstanding_basic,
+                   income_tax_expense, interest_expense, fiscal_year
+            FROM quarterly_income_statement
+            WHERE symbol = %s AND data_unavailable IS NOT TRUE
+            ORDER BY period_end DESC NULLS LAST, fiscal_year DESC, fiscal_quarter DESC
+            LIMIT 4
+            """,
+            (symbol,),
+        )
+        quarters = cur.fetchall()
+        if len(quarters) < 4 or any(q[0] is None or q[1] is None or q[2] is None for q in quarters):
+            return []
+
+        def _sum_col(idx: int) -> float | None:
+            values = [q[idx] for q in quarters if q[idx] is not None]
+            return (
+                sum(safe_float(v, "ttm_income_context_quarter", allow_none=True) or 0.0 for v in values)
+                if values
+                else None
+            )
+
+        cur.execute(
+            "SELECT is_foreign_private_issuer, sic_code FROM company_info_sec WHERE symbol = %s",
+            (symbol,),
+        )
+        cis_row = cur.fetchone()
+        is_foreign_private_issuer = bool(cis_row[0]) if cis_row else False
+        sic_code = cis_row[1] if cis_row else None
+
+        fiscal_year = quarters[0][10]
+        shares_outstanding_basic = quarters[0][7]  # a share count, not additive across quarters
+        return [
+            (
+                fiscal_year,
+                _sum_col(0),  # revenue
+                _sum_col(1),  # net_income
+                _sum_col(2),  # earnings_per_share (TTM EPS = sum of 4 quarterly EPS, standard convention)
+                _sum_col(3),  # operating_income
+                _sum_col(4),  # pretax_income
+                _sum_col(5),  # depreciation_expense
+                _sum_col(6),  # amortization_expense
+                shares_outstanding_basic,
+                _sum_col(8),  # income_tax_expense
+                is_foreign_private_issuer,
+                sic_code,
+                _sum_col(9),  # interest_expense
+            )
+        ]
+
     def _fetch_income_statement_context(self, cur: Any, symbol: str) -> Any:
         """Fetch the latest annual_income_statement row(s) for `symbol` and derive every
         income-statement-sourced value fetch_incremental needs before it can resolve
@@ -189,7 +255,13 @@ class IncomeStatementContextMixin:
         # _compute_multi_year_eps_cagr below a few more fiscal years of EPS history
         # without a second query - same tier/fiscal_year-DESC ordering as before, so
         # income_rows[0]/[1]'s selection is unchanged.
-        income_rows = cur.fetchall()
+        # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+        # no_income_statement investigation): recent IPOs (real 10-Qs filed, no 10-K yet) have
+        # zero annual_income_statement rows but real quarterly_income_statement data - see
+        # _fetch_ttm_income_statement_row's own docstring for the full rationale. `or` (not a
+        # separate `if`) keeps this a single fallback check, same branch count as before -
+        # falls through to the exact same processing every real annual row goes through below.
+        income_rows = cur.fetchall() or self._fetch_ttm_income_statement_row(cur, symbol)
         if not income_rows:
             # FIXED 2026-09-02 (goal: "get all the data we need" full-coverage audit):
             # total_cash/total_debt are pure balance-sheet facts with no income-
