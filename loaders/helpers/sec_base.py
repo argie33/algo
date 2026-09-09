@@ -373,6 +373,28 @@ class SecEdgarStatementLoader(SecLoaderBase):
         "cashflow": "get_cash_flow",
     }
 
+    # FIX (2026-09-09): GGAL/BBAR/SUPV/TGS/TKC/HEPS tag real ifrs-full facts but ONLY in a
+    # hyperinflationary currency (ARS/TRY) - correctly rejected by _aggregate_concepts (no
+    # reliable FX rate), but when EVERY concept is currency-rejected the whole-row list comes
+    # back empty, falling into the generic "...reit_or_special_entity" reason below - wrong
+    # for a bank/telecom/media company. has_unsupported_currency_only_fact() (2026-09-06)
+    # only covers the row-level reason chains in vqg_quality.py, which need >=1 row to
+    # examine - never this whole-statement-empty case (live-confirmed: EDN/TEO, same
+    # currency class but with 1 real major-currency fact, DO get the right reason; the 6
+    # above, with zero, don't). See _no_data_reason() below. Only the core anchor concept per
+    # statement type is checked, not each get_X function's full alias table.
+    _STATEMENT_TYPE_TO_CURRENCY_CHECK_CONCEPTS: dict[str, tuple[list[str], list[str]]] = {
+        "balance": (["Assets"], ["Assets"]),
+        "income": (
+            ["Revenues", "NetIncomeLoss"],
+            ["RevenueFromContractWithCustomerExcludingAssessedTax", "ProfitLoss"],
+        ),
+        "cashflow": (
+            ["NetCashProvidedByUsedInOperatingActivities"],
+            ["CashFlowsFromUsedInOperatingActivities"],
+        ),
+    }
+
     # Column names are validated against a fixed literal set (not user/DB-supplied) before
     # ever reaching an f-string SQL fragment - see the retry-set query below.
     #
@@ -505,6 +527,25 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 cur.execute("SELECT symbol FROM company_info_sec WHERE sic_code = 6798")
                 self._reit_symbols = frozenset(row[0] for row in cur.fetchall())
         return self._reit_symbols
+
+    def _no_data_reason(self, symbol: str) -> str:
+        """Reason for a symbol with zero usable rows from SEC EDGAR for this statement type.
+
+        Distinguishes genuine "no filings at all" (REIT/shell/special-entity) from a filer
+        with real facts only in an unsupported currency - see
+        `_STATEMENT_TYPE_TO_CURRENCY_CHECK_CONCEPTS` above.
+        """
+        check_concepts = self._STATEMENT_TYPE_TO_CURRENCY_CHECK_CONCEPTS.get(self.statement_type)
+        if check_concepts is not None:
+            from utils.external.sec_statements_shared import has_unsupported_currency_only_fact
+
+            us_gaap_concepts, ifrs_concepts = check_concepts
+            try:
+                if has_unsupported_currency_only_fact(self._sec_client, symbol, us_gaap_concepts, ifrs_concepts):
+                    return "unsupported_currency_no_fx_rate"
+            except Exception as e:
+                logger.debug(f"[{self.statement_type.upper()}] {symbol}: currency-only-fact check failed: {e}")
+        return f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity"
 
     def _get_dual_class_security_names(self) -> dict[str, str]:
         """Bulk-fetch security_name for symbols whose name mentions "Class" once per loader
@@ -1156,18 +1197,14 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # the entire run. Convert to the same clean marker the `not rows` branch
             # below already produces for the equivalent case.
             logger.debug(f"[{self.statement_type.upper()}] {symbol}: No SEC facts available: {e}")
-            return self._try_yfinance_fallback(
-                symbol, since, f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity"
-            )
+            return self._try_yfinance_fallback(symbol, since, self._no_data_reason(symbol))
 
         if not rows:
             logger.debug(
                 f"[{self.statement_type.upper()}] {symbol}: No {self.period} data in SEC EDGAR. "
                 f"Stock may be REIT, investment trust, or lack SEC filings."
             )
-            return self._try_yfinance_fallback(
-                symbol, since, f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity"
-            )
+            return self._try_yfinance_fallback(symbol, since, self._no_data_reason(symbol))
 
         for r in rows:
             r.setdefault("data_source", "sec_audited")
