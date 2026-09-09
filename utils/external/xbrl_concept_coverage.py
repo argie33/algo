@@ -423,6 +423,47 @@ NOISE_SUBSTRINGS = [
     "ClassifiedAsFinancingActivities",
     "ClassifiedAsOperatingActivities",
     "ClassifiedAsInvestingActivities",
+    # Added 2026-09-09 (goal session: XBRL scan/tie-out exhaustiveness audit, --min-companies
+    # 50 batch - DataPatrol's own xbrl_new_concepts check gates on this threshold, 805
+    # undismissed at the time this batch started). Hand-reviewed by category against real
+    # companyfacts JSON for the top example filer in each (Baxter, American Express, AIG,
+    # Unum, Bank of Nova Scotia, Barclays, PLDT, Agnico Eagle) - every one below is insurance/
+    # bank regulatory or statutory schedule detail, mezzanine-equity rollforward/redemption-
+    # term detail (the headline balance itself - TemporaryEquityCarryingAmountAttributableTo
+    # Parent/PartnersCapital/RedeemableNoncontrollingInterestEquityCarryingAmount - is already
+    # fetched separately and unaffected, since known concepts never reach the gap list this
+    # filter runs against), related-party payable detail, or equity-method-investee
+    # summarized-financials disclosure, never a headline statement figure this schema scores.
+    "Statutory",  # StatutoryAccountingPractices... (insurer regulatory capital/dividend-capacity disclosure)
+    "Reinsurance",  # ceded/assumed reinsurance schedule (ReinsuranceRecoverable*/ReinsuranceEffectOn*)
+    "SupplementaryInsuranceInformation",  # insurance segment disclosure schedule (SEC Schedule IV)
+    "TemporaryEquityAccretionOfDividends",  # mezzanine-equity rollforward detail
+    "TemporaryEquityAggregateAmountOfRedemptionRequirement",  # mezzanine-equity redemption-term detail
+    "TemporaryEquityIssuePeriodIncreaseOrDecrease",  # mezzanine-equity rollforward detail
+    "TemporaryEquityRedemptionValue",  # mezzanine-equity redemption-term detail
+    "ConsolidationLessThanWhollyOwnedSubsidiary",  # NCI ownership-change rollforward detail
+    "RedeemableNoncontrollingInterestEquityRedemptionValue",  # redeemable-NCI redemption-term detail (sibling of the TemporaryEquity redemption-value entry above)
+    "PartnersCapitalAccountDistributions",  # partnership capital-account rollforward detail
+    "PartnersCapitalAccountRedemptions",  # sibling partnership capital-account rollforward detail
+    "DueToAffiliateNoncurrent",  # related-party payable detail, sibling of the already-noise "RelatedParty" substring
+    "DueToOfficersOrStockholders",  # related-party payable detail
+    "DueToOtherRelatedParties",  # related-party payable detail
+    "OtherThanTemporaryImpairment",  # AFS-securities impairment footnote detail (OTTI split by component/NCI portion)
+    "GainsLossesOnAvailableforsaleFinancialAssets",  # AFS-securities realized gain/loss footnote detail
+    "GainsLossesOnRemeasuringAvailableforsaleFinancialAssets",  # sibling AFS remeasurement detail
+    "PurchaseOfAvailableforsaleFinancialAssets",  # AFS-securities purchase cash-flow footnote detail
+    "OtherComprehensiveIncomeLossTaxPortionAttributableTo",  # OCI tax-attribution breakdown (parent/NCI split of the single OCI tax total this schema doesn't separately score)
+    "IncomeTaxEffectsAllocatedDirectlyToEquity",  # tax-effect-allocated-to-equity footnote detail
+    "EquityMethodInvestmentSummarizedFinancialInformation",  # equity-method investee's own summarized (unconsolidated) financials, not this filer's statement
+    "CapitalizedCostsOilAndGasProducingActivities",  # oil & gas successful-efforts-method disclosure (ASC 932)
+    "CapitalizedCostsProvedProperties",  # sibling oil & gas disclosure detail
+    "CapitalizedCostsUnprovedProperties",  # sibling oil & gas disclosure detail
+    "CostsIncurredExplorationCosts",  # sibling oil & gas disclosure detail (ASC 932 costs-incurred table)
+    "CostsIncurredDevelopmentCosts",  # sibling oil & gas disclosure detail
+    "CostsInExcessOfBillingsOnUncompletedContractsOrPrograms",  # percentage-of-completion contract-asset detail, no dedicated schema column
+    "BillingsInExcessOfCost",  # percentage-of-completion contract-liability detail, sibling of the above
+    "OtherRealEstate",  # bank other-real-estate-owned (OREO) schedule detail
+    "SupplementalDeferredPurchasePrice",  # securitization deferred-purchase-price disclosure detail
 ]
 
 
