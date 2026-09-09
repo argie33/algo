@@ -28,6 +28,32 @@ approximation), i.e. fiscal_year Y's fundamentals are treated as "known" startin
 year Y+1. That fallback carries the same lookahead-bias risk for non-calendar-FY symbols as
 before - real_10k_filing_dates()'s own docstring has the detail on cache coverage.
 
+RESTATEMENT CAVEAT (investigated and quantified 2026-09-09, deliberately not fixed - see below):
+the above closes the WHEN gap (what date a fiscal year's fundamentals became "known") but not a
+separate WHAT gap - fetch_annual_fundamentals() reads whatever value annual_income_statement/
+annual_balance_sheet/annual_cash_flow currently hold for (symbol, fiscal_year), which is this
+codebase's best-current-estimate figure (utils/external/sec_statements_entry_resolution.py
+deliberately prefers the most-recently-filed comparative citation when the same fiscal year is
+re-reported in a later 10-K - correct behavior for live stock_scores, which should reflect the
+most-accurate number, not whatever was originally filed). For this backtest panel specifically,
+that means a fiscal year's growth-rate inputs can silently use a figure that wasn't actually
+knowable as of known_date - a real look-ahead-bias mechanism, not hypothetical: live-quantified
+against this machine's local SEC EDGAR companyfacts cache (800 companies x 4 concepts sampled)
+by comparing each (symbol, fiscal_year, concept)'s EARLIEST-filed value against its LATEST-filed
+value wherever a fiscal year was genuinely reported in 2+ distinct filings (499 such groups
+found): 79/499 (~16%) show a real value change, but the magnitude is consistently small in the
+sampled cases (~0.3-1.5% drift per fact, e.g. NetIncomeLoss $1.5351B -> $1.5286B). Full
+point-in-time re-derivation would require replicating sec_income_statement.py's/sec_balance_
+sheet.py's/sec_cash_flow.py's elaborate per-concept alias-fallback chains (hundreds of lines of
+filer-specific special-casing) against raw companyfacts JSON inside this research script - a lot
+of complexity to shield growth-rate regressions from a ~1%-scale input perturbation, well below
+the cross-sectional return dispersion these regressions are testing against. Per this repo's
+"best-right fix, weigh payoff vs complexity" standard: NOT fixing this - documenting it plainly
+instead so a future reader doesn't mistake known_date correctness for full point-in-time
+correctness. Revisit only if a specific factor's significance turns out to hinge on a symbol/
+fiscal-year with a known large restatement (e.g. a formal 10-K/A - confirmed near-nonexistent in
+this universe, 0/300 sampled companyfacts caches had any amendment-form fact at all).
+
 Growth-rate convention: YoY/CAGR only computed when both endpoints are positive
 (curr/prior - 1, or (curr/prior)**(1/n) - 1 for n-year CAGR) - a growth rate off a
 negative/zero base is not well-defined, so those are left NaN rather than guessed.
