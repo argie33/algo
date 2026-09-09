@@ -133,6 +133,16 @@ _CASHFLOW_FIELD_MAPPING = {
     # evidence: a land-banking REIT's direct capex-equivalent concept, never fetched at
     # all. Same "capex" target column as the other REIT concepts above.
     "payments_to_acquire_land": "capex",
+    # FIXED 2026-09-09 (capex_never_tagged_in_recent_filings 86-symbol sweep) - see
+    # sec_cash_flow.py's get_cash_flow() comment for the live LZM (Lifezone Metals)/FMST
+    # (Foremost Clean Energy) evidence: a standard ifrs-full mineral-exploration capex
+    # concept, never fetched at all. Same "capex" target column as the other sector-
+    # specific PP&E-family concepts above.
+    "purchase_of_exploration_and_evaluation_assets": "capex",
+    # FIXED 2026-09-09 (same sweep) - see sec_cash_flow.py's get_cash_flow() comment for
+    # the live Freeport-McMoRan/Royal Gold/Diamondback Energy/Coeur Mining/TMQ evidence: a
+    # standard us-gaap mineral-rights-acquisition capex concept, never fetched at all.
+    "payments_to_acquire_mineral_rights": "capex",
     # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurer investment-
     # real-estate capex concepts - see sec_statements.py's get_cash_flow() comment for the
     # live MET/RGA/BHF/PFG/TRV/WRB evidence.
