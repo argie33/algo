@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import psycopg2
@@ -66,7 +67,20 @@ class FillAndAccountValidationMixin:
         try:
             if not self.broker:
                 return {"mismatches": 0, "message": "No broker available (paper trading mode)", "no_broker": True}
-            orders = self.broker.fetch_closed_orders()
+            # REAL-MONEY-READINESS FIX (2026-09-08 audit): this used to call
+            # fetch_closed_orders() with no `since` bound at all - unlike its sibling
+            # reconcile_exit_fills() (reconciliation_exit_fills.py), which has always bounded
+            # to a 2-day window. alpaca_broker_adapter.fetch_closed_orders() only sends an
+            # `after` param when `since` is given, and never sends an explicit `limit` either -
+            # so an unbounded call relied entirely on Alpaca's own undocumented-here default
+            # page size for GET /v2/orders, with no guaranteed lookback window. This function's
+            # own docstring is "Alpaca fills part of an order and then network fails before we
+            # can sync" - exactly the outage-recovery case that needs a reliable bounded window,
+            # not an implicit "most recent N orders overall" default that could silently exclude
+            # an older still-unreconciled fill on a high-order-volume day. Matches the sibling's
+            # 2-day window exactly - same recovery-outage assumption, same reconciliation cadence.
+            since = datetime.now(timezone.utc) - timedelta(days=2)
+            orders = self.broker.fetch_closed_orders(since=since)
             if not orders:
                 logger.debug(
                     "No closed orders returned from broker in partial fill check. "
