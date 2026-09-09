@@ -59,6 +59,12 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # DividendsCommonStock figure - a narrower/different sub-component, not a
         # duplicate) - must never overwrite a real standard-concept dividends_paid value.
         "investment_company_dividend_distribution",
+        # ADDED 2026-09-09: see sec_statements.py's get_cash_flow() comment on
+        # DividendsPreferredStockCash/DividendsPreferredStock (PSA live evidence) - must
+        # never overwrite a real DividendsCommonStock*/PaymentsOfDividends* total, which
+        # already reflects the fuller combined-distribution figure whenever tagged.
+        "dividends_preferred_stock_cash",
+        "dividends_preferred_stock",
     }
 )
 
@@ -242,6 +248,10 @@ _CASHFLOW_FIELD_MAPPING = {
     # figure downstream.
     "dividends_common_stock_cash": "dividends_paid",
     "dividends_common_stock": "dividends_paid",
+    # ADDED 2026-09-09: see _SBC_BUYBACK_FALLBACK_ONLY_FIELDS above for why these are
+    # fallback-only.
+    "dividends_preferred_stock_cash": "dividends_paid",
+    "dividends_preferred_stock": "dividends_paid",
     # ADDED 2026-09-07 (goal: "SEC/XBRL missing data" + tie-out sweep): net_change_cash was
     # a declared schema column with zero rows ever populated (0/66,580) - fetched by none of
     # sec_cash_flow.py's concepts and mapped by no entry here. See that file's get_cash_flow()

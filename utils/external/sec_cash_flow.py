@@ -574,6 +574,17 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # duplicate tag, so it must never win over a real DividendsCommonStock*/
         # PaymentsOfDividends* value.
         "InvestmentCompanyDividendDistribution",
+        # ADDED 2026-09-09 (xbrl_concept_coverage_scan.py comment-leak fix follow-up: this
+        # standard us-gaap concept was quoted in the PSA comment above describing what
+        # PaymentsOfCapitalDistribution equals, but never actually fetched - 639 real filers
+        # tag it (scan-confirmed post-fix). Fallback-only (_SBC_BUYBACK_FALLBACK_ONLY_FIELDS)
+        # so it only fills dividends_paid for a preferred-only distributor (no common
+        # dividend concept tagged at all, e.g. a mortgage REIT/BDC with only preferred stock
+        # outstanding) - never overwrites a real DividendsCommonStock*/PaymentsOfDividends*
+        # total, which would otherwise silently understate combined common+preferred
+        # distributions if this simply won the ordinary last-listed-wins overwrite.
+        "DividendsPreferredStockCash",
+        "DividendsPreferredStock",
         "DividendsCommonStockCash",
         "DividendsCommonStock",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,
