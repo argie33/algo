@@ -874,6 +874,30 @@ variable "alpaca_paper_trading" {
   default     = true
 }
 
+# SECURITY FIX (2026-09-09 real-money-readiness audit): this used to be entirely absent as its
+# own variable - modules/services/main.tf derived the algo executor's ALGO_LIVE_TRADING env var
+# as `var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"`. algo/trading/executor_
+# strategies.py's AutoExecutionMode is deliberately designed as THREE INDEPENDENT guards that
+# must all separately agree before live trading is permitted (ALGO_LIVE_TRADING ==
+# "I_UNDERSTAND_REAL_MONEY" AND ALPACA_PAPER_TRADING != "true" AND APCA_API_BASE_URL doesn't say
+# paper) specifically so one misconfigured/fat-fingered flag can't flip real money on by itself.
+# Deriving ALGO_LIVE_TRADING from the SAME variable as ALPACA_PAPER_TRADING collapsed two of
+# those three guards into one - and APCA_API_BASE_URL in prod.tfvars is already hardcoded to the
+# live endpoint regardless of paper/live mode - so in practice all three were controlled by this
+# single boolean, defeating the entire defense-in-depth design. Now a genuinely separate,
+# safe-by-default variable: must be deliberately set via TF_VAR_algo_live_trading_ack, distinct
+# from the paper-trading toggle, before going live.
+variable "algo_live_trading_ack" {
+  description = "Explicit real-money acknowledgment, independent of alpaca_paper_trading by design (see comment above) - must be exactly 'I_UNDERSTAND_REAL_MONEY' to permit live trading. Leave empty/default in every environment except when a human is deliberately flipping to real money."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.algo_live_trading_ack == "" || var.algo_live_trading_ack == "I_UNDERSTAND_REAL_MONEY"
+    error_message = "algo_live_trading_ack must be either empty (paper/default) or exactly 'I_UNDERSTAND_REAL_MONEY' (no other value is recognized by the executor's live-intent check, so a typo here would silently stay in paper mode - this validation catches that at plan time instead)."
+  }
+}
+
 # ============================================================
 # Loader Configuration
 # ============================================================

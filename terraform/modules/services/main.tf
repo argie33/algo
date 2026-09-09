@@ -940,8 +940,12 @@ resource "aws_lambda_function" "algo" {
       # Phase 3 gracefully skips broker checks in paper trading mode
       SKIP_PHASE3_MONITOR = "false"
       # Alpaca configuration (keys fetched at runtime from ALGO_SECRETS_ARN)
-      ALGO_SECRETS_ARN     = var.algo_secrets_arn
-      ALGO_LIVE_TRADING    = var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"
+      ALGO_SECRETS_ARN = var.algo_secrets_arn
+      # SECURITY FIX (2026-09-09): was `var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"`
+      # - derived from the SAME variable as ALPACA_PAPER_TRADING below, collapsing two of the
+      # three independent live-intent guards AutoExecutionMode requires into one. See root
+      # terraform/variables.tf's algo_live_trading_ack for full rationale.
+      ALGO_LIVE_TRADING    = var.algo_live_trading_ack
       APCA_API_BASE_URL    = var.alpaca_api_base_url
       ALPACA_PAPER_TRADING = tostring(var.alpaca_paper_trading)
       # Data quality and monitoring

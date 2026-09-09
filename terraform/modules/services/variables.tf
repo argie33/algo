@@ -696,6 +696,14 @@ variable "alpaca_paper_trading" {
   default     = false
 }
 
+# See root terraform/variables.tf's algo_live_trading_ack for the full rationale - genuinely
+# independent of alpaca_paper_trading by design, do not derive one from the other.
+variable "algo_live_trading_ack" {
+  description = "Explicit real-money acknowledgment, independent of alpaca_paper_trading (passed from root module)"
+  type        = string
+  default     = ""
+}
+
 variable "jwt_secret" {
   description = "JWT secret for authentication (passed from root module)"
   type        = string

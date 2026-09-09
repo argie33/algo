@@ -303,6 +303,7 @@ module "services" {
   alpaca_api_secret_key                  = var.alpaca_api_secret_key
   alpaca_api_base_url                    = var.alpaca_api_base_url
   alpaca_paper_trading                   = var.alpaca_paper_trading
+  algo_live_trading_ack                  = var.algo_live_trading_ack
   jwt_secret                             = var.jwt_secret
   fred_api_key                           = var.fred_api_key
   execution_mode                         = var.execution_mode
