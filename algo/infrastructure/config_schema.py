@@ -416,9 +416,20 @@ VALIDATION_SCHEMA = {
     "max_risk_per_trade_pct": ("float", 0.1, 100.0, False, 2.0),  # Max risk per individual trade
     # Orchestrator Halt Configuration
     "orchestrator_halt_enabled": ("bool", None, None, False, True),  # Enable orchestrator halt on data issues
-    # reconciliation.py's sustained-broker/DB-drift auto-halt: observe-only until an explicit
-    # operator decision flips this off
-    "reconciliation_drift_halt_shadow_mode": ("bool", None, None, False, True),
+    # reconciliation.py's sustained-broker/DB-drift auto-halt. FIX (2026-09-09 real-money-
+    # readiness audit): the fail_closed_value here was True (shadow mode ON, i.e. observe-
+    # only, no halt) - backwards for a value whose documented contract (see this file's own
+    # header comment) is "value to use if admin tries to set an invalid value (PREVENTS
+    # TRADING)". True does the opposite: a corrupted/invalid DB value for this key would
+    # silently fall back to permitting unchecked trading instead of the safe/protective
+    # direction. is_critical is deliberately left False (not True) here: config_defaults_
+    # risk.py's CONFIG_DEFAULTS_RISK already sets the real TIER-3 default to "false" (live
+    # enforcement, flipped ahead of go-live per that file's own 2026-09-07 comment) and no
+    # algo_config DB row currently exists for this key (verified live) - marking it critical
+    # would make AlgoConfig.get() raise RuntimeError the moment this key is read in ANY
+    # environment lacking an explicit DB row, a much bigger behavior change than this fix's
+    # actual scope (correcting an inert-but-backwards fail-closed value).
+    "reconciliation_drift_halt_shadow_mode": ("bool", None, None, False, False),
     # Exposure Constraints (derived from ExposurePolicy, not directly used from AlgoConfig)
     "halt_new_entries": ("bool", None, None, False, False),  # Legacy: use exposure constraints instead
     "max_new_positions_today": ("int", 0, 100, False, 15),  # Legacy: use exposure constraints instead
