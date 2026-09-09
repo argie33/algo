@@ -89,6 +89,30 @@ RISK_MIN_WEIGHT_AVAILABLE = 0.40
 # insufficient_risk_inputs_thin_sample marker rather than a fabricated score.
 NEAR_ZERO_LIQUIDITY_THRESHOLD = 2000.0
 
+# INDEPENDENT RE-VERIFICATION 2026-09-09 (real-money-readiness audit: an independent review
+# flagged the -0.158 corr(ln(ADV), volatility_60d) figure two paragraphs up as evidence the
+# frozen-price suppression this gate targets extends broadly across the universe, beyond the
+# narrow <$2,000 cluster it currently catches, and proposed widening the gate into a
+# continuous ADV-scaled malus. Re-checked directly against live stability_metrics/price_daily
+# before changing anything load-bearing: bucketing all 4,958 scored symbols by log10(ADV)
+# shows mean volatility_60d *rising*, not falling, as ADV shrinks (0.45 in the $100M-1B decile
+# vs 0.55-1.14 in every decile under $1M, up to 2.93 in the single sub-$1,000 case) - the
+# opposite direction the suppression theory predicts. Dropping the already-gated <$2,000 rows
+# barely moves the correlation (-0.1616 -> -0.1608, n=4,956), so it isn't the tail dragging the
+# number either. Directly checked the one band adjacent to this gate's own $2,000 cutoff
+# ($2,000-$50,000 ADV, 203 symbols) for a hidden near-zero cluster the aggregate mean could be
+# masking: found exactly one symbol under vol_60d=0.10 (IBAC, 0.0424) against a median of 0.67
+# and a max of 7.09 in that same band - not a systemic measurement-validity problem, a real,
+# well-documented small/thin-cap volatility premium. The -0.158 correlation is genuine
+# economic signal, not a measurement artifact, outside the exact-frozen-price cluster this gate
+# already excludes. Widening the gate or adding a continuous illiquidity malus on top of that
+# real signal would double-penalize genuinely riskier thin names, not fix a bug. This file's
+# original 2026-09-01 author already reasoned this far ("this gate only targets the
+# unambiguous near-zero-trading end of that gradient") and deliberately did not extend
+# further - re-verified with real data rather than re-litigated on the correlation number
+# alone; the existing $2,000 threshold plus Liquidity's own separate 15%-weighted tradability
+# component remain the correct, sufficient design. No code change from this re-verification.
+
 
 class RiskScoringMixin:
     """See module docstring.
