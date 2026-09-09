@@ -1,5 +1,5 @@
 """Regression test: PositionMonitor._cancel_on_alpaca (stale-order cleanup) and
-_fetch_alpaca_qty (corporate-action detection) made exactly one attempt each - same bug class
+_fetch_alpaca_position (corporate-action detection) made exactly one attempt each - same bug class
 as order_manager.py's send_bracket_order/cancel_bracket_orders fixes. A transient Alpaca
 429/503 used to raise RuntimeError immediately, and since both call sites are fail-fast by
 design (the whole point is "don't proceed on ambiguous broker state"), that RuntimeError
@@ -116,7 +116,13 @@ class TestCancelOnAlpacaUsesRealBrokerOrderId:
         mock_delete.assert_not_called()
 
 
-class TestFetchAlpacaQtyRetriesTransientErrors:
+class TestFetchAlpacaPositionRetriesTransientErrors:
+    """_fetch_alpaca_qty was folded into _fetch_alpaca_position (2026-09-09, spinoff-handling
+    gap fix) so the price-gap anomaly check can read current_price/lastday_price from the same
+    API call - these tests were updated to call the merged method directly and read `["qty"]`
+    off the returned dict instead of getting an int back.
+    """
+
     def test_429_then_success_retries_and_returns_qty(self):
         monitor = _monitor()
         rate_limited = MagicMock(status_code=429, text="rate limited")
@@ -130,14 +136,14 @@ class TestFetchAlpacaQtyRetriesTransientErrors:
             ),
             patch("algo.monitoring.position_monitor.time.sleep") as mock_sleep,
         ):
-            qty = monitor._fetch_alpaca_qty("https://paper-api.alpaca.markets", "k", "s", "AAPL")
+            pos = monitor._fetch_alpaca_position("https://paper-api.alpaca.markets", "k", "s", "AAPL")
 
-        assert qty == 10
+        assert pos is not None and int(pos["qty"]) == 10
         mock_sleep.assert_called_once()
 
     def test_404_does_not_retry(self):
         # Updated for the 2026-09-07 real-money-readiness audit fix
-        # (position_corporate_actions.py's _fetch_alpaca_qty docstring): a 404 means Alpaca
+        # (position_corporate_actions.py's _fetch_alpaca_position docstring): a 404 means Alpaca
         # has no position for this symbol - closed, delisted, or renamed - and is now treated
         # as "position closed at broker" (returns None), not a data-integrity failure. It must
         # still not retry, since 404 isn't one of the transient statuses (429/503).
@@ -145,9 +151,9 @@ class TestFetchAlpacaQtyRetriesTransientErrors:
         not_found = MagicMock(status_code=404, text="not found")
 
         with patch("algo.monitoring.position_monitor.requests.get", return_value=not_found) as mock_get:
-            qty = monitor._fetch_alpaca_qty("https://paper-api.alpaca.markets", "k", "s", "AAPL")
+            pos = monitor._fetch_alpaca_position("https://paper-api.alpaca.markets", "k", "s", "AAPL")
 
-        assert qty is None
+        assert pos is None
         assert mock_get.call_count == 1
 
     def test_timeout_then_success_retries_and_returns_qty(self):
@@ -168,9 +174,9 @@ class TestFetchAlpacaQtyRetriesTransientErrors:
             ),
             patch("algo.monitoring.position_monitor.time.sleep") as mock_sleep,
         ):
-            qty = monitor._fetch_alpaca_qty("https://paper-api.alpaca.markets", "k", "s", "AAPL")
+            pos = monitor._fetch_alpaca_position("https://paper-api.alpaca.markets", "k", "s", "AAPL")
 
-        assert qty == 10
+        assert pos is not None and int(pos["qty"]) == 10
         mock_sleep.assert_called_once()
 
     def test_connection_error_exhausts_retries_then_raises(self):
@@ -184,7 +190,7 @@ class TestFetchAlpacaQtyRetriesTransientErrors:
             patch("algo.monitoring.position_monitor.time.sleep"),
         ):
             try:
-                monitor._fetch_alpaca_qty("https://paper-api.alpaca.markets", "k", "s", "AAPL")
+                monitor._fetch_alpaca_position("https://paper-api.alpaca.markets", "k", "s", "AAPL")
                 raise AssertionError("expected RuntimeError")
             except RuntimeError:
                 pass

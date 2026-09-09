@@ -69,9 +69,18 @@ class CorporateActionsMixin:
 
             for pos_id, symbol, db_qty, db_stop, _entry_price, trade_ids_arr in positions:
                 try:
-                    alpaca_qty = self._fetch_alpaca_qty(alpaca_base_url, alpaca_key, alpaca_secret, symbol)
+                    alpaca_pos = self._fetch_alpaca_position(alpaca_base_url, alpaca_key, alpaca_secret, symbol)
+                    alpaca_qty = None if alpaca_pos is None else int(alpaca_pos["qty"])
                     self._handle_qty_variance(
-                        cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, trade_ids_arr, adjustments
+                        cur,
+                        pos_id,
+                        symbol,
+                        db_qty,
+                        db_stop,
+                        alpaca_qty,
+                        trade_ids_arr,
+                        adjustments,
+                        alpaca_pos,
                     )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     error_msg = (
@@ -111,8 +120,10 @@ class CorporateActionsMixin:
             raise RuntimeError("Alpaca credentials unavailable - cannot detect corporate actions. Halted.")
         return alpaca_base_url, alpaca_key, alpaca_secret
 
-    def _fetch_alpaca_qty(self, alpaca_base_url: str, alpaca_key: str, alpaca_secret: str, symbol: str) -> int | None:
-        """Fetch position quantity from Alpaca API.
+    def _fetch_alpaca_position(
+        self, alpaca_base_url: str, alpaca_key: str, alpaca_secret: str, symbol: str
+    ) -> dict[str, Any] | None:
+        """Fetch the raw position payload from Alpaca API.
 
         Returns None when Alpaca has no position for this symbol (404) - matching the
         established 200/204/404 pattern already used elsewhere in this codebase for the
@@ -185,7 +196,7 @@ class CorporateActionsMixin:
                 f"Alpaca response for {symbol} missing qty field (malformed response). "
                 f"Response: {alpaca_pos}. Cannot verify position quantity - halting corporate action check."
             )
-        return int(alpaca_pos["qty"])
+        return dict(alpaca_pos)
 
     def _handle_qty_variance(
         self,
@@ -197,6 +208,7 @@ class CorporateActionsMixin:
         alpaca_qty: int | None,
         trade_ids_arr: list[int] | None,
         adjustments: list[dict[str, Any]],
+        alpaca_pos: dict[str, Any] | None = None,
     ) -> None:
         """Handle quantity changes between DB and Alpaca.
 
@@ -258,6 +270,21 @@ class CorporateActionsMixin:
             return
 
         if alpaca_qty == db_qty:
+            # FIX (2026-09-09 real-money-readiness audit, spinoff-handling gap): a corporate
+            # action that doesn't change share count (a spinoff distributes NEW shares of a
+            # different symbol, it doesn't change how many shares of THIS symbol you hold) used
+            # to fall straight through this equal-qty branch with zero investigation - the qty
+            # check above is qty-only by construction, so it can never see a spinoff coming.
+            # The position would keep being monitored at its stale pre-spinoff entry_price/
+            # stop/targets indefinitely, with no alert, until (if ever) the resulting price gap
+            # happened to breach the stop - and even then, only exit_engine.py's `_gap_risk_note`
+            # would flag it, and only in an exit's own reason string after the fact. Detect the
+            # same signature exit_engine.py already treats as gap risk (see its
+            # `_GAP_RISK_PCT_THRESHOLD` docstring: "a real fix needs a proper corporate-actions
+            # data feed... until then, annotate, don't alter") one layer earlier, right here in
+            # the daily corp-actions pass, using price fields Alpaca already returned in the
+            # same position lookup above - no new API call or data feed required.
+            self._check_price_gap_anomaly(cur, pos_id, symbol, alpaca_pos, adjustments)
             return
 
         if db_qty <= 0:
@@ -321,6 +348,87 @@ class CorporateActionsMixin:
             return
 
         self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, trade_ids_arr, adjustments)
+
+    def _check_price_gap_anomaly(
+        self,
+        cur: PsycopgCursor[Any],
+        pos_id: int,
+        symbol: str,
+        alpaca_pos: dict[str, Any] | None,
+        adjustments: list[dict[str, Any]],
+    ) -> None:
+        """Flag (never auto-adjust) an unexplained overnight price gap on a position whose
+        share count didn't change - the one signature a spinoff, special cash-in-lieu
+        distribution, or similar corporate action leaves behind that qty-based detection above
+        can never see (see the FIX comment at this method's call site). Deliberately
+        annotation-only, same philosophy as exit_engine.py's `_gap_risk_note`: we have no
+        corporate-actions data feed to confirm the cause or compute a real cost-basis/price
+        adjustment, and guessing would risk corrupting a correct entry/stop/target on what
+        could just as easily be an ordinary large move (earnings, litigation, M&A news) instead
+        of a corporate action. This only buys earlier visibility - a human can check Alpaca's
+        account activity for a spinoff/distribution and manually correct cost basis/stop before
+        it matters, rather than finding out weeks later (or not at all, if the gap never
+        happens to breach the stop).
+
+        Silently returns if `alpaca_pos` lacks usable current_price/lastday_price - those
+        fields aren't part of `_fetch_alpaca_position`'s own required-fields contract (only
+        `qty` is), so a payload shape change elsewhere must not turn this best-effort check
+        into a new failure mode for corporate-action detection as a whole.
+        """
+        if not alpaca_pos:
+            return
+        try:
+            current_price = float(alpaca_pos["current_price"])
+            lastday_price = float(alpaca_pos["lastday_price"])
+        except (KeyError, TypeError, ValueError):
+            return
+        if lastday_price <= 0:
+            return
+
+        from algo.trading.exit_engine import _GAP_RISK_PCT_THRESHOLD
+
+        pct_change = (lastday_price - current_price) / lastday_price
+        if abs(pct_change) < _GAP_RISK_PCT_THRESHOLD:
+            return
+
+        direction = "drop" if pct_change > 0 else "rise"
+        adjustments.append(
+            {
+                "symbol": symbol,
+                "action": "UNEXPLAINED_PRICE_GAP|requires_manual_review",
+                "lastday_price": lastday_price,
+                "current_price": current_price,
+                "pct_change": round(pct_change * 100, 2),
+            }
+        )
+        details = (
+            f"{symbol} (position id {pos_id}): {abs(pct_change) * 100:.1f}% overnight {direction} "
+            f"(${lastday_price:.2f} -> ${current_price:.2f}) with NO quantity change at the broker. "
+            f"Not treated as a split (qty unchanged) and NOT adjusting entry/stop/target prices - "
+            f"verify at Alpaca account activity for a spinoff, special cash-in-lieu distribution, or "
+            f"other corporate action before assuming this reflects genuine trading performance. If "
+            f"a spinoff distributed new shares, they should also surface separately as an untracked "
+            f"broker position (see algo_untracked_positions)."
+        )
+        cur.execute(
+            "INSERT INTO algo_audit_log (action_type, action_date, details, severity) VALUES (%s, %s, %s, %s)",
+            ("CORPORATE_ACTION_PRICE_GAP", datetime.now(timezone.utc), details, "CRITICAL"),
+        )
+        logger.critical(f"[CORP_ACTION] {details}")
+        try:
+            from algo.reporting.notifications import notify
+
+            notify(
+                "critical",
+                title="Unexplained overnight price gap with no quantity change - verify for corporate action",
+                message=details,
+            )
+        except Exception as notify_err:
+            logger.critical(
+                f"[CORP_ACTION] Failed to alert on unexplained price gap for {symbol} "
+                f"(position id {pos_id}): {notify_err}",
+                exc_info=True,
+            )
 
     def _apply_split_adjustment(
         self,

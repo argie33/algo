@@ -1,8 +1,8 @@
 """Regression test for a 2026-09-07 pre-live-trading audit fix to
-position_corporate_actions.py's _fetch_alpaca_qty()/check_corporate_actions().
+position_corporate_actions.py's _fetch_alpaca_position()/check_corporate_actions().
 
 BUG FOUND: Alpaca returns 404 (not qty=0) for a position that no longer exists at the broker -
-a symbol that closed, was delisted, or was renamed by a merger/ticker change. _fetch_alpaca_qty
+a symbol that closed, was delisted, or was renamed by a merger/ticker change. _fetch_alpaca_position
 used to raise RuntimeError for ANY non-200 status including 404, and check_corporate_actions's
 per-symbol try/except only caught psycopg2 errors - so that RuntimeError propagated out of the
 whole loop uncaught, silently aborting corporate-action detection (including split-adjustment)

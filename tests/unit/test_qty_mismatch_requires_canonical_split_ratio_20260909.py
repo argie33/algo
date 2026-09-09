@@ -26,7 +26,7 @@ class TestQtyMismatchRequiresCanonicalSplitRatio:
         with (
             patch("algo.monitoring.position_monitor.DatabaseContext") as MockCtx,
             patch.object(monitor, "_get_alpaca_creds", return_value=("https://api", "key", "secret")),
-            patch.object(monitor, "_fetch_alpaca_qty", return_value=70),
+            patch.object(monitor, "_fetch_alpaca_position", return_value={"qty": "70"}),
             patch("algo.reporting.notifications.notify") as mock_notify,
         ):
             MockCtx.return_value.__enter__.return_value = cur
@@ -52,7 +52,7 @@ class TestQtyMismatchRequiresCanonicalSplitRatio:
         with (
             patch("algo.monitoring.position_monitor.DatabaseContext") as MockCtx,
             patch.object(monitor, "_get_alpaca_creds", return_value=("https://api", "key", "secret")),
-            patch.object(monitor, "_fetch_alpaca_qty", return_value=100),
+            patch.object(monitor, "_fetch_alpaca_position", return_value={"qty": "100"}),
         ):
             MockCtx.return_value.__enter__.return_value = cur
             monitor.check_corporate_actions()
