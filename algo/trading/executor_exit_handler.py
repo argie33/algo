@@ -1394,7 +1394,18 @@ class ExitHandler:
         # here has ALREADY happened for real by this point - we must not abandon
         # recording it just because the broker-side resize fails, so this fails OPEN
         # (log loudly, keep going) rather than closed.
-        if not (full_exit or new_qty <= 0) and alpaca_order_id:
+        #
+        # FIX (2026-09-09 real-money-readiness audit): once Phase 9 auto-repairs a position
+        # onto a STANDALONE stop, it deliberately cancels the original bracket's stop-loss
+        # leg - but algo_trades.alpaca_order_id is never cleared, so it stays truthy forever.
+        # Without this guard, _sync_bracket_stop_loss was called unconditionally on every
+        # future partial exit of such a position, always failing ("no live stop-loss leg
+        # found") and firing a false CRITICAL page even though the position IS fully
+        # protected (by the standalone stop resized in the block below). _raise_stop_only
+        # above already makes exactly this standalone-vs-bracket distinction before touching
+        # either sync path - mirror it here instead of always trying the bracket path first.
+        standalone_stop_order_id = fetch_standalone_stop_order_id(cur, position_id)
+        if not (full_exit or new_qty <= 0) and alpaca_order_id and not standalone_stop_order_id:
             resize_result = self.context._sync_bracket_stop_loss(alpaca_order_id, effective_stop, new_qty)
             if not resize_result.get("success"):
                 # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): this was logger.error,
@@ -1444,7 +1455,7 @@ class ExitHandler:
                 cur,
                 symbol,
                 position_id,
-                fetch_standalone_stop_order_id(cur, position_id),
+                standalone_stop_order_id,
                 effective_stop,
                 new_qty,
             )

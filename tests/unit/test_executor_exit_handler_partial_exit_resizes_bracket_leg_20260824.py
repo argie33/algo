@@ -19,7 +19,7 @@ from pathlib import Path
 
 SOURCE = (Path(__file__).parent.parent.parent / "algo" / "trading" / "executor_exit_handler.py").read_text()
 
-_RESIZE_MARKER = "if not (full_exit or new_qty <= 0) and alpaca_order_id:"
+_RESIZE_MARKER = "if not (full_exit or new_qty <= 0) and alpaca_order_id and not standalone_stop_order_id:"
 
 
 def _partial_exit_resize_block(source: str) -> str:
@@ -27,9 +27,9 @@ def _partial_exit_resize_block(source: str) -> str:
         "expected to find the partial-exit bracket-resize block - source may have been restructured"
     )
     start = source.index(_RESIZE_MARKER)
-    # Window covers the resize guard through the logger.error call - enough to check
+    # Window covers the resize guard through the logger.critical call - enough to check
     # ordering/content without depending on exact wording.
-    return source[start : start + 900]
+    return source[start : start + 1100]
 
 
 def test_resize_only_attempted_on_a_true_partial_not_a_full_exit():
@@ -64,7 +64,10 @@ def test_resize_failure_does_not_raise():
         f"already real and must still be recorded; log the failure and continue instead. "
         f"Found: {raise_statements}"
     )
-    assert "logger.error" in block
+    # Upgraded from logger.error to logger.critical by the 2026-09-07 pre-live audit fix
+    # (see this block's own in-source comment) - a stale broker-side stop needs the same
+    # "needs a human to notice" severity this file uses elsewhere, not a routine error log.
+    assert "logger.critical" in block
 
 
 def test_resize_precedes_the_position_update_call():
