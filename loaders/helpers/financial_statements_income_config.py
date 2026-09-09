@@ -190,6 +190,14 @@ _INCOME_FIELD_MAPPING = {
         "net_income_attributable_to_common"
     ),
     "earnings_per_share_basic": "earnings_per_share",
+    # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+    # eps_never_tagged_in_filings investigation): EH (EHang, 20-F foreign private issuer) and
+    # 10 other cached filers report one combined EarningsPerShareBasicAndDiluted concept
+    # instead of the split Basic/Diluted pair - see sec_income_statement.py's comment on that
+    # concept for the live evidence. Fallback-only (see _REVENUE_FALLBACK_ONLY_FIELDS below,
+    # despite its name the shared fallback-only bucket for this file) so a filer reporting the
+    # real Basic/Diluted split always keeps that value.
+    "earnings_per_share_basic_and_diluted": "earnings_per_share",
     # FIXED 2026-07-28: EarningsPerShareDiluted (GAAP) and DilutedEarningsLossPerShare
     # (IFRS alias, both target this same key - see sec_statements.py's _INCOME_IFRS_ALIASES)
     # have been fetched from real SEC XBRL data all along, but this mapping never listed a
@@ -447,6 +455,10 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # that stop tagging NetIncomeLoss/ProfitLoss - see _INCOME_FIELD_MAPPING's comment on
         # this key above.
         "income_loss_from_continuing_operations_including_portion_attributable_to_noncontrolling_interest",
+        # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+        # eps_never_tagged_in_filings investigation): see _INCOME_FIELD_MAPPING's comment on
+        # "earnings_per_share_basic_and_diluted" above.
+        "earnings_per_share_basic_and_diluted",
     }
 )
 

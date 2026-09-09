@@ -773,6 +773,18 @@ def get_income_statement(
         "NetIncomeLossAvailableToCommonStockholdersDiluted",
         "EarningsPerShareBasic",
         "EarningsPerShareDiluted",
+        # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+        # eps_never_tagged_in_filings investigation): several filers (EH/EHang - a 20-F
+        # foreign private issuer, live-confirmed 11 of 5,392 cached filers total) report one
+        # combined EPS concept instead of the split Basic/Diluted pair above - same
+        # "smaller/foreign filers report one blended number" pattern already documented for
+        # WeightedAverageNumberOfShareOutstandingBasicAndDiluted below. Live-confirmed via
+        # EH's real companyfacts JSON: EarningsPerShareBasicAndDiluted has a real
+        # unit=USD/shares fact (-0.44, FY2021) while EarningsPerShareBasic/Diluted are never
+        # tagged at all for any fiscal year. Listed AFTER the split pair (same last-listed-
+        # wins-as-fallback convention) so a filer reporting the real Basic/Diluted split
+        # always keeps that value; only fills the gap for a filer that never tags either.
+        "EarningsPerShareBasicAndDiluted",
         # FIXED 2026-08-03: live-confirmed against real companyfacts JSON that several
         # filers never tag EITHER weighted-average concept below, but do tag a
         # point-in-time balance-sheet/cover-page share count instead: PLNT (Planet
