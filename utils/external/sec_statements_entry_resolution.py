@@ -126,6 +126,29 @@ def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-exis
             _accn = entry.get("accn")
             if _accn and entry.get("val") in _short_span_val_by_accn.get(_accn, ()):
                 return None
+            # BUG FOUND 2026-09-09 (goal session: XBRL scan/tie-out exhaustiveness audit,
+            # AMZN live-confirmed via check_pretax_to_net_income): a ~365-day duration
+            # fact isn't automatically a genuine fiscal-year-aligned annual total - a
+            # rolling/trailing-twelve-month supplemental disclosure (common in MD&A
+            # liquidity sections) can also span ~365 days and pass the check above. Real
+            # SEC companyfacts JSON for AMZN (CIK 0001018724): a us-gaap:NetIncomeLoss
+            # fact spanning 2024-07-01 to 2025-06-30 (364 days, fp=None) silently
+            # overwrote the real FY2025 calendar-year NetIncomeLoss ($77,670,000,000,
+            # confirmed via AMZN's own real 10-K) with $70,623,000,000 - understating
+            # net income by $7.05B and corrupting every downstream EPS/quality/value
+            # ratio for a mega-cap. For a filer whose fiscal year end is confirmed
+            # December (has_december_fiscal_year_end, derived from this filer's own
+            # real annual-report instant facts - independent of the duration fact being
+            # checked here), a genuine annual total's END must also fall in December;
+            # any other end month is definitionally a rolling window, not this filer's
+            # fiscal year. Deliberately not extended to non-December fiscal years (no
+            # analogous independently-confirmed "expected end month" signal available
+            # for them without a broader refactor - same conservative scoping already
+            # used for the Q1-Q4 derivation a few dozen lines below in this file).
+            if has_december_fiscal_year_end:
+                _end = entry.get("end")
+                if _end and len(_end) >= 7 and _end[5:7] != "12":
+                    return None
 
     # BUG FOUND 2026-08-31 (goal session: "get all the data we need" full-
     # coverage audit): a duration fact (has "start") sourced from an 8-K is
