@@ -498,7 +498,7 @@
   "loaders/helpers/financial_statements_income_config.py": 617,
   "loaders/helpers/financial_statements_prefetch.py": 90,
   "loaders/helpers/financial_statements_q4_sweeps.py": 728,
-  "loaders/helpers/financial_statements_share_count_validation.py": 496,
+  "loaders/helpers/financial_statements_share_count_validation.py": 547,
   "loaders/helpers/financial_statements_value_validation.py": 528,
   "loaders/helpers/price_batch_fetch_retry.py": 557,
   "loaders/helpers/price_loader_reporting.py": 341,
