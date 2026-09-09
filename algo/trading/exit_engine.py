@@ -1485,22 +1485,45 @@ class ExitEngine:
             (symbol, current_date),
         )
 
-        rows = cur.fetchall()
+        raw_rows = cur.fetchall()
 
-        if len(rows) < 3:
+        if len(raw_rows) < 3:
             # FAIL-FAST: Cannot evaluate pullback with insufficient price history
             # Returning False (no pullback) when we cannot verify pullback status masks
             # data quality issues - a position might be extended without confirmation
             # Pullback detection requires 3+ days of price data to be reliable
             raise ValueError(
-                f"[EXIT_ENGINE PULLBACK] {symbol}: Insufficient price history ({len(rows)} days, need 3+). "
+                f"[EXIT_ENGINE PULLBACK] {symbol}: Insufficient price history ({len(raw_rows)} days, need 3+). "
                 f"Cannot evaluate pullback without complete price data. "
                 f"Fail-fast to prevent blind exit decisions on data gaps."
             )
 
+        # FIX (2026-09-09 real-money-readiness audit): same unadjusted-price gap already fixed
+        # for the primary stop inputs in this file (_chandelier_or_ema_stop) - a real split
+        # inside this 6-day window used to read as a fake single-day price collapse, producing
+        # a bogus pullback_pct (recent_high stuck at the pre-split level vs a post-split
+        # cur_close) that could false-trigger this exit signal right after a legitimate split.
+        # raw_rows is DESC by date (most recent first); detect_and_adjust_splits expects
+        # ascending, so reverse before adjusting and reverse back after.
+        adjusted_df = detect_and_adjust_splits(
+            pd.DataFrame(
+                {
+                    "close": [float(r[0]) for r in reversed(raw_rows)],
+                    "high": [float(r[1]) if r[1] is not None else float("nan") for r in reversed(raw_rows)],
+                }
+            )
+        )
+        rows = list(
+            zip(
+                reversed(adjusted_df["close"].tolist()),
+                reversed(adjusted_df["high"].tolist()),
+                strict=True,
+            )
+        )
+
         cur_close = Decimal(str(rows[0][0]))
 
-        valid_highs = [Decimal(str(r[1])) for r in rows[:5] if r[1] is not None]
+        valid_highs = [Decimal(str(r[1])) for r in rows[:5] if r[1] is not None and not math.isnan(r[1])]
         if not valid_highs:
             raise RuntimeError(
                 "Pullback detection failed: no valid high prices in recent 5 days. "
@@ -1534,46 +1557,50 @@ class ExitEngine:
         cur.execute(
             """
 
-            WITH ratio AS (
+            SELECT s.date, s.close, spy.close AS spy_close
 
-                SELECT s.date,
+            FROM price_daily s
 
-                       s.close::numeric / NULLIF(spy.close, 0) AS rs
+            JOIN price_daily spy ON spy.symbol='SPY' AND spy.date=s.date
 
-                FROM price_daily s
+            WHERE s.symbol = %s AND s.date <= %s
 
-                JOIN price_daily spy ON spy.symbol='SPY' AND spy.date=s.date
-
-                WHERE s.symbol = %s AND s.date <= %s
-
-                ORDER BY s.date DESC LIMIT 60
-
-            ),
-
-            ranked AS (
-
-                SELECT rs, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn FROM ratio
-
-            )
-
-            SELECT
-
-                (SELECT rs FROM ranked WHERE rn = 1) AS cur,
-
-                (SELECT AVG(rs) FROM ranked WHERE rn BETWEEN 2 AND 51) AS rs_50dma
+            ORDER BY s.date DESC LIMIT 60
 
             """,
             (symbol, current_date),
         )
 
-        row = cur.fetchone()
+        raw_rows = cur.fetchall()
 
-        if not row or len(row) < 2 or row[0] is None or row[1] is None:
+        # Matches the pre-fix SQL's implicit minimum: needs a current-day ratio (rn=1) plus at
+        # least one comparison day (rn=2) for the "50dma" average to be non-null - the old
+        # AVG(rs) over rn BETWEEN 2 AND 51 tolerated fewer than 50 comparison days (e.g. a
+        # recently-listed symbol) rather than requiring the full window.
+        if len(raw_rows) < 2:
             raise ValueError(f"Insufficient RS data for {symbol} to calculate RS line break")
 
-        cur_rs = Decimal(str(row[0]))
+        # FIX (2026-09-09 real-money-readiness audit): same unadjusted-price gap already fixed
+        # elsewhere in this file - s.close was previously joined/ratioed straight from raw
+        # price_daily with no split adjustment. SPY's own close is unaffected by the traded
+        # symbol's split, so a real split inside this 60-day window used to produce a fake
+        # step in the ratio series, which could false-trigger (or mask) an RS-line-break exit
+        # right after a legitimate split. raw_rows is DESC by date; detect_and_adjust_splits
+        # expects ascending, so reverse before adjusting.
+        adjusted_df = detect_and_adjust_splits(pd.DataFrame({"close": [float(r[1]) for r in reversed(raw_rows)]}))
+        adjusted_closes = list(reversed(adjusted_df["close"].tolist()))
+        spy_closes = [float(r[2]) for r in raw_rows]
 
-        rs_50 = Decimal(str(row[1]))
+        if spy_closes[0] == 0:
+            raise ValueError(f"SPY close is 0 for {symbol}'s RS line calculation - cannot divide")
+        cur_rs = Decimal(str(adjusted_closes[0])) / Decimal(str(spy_closes[0]))
+
+        rs_values = []
+        for i in range(1, min(51, len(raw_rows))):
+            if spy_closes[i] == 0:
+                raise ValueError(f"SPY close is 0 for {symbol}'s RS line calculation - cannot divide")
+            rs_values.append(Decimal(str(adjusted_closes[i])) / Decimal(str(spy_closes[i])))
+        rs_50 = sum(rs_values) / Decimal(len(rs_values))
 
         return cur_rs < rs_50 * Decimal("0.99")
 
@@ -1595,13 +1622,15 @@ class ExitEngine:
         cur.execute(
             """
 
-            SELECT MAX(close) FROM price_daily
+            SELECT close FROM price_daily
 
             WHERE symbol = %s
 
               AND date >= %s::date - MAKE_INTERVAL(days => %s)
 
               AND date <= %s::date - MAKE_INTERVAL(days => %s)
+
+            ORDER BY date ASC
 
             """,
             (
@@ -1613,12 +1642,20 @@ class ExitEngine:
             ),
         )
 
-        row = cur.fetchone()
+        window_rows = cur.fetchall()
 
-        if row is None or len(row) < 1 or row[0] is None:
+        if not window_rows or window_rows[0][0] is None:
             raise ValueError(f"No price data for {symbol} in 8-week window")
 
-        max_close_in_window = Decimal(str(row[0]))
+        # FIX (2026-09-09 real-money-readiness audit): same unadjusted-price gap already fixed
+        # for _chandelier_or_ema_stop/_is_pulling_back in this file - entry_price (compared
+        # against below) is already split-adjusted live for an open position (see
+        # position_corporate_actions.py's _apply_split_adjustment), but this window's raw
+        # closes were not - a real split in the first-3-weeks window this rule inspects would
+        # read as a fake price jump, producing a wrong-scale gain_pct against the
+        # already-adjusted entry_price and could mis-fire (or mis-suppress) the 8-week hold.
+        adjusted_df = detect_and_adjust_splits(pd.DataFrame({"close": [float(r[0]) for r in window_rows]}))
+        max_close_in_window = Decimal(str(adjusted_df["close"].max()))
 
         # BUG FOUND 2026-08-10 (via systematic sweep for the NaN-comparison-guard bug
         # class): `entry_price <= 0` doesn't catch NaN. Same fix already applied to this

@@ -240,7 +240,7 @@
   "algo/trading/executor_exit_handler.py": 1611,
   "algo/trading/executor_exit_standalone_stop.py": 151,
   "algo/trading/executor_strategies.py": 217,
-  "algo/trading/exit_engine.py": 1930,
+  "algo/trading/exit_engine.py": 1928,
   "algo/trading/exit_position_context.py": 650,
   "algo/trading/exit_strategies.py": 408,
   "algo/trading/handler_context.py": 82,

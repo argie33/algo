@@ -22,8 +22,10 @@ from algo.trading.exit_engine import ExitEngine
 
 
 def _mock_cursor(max_close):
+    """Single-row window (no split to detect) - matches the post-2026-09-09-fix
+    fetchall-based row shape."""
     cur = MagicMock()
-    cur.fetchone.return_value = (max_close,)
+    cur.fetchall.return_value = [(max_close,)]
     return cur
 
 
