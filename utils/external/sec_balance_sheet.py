@@ -230,6 +230,25 @@ _BALANCE_IFRS_ALIASES = [
     # reporting the more specific concepts above always keeps that value - same
     # last-listed-wins fallback convention as the "Borrowings" entry itself.
     ("DebtSecurities", "long_term_debt"),
+    # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data reduction, total_debt_not_itemized
+    # investigation continuation): BMA (Banco Macro, an Argentine bank ADR filing 20-F) tags
+    # NEITHER "Borrowings" NOR "DebtSecurities" NOR any LongtermBorrowings/ShorttermBorrowings
+    # concept above - live-confirmed via its real companyfacts JSON (CIK 0001347426) that its
+    # only debt-instrument-shaped liability concept is "SubordinatedLiabilities": continuous,
+    # material, real values every fiscal year 2018-2024 (e.g. FY2024 period end 2024-12-31 =
+    # ARS 417,675,451,000, ~4% of that year's total Liabilities of ARS 10,441,712,229,000 - a
+    # plausible subordinated-notes tranche scale for a bank, not a placeholder or near-total
+    # figure). BMA's broader "FinancialLiabilities"/"FinancialLiabilitiesAtAmortisedCost"
+    # concepts were deliberately NOT aliased here instead - live-confirmed those include
+    # customer deposits (BMA's real primary funding source as a bank), so mapping either to
+    # long_term_debt would grossly overstate real debt, not just fill a gap. Listed LAST (after
+    # DebtSecurities) so any filer reporting the more common concepts above always keeps that
+    # value - same last-listed-wins fallback convention as DebtSecurities/Borrowings
+    # themselves. Same semantic class as the existing us-gaap "SubordinatedDebt"/
+    # "JuniorSubordinatedDebentureOwedToUnconsolidatedSubsidiaryTrust" fallback further below
+    # (IBOC/HBT trust-preferred securities) - this is IFRS's equivalent concept name for the
+    # same real instrument type.
+    ("SubordinatedLiabilities", "long_term_debt"),
     # FIXED 2026-08-17 (loader-review goal continuation): IFRS 16 lessee accounting
     # doesn't distinguish operating vs. finance leases the way US GAAP does - IFRS
     # filers report a single combined "LeaseLiabilities" concept, not separate
