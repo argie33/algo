@@ -146,6 +146,13 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # (223/485 tagging filers, including Abbott Labs/Air Products/Brown-Forman, have no
         # "AccountsPayableCurrent" at all). Must never win over the standard concept.
         "accounts_payable_trade_current",
+        # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+        # total_debt_not_itemized investigation): ETS real short-term-loan concept - see
+        # sec_balance_sheet.py's get_balance_sheet() comment on "LoansPayable"/
+        # "LoansPayableCurrent" for the live evidence. Must never win over a more specific
+        # standard concept.
+        "loans_payable",
+        "loans_payable_current",
     }
 )
 
@@ -333,6 +340,13 @@ _BALANCE_FIELD_MAPPING = {
     # "NotesPayable" for the live evidence. Same either/or-alternative, plain-mapping
     # convention as senior_notes above.
     "notes_payable": "long_term_debt",
+    # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+    # total_debt_not_itemized investigation): ETS real short-term-loan concept - see
+    # sec_balance_sheet.py's get_balance_sheet() comment on "LoansPayable"/
+    # "LoansPayableCurrent" for the live evidence. Same either/or-alternative, plain-mapping
+    # convention as senior_notes/notes_payable above.
+    "loans_payable": "long_term_debt",
+    "loans_payable_current": "short_term_debt",
     # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): PGR
     # (Progressive) real debt concept - see sec_statements.py's get_balance_sheet()
     # comment on "DebtLongtermAndShorttermCombinedAmount" for the live evidence. Same

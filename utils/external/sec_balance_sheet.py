@@ -221,6 +221,15 @@ _BALANCE_IFRS_ALIASES = [
     # _fill_long_term_debt_from_noncurrent_current_split only fires when "long_term_debt" is
     # still None post-aggregation, so a populated Borrowings value is never overwritten.
     ("Borrowings", "long_term_debt"),
+    # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+    # total_debt_not_itemized investigation): bank/financial-institution IFRS filers commonly
+    # fund via debt securities issuance rather than generic "Borrowings" - live-confirmed via
+    # KSPI (Kazakhstan bank)'s real companyfacts JSON tagging "DebtSecurities" (debt securities
+    # issued, a real bank funding-side liability) while never tagging LongtermBorrowings/
+    # ShorttermBorrowings/Borrowings at all. Listed LAST (after Borrowings) so any filer
+    # reporting the more specific concepts above always keeps that value - same
+    # last-listed-wins fallback convention as the "Borrowings" entry itself.
+    ("DebtSecurities", "long_term_debt"),
     # FIXED 2026-08-17 (loader-review goal continuation): IFRS 16 lessee accounting
     # doesn't distinguish operating vs. finance leases the way US GAAP does - IFRS
     # filers report a single combined "LeaseLiabilities" concept, not separate
@@ -608,6 +617,14 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # name that a filer reporting a real, more complete LongTermDebt/SeniorNotes figure
         # must always keep that value instead.
         "NotesPayable",
+        # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+        # total_debt_not_itemized investigation): ETS real short-term-loan concept - live-
+        # confirmed via ETS's real companyfacts JSON tagging "LoansPayable"/"LoansPayableCurrent"
+        # (a real, if small, funding-side liability) while never tagging any of the concepts
+        # above. Same either/or-alternative, plain-mapping convention as senior_notes/
+        # notes_payable above (fallback-only, never wins over a more specific standard concept).
+        "LoansPayable",
+        "LoansPayableCurrent",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
         # continuation): PGR (Progressive) stopped tagging plain "LongTermDebt" after
         # FY2015 (last real fact 2015-12-31, $2.708B) - live-confirmed via real companyfacts
