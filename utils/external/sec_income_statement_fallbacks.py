@@ -425,3 +425,65 @@ def _fill_cost_of_revenue_from_other_operating_cost(rows: list[dict[str, Any]]) 
             if error_without_extra <= error_with_extra:
                 continue  # Filer's own tagged gross_profit already reconciles without the addition
         row["cost_of_goods_and_services_sold"] = cogs + extra
+
+
+_SELLING_TYPE_GATE_KEYS = (
+    "selling_expense",
+    "selling_and_marketing_expense",
+    "sales_and_marketing_expense",
+    "marketing_expense",
+    "distribution_costs",
+)
+
+
+def _fill_sga_from_general_and_administrative_when_no_selling_component(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: promotes us-gaap/ifrs-full "GeneralAndAdministrativeExpense" into
+    "selling_general_and_administrative_expense" (-> operating_expenses column via
+    load_financial_statements.py's _INCOME_FIELD_MAPPING) ONLY for filers where G&A genuinely
+    functions as their complete SG&A-equivalent expense line.
+
+    ADDED 2026-09-09 (goal: XBRL coverage-scan comment-leak follow-up - see
+    get_income_statement()'s "GeneralAndAdministrativeExpense" concept comment for the full
+    live-evidence writeup: 2,231 us-gaap + 276 ifrs-full real filers on the local companyfacts
+    cache tag this concept). A plain unconditional alias (the same technique used for the
+    "AdministrativeExpense" IFRS fallback above) would be WRONG here: a systematic check across
+    the whole population (not just a handful of spot checks) found 1,115 of the 2,231 us-gaap
+    filers (~50%) and 191 of the 276 ifrs-full filers (~69%) ALSO separately tag a selling/
+    marketing/distribution-type expense (SellingExpense/SellingAndMarketingExpense/
+    SalesAndMarketingExpense/MarketingExpense/DistributionCosts) or, for ifrs-full, the sibling
+    "AdministrativeExpense" concept, for the SAME fiscal year that G&A is tagged with no combined
+    SG&A total - live-confirmed e.g. Arts Way Manufacturing (CIK 0000007623) FY2025:
+    GeneralAndAdministrativeExpense=$4,193,753 AND SellingExpense=$1,439,529 tagged separately.
+    For those filers, G&A alone is only the administrative PORTION of SG&A - aliasing it
+    directly would silently and systematically UNDERSTATE the combined total by omitting the
+    selling/marketing/distribution component entirely, the exact failure mode the coverage-scan
+    task this fix comes from explicitly warned against.
+
+    Only fires when (a) no combined SG&A/AdministrativeExpense-derived value is already present
+    for that fiscal year (checked via "selling_general_and_administrative_expense", the raw key
+    both SellingGeneralAndAdministrativeExpense and the AdministrativeExpense IFRS alias already
+    populate during _aggregate_concepts) AND (b) none of the 5 selling-type "gate" concepts is
+    present for that same row. Live-confirmed safe (G&A functions as the complete SG&A-
+    equivalent, no separate selling/marketing/distribution tag at all) for 10 real filers: us-
+    gaap - Boeing, MasTec, Wendy's, Federal Realty, CTO Realty Growth; ifrs-full - Pan American
+    Silver, Teck Resources, DRDGold, WPP plc, Woori Financial Group.
+
+    Mutates rows in place. Always strips "general_and_administrative_expense" and all 5 gate
+    keys (never mapped to a DB column on their own - see get_income_statement()'s comment on
+    why they're deliberately absent from _INCOME_FIELD_MAPPING) whether or not the fallback
+    fires for that row. Never overwrites a real "selling_general_and_administrative_expense"
+    value.
+    """
+    for row in rows:
+        general_and_administrative = row.pop("general_and_administrative_expense", None)
+        # NOTE: pop every gate key unconditionally (not inside any()'s generator, which would
+        # short-circuit on the first truthy pop and leave the remaining gate keys stranded in
+        # the row dict) - each key is unmapped in _INCOME_FIELD_MAPPING and must never survive
+        # into a persisted row regardless of which branch below fires.
+        selling_component_values = [row.pop(key, None) for key in _SELLING_TYPE_GATE_KEYS]
+        has_selling_component = any(v is not None for v in selling_component_values)
+        if row.get("selling_general_and_administrative_expense") is not None:
+            continue
+        if general_and_administrative is None or has_selling_component:
+            continue
+        row["selling_general_and_administrative_expense"] = general_and_administrative

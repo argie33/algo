@@ -20,6 +20,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
     _fill_pretax_income_from_domestic_foreign_split,
     _fill_pretax_income_from_results_of_operations_when_validated,
+    _fill_sga_from_general_and_administrative_when_no_selling_component,
 )
 from utils.external.sec_statements_aggregate import _aggregate_concepts
 
@@ -305,6 +306,35 @@ _INCOME_IFRS_ALIASES = [
     # a filer that DOES itemize selling costs separately elsewhere and would be understated
     # by this alias alone is unaffected as long as it also tags a combined total.
     ("AdministrativeExpense", "selling_general_and_administrative_expense"),
+    # ADDED 2026-09-09 (comment-leak follow-up, same investigation as the us-gaap
+    # "GeneralAndAdministrativeExpense" concept above in the concepts list in this file's
+    # get_income_statement() - see that entry's comment for the full live-evidence writeup,
+    # including the ifrs-full-specific WPP/Pan American Silver/Teck/DRDGold/Woori Financial
+    # verification and the 85/276 "genuinely G&A-only" population size). ifrs-full's own
+    # "GeneralAndAdministrativeExpense" concept is DISTINCT from "AdministrativeExpense" above
+    # (different filers use each) and from us-gaap's identically-named concept (different
+    # namespace, same _to_snake() key "general_and_administrative_expense" - the two
+    # legitimately share one raw row key since they mean the same thing). Same treatment as
+    # the us-gaap entry: fetched under its own unmapped key, only promoted into
+    # "selling_general_and_administrative_expense" by
+    # _fill_sga_from_general_and_administrative_when_no_selling_component() when neither a
+    # combined SG&A/AdministrativeExpense value nor any selling-type concept is present for
+    # that fiscal year.
+    ("GeneralAndAdministrativeExpense", "general_and_administrative_expense"),
+    # Selling/marketing/distribution-type "gate" concepts (ifrs-full side) - same 5 concepts
+    # and same unmapped-raw-key treatment as the us-gaap concepts list, used only to detect
+    # whether a filer that tags GeneralAndAdministrativeExpense (or AdministrativeExpense)
+    # ALSO separately tags a selling-type expense that period, in which case neither concept
+    # alone is a safe stand-in for combined SG&A. ifrs-full and us-gaap concepts of the same
+    # name share one raw key (_to_snake() is namespace-agnostic), so these need not be listed
+    # again if already present via the us-gaap concepts list - they are duplicated here only
+    # because _aggregate_concepts fetches the ifrs-full and us-gaap namespaces independently
+    # from this separate alias list.
+    ("SellingExpense", "selling_expense"),
+    ("SellingAndMarketingExpense", "selling_and_marketing_expense"),
+    ("SalesAndMarketingExpense", "sales_and_marketing_expense"),
+    ("MarketingExpense", "marketing_expense"),
+    ("DistributionCosts", "distribution_costs"),
     # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 3rd batch this
     # session - continuation of the Borrowings/NoncontrollingInterests, TradeReceivables/
     # TradeAndOtherCurrentPayables/DepreciationAndAmortisationExpense, and WeightedAverageShares/
@@ -726,6 +756,64 @@ def get_income_statement(
         # add one only with the same live-evidence standard as every other fallback in this
         # file, not by guessing a plausible-sounding concept name.
         "SellingGeneralAndAdministrativeExpense",
+        # ADDED 2026-09-09 (goal: XBRL coverage-scan comment-leak follow-up): this exact
+        # "GeneralAndAdministrativeExpense" concept was quoted in the comment two entries above
+        # ("no known taxonomy-variant/IFRS fallback verified yet ... none of the 4 filers
+        # checked tag 'GeneralAndAdministrativeExpense'") purely to document that it had been
+        # RULED OUT at the time - but scripts/xbrl_concept_coverage_scan.py's
+        # load_known_concepts() used to regex-scan each source file's RAW text including
+        # comments, so that quoted mention alone made this concept look "already fetched" and
+        # silently hid it from every later scan (fixed elsewhere, comment-leak class bug).
+        # Re-investigated on the full local companyfacts cache (5,377 filers) instead of a
+        # 4-filer spot check: 3,057 filers tag it (2,231 us-gaap + 276 ifrs-full, some overlap
+        # in the count above from cache composition vs the live SEC-wide count of 2,825/276 in
+        # the original gap report - same order of magnitude, real and substantial either way).
+        # Live-confirmed sane vs. revenue for 5 filers with NO SellingGeneralAndAdministrative
+        # Expense tag: THE BOEING COMPANY (CIK 0000012927) FY2025 G&A=$6,090,000,000 / revenue
+        # $89,463,000,000 ~= 6.8%; MASTEC INC (CIK 0000015615) FY2025 $713,009,000 /
+        # $14,299,171,000 ~= 5.0%; WENDY'S CO (CIK 0000030697) FY2025 $252,679,000 /
+        # $2,176,891,000 ~= 11.6%; FEDERAL REALTY INVESTMENT TRUST (CIK 0000034903) FY2024
+        # $46,913,000 / $1,278,975,000 ~= 3.7%; CTO REALTY GROWTH (CIK 0000023795) FY2025
+        # $18,527,000 / $149,545,000 ~= 12.4% - all single, real, plausible SG&A-equivalent
+        # ratios, same evidence standard as SellingGeneralAndAdministrativeExpense above.
+        #
+        # UNLIKE the "AdministrativeExpense" IFRS alias above, a systematic check (not just a
+        # handful of spot checks) found this is NOT safe to alias directly and unconditionally:
+        # of the 2,231 us-gaap filers tagging G&A with no combined SG&A tag, 1,115 (~50%) ALSO
+        # separately tag a selling/marketing/distribution-type expense that period (SellingExpense/
+        # SellingAndMarketingExpense/SalesAndMarketingExpense/MarketingExpense/DistributionCosts,
+        # live-confirmed e.g. Arts Way Manufacturing CIK 0000007623 FY2025: G&A=$4,193,753 AND
+        # SellingExpense=$1,439,529 tagged separately, same for DMC Global CIK 0000034067 and
+        # Curtiss-Wright CIK 0000026324) - for those filers G&A alone is only the administrative
+        # PORTION of SG&A, and aliasing it directly would silently and systematically UNDERSTATE
+        # the combined total by omitting the selling/marketing component entirely. Same pattern
+        # confirmed on the ifrs-full side: 191/276 (69%) also tag AdministrativeExpense (already
+        # mapped above) or a selling-type concept; only 85 are true G&A-only filers (live-verified
+        # 5 of them too: Pan American Silver Corp CIK 0000771992 FY2025 G&A=$116,000,000 /
+        # revenue $3,619,000,000 ~= 3.2%; Teck Resources Ltd CIK 0000886986 FY2025
+        # CAD 269,000,000; DRDGold Ltd CIK 0001023512 FY2024 ZAR 108,600,000 / revenue
+        # ZAR 7,878,200,000 ~= 1.4%; WPP plc CIK 0000806968 FY2025 GBP 1,764,000,000 / revenue
+        # GBP 13,550,000,000 ~= 13.0%; Woori Financial Group Inc CIK 0001264136 FY2024
+        # USD 3,023,662,000 - all sane, none has AdministrativeExpense/DistributionCosts/
+        # SellingExpense tagged for the same period).
+        #
+        # Fetched here purely as a raw signal under its own "general_and_administrative_expense"
+        # key (deliberately NOT given a field_mapping entry, so it can never silently leak into
+        # "operating_expenses" on its own) alongside the 5 selling/marketing/distribution-type
+        # "gate" concepts immediately below (same reasoning, also unmapped). See
+        # _fill_sga_from_general_and_administrative_when_no_selling_component() in
+        # sec_income_statement_fallbacks.py for the actual fallback: it only promotes G&A into
+        # "selling_general_and_administrative_expense" (-> operating_expenses column) when BOTH
+        # the combined SG&A/AdministrativeExpense value is absent for that fiscal year AND none
+        # of the 5 gate concepts is present either - i.e. only for genuine G&A-only filers where
+        # G&A functions as the filer's complete SG&A-equivalent line, never for the ~50%/69% that
+        # would be understated.
+        "GeneralAndAdministrativeExpense",
+        "SellingExpense",
+        "SellingAndMarketingExpense",
+        "SalesAndMarketingExpense",
+        "MarketingExpense",
+        "DistributionCosts",
         # ADDED 2026-09-07 (goal session: XBRL extraction/tie-out hardening, migration 1271,
         # found via scripts/xbrl_concept_coverage_scan.py's systematic gap scan): 2,567 real
         # filers tag "GoodwillImpairmentLoss" and it was never fetched anywhere in this
@@ -1042,6 +1130,7 @@ def get_income_statement(
     _fill_pretax_income_from_results_of_operations_when_validated(rows)
     _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
     _fill_operating_income_from_revenue_minus_cogs_and_opex(rows)
+    _fill_sga_from_general_and_administrative_when_no_selling_component(rows)
     if period == "annual":
         _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol, security_name)
     return rows

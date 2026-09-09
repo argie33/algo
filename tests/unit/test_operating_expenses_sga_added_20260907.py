@@ -80,3 +80,91 @@ class TestSellingGeneralAndAdministrativeExpenseWired:
         rows = get_income_statement(_FakeClient(facts), "WMT", period="annual")
         by_year = {r["fiscal_year"]: r for r in rows}
         assert by_year[2026]["selling_general_and_administrative_expense"] == 147_943_000_000.0
+
+
+class TestGeneralAndAdministrativeExpenseFallback:
+    """Regression tests for the 2026-09-09 fix (goal: XBRL coverage-scan comment-leak
+    follow-up): "GeneralAndAdministrativeExpense" (us-gaap and ifrs-full) had been quoted only
+    in a comment on the SellingGeneralAndAdministrativeExpense entry above ("none of the 4
+    filers checked tag 'GeneralAndAdministrativeExpense'") - a comment-leak bug in
+    scripts/xbrl_concept_coverage_scan.py's load_known_concepts() made that mention alone look
+    like a real fetch, hiding a genuine ~3,057-filer gap (2,231 us-gaap + 276 ifrs-full on the
+    local companyfacts cache) from every later scan.
+
+    See _fill_sga_from_general_and_administrative_when_no_selling_component() in
+    sec_income_statement_fallbacks.py for the live BOEING/MASTEC (no separate selling tag, safe
+    to alias) vs. Arts Way Manufacturing-style (G&A AND SellingExpense both tagged separately,
+    NOT safe to alias G&A alone) evidence this fallback is built around.
+    """
+
+    def test_general_and_administrative_used_when_no_sga_and_no_selling_component(self) -> None:
+        # BOEING-style: G&A tagged, no combined SG&A, no separate selling/marketing/
+        # distribution concept - G&A genuinely is the complete SG&A-equivalent here.
+        facts = {
+            "us-gaap": {
+                "GeneralAndAdministrativeExpense": {"units": {"USD": [_entry(2025, 6_090_000_000.0, "2026-01-28")]}},
+            },
+            "ifrs-full": {},
+        }
+        rows = get_income_statement(_FakeClient(facts), "BA", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+        assert by_year[2025]["selling_general_and_administrative_expense"] == 6_090_000_000.0
+
+    def test_general_and_administrative_not_used_when_selling_expense_also_tagged(self) -> None:
+        # ARTS WAY MANUFACTURING-style: G&A AND a separate SellingExpense are BOTH tagged with
+        # no combined SG&A total - using G&A alone would understate true combined SG&A, so this
+        # fallback must NOT fire; "selling_general_and_administrative_expense" stays unset.
+        facts = {
+            "us-gaap": {
+                "GeneralAndAdministrativeExpense": {"units": {"USD": [_entry(2025, 4_193_753.0, "2026-01-15")]}},
+                "SellingExpense": {"units": {"USD": [_entry(2025, 1_439_529.0, "2026-01-15")]}},
+            },
+            "ifrs-full": {},
+        }
+        rows = get_income_statement(_FakeClient(facts), "ARTW", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+        assert by_year[2025].get("selling_general_and_administrative_expense") is None
+        # Never leaks the raw unmapped gate keys into the final row either.
+        assert "general_and_administrative_expense" not in by_year[2025]
+        assert "selling_expense" not in by_year[2025]
+
+    def test_general_and_administrative_never_overwrites_real_combined_sga(self) -> None:
+        # A filer that DOES tag the combined concept keeps that value - G&A (if also present,
+        # e.g. a restated/duplicate tag) is never allowed to clobber the real combined total.
+        facts = {
+            "us-gaap": {
+                "SellingGeneralAndAdministrativeExpense": {
+                    "units": {"USD": [_entry(2025, 147_943_000_000.0, "2026-03-20")]}
+                },
+                "GeneralAndAdministrativeExpense": {"units": {"USD": [_entry(2025, 1_000_000_000.0, "2026-03-20")]}},
+            },
+            "ifrs-full": {},
+        }
+        rows = get_income_statement(_FakeClient(facts), "WMT", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+        assert by_year[2025]["selling_general_and_administrative_expense"] == 147_943_000_000.0
+
+    def test_ifrs_full_general_and_administrative_used_when_no_administrative_or_selling(self) -> None:
+        # WPP-style: ifrs-full GeneralAndAdministrativeExpense tagged, no AdministrativeExpense,
+        # no separate selling-type concept - safe to alias directly.
+        facts = {
+            "us-gaap": {},
+            "ifrs-full": {
+                "GeneralAndAdministrativeExpense": {"units": {"USD": [_entry(2025, 1_764_000_000.0, "2026-02-28")]}},
+            },
+        }
+        rows = get_income_statement(_FakeClient(facts), "WPP", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+        assert by_year[2025]["selling_general_and_administrative_expense"] == 1_764_000_000.0
+
+    def test_ifrs_full_general_and_administrative_not_used_when_distribution_costs_also_tagged(self) -> None:
+        facts = {
+            "us-gaap": {},
+            "ifrs-full": {
+                "GeneralAndAdministrativeExpense": {"units": {"EUR": [_entry(2025, 100_000_000.0, "2026-02-28")]}},
+                "DistributionCosts": {"units": {"EUR": [_entry(2025, 50_000_000.0, "2026-02-28")]}},
+            },
+        }
+        rows = get_income_statement(_FakeClient(facts), "TESTIFRS", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+        assert by_year[2025].get("selling_general_and_administrative_expense") is None
