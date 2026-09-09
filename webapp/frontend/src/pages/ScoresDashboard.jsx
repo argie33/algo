@@ -559,16 +559,28 @@ function ScoresDashboardPage() {
         />
       )}
 
+      {/* Every non-Rankings tab below used to receive the raw, unscreened `items`
+          (the full ~5000+ symbol universe straight from the API) instead of `filtered`
+          (the same array Rankings uses, with the $300M market-cap / liquidity investability
+          floor from minMarketCap's own docstring above already applied) - so "Category
+          Leaders"/"Laggards" (and Movers/Leaderboard/Heatmap/Distribution/Correlation/
+          Sectors alongside them) could surface an untradeable nano-cap topping a factor
+          purely on scoring mechanics, exactly the failure mode minMarketCap's own comment
+          documents fixing for Rankings but never propagated to these tabs (2026-09-09,
+          /goal session: "factor leaders and laggards still seem off"). `filtered` already
+          folds in search/sector/minScore/minMarketCap consistently with what the Rankings
+          tab and the page's own filter controls show, so switching to it here doesn't
+          change what "the investable universe" means, just makes every tab agree on it. */}
       {tab === "movers" && (
         <MoversTab
-          items={items || []}
+          items={filtered || []}
           onClick={(s) => navigate(`/app/stock/${s}`)}
         />
       )}
 
       {tab === "leaderboard" && (
         <LeaderboardTab
-          items={items || []}
+          items={filtered || []}
           sectorFilter={sector}
           onClick={(s) => navigate(`/app/stock/${s}`)}
         />
@@ -576,19 +588,19 @@ function ScoresDashboardPage() {
 
       {tab === "heatmap" && (
         <HeatmapTab
-          items={items || []}
+          items={filtered || []}
           sectorFilter={sector}
           onClick={(s) => navigate(`/app/stock/${s}`)}
         />
       )}
 
-      {tab === "distribution" && <DistributionTab items={items || []} />}
+      {tab === "distribution" && <DistributionTab items={filtered || []} />}
 
-      {tab === "correlation" && <CorrelationTab items={items || []} />}
+      {tab === "correlation" && <CorrelationTab items={filtered || []} />}
 
       {tab === "leaders" && (
         <LeadersTab
-          items={items || []}
+          items={filtered || []}
           sectorFilter={sector}
           onClick={(s) => navigate(`/app/stock/${s}`)}
         />
@@ -596,7 +608,7 @@ function ScoresDashboardPage() {
 
       {tab === "laggards" && (
         <LaggardsTab
-          items={items || []}
+          items={filtered || []}
           sectorFilter={sector}
           onClick={(s) => navigate(`/app/stock/${s}`)}
         />
@@ -604,7 +616,7 @@ function ScoresDashboardPage() {
 
       {tab === "sectors" && (
         <SectorsTab
-          items={items || []}
+          items={filtered || []}
           sectors={sectors}
           onClick={(s) => navigate(`/app/stock/${s}`)}
         />

@@ -309,6 +309,39 @@ describe("ScoresDashboard Page", () => {
     });
   });
 
+  it("excludes nano-caps from Category Leaders/Laggards tabs (regression: unscreened universe)", async () => {
+    // Regression test (2026-09-09, /goal session: "factor leaders and laggards still seem
+    // off"): the Category Leaders/Laggards tabs (and Movers/Leaderboard/Heatmap/
+    // Distribution/Correlation/Sectors alongside them) were wired to the raw, unscreened
+    // `items` array instead of `filtered` (the same $300M-market-cap-floored array Rankings
+    // already uses) - so a nano-cap could top every single factor's "leaders" list purely on
+    // scoring mechanics, the exact failure mode the $300M floor above exists to prevent for
+    // Rankings, just never propagated to these other views of the same data.
+    const mockApi = await import("../../../services/api");
+    mockApi.api.get.mockResolvedValue({
+      data: { items: [...mockStocks, nanoStock] },
+    });
+
+    renderScoresDashboard();
+    await waitFor(() => {
+      expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Category Leaders/i }));
+
+    // NANO scores 95-99 on every factor - the highest in the fixture - so it would top
+    // every "Category Leaders" card if the $300M floor weren't applied.
+    await waitFor(() => {
+      expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryAllByText("NANO").length).toBe(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Laggards$/i }));
+    await waitFor(() => {
+      expect(screen.queryAllByText("NANO").length).toBe(0);
+    });
+  });
+
   it("clears search when Clear button is clicked", async () => {
     renderScoresDashboard();
     await waitFor(() => {
