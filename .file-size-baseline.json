@@ -551,7 +551,7 @@
   "loaders/load_stock_scores.py": 1347,
   "loaders/load_technical_indicators.py": 1404,
   "loaders/load_trend_analysis.py": 356,
-  "loaders/load_value_quality_growth_metrics.py": 2329,
+  "loaders/load_value_quality_growth_metrics.py": 2422,
   "loaders/loader_freshness_validator.py": 73,
   "loaders/loader_helper.py": 59,
   "loaders/loader_registry.py": 336,
