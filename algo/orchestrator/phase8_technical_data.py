@@ -169,18 +169,27 @@ def _batch_fetch_technical_data(
                 ohlc_df[col] = ohlc_df[col].astype(float)
             for sym, group in ohlc_df.groupby("symbol"):
                 group = group.sort_values("date")
-                if len(group) >= period:
-                    atr_series = compute_atr(group["high"], group["low"], group["close"], period)
+                # FIX (2026-09-09 real-money-readiness audit, same vulnerability class as the
+                # sma_50 fix above): ATR was still computed off raw, unadjusted high/low/close
+                # - a real split inside the 100-trading-day fetch window reads as a fake single-
+                # day range spike, corrupting the ATR that feeds the live chandelier-trail stop
+                # (3xATR). detect_and_adjust_splits adjusts open/high/low/close together (it
+                # detects the split from the close ratio, same as the sma_50 call below), so
+                # apply it to the whole group once before deriving either indicator from it.
+                adjusted_group = detect_and_adjust_splits(group)
+                if len(adjusted_group) >= period:
+                    atr_series = compute_atr(
+                        adjusted_group["high"], adjusted_group["low"], adjusted_group["close"], period
+                    )
                     last_atr = atr_series.iloc[-1]
                     if last_atr is not None and not (_math.isnan(last_atr) or _math.isinf(last_atr)):
                         atr_by_symbol[sym] = float(last_atr)
-                # SMA-50: same trailing-50-row window the old flat SQL AVG(close) used, but
-                # split-adjusted first (see FIX note above the SQL query). If fewer than 50
-                # rows exist in the fetch window, average what's available - same implicit
-                # behavior the old AVG(close) had for a symbol with limited history.
-                sma_window = group.tail(50)
-                adjusted = detect_and_adjust_splits(sma_window[["close"]])
-                sma50_by_symbol[sym] = float(adjusted["close"].mean())
+                # SMA-50: same trailing-50-row window the old flat SQL AVG(close) used, already
+                # split-adjusted via adjusted_group above. If fewer than 50 rows exist in the
+                # fetch window, average what's available - same implicit behavior the old
+                # AVG(close) had for a symbol with limited history.
+                sma_window = adjusted_group.tail(50)
+                sma50_by_symbol[sym] = float(sma_window["close"].mean())
 
         for row_symbol, close in close_by_symbol.items():
             atr = atr_by_symbol.get(row_symbol)
