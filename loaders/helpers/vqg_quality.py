@@ -189,10 +189,32 @@ class QualityMetricsMixin(SymbolGateMixin):
             # falling through to "net_income_not_reported" for a symbol that genuinely has
             # current SEC-reported earnings data, just not in annual form yet.
             net_income_from_ttm_quarterly = False
+            net_income_from_annual_fallback = False
             if net_income is None:
                 net_income = self._fetch_ttm_net_income_from_quarterly(symbol)
                 if net_income is not None:
                     net_income_from_ttm_quarterly = True
+            # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 500, missing_sec_data
+            # investigation): symbols with a real, recent-but-not-current-year annual_income_statement
+            # net_income AND fewer than 4 real quarterly rows (so the TTM fallback above also fails)
+            # were falling all the way through to "missing_sec_data" - live-confirmed MDV: FY2025
+            # net_income=$1,068,000 real and populated, FY2026 anchor row is a data_unavailable
+            # placeholder, and quarterly_income_statement only has one real quarter (Q1 2025), too few
+            # for the TTM sum. Same "prior real annual row" fallback pattern
+            # _fetch_balance_sheet_anchor_fallback already uses for stockholders_equity/
+            # total_liabilities/total_assets above - reuses the same underlying
+            # _fetch_annual_fallback_row helper, just against annual_income_statement.net_income
+            # instead of annual_balance_sheet.
+            if net_income is None:
+                fallback_row = self._fetch_annual_fallback_row(
+                    "annual_income_statement", "net_income", "AND net_income IS NOT NULL", symbol
+                )
+                if fallback_row:
+                    net_income = self._nan_to_none(
+                        safe_float(fallback_row[0], f"{symbol}.net_income_fallback_year", allow_none=True)
+                    )
+                    if net_income is not None:
+                        net_income_from_annual_fallback = True
             revenue = self._nan_to_none(safe_float(quality_row[4], f"{symbol}.revenue", allow_none=True))
             operating_income = self._nan_to_none(
                 safe_float(quality_row[5], f"{symbol}.operating_income", allow_none=True)
@@ -3705,6 +3727,13 @@ class QualityMetricsMixin(SymbolGateMixin):
                 # provenance marker since it's not the usual annual_income_statement source.
                 metrics["data_source"] = "sec_audited_ttm_quarterly"
                 logger.info(f"[VALUE_QUALITY_GROWTH] {symbol}: net_income recovered from TTM quarterly sum")
+            elif net_income_from_annual_fallback:
+                # net_income (and every ratio derived from it) came from a prior real fiscal
+                # year's annual_income_statement row, not the current anchor row or a TTM
+                # quarterly sum - same "prior fiscal year" provenance semantics as
+                # stale_fallback_metrics above, reusing its tag.
+                metrics["data_source"] = "sec_audited_stale_fallback"
+                logger.info(f"[VALUE_QUALITY_GROWTH] {symbol}: net_income recovered from prior annual fiscal year")
 
             return metrics
 
