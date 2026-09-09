@@ -117,7 +117,35 @@ def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-exis
         except ValueError:
             span_days = None
         if span_days is not None and span_days < 330:
-            return None  # Real single-quarter/partial-year data - not annual
+            # BUG FOUND 2026-09-09 (goal session: dedicated follow-up to the
+            # net_income_not_reported bucket audit, live-confirmed via BACC/BACCR
+            # (CIK 0002059654, real SEC companyfacts JSON): a genuine SPAC/de-SPAC
+            # entity's FIRST fiscal year after its business combination can be a real,
+            # audited stub under 330 days (BACC: incorporated 2025-02-10, FY2025
+            # 10-K covers 2025-02-10 to 2025-12-31, 324 days) - a real annual total,
+            # not a mistagged quarterly fragment. The blanket span<330 rejection above
+            # exists to catch a filer-side tagging error (a real single quarter's fact
+            # borrowing annual-bucket dates, see ORLY/AAT above) - it has no way to
+            # distinguish that from a real short first fiscal year on its own. SEC's
+            # "frame" field is the disambiguator: it's assigned only when SEC's own
+            # frames API independently confirms this exact entry as the calendar
+            # year's aggregate figure (see the frame-preference tiebreak comments
+            # elsewhere in this file) - a filer-side tagging error has never been
+            # observed carrying a frame in this codebase's history. Scoped narrowly:
+            # only a genuine primary annual-report form (10-K/20-F/40-F, never a
+            # 10-Q/8-K/DEF14A), fp must equal "FY" (never Q1-Q4, so the ORLY/AAT/BTCS
+            # mistagged-quarterly cases above are untouched - those are all form=10-Q),
+            # and frame must exactly match "CY<fy>" for this same entry's own fy.
+            _frame = entry.get("frame")
+            _fy = entry.get("fy")
+            if not (
+                entry.get("form") in _ANNUAL_REPORT_FORMS
+                and fp == "FY"
+                and _frame is not None
+                and _fy is not None
+                and _frame == f"CY{_fy}"
+            ):
+                return None  # Real single-quarter/partial-year data - not annual
         # See the _short_span_val_by_accn comment above this loop (JAKK case):
         # an annual-shaped span whose value exactly matches a genuine quarter
         # from the same accn is that quarter's value under borrowed annual
