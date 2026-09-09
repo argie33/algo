@@ -237,6 +237,14 @@ _BALANCE_FIELD_MAPPING = {
     # liabilities+stockholders_equity gap exactly). Not fallback-only - single directly-tagged
     # concept, same convention as accounts_payable above.
     "minority_interest": "noncontrolling_interest",
+    # ADDED 2026-09-09 (goal session: XBRL scan/tie-out exhaustiveness audit, migration 1274):
+    # see sec_balance_sheet.py's get_balance_sheet() comment on
+    # "TemporaryEquityCarryingAmountAttributableToParent" for the live OBAI/LTGO/SCTX evidence
+    # - this concept exactly closes check_balance_sheet_identity's residual for the
+    # PROK/ATTO/FAC/LTGO/SCTX-style mezzanine-equity population migration 1265's own comment
+    # left unfixed. Not fallback-only - single directly-tagged concept, same convention as
+    # minority_interest above.
+    "temporary_equity_carrying_amount_attributable_to_parent": "temporary_equity",
     # ADDED 2026-09-07 (goal session: check_cashflow_reconciliation restricted-cash gap
     # rootcaused, migration 1267): see sec_balance_sheet.py's _fill_cash_and_restricted_cash_
     # combined() for the live ADP evidence. Identity mapping (raw key already equals the
@@ -434,6 +442,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "operating_lease_liability",
                     "finance_lease_liability",
                     "noncontrolling_interest",
+                    "temporary_equity",
                     "cash_and_restricted_cash_combined",
                     "retained_earnings",
                     "created_at",
@@ -470,6 +479,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "operating_lease_liability",
                     "finance_lease_liability",
                     "noncontrolling_interest",
+                    "temporary_equity",
                     "cash_and_restricted_cash_combined",
                     "retained_earnings",
                     "created_at",

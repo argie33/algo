@@ -568,13 +568,24 @@ class TieOutChecker(BaseCheck):
         two-term form when the column is NULL. Expect the ~15% WARN rate to collapse close to
         the <1% baseline of this check's siblings once affected symbols reload; PROK/ATTO/FAC/
         LTGO/SCTX-style true mezzanine-equity gaps remain unfixed (still no column for that).
+
+        FIXED 2026-09-09 (migration 1274): added `temporary_equity`, extracted from the
+        directly-tagged `TemporaryEquityCarryingAmountAttributableToParent` XBRL concept -
+        live-confirmed this closes OBAI/LTGO/SCTX's residuals exactly (see that concept's
+        comment in sec_balance_sheet.py's get_balance_sheet() for the numbers). Identity is now
+        `assets == liabilities + temporary_equity + stockholders_equity +
+        noncontrolling_interest`, same `COALESCE(..., 0)` degrade-when-NULL discipline as
+        noncontrolling_interest. PROK itself tags a sibling concept
+        (RedeemableNoncontrollingInterestEquityOtherCarryingAmount) instead, so it is NOT
+        expected to fully close from this column alone - don't re-triage PROK specifically as
+        still-broken without checking that.
         """
         try:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
                     b.symbol, b.fiscal_year, b.total_assets, b.total_liabilities,
-                    b.stockholders_equity, b.noncontrolling_interest
+                    b.stockholders_equity, b.noncontrolling_interest, b.temporary_equity
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -587,13 +598,14 @@ class TieOutChecker(BaseCheck):
             )
             flagged = []
             for row in cur.fetchall():
-                assets, liabilities, equity, nci = (
+                assets, liabilities, equity, nci, temp_equity = (
                     float(row["total_assets"]),
                     float(row["total_liabilities"]),
                     float(row["stockholders_equity"]),
                     float(row["noncontrolling_interest"] or 0),
+                    float(row["temporary_equity"] or 0),
                 )
-                residual = assets - (liabilities + equity + nci)
+                residual = assets - (liabilities + equity + nci + temp_equity)
                 relative_error = abs(residual) / abs(assets)
                 if relative_error > _BALANCE_SHEET_TOLERANCE_PCT:
                     flagged.append(
@@ -604,6 +616,7 @@ class TieOutChecker(BaseCheck):
                             "total_liabilities": liabilities,
                             "stockholders_equity": equity,
                             "noncontrolling_interest": nci,
+                            "temporary_equity": temp_equity,
                             "residual": residual,
                             "relative_error_pct": round(relative_error * 100, 2),
                         }
@@ -647,13 +660,17 @@ class TieOutChecker(BaseCheck):
         check's siblings once that reload completes, same trajectory as the annual check
         followed earlier the same day. Don't re-triage this rate as a new bug without first
         confirming the reload has actually finished.
+
+        FIXED 2026-09-09 (migration 1274): added `temporary_equity` to the identity, same fix
+        and same evidence as check_balance_sheet_identity's own 2026-09-09 update above - see
+        that docstring.
         """
         try:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
                     b.symbol, b.fiscal_year, b.fiscal_quarter, b.total_assets, b.total_liabilities,
-                    b.stockholders_equity, b.noncontrolling_interest
+                    b.stockholders_equity, b.noncontrolling_interest, b.temporary_equity
                 FROM quarterly_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -666,13 +683,14 @@ class TieOutChecker(BaseCheck):
             )
             flagged = []
             for row in cur.fetchall():
-                assets, liabilities, equity, nci = (
+                assets, liabilities, equity, nci, temp_equity = (
                     float(row["total_assets"]),
                     float(row["total_liabilities"]),
                     float(row["stockholders_equity"]),
                     float(row["noncontrolling_interest"] or 0),
+                    float(row["temporary_equity"] or 0),
                 )
-                residual = assets - (liabilities + equity + nci)
+                residual = assets - (liabilities + equity + nci + temp_equity)
                 relative_error = abs(residual) / abs(assets)
                 if relative_error > _BALANCE_SHEET_TOLERANCE_PCT:
                     flagged.append(
@@ -684,6 +702,7 @@ class TieOutChecker(BaseCheck):
                             "total_liabilities": liabilities,
                             "stockholders_equity": equity,
                             "noncontrolling_interest": nci,
+                            "temporary_equity": temp_equity,
                             "residual": residual,
                             "relative_error_pct": round(relative_error * 100, 2),
                         }
@@ -695,7 +714,7 @@ class TieOutChecker(BaseCheck):
                     WARN,
                     "quarterly_balance_sheet",
                     f"{len(flagged)} symbol/quarter(s) fail total_assets == total_liabilities + "
-                    f"stockholders_equity + noncontrolling_interest beyond "
+                    f"stockholders_equity + noncontrolling_interest + temporary_equity beyond "
                     f"{_BALANCE_SHEET_TOLERANCE_PCT:.0%} tolerance",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
                 )

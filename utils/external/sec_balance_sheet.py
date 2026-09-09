@@ -785,6 +785,22 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # + $110,569M = $228,500M). Single directly-tagged concept, same convention as
         # accounts_payable above - no summing/derivation needed.
         "MinorityInterest",
+        # ADDED 2026-09-09 (goal session: XBRL scan/tie-out exhaustiveness audit, migration
+        # 1274): the check_balance_sheet_identity docstring's "PROK/ATTO/FAC/LTGO/SCTX-style"
+        # mezzanine-equity population (modest assets/liabilities, huge negative
+        # stockholders_equity, no noncontrolling_interest/MinorityInterest tagged either) was
+        # left unfixed as "this schema has no column for at all". Live-confirmed via real SEC
+        # companyfacts JSON that this concept closes it exactly: OBAI (Our Bond Inc) FY2025
+        # residual $11,389,000 == TemporaryEquityCarryingAmountAttributableToParent
+        # $11,389,000 for the same period; LTGO (Latigo Biotherapeutics) and SCTX (Scribe
+        # Therapeutics) residuals match this same concept exactly too. This was previously
+        # dismissed in xbrl_concept_coverage_dismissed.json under a copy-paste-wrong reason
+        # ("stock-comp-plan footnote detail" - describes a different concept entirely, not
+        # this one) - corrected by mapping it here instead. Single directly-tagged concept, no
+        # summing/derivation needed, same convention as MinorityInterest above. PROK itself
+        # tags a sibling concept (RedeemableNoncontrollingInterestEquityOtherCarryingAmount,
+        # not this one) so its own gap is NOT expected to fully close from this alone.
+        "TemporaryEquityCarryingAmountAttributableToParent",
     ]
     rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
     _fill_long_term_debt_from_noncurrent_current_split(rows)

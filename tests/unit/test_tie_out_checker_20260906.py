@@ -34,6 +34,7 @@ class TestBalanceSheetIdentity:
                         "total_liabilities": 400.0,
                         "stockholders_equity": 400.0,  # off by 200, 20% of assets
                         "noncontrolling_interest": None,
+                        "temporary_equity": None,
                     }
                 ]
             ]
@@ -56,6 +57,7 @@ class TestBalanceSheetIdentity:
                         "total_liabilities": 600.0,
                         "stockholders_equity": 400.0,  # exact tie-out
                         "noncontrolling_interest": None,
+                        "temporary_equity": None,
                     }
                 ]
             ]
@@ -77,6 +79,30 @@ class TestBalanceSheetIdentity:
                         "total_liabilities": 117_931_000_000.0,
                         "stockholders_equity": 110_569_000_000.0,
                         "noncontrolling_interest": 4_823_000_000.0,
+                        "temporary_equity": None,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_balance_sheet_identity(cur)
+        assert checker.results == []
+
+    def test_temporary_equity_closes_identity(self) -> None:
+        """FIXED 2026-09-09 (migration 1274): a row that would otherwise fail by exactly its
+        mezzanine-equity amount (live OBAI shape) must NOT be flagged once temporary_equity is
+        populated."""
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "OBAI",
+                        "fiscal_year": 2025,
+                        "total_assets": 2_501_000.0,
+                        "total_liabilities": 13_775_000.0,
+                        "stockholders_equity": -22_663_000.0,
+                        "noncontrolling_interest": None,
+                        "temporary_equity": 11_389_000.0,
                     }
                 ]
             ]
@@ -123,6 +149,7 @@ class TestQuarterlyBalanceSheetIdentity:
                         "total_liabilities": 400.0,
                         "stockholders_equity": 400.0,  # off by 200, 20% of assets
                         "noncontrolling_interest": None,
+                        "temporary_equity": None,
                     }
                 ]
             ]
@@ -147,6 +174,7 @@ class TestQuarterlyBalanceSheetIdentity:
                         "total_liabilities": 600.0,
                         "stockholders_equity": 400.0,  # exact tie-out
                         "noncontrolling_interest": None,
+                        "temporary_equity": None,
                     }
                 ]
             ]
@@ -167,6 +195,7 @@ class TestQuarterlyBalanceSheetIdentity:
                         "total_liabilities": 117_931_000_000.0,
                         "stockholders_equity": 110_569_000_000.0,
                         "noncontrolling_interest": 4_823_000_000.0,
+                        "temporary_equity": None,
                     }
                 ]
             ]
