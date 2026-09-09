@@ -77,6 +77,22 @@ class PillarScoreReconciliationChecker(BaseCheck):
             # never-scored, delisted symbol's frozen stock_scores row against a quality_metrics
             # row some other, less-selective process may still be touching is the same class of
             # false positive as the CEF/BDC case, just a different exclusion reason.
+            #
+            # FIXED 2026-09-09 (goal session: xbrl-scan/tie-out exhaustiveness audit): also
+            # requires stock_symbols.data_unavailable IS NOT TRUE. Live-confirmed via SBEV/NCL
+            # (both flagged ERROR here, divergence 1.04/0.40, unchanged after a fresh --now
+            # signals --loaders scores reload): utils/loaders/helpers.py's fundamentals-universe
+            # query (used by load_stock_scores.py) filters `s.data_unavailable IS NOT TRUE`, so
+            # once yfinance stops returning price data for a symbol for 30 days
+            # (_mark_symbol_permanently_unavailable in loaders/load_prices.py sets stock_symbols.
+            # data_unavailable=true, active stays true) that symbol drops out of stock_scores
+            # entirely - ALL pillars freeze, not just the price-dependent ones - while
+            # load_value_quality_growth_metrics.py's quality_metrics universe query has no such
+            # filter (fundamentals data is orthogonal to price-feed health) and keeps recomputing
+            # quality_score every run. Same "frozen copy vs moving source" structural mismatch as
+            # the CEF/BDC/inactive exclusions above, just gated on a different column - not a
+            # stale-row-awaiting-reload bug, and no reload can ever close it while the symbol stays
+            # data_unavailable.
             cur.execute(
                 """
                 SELECT ss.symbol, ss.date, ss.quality_score AS stock_scores_quality_score,
@@ -89,6 +105,7 @@ class PillarScoreReconciliationChecker(BaseCheck):
                 ) ss
                 JOIN quality_metrics qm ON qm.symbol = ss.symbol
                 JOIN stock_symbols sym ON sym.symbol = ss.symbol AND sym.active = true
+                    AND sym.data_unavailable IS NOT TRUE
                 LEFT JOIN company_info_sec c ON c.symbol = ss.symbol
                 WHERE qm.quality_score IS NOT NULL
                   AND COALESCE(qm.data_unavailable, false) = false
