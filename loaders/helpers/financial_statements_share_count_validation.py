@@ -24,6 +24,44 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+# KNOWN-BAD FPI YFINANCE-FALLBACK SHARE COUNTS (added 2026-09-09, /goal session: "factor
+# leaders and laggards still seem off" investigation). This registry exists because
+# _reject_implausible_shares_outstanding below has a structural blind spot: its relative
+# cross-check needs company_info_sec.shares_outstanding as an independent reference, and
+# its absolute ceiling (500B) is calibrated loosely enough to admit genuine mega-caps -
+# neither catches a symbol whose ENTIRE data chain (price context, EPS, shares_outstanding)
+# is self-consistently sourced from yfinance with NO independent second source at all
+# (company_info_sec.shares_outstanding is NULL precisely because this class of symbol - a
+# true foreign private issuer with no SEC 10-K/20-F on file, only reachable via
+# sec_base.py's _try_yfinance_fallback - never has SEC-derived data to extract it from).
+# A wrong-but-internally-consistent number sails through every existing guard.
+#
+# SKHY (SK hynix, an unsponsored OTC ADR) live-confirmed this way: shares_outstanding_basic/
+# diluted=~6.9-7.1B agrees with its own net_income/diluted_eps in every fiscal year 2022-2025
+# (so every same-row/cross-year internal-consistency check this file already has correctly
+# finds nothing wrong) but implies a $1.32T market cap and pb_ratio=15.78/ps_ratio=19.58 in
+# value_metrics (load_sec_valuations.py) - both wildly outside SK hynix's real-world range
+# (public real-time quotes put its market cap closer to ~$130-150B, pb/ps in the low
+# single digits, roughly a 9-10x gap on every metric). Root cause is UNCONFIRMED - the ~9.75x
+# gap is suggestive of an ADS/ordinary-share ratio yfinance itself mis-reports for this
+# specific unsponsored OTC ticker (the same real-world phenomenon
+# DOMESTIC_FILER_ADS_RATIO_OVERRIDES/FPI_EPS_ADS_RATIO_OVERRIDES in load_sec_valuations.py
+# exist to correct), but that registry only ever adjusts SEC-XBRL-tagged EPS to match an
+# ADS-basis price/shares_out already resolved from SEC data - SKHY has no SEC filings to
+# adjust in the first place, so it's structurally out of that registry's scope. Rather than
+# guess a ratio without the same real-filing/press-release confirmation every entry in those
+# two registries required before shipping, this follows the more conservative established
+# precedent instead (same as an un-cross-checkable shares_outstanding_scale_mismatch case
+# elsewhere in this codebase): reject the confidently-wrong share count rather than publish
+# it. Revisit if/when a genuinely independent share-count source for unsponsored OTC ADRs is
+# added - do not add a symbol here without the same live-evidence standard (an implied
+# market cap/pb/ps multiple many-fold outside the company's real-world public range).
+KNOWN_BAD_FPI_YFINANCE_SHARES_OUTSTANDING: frozenset[str] = frozenset(
+    {
+        "SKHY",  # SK hynix (unsponsored OTC ADR) - see module-level comment above
+    }
+)
+
 
 class FinancialStatementsShareCountValidationMixin:
     """Shares-outstanding/derived-EPS validation methods for ConsolidatedFinancialStatementsLoader.
@@ -109,6 +147,19 @@ class FinancialStatementsShareCountValidationMixin:
         min_plausible_shares_outstanding = 100_000
         max_plausible_shares_outstanding = 500_000_000_000
         for row in transformed:
+            symbol = row.get("symbol")
+            if symbol in KNOWN_BAD_FPI_YFINANCE_SHARES_OUTSTANDING:
+                for field in ("shares_outstanding_basic", "shares_outstanding_diluted", "shares_outstanding_dei"):
+                    if row.get(field) is not None:
+                        logger.warning(
+                            f"[{self.table_name}] {symbol} FY{row.get('fiscal_year')}: {field} "
+                            "rejected via KNOWN_BAD_FPI_YFINANCE_SHARES_OUTSTANDING registry "
+                            "(self-consistent yfinance-fallback data, no independent reference "
+                            "available to verify against - see that registry's own docstring)."
+                        )
+                        row[field] = None
+                        self._record_explicit_null_rejection(row, field, "known_bad_fpi_yfinance_shares_outstanding")
+                continue
             for field in ("shares_outstanding_basic", "shares_outstanding_diluted", "shares_outstanding_dei"):
                 val = row.get(field)
                 if val is not None and 0 < val < min_plausible_shares_outstanding:
