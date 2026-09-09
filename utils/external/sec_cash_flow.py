@@ -382,6 +382,53 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # capital expenditure, and adding them here would misrepresent free_cash_flow for
         # these business models. Not added.
         "PaymentsToAcquireLand",
+        # FIXED 2026-09-09 (goal session: "capex_never_tagged_in_recent_filings" 86-symbol
+        # sweep): mineral exploration/development-stage filers report capex under this
+        # ifrs-full concept instead of any PP&E-family concept above - live-confirmed via
+        # real companyfacts JSON across 2 independent filers. Lifezone Metals (LZM, CIK
+        # 1958217, developing the Kabanga Nickel project in Tanzania): FY2025 $21,826,327 /
+        # FY2024 $49,951,501 / FY2023 $51,355,297 (all 20-F), each closely tracking (~95-105%
+        # of) the same fiscal year's real "CashFlowsFromUsedInInvestingActivities" total
+        # (FY2025 $21,283,241 / FY2024 $52,659,817 / FY2023 $59,947,767) - i.e. this concept
+        # is the dominant, not incidental, driver of LZM's investing outflow, not a minor
+        # sub-line. Foremost Clean Energy (FMST, CIK 1935418): CAD 249,957 FY2024/24-25 /
+        # CAD 198,829 prior FY - smaller scale but the same concept, confirming this is a
+        # standard (not filer-specific) IFRS taxonomy element for the mineral-exploration
+        # sector, not a coincidence specific to LZM. Per scripts/xbrl_concept_coverage_scan.py
+        # (--grep Explor), 45 distinct filers in the on-disk companyfacts cache tag this
+        # concept. This was the direct cause of LZM's dcf_fcf/fcf_margin/free_cash_flow
+        # being stuck at "capex_never_tagged_in_recent_filings" despite real, current,
+        # well-populated investing-activity data existing. Rejected for this same reason
+        # bucket in the same investigation: TFPM's (Triple Flag Precious Metals)
+        # semantically-similar "PaymentsForExplorationAndEvaluationExpenses" concept - only
+        # $8.8M of TFPM's $218M FY2025 investing outflow (4%, genuinely $0 in FY2024), i.e.
+        # a minor incidental sub-line for a royalty/streaming company whose real investing
+        # activity is buying royalty interests (no PP&E), not a capex proxy worth adding -
+        # correctly still missing_sec_data. Also rejected: Trilogy Metals' (TMQ)
+        # "SignificantCostsIncurredToAcquireMineralInterestOfProvedReserves" - only 6 filers
+        # use it and TMQ's own values are "since inception" cumulative totals (2003-12-01
+        # through the period end), not per-fiscal-year durations, so aggregating by
+        # fiscal_year would misattribute a 17-year cumulative figure as one year's capex;
+        # TMQ's real recent-year investing activity is also genuinely near-zero (its Ambler
+        # project capex is spent at the South32 joint-venture level, not on TMQ's own
+        # balance sheet) - correctly left as no-capex, not a bug this concept addition
+        # should paper over.
+        "PurchaseOfExplorationAndEvaluationAssets",
+        # FIXED 2026-09-09 (same sweep): "PaymentsToAcquireMineralRights" is a real,
+        # standard (not filer-specific) us-gaap concept for cash paid to acquire mineral
+        # rights/interests - never fetched at all despite being a substantial, common real
+        # capex line (33 distinct filers tag it per the coverage scan). Live-confirmed via
+        # real companyfacts JSON across large, well-known filers already in the broader
+        # universe: Freeport-McMoRan $2,200,000,000, Royal Gold $1,164,753,000, Diamondback
+        # Energy $444,083,000, Coeur Mining $116,898,000 - all real, current, substantial
+        # 10-K figures, not noise. Also live-confirmed on Trilogy Metals (TMQ, one of this
+        # session's 86 target symbols): real annual values through FY2021 ($119,000), though
+        # TMQ's own capex genuinely goes to ~$0 from FY2022 onward (see the
+        # PurchaseOfExplorationAndEvaluationAssets comment above for why that's a genuine
+        # business-model change, not a missing-concept bug for TMQ specifically). Standard
+        # taxonomy element, so this should recover other mining/oil-and-gas filers beyond
+        # the ones checked live this session, not just TMQ.
+        "PaymentsToAcquireMineralRights",
         # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurers (SIC
         # 6311/6321/6331/6351/6361/6399) hold investment real estate as part of their
         # portfolio, tagged under these two insurer-specific concepts rather than any
