@@ -18,6 +18,7 @@ import psycopg2
 
 from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
 from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT, _dividend_sustainability_factor
+from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.type_conversion import safe_float
 
 logger = logging.getLogger("loaders.load_stock_scores")
@@ -529,7 +530,16 @@ class ValueMetricsMixin:
         """
         try:
             with _owner().DatabaseContext("write") as cur:
-                cur.execute("""
+                # ACTIVE-UNIVERSE GUARD (added 2026-09-09, migration 1276's own code fix - see
+                # NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE's own module-level comment in
+                # utils/loaders/helpers.py for the full evidence trail). Without this, a closed-
+                # end fund/BDC/trust row that predates (or later drifted out of) the active-
+                # universe exclusion get_active_symbols(exclude_etfs=True) enforces for the
+                # per-symbol fetch path keeps getting value_score/composite_score freshly
+                # recomputed here forever - the per-symbol fetch that WOULD exclude it going
+                # forward never runs an UPDATE/DELETE against a row it no longer selects.
+                cur.execute(
+                    """
                     SELECT ss.symbol, ss.value_score, ss.composite_score, ss.risk_score,
                            ss.quality_score, ss.growth_score, ss.momentum_score,
                            vm.pe_ratio, vm.pb_ratio, vm.ps_ratio, vm.forward_pe,
@@ -540,9 +550,14 @@ class ValueMetricsMixin:
                     FROM stock_scores ss
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
+                    JOIN stock_symbols su ON su.symbol = ss.symbol
+                    LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
                     WHERE ss.value_score IS NOT NULL
                       AND COALESCE(vm.data_unavailable, false) = false
-                """)
+                      AND ("""
+                    + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                    + ")"
+                )
                 rows = cur.fetchall()
 
             if not rows:

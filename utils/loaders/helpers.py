@@ -71,6 +71,44 @@ _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS: frozenset[str] = frozenset(
     }
 )
 
+# NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE (added 2026-09-09, migration 1276's own fix -
+# "digging into weird scoring rules" goal session). Extracted from this function's own SQL
+# below so downstream BATCH (post_run) recompute passes - loaders/helpers/vqg_quality_batch.py's
+# update_quality_sector_neutral_scores(), loaders/stock_scores/value_metrics.py's
+# update_value_multiples_percentiles(), growth_scoring.py's update_growth_sector_neutral_scores(),
+# momentum_scoring.py's update_rs_percentiles() - can apply the IDENTICAL active-universe check
+# this function's own SQL uses for the per-symbol fetch path, rather than re-deriving or
+# hand-copying it. Those 4 batch passes previously scanned "every row in {quality,growth,value}_
+# metrics/stock_scores with a non-null score", with no check the symbol still belongs to this
+# same active, non-fund scored universe - live-confirmed closed-end funds/trusts/BDCs whose
+# quality_metrics/etc. row predates this exclusion (or whose company_info_sec classification
+# later flipped) kept getting freshly recomputed sector-neutral z-scores/percentiles forever,
+# since the per-symbol fetch path that WOULD exclude them going forward never runs an UPDATE/
+# DELETE against an already-existing row it no longer selects - it just stops writing NEW ones.
+# RGT (Royce Global Trust) held the single highest quality_score in the entire live universe
+# this way. lambda/api/routes/scores_handlers/coverage.py already established the "duplicate
+# this exact SQL fragment as a template string with named format() placeholders" pattern for
+# the identical reason (a real circular-import/concurrent-edit risk across loaders/lambda-api
+# boundaries) - see that module's own _NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE for the
+# sibling copy. If this exclusion is ever refined again (a new carve-out, etc.), grep for
+# NON_OPERATING_COMPANY_EXCLUSION_SQL to find every copy that needs the same update.
+NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE = (
+    """
+    {symbols_alias}.active = true
+    AND {symbols_alias}.data_unavailable IS NOT TRUE
+    AND ({symbols_alias}.etf IS NULL OR {symbols_alias}.etf != 'true')
+    AND {symbols_alias}.security_name !~* '\\y(Warrant|Unit|Contingent Value|ETNs?|Exchange[- ]Traded Notes?|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Crypto|Debenture|Subordinated|Preferred|Perpetual)\\y'
+    AND NOT (
+          COALESCE({company_info_alias}.sic_code, 0) = 0
+          AND COALESCE({company_info_alias}.entity_type, 'operating') IN ('other', 'investment')
+          AND {symbols_alias}.symbol != 'OZK'
+    )
+    AND {symbols_alias}.symbol NOT IN ('TVC', 'TVE', 'SCE$L', 'GRN')
+    AND {symbols_alias}.symbol NOT IN ("""
+    + ", ".join(f"'{sym}'" for sym in sorted(_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS))
+    + ")"
+)
+
 
 def get_api_key(secret_name: str, env_var: str, default: str | None = None, required: bool = False) -> str | None:
     """Fetch API key from AWS Secrets Manager with fallback to environment variable.

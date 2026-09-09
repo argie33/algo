@@ -21,6 +21,7 @@ import psycopg2
 
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
 from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
+from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.loaders.unavailable_markers import marker_loader_failed
 from utils.type_conversion import safe_float
 
@@ -630,7 +631,15 @@ class GrowthScoringMixin:
         try:
             with _owner().DatabaseContext("write") as cur:
                 # FIX 2026-09-09: no gm.data_unavailable gate (Pass 1 scores partial-field rows despite it, see _get_growth_metrics 2026-09-04 fix) - ss.growth_score IS NOT NULL is the real gate.
-                cur.execute("""
+                # ACTIVE-UNIVERSE GUARD (added 2026-09-09, migration 1276's own code fix - see
+                # NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE's own module-level comment in
+                # utils/loaders/helpers.py for the full evidence trail). Without this, a closed-
+                # end fund/BDC/trust row that predates (or later drifted out of) the active-
+                # universe exclusion get_active_symbols(exclude_etfs=True) enforces for the
+                # per-symbol fetch path keeps getting growth_score/composite_score freshly
+                # recomputed here forever.
+                cur.execute(
+                    """
                     SELECT ss.symbol, ss.growth_score, ss.composite_score, ss.quality_score,
                            ss.value_score, ss.risk_score, ss.momentum_score, ss.components,
                            ss.data_completeness, ss.data_unavailable,
@@ -642,8 +651,13 @@ class GrowthScoringMixin:
                     FROM stock_scores ss
                     JOIN growth_metrics gm ON gm.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
+                    JOIN stock_symbols su ON su.symbol = ss.symbol
+                    LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
                     WHERE ss.growth_score IS NOT NULL
-                """)
+                      AND ("""
+                    + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                    + ")"
+                )
                 rows = cur.fetchall()
 
             if not rows:

@@ -22,6 +22,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
+from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 
 
 def _owner() -> Any:
@@ -122,15 +123,30 @@ class QualityBatchMixin:
         """
         try:
             with _owner().DatabaseContext("write") as cur:
-                cur.execute("""
+                # ACTIVE-UNIVERSE GUARD (added 2026-09-09, migration 1276's own code fix - see
+                # NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE's own module-level comment in
+                # utils/loaders/helpers.py for the full evidence trail). This batch pass
+                # previously scanned every quality_metrics row with a non-null quality_score,
+                # with no check the symbol still belongs to the active, non-fund scored universe
+                # get_active_symbols(exclude_etfs=True) already enforces for the per-symbol fetch
+                # path - a closed-end fund/BDC/trust whose row predates that exclusion kept
+                # getting its sector-neutral z-score freshly recomputed here forever (live-
+                # confirmed RGT held the single highest quality_score in the entire universe).
+                cur.execute(
+                    """
                     SELECT qm.symbol, cp.sector, cp.industry, qm.roe, qm.roa, qm.roce_pct, qm.fcf_margin,
                            qm.debt_to_equity, qm.margin_volatility, qm.asset_turnover, qm.gross_profitability,
                            qm.quality_score
                     FROM quality_metrics qm
                     LEFT JOIN company_profile cp ON cp.symbol = qm.symbol
+                    JOIN stock_symbols su ON su.symbol = qm.symbol
+                    LEFT JOIN company_info_sec cis ON cis.symbol = qm.symbol
                     WHERE qm.quality_score IS NOT NULL
                       AND COALESCE(qm.data_unavailable, false) = false
-                """)
+                      AND ("""
+                    + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                    + ")"
+                )
                 rows = cur.fetchall()
 
             if not rows:
