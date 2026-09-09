@@ -815,12 +815,77 @@ class TestExtractSegmentRevenueFromXbrlXml:
             "NEERSegmentMember": 8_760_000_000.0,
         }
 
-    def test_legal_entity_axis_not_stripped_when_member_differs_from_segment(self) -> None:
-        """Guard against over-stripping: a LegalEntityAxis dimension whose member
-        does NOT match the segment axis member in the same context is a genuine
-        further breakdown (e.g. a different co-registrant reporting within the same
-        segment) and must still disqualify the context as a cross-tab, exactly like
-        any other unrecognized second dimension."""
+    def test_legal_entity_axis_stripped_when_bijective_but_differently_named(self) -> None:
+        """Real filer shape (verified live against American States Water's (AWR)
+        real FY2025 10-K instance document): AWR's segments each map to ONE
+        DEDICATED regulated subsidiary, but the subsidiary's own name never matches
+        the segment label - StatementBusinessSegmentsAxis=WaterServiceUtilityOperationsMember
+        is always paired with LegalEntityAxis=GoldenStateWaterCompanyMember,
+        ElectricServiceUtilityOperationsMember always with
+        BearValleyElectricServiceIncMember. Since the exact-name-match rule (NEE's
+        shape) can't recognize this, it must be recognized via the document-wide
+        1:1 (entity <-> segment) check instead: neither entity is EVER paired with
+        the other's segment anywhere in the document, so both are safe to treat as
+        identity, not a further breakdown. Values match AWR's real reported FY2025
+        segment revenue (Water $464,114,000 + Electric $57,217,000), which together
+        with a third bijective segment/entity pair sums exactly to AWR's own plain
+        consolidated Revenues total ($658,073,000 FY2025)."""
+        contexts = (
+            _multi_dim_context(
+                "c1",
+                [
+                    ("StatementBusinessSegmentsAxis", "WaterServiceUtilityOperationsMember"),
+                    ("LegalEntityAxis", "GoldenStateWaterCompanyMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [
+                    ("StatementBusinessSegmentsAxis", "ElectricServiceUtilityOperationsMember"),
+                    ("LegalEntityAxis", "BearValleyElectricServiceIncMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [
+                    ("StatementBusinessSegmentsAxis", "ContractedServicesMember"),
+                    ("LegalEntityAxis", "AmericanStatesUtilityServicesMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">464114000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">57217000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c3">136742000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "AWR")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 3
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "WaterServiceUtilityOperationsMember": 464_114_000.0,
+            "ElectricServiceUtilityOperationsMember": 57_217_000.0,
+            "ContractedServicesMember": 136_742_000.0,
+        }
+        assert sum(revenues.values()) == 658_073_000.0
+
+    def test_legal_entity_axis_not_stripped_when_used_across_multiple_segments(self) -> None:
+        """Guard against over-stripping: a LegalEntityAxis member that appears
+        paired with 2+ DIFFERENT segment-axis members somewhere in the document is
+        a genuine further breakdown (a co-registrant reporting within more than one
+        segment), not a fixed one-segment-per-subsidiary identity like NEE's or
+        AWR's - it must still disqualify the context as a cross-tab, exactly like
+        any other unrecognized second dimension. This is the case the bijective
+        LegalEntityAxis-stripping fix above must NOT also start stripping."""
         contexts = _multi_dim_context(
             "c1",
             [
@@ -830,9 +895,19 @@ class TestExtractSegmentRevenueFromXbrlXml:
             ],
             "2025-01-01",
             "2025-12-31",
+        ) + _multi_dim_context(
+            "c2",
+            [
+                ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("StatementBusinessSegmentsAxis", "NEERSegmentMember"),
+                ("LegalEntityAxis", "SomeOtherSubsidiaryMember"),
+            ],
+            "2025-01-01",
+            "2025-12-31",
         )
         facts = """
         <us-gaap:RegulatedAndUnregulatedOperatingRevenue contextRef="c1">18262000000</us-gaap:RegulatedAndUnregulatedOperatingRevenue>
+        <us-gaap:RegulatedAndUnregulatedOperatingRevenue contextRef="c2">8760000000</us-gaap:RegulatedAndUnregulatedOperatingRevenue>
         """
         xml_content = self._xml(contexts, facts)
 

@@ -710,6 +710,60 @@ class XBRLSegmentParser:
         return name.strip() or member_local_name
 
     @staticmethod
+    def _index_legal_entity_to_segments(root: ET.Element) -> dict[str, set[str]]:
+        """Map each dei:LegalEntityAxis member -> the set of segment-axis members it's
+        ever paired with, anywhere in the whole instance document.
+
+        FIXED 2026-09-09 (goal: "missing SEC/XBRL data" audit, sec_segment_info/
+        sec_segment_metrics no_segment_revenue_in_xbrl_xml investigation): live-verified
+        against American States Water's (AWR, CIK 1056903) real FY2025 10-K instance
+        document (awr-20251231_htm.xml, accession 0001628280-26-009114). AWR's segments each
+        map to ONE DEDICATED regulated subsidiary - StatementBusinessSegmentsAxis=
+        WaterServiceUtilityOperationsMember is always paired with dei:LegalEntityAxis=
+        GoldenStateWaterCompanyMember, ElectricServiceUtilityOperationsMember always with
+        BearValleyElectricServiceIncMember, ContractedServicesMember always with
+        AmericanStatesUtilityServicesMember - a fixed, non-overlapping 1:1 mapping, the same
+        "entity identity, not a further breakdown" shape as NEE's FPL case (see
+        _LEGAL_ENTITY_AXIS docstring), just with a DIFFERENT member name on each axis instead
+        of an identical one (AWR's subsidiaries are named after their regulated business, not
+        after the segment label itself). The old exact-name-match check in
+        _index_segment_contexts couldn't recognize this, so these dual-dimensioned contexts
+        were excluded as "cross-tabbed" even though AWR's own real, complete segment revenue
+        is tagged there and nowhere else - us-gaap:Revenues at these 3 contexts (Water
+        $464,114,000 + Electric $57,217,000 + Contracted Services $136,742,000 =
+        $658,073,000 FY2025) sums EXACTLY to AWR's own plain consolidated Revenues total for
+        the same period, confirming these are the real segment totals, not a finer
+        sub-breakdown.
+
+        Generalized here via a document-wide check instead of exact-name matching:
+        _index_segment_contexts treats a LegalEntityAxis member as identity (safe to strip)
+        when it is associated with EXACTLY ONE segment-axis member anywhere in the whole
+        instance document (this dict having a value of size 1) - whether because the names
+        match (NEE) or because the filer simply never reuses that subsidiary across more
+        than one segment (AWR). A LegalEntityAxis member seen paired with 2+ DIFFERENT
+        segment members somewhere in the document is a genuine cross-tab (a co-registrant
+        reporting within more than one segment) and is still NOT stripped - this deliberately
+        preserves the existing fail-closed behavior for that case (see
+        test_legal_entity_axis_not_stripped_when_used_across_multiple_segments).
+        """
+        entity_to_segments: dict[str, set[str]] = {}
+        for ctx in root.iter():
+            if _local_name(ctx.tag) != "context":
+                continue
+            raw_members: list[tuple[str, str]] = []
+            for child in ctx.iter():
+                if _local_name(child.tag) == "explicitMember":
+                    dim_local = _qname_local(child.get("dimension"))
+                    raw_members.append((dim_local, _qname_local(child.text)))
+            segs_here = {m[1] for m in raw_members if m[0] in _SEGMENT_AXIS_LOCAL_NAMES}
+            if not segs_here:
+                continue
+            for m in raw_members:
+                if m[0] == _LEGAL_ENTITY_AXIS:
+                    entity_to_segments.setdefault(m[1], set()).update(segs_here)
+        return entity_to_segments
+
+    @staticmethod
     def _index_segment_contexts(root: ET.Element) -> dict[str, tuple[str, str, str, str | None, bool]]:
         """Map context id -> (axis_local_name, segment_member, period_end, period_start, is_boilerplate_paired).
 
@@ -733,7 +787,12 @@ class XBRLSegmentParser:
         times over. Restricting to single-dimension-or-OperatingSegmentsMember-
         paired contexts keeps only the true segment-level (or geography-level)
         totals.
+
+        See _index_legal_entity_to_segments for the AWR-shape LegalEntityAxis
+        bijection check used below (also handles NEE's exact-name-match shape as a
+        special case of the same rule).
         """
+        entity_to_segments = XBRLSegmentParser._index_legal_entity_to_segments(root)
         context_segment: dict[str, tuple[str, str, str, str | None, bool]] = {}
         for ctx in root.iter():
             if _local_name(ctx.tag) != "context":
@@ -766,15 +825,22 @@ class XBRLSegmentParser:
 
             is_boilerplate_paired = any(_is_boilerplate_pair(m) for m in explicit_members)
             non_boilerplate = [m for m in explicit_members if not _is_boilerplate_pair(m)]
-            # Also drop a co-registrant LegalEntityAxis dimension whose member is
-            # IDENTICAL to a segment-axis member already present in this same
-            # context - that's the subsidiary's own registrant identity, not a
-            # further breakdown (see _LEGAL_ENTITY_AXIS docstring). Only strips
-            # when the member matches exactly, so it can't hide a real
-            # further-breakdown-by-entity case.
+            # Also drop a co-registrant LegalEntityAxis dimension that identifies WHICH
+            # subsidiary reports a segment rather than further breaking it down - either
+            # because its member is IDENTICAL to the segment-axis member in this same context
+            # (NEE's shape), or because, across the whole document, this entity member is
+            # associated with exactly one segment-axis member (AWR's shape - see the FIXED
+            # 2026-09-09 comment above). A LegalEntityAxis member ever paired with 2+ distinct
+            # segment members anywhere in the document is a genuine further-breakdown-by-entity
+            # case and is left in place, still disqualifying the context as a cross-tab.
             segment_members = {m[1] for m in non_boilerplate if m[0] in _SEGMENT_AXIS_LOCAL_NAMES}
             non_boilerplate = [
-                m for m in non_boilerplate if not (m[0] == _LEGAL_ENTITY_AXIS and m[1] in segment_members)
+                m
+                for m in non_boilerplate
+                if not (
+                    m[0] == _LEGAL_ENTITY_AXIS
+                    and (m[1] in segment_members or len(entity_to_segments.get(m[1], set())) == 1)
+                )
             ]
             if len(non_boilerplate) != 1:
                 continue
