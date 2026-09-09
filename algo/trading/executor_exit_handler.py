@@ -927,13 +927,62 @@ class ExitHandler:
 
         # See executor_exit_standalone_stop.py (2026-09-05 real-money-readiness fix).
         if full_exit:
-            cancel_standalone_stop_on_full_exit(
+            standalone_cancel_result = cancel_standalone_stop_on_full_exit(
                 self.context._cancel_bracket_orders,
                 cur,
                 trade_id,
                 position_id,
                 fetch_standalone_stop_order_id(cur, position_id),
             )
+            # FIX (2026-09-09 real-money-readiness audit): symmetric fill-vs-cancel race
+            # check to the bracket-order handling above - a Phase-9-repaired position's
+            # standalone stop can fire at the broker in the instant this cancel request
+            # lands, exactly like a bracket leg can. This fill info used to be silently
+            # discarded, so a new full-quantity sell order would still be submitted on top
+            # of an already-executed fill - an oversell/short. Reuses the exact same
+            # raced_filled_qty/raced_fill_price/raced_fill_closed_position variables the
+            # bracket path already threads through to the order-submission decision below.
+            raw_standalone_raced_qty = standalone_cancel_result.get("filled_qty")
+            if raw_standalone_raced_qty:
+                standalone_raced_fill_price = standalone_cancel_result.get("filled_avg_price")
+                if standalone_raced_fill_price is None:
+                    raise RuntimeError(
+                        f"[EXIT_HANDLER CRITICAL] {trade_id} {symbol}: {raw_standalone_raced_qty} shares "
+                        f"filled during the standalone-stop-cancel race but no fill price was "
+                        f"available - cannot safely determine the remaining exit quantity."
+                    )
+                standalone_raced_qty = float(raw_standalone_raced_qty)
+                raced_fill_price = standalone_raced_fill_price
+                if standalone_raced_qty >= shares_to_exit:
+                    raced_fill_closed_position = True
+                    logger.warning(
+                        f"[EXIT_HANDLER] {trade_id} {symbol}: standalone stop fully filled "
+                        f"({standalone_raced_qty}sh @ ${standalone_raced_fill_price}) during the "
+                        f"cancel race - position already closed at the broker. Recording that "
+                        f"fill instead of submitting a new exit order (would have oversold/shorted)."
+                    )
+                else:
+                    logger.warning(
+                        f"[EXIT_HANDLER] {trade_id} {symbol}: standalone stop partially filled "
+                        f"{standalone_raced_qty}sh @ ${standalone_raced_fill_price} during the "
+                        f"cancel race - reducing the new exit order from {shares_to_exit}sh to "
+                        f"{shares_to_exit - standalone_raced_qty}sh to avoid double-selling the "
+                        f"already-filled portion."
+                    )
+                    shares_to_exit = shares_to_exit - standalone_raced_qty
+                raced_filled_qty = (raced_filled_qty or 0) + standalone_raced_qty
+                try:
+                    notify(
+                        "critical",
+                        title=f"Fill-vs-cancel race on exit (standalone stop): {symbol}",
+                        message=(
+                            f"Trade {trade_id}: standalone protective stop filled "
+                            f"{standalone_raced_qty}sh @ ${standalone_raced_fill_price} during a "
+                            f"full-exit cancel race - verify no duplicate/oversold quantity."
+                        ),
+                    )
+                except NotificationError as e:
+                    logger.warning(f"Failed to send fill-vs-cancel-race exit alert for {symbol}: {e}")
 
         # Execute exit order (if not review/paper mode)
         actual_fill_price = None

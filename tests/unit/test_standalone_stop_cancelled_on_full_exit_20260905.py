@@ -62,13 +62,16 @@ class TestCancelStandaloneStopOnFullExit:
         cancel_fn = MagicMock()
         cur = MagicMock()
 
-        cancel_standalone_stop_on_full_exit(cancel_fn, cur, trade_id=1, position_id=1, standalone_stop_order_id=None)
+        result = cancel_standalone_stop_on_full_exit(
+            cancel_fn, cur, trade_id=1, position_id=1, standalone_stop_order_id=None
+        )
 
         cancel_fn.assert_not_called()
         cur.execute.assert_not_called()
+        assert result.get("filled_qty") is None
 
     def test_cancels_order_and_clears_column_on_success(self):
-        cancel_fn = MagicMock(return_value={"success": True})
+        cancel_fn = MagicMock(return_value={"success": True, "filled_qty": None, "filled_avg_price": None})
         cur = MagicMock()
 
         cancel_standalone_stop_on_full_exit(
@@ -94,6 +97,29 @@ class TestCancelStandaloneStopOnFullExit:
 
         cur.execute.assert_called_once()
 
+    def test_returns_fill_info_for_caller_to_detect_a_cancel_race(self):
+        """FIX (2026-09-09 real-money-readiness audit): the caller (executor_exit_handler.py)
+        must be able to see filled_qty/filled_avg_price to detect a standalone stop that
+        fired at the broker during this cancel request - previously this info was silently
+        discarded, risking an oversell if a new full-quantity exit order was submitted on
+        top of an already-executed fill."""
+        cancel_fn = MagicMock(
+            return_value={
+                "success": False,
+                "message": "already terminal - filled 50 shares before the cancel raced past it",
+                "filled_qty": 50.0,
+                "filled_avg_price": 12.34,
+            }
+        )
+        cur = MagicMock()
+
+        result = cancel_standalone_stop_on_full_exit(
+            cancel_fn, cur, trade_id=1, position_id=42, standalone_stop_order_id="order-123"
+        )
+
+        assert result["filled_qty"] == 50.0
+        assert result["filled_avg_price"] == 12.34
+
 
 class TestExecuteExitCallsHelpersOnFullExit:
     """_execute_exit()'s full flow has a large downstream dependency graph (order
@@ -104,4 +130,4 @@ class TestExecuteExitCallsHelpersOnFullExit:
     def test_source_wires_the_helpers_gated_on_full_exit(self):
         assert "fetch_standalone_stop_order_id" in SOURCE
         assert "cancel_standalone_stop_on_full_exit" in SOURCE
-        assert "if full_exit:\n            cancel_standalone_stop_on_full_exit(" in SOURCE
+        assert "if full_exit:\n            standalone_cancel_result = cancel_standalone_stop_on_full_exit(" in SOURCE

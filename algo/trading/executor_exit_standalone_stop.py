@@ -52,12 +52,25 @@ def cancel_standalone_stop_on_full_exit(
     trade_id: int,
     position_id: int | None,
     standalone_stop_order_id: str | None,
-) -> None:
+) -> dict[str, Any]:
     """Cancel a previously auto-repaired standalone protective stop and clear its id.
 
-    No-op when there was never a standalone stop for this position. Reuses
-    OrderManager.cancel_bracket_orders as `cancel_order_fn` - despite the name it just
-    DELETEs an order by id, no bracket-specific assumptions, so it works fine here too.
+    No-op (returns filled_qty=None) when there was never a standalone stop for this
+    position. Reuses OrderManager.cancel_bracket_orders as `cancel_order_fn` - despite the
+    name it just DELETEs an order by id, no bracket-specific assumptions, so it works fine
+    here too - and that function ALREADY performs a post-cancel fill check and returns
+    filled_qty/filled_avg_price (its own FILL-VS-CANCEL RACE fix, 2026-09-01).
+
+    FIX (2026-09-09 real-money-readiness audit): this used to discard that fill info
+    entirely, unlike executor_exit_handler.py's symmetric bracket-order cancel path (its
+    own FILL-VS-CANCEL RACE fix, 2026-09-05), which checks filled_qty and reduces (or
+    skips) the subsequent new exit order accordingly. Without it, a standalone stop
+    (Phase-9-repaired position) that fired at the broker in the instant this cancel
+    request landed went completely unnoticed - the caller would still submit a brand-new
+    full-quantity sell order on top of a fill that already happened, overselling or
+    shorting the symbol. Now returns the same {success, message, filled_qty,
+    filled_avg_price} shape as cancel_bracket_orders so the caller can apply the identical
+    race-handling it already does for the bracket path.
 
     Clears algo_positions.standalone_stop_order_id regardless of cancel outcome: a 422
     (already terminal/filled) means the order is gone from the broker's perspective
@@ -65,7 +78,12 @@ def cancel_standalone_stop_on_full_exit(
     this position as unprotected forever on a future auto-repair pass.
     """
     if not standalone_stop_order_id:
-        return
+        return {
+            "success": False,
+            "message": "No standalone stop for this position",
+            "filled_qty": None,
+            "filled_avg_price": None,
+        }
 
     result = cancel_order_fn(standalone_stop_order_id)
     if not result.get("success"):
@@ -78,6 +96,7 @@ def cancel_standalone_stop_on_full_exit(
         "UPDATE algo_positions SET standalone_stop_order_id = NULL WHERE position_id = %s",
         (position_id,),
     )
+    return result
 
 
 def resize_standalone_stop_after_partial_exit(
