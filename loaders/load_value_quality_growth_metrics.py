@@ -664,6 +664,17 @@ class ValueQualityGrowthMetricsLoader(
                     ),
                 )
                 quality_row_db = cur.fetchone()
+                # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700):
+                # recent IPOs (real 10-Qs filed, no 10-K yet) have zero annual_balance_sheet
+                # rows, so the query above returns nothing at all - quality_row_db stays None
+                # and _compute_quality_metrics short-circuits the WHOLE row to a single generic
+                # unavailable marker, even though several ratios (debt_to_assets/current_ratio/
+                # quick_ratio directly, roa/roe/net_margin/sustainable_growth_rate via the
+                # net_income TTM fallback already added this session) could still compute from
+                # real quarterly_balance_sheet + quarterly_income_statement data. See
+                # _fetch_balance_sheet_row_from_quarterly's own docstring.
+                if quality_row_db is None:
+                    quality_row_db = self._fetch_balance_sheet_row_from_quarterly(cur, symbol)
 
                 # Get annual income statement history for growth computation (not from growth_metrics
                 # table). No revenue IS NOT NULL filter - banks often have NULL revenue but valid
@@ -866,6 +877,88 @@ class ValueQualityGrowthMetricsLoader(
             return None
         total = sum(safe_float(r[0], f"{symbol}.ttm_net_income_quarter", allow_none=True) or 0.0 for r in rows)
         return self._nan_to_none(total)
+
+    @staticmethod
+    def _fetch_balance_sheet_row_from_quarterly(cur: Any, symbol: str) -> tuple[Any, ...] | None:
+        """Build a substitute quality_row (same 35-column shape the caller's primary
+        annual_balance_sheet-anchored query returns) from the latest real quarterly_balance_sheet
+        row, for symbols with zero annual_balance_sheet rows (recent IPOs: real 10-Qs filed, no
+        10-K yet).
+
+        Only the balance-sheet columns (stockholders_equity/total_liabilities/total_assets/
+        current_assets/current_liabilities/inventory/long_term_debt/cash_and_equivalents) and
+        fiscal_year are populated - a balance sheet is a point-in-time snapshot, so unlike
+        net_income/revenue there's no TTM summing concept; the latest real quarter's figures
+        ARE the current position. Every income-statement/cash-flow column is left None:
+        _compute_quality_metrics's own per-field fallbacks already tolerate that (including the
+        net_income TTM-from-quarterly fallback added this session, which independently queries
+        quarterly_income_statement when quality_row[3] is None). Returns None (not a fabricated
+        row) when no real quarterly_balance_sheet row exists either - callers must keep their
+        existing "truly no data" handling in that case.
+        """
+        cur.execute(
+            """
+            SELECT stockholders_equity, total_liabilities, total_assets, current_assets,
+                   current_liabilities, inventory, long_term_debt, cash_and_equivalents,
+                   fiscal_year
+            FROM quarterly_balance_sheet
+            WHERE symbol = %s AND data_unavailable IS NOT TRUE
+            ORDER BY fiscal_year DESC, fiscal_quarter DESC
+            LIMIT 1
+            """,
+            (symbol,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        (
+            stockholders_equity,
+            total_liabilities,
+            total_assets,
+            current_assets,
+            current_liabilities,
+            inventory,
+            long_term_debt,
+            cash_and_equivalents,
+            fiscal_year,
+        ) = row
+        return (
+            stockholders_equity,  # 0
+            total_liabilities,  # 1
+            total_assets,  # 2
+            None,  # 3 net_income
+            None,  # 4 revenue
+            None,  # 5 operating_income
+            current_assets,  # 6
+            current_liabilities,  # 7
+            fiscal_year,  # 8
+            inventory,  # 9
+            None,  # 10 interest_expense
+            None,  # 11 shares_outstanding
+            None,  # 12 cost_of_revenue
+            None,  # 13 operating_cash_flow
+            None,  # 14 free_cash_flow
+            None,  # 15 dividends_paid
+            None,  # 16 earnings_per_share
+            None,  # 17 prior_year_eps
+            None,  # 18 prior_year_revenue
+            None,  # 19 gross_profit
+            long_term_debt,  # 20
+            cash_and_equivalents,  # 21
+            None,  # 22 income_tax_expense
+            None,  # 23 pretax_income
+            None,  # 24 prior_year_net_income
+            None,  # 25 prior_year_operating_income
+            None,  # 26 prior_year_operating_cash_flow
+            None,  # 27 prior_year_free_cash_flow
+            None,  # 28 prior_year_cost_of_revenue
+            None,  # 29 prior_year_total_assets
+            None,  # 30 prior_year_stockholders_equity
+            None,  # 31 prior_year_pretax_income
+            None,  # 32 prior_year_interest_expense
+            None,  # 33 prior_year_gross_profit
+            None,  # 34 prior_year_dividends_paid
+        )
 
     def _fetch_positioning_metrics(self, symbol: str) -> tuple[float | None, str | None]:
         """Fetch held_percent_institutions from positioning_metrics.
