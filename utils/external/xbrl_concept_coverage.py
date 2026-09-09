@@ -343,7 +343,22 @@ NOISE_SUBSTRINGS = [
     "ParValuePerShare",  # spot-checked val=0 on AGNICO EAGLE - per-share, not a $ line item
     "ShareIssueRelatedCost",
     "DividendsPaidOrdinaryShares",  # also catches the DividendsPaidOrdinarySharesPerShare variant
-    "BasicAndDilutedEarningsLossPerShare",  # spot-checked val=-3.81 on Scully Royalty - per-share, not $
+    # REMOVED 2026-09-09 (goal session: SEC/XBRL missing-data reduction,
+    # eps_never_tagged_in_filings investigation): "BasicAndDilutedEarningsLossPerShare" was
+    # wrongly dismissed here as noise on the reasoning "per-share, not $" - that reasoning
+    # correctly excludes a genuinely irrelevant per-share disclosure (ParValuePerShare,
+    # DividendsPaidOrdinarySharesPerShare above), but this concept IS the actual headline EPS
+    # figure this schema wants (IFRS's combined-basis analog of us-gaap's
+    # "EarningsPerShareBasicAndDiluted", which is fetched, not dismissed, for the same
+    # reason). Live-confirmed via real companyfacts JSON that NAK (Northern Dynasty Minerals,
+    # CIK 0001164771) tags ONLY this concept for its real EPS (FY2016-2020, e.g. FY2020=0.13
+    # CAD/shares) - no BasicEarningsLossPerShare/DilutedEarningsLossPerShare at all - and that
+    # GLBS (Globus Maritime) and this dismissal's own cited Scully Royalty example both have
+    # real, plausible values under it too. Now fetched via a new
+    # utils/external/sec_income_statement.py._INCOME_IFRS_ALIASES entry (fallback-only,
+    # reuses "EarningsPerShareBasicAndDiluted"'s existing raw key/fallback-only registration -
+    # see that file's own comment for the full evidence) instead of staying permanently
+    # invisible to future coverage scans.
     # JV/associates equity-method detail (spot-checked ShareOfProfitLossOfAssociatesAnd
     # JointVenturesAccountedForUsingEquityMethod=414,000,000 and InvestmentAccountedForUsing
     # EquityMethod=4,586,000,000 on BANK OF NOVA SCOTIA's 40-F - equity-method sub-line
