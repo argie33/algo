@@ -42,6 +42,15 @@ from utils.trading import PositionStatus
 
 logger = logging.getLogger(__name__)
 
+# algo_trades/algo_positions/algo_trades_archive.exit_reason is VARCHAR(255) (migration 1275
+# widened it to match lambda/db-init/schema.sql's always-declared width - the deployed columns
+# had silently drifted to VARCHAR(100), which is what caused the 2026-09-08 live
+# StringDataRightTruncation crash documented in phase9_reconciliation.py). Truncate
+# defensively here, at the single point every exit_reason enters this module, so a future
+# over-length reason string (or an environment where the migration hasn't been applied yet)
+# can never crash an exit instead of just losing detail off the end of the reason text.
+EXIT_REASON_MAX_LEN = 255
+
 
 class ExitHandler:
     """Handles exit trade execution logic with transaction safety guarantees."""
@@ -89,6 +98,8 @@ class ExitHandler:
         # Stop-raise-only path: raise stop without exiting shares
         if exit_fraction == 0:
             return self._raise_stop_only(trade_id, new_stop_price, cur)
+
+        exit_reason = exit_reason[:EXIT_REASON_MAX_LEN]
 
         # Validate exit parameters
         validation_error = self._validate_exit_params(exit_fraction, exit_price)
