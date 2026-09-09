@@ -127,6 +127,23 @@ _FALLBACK_ONLY_ALIAS_KEYS = {
     # not a live data-loss bug (the fallback function itself was correct and tested).
     "long_term_debt_current",
     "long_term_debt_noncurrent",
+    # ADDED 2026-09-09 (goal: XBRL coverage-scan comment-leak follow-up): "GeneralAndAdministra
+    # tiveExpense" (us-gaap and ifrs-full) and its 5 selling/marketing/distribution-type "gate"
+    # concepts (SellingExpense/SellingAndMarketingExpense/SalesAndMarketingExpense/
+    # MarketingExpense/DistributionCosts) - popped and conditionally promoted into the already-
+    # mapped "selling_general_and_administrative_expense" key by
+    # _fill_sga_from_general_and_administrative_when_no_selling_component() in
+    # utils/external/sec_income_statement_fallbacks.py, same fallback-only-key pattern as the
+    # earnings-per-share keys above. Deliberately never given their own field_mapping entry -
+    # see that fallback's docstring for why (roughly half of filers tagging G&A with no combined
+    # SG&A also separately tag a selling-type expense, so a plain always-mapped alias would
+    # silently understate combined SG&A for them).
+    "general_and_administrative_expense",
+    "selling_expense",
+    "selling_and_marketing_expense",
+    "sales_and_marketing_expense",
+    "marketing_expense",
+    "distribution_costs",
 }
 
 
