@@ -97,6 +97,14 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # ShortTermBorrowings/SeniorNotesCurrent/...) must always keep that value; this
         # only fills the gap when nothing else populated short_term_debt.
         "debt_current",
+        # ADDED 2026-09-09: see sec_balance_sheet.py's get_balance_sheet() comment on
+        # "SecuredDebt" (placed right after DebtCurrent above) for why fallback-only here
+        # exactly resolves the DE collision concern that previously blocked adding it.
+        "secured_debt",
+        # ADDED 2026-09-09: see sec_balance_sheet.py's get_balance_sheet() comment on
+        # "NotesPayableCurrent" - current-portion split of notes_payable, same generic-name
+        # caution.
+        "notes_payable_current",
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "ShortTermBankLoansAndNotesPayable" (EXPD live evidence).
         "short_term_bank_loans_and_notes_payable",
@@ -313,10 +321,22 @@ _BALANCE_FIELD_MAPPING = {
     "short_term_borrowings": "short_term_debt",
     # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): DE (Deere &
     # Company) real short-term debt - see sec_statements.py's get_balance_sheet() comment
-    # on "DebtCurrent" for the live evidence and why its smaller sibling "SecuredDebt" is
-    # deliberately NOT also mapped here (no summing mechanism exists for two concepts on
-    # one target column - see that comment for the full reasoning).
+    # on "DebtCurrent" for the live evidence.
     "debt_current": "short_term_debt",
+    # ADDED 2026-09-09: SecuredDebt (DE's smaller sibling concept to DebtCurrent above) -
+    # SUPERSEDES the prior "deliberately NOT mapped, no summing mechanism" decision. Made
+    # fallback-only instead of summed: DebtCurrent (processed first, listed first in
+    # sec_balance_sheet.py) already claims short_term_debt for DE, so this entry's
+    # fallback-only check correctly skips DE and never overwrites/loses that value; for
+    # the ~399 other filers that tag ONLY SecuredDebt (no DebtCurrent at all), this now
+    # fills a previously-NULL short_term_debt instead of doing nothing. See that file's
+    # own comment for the full DE reasoning this update builds on.
+    "secured_debt": "short_term_debt",
+    # ADDED 2026-09-09: current-portion split of notes_payable (see sec_balance_sheet.py's
+    # NotesPayable comment: "no NotesPayableCurrent sibling" was explicitly noted as absent
+    # for AFL/MAA, implying other filers DO report it) - same generic-name caution as
+    # debt_current above.
+    "notes_payable_current": "short_term_debt",
     # FIXED 2026-09-03 (same sweep): EXPD (Expeditors International) real short-term
     # debt - see sec_statements.py's get_balance_sheet() comment on
     # "ShortTermBankLoansAndNotesPayable" for the live evidence.

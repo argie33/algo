@@ -559,18 +559,26 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # ("Short-term borrowings" $13,796,000,000 FY2025/$13,533,000,000 FY2024, real and
         # continuous back to FY2020; DE never tags CommercialPaper/ShortTermBorrowings/
         # SeniorNotesCurrent, so no overwrite collision with the concepts above for this
-        # filer). DELIBERATELY excludes DE's smaller sibling concept "SecuredDebt"
-        # ("Short-term securitization borrowings", $6,596,000,000 FY2025) - this loader's
-        # transform() has no summing mechanism for two concepts mapped to the same target
-        # column (confirmed by reading loaders/helpers/sec_base.py's transform(): plain
-        # `row[db_field] = value` overwrite, last-processed-wins, not additive - same as
-        # the CommercialPaper/ShortTermBorrowings pair above already documents as a known,
-        # accepted limitation), so adding both here would silently DROP one of the two
-        # real figures rather than capture both. Capturing DebtCurrent alone (the larger,
-        # ~68% of DE's true current debt) is strictly better than the current NULL and
-        # carries no risk of a wrong/incomplete-looking "complete" figure since it's not
-        # claimed to include the securitization piece.
+        # filer). DE's smaller sibling concept "SecuredDebt" ("Short-term securitization
+        # borrowings", $6,596,000,000 FY2025) was ORIGINALLY excluded here on the reasoning
+        # that this loader's transform() has no summing mechanism for two concepts mapped
+        # to the same target column (plain `row[db_field] = value` overwrite,
+        # last-processed-wins, not additive) - SUPERSEDED 2026-09-09: added as a
+        # fallback-only entry right below instead (never sums the two, but no longer
+        # silently drops SecuredDebt for the ~399 OTHER filers that tag only it).
         "DebtCurrent",
+        # ADDED 2026-09-09 (xbrl_concept_coverage_scan.py comment-leak fix follow-up: this
+        # standard us-gaap concept was quoted in the DE comment above discussing what was
+        # deliberately excluded, but never actually fetched - 400 real filers tag it
+        # (scan-confirmed post-fix). Same generic-name caution as DebtCurrent immediately
+        # above (fallback-only: only fills short_term_debt when no other, more specific
+        # concept already did) - this is exactly the mechanism that resolves the DE
+        # collision concern in that comment: DebtCurrent (processed first, listed above)
+        # already fills short_term_debt for DE, so this entry's own fallback-only check
+        # correctly skips DE and never overwrites; for a filer that tags ONLY SecuredDebt
+        # (no CommercialPaper/ShortTermBorrowings/DebtCurrent/etc. at all), this now fills
+        # a previously-NULL short_term_debt instead of silently doing nothing.
+        "SecuredDebt",
         # FIXED 2026-09-03 (same sweep): EXPD (Expeditors International) tags its entire
         # real short-term debt under this concept - live-confirmed via real companyfacts
         # JSON: $53,068,000 FY2023 / $30,660,000 FY2024 / $30,263,000 FY2025, small but
@@ -644,6 +652,16 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # notes_payable above (fallback-only, never wins over a more specific standard concept).
         "LoansPayable",
         "LoansPayableCurrent",
+        # ADDED 2026-09-09 (xbrl_concept_coverage_scan.py comment-leak fix follow-up: this
+        # standard us-gaap concept was quoted in the NotesPayable comment above ("no
+        # NotesPayableCurrent sibling concept" for AFL/MAA), but never actually fetched -
+        # 834 real filers tag it (scan-confirmed post-fix). Targets short_term_debt (the
+        # current-portion split of a filer's notes payable, same relationship as
+        # LongTermDebt/LongTermDebtCurrent). Fallback-only, same generic-name caution as
+        # bare NotesPayable above - only fills short_term_debt when no more specific
+        # concept (CommercialPaper/ShortTermBorrowings/SeniorNotesCurrent/DebtCurrent/etc.)
+        # already did.
+        "NotesPayableCurrent",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
         # continuation): PGR (Progressive) stopped tagging plain "LongTermDebt" after
         # FY2015 (last real fact 2015-12-31, $2.708B) - live-confirmed via real companyfacts
