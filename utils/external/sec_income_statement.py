@@ -145,6 +145,28 @@ _INCOME_IFRS_ALIASES = [
     ("BasicEarningsLossPerShareFromDiscontinuedOperations", "earnings_per_share_basic_discontinued"),
     ("DilutedEarningsLossPerShareFromContinuingOperations", "earnings_per_share_diluted_continuing"),
     ("DilutedEarningsLossPerShareFromDiscontinuedOperations", "earnings_per_share_diluted_discontinued"),
+    # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data reduction,
+    # eps_never_tagged_in_filings investigation): "BasicAndDilutedEarningsLossPerShare" is
+    # IFRS's own combined concept (the direct analog of us-gaap's
+    # "EarningsPerShareBasicAndDiluted", already fetched as a plain concept above and mapped
+    # fallback-only to "earnings_per_share" via load_financial_statements.py's
+    # _INCOME_FIELD_MAPPING/_REVENUE_FALLBACK_ONLY_FIELDS) - previously wrongly treated as
+    # noise by xbrl_concept_coverage.py's NOISE_SUBSTRINGS list (dismissed with the reasoning
+    # "per-share, not $", which conflates a genuinely irrelevant per-share disclosure like
+    # ParValuePerShare with an actual EPS figure - EPS is SUPPOSED to be per-share). Live-
+    # confirmed via real companyfacts JSON: NAK (Northern Dynasty Minerals, CIK 0001164771)
+    # tags ONLY this concept - no BasicEarningsLossPerShare/DilutedEarningsLossPerShare at all
+    # - with real CAD/shares values for FY2016-2020 (e.g. FY2020=0.13); GLBS (Globus Maritime,
+    # CIK 0001499780) tags all three concepts side by side with consistent values through
+    # FY2025 (e.g. FY2024 Basic=0.02, Diluted=0.02, this combined concept also=0.02 the same
+    # year), confirming it is a genuine duplicate/alternate tag for the identical figure, not
+    # a different measure; the coverage scanner's own dismissal comment additionally cites a
+    # third real filer (Scully Royalty, val=-3.81). Reuses the us-gaap concept's own raw key
+    # (not a new one) since it is the identical semantic figure, same "ifrs-source, gaap-
+    # target-key" convention as IncomeTaxExpenseContinuingOperations above - inherits that
+    # key's existing fallback-only registration, so it never overwrites a filer's real split
+    # Basic/Diluted values (e.g. GLBS keeps its own EarningsPerShareBasic-derived value).
+    ("BasicAndDilutedEarningsLossPerShare", "earnings_per_share_basic_and_diluted"),
     # TRIED AND REJECTED 2026-08-03: ("NumberOfSharesOutstanding", "shares_outstanding_basic")
     # as an IFRS alias for foreign 20-F filers (TV/Grupo Televisa, FMX/Femsa, SRAD/Sportradar
     # all lack this data any other way). Live-verified this produces dangerously wrong
