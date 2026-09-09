@@ -1718,7 +1718,7 @@ class ExitEngine:
 
                 WITH d AS (
 
-                    SELECT pd.high, td.atr,
+                    SELECT pd.date, pd.close, pd.high, td.atr,
 
                            ROW_NUMBER() OVER (ORDER BY pd.date DESC) AS rn
 
@@ -1732,24 +1732,34 @@ class ExitEngine:
 
                 )
 
-                SELECT MAX(high) AS hh,
-
-                       (SELECT atr FROM d WHERE rn = 1) AS cur_atr
-
-                FROM d
+                SELECT close, high, atr, rn FROM d ORDER BY rn DESC
 
                 """,
                 (symbol, current_date, max(days_held, 5)),
             )
 
-            row = cur.fetchone()
+            rows = cur.fetchall()
 
-            if not row or len(row) < 2 or row[0] is None or row[1] is None:
+            if not rows or rows[-1][2] is None or any(r[0] is None or r[1] is None for r in rows):
                 raise ValueError(f"Insufficient data for {symbol} to calculate chandelier stop")
 
-            hh = float(row[0])
+            # FIX (2026-09-09 real-money-readiness audit): pd.high was previously MAX()'d
+            # straight from raw/unadjusted price_daily while cur_atr (technical_data_daily)
+            # was already split-adjusted at the source by the 256b71db7 fix earlier this
+            # session - mixing a raw pre-split highest-high with a split-adjusted ATR produces
+            # a chandelier stop far above the real current price, likely false-triggering an
+            # immediate stop-out right after a split. Apply the same detect_and_adjust_splits
+            # used by the 21-EMA branch above (and the offline loader) to the high/close
+            # series before taking the max, so hh and atr agree on units. rows is ascending
+            # by date (rn DESC on a DESC-numbered window = oldest first), matching what
+            # detect_and_adjust_splits expects.
+            adjusted_df = detect_and_adjust_splits(
+                pd.DataFrame({"close": [float(r[0]) for r in rows], "high": [float(r[1]) for r in rows]})
+            )
 
-            atr = float(row[1])
+            hh = float(adjusted_df["high"].max())
+
+            atr = float(rows[-1][2])
 
             # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): same as the 21-EMA
             # branch above - a NaN highest-high or ATR silently propagates through Decimal

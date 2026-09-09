@@ -270,6 +270,56 @@ class CorporateActionsMixin:
         if qty_change_pct <= 20:
             return
 
+        # FIX (2026-09-09 real-money-readiness audit): a >20% qty mismatch used to be treated
+        # as "likely a stock split" with zero corroboration against an actual split ratio -
+        # ANY other cause of a large qty divergence (a mistaken manual broker-side share
+        # adjustment, a reconciliation bug elsewhere, a partial-fill accounting error) would
+        # be misclassified as a split and would actively CORRUPT good entry/stop/target prices
+        # by dividing them by a bogus ratio (e.g. a mistaken 30%-share manual reduction at the
+        # broker would get "corrected" by dividing the real stop-loss price by 0.7, moving a
+        # working stop to the wrong level on a real position). Reuse the same canonical-ratio
+        # matcher the offline loader/tick_validator use to detect splits from price data, so a
+        # qty change is only ever treated as a split here if it actually snaps to a real split
+        # ratio (2, 3, 4, 5, 10, 1/2, 1/3, ...) within tolerance - anything else is an
+        # unexplained mismatch that gets a critical alert for manual review instead of a
+        # silent price rewrite.
+        from loaders.technical_indicators import _match_split_ratio
+
+        observed_ratio = alpaca_qty / db_qty
+        canonical_ratio = _match_split_ratio(observed_ratio)
+        if canonical_ratio is None:
+            adjustments.append(
+                {
+                    "symbol": symbol,
+                    "action": "QTY_MISMATCH_NOT_A_SPLIT|requires_manual_review",
+                    "db_qty": db_qty,
+                    "alpaca_qty": alpaca_qty,
+                }
+            )
+            try:
+                from algo.reporting.notifications import notify
+
+                notify(
+                    "critical",
+                    title="Unexplained quantity mismatch does not match any known split ratio - verify manually",
+                    message=(
+                        f"{symbol} (position id {pos_id}) shows {db_qty} shares in our DB vs "
+                        f"{alpaca_qty} at Alpaca ({qty_change_pct:.1f}% change), but the ratio "
+                        f"{observed_ratio:.4f} doesn't match any canonical stock-split ratio. NOT "
+                        f"treating this as a split and NOT rescaling entry/stop/target prices, since "
+                        f"doing so on a non-split cause would corrupt real risk-protection prices. "
+                        f"Verify at Alpaca directly (manual adjustment, reconciliation error, partial "
+                        f"fill discrepancy, or a genuine but unusual split) before resolving."
+                    ),
+                )
+            except Exception as notify_err:
+                logger.critical(
+                    f"[CORP_ACTION] Failed to alert on unexplained qty mismatch for {symbol} "
+                    f"(position id {pos_id}): {notify_err}",
+                    exc_info=True,
+                )
+            return
+
         self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, trade_ids_arr, adjustments)
 
     def _apply_split_adjustment(
