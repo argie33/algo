@@ -1500,7 +1500,11 @@ def run(  # noqa: C901 -- inherently a long sequential gate (11 early-return hal
             # portfolio symbols have data for the trading date. This causes Phase 6 to halt
             # when evaluating exits for a symbol with no price_daily data (verified root
             # cause of "5 errors" pattern on 2026-07-29). Catch this early.
-            portfolio_halt = validate_portfolio_symbol_prices(cur, phase_data, log_phase_result_fn)
+            # acceptable_min_date (computed above, with its EOD-load-delay grace already applied)
+            # is the same per-run threshold the aggregate table-freshness check uses - passing it
+            # through means a portfolio symbol with an open position is held to the same recency
+            # bar as the rest of the universe, not just "has any row ever" (2026-09-09 fix).
+            portfolio_halt = validate_portfolio_symbol_prices(cur, phase_data, log_phase_result_fn, acceptable_min_date)
             if portfolio_halt:
                 return portfolio_halt
 

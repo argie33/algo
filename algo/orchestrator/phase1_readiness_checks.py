@@ -18,6 +18,7 @@ inline in run() - control flow, thresholds, log messages, and return values are 
 
 import logging
 from collections.abc import Callable
+from datetime import date as _date
 from typing import Any
 
 import psycopg2
@@ -231,9 +232,12 @@ def validate_stock_scores_readiness(
 
 
 def validate_portfolio_symbol_prices(
-    cur: Any, phase_data: dict[str, Any], log_phase_result_fn: Callable[..., Any]
+    cur: Any,
+    phase_data: dict[str, Any],
+    log_phase_result_fn: Callable[..., Any],
+    acceptable_min_date: _date | None = None,
 ) -> PhaseResult | None:
-    """Validate all open-position portfolio symbols have a usable price.
+    """Validate all open-position portfolio symbols have a usable, sufficiently recent price.
 
     CRITICAL NEW CHECK (2026-08-02): Validate portfolio symbols have prices
     Phase 1 verified price_daily overall freshness, but doesn't check if ALL
@@ -241,9 +245,26 @@ def validate_portfolio_symbol_prices(
     when evaluating exits for a symbol with no price_daily data (verified root
     cause of "5 errors" pattern on 2026-07-29). Catch this early.
 
+    FIX (2026-09-09, real-money-readiness data-loader-integrity audit): this used to only
+    check that a portfolio symbol had ANY row in price_daily, with no recency bound - a
+    symbol stuck on a multi-day-old row (a partial same-day loader failure affecting only
+    that symbol, invisible to the aggregate-table freshness check and to DataPatrol's
+    per-symbol staleness check, which only fires WARN past a 7-day lag) passed this check
+    as "has prices" indefinitely. Phase 3/6 would then evaluate stops/exits for a real open
+    position against a stale price with nothing here to catch it. `acceptable_min_date` is
+    the SAME per-run threshold phase1_data_freshness.py's aggregate check already computes
+    (compute_last_trading_day + compute_acceptable_min_date_with_grace +
+    apply_eod_yesterday_price_grace - the "today's data once market close has passed,
+    yesterday's otherwise" rule, with its existing EOD-load-delay grace period) - reusing it
+    here means a portfolio symbol is held to exactly the same bar as the rest of the
+    universe, not a new, separately-tuned threshold. Optional and defaults to None (skips
+    the recency check, preserving prior behavior) only so existing callers/tests that don't
+    thread it through are unaffected - the real Phase 1 caller always passes it.
+
     Mutates `phase_data` in place with portfolio_symbols/portfolio_price_coverage or
     missing_prices, matching the original inline behavior. Returns a halting PhaseResult
-    if any portfolio symbol is missing a price, else None.
+    if any portfolio symbol is missing a price or (when acceptable_min_date is given) stuck
+    on a price older than that threshold, else None.
     """
     try:
         # Get all open positions in portfolio
@@ -264,18 +285,49 @@ def validate_portfolio_symbol_prices(
             cur.execute(
                 """
                 WITH latest_prices AS (
-                    SELECT symbol, close,
+                    SELECT symbol, close, date,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
                     FROM price_daily
                     WHERE symbol = ANY(%s) AND close IS NOT NULL
                 )
-                SELECT symbol, close FROM latest_prices WHERE rn = 1
+                SELECT symbol, close, date FROM latest_prices WHERE rn = 1
             """,
                 (portfolio_symbols,),
             )
             price_rows = cur.fetchall()
             price_symbols = {row[0]: row[1] for row in price_rows}
+            price_dates = {row[0]: row[2] for row in price_rows}
             missing_symbols = [s for s in portfolio_symbols if s not in price_symbols]
+            stale_symbols = (
+                [
+                    s
+                    for s in portfolio_symbols
+                    if s in price_dates and price_dates[s] is not None and price_dates[s] < acceptable_min_date
+                ]
+                if acceptable_min_date is not None
+                else []
+            )
+
+            if stale_symbols:
+                error_msg = (
+                    f"[PHASE 1 CRITICAL] Portfolio symbols have price data older than the "
+                    f"acceptable threshold ({acceptable_min_date}): "
+                    f"{[(s, str(price_dates[s])) for s in stale_symbols]}. "
+                    f"Phase 3/6 would evaluate stops/exits for these open positions against a "
+                    f"stale price. Check price_daily loader logs for a symbol-specific data gap."
+                )
+                logger.critical(error_msg)
+                log_phase_result_fn(1, "portfolio_price_coverage", "halt", error_msg)
+                phase_data["portfolio_symbols"] = len(portfolio_symbols)
+                phase_data["stale_prices"] = stale_symbols
+                return PhaseResult(
+                    1,
+                    "portfolio_price_coverage",
+                    "halted",
+                    phase_data,
+                    True,
+                    f"Portfolio symbols have stale prices: {stale_symbols}",
+                )
 
             if missing_symbols:
                 # CRITICAL: Missing prices for portfolio symbols - cannot execute exits
