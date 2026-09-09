@@ -783,11 +783,24 @@ class PreTradeChecks:
         isn't. Both coexist deliberately: historical_var()/cvar() remain the informational
         realized-P&L report, this is the pretrade gate.
 
-        Fails OPEN (never blocks) when the candidate or ANY currently open position lacks
-        sufficient overlapping price history - same rationale as _check_portfolio_beta: does
-        not silently drop a position from a partial weighted return series, since that could
-        understate or overstate the true simulated VaR in either direction depending on which
-        position happens to be missing data.
+        Fails OPEN (never blocks) only when the CANDIDATE lacks sufficient price history -
+        matching _check_portfolio_beta's identical candidate-side precedent (a genuinely
+        low-risk candidate whose data simply hasn't caught up yet shouldn't be assumed
+        dangerous by this check alone; position_sizer.py's get_data_maturity_multiplier
+        already penalizes sizing for data immaturity independently).
+
+        REAL-MONEY-READINESS FIX (2026-09-08 audit, found alongside the identical
+        _check_correlation_concentration fix): an existing OPEN POSITION lacking sufficient
+        price history used to fail this ENTIRE check open too - the same "single stale/thin
+        reading disables the whole check" bug class already found and fixed for
+        _check_portfolio_beta on 2026-09-06 (see that method's own docstring), never applied
+        here despite this method's docstring explicitly citing that check's rationale. Unlike
+        beta, there is no safe conservative substitute for a missing peer's return series (a
+        synthetic "assumed volatility" series would be fabricated data, not a
+        conservative-but-real number the way beta=1.0 is) - so a peer with insufficient
+        history now fails CLOSED (blocks the candidate) instead of silently skipping the
+        entire portfolio VaR gate at exactly the moment (a recently added, not-yet-fully-
+        scored position sitting in the book) the data-maturity gap makes this most likely.
 
         Performance: recomputes the full weighted return series per candidate rather than
         caching the non-candidate portion across a Phase 8 run - matches
@@ -836,28 +849,45 @@ class PreTradeChecks:
         for row_symbol, row_date, row_close in cur.fetchall():
             closes_by_symbol.setdefault(row_symbol, {})[row_date] = float(row_close)
 
-        # Fails open if ANY position (candidate or existing) lacks price history - see
-        # docstring above for why a partial series isn't an acceptable substitute. Unlike
-        # _check_portfolio_beta's missing-data handling (which still runs with a conservative
-        # assumed beta), there's no analogous safe substitute for a missing return series here,
-        # so this check is fully skipped - silently, until now - exactly when data is choppy
-        # (new listing, gap, halt) and risk oversight matters most (2026-09-07 audit).
-        missing = [s for s in all_symbols if s not in closes_by_symbol or len(closes_by_symbol[s]) < 2]
-        if missing:
+        # Candidate lacking history fails OPEN (see docstring above); an existing peer lacking
+        # history fails CLOSED - no safe substitute exists to keep the check running, and
+        # silently skipping the whole gate would implicitly assume that peer contributes zero
+        # risk, the wrong direction for a risk-oversight control.
+        if symbol not in closes_by_symbol or len(closes_by_symbol[symbol]) < 2:
+            have = len(closes_by_symbol.get(symbol, {}))
             logger.warning(
                 f"[PRETRADE_CHECKS] Simulated portfolio VaR check SKIPPED for {symbol}: "
-                f"{len(missing)} symbol(s) lack sufficient price history: {missing}."
+                f"candidate has only {have}d of price history within {_SIMULATED_VAR_LOOKBACK_DAYS}d lookback."
             )
             return True, None
 
+        missing_peers = [
+            p[0] for p in open_positions if p[0] not in closes_by_symbol or len(closes_by_symbol[p[0]]) < 2
+        ]
+        if missing_peers:
+            return False, (
+                f"{len(missing_peers)} open position(s) lack sufficient price history to include in "
+                f"the simulated portfolio VaR calculation: {missing_peers} - cannot verify portfolio "
+                "risk with an incomplete book, failing closed rather than assuming zero risk contribution"
+            )
+
         common_dates = sorted(set.intersection(*(set(closes_by_symbol[s].keys()) for s in all_symbols)))
         if len(common_dates) - 1 < _SIMULATED_VAR_MIN_OVERLAP_DAYS:
-            logger.warning(
-                f"[PRETRADE_CHECKS] Simulated portfolio VaR check SKIPPED for {symbol}: only "
-                f"{len(common_dates) - 1} overlapping trading day(s) across all positions, below "
-                f"the required {_SIMULATED_VAR_MIN_OVERLAP_DAYS}."
+            if not open_positions:
+                # No peers in the book - the shortfall is purely the candidate's own history
+                # depth, same case the candidate-side fail-open above already covers.
+                logger.warning(
+                    f"[PRETRADE_CHECKS] Simulated portfolio VaR check SKIPPED for {symbol}: only "
+                    f"{len(common_dates) - 1} day(s) of candidate history, below the required "
+                    f"{_SIMULATED_VAR_MIN_OVERLAP_DAYS}."
+                )
+                return True, None
+            return False, (
+                f"Only {len(common_dates) - 1} overlapping trading day(s) across all "
+                f"{len(open_positions)} open position(s) and the candidate, below the required "
+                f"{_SIMULATED_VAR_MIN_OVERLAP_DAYS} - cannot verify simulated portfolio VaR with "
+                "insufficient overlap, failing closed rather than assuming zero risk"
             )
-            return True, None
 
         weight_by_symbol = {symbol: position_value / portfolio_value}
         for open_symbol, qty, price in open_positions:

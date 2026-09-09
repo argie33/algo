@@ -156,6 +156,37 @@ class TestSimulatedVarCheck:
         assert ok is True
         assert reason is None
 
+    def test_missing_price_history_for_open_peer_fails_closed(self):
+        # REGRESSION for the 2026-09-08 fix: a PEER lacking price history used to fail this
+        # whole check open (same bug class as _check_portfolio_beta's 2026-09-06 fix) - now
+        # blocks instead, since there is no safe substitute return series for the missing peer.
+        dates = _dates(61)
+        candidate_prices = _prices_from_daily_return(0.0, 61)
+        cur = _FakeCursor(
+            open_positions_rows=[("HELD", 100, 100.0)],
+            price_daily_rows=_price_rows("NEWSYM", dates, candidate_prices),  # HELD has no rows at all
+        )
+        checks = PreTradeChecks(config=_config())
+        ok, reason = checks._check_portfolio_simulated_var("NEWSYM", Decimal("10000"), Decimal("100000"), cur)
+        assert ok is False
+        assert reason is not None
+        assert "HELD" in reason
+
+    def test_insufficient_overlap_with_open_peer_fails_closed(self):
+        # Peer present but only 30 overlapping days (below the 60-day minimum) - unlike the
+        # no-peers case above (candidate-only shortfall, fails open), an existing peer whose
+        # risk can't be verified must fail closed.
+        dates = _dates(30)
+        prices = _prices_from_daily_return(-0.05, 30)
+        cur = _FakeCursor(
+            open_positions_rows=[("HELD", 100, 100.0)],
+            price_daily_rows=_price_rows("NEWSYM", dates, prices) + _price_rows("HELD", dates, prices),
+        )
+        checks = PreTradeChecks(config=_config())
+        ok, reason = checks._check_portfolio_simulated_var("NEWSYM", Decimal("10000"), Decimal("100000"), cur)
+        assert ok is False
+        assert reason is not None
+
     def test_open_positions_query_excludes_candidate_symbol(self):
         dates = _dates(61)
         prices = _prices_from_daily_return(0.0, 61)
