@@ -76,6 +76,8 @@ class QualityMetricsMixin(SymbolGateMixin):
 
         def _fetch_balance_sheet_anchor_fallback(self, symbol: str, column: str) -> float | None: ...
 
+        def _fetch_ttm_net_income_from_quarterly(self, symbol: str) -> float | None: ...
+
         def _ratio_with_implausible_fallback(
             self,
             symbol: str,
@@ -181,6 +183,16 @@ class QualityMetricsMixin(SymbolGateMixin):
             if total_assets is None:
                 total_assets = self._fetch_balance_sheet_anchor_fallback(symbol, "total_assets")
             net_income = self._nan_to_none(safe_float(quality_row[3], f"{symbol}.net_income", allow_none=True))
+            # Recent IPOs (and pre-IPO S-1 stub annual rows) can have a real annual_balance_sheet
+            # anchor row but no usable annual_income_statement.net_income - no 10-K filed yet,
+            # only 10-Qs. Recover a TTM figure from 4 real consecutive quarters rather than
+            # falling through to "net_income_not_reported" for a symbol that genuinely has
+            # current SEC-reported earnings data, just not in annual form yet.
+            net_income_from_ttm_quarterly = False
+            if net_income is None:
+                net_income = self._fetch_ttm_net_income_from_quarterly(symbol)
+                if net_income is not None:
+                    net_income_from_ttm_quarterly = True
             revenue = self._nan_to_none(safe_float(quality_row[4], f"{symbol}.revenue", allow_none=True))
             operating_income = self._nan_to_none(
                 safe_float(quality_row[5], f"{symbol}.operating_income", allow_none=True)
@@ -3685,6 +3697,14 @@ class QualityMetricsMixin(SymbolGateMixin):
                     f"[VALUE_QUALITY_GROWTH] {symbol}: data_source marked stale_fallback - "
                     f"fields from a prior fiscal year: {stale_fallback_metrics}"
                 )
+            elif net_income_from_ttm_quarterly:
+                # net_income (and every ratio derived from it - roe/roa/net_margin/
+                # sustainable_growth_rate/payout_ratio) came from a TTM sum of 4 real quarters,
+                # not the annual anchor row - distinct from stale_fallback_metrics above (this
+                # is current-period data, just not yet filed as a 10-K), but still worth a
+                # provenance marker since it's not the usual annual_income_statement source.
+                metrics["data_source"] = "sec_audited_ttm_quarterly"
+                logger.info(f"[VALUE_QUALITY_GROWTH] {symbol}: net_income recovered from TTM quarterly sum")
 
             return metrics
 

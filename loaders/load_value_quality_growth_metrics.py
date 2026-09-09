@@ -839,6 +839,34 @@ class ValueQualityGrowthMetricsLoader(
             return None
         return self._nan_to_none(safe_float(row[0], f"{symbol}.{column}_fallback_year", allow_none=True))
 
+    def _fetch_ttm_net_income_from_quarterly(self, symbol: str) -> float | None:
+        """Trailing-twelve-month net_income summed from quarterly_income_statement, used when
+        the annual anchor row has no usable net_income (recent IPOs with real 10-Q filings but
+        no 10-K filed yet, or an S-1/pre-IPO stub annual row whose net_income never got
+        populated).
+
+        Requires 4 consecutive real quarters (same `data_unavailable IS NOT TRUE` filter and
+        `period_end DESC NULLS LAST` ordering `_compute_quarterly_metrics` already uses) so this
+        never fabricates a partial-year figure from 1-3 quarters as if it were a full year -
+        symbols with fewer than 4 real quarters correctly stay unavailable until enough
+        history accumulates.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT net_income FROM quarterly_income_statement
+                WHERE symbol = %s AND data_unavailable IS NOT TRUE AND net_income IS NOT NULL
+                ORDER BY period_end DESC NULLS LAST, fiscal_year DESC, fiscal_quarter DESC
+                LIMIT 4
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
+        if len(rows) < 4:
+            return None
+        total = sum(safe_float(r[0], f"{symbol}.ttm_net_income_quarter", allow_none=True) or 0.0 for r in rows)
+        return self._nan_to_none(total)
+
     def _fetch_positioning_metrics(self, symbol: str) -> tuple[float | None, str | None]:
         """Fetch held_percent_institutions from positioning_metrics.
 
