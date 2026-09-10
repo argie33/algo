@@ -700,6 +700,32 @@ class DividendDataLoader(SecLoaderBase):
                 # signal on the coverage dashboard.
                 if isinstance(facts.get("cef"), dict) or isinstance(facts.get("ffd"), dict):
                     return [self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")]
+                # FIX 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push): some
+                # closed-end funds don't even have a "cef"/"ffd" taxonomy on file - SEC's
+                # companyfacts API returns a totally empty `facts: {}` for them, not just an
+                # empty us-gaap/ifrs-full. Live-confirmed via SEC's OWN submissions API
+                # (not companyfacts) for BKT/BME/ETO/EVN/VMO: entity names are literally
+                # "...Trust"/"...Fund"/"...Corp", and their real filing history is 100%
+                # Investment Company Act forms (40-17G, 486BPOS, 497, N-2-class) - zero 10-K
+                # ever filed. Same structural class as the cef/ffd-tagged funds above, just
+                # with even less machine-readable data on file - not a loader gap. Reusing
+                # company_info_sec's entity_type='other'+sic_code IS NULL fingerprint (the
+                # same signal vqg_symbol_gates.py's _get_registered_investment_company_symbols
+                # already relies on for this fund class elsewhere) since it's already in the
+                # DB (no extra SEC call) and, live-checked, this exact 88-symbol population is
+                # ALL well-established BlackRock/Eaton Vance/Invesco-class trusts (none are
+                # genuinely-too-new operating-company IPOs, which get a real SIC code from
+                # their registration statement long before their first 10-K).
+                from utils.db import DatabaseContext
+
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT entity_type, sic_code FROM company_info_sec WHERE symbol = %s",
+                        (symbol,),
+                    )
+                    cis_row = cur.fetchone()
+                if cis_row and cis_row[0] == "other" and cis_row[1] is None:
+                    return [self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")]
                 return [self._unavailable_record(symbol, now_et, "no_us_gaap_facts")]
 
             results = []
