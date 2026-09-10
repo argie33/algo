@@ -6,7 +6,7 @@
   ".pre-commit-scripts/check-metric-loader-markers.py": 107,
   ".pre-commit-scripts/check-no-hardcoded-patterns.py": 105,
   ".pre-commit-scripts/check-secrets-freshness.py": 229,
-  ".pre-commit-scripts/check-silent-fallbacks.py": 619,
+  ".pre-commit-scripts/check-silent-fallbacks.py": 627,
   ".pre-commit-scripts/check-strict-safe-conversion.py": 136,
   ".pre-commit-scripts/check-strict-validation-tests.py": 103,
   ".pre-commit-scripts/check_file_size_ratchet.py": 298,
