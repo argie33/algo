@@ -537,7 +537,7 @@
   "loaders/helpers/vqg_quality_inputs.py": 344,
   "loaders/helpers/vqg_quality_reasons_profitability.py": 577,
   "loaders/helpers/vqg_quality_reasons_valuation.py": 597,
-  "loaders/helpers/vqg_quality_recategorize.py": 475,
+  "loaders/helpers/vqg_quality_recategorize.py": 488,
   "loaders/helpers/vqg_quality_score.py": 557,
   "loaders/helpers/vqg_shared.py": 459,
   "loaders/helpers/vqg_symbol_gates.py": 2000,
