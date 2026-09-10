@@ -2362,6 +2362,23 @@ class QualityMetricsMixin(SymbolGateMixin):
                     # ("Legitimate / not applicable") reason.
                     else "etf_trust_no_gaap_financials"
                     if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
+                    # REORDERED 2026-09-10 (goal: "under 500" missing-XBRL push): fcf_margin =
+                    # free_cash_flow / revenue, so when revenue is genuinely never reported
+                    # (this exact gate, previously checked below), the ratio is undefined
+                    # regardless of whether capex/FCF could be computed - revenue is the
+                    # binding constraint, not capex. Was checked AFTER capex_never_tagged/
+                    # no_recent_free_cash_flow_reported below, so a symbol matching both (e.g.
+                    # a pre-revenue biotech burning cash with real negative operating_cash_flow
+                    # but no revenue AND no capex - live-confirmed ACTU/ACXP/ADIL/ANTX/ANVS/
+                    # AVBP/AVXL/BIVI/GALT and ~35 similar pharma/biological-products tickers)
+                    # was mislabeled "capex_never_tagged_in_recent_filings" ("Missing SEC/XBRL
+                    # data") instead of the more accurate "no_revenue_reported" ("Legitimate /
+                    # not applicable" - the SEC filing is complete, there's just no revenue to
+                    # divide by). Moved ahead of both without removing it from its own historic
+                    # position - same check, condition unchanged, priority corrected.
+                    else "no_revenue_reported"
+                    if symbol in self._get_no_recent_revenue_symbols()
+                    or symbol in self._get_never_tagged_revenue_symbols()
                     # ADDED 2026-09-05: fcf_yield's own reason chain already checks this gate;
                     # fcf_margin's sibling chain here never did (AIG-verified: real OCF every
                     # year, capex-shaped concept stops after FY2023, not PPE-delta-recoverable
@@ -2375,9 +2392,6 @@ class QualityMetricsMixin(SymbolGateMixin):
                     else "no_recent_free_cash_flow_reported"
                     if symbol in self._get_no_recent_free_cash_flow_symbols()
                     or symbol in self._get_never_tagged_free_cash_flow_symbols()
-                    else "no_revenue_reported"
-                    if symbol in self._get_no_recent_revenue_symbols()
-                    or symbol in self._get_never_tagged_revenue_symbols()
                     # A real free_cash_flow value exists somewhere in the symbol's history but
                     # not in the same fiscal year as a real revenue value (the cross-year
                     # fallback above requires both in the SAME year) - live-confirmed FTW/OBX/
