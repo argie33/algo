@@ -3372,6 +3372,21 @@ class QualityMetricsMixin(SymbolGateMixin):
                 # local rather than reused directly, since that name only exists inside the
                 # sibling RIC `if` block above (a blank-check symbol that isn't ALSO RIC-shaped,
                 # the normal case, would otherwise hit an UnboundLocalError here).
+                #
+                # FIXED 2026-09-10 (goal: "under 500" missing-XBRL push): unlike this set,
+                # both _ric_source_reasons and _etf_trust_broad_source_reasons above already
+                # include "capex_never_tagged_in_recent_filings" (each fixed 2026-09-06 for the
+                # identical reason - a fund/trust shape has no CapitalExpenditures concept to
+                # tag) - this set never got the same addition, despite fcf_margin/
+                # fcf_to_net_income/free_cash_flow already being members of this loop's own
+                # _blank_check_recategorize_fields tuple just above. A pre-merger blank-check
+                # SPAC has the identical "no real operating business, nothing to capitalize"
+                # structural fact, so it hits _get_no_recent_capex_symbols() and lands on
+                # "capex_never_tagged_in_recent_filings" ("Missing SEC/XBRL data") instead of
+                # this loop's intended "no_revenue_reported" ("Legitimate / not applicable").
+                # Live-confirmed via company_info_sec.sic_description join: 11 active-universe
+                # blank-check symbols (AFJK/ALDF/CAES/CUB/GTEN/NBRG/NOEM/SBXD/TACO/TWLV and
+                # siblings) stuck on this exact mislabel for fcf_margin alone.
                 _blank_check_source_reasons = {
                     "missing_sec_data",
                     "total_debt_not_itemized",
@@ -3380,6 +3395,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     "stockholders_equity_not_reported",
                     "operating_income_not_itemized",
                     "total_liabilities_not_reported",
+                    "capex_never_tagged_in_recent_filings",
                 }
                 for _field in _blank_check_recategorize_fields:
                     _reason_key = f"{_field}_unavailable_reason"
