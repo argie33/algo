@@ -1844,6 +1844,72 @@ class SecValuationsLoader(
         # here); Columbus Circle Capital Corp II is SIC 7373.
         if symbol in ("CCXI", "CMII"):
             result["reason"] = "no_revenue_reported"
+            return
+        self._recategorize_distressed_company_all_valuation_metrics_null_reason(symbol, result)
+
+    def _recategorize_distressed_company_all_valuation_metrics_null_reason(
+        self, symbol: str, result: dict[str, Any]
+    ) -> None:
+        """Overrides the generic "all_valuation_metrics_null" reason with "negative_book_value"
+        ("Legitimate / not applicable") for a real, non-shell operating company whose PE/PB/PS/
+        FCF-yield are all null for genuine business-distress reasons, not a data gap.
+
+        FIXED 2026-09-10 (goal: "under 300" push, all_valuation_metrics_null investigation):
+        live-confirmed AQB (AquaBounty Technologies, SIC "Fishing, Hunting and Trapping" -
+        a real, publicly-traded aquaculture company with 10 real annual filings), BCAB
+        (BioAtla, real clinical-stage biotech, 7 annual filings), and TREO (real filer,
+        7 annual filings) all hit this reason with the SAME shape: net_income deeply
+        negative (AQB: -$18.5M FY2025, -$149M FY2024) AND stockholders_equity negative
+        (AQB: -$2.1M) - a company burning cash into negative book value. pe_ratio is
+        correctly undefined (no meaningful P/E for a loss), pb_ratio is correctly undefined
+        (no meaningful P/B for negative equity), and with revenue null/near-zero on top,
+        ps_ratio and fcf_yield end up null too - every one of the four "key metrics" is
+        legitimately, not missing-ly, undefined. Only the blank-check-SPAC case (immediately
+        above) was ever recategorized out of the generic "Missing SEC/XBRL data" bucket;
+        this identical-shaped real-company case fell through to it instead, mislabeling a
+        real business fact as an extraction gap. Same double-confirmation discipline as this
+        file's other structural-exemption checks (e.g. debt_for_roic's debt+interest-expense
+        pairing): requires BOTH net_income and stockholders_equity be independently,
+        unambiguously negative before recategorizing - never a guess from one signal alone.
+        Deliberately does NOT touch currency-blocked filers (BBAR/LOMA/TBBB and similar,
+        which have POSITIVE net_income in local currency - this check only ever fires on a
+        genuinely negative, already-USD-scale SEC net_income figure) or symbols where
+        market_cap failed for an unrelated reason (shares_outstanding_scale_mismatch already
+        has its own, earlier-running recategorization above _sanity_check_market_cap).
+        """
+        if result.get("reason") != "all_valuation_metrics_null":
+            return
+        # Wrapped defensively (unlike this file's other, single-column recategorization
+        # queries above): a real DB hiccup here must never take down the whole valuations
+        # computation over a purely cosmetic recategorization, and a malformed/unexpected
+        # row shape from any source should leave the generic reason in place rather than
+        # raise.
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT ais.net_income, abs.stockholders_equity
+                    FROM (
+                        SELECT net_income FROM annual_income_statement
+                        WHERE symbol = %(symbol)s AND net_income IS NOT NULL
+                        ORDER BY fiscal_year DESC LIMIT 1
+                    ) ais
+                    FULL OUTER JOIN (
+                        SELECT stockholders_equity FROM annual_balance_sheet
+                        WHERE symbol = %(symbol)s AND stockholders_equity IS NOT NULL
+                        ORDER BY fiscal_year DESC LIMIT 1
+                    ) abs ON true
+                    """,
+                    {"symbol": symbol},
+                )
+                row = cur.fetchone()
+            if not row:
+                return
+            net_income, stockholders_equity = row
+        except (TypeError, ValueError):
+            return
+        if net_income is not None and stockholders_equity is not None and net_income < 0 and stockholders_equity < 0:
+            result["reason"] = "negative_book_value"
 
     # FIXED 2026-08-20 (goal: finance-accuracy audit, part 2): yfinance_snapshot (the table
     # the cross-check below reads) has had no live writer since Session 275 and was frozen
