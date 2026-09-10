@@ -35,7 +35,7 @@ from typing import Any
 from utils.external.xbrl_concept_coverage import find_gaps, iter_companyfacts_cache
 
 from ..base import BaseCheck, CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,16 @@ class NewXbrlConceptChecker(BaseCheck):
                 return
             gaps = find_gaps(_NAMESPACES, min_companies=_MIN_COMPANIES, exclude_noise=True)
             if not gaps:
+                # Always log even when clean (FIXED 2026-09-10, see
+                # pillar_score_reconciliation.py's identical fix for the full rationale): a
+                # silent return here can never supersede/resolve an earlier flagged finding
+                # still marked 'open' in data_patrol_log.
+                self.log(
+                    "xbrl_new_concepts",
+                    INFO,
+                    "sec_edgar_companyfacts_cache",
+                    "no untriaged XBRL concepts in the fetch allowlist gap",
+                )
                 return
             examples = [
                 {"concept": key, "companies": n, "example_filer": filer} for n, key, filer in gaps[:_MAX_REPORTED]

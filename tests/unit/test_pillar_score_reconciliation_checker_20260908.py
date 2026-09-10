@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 from algo.monitoring.data_patrol.checks.pillar_score_reconciliation import (
     PillarScoreReconciliationChecker,
 )
-from algo.monitoring.data_patrol.config import ERROR, WARN, PatrolConfig
+from algo.monitoring.data_patrol.config import ERROR, INFO, WARN, PatrolConfig
 
 
 def _checker() -> PillarScoreReconciliationChecker:
@@ -35,14 +35,19 @@ def _row(symbol: str, stock_scores_quality_score: float, quality_metrics_quality
 
 class TestPillarScoreReconciliation:
     def test_matching_scores_not_flagged(self) -> None:
+        # FIXED 2026-09-10: a clean pass still logs one INFO result (not []) so a prior WARN/
+        # ERROR finding for this check can be superseded/resolved on the next patrol run - see
+        # pillar_score_reconciliation.py's module-level comment for the full rationale.
         cur = _mock_cursor([_row("MATCH", 72.5, 72.5)])
         results = _checker().run(cur)
-        assert results == []
+        assert len(results) == 1
+        assert results[0].severity == INFO
 
     def test_rounding_noise_not_flagged(self) -> None:
         cur = _mock_cursor([_row("ROUND", 72.50, 72.505)])
         results = _checker().run(cur)
-        assert results == []
+        assert len(results) == 1
+        assert results[0].severity == INFO
 
     def test_stale_stock_scores_flagged_warn(self) -> None:
         # stock_scores.quality_score is 0.5 points behind a since-updated quality_metrics.
