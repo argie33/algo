@@ -516,7 +516,7 @@
   "loaders/helpers/vqg_quality.py": 3206,
   "loaders/helpers/vqg_quality_batch.py": 321,
   "loaders/helpers/vqg_quality_inputs.py": 319,
-  "loaders/helpers/vqg_quality_recategorize.py": 394,
+  "loaders/helpers/vqg_quality_recategorize.py": 404,
   "loaders/helpers/vqg_shared.py": 450,
   "loaders/helpers/vqg_symbol_gates.py": 1995,
   "loaders/helpers/vqg_value.py": 1180,
