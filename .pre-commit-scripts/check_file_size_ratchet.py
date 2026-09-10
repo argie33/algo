@@ -217,7 +217,7 @@ def main_local() -> int:
         # session's git process. Same "verify/wait, don't force" discipline as this session's
         # manual git-lock handling: a few retries with backoff, no --force, no skipping the add.
         last_error: subprocess.CalledProcessError | None = None
-        for attempt in range(15):
+        for _attempt in range(15):
             try:
                 subprocess.run(["git", "add", str(BASELINE_PATH)], check=True)
                 last_error = None

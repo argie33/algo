@@ -267,7 +267,8 @@ class IncomeStatementContextMixin:
                 ais.income_tax_expense,
                 cis.is_foreign_private_issuer,
                 cis.sic_code,
-                ais.interest_expense
+                ais.interest_expense,
+                cis.shares_outstanding
             FROM annual_income_statement ais
             LEFT JOIN company_info_sec cis ON cis.symbol = ais.symbol
             WHERE ais.symbol = %s AND ais.data_unavailable IS NOT TRUE
@@ -359,6 +360,17 @@ class IncomeStatementContextMixin:
         # into revenue, not reported as a standalone expense line) - so this fix doesn't
         # change the JPM/BAC/PNC-class behavior the fallback was originally built for.
         interest_expense_val = income_rows[0][12] if len(income_rows[0]) > 12 else None
+        # ADDED 2026-09-10 (goal: "under 500" push, eps_never_tagged_in_filings bucket):
+        # company_info_sec.shares_outstanding - the loader's own already-resolved current
+        # share count (dei/us-gaap instant concept, dimensional class match, or filing-text
+        # fallback - see load_company_info_sec.py's own resolution chain) - used below only
+        # as a last-resort EPS-derivation denominator when no fiscal year, ever, tags an
+        # EPS concept at all. Distinct from ais.shares_outstanding_basic (reported_shares_
+        # outstanding below), which is the filer's OWN per-fiscal-year weighted-average
+        # count and is almost always NULL for exactly the filers hitting this gap (if it
+        # were populated, the filer would have tagged EPS too, in practice - live-confirmed
+        # on this bucket's own sample).
+        cis_shares_outstanding = income_rows[0][13] if len(income_rows[0]) > 13 else None
 
         (
             ttm_fiscal_year,
@@ -431,6 +443,31 @@ class IncomeStatementContextMixin:
         ttm_eps_basic = _split_adjusted_eps(symbol, ttm_eps_basic, ttm_eps_fiscal_year)
         # See FPI_EPS_ADS_RATIO_OVERRIDES' own module-level comment (DDI, 20 ADS = 1 share).
         ttm_eps_basic = _fpi_ads_adjusted_eps(symbol, ttm_eps_basic, ttm_eps_fiscal_year)
+
+        # ADDED 2026-09-10 (goal: "under 500" push, eps_never_tagged_in_filings bucket):
+        # last resort, reached only when NO fiscal year, ever, tags any EPS concept (the
+        # two substitution tiers above both require a real tagged earnings_per_share on
+        # SOME row - this fires when neither exists). Live-confirmed BULL/CCXI/GSRFR/HONA/
+        # PGACR: real net_income and a real company_info_sec.shares_outstanding, but zero
+        # rows anywhere in annual_income_statement.earnings_per_share - MLP/unit-structure
+        # and newly-listed filers commonly report "net income" without ever tagging a
+        # per-share XBRL concept. Deliberately excludes foreign private issuers (ADR share-
+        # count/ADS-ratio mismatches - see _fpi_ads_adjusted_eps above - would make a
+        # derived value actively wrong, not just approximate) and skips when
+        # cis_shares_outstanding isn't a real positive count. Approximates weighted-average
+        # shares with the current outstanding count (same timing tradeoff
+        # _get_market_cap_without_income_statement already accepts for market_cap when no
+        # income statement exists at all) - not split-adjusted like a real tagged EPS,
+        # since it's derived from an already-current share count, not a historical filed
+        # value.
+        if (
+            ttm_eps_basic is None
+            and not is_foreign_private_issuer
+            and _ttm_net_income is not None
+            and cis_shares_outstanding is not None
+            and cis_shares_outstanding > 0
+        ):
+            ttm_eps_basic = float(_ttm_net_income) / float(cis_shares_outstanding)
 
         # FIXED 2026-08-18: operating_income/pretax_income suffer the identical anchor-row
         # stub gap as revenue and earnings_per_share above. Live-confirmed HG (Hamilton

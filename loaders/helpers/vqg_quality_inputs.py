@@ -175,6 +175,8 @@ class QualityInputsMixin:
         # operating_cash_flow despite data_unavailable=TRUE, so free_cash_flow (which shares
         # this exact symbol population) was also mislabeled "missing_sec_data". Recover all
         # three directly for the SAME fiscal year as the anchor row - never mixes years.
+        # FIXED 2026-09-10 (goal: "under 500" missing-XBRL push): extended from a
+        # dividends_paid-only rescue to also cover operating_cash_flow/free_cash_flow.
         if dividends_paid is None or operating_cash_flow is None or free_cash_flow is None:
             dividends_paid, operating_cash_flow, free_cash_flow = self._rescue_masked_cashflow_fields(
                 symbol, quality_row[8], dividends_paid, operating_cash_flow, free_cash_flow

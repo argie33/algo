@@ -160,6 +160,22 @@ class CompanyInfoSECLoader(SecLoaderBase):
             # this pipeline structurally ever have annual financial data for this symbol",
             # unlike sic_code which comes back blank for CEFs (same as some real operating
             # companies, e.g. Bank OZK - not usable as a CEF signal).
+            # FIXED 2026-09-10 (goal: "SEC/XBRL missing data" under-500 push, no_annual_report_
+            # filing/eps_never_tagged_in_filings investigation): 40-F/40-F-A (the MJDS annual
+            # report form Canadian foreign private issuers file in lieu of 20-F) was never
+            # included here, even though it already IS in this same function's own
+            # `annual_report_forms_recent_first` list a few lines below - the same half-wired-
+            # fix pattern seen elsewhere in this pipeline. Live-confirmed via real SEC EDGAR
+            # submissions JSON: 137 active-universe symbols with is_foreign_private_issuer=TRUE
+            # were wrongly stuck at has_annual_report_filing=FALSE purely from this omission,
+            # including large, well-covered 40-F-only Canadian megacaps with real, current
+            # annual filings on file - BMO (Bank of Montreal), BNS (Bank of Nova Scotia), CM
+            # (CIBC), CNQ (Canadian Natural Resources), BCE, CAE, CNI (Canadian National
+            # Railway), CVE (Cenovus Energy), and many more. Consumed directly by
+            # lambda/api/routes/scores_handlers/stock_scores.py's active-universe leaderboard
+            # filter (`has_annual_report_filing = FALSE` excludes a symbol outright), so this
+            # bug was silently dropping real, well-covered megacaps from the scored leaderboard
+            # entirely - a worse failure mode than merely showing a "Missing SEC/XBRL data" gap.
             # `or {}`/`or []`, not `.get(key, {})`/`.get(key, [])`: behaviorally identical
             # (submissions legitimately omits "filings" for some entity types), but avoids
             # tripping check-dashboard-get-pattern.py's blunt "dict/list default hides missing
@@ -167,7 +183,9 @@ class CompanyInfoSECLoader(SecLoaderBase):
             # numeric default masking a real missing price/financial value.
             recent_forms = (submissions.get("filings") or {}).get("recent") or {}
             recent_forms = recent_forms.get("form") or []
-            has_annual_report_filing = any(f in ("10-K", "10-K/A", "20-F", "20-F/A") for f in recent_forms)
+            has_annual_report_filing = any(
+                f in ("10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A") for f in recent_forms
+            )
 
             # ADDED 2026-08-19 (migration 1211, goal: "no SEC data"/missing factor inputs
             # audit): free from the same recent_forms list computed just above. Foreign
