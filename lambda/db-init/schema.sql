@@ -820,6 +820,22 @@ CREATE INDEX IF NOT EXISTS idx_symbol_quarantine_symbol_open
 CREATE INDEX IF NOT EXISTS idx_symbol_quarantine_check_open
     ON symbol_quarantine(check_name) WHERE resolved_at IS NULL;
 
+-- Triage/ack workflow for data_patrol_log's open backlog (migration 1278): distinguishes
+-- "nobody has reviewed this" from "a human reviewed this and it's an accepted condition"
+-- for a (check_name, target_table) pair. See scripts/data_patrol_backlog_report.py.
+CREATE TABLE IF NOT EXISTS data_patrol_review (
+    id SERIAL PRIMARY KEY,
+    check_name VARCHAR(100) NOT NULL,
+    target_table VARCHAR(100),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('acceptable', 'needs_fix')),
+    note TEXT NOT NULL,
+    reviewed_by VARCHAR(200),
+    reviewed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (check_name, target_table)
+);
+CREATE INDEX IF NOT EXISTS idx_data_patrol_review_check_table
+    ON data_patrol_review(check_name, target_table);
+
 -- ============================================================================
 -- WEIGHT OPTIMIZATION (Dynamic weight management for portfolio components)
 -- ============================================================================
