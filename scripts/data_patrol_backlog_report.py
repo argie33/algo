@@ -83,7 +83,12 @@ def main() -> int:
     parser.add_argument("--severity", choices=["info", "warn", "error", "critical"], help="Filter by severity")
     parser.add_argument("--check-name", help="Filter by exact check_name")
     parser.add_argument("--limit", type=int, default=200, help="Max rows to print (default 200)")
-    parser.add_argument("--unreviewed-only", action="store_true", help="Only show findings with no current review")
+    parser.add_argument(
+        "--unreviewed-only",
+        action="store_true",
+        help="Only show actionable (warn/error/critical) findings with no current review - "
+        "excludes info-severity health confirmations, which are never findings to triage",
+    )
     parser.add_argument("--review", metavar="CHECK_NAME", help="Record a triage decision instead of listing")
     parser.add_argument("--table", help="target_table for --review (omit for a table-less check)")
     parser.add_argument("--status", choices=["acceptable", "needs_fix"], help="Status for --review")
@@ -150,7 +155,7 @@ def main() -> int:
         age_days = (datetime.now(timezone.utc) - opened_at.replace(tzinfo=timezone.utc)).total_seconds() / 86400
         if age_days < args.min_age_days:
             continue
-        if args.unreviewed_only and row["review_status"] is not None:
+        if args.unreviewed_only and (row["review_status"] is not None or row["severity"] == "info"):
             continue
         filtered.append(row)
 
@@ -158,12 +163,19 @@ def main() -> int:
         print("No findings match the given filters.")
         return 0
 
-    reviewed_acceptable = sum(1 for r in rows if r["review_status"] == "acceptable")
-    reviewed_needs_fix = sum(1 for r in rows if r["review_status"] == "needs_fix")
-    unreviewed = len(rows) - reviewed_acceptable - reviewed_needs_fix
+    # INFO-severity rows are health CONFIRMATIONS (e.g. "price_daily fresh", "loader_contract
+    # OK") - re-logged every run whether or not anything is wrong, not findings that need a
+    # triage decision. Counting them as "unreviewed" alongside real WARN/ERROR/CRITICAL
+    # findings would make the backlog look far larger and less triaged than it actually is -
+    # split the summary so "needs triage" means what it says.
+    actionable = [r for r in rows if r["severity"] != "info"]
+    reviewed_acceptable = sum(1 for r in actionable if r["review_status"] == "acceptable")
+    reviewed_needs_fix = sum(1 for r in actionable if r["review_status"] == "needs_fix")
+    unreviewed = len(actionable) - reviewed_acceptable - reviewed_needs_fix
     print(
-        f"{len(rows)} open finding(s): {reviewed_acceptable} reviewed-acceptable, "
-        f"{reviewed_needs_fix} reviewed-needs_fix, {unreviewed} never reviewed\n"
+        f"{len(rows)} open finding(s) ({len(rows) - len(actionable)} info-only health "
+        f"confirmations, {len(actionable)} actionable): {reviewed_acceptable} reviewed-acceptable, "
+        f"{reviewed_needs_fix} reviewed-needs_fix, {unreviewed} actionable findings never reviewed\n"
     )
 
     print(f"Showing {len(filtered)} finding(s) (oldest first):\n")
