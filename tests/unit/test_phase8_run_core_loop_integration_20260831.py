@@ -148,7 +148,7 @@ class Phase8Deps:
 
     def __init__(self, executor_result, sizer_result=None, liquidity_result=(True, "ok"), pretrade_result=(True, "ok")):
         self.executor_result = executor_result
-        self.sizer_result = sizer_result or {"status": "ok", "shares": 10}
+        self.sizer_result = sizer_result or {"status": "ok", "shares": 10, "risk_dollars": 50}
         self.liquidity_result = liquidity_result
         self.pretrade_result = pretrade_result
         self._patches = []

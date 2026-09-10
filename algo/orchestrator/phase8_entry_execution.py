@@ -415,6 +415,37 @@ def _check_buying_power_sufficient(remaining_buying_power: Decimal, position_val
     return True, None
 
 
+def _check_risk_capacity_sufficient(
+    remaining_risk_capacity_pct: float, candidate_risk_pct: float
+) -> tuple[bool, str | None]:
+    """Check a candidate position's own risk against this run's remaining total-risk capacity.
+
+    REAL-MONEY-READINESS FIX (2026-09-10): mirrors _check_buying_power_sufficient's shape -
+    see remaining_risk_capacity_pct's initialization comment (above the pre-loop
+    max_total_risk_pct guard) for the full gap this closes. Without this running-tally check,
+    several qualifying signals in one Phase 8 run could each individually pass the single
+    pre-loop available_capacity_pct snapshot and collectively push total open risk past
+    max_total_risk_pct before the next cycle's circuit breaker (CB4) caught the overshoot
+    after the fact.
+
+    Args:
+        remaining_risk_capacity_pct: This run's running risk-capacity balance (starts at the
+            pre-loop available_capacity_pct, decremented by the caller as entries are
+            accepted).
+        candidate_risk_pct: This candidate's own risk as a percentage of portfolio value
+            (risk_dollars / portfolio_value * 100).
+
+    Returns:
+        (sufficient: bool, reason: str | None) - sufficient=False means skip this candidate.
+    """
+    if candidate_risk_pct > remaining_risk_capacity_pct:
+        return False, (
+            f"Entry risk {candidate_risk_pct:.2f}% of portfolio exceeds this run's remaining "
+            f"risk capacity {remaining_risk_capacity_pct:.2f}%"
+        )
+    return True, None
+
+
 def _calculate_current_total_risk_pct(
     max_risk_limit_pct: float = 4.0, run_date: _date | None = None
 ) -> tuple[float, float]:
@@ -1814,8 +1845,25 @@ def run(
             logger.warning(
                 f"[PHASE 8 RISK GUARD] Current risk {current_risk_pct:.2f}%, "
                 f"only {available_capacity_pct:.2f}% capacity available. "
-                f"Will size positions conservatively to stay within limit."
+                f"Entries this run will be capped against this remaining capacity (see "
+                f"remaining_risk_capacity_pct below), not just position-sized normally."
             )
+
+        # RUNNING RISK-CAPACITY TALLY (real-money-readiness fix, 2026-09-10): unlike
+        # remaining_buying_power above (decremented per-accepted-entry within this same
+        # run), available_capacity_pct here used to be checked ONCE before the loop and
+        # never decremented as entries were accepted - the elif branch above only ever
+        # logged "will size conservatively", with no code anywhere actually enforcing it.
+        # Several qualifying signals in a single run could each individually pass this
+        # one-time check (e.g. available_capacity_pct=1.5%, 5 available position slots,
+        # ~1% base_risk_pct per entry -> up to +5% new risk added against a 4% limit)
+        # before the NEXT reconciliation cycle's circuit breaker (CB4) catches the
+        # overshoot after the fact - a real gap between this defensive pre-check and
+        # what it claimed to guarantee. remaining_risk_capacity_pct now tracks the same
+        # "running total within this run" shape remaining_buying_power already uses,
+        # decremented in the entry loop below as each candidate's own computed
+        # risk_dollars clears the check.
+        remaining_risk_capacity_pct: float = available_capacity_pct
     except Exception as e:
         msg = (
             f"[PHASE 8 CRITICAL] Risk pre-check failed: {e}. "
@@ -2983,6 +3031,40 @@ def run(
                 # more conservative for symbols still to come, never less - the safe direction
                 # for a check whose entire purpose is preventing broker-side overspend.
                 remaining_buying_power -= position_value_dec
+
+            # PROACTIVE TOTAL-RISK-CAPACITY CHECK (real-money-readiness fix, 2026-09-10, see
+            # remaining_risk_capacity_pct's initialization above for the full gap this
+            # closes). Same running-tally shape as remaining_buying_power immediately above:
+            # each candidate's own sizer-computed risk_dollars is converted to a %-of-
+            # portfolio figure using the same pv_for_sizer the sizer itself just used, checked
+            # against what capacity is left THIS run (not the pre-loop snapshot), and
+            # decremented once the candidate clears the check - so a batch of several
+            # qualifying signals in one run can no longer collectively add risk past
+            # max_total_risk_pct before CB4 catches it on the next cycle.
+            candidate_risk_dollars = sizing.get("risk_dollars")
+            if candidate_risk_dollars is None:
+                raise RuntimeError(
+                    f"[PHASE 8] {symbol}: Position sizer returned status='ok' but no 'risk_dollars' "
+                    f"field. Cannot enforce the running total-risk-capacity budget without it."
+                )
+            candidate_risk_pct = (
+                float(candidate_risk_dollars) / float(pv_for_sizer) * 100.0 if pv_for_sizer > 0 else 0.0
+            )
+            risk_cap_ok, risk_cap_reason = _check_risk_capacity_sufficient(
+                remaining_risk_capacity_pct, candidate_risk_pct
+            )
+            if not risk_cap_ok:
+                reason_risk = risk_cap_reason or (
+                    f"Entry risk {candidate_risk_pct:.2f}% exceeds remaining risk capacity "
+                    f"{remaining_risk_capacity_pct:.2f}%"
+                )
+                logger.info(f"[PHASE 8] {symbol}: {reason_risk}")
+                _log_signal_rejection(
+                    symbol, "insufficient_risk_capacity", reason_risk, run_date, entry_price, risk_pct
+                )
+                skipped_count += 1
+                continue
+            remaining_risk_capacity_pct -= candidate_risk_pct
 
             # Final hard-stop validation (includes earnings blackout check)
 
