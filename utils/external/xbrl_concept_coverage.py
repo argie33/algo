@@ -21,6 +21,8 @@ from collections import Counter
 from pathlib import Path
 from typing import cast
 
+from utils.external.sec_statements_shared import _ANNUAL_REPORT_FORMS
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Persistent triage state - see scripts/xbrl_concept_coverage_scan.py's original comment for the
@@ -558,16 +560,28 @@ def _has_close_match(target: str, candidates: set[str]) -> bool:
 
 
 def _annual_end_dates(fact_entries: list[dict[str, object]]) -> set[str]:
-    """Distinct fiscal-period-end dates ('end') this concept has an annual (10-K/10-K/A) fact
-    for, in ANY unit (USD covers the three CORE_CONTINUITY_CONCEPTS; a filer using a non-USD
-    reporting currency still tags Assets/Liabilities/NetIncomeLoss, just under a different unit
-    key, so this checks every unit rather than assuming "USD").
+    """Distinct fiscal-period-end dates ('end') this concept has an annual report fact for, in
+    ANY unit (USD covers the three CORE_CONTINUITY_CONCEPTS; a filer using a non-USD reporting
+    currency still tags Assets/Liabilities/NetIncomeLoss, just under a different unit key, so
+    this checks every unit rather than assuming "USD").
+
+    FIXED 2026-09-09 (goal session: "missing SEC/XBRL data under 500" sweep, same fix as this
+    module's ifrs-full taxonomy addition above): `form.startswith("10-K")` excluded every
+    foreign private issuer's actual annual-report form (20-F/40-F, never "10-K"-prefixed) -
+    combined with the us-gaap-only taxonomy read this function's caller used to have, this made
+    100% of FPIs invisible to continuity checking twice over. Reuses the same
+    _ANNUAL_REPORT_FORMS set sec_statements_entry_resolution.py/has_unsupported_currency_only_
+    fact already treat as "this is a real annual filing" - live-confirmed via CNQ/TX/CYD (all
+    file 20-F/40-F, never 10-K) real companyfacts JSON, this was the second half of why
+    find_continuity_gaps() returned 0 gaps for every IFRS filer despite genuine, live,
+    multi-year continuity breaks (CNQ's own capex concept, unrelated to this function, is a
+    real example of exactly the failure mode this checker exists to catch).
     """
     ends: set[str] = set()
     for entry in fact_entries:
         form = cast(str, entry.get("form") or "")
         end = entry.get("end")
-        if form.startswith("10-K") and isinstance(end, str):
+        if form in _ANNUAL_REPORT_FORMS and isinstance(end, str):
             ends.add(end)
     return ends
 
@@ -606,19 +620,39 @@ def find_continuity_gaps(min_prior_years: int = 3) -> list[dict[str, object]]:
         data = payload.get("data") or {}
         entity_name = data.get("entityName", fp.stem)
         usgaap = (data.get("facts") or {}).get("us-gaap") or {}
+        # FIXED 2026-09-09 (goal session: "missing SEC/XBRL data under 500" sweep, "are our
+        # scans catching everything they should" follow-up): this loop used to read ONLY the
+        # us-gaap taxonomy, so a pure IFRS filer with zero us-gaap facts at all (every 20-F/
+        # 40-F foreign private issuer that never dual-reports under us-gaap - live-confirmed
+        # CNQ/Canadian Natural Resources, TX/Ternium, CYD/China Yuchai, all zero us-gaap
+        # concepts) always hit `own_ends` empty for every CORE_CONTINUITY_CONCEPTS entry and
+        # was silently treated as "never tagged - a coverage gap, not a continuity regression"
+        # for ALL THREE core concepts, every single filing - not one FPI has ever been checked
+        # for continuity by this function despite it running in production since 2026-09-07.
+        # ifrs-full uses the identical concept names "Assets"/"Liabilities" as us-gaap, and
+        # "ProfitLoss" (IFRS's net-income line) is already a registered
+        # CONTINUITY_CONCEPT_SYNONYMS entry for "NetIncomeLoss" - live-confirmed via CNQ/TX/CYD
+        # companyfacts JSON, all three tag plain ifrs-full:Assets/Liabilities/ProfitLoss every
+        # year - so merging in the ifrs-full facts dict here (rather than a parallel taxonomy-
+        # specific concept list) makes FPIs visible to this checker for free, no new concept
+        # names or synonym entries needed. Just widens the set of (fiscal-year-end) dates found
+        # per concept - can only prevent a false gap by finding MORE real tagged dates, never
+        # fabricate one, so this carries no risk of a new spurious WARN.
+        ifrs = (data.get("facts") or {}).get("ifrs-full") or {}
 
         per_concept_ends: dict[str, set[str]] = {}
         anchor_ends: set[str] = set()
         for concept in CORE_CONTINUITY_CONCEPTS:
             ends: set[str] = set()
             for tag in (concept, *CONTINUITY_CONCEPT_SYNONYMS.get(concept, [])):
-                concept_data = usgaap.get(tag)
-                if not concept_data:
-                    continue
-                entries: list[dict[str, object]] = []
-                for unit_entries in (concept_data.get("units") or {}).values():
-                    entries.extend(unit_entries)
-                ends.update(_annual_end_dates(entries))
+                for taxonomy in (usgaap, ifrs):
+                    concept_data = taxonomy.get(tag)
+                    if not concept_data:
+                        continue
+                    entries: list[dict[str, object]] = []
+                    for unit_entries in (concept_data.get("units") or {}).values():
+                        entries.extend(unit_entries)
+                    ends.update(_annual_end_dates(entries))
             per_concept_ends[concept] = ends
             anchor_ends.update(ends)
 
