@@ -155,6 +155,9 @@ class IncomeStatementContextMixin:
         ttm_net_income = _sum_col_strict(1)
         ttm_eps = _sum_col_strict(2)
         if ttm_revenue is None and ttm_net_income is None and ttm_eps is None:
+            # None of the three usable - same "falls through to the caller's data_unavailable
+            # handling" convention as the len(quarters) < 4 return [] above (see this method's
+            # own docstring for the full rationale).
             return []
 
         cur.execute(

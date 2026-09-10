@@ -699,6 +699,24 @@ class QualityMetricsMixin(
                             safe_float(fallback_tax_row[4], f"{symbol}.net_income_fallback_year", allow_none=True)
                         )
 
+            # FIXED 2026-09-10 (goal: "SEC/XBRL missing data under 500" sweep,
+            # operating_income_not_itemized investigation): a symbol that is already
+            # double-confirmed structurally debt-free (never tagged ANY debt component AND
+            # never tagged interest_expense - same gate debt_for_roic/total_debt above already
+            # trust for a real $0) still fell through this EBIT-approximation fallback because
+            # roic_interest_expense stayed None instead of the real $0 it corroborates, so a
+            # symbol with a perfectly real, current roic_pretax_income (e.g. EDHL, NEWP) got no
+            # roic_operating_income at all - falling to the generic "operating_income_not_itemized"
+            # catch-all instead of the correct EBIT = pretax_income + $0 interest. Mirrors the
+            # debt_for_roic coercion above exactly, just applied to the other addend of this
+            # same formula.
+            if (
+                roic_interest_expense is None
+                and symbol in self._get_never_tagged_debt_components_symbols()
+                and symbol in self._get_never_tagged_interest_expense_symbols()
+            ):
+                roic_interest_expense = 0.0
+
             if roic_operating_income is None and roic_pretax_income is not None and roic_interest_expense is not None:
                 # EBIT approximation fallback - see comment above. roic_interest_expense is
                 # always from the same row as roic_pretax_income (anchor or fallback_tax_row),
@@ -1759,6 +1777,7 @@ class QualityMetricsMixin(
                     self._get_never_tagged_stockholders_equity_symbols(),
                     self._get_no_recent_total_assets_symbols(),
                     self._get_never_tagged_total_assets_symbols(),
+                    self._get_reit_or_special_entity_no_balance_data_symbols(),
                 )
                 marker = self._unavailable_marker("quality_metrics", symbol, reason=row_level_reason)
                 # FIXED 2026-09-09: preserve _QUARTERLY_DERIVED_TREND_FIELDS' own reason

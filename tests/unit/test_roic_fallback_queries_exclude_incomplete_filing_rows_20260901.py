@@ -117,8 +117,17 @@ class TestRoicFallbackQueriesExcludeIncompleteFilingRows:
         # "long_term_debt, short_term_debt, ..." column-list query also matches this test's
         # "SELECT long_term_debt" marker, doubling the expected count at each of the two
         # existing call sites (roic_pct-feeding position + roce_pct-feeding position).
-        assert len(debt_queries) == 4, (
-            "expected both original debt tiers plus the new components-fallback tier at each site"
+        # 2026-09-10 (later same day): DebtComponentsFallbackMixin gained a quarterly tier
+        # (_fetch_total_debt_components_quarterly_fallback, reached when the annual
+        # components-fallback tier also comes back empty - live-confirmed KWM/NUR/VOXR have
+        # real debt tagged only in quarterly_balance_sheet, never annual_balance_sheet). Its
+        # query also starts with "SELECT long_term_debt, short_term_debt, ..." so it matches
+        # this test's marker too, adding 1 more query on top of the prior 4 (this fake
+        # cursor's fetchone() always returns None, forcing every tier including the new one
+        # to fire at whichever call site reaches it).
+        assert len(debt_queries) == 5, (
+            "expected both original debt tiers, the annual components-fallback tier, and the "
+            "new quarterly components-fallback tier"
         )
 
         for query in tax_queries + equity_queries + debt_queries:

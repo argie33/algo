@@ -15,6 +15,7 @@ the `metrics` dict in place, identical to how this code behaved inline.
 from typing import TYPE_CHECKING, Any
 
 from loaders.helpers.vqg_shared import recategorize_balance_sheet_currency_fields
+from loaders.helpers.vqg_symbol_gates import _cached_symbols, _database_context
 
 
 class QualityRecategorizeMixin:
@@ -445,3 +446,30 @@ class QualityRecategorizeMixin:
         # compute_quality_row_level_reason above: vqg_quality.py is past the hard ceiling).
         if symbol in self._get_unsupported_currency_balance_sheet_symbols():
             recategorize_balance_sheet_currency_fields(metrics)
+
+    @_cached_symbols
+    def _get_reit_or_special_entity_no_balance_data_symbols(self) -> frozenset[str]:
+        """Symbols where annual_balance_sheet's own loader (loaders/helpers/sec_base.py's
+        `_no_data_reason`) already recorded zero SEC filings for this statement as a
+        REIT/special-entity structural fact ("no_annual_balance_data_in_sec_edgar_reit_or_
+        special_entity"), not an unresolved currency issue or a real extraction gap.
+
+        FIXED 2026-09-10 (goal: "under 500" missing-XBRL push): compute_quality_row_level_
+        reason's early-return path (vqg_shared.py, fires when every core ratio is None) only
+        checked etf_trust/unsupported_currency membership before falling through to the
+        generic "no_recent_balance_sheet_data_reported" ("Missing SEC/XBRL data") reason -
+        even for symbols the balance-sheet loader had ALREADY identified as a genuine
+        REIT/special-entity with zero filings on record. Live-confirmed BIOT/IMC/PSQL/RPGL:
+        every annual_balance_sheet row is null, and the most recent row's own `reason` column
+        is exactly this marker - same "Legitimate / not applicable" business-model fact as
+        the existing reit_special_entity/etf_trust_no_gaap_financials categories elsewhere in
+        this file, not an unresolved extraction gap.
+        """
+        with _database_context()("read") as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT symbol FROM annual_balance_sheet
+                WHERE reason = 'no_annual_balance_data_in_sec_edgar_reit_or_special_entity'
+                """
+            )
+            return frozenset(row[0] for row in cur.fetchall())

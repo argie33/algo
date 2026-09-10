@@ -14,6 +14,8 @@ trying harder XBRL concepts could ever close, so it must not keep reading as "no
 (which sounds like our own extraction failed).
 """
 
+from unittest.mock import MagicMock, patch
+
 from loaders.load_dividend_data import DividendDataLoader
 
 
@@ -57,15 +59,60 @@ class TestDividendRegisteredInvestmentCompanyReason:
         assert results[0]["data_unavailable_reason"] == "registered_investment_company_no_xbrl"
 
     def test_ordinary_filer_with_no_facts_at_all_keeps_generic_reason(self, monkeypatch):
-        # Control: a genuinely thin filer with neither us-gaap/ifrs-full NOR cef/ffd must keep
+        # Control: a genuinely thin filer with neither us-gaap/ifrs-full NOR cef/ffd, and NOT
+        # matching the entity_type='other'/sic_code IS NULL RIC fingerprint either, must keep
         # the original generic reason - this must not become a catch-all for every empty facts
-        # dict, only the specific cef/ffd registered-investment-company case.
+        # dict, only the specific registered-investment-company case (cef/ffd OR the
+        # company_info_sec fingerprint added 2026-09-10).
         def fake_fetch(self, symbol, timeout_sec=20.0):
             return {"cik": "1", "facts_response": {"facts": {}}}
 
         monkeypatch.setattr(DividendDataLoader, "_fetch_sec_data_with_timeout", fake_fetch)
 
-        results = _loader().fetch_incremental("THINFILER", None)
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = ("operating", "3674")  # ordinary operating company
+
+        with patch("utils.db.DatabaseContext") as mock_db:
+            mock_db.return_value.__enter__.return_value = mock_cursor
+            results = _loader().fetch_incremental("THINFILER", None)
+
+        assert results[0]["data_unavailable_reason"] == "no_us_gaap_facts"
+
+    def test_empty_facts_with_ric_company_info_fingerprint_gets_specific_reason(self, monkeypatch):
+        # FIX 2026-09-10: some closed-end funds (BKT/BME/ETO/EVN/VMO-class) don't even carry a
+        # cef/ffd taxonomy - companyfacts returns a totally empty `facts: {}`. Live-confirmed via
+        # SEC's own submissions API that these are genuine Investment Company Act filers (forms
+        # 40-17G/486BPOS/497, zero 10-K ever) - company_info_sec's entity_type='other'/
+        # sic_code IS NULL fingerprint (already used by vqg_symbol_gates.py for this same fund
+        # class) catches them without an extra live SEC call.
+        def fake_fetch(self, symbol, timeout_sec=20.0):
+            return {"cik": "1", "facts_response": {"facts": {}}}
+
+        monkeypatch.setattr(DividendDataLoader, "_fetch_sec_data_with_timeout", fake_fetch)
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = ("other", None)  # RIC fingerprint
+
+        with patch("utils.db.DatabaseContext") as mock_db:
+            mock_db.return_value.__enter__.return_value = mock_cursor
+            results = _loader().fetch_incremental("BKT", None)
+
+        assert results[0]["data_unavailable_reason"] == "registered_investment_company_no_xbrl"
+
+    def test_empty_facts_with_no_company_info_sec_row_keeps_generic_reason(self, monkeypatch):
+        # Control: a symbol with no company_info_sec row at all (e.g. not yet loaded) must not
+        # be misclassified - fail safe to the honest generic reason, not a guess.
+        def fake_fetch(self, symbol, timeout_sec=20.0):
+            return {"cik": "1", "facts_response": {"facts": {}}}
+
+        monkeypatch.setattr(DividendDataLoader, "_fetch_sec_data_with_timeout", fake_fetch)
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = None
+
+        with patch("utils.db.DatabaseContext") as mock_db:
+            mock_db.return_value.__enter__.return_value = mock_cursor
+            results = _loader().fetch_incremental("NEWCO", None)
 
         assert results[0]["data_unavailable_reason"] == "no_us_gaap_facts"
 
