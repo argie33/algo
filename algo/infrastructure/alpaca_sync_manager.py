@@ -536,6 +536,27 @@ class AlpacaSyncManager:
                 )
                 return
 
+            # REAL-MONEY-READINESS FIX (2026-09-10 order-execution re-audit): mirrors
+            # phase9_reconciliation.py's _verify_open_position_stop_loss_protection_step
+            # explicit execution_mode guard (2026-09-07). This method runs on every
+            # sync_alpaca_positions cycle in every execution mode and, before this fix, only
+            # gated on credential presence - relying entirely on self.alpaca_base_url having
+            # already been resolved to the paper endpoint for non-"auto" modes by
+            # AlpacaSyncManager.__init__'s create_execution_mode_strategy(...) call. That's an
+            # implicit coupling, not a guard at this call site: a future refactor of that
+            # shared resolution logic could silently start submitting real protective-stop
+            # orders here with nothing catching it. Fail closed instead of trusting it.
+            execution_mode = str(self.config.get("execution_mode") or "").lower()
+            base_url_is_paper = "paper" in self.alpaca_base_url.lower()
+            if execution_mode != "auto" and not base_url_is_paper:
+                logger.critical(
+                    f"[UNTRACKED_STOP] {symbol}: protective stop submission ABORTED - "
+                    f"execution_mode='{execution_mode}' but resolved Alpaca base_url does not "
+                    f"look like the paper endpoint ({self.alpaca_base_url}). Refusing to submit "
+                    "orders in a non-auto mode against what may be a live endpoint."
+                )
+                return
+
             from algo.trading.order_manager import OrderManager
 
             order_mgr = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
