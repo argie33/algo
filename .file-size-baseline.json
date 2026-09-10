@@ -518,7 +518,7 @@
   "loaders/helpers/vqg_quality_batch.py": 321,
   "loaders/helpers/vqg_quality_inputs.py": 319,
   "loaders/helpers/vqg_quality_reasons_profitability.py": 577,
-  "loaders/helpers/vqg_quality_reasons_valuation.py": 586,
+  "loaders/helpers/vqg_quality_reasons_valuation.py": 597,
   "loaders/helpers/vqg_quality_recategorize.py": 426,
   "loaders/helpers/vqg_quality_score.py": 557,
   "loaders/helpers/vqg_shared.py": 450,
