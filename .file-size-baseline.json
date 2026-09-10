@@ -531,7 +531,7 @@
   "loaders/helpers/sec_valuations_shares.py": 544,
   "loaders/helpers/sec_valuations_yield_dcf.py": 522,
   "loaders/helpers/vqg_growth.py": 366,
-  "loaders/helpers/vqg_quality.py": 1899,
+  "loaders/helpers/vqg_quality.py": 1917,
   "loaders/helpers/vqg_quality_batch.py": 338,
   "loaders/helpers/vqg_quality_debt_fallback.py": 58,
   "loaders/helpers/vqg_quality_inputs.py": 344,
