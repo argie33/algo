@@ -519,7 +519,290 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
     _fill_long_term_debt_from_noncurrent_current_split(rows)
     if period == "annual":
         _fill_long_term_debt_from_segment_dimensional_facts(rows, client, symbol)
+    _fill_cash_and_restricted_cash_combined(rows, client, symbol, period)
+    _fill_cash_and_restricted_cash_combined_from_split(rows, client, symbol, period)
+    _fill_liabilities_from_assets_minus_equity(rows, client, symbol, period)
+    _fill_liabilities_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
+    _fill_assets_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
+    _fill_operating_lease_liability_from_current_noncurrent_split(rows)
     return rows
+
+
+def _fill_operating_lease_liability_from_current_noncurrent_split(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: operating_lease_liability = CurrentLeaseLiabilities + NoncurrentLeaseLiabilities
+    (both ifrs-full concepts, see the "CurrentLeaseLiabilities"/"NoncurrentLeaseLiabilities"
+    comment in _BALANCE_IFRS_ALIASES above for the live evidence - Agnico Eagle's combined
+    "LeaseLiabilities" concept exactly equals this pair's sum, and 38 real filers in this
+    session's on-disk companyfacts cache, POSCO Holdings among them, tag ONLY this split pair
+    and never the combined concept at all).
+
+    Only fires when the primary "operating_lease_liability" column (from the combined
+    "LeaseLiabilities" ifrs-full alias, or the us-gaap "OperatingLeaseLiability" concept, both
+    fetched above) is still empty for that fiscal year - never overwrites a real value. Same
+    "both halves must be present" discipline as
+    _fill_income_tax_expense_from_current_deferred_split in sec_income_statement_fallbacks.py
+    (not the LongTermDebtCurrent "defaults to 0 when absent" convention just above this
+    function) - a filer with only one half tagged hasn't reported a lease-liability split this
+    way, so summing a partial figure would silently understate real lease debt rather than
+    leave an honest NULL. Mutates rows in place and always strips both raw keys.
+    """
+    for row in rows:
+        current = row.pop("current_lease_liabilities", None)
+        noncurrent = row.pop("noncurrent_lease_liabilities", None)
+        if row.get("operating_lease_liability") is not None or current is None or noncurrent is None:
+            continue
+        row["operating_lease_liability"] = current + noncurrent
+
+
+def _fill_liabilities_from_assets_minus_equity(
+    rows: list[dict[str, Any]], client: Any, symbol: str, period: str
+) -> None:
+    """Derive `liabilities` = LiabilitiesAndStockholdersEquity - StockholdersEquity for a filer
+    that stops tagging plain "Liabilities" for its most recent fiscal year/quarter but keeps
+    tagging the standard cover-page total "LiabilitiesAndStockholdersEquity" concept (a real,
+    balance-sheet-identity-guaranteed equivalent: Assets = Liabilities + StockholdersEquity =
+    LiabilitiesAndStockholdersEquity by definition, so this is subtraction of two directly-tagged
+    facts, not an estimate).
+
+    ADDED 2026-09-08 (goal session: XBRL continuity gap triage follow-up - see
+    scripts/triage_xbrl_continuity_gaps.py's SYNONYM_FOUND output). Live-confirmed via real SEC
+    companyfacts JSON for all 4 affected filers found by that triage - SEI Investments (CIK
+    0000350894), BioRestorative Therapies (0001505497), Datacentrex (0001853825), and Edesa
+    Biotech (0001540159) - each has a real, current-period LiabilitiesAndStockholdersEquity fact
+    (e.g. BioRestorative 2025-12-31: $4,079,635, EXACTLY matching that period's own Assets fact)
+    plus a real StockholdersEquity fact for the same period, while plain "Liabilities" itself is
+    absent. The earlier triage script's own SYNONYM_FOUND guess (mapping LiabilitiesCurrent
+    directly to the total_liabilities column) was wrong - LiabilitiesCurrent is a genuinely
+    smaller, current-only figure, not the total; this derivation is the actual fix.
+
+    Also fills `assets` the same way (assets == LiabilitiesAndStockholdersEquity directly, no
+    subtraction needed) when plain "Assets" is itself absent - live-confirmed SEI Investments'
+    OWN most recent quarter (2026 Q2) has dropped "Assets" too, not just "Liabilities" (a filer
+    that has fully stopped tagging the classified-balance-sheet concepts in favor of the
+    cover-page total), so treating only the liabilities side as the gap would have been an
+    incomplete fix for the same filer this function was written for.
+
+    Fallback-only: only fills a fiscal year/quarter where the standard concept (already in
+    `concepts` above) found nothing - never overwrites a real value.
+    """
+    combined_rows = _aggregate_concepts(client, symbol, ["LiabilitiesAndStockholdersEquity"], period)
+    combined_by_key = {
+        (r.get("fiscal_year"), r.get("fiscal_period")): r.get("liabilities_and_stockholders_equity")
+        for r in combined_rows
+    }
+    for row in rows:
+        total = combined_by_key.get((row.get("fiscal_year"), row.get("fiscal_period")))
+        if total is None:
+            continue
+        if row.get("assets") is None:
+            row["assets"] = total
+        if row.get("liabilities") is None:
+            equity = row.get("stockholders_equity")
+            if equity is not None:
+                row["liabilities"] = total - equity
+
+
+def _fill_liabilities_from_ifrs_current_noncurrent_split(
+    rows: list[dict[str, Any]], client: Any, symbol: str, period: str
+) -> None:
+    """Derive `liabilities` (total_liabilities) = CurrentLiabilities + NoncurrentLiabilities for
+    an IFRS filer that splits its balance sheet into the two halves but never tags the combined
+    ifrs-full:Liabilities total at all.
+
+    ADDED 2026-09-09 (goal session: XBRL continuity checker follow-up, right after the FPI
+    scanning-coverage fix - see scripts/xbrl_concept_continuity_scan.py's own 40-F/20-F
+    ifrs-full-merge fix earlier this session). Live-confirmed via HUB Cyber Security Ltd.'s
+    real companyfacts JSON (CIK 0001905660): FY2024 (period end 2024-12-31, form 20-F) tags
+    CurrentLiabilities=USD 106,074,000 and NoncurrentLiabilities=USD 2,159,000 but has ZERO
+    plain ifrs-full:Liabilities fact for that period - cross-checked against the SAME filing's
+    directly-tagged EquityAndLiabilities (USD 27,416,000) minus Equity (USD -80,817,000) =
+    USD 108,233,000, exactly matching the current+noncurrent sum, confirming this is the real
+    total and not a partial figure.
+
+    "CurrentLiabilities" is already fetched under _BALANCE_IFRS_ALIASES for the main
+    `liabilities_current`/`current_liabilities` column, so only "NoncurrentLiabilities" needs a
+    second lookup here (same secondary-aggregate-call pattern as
+    _fill_liabilities_from_assets_minus_equity above). Fallback-only: only fills a fiscal
+    year/quarter where the primary "Liabilities" alias found nothing, and only when BOTH halves
+    are present - a filer with just one half tagged hasn't reported this split, so summing a
+    partial figure would silently understate real liabilities rather than leave an honest NULL
+    (same discipline as _fill_operating_lease_liability_from_current_noncurrent_split above).
+    """
+    noncurrent_rows = _aggregate_concepts(
+        client, symbol, [], period, ifrs_aliases=[("NoncurrentLiabilities", "liabilities_noncurrent")]
+    )
+    noncurrent_by_key = {
+        (r.get("fiscal_year"), r.get("fiscal_period")): r.get("liabilities_noncurrent") for r in noncurrent_rows
+    }
+    for row in rows:
+        if row.get("liabilities") is not None:
+            continue
+        current = row.get("liabilities_current")
+        noncurrent = noncurrent_by_key.get((row.get("fiscal_year"), row.get("fiscal_period")))
+        if current is None or noncurrent is None:
+            continue
+        row["liabilities"] = current + noncurrent
+
+
+def _fill_assets_from_ifrs_current_noncurrent_split(
+    rows: list[dict[str, Any]], client: Any, symbol: str, period: str
+) -> None:
+    """Derive `assets` (total_assets) = CurrentAssets + NoncurrentAssets for an IFRS filer that
+    splits its balance sheet into the two halves but never tags the combined ifrs-full:Assets
+    total at all.
+
+    ADDED 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push, WPP/RTO live-confirmed):
+    the liabilities side of this exact gap was already fixed
+    (_fill_liabilities_from_ifrs_current_noncurrent_split above, 2026-09-09) but the assets side
+    was never mirrored - live-confirmed via real companyfacts JSON that WPP plc (CIK
+    0000806968, 341 cached ifrs-full concepts) and Rentokil Initial plc (CIK 0000930157, 299
+    concepts) both tag CurrentAssets/NoncurrentAssets every fiscal year but have ZERO plain
+    ifrs-full:Assets fact ever, leaving total_assets (and everything derived from it -
+    asset_turnover, roa, gross_profitability) permanently NULL despite a complete, extractable
+    filing. Not a currency/volatility issue (both report in GBP, already in MAJOR_CURRENCIES) -
+    a pure missing-derivation gap, same class of bug as the liabilities-side fix this mirrors.
+
+    "CurrentAssets" is already fetched under _BALANCE_IFRS_ALIASES for the main
+    `assets_current`/`current_assets` column, so only "NoncurrentAssets" needs a second lookup
+    here (same secondary-aggregate-call pattern as _fill_liabilities_from_ifrs_current_noncurrent_split
+    above). Fallback-only: only fills a fiscal year/quarter where the primary "Assets" alias
+    found nothing, and only when BOTH halves are present - a filer with just one half tagged
+    hasn't reported this split, so summing a partial figure would silently understate real
+    assets rather than leave an honest NULL (same discipline as the liabilities-side sibling).
+    """
+    noncurrent_rows = _aggregate_concepts(
+        client, symbol, [], period, ifrs_aliases=[("NoncurrentAssets", "assets_noncurrent")]
+    )
+    noncurrent_by_key = {
+        (r.get("fiscal_year"), r.get("fiscal_period")): r.get("assets_noncurrent") for r in noncurrent_rows
+    }
+    for row in rows:
+        if row.get("assets") is not None:
+            continue
+        current = row.get("assets_current")
+        noncurrent = noncurrent_by_key.get((row.get("fiscal_year"), row.get("fiscal_period")))
+        if current is None or noncurrent is None:
+            continue
+        row["assets"] = current + noncurrent
+
+
+def _fill_cash_and_restricted_cash_combined(rows: list[dict[str, Any]], client: Any, symbol: str, period: str) -> None:
+    """Populate `cash_and_restricted_cash_combined` from us-gaap:CashCashEquivalentsRestricted
+    CashAndRestrictedCashEquivalents - a SEPARATE aggregation pass, not reusable from the main
+    concepts list above (migration 1267), because that same concept name already feeds
+    `cash_and_equivalents` there as a least-preferred fallback (see this file's own comment on
+    it above: "includes restricted cash where a filer only tags this combined figure") -
+    _aggregate_concepts' one-raw-key-per-concept-name design means the same concept string
+    can't ALSO target a second, different column in the same call.
+
+    ADDED 2026-09-07 (goal session: tie-out check_cashflow_reconciliation follow-up, ADP live-
+    confirmed - see migration 1267's own header for the full evidence). Per ASU 2016-18, a
+    filer's cash-flow statement reconciles OCF+ICF+FCF to this COMBINED total when it holds
+    material restricted cash (payroll processors, banks/trust companies), not to unrestricted
+    cash_and_equivalents alone - tie_out.py's check_cashflow_reconciliation prefers this column
+    (via COALESCE) when present. NULL for the (majority) of filers with no material restricted
+    cash - a second real API/cache lookup per symbol, same as `_fill_long_term_debt_from_
+    segment_dimensional_facts` above, but reads from the same already-fetched companyfacts
+    cache so it costs no extra network I/O beyond the local disk read.
+    """
+    combined_rows = _aggregate_concepts(
+        client, symbol, ["CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"], period
+    )
+    combined_by_key = {
+        (r.get("fiscal_year"), r.get("fiscal_period")): r.get(
+            "cash_cash_equivalents_restricted_cash_and_restricted_cash_equivalents"
+        )
+        for r in combined_rows
+    }
+    for row in rows:
+        key = (row.get("fiscal_year"), row.get("fiscal_period"))
+        value = combined_by_key.get(key)
+        if value is not None:
+            row["cash_and_restricted_cash_combined"] = value
+
+
+def _fill_cash_and_restricted_cash_combined_from_split(
+    rows: list[dict[str, Any]], client: Any, symbol: str, period: str
+) -> None:
+    """Fallback-only: cash_and_restricted_cash_combined = cash_and_equivalents + RestrictedCash
+    (or its current/noncurrent split), for filers that never tag the single combined
+    "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents" concept
+    `_fill_cash_and_restricted_cash_combined` above reads.
+
+    ADDED 2026-09-08 (goal session: XBRL coverage-scan exhaustiveness audit - us-gaap:
+    RestrictedCash/RestrictedCashCurrent were being silently swallowed by an over-broad
+    "RestrictedCash" noise substring instead of being individually reviewed; see this
+    concept's dismissal-reversal in xbrl_concept_coverage_dismissed.json's history and the
+    NOISE_SUBSTRINGS comment in xbrl_concept_coverage.py). Live-confirmed via Eastman Kodak's
+    real companyfacts JSON (CIK 0000031235): FY2025 CashAndCashEquivalentsAtCarryingValue =
+    $337,000,000 + RestrictedCashCurrent = $9,000,000, zero
+    CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents fact ever filed - the
+    combined column was NULL for this real, material (2.7% of cash) restricted-cash balance
+    before this fix.
+
+    Only fires when the combined column is still empty for that fiscal year (never overwrites
+    a real directly-tagged combined total) and an unrestricted-cash figure is already populated
+    for that year - the restricted-cash addend is meaningless without a base to add it to. Reads
+    the raw "cash_and_cash_equivalents_at_carrying_value"/"cash_and_due_from_banks" concept keys
+    directly (this function runs before load_financial_statements.py's field_mapping stage folds
+    those, plus this same function's own combined-concept fallback, into the single
+    "cash_and_equivalents" column - see field_mapping's cash_and_equivalents entries). Tiered
+    preference (first tier with any data for that fiscal year wins, no
+    cross-tier summing - a filer only ever uses one of these tagging conventions):
+    1. RestrictedCashCurrent + RestrictedCashNoncurrent (both default to 0 when only one half
+       is tagged for that year).
+    2. Bare "RestrictedCash" (single combined figure, no current/noncurrent split).
+    3. Bare "RestrictedCashAndCashEquivalents" (alternate-label single figure some filers use
+       instead of "RestrictedCash" - live-confirmed via Air Products' real companyfacts JSON,
+       CIK 0000002969: FY2011 = $77,200,000, real material restricted-cash balance).
+    4. Bare "RestrictedCashAndCashEquivalentsNoncurrent" alone (rare filers reporting only the
+       noncurrent portion of this alternate label with no current-portion sibling tagged) - a
+       closer approximation than leaving the figure at cash_and_equivalents alone.
+    ifrs_aliases folds the IFRS analogs (Scully Royalty and others tag
+    "ifrs-full:RestrictedCashAndCashEquivalents" bare, or split into Current/Noncurrent) into
+    the same tiers so foreign private issuers get the identical fallback treatment.
+    """
+    concepts = [
+        "RestrictedCash",
+        "RestrictedCashCurrent",
+        "RestrictedCashNoncurrent",
+        "RestrictedCashAndCashEquivalents",
+        "RestrictedCashAndCashEquivalentsNoncurrent",
+    ]
+    ifrs_aliases = [
+        ("RestrictedCashAndCashEquivalents", "restricted_cash_and_cash_equivalents"),
+        ("CurrentRestrictedCashAndCashEquivalents", "restricted_cash_current"),
+        ("NoncurrentRestrictedCashAndCashEquivalents", "restricted_cash_noncurrent"),
+    ]
+    restricted_rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=ifrs_aliases)
+    restricted_by_key = {(r.get("fiscal_year"), r.get("fiscal_period")): r for r in restricted_rows}
+    for row in rows:
+        if row.get("cash_and_restricted_cash_combined") is not None:
+            continue
+        cash = row.get("cash_and_cash_equivalents_at_carrying_value")
+        if cash is None:
+            cash = row.get("cash_and_due_from_banks")
+        if cash is None:
+            continue
+        restricted_row = restricted_by_key.get((row.get("fiscal_year"), row.get("fiscal_period")))
+        if not restricted_row:
+            continue
+        current = restricted_row.get("restricted_cash_current")
+        noncurrent = restricted_row.get("restricted_cash_noncurrent")
+        if current is not None or noncurrent is not None:
+            row["cash_and_restricted_cash_combined"] = cash + (current or 0) + (noncurrent or 0)
+            continue
+        bare = restricted_row.get("restricted_cash")
+        if bare is not None:
+            row["cash_and_restricted_cash_combined"] = cash + bare
+            continue
+        alt_bare = restricted_row.get("restricted_cash_and_cash_equivalents")
+        if alt_bare is not None:
+            row["cash_and_restricted_cash_combined"] = cash + alt_bare
+            continue
+        alt_noncurrent = restricted_row.get("restricted_cash_and_cash_equivalents_noncurrent")
+        if alt_noncurrent is not None:
+            row["cash_and_restricted_cash_combined"] = cash + alt_noncurrent
 
 
 def _fill_long_term_debt_from_segment_dimensional_facts(rows: list[dict[str, Any]], client: Any, symbol: str) -> None:
