@@ -512,6 +512,9 @@ def _docstring_line_ranges(text: str) -> list[tuple[int, int]]:
     try:
         tree = ast.parse(text)
     except SyntaxError:
+        # Not financial/loader data - this is a dev-tooling static-analysis helper for the
+        # concept-coverage scan script. An unparseable source file has no work to do here:
+        # no AST means no docstring ranges exist to report, not a missing-data condition.
         return []
     ranges = []
     for node in ast.walk(tree):
