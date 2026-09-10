@@ -29,7 +29,11 @@ this kind of function via source structure instead.
 
 from pathlib import Path
 
-ORCHESTRATOR_SOURCE = (Path(__file__).parent.parent.parent / "algo" / "orchestration" / "orchestrator.py").read_text()
+# phase_9_reconcile lives in orchestrator_phases_executor.py since the 2026-09-10
+# file-size-ratchet split of orchestrator.py into mixin files.
+ORCHESTRATOR_SOURCE = (
+    Path(__file__).parent.parent.parent / "algo" / "orchestration" / "orchestrator_phases_executor.py"
+).read_text()
 PHASE9_SOURCE = (Path(__file__).parent.parent.parent / "algo" / "orchestrator" / "phase9_reconciliation.py").read_text()
 
 

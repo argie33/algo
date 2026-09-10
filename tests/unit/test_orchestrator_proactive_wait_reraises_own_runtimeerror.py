@@ -18,7 +18,9 @@ import ast
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SOURCE = REPO_ROOT / "algo" / "orchestration" / "orchestrator.py"
+# _wait_for_critical_loaders_proactive lives in orchestrator_loader_health.py since the
+# 2026-09-10 file-size-ratchet split of orchestrator.py into mixin files.
+SOURCE = REPO_ROOT / "algo" / "orchestration" / "orchestrator_loader_health.py"
 
 
 def _find_method(name: str) -> ast.FunctionDef:
