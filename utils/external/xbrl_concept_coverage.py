@@ -13,6 +13,7 @@ or a tie-out check happened to catch a downstream symptom.
 
 from __future__ import annotations
 
+import ast
 import datetime
 import io
 import json
@@ -500,6 +501,30 @@ def save_dismissed(dismissed: dict[str, str]) -> None:
     DISMISSED_FILE.write_text(json.dumps(dict(sorted(dismissed.items())), indent=2) + "\n", encoding="utf-8")
 
 
+def _docstring_line_ranges(text: str) -> list[tuple[int, int]]:
+    """Line ranges (inclusive, 1-indexed) covered by a module/function/class docstring.
+
+    Used by load_known_concepts() below to exclude concept names that appear ONLY inside a
+    docstring, the residual risk explicitly flagged (but not fixed) by the 2026-09-09
+    comment-leak fix (tokenize.STRING doesn't distinguish a docstring from a real code
+    string literal - both need excluding for the same reason).
+    """
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return []
+    ranges = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if not node.body or not isinstance(node.body[0], ast.Expr):
+            continue
+        value = node.body[0].value
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            ranges.append((node.body[0].lineno, node.body[0].end_lineno or node.body[0].lineno))
+    return ranges
+
+
 def load_known_concepts() -> set[str]:
     # FIXED 2026-09-09 (user-flagged: "not sure how the scan is showing 0 gaps when we have
     # 900+ missing scored inputs"): this previously regex-scanned each file's RAW text,
@@ -510,8 +535,20 @@ def load_known_concepts() -> set[str]:
     # confirmed 51 concept-shaped literals appear ONLY inside a comment line across these 22
     # files, never in an actual list/dict/tuple literal. Tokenizing and keeping only real
     # STRING tokens (tokenize.COMMENT is a distinct token type, never matched here) fixes the
-    # comment-leak class entirely; a module/function/class docstring is still a STRING token
-    # and a narrower residual risk, not addressed here.
+    # comment-leak class entirely.
+    #
+    # FIXED 2026-09-09 (same-day follow-up, closing the residual risk the fix above explicitly
+    # left open): a module/function/class docstring is ALSO a STRING token, so a concept name
+    # merely documented/explained in a docstring (not just a "#" comment) was still wrongly
+    # counted as fetched. Live-audited: 0 currently-cached filers are affected today (none of
+    # the docstring-only names that exist in these files right now - segment-dimension/member
+    # concepts like NumberOfSegments/SegmentRevenue/AmericasSegmentMember, none of which are
+    # real top-level companyfacts concept keys anyway - appear as an actual filer tag in the
+    # 5,377-payload cache), so this closes a latent correctness bug proactively rather than a
+    # currently-active false plateau. _docstring_line_ranges() (AST-based, distinct from the
+    # tokenize-based STRING/COMMENT distinction above since the tokenizer alone can't tell a
+    # docstring from any other string literal) identifies which STRING tokens to additionally
+    # exclude.
     known: set[str] = set()
     for rel in CONCEPT_SOURCE_FILES:
         path = REPO_ROOT / rel
@@ -519,8 +556,12 @@ def load_known_concepts() -> set[str]:
             continue
         text = path.read_text(encoding="utf-8")
         try:
+            doc_ranges = _docstring_line_ranges(text)
             for tok in tokenize.generate_tokens(io.StringIO(text).readline):
                 if tok.type == tokenize.STRING:
+                    line = tok.start[0]
+                    if any(start <= line <= end for start, end in doc_ranges):
+                        continue
                     known.update(_CONCEPT_LITERAL_RE.findall(tok.string))
         except (tokenize.TokenError, IndentationError, SyntaxError):
             # Never silently drop a whole file's real concepts over a tokenizer hiccup.
