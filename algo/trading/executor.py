@@ -247,8 +247,12 @@ class TradeExecutor:
         # Initialize exit handler with context (not whole executor)
         self.exit_handler = ExitHandler(handler_context)
 
-        # Initialize order manager specialist for order submission and validation
-        self.order_manager = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
+        # Initialize order manager specialist for order submission and validation.
+        # execution_mode passed through for send_bracket_order's own defense-in-depth
+        # guard (2026-09-10 order-execution re-audit) - see order_manager.py.
+        self.order_manager = OrderManager(
+            self.alpaca_key, self.alpaca_secret, self.alpaca_base_url, execution_mode=self.execution_mode
+        )
 
         self.execution_mode_strategy.validate_and_log_initialization(
             self.alpaca_key, self.alpaca_secret, self.alpaca_base_url
