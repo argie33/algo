@@ -55,6 +55,26 @@ _BALANCE_IFRS_ALIASES = [
         "CurrentAssetsOtherThanAssetsOrDisposalGroupsClassifiedAsHeldForSaleOrAsHeldForDistributionToOwners",
         "assets_current",
     ),
+    # ADDED 2026-09-09 (goal session: XBRL coverage-scan gap triage, 101 undismissed filers):
+    # the held-for-sale component itself, for the rare filer that tags ONLY this concept for
+    # a given fiscal year (neither bare "CurrentAssets" nor the "OtherThan..." concept above
+    # has a fact) - live-confirmed via the real companyfacts cache that this genuinely happens
+    # for some filer/year combinations, not just as a sibling of the other two. Deliberately
+    # listed LAST (after both other current-assets concepts) so first-populated-wins (see
+    # _aggregate_concepts_should_replace_entry in sec_statements_entry_resolution.py) means it
+    # only ever fills a column that's otherwise completely empty for that period - it can
+    # never partially overwrite/double-count against the "OtherThan..." figure when a filer
+    # tags both (the common case, confirmed via cross-referencing the cache: many filers tag
+    # identical values under both concepts for the same period, e.g. Korea Electric Power,
+    # Brookfield, National Grid, GSK - summing those would double-count). NOT a substitute for
+    # real summing (this loader's transform() still has no summing mechanism for two concepts
+    # targeting the same column, same limitation noted above for the OtherThan... concept) -
+    # for filers that tag both concepts as genuinely separate non-overlapping pieces (e.g. YPF
+    # 2017: HeldForSale=$8.823B vs OtherThan=$43M, a ~99.5%/0.5% split, clearly not duplicate
+    # values), the OtherThan concept alone (already fetched, listed first) still undercounts -
+    # that residual gap is real and NOT closed by this entry; it would need an actual summing
+    # feature, out of scope here.
+    ("NoncurrentAssetsOrDisposalGroupsClassifiedAsHeldForSale", "assets_current"),
     ("Liabilities", "liabilities"),
     ("CurrentLiabilities", "liabilities_current"),
     # FIXED 2026-09-07 (same SSL fix): paired liabilities-side concept for the same IFRS 5
