@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 # not transient sync noise. See _find_stale_missing_symbols's docstring.
 STALE_MISSING_ESCALATION_HOURS = 24
 
+# An open (resting/unfilled) Alpaca order with no matching algo_trades row younger than this
+# is treated as a genuine crash-orphan, not an in-flight transaction still mid-commit - see
+# find_orphaned_open_orders's docstring.
+ORPHANED_ORDER_GRACE_MINUTES = 10
+
 
 def _find_stale_missing_symbols(missing_rows: list[tuple[str, Any]]) -> list[str]:
     """Of the symbols found "in DB but not at Alpaca" this cycle, return the ones that have
@@ -217,6 +222,88 @@ class AlpacaSyncManager:
         except (requests.RequestException, ValueError, json.JSONDecodeError) as e:
             logger.error(f"Failed to fetch Alpaca account: {e}")
             raise
+
+    def find_orphaned_open_orders(self, cur: Any) -> list[dict[str, Any]]:
+        """Find open (resting, unfilled) Alpaca orders with no matching algo_trades row.
+
+        REAL-MONEY-READINESS FINDING (2026-09-10, order-execution re-audit): the crash-
+        recovery story for order submission has a gap this method closes. executor.py's
+        _with_cursor wraps the broker POST /v2/orders call and the algo_trades INSERT in a
+        single DB transaction (see executor.py's _execute_entry_txn/_with_cursor) - if the
+        process dies after Alpaca accepts the order but before that transaction commits, the
+        INSERT rolls back entirely. sync_alpaca_positions (above) only catches this once the
+        order FILLS into a real position (orphan_symbols cross-check against algo_positions).
+        An order that is still resting/unfilled (status new/accepted/partially_filled) at the
+        moment of the crash is invisible to both algo_trades (rolled back) and
+        sync_alpaca_positions (no position exists yet) - it would sit unrecorded until it
+        either fills (becoming an algo_untracked_positions row, once discovered) or expires,
+        with nothing in between ever surfacing it.
+
+        client_order_id doubles as the idempotency_key we insert into algo_trades (see
+        executor.py's send_bracket_order call site: "use idempotency_key ... NOT trade_id" -
+        same 64-char SHA256 hexdigest on both sides), so a straightforward existence check is
+        enough to detect the gap - no separate order-tracking table needed.
+
+        Excludes orders submitted within ORPHANED_ORDER_GRACE_MINUTES of "now" - a genuinely
+        in-flight transaction (broker accepted, DB commit not yet reached) is not evidence of
+        a crash, and this reconciliation pass runs far more often than any single entry
+        transaction should ever take to complete.
+        """
+        if not self._alpaca_key or not self._alpaca_secret:
+            return []
+
+        try:
+            url = f"{self._alpaca_base_url}/v2/orders"
+            headers = {
+                "APCA-API-KEY-ID": self._alpaca_key,
+                "APCA-API-SECRET-KEY": self._alpaca_secret,
+                "Accept": "application/json",
+            }
+            timeout = self.config.get("api_request_timeout_seconds")
+            if timeout is None:
+                raise ValueError(
+                    "CRITICAL: api_request_timeout_seconds config missing. "
+                    "API requests require explicit timeout configuration. "
+                    "Check config and ensure api_request_timeout_seconds is set."
+                )
+            response = self._session.get(
+                url, headers=headers, params={"status": "open", "limit": "500"}, timeout=timeout
+            )
+            response.raise_for_status()
+            open_orders = response.json()
+        except (requests.RequestException, ValueError, json.JSONDecodeError) as e:
+            logger.error(f"[ORDER_RECONCILE] Failed to fetch open Alpaca orders: {e}")
+            raise RuntimeError(f"[ORDER_RECONCILE] Cannot fetch open orders from Alpaca: {e}") from e
+
+        if not open_orders:
+            return []
+
+        client_order_ids = [o.get("client_order_id") for o in open_orders if o.get("client_order_id")]
+        if not client_order_ids:
+            return []
+
+        cur.execute(
+            "SELECT idempotency_key FROM algo_trades WHERE idempotency_key = ANY(%s)",
+            (client_order_ids,),
+        )
+        known_ids = {row[0] for row in cur.fetchall()}
+
+        grace_cutoff = datetime.now(timezone.utc).timestamp() - (ORPHANED_ORDER_GRACE_MINUTES * 60)
+        orphans = []
+        for order in open_orders:
+            client_order_id = order.get("client_order_id")
+            if not client_order_id or client_order_id in known_ids:
+                continue
+            submitted_at = order.get("submitted_at") or order.get("created_at")
+            if submitted_at:
+                try:
+                    submitted_ts = datetime.fromisoformat(str(submitted_at).replace("Z", "+00:00")).timestamp()
+                    if submitted_ts > grace_cutoff:
+                        continue
+                except ValueError:
+                    pass  # Unparseable timestamp - don't let it hide a genuine orphan; treat as orphaned.
+            orphans.append(order)
+        return orphans
 
     def _sync_untracked_positions(
         self, cur: Any, orphan_symbols: list[str], alpaca_positions: list[dict[str, Any]]
