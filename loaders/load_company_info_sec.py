@@ -1136,18 +1136,36 @@ class CompanyInfoSECLoader(SecLoaderBase):
         # `accessionNumber` (same shape load_current_reports_8k.py already relies on) - missing
         # or malformed entries are treated as stale (skip) rather than trusted.
         staleness_cutoff = (date.today() - timedelta(days=self._STALENESS_CUTOFF_DAYS)).isoformat()
-        accession = next(
-            (
-                accessions[i]
-                for i, f in enumerate(forms)
-                if f in annual_forms
-                and i < len(accessions)
-                and i < len(dates)
-                and dates[i]
-                and dates[i] >= staleness_cutoff
-            ),
-            None,
-        )
+
+        def _most_recent_accession(candidate_forms: set[str]) -> str | None:
+            return next(
+                (
+                    accessions[i]
+                    for i, f in enumerate(forms)
+                    if f in candidate_forms
+                    and i < len(accessions)
+                    and i < len(dates)
+                    and dates[i]
+                    and dates[i] >= staleness_cutoff
+                ),
+                None,
+            )
+
+        accession = _most_recent_accession(annual_forms)
+        if not accession:
+            # FIXED 2026-09-10 (goal: "under 300" push, no_annual_report_filing
+            # investigation): a domestic filer too new to have filed a 10-K yet (e.g. a
+            # recent IPO) still carries the identical cover-page
+            # dei:EntityCommonStockSharesOutstanding inline-XBRL tag on every 10-Q it
+            # files - live-confirmed via XPRO's real 2026-07-28 10-Q (accession
+            # 0001437749-26-024670): "112,349,149" tagged exactly like a 10-K cover page,
+            # same regex below matches unchanged. Same domestic-only safety as the 10-K
+            # branch above - foreign private issuers file 6-K, not 10-Q, so this can't
+            # reintroduce the BP/TV unit-mismatch trap the 20-F exclusion above guards
+            # against. Only tried when no 10-K/10-K-A exists at all, so a filer that
+            # already has a real annual filing keeps using it (more authoritative,
+            # audited) rather than a quarter's inline tag.
+            accession = _most_recent_accession({"10-Q", "10-Q/A"})
         if not accession:
             return None
 

@@ -10,8 +10,7 @@ against positions that are ALREADY open as prices drift intraday - a position ca
 past the 2.0 beta cap or the top-5-concentration cap purely from price movement, with no
 new entry involved, and nothing will notice until the next Phase 9 run at end of day.
 
-This module closes the VISIBILITY half of that gap: an ALERT-ONLY (deliberately not
-auto-halting - see this module's own docstring note below) recheck, meant to run on a tight
+This module closes the VISIBILITY half of that gap: a recheck, meant to run on a tight
 intraday cadence (see terraform/modules/services/intraday-risk-monitor.tf, disabled by
 default same as stop-loss-guardian.tf) via `mode: "intraday_risk_monitor"` in
 lambda_function.py.
@@ -21,14 +20,20 @@ algo_positions.current_price - that column is only refreshed once/day by Phase 3
 EOD price_daily loader (see phase3_position_monitor.py), so intraday it can be hours stale
 - exactly the kind of gap this check exists to catch, so it must not rely on it.
 
-DELIBERATELY ALERT-ONLY, NOT AUTO-HALT: whether an intraday risk breach should
-automatically halt new trading (via HaltFlagManager.set_halt_flag) is a real product
-decision (a false-positive halt on a real trading day has its own cost) that the 2026-09-06
-architecture-gap note explicitly left for the user to decide, not something this session
-should decide unilaterally. This module surfaces the breach immediately via AlertManager
-(the same durable, multi-channel path every other real-money risk alert in this codebase
-uses) so a human can act; wiring an automatic halt on top of this is a small, separate
-follow-up once that product decision is made.
+REAL-MONEY-READINESS FIX (2026-09-10, product decision made): a breach now also sets the
+same HaltFlagManager flag Phase 2's circuit breaker uses, with
+`triggered_by="intraday_risk_monitor"` - blocking Phase 8 from placing NEW entries (and, via
+set_halt_flag's own `_cancel_pending_entry_orders_on_halt`, cancelling any not-yet-filled
+entry order already resting at the broker) until this check next runs clean. Deliberately
+does NOT touch already-open positions: existing positions keep exiting only through their
+own configured stop-loss/take-profit/exit-strategy logic, exactly as before - this check
+adds no forced liquidation or de-risking of its own, on the user's explicit direction that a
+beta/concentration breach on an already-open swing-trade book is a "stop adding risk", not a
+"start selling" signal. When a later run finds both metrics back under cap, it self-clears
+ONLY a halt it recognizes as its own (mirrors phase2_circuit_breaker's self-clear pattern in
+orchestrator_phases_executor.py) - never touches a halt set by Phase 1/Phase 2/Phase 9/a
+manual operator. Still also sends the AlertManager alert on every breach, same as before, so
+a human is notified even though the system now also acts.
 """
 
 import logging
@@ -42,16 +47,23 @@ from utils.db import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
-def check_intraday_risk(config: Any, alerts: AlertManager | None = None) -> dict[str, Any]:
-    """Recompute portfolio beta and top-5 concentration against LIVE broker state and
-    alert (never raises for a breach - only for a genuine infrastructure failure) if either
-    exceeds this account's configured `max_portfolio_beta`/`max_top5_concentration_pct`.
+def check_intraday_risk(
+    config: Any, alerts: AlertManager | None = None, halt_manager: Any | None = None
+) -> dict[str, Any]:
+    """Recompute portfolio beta and top-5 concentration against LIVE broker state; alert and
+    halt new entries (never raises for a breach itself - only for a genuine infrastructure
+    failure) if either exceeds this account's configured `max_portfolio_beta`/
+    `max_top5_concentration_pct`.
 
     Returns a result dict (for the caller's own logging) with the computed values and
-    whether either threshold was breached - never silently swallows a breach, but also
-    never takes a trading-affecting action itself (see module docstring).
+    whether either threshold was breached - never silently swallows a breach (see module
+    docstring for exactly what action is and isn't taken).
     """
     alerts = alerts or AlertManager()
+    if halt_manager is None:
+        from algo.orchestration.halt_flag_manager import HaltFlagManager
+
+        halt_manager = HaltFlagManager(alerts, lambda *a, **k: None)
     broker = AlpacaBrokerAdapter(config)
 
     account = broker.fetch_account()
@@ -59,6 +71,13 @@ def check_intraday_risk(config: Any, alerts: AlertManager | None = None) -> dict
     positions = broker.fetch_positions()
 
     if not positions:
+        # No open positions - can't be over a beta/concentration cap. Same self-clear as the
+        # bottom of this function: only touch a halt this check itself previously set.
+        if halt_manager.get_halt_triggered_by() == "intraday_risk_monitor":
+            halt_manager.clear_halt_flag(
+                "Intraday risk re-check found no open positions",
+                allowed_triggers=frozenset({"intraday_risk_monitor"}),
+            )
         return {
             "portfolio_value": float(portfolio_value),
             "portfolio_beta": 0.0,
@@ -153,6 +172,27 @@ def check_intraday_risk(config: Any, alerts: AlertManager | None = None) -> dict
                 "symbols_missing_beta": symbols_missing_beta,
             },
         )
+        # Block new entries only - existing positions keep exiting through their own
+        # configured stop-loss/take-profit/exit-strategy logic, untouched (see module
+        # docstring). set_halt_flag() itself cancels only not-yet-filled entry orders.
+        halt_manager.set_halt_flag(
+            "Intraday risk breach: " + "; ".join(reasons),
+            triggered_by="intraday_risk_monitor",
+        )
+    else:
+        # Self-clear only a halt this check itself previously set - mirrors
+        # phase2_circuit_breaker's self-clear pattern. Never touches a halt set by Phase 1,
+        # Phase 2, Phase 9, or a manual operator.
+        current_trigger = halt_manager.get_halt_triggered_by()
+        if current_trigger == "intraday_risk_monitor":
+            logger.info(
+                "[INTRADAY_RISK_MONITOR] Portfolio beta and top-5 concentration are back under "
+                "cap - clearing the halt flag this check previously set."
+            )
+            halt_manager.clear_halt_flag(
+                "Intraday risk re-check found beta/concentration back under cap",
+                allowed_triggers=frozenset({"intraday_risk_monitor"}),
+            )
 
     return {
         "portfolio_value": float(portfolio_value),
