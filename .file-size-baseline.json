@@ -143,7 +143,7 @@
   "algo/orchestrator/phase9_stop_loss_repair.py": 228,
   "algo/orchestrator/phase_data_contract.py": 423,
   "algo/orchestrator/phase_error_handling.py": 124,
-  "algo/orchestrator/phase_executor.py": 554,
+  "algo/orchestrator/phase_executor.py": 562,
   "algo/orchestrator/phase_prerequisites.py": 98,
   "algo/orchestrator/phase_registry.py": 309,
   "algo/orchestrator/phase_result.py": 119,
