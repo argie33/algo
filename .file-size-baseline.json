@@ -109,7 +109,7 @@
   "algo/orchestration/orchestrator.py": 446,
   "algo/orchestration/orchestrator_final_report.py": 330,
   "algo/orchestration/orchestrator_loader_health.py": 734,
-  "algo/orchestration/orchestrator_phases_executor.py": 734,
+  "algo/orchestration/orchestrator_phases_executor.py": 757,
   "algo/orchestration/orchestrator_run_loop.py": 606,
   "algo/orchestration/orchestrator_startup.py": 718,
   "algo/orchestration/phase_event_hub.py": 296,
