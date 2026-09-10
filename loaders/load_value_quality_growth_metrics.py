@@ -573,9 +573,9 @@ class ValueQualityGrowthMetricsLoader(
                            (SELECT gross_profit FROM annual_income_statement
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
                               AND data_unavailable = FALSE) as prior_year_gross_profit,
-                           (SELECT dividends_paid FROM annual_cash_flow
+                           (SELECT dividends_paid FROM annual_cash_flow  -- masked-but-present (2026-09-10): filter the field, not the whole row's data_unavailable flag
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1
-                              AND data_unavailable = FALSE) as prior_year_dividends_paid
+                              AND dividends_paid IS NOT NULL) as prior_year_dividends_paid
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year AND ais.data_unavailable = FALSE
                     LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year AND acf.data_unavailable = FALSE
