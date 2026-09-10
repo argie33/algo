@@ -13,6 +13,34 @@ from utils.external.sec_statements_aggregate import _aggregate_concepts
 
 logger = logging.getLogger(__name__)
 
+# ADDED 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push, ANDG live-confirmed): every
+# concept below is a real, mutually-exclusive-in-practice equivalent of "stockholders_equity"
+# (see this file's own comments on each below, and load_financial_statements.py's
+# _BALANCE_FIELD_MAPPING, which is where they all actually collapse onto that one DB column -
+# _aggregate_concepts itself has no visibility into that mapping, hence this local group).
+# Passed as `alias_groups` to _aggregate_concepts so its has_annual_report_form/
+# _max_annual_report_end "don't accept a premature 10-Q snapshot once a real 10-K exists"
+# guard (see that function's own GM/DIS/WEC comments) sees ALL of a filer's equity-family
+# concepts together, not just whichever single one it's currently resolving. Without this, a
+# filer that tags one equity concept in its 10-K but a DIFFERENT one (still same DB column) in
+# a later 10-Q defeats the guard entirely for that 10-Q concept - live-confirmed via ANDG:
+# FY2025 10-K tags bare "StockholdersEquity", but its FY2026 Q2 10-Q instead tags
+# "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest" - which, having no
+# 10-K history of its OWN, sailed straight into the FY2026 bucket as if it were fiscal-year-end
+# data while sibling concepts (Assets/LongTermDebt, same concept name in both filings) were
+# correctly withheld by the same guard - an inconsistent partial row instead of a clean
+# "not yet confirmed" state.
+_EQUITY_ALIAS_GROUPS = {
+    "stockholders_equity": "stockholders_equity_group",
+    "stockholders_equity_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity_group",
+    "partners_capital": "stockholders_equity_group",
+    "partners_capital_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity_group",
+    "members_equity": "stockholders_equity_group",
+    "limited_liability_company_llc_members_equity_including_portion_attributable_to_noncontrolling_interest": (
+        "stockholders_equity_group"
+    ),
+}
+
 _BALANCE_IFRS_ALIASES = [
     # (IFRS concept name, target key = _to_snake() of the equivalent GAAP concept)
     ("Assets", "assets"),
@@ -876,7 +904,9 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # not this one) so its own gap is NOT expected to fully close from this alone.
         "TemporaryEquityCarryingAmountAttributableToParent",
     ]
-    rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
+    rows = _aggregate_concepts(
+        client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES, alias_groups=_EQUITY_ALIAS_GROUPS
+    )
     _fill_long_term_debt_from_noncurrent_current_split(rows)
     _fill_operating_lease_liability_from_current_noncurrent_split(rows)
     if period == "annual":

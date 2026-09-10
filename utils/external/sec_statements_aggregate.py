@@ -17,10 +17,66 @@ from utils.external.sec_statements_entry_resolution import (
     _aggregate_concepts_resolve_entry_period,
     _aggregate_concepts_should_replace_entry,
 )
-from utils.external.sec_statements_shared import _extract_currency_code
+from utils.external.sec_statements_shared import _ANNUAL_REPORT_FORMS, _extract_currency_code
 from utils.external.sec_statements_unit_context import _aggregate_concepts_build_unit_context
 
 logger = logging.getLogger(__name__)
+
+
+def _aggregate_concepts_build_alias_group_history(
+    concept_specs: list[tuple[str, str, str]],
+    alias_groups: dict[str, str] | None,
+    us_gaap_facts: dict[str, Any] | None,
+    ifrs_facts: dict[str, Any] | None,
+    dei_facts: dict[str, Any] | None,
+) -> dict[str, str]:
+    """Latest confirmed 10-K/20-F/40-F instant-fact end date per alias group.
+
+    ADDED 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push, ANDG live-confirmed) - see
+    `_aggregate_concepts`'s own `alias_groups` docstring for the full rationale. Only concepts
+    present in `alias_groups` are considered; everything else returns nothing for that
+    target_key group, an explicit opt-in with no effect on callers that don't pass the param.
+    """
+    group_max_annual_report_end: dict[str, str] = {}
+    if not alias_groups:
+        return group_max_annual_report_end
+    for concept, target_key, source in concept_specs:
+        group_key = alias_groups.get(target_key)
+        if group_key is None:
+            continue
+        units = _aggregate_concepts_lookup_units(concept, source, us_gaap_facts, ifrs_facts, dei_facts)
+        if not units:
+            continue
+        for entries in units.values():
+            for entry in entries:
+                if entry.get("form") in _ANNUAL_REPORT_FORMS and not entry.get("start") and entry.get("end"):
+                    prev = group_max_annual_report_end.get(group_key)
+                    if prev is None or entry["end"] > prev:
+                        group_max_annual_report_end[group_key] = entry["end"]
+    return group_max_annual_report_end
+
+
+def _aggregate_concepts_widen_to_alias_group(
+    target_key: str,
+    alias_groups: dict[str, str] | None,
+    group_max_annual_report_end: dict[str, str],
+    has_annual_report_form: bool,
+    max_annual_report_end: str | None,
+) -> tuple[bool, str | None]:
+    """Widen one concept's own annual-report-form history to its alias group's, if any.
+
+    Extracted from `_aggregate_concepts`'s per-concept loop to keep that loop's own
+    complexity in check - see `_aggregate_concepts`'s `alias_groups` docstring for the
+    rationale. Only ever grows the boundary already computed for this concept, never
+    shrinks it.
+    """
+    group_key = alias_groups.get(target_key) if alias_groups else None
+    group_end = group_max_annual_report_end.get(group_key) if group_key is not None else None
+    if group_end is None:
+        return has_annual_report_form, max_annual_report_end
+    if max_annual_report_end is None or group_end > max_annual_report_end:
+        max_annual_report_end = group_end
+    return True, max_annual_report_end
 
 
 def _aggregate_concepts(
@@ -30,6 +86,7 @@ def _aggregate_concepts(
     period: str,
     ifrs_aliases: list[tuple[str, str]] | None = None,
     dei_aliases: list[tuple[str, str]] | None = None,
+    alias_groups: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Pivot multiple concepts into rows keyed by (fiscal_year, fiscal_period).
 
@@ -55,6 +112,16 @@ def _aggregate_concepts(
             us-gaap/ifrs target_key sharing a downstream db column, or a cruder cover-page
             fact could silently overwrite a better weighted-average figure - see
             load_financial_statements.py's field_mapping comment on shares_outstanding_dei.
+        alias_groups: Optional target_key -> canonical group-key map, for target_keys the
+            caller already knows collapse to the SAME final DB column downstream (e.g.
+            sec_balance_sheet.py's StockholdersEquity/...IncludingNCI/PartnersCapital/
+            MembersEquity family, all bound for "stockholders_equity" via
+            load_financial_statements.py's field_mapping - a mapping this function has no
+            visibility into on its own). ADDED 2026-09-10 (goal: "Missing SEC/XBRL data"
+            under-500 push, ANDG live-confirmed) - see this function's own comment at
+            `_group_max_annual_report_end` below for why this exists. A target_key absent
+            from this map is unaffected (grouped only with itself, identical to omitting
+            the parameter).
 
     Returns:
         List of dicts with aggregated concept data
@@ -74,6 +141,28 @@ def _aggregate_concepts(
     _max_plausible_fiscal_year = datetime.date.today().year + 1
 
     concept_specs = _aggregate_concepts_build_specs(concepts, ifrs_aliases, dei_aliases)
+
+    # FIXED 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push, ANDG live-confirmed):
+    # _aggregate_concepts_build_unit_context's has_annual_report_form/_max_annual_report_end
+    # guard (see its own GM/DIS/WEC comments) tracks confirmed 10-K/20-F/40-F history PER RAW
+    # CONCEPT NAME, but several concepts can map to the SAME target_key (e.g.
+    # "StockholdersEquity" and "StockholdersEquityIncludingPortionAttributableToNoncontrolling
+    # Interest" both feed "stockholders_equity"). A filer that tags one concept name in its
+    # 10-K but switches to a DIFFERENT same-target concept name in a later 10-Q (ANDG:
+    # bare "StockholdersEquity" in its FY2025 10-K, "...IncludingPortionAttributableTo
+    # NoncontrollingInterest" in its FY2026 Q2 10-Q) defeats the guard entirely for that 10-Q
+    # concept, since IT has no 10-K history of its own - its premature mid-year snapshot
+    # leaks into the current fiscal year's bucket while sibling fields (Assets/LongTermDebt,
+    # tagged under the SAME concept name in both filings) are correctly withheld by the same
+    # guard, producing an inconsistent partial row instead of a clean "not yet confirmed"
+    # state. Widening the guard's annual-report-form history to the target_key GROUP (every
+    # concept spec sharing this target column) rather than one concept name in isolation
+    # closes this - purely additive (a target_key with no cross-alias confirmed history
+    # behaves exactly as before; this can only make the existing guard fire MORE often, never
+    # less, so it can't newly leak anything through that wasn't leaking before).
+    _group_max_annual_report_end = _aggregate_concepts_build_alias_group_history(
+        concept_specs, alias_groups, us_gaap_facts, ifrs_facts, dei_facts
+    )
 
     for concept, target_key, source in concept_specs:
         units = _aggregate_concepts_lookup_units(concept, source, us_gaap_facts, ifrs_facts, dei_facts)
@@ -137,6 +226,14 @@ def _aggregate_concepts(
                 _short_span_val_by_accn,
                 _fy_by_start_end_val,
             ) = _aggregate_concepts_build_unit_context(entries)
+
+            # Widen to the alias-group's confirmed annual-report history (see this
+            # function's own comment above `_group_max_annual_report_end` for why) - only
+            # ever grows the boundary already computed above, never shrinks it. A concept
+            # with no alias_groups entry (or no group history at all) is unaffected.
+            has_annual_report_form, _max_annual_report_end = _aggregate_concepts_widen_to_alias_group(
+                target_key, alias_groups, _group_max_annual_report_end, has_annual_report_form, _max_annual_report_end
+            )
 
             for entry in entries:
                 resolved = _aggregate_concepts_resolve_entry_period(
