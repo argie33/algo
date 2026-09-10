@@ -14,6 +14,8 @@ through the instance regardless of which mixin file defines it.
 import logging
 from typing import TYPE_CHECKING, Any
 
+from loaders.helpers.vqg_quality_inputs import QualityInputsMixin
+from loaders.helpers.vqg_quality_recategorize import QualityRecategorizeMixin
 from loaders.helpers.vqg_shared import (
     _QUARTERLY_DERIVED_TREND_FIELDS,
     MAX_ABSOLUTE_DOLLAR_VALUE,
@@ -55,15 +57,19 @@ def _owner() -> Any:
 logger = logging.getLogger("loaders.load_value_quality_growth_metrics")
 
 
-class QualityMetricsMixin(SymbolGateMixin):
+class QualityMetricsMixin(SymbolGateMixin, QualityInputsMixin, QualityRecategorizeMixin):
     """See module docstring.
 
     Inherits SymbolGateMixin (also a base of ValueQualityGrowthMetricsLoader itself - a
     diamond, harmless since it's the same class both times) purely so mypy can see the 39
-    `_get_*_symbols` gate methods called via `self.` below; the handful of other
-    cross-mixin members (defined on ValueQualityGrowthMetricsLoader or a sibling mixin,
-    which don't exist as types this file can import without a real circular import) are
-    declared type-checking-only below.
+    `_get_*_symbols` gate methods called via `self.` below, and QualityInputsMixin/
+    QualityRecategorizeMixin (2026-09-09 file-size-ratchet split of this file's own former
+    body - see those modules' docstrings) for real so `_derive_quality_row_inputs`/
+    `_apply_quality_recategorize_reasons_pre`/`_apply_quality_recategorize_reasons_post`
+    resolve without a TYPE_CHECKING-only stub. The handful of other cross-mixin members
+    (defined on ValueQualityGrowthMetricsLoader or a sibling mixin, which don't exist as
+    types this file can import without a real circular import) are declared type-checking-
+    only below.
     """
 
     if TYPE_CHECKING:
@@ -161,254 +167,41 @@ class QualityMetricsMixin(SymbolGateMixin):
             return self._unavailable_marker("quality_metrics", symbol)
 
         try:
-            stockholders_equity = self._nan_to_none(
-                safe_float(quality_row[0], f"{symbol}.stockholders_equity", allow_none=True)
-            )
-            # The anchor balance-sheet row (quality_row[0]) can have stockholders_equity NULL
-            # even though a nearby fiscal year has a real value - ROE/sustainable_growth_rate
-            # need the same 3-year-window-then-full-history fallback search already used
-            # elsewhere in this file (roic_pct/roce_pct/debt_to_equity get it via
-            # roic_stockholders_equity below).
-            # The anchor balance-sheet row (quality_row[0]) can have stockholders_equity NULL
-            # even though a nearby fiscal year has a real value - ROE/sustainable_growth_rate
-            # need the same 3-year-window-then-full-history fallback search already used
-            # elsewhere in this file (roic_pct/roce_pct/debt_to_equity get it via
-            # roic_stockholders_equity below). Same fallback pattern applies to
-            # total_liabilities/total_assets/current_assets/current_liabilities below.
-            if stockholders_equity is None:
-                stockholders_equity = self._fetch_balance_sheet_anchor_fallback(symbol, "stockholders_equity")
-            total_liabilities = self._nan_to_none(
-                safe_float(quality_row[1], f"{symbol}.total_liabilities", allow_none=True)
-            )
-            if total_liabilities is None:
-                total_liabilities = self._fetch_balance_sheet_anchor_fallback(symbol, "total_liabilities")
-            total_assets = self._nan_to_none(safe_float(quality_row[2], f"{symbol}.total_assets", allow_none=True))
-            if total_assets is None:
-                total_assets = self._fetch_balance_sheet_anchor_fallback(symbol, "total_assets")
-            net_income = self._nan_to_none(safe_float(quality_row[3], f"{symbol}.net_income", allow_none=True))
-            # Recent IPOs (and pre-IPO S-1 stub annual rows) can have a real annual_balance_sheet
-            # anchor row but no usable annual_income_statement.net_income - no 10-K filed yet,
-            # only 10-Qs. Recover a TTM figure from 4 real consecutive quarters rather than
-            # falling through to "net_income_not_reported" for a symbol that genuinely has
-            # current SEC-reported earnings data, just not in annual form yet.
-            net_income_from_ttm_quarterly = False
-            net_income_from_annual_fallback = False
-            if net_income is None:
-                net_income = self._fetch_ttm_net_income_from_quarterly(symbol)
-                if net_income is not None:
-                    net_income_from_ttm_quarterly = True
-            # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 500, missing_sec_data
-            # investigation): symbols with a real, recent-but-not-current-year annual_income_statement
-            # net_income AND fewer than 4 real quarterly rows (so the TTM fallback above also fails)
-            # were falling all the way through to "missing_sec_data" - live-confirmed MDV: FY2025
-            # net_income=$1,068,000 real and populated, FY2026 anchor row is a data_unavailable
-            # placeholder, and quarterly_income_statement only has one real quarter (Q1 2025), too few
-            # for the TTM sum. Same "prior real annual row" fallback pattern
-            # _fetch_balance_sheet_anchor_fallback already uses for stockholders_equity/
-            # total_liabilities/total_assets above - reuses the same underlying
-            # _fetch_annual_fallback_row helper, just against annual_income_statement.net_income
-            # instead of annual_balance_sheet.
-            if net_income is None:
-                fallback_row = self._fetch_annual_fallback_row(
-                    "annual_income_statement", "net_income", "AND net_income IS NOT NULL", symbol
-                )
-                if fallback_row:
-                    net_income = self._nan_to_none(
-                        safe_float(fallback_row[0], f"{symbol}.net_income_fallback_year", allow_none=True)
-                    )
-                    if net_income is not None:
-                        net_income_from_annual_fallback = True
-            revenue = self._nan_to_none(safe_float(quality_row[4], f"{symbol}.revenue", allow_none=True))
-            operating_income = self._nan_to_none(
-                safe_float(quality_row[5], f"{symbol}.operating_income", allow_none=True)
-            )
-            current_assets = self._nan_to_none(safe_float(quality_row[6], f"{symbol}.current_assets", allow_none=True))
-            if current_assets is None:
-                current_assets = self._fetch_balance_sheet_anchor_fallback(symbol, "current_assets")
-            current_liabilities = self._nan_to_none(
-                safe_float(quality_row[7], f"{symbol}.current_liabilities", allow_none=True)
-            )
-            if current_liabilities is None:
-                current_liabilities = self._fetch_balance_sheet_anchor_fallback(symbol, "current_liabilities")
-            inventory = self._nan_to_none(safe_float(quality_row[9], f"{symbol}.inventory", allow_none=True))
-            interest_expense = self._nan_to_none(
-                safe_float(quality_row[10], f"{symbol}.interest_expense", allow_none=True)
-            )
-            pretax_income = self._nan_to_none(safe_float(quality_row[23], f"{symbol}.pretax_income", allow_none=True))
-            # quality_row is ONE joined row for a single fiscal_year (chosen to prioritize FCF
-            # availability - see the ORDER BY above), so interest_expense/operating_income/
-            # pretax_income can be NULL together even when an older year has all three - search
-            # across years below rather than mixing an anchor value with a fallback from a
-            # different year. EBIT = Pretax Income + Interest Expense is used as a fallback
-            # numerator when a filer never tags OperatingIncomeLoss at all (some real filers
-            # never do, not a missing-year issue).
-            interest_coverage_operating_income = operating_income
-            interest_coverage_pretax_income = pretax_income
-            _interest_expense_invalid = interest_expense is None or interest_expense <= 0
-            # A filer can have a valid current-year interest_expense while only operating_income/
-            # pretax_income are missing for that specific anchor year - trigger the fallback
-            # search on either condition, not just interest_expense itself.
-            _income_inputs_missing = (
-                interest_coverage_operating_income is None and interest_coverage_pretax_income is None
-            )
-            if _interest_expense_invalid or _income_inputs_missing:
-                # `data_unavailable IS NOT TRUE` (applied inside the helper) prevents an
-                # incomplete/unfiled fiscal year's stub value from being picked up as the real
-                # figure.
-                fallback_ie_row = self._fetch_annual_fallback_row(
-                    "annual_income_statement",
-                    "interest_expense, operating_income, pretax_income",
-                    "AND interest_expense IS NOT NULL AND interest_expense > 0 "
-                    "AND (operating_income IS NOT NULL OR pretax_income IS NOT NULL)",
-                    symbol,
-                )
-
-                if fallback_ie_row:
-                    # Only overwrite interest_expense itself when IT was the reason this
-                    # fallback fired - WELL-style callers already have a real, current-year
-                    # interest_expense and must keep it, not silently swap in a prior year's
-                    # (which would mix a current-year denominator with a stale numerator).
-                    if _interest_expense_invalid:
-                        interest_expense = self._nan_to_none(
-                            safe_float(fallback_ie_row[0], f"{symbol}.interest_expense_fallback_year", allow_none=True)
-                        )
-                    interest_coverage_operating_income = self._nan_to_none(
-                        safe_float(fallback_ie_row[1], f"{symbol}.operating_income_fallback_year", allow_none=True)
-                    )
-                    interest_coverage_pretax_income = self._nan_to_none(
-                        safe_float(fallback_ie_row[2], f"{symbol}.pretax_income_fallback_year", allow_none=True)
-                    )
-
-            if interest_coverage_operating_income is None and interest_coverage_pretax_income is not None:
-                # EBIT approximation fallback - see comment above.
-                interest_coverage_operating_income = interest_coverage_pretax_income + (interest_expense or 0)
-            shares_outstanding = self._nan_to_none(
-                safe_float(quality_row[11], f"{symbol}.shares_outstanding", allow_none=True)
-            )
-            cost_of_revenue = self._nan_to_none(
-                safe_float(quality_row[12], f"{symbol}.cost_of_revenue", allow_none=True)
-            )
-            operating_cash_flow = self._nan_to_none(
-                safe_float(quality_row[13], f"{symbol}.operating_cash_flow", allow_none=True)
-            )
-            free_cash_flow = self._nan_to_none(safe_float(quality_row[14], f"{symbol}.free_cash_flow", allow_none=True))
-            dividends_paid = self._nan_to_none(safe_float(quality_row[15], f"{symbol}.dividends_paid", allow_none=True))
-            # The shared query's `acf.data_unavailable = FALSE` JOIN condition discards
-            # dividends_paid whenever the row is flagged incomplete_sec_filing_cashflow (missing
-            # operating_cash_flow flags the WHOLE row), even when dividends_paid itself was
-            # extracted fine. Recover it directly for the SAME fiscal year as the anchor row -
-            # never mixes years, and operating_cash_flow/free_cash_flow correctly stay None.
-            if dividends_paid is None:
-                with _owner().DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT dividends_paid FROM annual_cash_flow
-                        WHERE symbol = %s AND fiscal_year = %s AND dividends_paid IS NOT NULL
-                        """,
-                        (symbol, quality_row[8]),
-                    )
-                    same_year_dividends_row = cur.fetchone()
-                if same_year_dividends_row:
-                    dividends_paid = self._nan_to_none(
-                        safe_float(
-                            same_year_dividends_row[0],
-                            f"{symbol}.dividends_paid_incomplete_row_fallback",
-                            allow_none=True,
-                        )
-                    )
-            earnings_per_share = self._nan_to_none(
-                safe_float(quality_row[16], f"{symbol}.earnings_per_share", allow_none=True)
-            )
-            prior_year_eps = self._nan_to_none(safe_float(quality_row[17], f"{symbol}.prior_year_eps", allow_none=True))
-            prior_year_revenue = self._nan_to_none(
-                safe_float(quality_row[18], f"{symbol}.prior_year_revenue", allow_none=True)
-            )
-            gross_profit_direct = self._nan_to_none(
-                safe_float(quality_row[19], f"{symbol}.gross_profit", allow_none=True)
-            )
-            long_term_debt_bs = self._nan_to_none(
-                safe_float(quality_row[20], f"{symbol}.long_term_debt", allow_none=True)
-            )
-            cash_and_equivalents_bs = self._nan_to_none(
-                safe_float(quality_row[21], f"{symbol}.cash_and_equivalents", allow_none=True)
-            )
-            income_tax_expense = self._nan_to_none(
-                safe_float(quality_row[22], f"{symbol}.income_tax_expense", allow_none=True)
-            )
-            prior_year_net_income = self._nan_to_none(
-                safe_float(quality_row[24], f"{symbol}.prior_year_net_income", allow_none=True)
-            )
-            prior_year_operating_income = self._nan_to_none(
-                safe_float(quality_row[25], f"{symbol}.prior_year_operating_income", allow_none=True)
-            )
-            prior_year_operating_cash_flow = self._nan_to_none(
-                safe_float(quality_row[26], f"{symbol}.prior_year_operating_cash_flow", allow_none=True)
-            )
-            prior_year_free_cash_flow = self._nan_to_none(
-                safe_float(quality_row[27], f"{symbol}.prior_year_free_cash_flow", allow_none=True)
-            )
-            prior_year_cost_of_revenue = self._nan_to_none(
-                safe_float(quality_row[28], f"{symbol}.prior_year_cost_of_revenue", allow_none=True)
-            )
-            prior_year_total_assets = self._nan_to_none(
-                safe_float(quality_row[29], f"{symbol}.prior_year_total_assets", allow_none=True)
-            )
-            prior_year_stockholders_equity = self._nan_to_none(
-                safe_float(quality_row[30], f"{symbol}.prior_year_stockholders_equity", allow_none=True)
-            )
-            prior_year_pretax_income = self._nan_to_none(
-                safe_float(quality_row[31], f"{symbol}.prior_year_pretax_income", allow_none=True)
-            )
-            prior_year_interest_expense = self._nan_to_none(
-                safe_float(quality_row[32], f"{symbol}.prior_year_interest_expense", allow_none=True)
-            )
-            prior_year_gross_profit = self._nan_to_none(
-                safe_float(quality_row[33], f"{symbol}.prior_year_gross_profit", allow_none=True)
-            )
-            # Recovers dividends_paid when the anchor fiscal year genuinely never extracted it
-            # (vs. the same-year "unavailable row" rescue above, which only handles the
-            # masked-but-present case). Appended as the LAST column (index 34), bounds-checked
-            # rather than accessed bare so an old 34-column test fixture reads None instead of
-            # raising IndexError - see the Net Debt Issuance comment below for why adding a
-            # column here elsewhere had to be deferred.
-            prior_year_dividends_paid = self._nan_to_none(
-                safe_float(
-                    quality_row[34] if len(quality_row) > 34 else None,
-                    f"{symbol}.prior_year_dividends_paid",
-                    allow_none=True,
-                )
-            )
-            # A genuine non-payer has no dividends_paid in EITHER year, so this only ever
-            # substitutes a real, one-year-old figure for a confirmed-recent payer's current-
-            # year extraction gap - never fabricates a dividend for a symbol with no history.
-            # Pure in-memory fallback (no new DB call - this function's tests mock the cursor
-            # with a fixed, position-matched sequence of canned results).
-            dividends_paid_with_prior_year_fallback = dividends_paid
-            if dividends_paid_with_prior_year_fallback is None and prior_year_dividends_paid is not None:
-                dividends_paid_with_prior_year_fallback = prior_year_dividends_paid
-            # prior_year_dividends_paid only reaches back one fiscal year, so a gap spanning 3+
-            # consecutive years still falls through to None - see
-            # _get_last_known_zero_dividends_symbols()'s docstring for why only the "last known
-            # value was exactly $0" subset is safe to carry forward indefinitely.
-            if (
-                dividends_paid_with_prior_year_fallback is None
-                and symbol in self._get_last_known_zero_dividends_symbols()
-            ):
-                dividends_paid_with_prior_year_fallback = 0.0
-            # Net Debt Issuance (Bradshaw/Richardson/Sloan 2006) DEFERRED: needs prior-year
-            # long_term_debt, which isn't in quality_row (appending a column there breaks
-            # fixed-length mock rows in existing tests) and can't be fetched via a new
-            # mid-function query either (tests mock the DB cursor with a fixed,
-            # position-matched sequence of canned results - any new cur.execute() call shifts
-            # that sequence for every test exercising this path). Its 5% weight allocation
-            # moved to margin_volatility_score below instead.
-            # EBIT-approximation fallback for prior-year operating income, mirroring the
-            # current-year fallback below - needed so operating_income_growth_yoy/
-            # operating_margin_trend (which compare CURRENT vs PRIOR year) aren't blocked for
-            # filers that tag pretax_income/interest_expense but never OperatingIncomeLoss.
-            prior_year_operating_income_for_trend = prior_year_operating_income
-            if prior_year_operating_income_for_trend is None and prior_year_pretax_income is not None:
-                prior_year_operating_income_for_trend = prior_year_pretax_income + (prior_year_interest_expense or 0)
+            _qi = self._derive_quality_row_inputs(symbol, quality_row)
+            stockholders_equity = _qi["stockholders_equity"]
+            total_liabilities = _qi["total_liabilities"]
+            total_assets = _qi["total_assets"]
+            net_income = _qi["net_income"]
+            net_income_from_ttm_quarterly = _qi["net_income_from_ttm_quarterly"]
+            net_income_from_annual_fallback = _qi["net_income_from_annual_fallback"]
+            revenue = _qi["revenue"]
+            operating_income = _qi["operating_income"]
+            current_assets = _qi["current_assets"]
+            current_liabilities = _qi["current_liabilities"]
+            inventory = _qi["inventory"]
+            interest_expense = _qi["interest_expense"]
+            pretax_income = _qi["pretax_income"]
+            interest_coverage_operating_income = _qi["interest_coverage_operating_income"]
+            shares_outstanding = _qi["shares_outstanding"]
+            cost_of_revenue = _qi["cost_of_revenue"]
+            operating_cash_flow = _qi["operating_cash_flow"]
+            free_cash_flow = _qi["free_cash_flow"]
+            earnings_per_share = _qi["earnings_per_share"]
+            prior_year_eps = _qi["prior_year_eps"]
+            prior_year_revenue = _qi["prior_year_revenue"]
+            gross_profit_direct = _qi["gross_profit_direct"]
+            long_term_debt_bs = _qi["long_term_debt_bs"]
+            cash_and_equivalents_bs = _qi["cash_and_equivalents_bs"]
+            income_tax_expense = _qi["income_tax_expense"]
+            prior_year_net_income = _qi["prior_year_net_income"]
+            prior_year_operating_cash_flow = _qi["prior_year_operating_cash_flow"]
+            prior_year_free_cash_flow = _qi["prior_year_free_cash_flow"]
+            prior_year_cost_of_revenue = _qi["prior_year_cost_of_revenue"]
+            prior_year_total_assets = _qi["prior_year_total_assets"]
+            prior_year_stockholders_equity = _qi["prior_year_stockholders_equity"]
+            prior_year_gross_profit = _qi["prior_year_gross_profit"]
+            dividends_paid_with_prior_year_fallback = _qi["dividends_paid_with_prior_year_fallback"]
+            prior_year_operating_income_for_trend = _qi["prior_year_operating_income_for_trend"]
 
             metrics: dict[str, Any] = {
                 "symbol": symbol,
@@ -3363,359 +3156,9 @@ class QualityMetricsMixin(SymbolGateMixin):
                     f"Unavailable: {', '.join(sorted(set(failed_metrics)))} (insufficient SEC data)"
                 )
 
-            # Recategorize debt/cash/interest/FCF-derived fields these grantor trusts
-            # structurally never report to "reit_special_entity" (same label as their
-            # current_ratio/quick_ratio/gross_margin siblings) - only when the field is None and
-            # already carries one of the reasons this structural gap produces, so real data or
-            # an unrelated reason is left untouched.
-            if symbol in self._ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS:
-                _trust_recategorize_fields = (
-                    "total_debt",
-                    "debt_to_equity",
-                    "debt_to_assets",
-                    "roic_pct",
-                    "roce_pct",
-                    "interest_coverage",
-                    "total_cash",
-                    "cash_per_share",
-                    "free_cash_flow",
-                    "operating_cash_flow",
-                    "fcf_to_net_income",
-                    "ocf_to_net_income",
-                    "accruals_ratio",
-                    "fcf_margin",
-                    "ebitda",
-                    "ebitda_margin",
-                    "operating_margin",
-                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
-                    # follow-up to the sibling RIC-loop fix above): these 8 fields share the
-                    # identical "falls back to a reason already in _trust_source_reasons"
-                    # shape as the fields already listed above, mirroring the RIC
-                    # recategorization loop's own extension just above this block. Guarded the
-                    # same way (only fires when the field is still None AND its reason matches),
-                    # so this is a no-op for any of these that already resolve via a different
-                    # path (e.g. current_ratio/quick_ratio/gross_margin's own
-                    # unclassified_balance_sheet check, referenced in this block's header
-                    # comment) - purely additive coverage for whichever royalty-trust symbols
-                    # don't take that other path.
-                    "payout_ratio",
-                    "gross_profitability",
-                    "asset_turnover",
-                    "roa",
-                    "net_margin",
-                    "current_ratio",
-                    "quick_ratio",
-                    "gross_margin",
-                )
-                _trust_source_reasons = {
-                    "missing_sec_data",
-                    "total_debt_not_itemized",
-                    "no_recent_cash_reported",
-                    "interest_expense_not_itemized",
-                    "stockholders_equity_not_reported",
-                    "operating_income_not_itemized",
-                    "total_liabilities_not_reported",
-                }
-                for _field in _trust_recategorize_fields:
-                    _reason_key = f"{_field}_unavailable_reason"
-                    if metrics.get(_field) is None and metrics.get(_reason_key) in _trust_source_reasons:
-                        metrics[_reason_key] = "reit_special_entity"
-
-            # Same recategorization pattern as the royalty-trust block above, for physical
-            # commodity/currency/crypto trusts (see _get_etf_trust_no_stockholders_equity_
-            # symbols' own docstring - GLDM/USO/UNG/FXA/GBTC-class tickers). ADDED 2026-09-05
-            # (goal: "SEC/XBRL missing data to zero" sweep, follow-up to the same day's
-            # etf_trust_no_gaap_financials fix): that fix only wired the ETF-trust gate into
-            # this function's single "ALL metrics null" early return - live-confirmed via a
-            # scoped rerun of the 43 real etf_symbols matching this gate that most (38/43)
-            # never hit that early return at all (some other field, e.g. current_ratio,
-            # legitimately computes for a Statement-of-Assets-and-Liabilities filer even
-            # without stockholders_equity) and fell through to this function's normal per-field
-            # `stockholders_equity_not_reported` ternary branches instead (roe/roa/debt_to_
-            # equity/roic_pct/roce_pct/sustainable_growth_rate all check that reason before ever
-            # reaching the ETF-specific gate) - the exact same "fix wired into only one of
-            # several call sites" bug class as the royalty-trust block's own reason set.
-            # roa is excluded: it never reaches stockholders_equity_not_reported (gated on
-            # total_assets instead, which these trusts DO report).
-            if symbol in self._get_etf_trust_no_stockholders_equity_symbols():
-                _etf_trust_recategorize_fields = (
-                    "operating_profitability",
-                    "roe",
-                    "debt_to_equity",
-                    "roic_pct",
-                    "roce_pct",
-                    "sustainable_growth_rate",
-                )
-                for _field in _etf_trust_recategorize_fields:
-                    _reason_key = f"{_field}_unavailable_reason"
-                    if metrics.get(_field) is None and metrics.get(_reason_key) == "stockholders_equity_not_reported":
-                        metrics[_reason_key] = "etf_trust_no_gaap_financials"
-                # total_debt's own ternary chain (unlike the fields above) is gated on debt
-                # concepts, not stockholders_equity, so it never lands on
-                # "stockholders_equity_not_reported" - it falls to the broader "missing_sec_data"/
-                # "total_debt_not_itemized" reasons instead (same reasons the RIC block below
-                # reuses for the same field). ADDED 2026-09-06 (goal: "SEC/XBRL missing data to
-                # zero" sweep) - live-confirmed GLDM (SPDR Gold MiniShares Trust) has no
-                # total_debt concept at all (a physical-commodity trust holds gold, not debt)
-                # and was falling to generic "missing_sec_data".
-                if metrics.get("total_debt") is None and metrics.get("total_debt_unavailable_reason") in (
-                    "missing_sec_data",
-                    "total_debt_not_itemized",
-                ):
-                    metrics["total_debt_unavailable_reason"] = "etf_trust_no_gaap_financials"
-
-                # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
-                # follow-up): the narrow loop above only catches "stockholders_equity_not_
-                # reported" for its 6 fields - but a physical/commodity/currency trust (GLD/
-                # GLDM/GBTC/ETHE/BITB/the FX*-class currency trusts/the commodity-pool ETFs)
-                # files ONLY total_assets/total_liabilities (see this gate's own docstring), so
-                # every field below this comment structurally has no revenue/net_income/
-                # operating_income/debt/cash/interest-expense concept to tag either, the exact
-                # same "Statement of Assets and Liabilities" shape the RIC/royalty-trust blocks
-                # already handle with their own broader reason set - just never extended to this
-                # population. Reusing the identical reason set (not a new name) since the
-                # underlying SEC filing gap is the same across all three trust/fund shapes.
-                _etf_trust_broad_recategorize_fields = (
-                    "payout_ratio",
-                    "gross_profitability",
-                    "asset_turnover",
-                    "roa",
-                    "operating_margin",
-                    "net_margin",
-                    "current_ratio",
-                    "quick_ratio",
-                    "interest_coverage",
-                    "debt_to_assets",
-                    "gross_margin",
-                    "ebitda_margin",
-                    "accruals_ratio",
-                    "total_cash",
-                    "cash_per_share",
-                    "ebitda",
-                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
-                    # follow-up): fcf_margin/fcf_to_net_income were never added to this loop,
-                    # unlike the sibling royalty-trust block below (which already includes
-                    # both) - a physical commodity/currency trust has no CapitalExpenditures
-                    # concept either (it holds bullion/currency/crypto, not PP&E), so
-                    # free_cash_flow's capex dependency fails the same "no such concept exists"
-                    # way total_cash/interest_coverage/etc already correctly recategorize.
-                    # Live-confirmed BITW/GLDM/TAGS/WEAT stuck on "capex_never_tagged_in_recent_
-                    # filings" (Missing SEC/XBRL data) instead of "etf_trust_no_gaap_financials"
-                    # (Legitimate / not applicable).
-                    "fcf_margin",
-                    "fcf_to_net_income",
-                )
-                _etf_trust_broad_source_reasons = {
-                    "missing_sec_data",
-                    "total_debt_not_itemized",
-                    "no_recent_cash_reported",
-                    "interest_expense_not_itemized",
-                    "stockholders_equity_not_reported",
-                    "operating_income_not_itemized",
-                    "total_liabilities_not_reported",
-                    # ADDED 2026-09-06 (same fix as above): the reason fcf_margin/
-                    # fcf_to_net_income actually carry for this population - see the fields
-                    # tuple's own comment just above.
-                    "capex_never_tagged_in_recent_filings",
-                }
-                for _field in _etf_trust_broad_recategorize_fields:
-                    _reason_key = f"{_field}_unavailable_reason"
-                    if metrics.get(_field) is None and metrics.get(_reason_key) in _etf_trust_broad_source_reasons:
-                        metrics[_reason_key] = "etf_trust_no_gaap_financials"
-
-            # Same recategorization pattern as the ETF-trust block above, for registered
-            # investment companies (closed-end funds/investment trusts - same root fact
-            # already established for fcf_margin/fcf_yield/accruals_ratio/ocf_to_net_income
-            # elsewhere in this file: a "Statement of Changes in Net Assets" has no
-            # stockholders_equity/total_debt concepts to tag at all). ADDED 2026-09-05 (goal:
-            # "SEC/XBRL missing data to zero" follow-up): roic_pct/debt_to_equity's own ternary
-            # chains never reach a specific reason for a RIC either - live-confirmed GGN (GAMCO
-            # Global Gold, Natural Resources & Income Trust): roe computes a real value (its
-            # denominator, stockholders_equity, IS available), but roic_pct/debt_to_equity
-            # (which also need debt_for_roic, structurally absent) fell all the way through to
-            # generic "missing_sec_data" - broader than the ETF-trust block's single
-            # "stockholders_equity_not_reported" check, reusing the royalty-trust block's wider
-            # source-reason set (which already includes "missing_sec_data", mirroring the
-            # royalty-trust block's own _trust_source_reasons above - NOT reused directly since
-            # that name is only defined inside the royalty-trust `if`, a scope this RIC check
-            # doesn't share) since a RIC can hit any of several different missing-denominator
-            # reasons depending on which concept it happens to lack first.
-            if symbol in self._get_registered_investment_company_symbols():
-                # Not reusing _etf_trust_recategorize_fields above - that name is only defined
-                # inside the ETF-trust `if`, a scope this RIC check doesn't share (a RIC that
-                # isn't ALSO an etf_symbols-registered ticker, GGN's case, would otherwise hit
-                # an UnboundLocalError here).
-                _ric_recategorize_fields = (
-                    "operating_profitability",
-                    "roe",
-                    "debt_to_equity",
-                    "roic_pct",
-                    "roce_pct",
-                    "sustainable_growth_rate",
-                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep):
-                    # total_debt's own ternary chain never had a RIC check at all, unlike its
-                    # roic_pct/roce_pct/debt_to_equity dependents above - live-confirmed 82
-                    # active-universe RIC symbols (GGN, BLW, BGY and siblings) report
-                    # "total_debt_not_itemized" for the same structural "no debt concept in a
-                    # Statement of Changes in Net Assets" fact already recategorized for those
-                    # dependents.
-                    "total_debt",
-                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
-                    # follow-up): interest_coverage's own ternary chain (~line 2522) can produce
-                    # "interest_expense_not_itemized" for a RIC (no interest-expense concept in
-                    # a Statement of Changes in Net Assets), and that reason was already listed
-                    # in _ric_source_reasons below as something this loop should catch - but
-                    # "interest_coverage" itself was never added to this recategorize-fields
-                    # tuple, so the catch never fired. The sibling royalty-trust block just
-                    # above (_trust_recategorize_fields) already includes "interest_coverage" -
-                    # this was a half-wired fix, not a deliberate omission. Live-confirmed 7
-                    # active-universe RIC symbols stuck on the generic reason.
-                    "interest_coverage",
-                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
-                    # follow-up): total_cash/cash_per_share are also RIC-structural gaps (no
-                    # cash concept distinct from portfolio holdings in a Statement of Changes
-                    # in Net Assets) but were never added to this loop either, unlike the
-                    # sibling royalty-trust block above (which already includes "total_cash"/
-                    # "cash_per_share"). Live-confirmed 6 active-universe RIC symbols (BGR,
-                    # BHV, BKT, BMN, BTT, IIM) stuck on "missing_sec_data"/"no_recent_cash_
-                    # reported" - both already listed in _ric_source_reasons below.
-                    "total_cash",
-                    "cash_per_share",
-                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
-                    # follow-up): 12 more fields share the identical "no more specific gate
-                    # matched, fell to the generic missing_sec_data fallback" shape for a RIC as
-                    # the fields already listed above - live-confirmed via a full scan of every
-                    # `else "missing_sec_data"` ternary branch in this function against this
-                    # exact RIC population (GGN/BLW/BGY/BDJ/BUI/BGR/BIT/BGT/IGI/BST/VLT/VPV/VTN/
-                    # VVR/VCV/VGM/VKI/VKQ/BBN/BTZ/EFT/EOT/EVF and siblings): each of these was
-                    # never added to this loop despite its own reason already being a member of
-                    # _ric_source_reasons below, the same half-wired-fix pattern as total_cash/
-                    # cash_per_share/interest_coverage above.
-                    "payout_ratio",
-                    "ebitda_margin",
-                    "gross_profitability",
-                    "asset_turnover",
-                    "roa",
-                    "operating_margin",
-                    "net_margin",
-                    "current_ratio",
-                    "quick_ratio",
-                    "debt_to_assets",
-                    "gross_margin",
-                    "ebitda",
-                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
-                    # follow-up): the sibling royalty-trust block above already includes all 6
-                    # of these FCF/OCF-derived fields in its own recategorize-fields tuple, but
-                    # this RIC block never got them - a RIC's "Statement of Changes in Net
-                    # Assets" has no CapitalExpenditures/OperatingCashFlow concept either (same
-                    # structural fact as its debt/cash/interest gaps above), so free_cash_flow's
-                    # capex dependency and operating_cash_flow itself both fall to the generic
-                    # "missing_sec_data" already in _ric_source_reasons below. Live-confirmed 63
-                    # active-universe RIC symbols stuck on "missing_sec_data" for fcf_margin/
-                    # fcf_to_net_income/free_cash_flow (vs. 19 siblings that already resolve to
-                    # "registered_investment_company_no_xbrl" via some other path) and 14 more
-                    # for ocf_to_net_income/operating_cash_flow/accruals_ratio.
-                    "fcf_margin",
-                    "fcf_to_net_income",
-                    "free_cash_flow",
-                    "ocf_to_net_income",
-                    "operating_cash_flow",
-                    "accruals_ratio",
-                )
-                _ric_source_reasons = {
-                    "missing_sec_data",
-                    "total_debt_not_itemized",
-                    "no_recent_cash_reported",
-                    "interest_expense_not_itemized",
-                    "stockholders_equity_not_reported",
-                    "operating_income_not_itemized",
-                    "total_liabilities_not_reported",
-                }
-                for _field in _ric_recategorize_fields:
-                    _reason_key = f"{_field}_unavailable_reason"
-                    if metrics.get(_field) is None and metrics.get(_reason_key) in _ric_source_reasons:
-                        metrics[_reason_key] = "registered_investment_company_no_xbrl"
+            self._apply_quality_recategorize_reasons_pre(metrics, symbol)
             self._apply_structural_entity_type_exemption_reasons(symbol, metrics)
-            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up):
-            # a pre-merger blank-check SPAC (SIC 6770) already gets "no_revenue_reported"
-            # ("Legitimate / not applicable") directly wired into gross_profitability/
-            # operating_margin/gross_margin/ebitda_margin/roic_pct/roce_pct's own ternary chains
-            # above (see _get_blank_check_symbols()'s docstring) - but the debt/interest/cash-
-            # flow-derived fields below never got the same check, despite a blank-check shell
-            # having the identical "no real operating business, only trust-account interest
-            # income" structural fact: no debt to itemize, no interest expense beyond trust
-            # administration, no meaningful operating/free cash flow. Same half-wired-fix
-            # pattern as the RIC/royalty-trust/ETF-trust broad loops above/below - reusing this
-            # loop's exact mechanism and the identical 7-reason fallback set, targeting the
-            # already-correctly-bucketed "no_revenue_reported" reason instead of a new label.
-            if symbol in self._get_blank_check_symbols():
-                _blank_check_recategorize_fields = (
-                    "interest_coverage",
-                    "debt_to_assets",
-                    "debt_to_equity",
-                    "asset_turnover",
-                    "roa",
-                    "net_margin",
-                    "current_ratio",
-                    "quick_ratio",
-                    "ebitda",
-                    "total_debt",
-                    "total_cash",
-                    "cash_per_share",
-                    "payout_ratio",
-                    "accruals_ratio",
-                    "fcf_margin",
-                    "fcf_to_net_income",
-                    "ocf_to_net_income",
-                    "free_cash_flow",
-                    "operating_cash_flow",
-                )
-                # Same 7-reason fallback set as _ric_source_reasons above - kept as its own
-                # local rather than reused directly, since that name only exists inside the
-                # sibling RIC `if` block above (a blank-check symbol that isn't ALSO RIC-shaped,
-                # the normal case, would otherwise hit an UnboundLocalError here).
-                _blank_check_source_reasons = {
-                    "missing_sec_data",
-                    "total_debt_not_itemized",
-                    "no_recent_cash_reported",
-                    "interest_expense_not_itemized",
-                    "stockholders_equity_not_reported",
-                    "operating_income_not_itemized",
-                    "total_liabilities_not_reported",
-                }
-                for _field in _blank_check_recategorize_fields:
-                    _reason_key = f"{_field}_unavailable_reason"
-                    if metrics.get(_field) is None and metrics.get(_reason_key) in _blank_check_source_reasons:
-                        metrics[_reason_key] = "no_revenue_reported"
-
-            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up
-            # to the has_unsupported_currency_only_fact fix and its sec_valuations.dcf_fcf
-            # sibling recategorization): a foreign private issuer whose annual_cash_flow row
-            # was already tagged "unsupported_currency_no_fx_rate" (real OCF, only tagged under
-            # a hyperinflationary/unsupported currency like ARS) has a real, non-fabricatable
-            # ocf=None cascading into every cash-flow-derived field below - same recategorize-
-            # loop pattern as the RIC/royalty-trust blocks above, never wired for this cause.
-            if symbol in self._get_unsupported_currency_ocf_symbols():
-                _unsupported_currency_recategorize_fields = (
-                    "free_cash_flow",
-                    "operating_cash_flow",
-                    "fcf_to_net_income",
-                    "ocf_to_net_income",
-                    "fcf_margin",
-                    "accruals_ratio",
-                )
-                _unsupported_currency_source_reasons = {
-                    "missing_sec_data",
-                    "no_recent_free_cash_flow_reported",
-                    "no_recent_operating_cash_flow_reported",
-                    "free_cash_flow_absent_from_anchor_year",
-                    "operating_cash_flow_absent_from_anchor_year",
-                    "capex_never_tagged_in_recent_filings",
-                }
-                for _field in _unsupported_currency_recategorize_fields:
-                    _reason_key = f"{_field}_unavailable_reason"
-                    if metrics.get(_field) is None and metrics.get(_reason_key) in _unsupported_currency_source_reasons:
-                        metrics[_reason_key] = "unsupported_currency_no_fx_rate"
+            self._apply_quality_recategorize_reasons_post(metrics, symbol)
 
             # See recategorize_balance_sheet_currency_fields()'s docstring (vqg_shared.py -
             # extracted rather than inlined, same file-size-ratchet discipline as
