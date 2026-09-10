@@ -714,7 +714,7 @@
   "utils/external/alpaca_market_data.py": 284,
   "utils/external/fx_rates.py": 482,
   "utils/external/openfigi_crosswalk.py": 549,
-  "utils/external/sec_balance_sheet.py": 1363,
+  "utils/external/sec_balance_sheet.py": 1397,
   "utils/external/sec_calculation_linkbase.py": 156,
   "utils/external/sec_cash_flow.py": 750,
   "utils/external/sec_custom_xbrl_concepts.py": 1285,
