@@ -14,9 +14,11 @@ or a tie-out check happened to catch a downstream symptom.
 from __future__ import annotations
 
 import datetime
+import io
 import json
 import re
 import tempfile
+import tokenize
 from collections import Counter
 from pathlib import Path
 from typing import cast
@@ -499,13 +501,30 @@ def save_dismissed(dismissed: dict[str, str]) -> None:
 
 
 def load_known_concepts() -> set[str]:
+    # FIXED 2026-09-09 (user-flagged: "not sure how the scan is showing 0 gaps when we have
+    # 900+ missing scored inputs"): this previously regex-scanned each file's RAW text,
+    # comments included - any PascalCase concept name merely quoted in a comment (extremely
+    # common in this codebase's documentation style, e.g. explaining why a concept was
+    # superseded/rejected/not yet added) got counted as "known" just as if it were real fetch
+    # code, permanently hiding a genuine gap for that concept from every future scan. Live-
+    # confirmed 51 concept-shaped literals appear ONLY inside a comment line across these 22
+    # files, never in an actual list/dict/tuple literal. Tokenizing and keeping only real
+    # STRING tokens (tokenize.COMMENT is a distinct token type, never matched here) fixes the
+    # comment-leak class entirely; a module/function/class docstring is still a STRING token
+    # and a narrower residual risk, not addressed here.
     known: set[str] = set()
     for rel in CONCEPT_SOURCE_FILES:
         path = REPO_ROOT / rel
         if not path.exists():
             continue
         text = path.read_text(encoding="utf-8")
-        known.update(_CONCEPT_LITERAL_RE.findall(text))
+        try:
+            for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+                if tok.type == tokenize.STRING:
+                    known.update(_CONCEPT_LITERAL_RE.findall(tok.string))
+        except (tokenize.TokenError, IndentationError, SyntaxError):
+            # Never silently drop a whole file's real concepts over a tokenizer hiccup.
+            known.update(_CONCEPT_LITERAL_RE.findall(text))
     return known
 
 
