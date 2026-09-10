@@ -84,6 +84,7 @@
   "algo/monitoring/data_patrol/checks/xbrl_new_concepts.py": 88,
   "algo/monitoring/data_patrol/config.py": 67,
   "algo/monitoring/data_patrol/logger.py": 157,
+  "algo/monitoring/data_patrol/quarantine.py": 106,
   "algo/monitoring/pipeline_health.py": 1087,
   "algo/monitoring/position_aggregator.py": 142,
   "algo/monitoring/position_corporate_actions.py": 665,
