@@ -926,6 +926,7 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
     _fill_cash_and_restricted_cash_combined_from_split(rows, client, symbol, period)
     _fill_liabilities_from_assets_minus_equity(rows, client, symbol, period)
     _fill_liabilities_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
+    _fill_assets_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
     return rows
 
 
@@ -1043,6 +1044,48 @@ def _fill_liabilities_from_ifrs_current_noncurrent_split(
         if current is None or noncurrent is None:
             continue
         row["liabilities"] = current + noncurrent
+
+
+def _fill_assets_from_ifrs_current_noncurrent_split(
+    rows: list[dict[str, Any]], client: Any, symbol: str, period: str
+) -> None:
+    """Derive `assets` (total_assets) = CurrentAssets + NoncurrentAssets for an IFRS filer that
+    splits its balance sheet into the two halves but never tags the combined ifrs-full:Assets
+    total at all.
+
+    ADDED 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push, WPP/RTO live-confirmed):
+    the liabilities side of this exact gap was already fixed
+    (_fill_liabilities_from_ifrs_current_noncurrent_split above, 2026-09-09) but the assets side
+    was never mirrored - live-confirmed via real companyfacts JSON that WPP plc (CIK
+    0000806968, 341 cached ifrs-full concepts) and Rentokil Initial plc (CIK 0000930157, 299
+    concepts) both tag CurrentAssets/NoncurrentAssets every fiscal year but have ZERO plain
+    ifrs-full:Assets fact ever, leaving total_assets (and everything derived from it -
+    asset_turnover, roa, gross_profitability) permanently NULL despite a complete, extractable
+    filing. Not a currency/volatility issue (both report in GBP, already in MAJOR_CURRENCIES) -
+    a pure missing-derivation gap, same class of bug as the liabilities-side fix this mirrors.
+
+    "CurrentAssets" is already fetched under _BALANCE_IFRS_ALIASES for the main
+    `assets_current`/`current_assets` column, so only "NoncurrentAssets" needs a second lookup
+    here (same secondary-aggregate-call pattern as _fill_liabilities_from_ifrs_current_noncurrent_split
+    above). Fallback-only: only fills a fiscal year/quarter where the primary "Assets" alias
+    found nothing, and only when BOTH halves are present - a filer with just one half tagged
+    hasn't reported this split, so summing a partial figure would silently understate real
+    assets rather than leave an honest NULL (same discipline as the liabilities-side sibling).
+    """
+    noncurrent_rows = _aggregate_concepts(
+        client, symbol, [], period, ifrs_aliases=[("NoncurrentAssets", "assets_noncurrent")]
+    )
+    noncurrent_by_key = {
+        (r.get("fiscal_year"), r.get("fiscal_period")): r.get("assets_noncurrent") for r in noncurrent_rows
+    }
+    for row in rows:
+        if row.get("assets") is not None:
+            continue
+        current = row.get("assets_current")
+        noncurrent = noncurrent_by_key.get((row.get("fiscal_year"), row.get("fiscal_period")))
+        if current is None or noncurrent is None:
+            continue
+        row["assets"] = current + noncurrent
 
 
 def _fill_cash_and_restricted_cash_combined(rows: list[dict[str, Any]], client: Any, symbol: str, period: str) -> None:

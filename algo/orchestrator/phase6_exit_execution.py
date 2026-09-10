@@ -1260,9 +1260,10 @@ def run(
                                     # already committed a HIGHER current_stop_price for this same position earlier in
                                     # the same run would silently overwrite it with the older, lower value - a real
                                     # risk-management regression (loosening a stop), not just a cosmetic race. GREATEST()
-                                    # makes the write itself monotonic regardless of staleness upstream; rowcount==0
-                                    # still means exactly "position not found" as before (this never changes match
-                                    # semantics, only the value written when matched).
+                                    # makes the write itself monotonic regardless of staleness upstream (kept as
+                                    # defense-in-depth even though resolved_stop above is already the max as of the
+                                    # SELECT a moment ago); rowcount==0 still means exactly "position not found" as
+                                    # before (this never changes match semantics, only the value written when matched).
                                     cur.execute(
                                         "UPDATE algo_positions SET current_stop_price = GREATEST(current_stop_price, %s) WHERE id = %s",
                                         (resolved_stop, action["position_id"]),
@@ -1291,7 +1292,7 @@ def run(
                                         stop_raises += 1
                                         if verbose:
                                             logger.info(
-                                                f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}"
+                                                f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${resolved_stop:.2f}"
                                             )
                                 finally:
                                     release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
@@ -1507,7 +1508,9 @@ def run(
                                     # DB-LEVEL MONOTONICITY GUARD (2026-08-10): position_monitor.py's own recommendation
                                     # (`if proposed_stop > active_stop`) is only guaranteed monotonic against the
                                     # active_stop snapshot it read - same staleness risk, same GREATEST() fix, as the
-                                    # sibling tighten_stop write above (see its comment for the full reasoning).
+                                    # sibling tighten_stop write above (see its comment for the full reasoning). Kept
+                                    # as defense-in-depth even though resolved_stop above is already the max as of
+                                    # the SELECT a moment ago.
                                     cur.execute(
                                         "UPDATE algo_positions SET current_stop_price = GREATEST(current_stop_price, %s) "
                                         "WHERE id = %s AND status = %s",
@@ -1540,7 +1543,7 @@ def run(
                                         stop_raises += 1
                                         if verbose:
                                             logger.info(
-                                                f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}"
+                                                f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${resolved_stop:.2f}"
                                             )
                                 finally:
                                     release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")

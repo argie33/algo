@@ -31,7 +31,7 @@ class TestBracketOrderPriceRounding:
     def test_limit_price_rounds_correctly_at_half_cent_boundary(self):
         """round(2.675, 2) == 2.67 (wrong); Decimal ROUND_HALF_UP gives 2.68 (correct).
         This is the exact boundary case the bug produced silently-wrong broker orders on."""
-        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        manager = OrderManager("fake_key", "fake_secret", "https://paper-api.alpaca.markets")
 
         with (
             patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,
@@ -57,7 +57,7 @@ class TestBracketOrderPriceRounding:
         assert payload["limit_price"] == "2.68"
 
     def test_stop_price_rounds_correctly_at_half_cent_boundary(self):
-        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        manager = OrderManager("fake_key", "fake_secret", "https://paper-api.alpaca.markets")
 
         with (
             patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,
@@ -87,7 +87,7 @@ class TestBracketOrderPriceRounding:
         """The take_profit fallback (1.5R from entry) must not convert its Decimal result
         to float and back through round() - that reintroduces the same binary-float risk
         the Decimal quantize was meant to avoid."""
-        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        manager = OrderManager("fake_key", "fake_secret", "https://paper-api.alpaca.markets")
 
         with (
             patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,
@@ -131,7 +131,7 @@ class TestSendBracketOrderToleratesNoneStopLoss:
     own documented no-stop fallback contract."""
 
     def test_none_stop_loss_does_not_crash_before_reaching_fallback_logic(self):
-        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        manager = OrderManager("fake_key", "fake_secret", "https://paper-api.alpaca.markets")
 
         with (
             patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,
@@ -172,7 +172,7 @@ class TestClientOrderIdIdempotency:
     so Alpaca rejects a resubmission of the same underlying trade intent as a duplicate."""
 
     def test_client_order_id_included_when_provided(self):
-        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        manager = OrderManager("fake_key", "fake_secret", "https://paper-api.alpaca.markets")
 
         with (
             patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,
@@ -201,7 +201,7 @@ class TestClientOrderIdIdempotency:
     def test_client_order_id_omitted_when_not_provided(self):
         """Backward compatible: existing callers that don't pass client_order_id must not
         send a null/empty field to Alpaca's API."""
-        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+        manager = OrderManager("fake_key", "fake_secret", "https://paper-api.alpaca.markets")
 
         with (
             patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,

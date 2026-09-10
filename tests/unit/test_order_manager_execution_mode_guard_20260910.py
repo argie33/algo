@@ -1,11 +1,9 @@
-"""Regression test: OrderManager.send_bracket_order()'s new defense-in-depth execution_mode
-guard (2026-09-10 order-execution re-audit). Previously send_bracket_order() had no
-execution_mode awareness of its own and relied entirely on its one caller
-(executor.py's _submit_and_validate_order) checking execution_mode before calling in -
-safe only because grep confirmed a single call site. When the constructor is given an
-execution_mode, send_bracket_order() now also refuses to submit if that mode is not
-"auto" and the resolved base_url doesn't look like the paper endpoint. Callers that don't
-pass execution_mode (the default) get no extra gate here, preserving existing behavior.
+"""Regression test: OrderManager.send_bracket_order()'s defense-in-depth execution_mode
+guard (2026-09-10 order-execution re-audit, hardened same day to fail closed).
+send_bracket_order() refuses to submit unless execution_mode == "auto" or the resolved
+base_url looks like the paper endpoint - including when the constructor was never given an
+execution_mode at all, so a future caller that forgets to pass it fails closed instead of
+silently getting no gate.
 """
 
 from unittest.mock import patch
@@ -14,9 +12,21 @@ import algo.reporting.notifications as notifications_module
 from algo.trading.order_manager import OrderManager
 
 
-def test_no_execution_mode_supplied_skips_the_guard():
-    """Default behavior (execution_mode=None) is unchanged - request actually goes out."""
+def test_no_execution_mode_supplied_against_live_url_is_aborted():
+    """A caller that omits execution_mode entirely must still be blocked against a
+    non-paper base_url - omission is not a way to bypass the gate."""
     manager = OrderManager("key", "secret", "https://live-api.alpaca.markets")
+    assert manager.execution_mode is None
+    with patch("requests.post") as mock_post, patch.object(notifications_module, "notify") as mock_notify:
+        result = manager.send_bracket_order("AAPL", 10, 100.0, 90.0, None, None)
+    assert result["success"] is False
+    mock_post.assert_not_called()
+    mock_notify.assert_called_once()
+
+
+def test_no_execution_mode_supplied_against_paper_url_is_allowed():
+    """A caller that omits execution_mode is still fine against the paper endpoint."""
+    manager = OrderManager("key", "secret", "https://paper-api.alpaca.markets")
     assert manager.execution_mode is None
     with patch("requests.post") as mock_post:
         mock_post.return_value.status_code = 500

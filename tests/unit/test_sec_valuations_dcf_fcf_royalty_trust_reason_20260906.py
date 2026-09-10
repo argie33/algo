@@ -120,6 +120,11 @@ def _run(
 
     with (
         patch("loaders.load_sec_valuations.DatabaseContext", return_value=fake_ctx),
+        # 2026-09-10: the RIC/currency/royalty-trust/capex/blank-check recategorize methods
+        # moved to loaders/helpers/sec_valuations_dcf_fcf_recategorize.py (file-size ratchet
+        # split, see that module's own docstring) - they resolve DatabaseContext through their
+        # own module now, so this patch must cover both import sites for the shared fake_ctx/
+        # fake_cursor sequence to keep working.
         patch("loaders.helpers.sec_valuations_dcf_fcf_recategorize.DatabaseContext", return_value=fake_ctx),
         patch.object(SecValuationsLoader, "_compute_yield_and_dcf_fields", return_value=forced_yield_dcf_result),
     ):

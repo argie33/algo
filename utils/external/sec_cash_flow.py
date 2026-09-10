@@ -139,9 +139,13 @@ _CASHFLOW_IFRS_ALIASES = [
     # companyfacts cache tag this concept, including large, well-known IFRS names (Unilever,
     # Novartis, AstraZeneca, Shell, Canadian Natural Resources, RELX) - a standard taxonomy
     # element genuinely missing from this alias list, same bug class as this list's other IFRS
-    # PP&E-purchase entries. Listed last (lowest priority) - for ifrs_aliases specifically this
-    # file keeps the FIRST match per (fiscal_year, target_key), so this only fills the gap when
-    # every higher-priority PP&E-purchase concept above is absent for that fiscal year, never
+    # PP&E-purchase entries. Same "closest available proxy, generic catch-all name" caveat as
+    # AdditionsToNoncurrentAssets/PropertyPlantAndEquipmentExpendituresRecognisedForConstructions
+    # above (this concept name doesn't exclude non-PP&E "other" long-term-asset purchases like
+    # capitalized intangibles, but it's the only PP&E-purchase-shaped concept these filers report
+    # at all). Listed last (lowest priority) - for ifrs_aliases specifically this file keeps the
+    # FIRST match per (fiscal_year, target_key), so this only fills the gap when every
+    # higher-priority PP&E-purchase concept above is absent for that fiscal year, never
     # overwrites a more specific real value.
     (
         "PurchaseOfOtherLongtermAssetsClassifiedAsInvestingActivities",

@@ -93,6 +93,54 @@ def test_disk_cache_expires_after_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(fetch_calls) == 2
 
 
+def test_get_frames_reuses_disk_cache_across_clients(monkeypatch: pytest.MonkeyPatch) -> None:
+    fetch_calls: list[str] = []
+
+    def fake_get_json(self: SecEdgarClient, url: str) -> dict[str, Any]:
+        fetch_calls.append(url)
+        return {"data": [{"cik": 320193, "entityName": "Apple Inc.", "val": 1}]}
+
+    monkeypatch.setattr(SecEdgarClient, "_get_json", fake_get_json)
+
+    first = _client()
+    result1 = first.get_frames("us-gaap", "Assets", "USD", "CY2024Q4I")
+    assert result1["data"][0]["entityName"] == "Apple Inc."
+    assert len(fetch_calls) == 1
+
+    # A brand-new client (standing in for a separate script/process) has no in-process
+    # cache for frames results, so a repeat lookup of the same concept/unit/period must
+    # come from the shared disk cache, not a new HTTP call.
+    second = _client()
+    result2 = second.get_frames("us-gaap", "Assets", "USD", "CY2024Q4I")
+    assert result2["data"][0]["entityName"] == "Apple Inc."
+    assert len(fetch_calls) == 1
+
+    # A different concept/unit/period is a genuinely different cache entry.
+    third = _client()
+    third.get_frames("us-gaap", "Liabilities", "USD", "CY2024Q4I")
+    assert len(fetch_calls) == 2
+
+
+def test_get_frames_404_is_not_persisted_to_disk_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    fetch_calls: list[str] = []
+
+    def fake_get_json(self: SecEdgarClient, url: str) -> dict[str, Any]:
+        fetch_calls.append(url)
+        raise FileNotFoundError(f"SEC filing not found: {url}")
+
+    monkeypatch.setattr(SecEdgarClient, "_get_json", fake_get_json)
+
+    first = _client()
+    with pytest.raises(FileNotFoundError):
+        first.get_frames("us-gaap", "NoSuchConcept", "USD", "CY2024")
+    assert len(fetch_calls) == 1
+
+    second = _client()
+    with pytest.raises(FileNotFoundError):
+        second.get_frames("us-gaap", "NoSuchConcept", "USD", "CY2024")
+    assert len(fetch_calls) == 2
+
+
 def test_404_is_not_persisted_to_disk_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     fetch_calls: list[str] = []
 

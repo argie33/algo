@@ -104,12 +104,14 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
         assert updates["NEG"] == expected
 
     def test_missing_metrics_omitted_not_defaulted(self) -> None:
-        # Only fcf_margin present - every other component's weight must be excluded from the
+        # fcf_margin + roce + debt_to_equity present (weight 15+18+18=51, clears the
+        # 2026-09-10 40%-of-101 completeness floor - see vqg_quality_batch.py's own
+        # comment) - every OTHER component's weight must still be excluded from the
         # denominator entirely, not defaulted to 0 and diluting the average.
-        row = ("SPARSE", "Technology", None, None, None, None, 20.0, None, None, None, None, 0.0)
+        row = ("SPARSE", "Technology", None, None, None, 15.0, 20.0, 0.5, None, None, None, 0.0)
         updates = dict(_run_with_mocked_rows([row]))
-        # fcf_margin=20.0 alone in its pool -> z-scores to neutral -> percentile 50.0, weight
-        # 15 is the ENTIRE denominator, so the composite equals it exactly.
+        # All three present components are alone in their pools -> each z-scores to neutral
+        # percentile 50.0, so the weighted composite equals 50.0 regardless of their weights.
         assert updates["SPARSE"] == 50.0
 
     def test_all_components_missing_produces_no_update(self) -> None:

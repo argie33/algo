@@ -53,7 +53,7 @@ from typing import Any
 
 from loaders.helpers.sec_valuations_checks import ValuationSanityCheckMixin
 from loaders.helpers.sec_valuations_dcf import DcfValuationMixin
-from loaders.helpers.sec_valuations_dcf_fcf_recategorize import DcfFcfRecategorizeMixin
+from loaders.helpers.sec_valuations_dcf_fcf_recategorize import SecValuationDcfFcfRecategorizeMixin
 from loaders.helpers.sec_valuations_income_context import IncomeStatementContextMixin
 from loaders.helpers.sec_valuations_ratios import SecValuationRatiosMixin
 from loaders.helpers.sec_valuations_shares import SharesOutstandingResolutionMixin
@@ -369,12 +369,12 @@ DUAL_CLASS_YFINANCE_COMBINED_MARKET_CAP_SYMBOLS: frozenset[str] = frozenset(
 class SecValuationsLoader(
     OptimalLoader,
     DcfValuationMixin,
-    DcfFcfRecategorizeMixin,
     ValuationSanityCheckMixin,
     IncomeStatementContextMixin,
     SharesOutstandingResolutionMixin,
     SecValuationRatiosMixin,
     SecValuationYieldDcfMixin,
+    SecValuationDcfFcfRecategorizeMixin,
 ):
     """Compute valuations from SEC audited data instead of yfinance estimates.
 

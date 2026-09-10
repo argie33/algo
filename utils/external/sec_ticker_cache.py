@@ -7,6 +7,7 @@ Uses file-based persistent caching with live SEC API refresh.
 
 import json
 import logging
+import os
 import random
 import re
 import socket
@@ -24,6 +25,21 @@ _CIK_TAG_RE = re.compile(r"<cik>(\d+)</cik>")
 
 TICKER_URL = "https://www.sec.gov/files/company_tickers.json"
 DEFAULT_TIMEOUT = 10.0
+
+# FIXED 2026-09-10 (under-500 XBRL push, cik_not_found bucket investigation): this
+# module's requests.Session never set a User-Agent header, unlike sec_edgar_client.py's
+# DEFAULT_USER_AGENT (same env var, same default contact string). company_tickers.json
+# (a static file on www.sec.gov) tolerates the resulting bare "python-requests/x.x" UA,
+# which is why the bulk-file fast path kept working and this went unnoticed - but
+# browse-edgar (the last-resort fallback _lookup_via_browse_edgar uses for tickers
+# missing from the bulk file) and data.sec.gov/submissions (_verify_ticker_matches_cik)
+# both hard-reject a bare UA with HTTP 403, live-confirmed via FRBA/HIFS/KRSA/NBN/
+# NXAT/RCBC/SSBI/TOWN (identical requests.get returned 403 with no UA, 200 with one).
+# Every one of those was landing as "cik_not_found" purely because the fallback that
+# exists specifically to resolve them could never actually run - not because SEC lacks
+# the data. Matches DEFAULT_USER_AGENT's name/default exactly so both modules share one
+# env var (SEC_USER_AGENT) to configure.
+DEFAULT_USER_AGENT = os.getenv("SEC_USER_AGENT", "algo-trading argeropolos@gmail.com")
 
 # CRITICAL, MANUALLY VERIFIED OVERRIDES for tickers where SEC's own
 # company_tickers.json maps to the wrong CIK - not a duplicate-ticker collision in
@@ -153,6 +169,12 @@ class TickerCache:
         self._timeout = timeout
         self._rate_limiter = rate_limiter
         self._session = session or requests.Session()
+        # See DEFAULT_USER_AGENT's module-level comment - without this, SEC's
+        # browse-edgar and submissions.json endpoints 403 every request from this
+        # session (a bare "python-requests/x.x" UA), even though company_tickers.json
+        # tolerates it. Applied unconditionally (not just when we create the session)
+        # since a caller-supplied session hitting SEC endpoints needs this too.
+        self._session.headers.update({"User-Agent": DEFAULT_USER_AGENT})
         # CRITICAL FIX: Use platform-appropriate temp directory instead of hardcoded /tmp
         # On Windows, /tmp is a relative path (./tmp) which could cause permission errors
         # and file lock issues that hang the loader. Use tempfile.gettempdir() for cross-platform safety.

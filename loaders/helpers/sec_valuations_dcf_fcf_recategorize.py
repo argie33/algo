@@ -1,7 +1,11 @@
-"""dcf_fcf_unavailable_reason recategorize methods for SecValuationsLoader, extracted from
-load_sec_valuations.py (2026-09-10, file-size ratchet: that file crossed the 2000-line hard
-ceiling during a local-main merge). Methods are verbatim, no logic changed - mixed into
-SecValuationsLoader, which calls each of these from its own dcf_fcf reason-chain wiring.
+"""SecValuationDcfFcfRecategorizeMixin, extracted from load_sec_valuations.py (2026-09-10,
+file-size ratchet: that file hit the 2000-line hard ceiling after merging in a same-day
+sibling fix - see .file-size-baseline.json / .pre-commit-scripts/check_file_size_ratchet.py).
+Pure extraction, no behavior change: these are the "override a generic dcf_fcf_unavailable_
+reason with the correct specific one" recategorize methods that used to live inline in
+SecValuationsLoader, all sharing the identical `(self, symbol, valuation_row)` signature and
+"only overrides the exact generic reason this fix targets" guard discipline documented in each
+docstring below.
 """
 
 from typing import Any
@@ -9,10 +13,9 @@ from typing import Any
 from utils.db.context import DatabaseContext
 
 
-class DcfFcfRecategorizeMixin:
-    """Overrides a generic dcf_fcf_unavailable_reason="missing_cash_flow_data" with a more
-    specific, already-established reason string once a structural root cause is identified.
-    Not usable standalone - relies on `self` resolving normally through SecValuationsLoader.
+class SecValuationDcfFcfRecategorizeMixin:
+    """See module docstring. Mixed into SecValuationsLoader - every `self.` call here resolves
+    normally through the instance.
     """
 
     # Oil royalty trusts (SIC 6792) file a "Statement of Distributable Income" with no

@@ -78,6 +78,30 @@ class FinancialStatementsValueValidationMixin:
             "diluted_eps": "shares_outstanding_diluted",
         }
         max_implied_vs_reported_shares_ratio = 10.0
+        # FIXED 2026-09-10 (goal: "SEC/XBRL missing data to zero" sweep, eps_never_tagged_
+        # in_filings follow-up): the NRC-shaped ratio guard above assumes the row's OWN
+        # reported share count is reliable ground truth, so a big gap must mean EPS is
+        # wrong. Live-confirmed via EH (EHang)'s real companyfacts JSON this assumption is
+        # backwards for a distinct failure shape: EH tags a real, correct
+        # EarningsPerShareBasic/Diluted (FY2024 -$0.23, FY2025 -$0.27) against a real,
+        # correct NetIncomeLoss (FY2024 -$31.48M) - implied_shares ~136.9M, a perfectly
+        # plausible real public float - but the FILER'S OWN
+        # WeightedAverageNumberOfSharesOutstandingBasic/Diluted tag is 134,367 (a ~1,020x
+        # scale-tagging error on the SHARES concept itself, not the EPS concept - the filer
+        # dropped the trailing "000" a real ADS-equivalent count would carry). Blindly
+        # nulling EPS here destroyed EH's genuinely-correct income-statement data. The
+        # asymmetry that distinguishes this from NRC: NRC's reported_shares (22,396,000) is
+        # itself a perfectly plausible real-company share count, so a gap against implied_
+        # shares means implied (i.e. EPS) is wrong; EH's reported_shares (134,367) is itself
+        # implausibly small for any real operating company's weighted-average share count,
+        # while its implied_shares is not - meaning reported_shares is the corrupted side,
+        # not EPS. Checking magnitude plausibility of reported_shares directly (not just the
+        # ratio) generalizes this without reopening NRC/GIBO/FLOC/BTTC/HQ/GROY/BRUN/EP - none
+        # of those hit this branch anyway (GIBO/FLOC/BTTC/HQ/GROY/BRUN/EP are all caught by
+        # the earlier eps==net_income implied-shares floor above and never reach this ratio
+        # check at all; NRC's reported_shares comfortably clears this floor so it still
+        # falls through to the reject branch below, unchanged).
+        min_plausible_reported_shares_for_real_company = 1_000_000
         # BUG FOUND 2026-08-31 (goal session: "let's check the logs" sweep of live loader
         # output): SWK/UAMY quarterly rows hit the raw NUMERIC(12,4) column-overflow guard in
         # sec_base.py instead of this smarter rejection (e.g. "earnings_per_share=150330000")
@@ -120,6 +144,22 @@ class FinancialStatementsValueValidationMixin:
                         shares_ratio = max(implied_shares, float(reported_shares)) / min(
                             implied_shares, float(reported_shares)
                         )
+                        if (
+                            shares_ratio > max_implied_vs_reported_shares_ratio
+                            and float(reported_shares) < min_plausible_reported_shares_for_real_company
+                            and implied_shares >= min_plausible_reported_shares_for_real_company
+                        ):
+                            logger.info(
+                                f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                                f"{field}={eps} implies {implied_shares:,.0f} shares (plausible) against "
+                                f"net_income={net_income:,.0f}, but this row's own "
+                                f"{eps_shares_field[field]}={float(reported_shares):,.0f} is itself "
+                                f"implausibly small ({shares_ratio:,.0f}x gap) - EH-shaped: the "
+                                "reported share count is the filer-side scale-tagging error, not "
+                                "the EPS. Keeping the real, correctly-tagged EPS value rather than "
+                                "nulling it over a corrupted sibling field."
+                            )
+                            continue
                         if shares_ratio > max_implied_vs_reported_shares_ratio:
                             logger.warning(
                                 f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
