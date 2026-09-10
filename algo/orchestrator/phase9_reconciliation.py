@@ -1669,6 +1669,14 @@ def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this c
         (fail-closed, per GOVERNANCE) on any critical step failure rather than returning a
         degraded PhaseResult. All critical reconciliation steps fail-fast to halt trading
         if broker state cannot be verified.
+
+    DELIBERATE DESIGN (confirmed 2026-09-10, orchestration re-audit): unlike Phase 6/7/8,
+    this function never calls check_halt_flag. That is intentional, not an oversight - every
+    step here (P&L/exit-price auditing, stop-loss-protection repair, orphaned-order
+    detection) either reconciles EXISTING broker/DB state or re-protects an EXISTING
+    position; none of it opens a new position or increases risk. A halt is meant to stop new
+    risk-taking, not stop the system from repairing/verifying protection on risk it already
+    has - so Phase 9 stays always_run and halt-flag-blind by design.
     """
     validate_phase_config(config, "phase_9_reconciliation")
 
