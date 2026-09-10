@@ -2707,6 +2707,16 @@ class QualityMetricsMixin(SymbolGateMixin):
                     if symbol in self._get_no_recent_revenue_symbols()
                     or symbol in self._get_never_tagged_revenue_symbols()
                     or symbol in self._get_blank_check_symbols()
+                    # FIXED 2026-09-10 (goal: "under 500" missing-XBRL push): a real, reported
+                    # $0.00 anchor-year revenue (not NULL/never-tagged, so the no_revenue_
+                    # reported gate above never matches) makes ebitda_margin's revenue
+                    # denominator mathematically undefined the same way ev_revenue/ps_ratio's
+                    # own zero_revenue_anchor gate (vqg_value.py) already recognizes -
+                    # live-confirmed 11/16 ebitda_margin "missing_sec_data" rows (VTVT/BRNS/
+                    # AMLX/ZNTL/FULC/NGNE/MOLN/AZTR/CMPX/ALLO/SABS - all pre-revenue-in-that-
+                    # year clinical-stage biotech) are this exact shape.
+                    else "zero_revenue_reported_this_period"
+                    if symbol in self._get_zero_revenue_anchor_symbols()
                     # Label-only, no value recomputed.
                     else "revenue_absent_from_anchor_year"
                     if revenue is None and symbol in self._get_revenue_available_elsewhere_symbols()
