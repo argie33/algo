@@ -248,9 +248,21 @@ class AlpacaSyncManager:
         in-flight transaction (broker accepted, DB commit not yet reached) is not evidence of
         a crash, and this reconciliation pass runs far more often than any single entry
         transaction should ever take to complete.
+
+        FIXED 2026-09-10 (check_silent_fallbacks pre-commit hook): raises instead of silently
+        returning [] when credentials are missing - a caller reaching this method without
+        Alpaca credentials configured is a real misuse (the sole real caller,
+        phase9_reconciliation.py's _reconcile_open_orders_step, already checks
+        sync_mgr.alpaca_key/alpaca_secret itself and skips with an explicit log BEFORE ever
+        calling this method), and a silent [] here would be indistinguishable from "checked
+        and found no orphans" - the exact silent-fallback shape GOVERNANCE.md flags, same
+        fail-loud discipline as the timeout/fetch-failure branches below.
         """
         if not self._alpaca_key or not self._alpaca_secret:
-            return []
+            raise RuntimeError(
+                "[ORDER_RECONCILE] find_orphaned_open_orders called with no Alpaca credentials "
+                "configured - callers must check alpaca_key/alpaca_secret before calling."
+            )
 
         try:
             url = f"{self._alpaca_base_url}/v2/orders"
