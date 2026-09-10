@@ -1214,8 +1214,36 @@ def run(
                                         raise RuntimeError(
                                             "[PHASE 6] trade_executor unavailable - cannot sync tightened stop to broker"
                                         )
+                                    # REAL-MONEY-READINESS FIX (2026-09-10 order-execution re-audit):
+                                    # action["new_stop"] was computed by exposure_policy.py earlier in the
+                                    # Phase 5->6 pipeline from a snapshot of current_stop_price that can go
+                                    # stale by the time this write executes - the sibling GREATEST() guard
+                                    # below already protects the DB column from ever moving down, but this
+                                    # broker sync call ran BEFORE that guard, using the raw (possibly stale/
+                                    # lower) action["new_stop"] value. Under a race with another path (e.g.
+                                    # ExitEngine's own breakeven/chandelier raise) already having committed
+                                    # a HIGHER current_stop_price for this same position earlier in the same
+                                    # run, this could push a stop to the broker that is LOWER than what's
+                                    # already resting there - independent of the DB's own monotonic
+                                    # guarantee. Re-read current_stop_price under the advisory lock we
+                                    # already hold (so nothing else can write it between this SELECT and our
+                                    # own UPDATE below) and resolve the value to sync as the max of the two,
+                                    # matching what the DB write will actually end up recording.
+                                    cur.execute(
+                                        "SELECT current_stop_price FROM algo_positions WHERE id = %s",
+                                        (action["position_id"],),
+                                    )
+                                    current_row = cur.fetchone()
+                                    db_current_stop = (
+                                        float(current_row[0]) if current_row and current_row[0] is not None else None
+                                    )
+                                    resolved_stop = (
+                                        max(db_current_stop, action["new_stop"])
+                                        if db_current_stop is not None
+                                        else action["new_stop"]
+                                    )
                                     sync_result = trade_executor.order_manager.sync_bracket_stop_loss(
-                                        alpaca_order_id, action["new_stop"]
+                                        alpaca_order_id, resolved_stop
                                     )
                                     if not sync_result.get("success"):
                                         raise RuntimeError(f"broker sync failed - {sync_result.get('message')}")
@@ -1237,7 +1265,7 @@ def run(
                                     # semantics, only the value written when matched).
                                     cur.execute(
                                         "UPDATE algo_positions SET current_stop_price = GREATEST(current_stop_price, %s) WHERE id = %s",
-                                        (action["new_stop"], action["position_id"]),
+                                        (resolved_stop, action["position_id"]),
                                     )
                                     # rowcount guards against silently counting a no-op as a success -
                                     # e.g. the position closed (a race with a concurrent exit) between
@@ -1448,8 +1476,28 @@ def run(
                                         raise RuntimeError(
                                             "[PHASE 6] trade_executor unavailable - cannot sync stop-loss to broker"
                                         )
+                                    # REAL-MONEY-READINESS FIX (2026-09-10 order-execution re-audit): same
+                                    # bug class and fix as the sibling tighten_stop broker sync above -
+                                    # rec["new_stop_recommended"] can be stale relative to a HIGHER
+                                    # current_stop_price another path already committed for this position
+                                    # earlier in the same run. Re-read under the advisory lock we already
+                                    # hold and sync the resolved (max) value, matching what the DB write
+                                    # below will actually end up recording.
+                                    cur.execute(
+                                        "SELECT current_stop_price FROM algo_positions WHERE id = %s",
+                                        (rec["position_id"],),
+                                    )
+                                    current_row = cur.fetchone()
+                                    db_current_stop = (
+                                        float(current_row[0]) if current_row and current_row[0] is not None else None
+                                    )
+                                    resolved_stop = (
+                                        max(db_current_stop, rec["new_stop_recommended"])
+                                        if db_current_stop is not None
+                                        else rec["new_stop_recommended"]
+                                    )
                                     sync_result = trade_executor.order_manager.sync_bracket_stop_loss(
-                                        alpaca_order_id, rec["new_stop_recommended"]
+                                        alpaca_order_id, resolved_stop
                                     )
                                     if not sync_result.get("success"):
                                         raise RuntimeError(f"broker sync failed - {sync_result.get('message')}")
@@ -1464,7 +1512,7 @@ def run(
                                         "UPDATE algo_positions SET current_stop_price = GREATEST(current_stop_price, %s) "
                                         "WHERE id = %s AND status = %s",
                                         (
-                                            rec["new_stop_recommended"],
+                                            resolved_stop,
                                             rec["position_id"],
                                             PositionStatus.OPEN.value,
                                         ),
