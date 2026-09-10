@@ -3825,6 +3825,24 @@ class TieOutChecker(BaseCheck):
         revenue=None for APA every quarter now, so the DB rows were stale, pre-dating the
         quarterly duration guards; corrected via targeted UPDATE reusing the identical
         2026-09-03 'quarterly_row_orphaned_annual_duplicate' reason (coverage_category_rules.py).
+
+        REOPENED 2026-09-10 (goal session: data-quality triage): the 2026-09-08 fix did NOT
+        hold - a live patrol run that same week re-found the identical duplicate for FY2025
+        (all 4 quarters = $8.951B = the FY2025 annual figure), with fresh `updated_at`
+        timestamps and `data_source='sec_audited'` (not a derived-field marker). Re-verified
+        `get_income_statement(client, 'APA', period='quarterly')` TODAY still returns
+        revenue=None for every quarter - so the 2026-09-08 conclusion ("not a live bug") is
+        still true of the CURRENT extraction code path, yet the DB had the bad value anyway.
+        That contradiction (raw extraction = None, but DB = duplicated annual value with a
+        real-looking data_source/timestamp) was NOT resolved this session - re-applied the
+        same DB-only correction as 2026-09-08 (safe, but not durable: a data patch, not a
+        code fix) rather than guess at a code change without understanding the actual write
+        path. APA's quarterly net_income for the same rows IS correctly distinct per quarter
+        (not duplicated), which rules out "extraction is globally broken for APA" - whatever
+        writes revenue=annual_total into all 4 quarterly rows is either concept-specific to
+        revenue, or is not going through get_income_statement()/sec_income_statement.py at
+        all. Needs a dedicated follow-up session with logging/tracing across a real loader
+        run (not just the raw extraction call in isolation) to catch it in the act.
         """
         try:
             cur.execute(
