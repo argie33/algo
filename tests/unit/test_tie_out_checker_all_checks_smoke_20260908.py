@@ -22,7 +22,7 @@ covers every one of them.
 from unittest.mock import MagicMock
 
 from algo.monitoring.data_patrol.checks.tie_out import TieOutChecker
-from algo.monitoring.data_patrol.config import PatrolConfig
+from algo.monitoring.data_patrol.config import INFO, PatrolConfig
 
 
 def test_every_registered_check_runs_without_crashing_on_empty_result_set() -> None:
@@ -32,12 +32,17 @@ def test_every_registered_check_runs_without_crashing_on_empty_result_set() -> N
     checker = TieOutChecker(PatrolConfig())
     results = checker.run(cur)
 
-    assert results == [], "no rows returned by any query -> no check should flag a violation"
+    # FIXED 2026-09-10: the nonnegative-magnitude checks (Round 7, and the pre-existing Round 5
+    # ones sharing their now-fixed shared helper - see tie_out_shared.py's
+    # _check_nonnegative_cashflow_field docstring) log an INFO result even when clean, so a
+    # zero-row run no longer yields an empty results list overall - it must yield ONLY INFO
+    # (never WARN/ERROR/CRIT) since nothing was actually flagged.
+    assert all(r.severity == INFO for r in results), "zero rows returned -> no check should flag a violation"
     # Guards against a future refactor accidentally dropping calls out of run() - the count
     # ratchets up as new checks are added, so this only needs bumping when checks are ADDED,
     # never a false failure from unrelated changes.
-    assert cur.execute.call_count >= 53, (
-        f"expected TieOutChecker.run() to issue at least 53 queries (one or more per "
+    assert cur.execute.call_count >= 85, (
+        f"expected TieOutChecker.run() to issue at least 85 queries (one or more per "
         f"registered check), got {cur.execute.call_count} - a check may have been silently "
         "dropped from run()'s call list"
     )

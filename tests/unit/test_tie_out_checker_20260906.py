@@ -8,7 +8,7 @@ check to one row per symbol instead of re-flagging every historical year forever
 from unittest.mock import MagicMock
 
 from algo.monitoring.data_patrol.checks.tie_out import TieOutChecker
-from algo.monitoring.data_patrol.config import ERROR, PatrolConfig
+from algo.monitoring.data_patrol.config import ERROR, INFO, PatrolConfig
 
 
 def _checker() -> TieOutChecker:
@@ -3331,7 +3331,11 @@ class TestStockBasedCompensationNonnegative:
         cur = _mock_cursor([[{"symbol": "AAPL", "fiscal_year": 2025, "stock_based_compensation": 11_000_000_000.0}]])
         checker = _checker()
         checker.check_stock_based_compensation_nonnegative(cur)
-        assert checker.results == []
+        # FIXED 2026-09-10: a clean run logs an INFO result (not silence) so PatrolLogger can
+        # supersede/resolve any prior 'open' finding for this check_name - see
+        # tie_out_shared.py's _check_nonnegative_cashflow_field docstring.
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == INFO
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -3390,7 +3394,8 @@ class TestCommonStockRepurchasedNonnegative:
         cur = _mock_cursor([[{"symbol": "AAPL", "fiscal_year": 2025, "common_stock_repurchased": 90_000_000_000.0}]])
         checker = _checker()
         checker.check_common_stock_repurchased_nonnegative(cur)
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == INFO
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -3658,9 +3663,14 @@ class TestQuarterlyRevenueAnnualDuplicate:
 
 
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_fifty_five_checks(self) -> None:
-        cur = _mock_cursor([[]] * 55)
+    def test_run_calls_all_eighty_five_checks(self) -> None:
+        # 55 pre-existing checks + 30 Round 7 nonnegative-magnitude checks (15 balance-sheet
+        # fields x annual/quarterly) added in tie_out_nonnegative_magnitudes.py. The 30 new
+        # checks (and the 4 pre-existing ones sharing their now-fixed helper, see
+        # tie_out_shared.py's 2026-09-10 fix) log an INFO result even when clean, so a
+        # no-violations run no longer yields an empty results list for every check.
+        cur = _mock_cursor([[]] * 85)
         checker = _checker()
         results = checker.run(cur)
-        assert results == []
-        assert cur.execute.call_count == 55
+        assert cur.execute.call_count == 85
+        assert all(r.severity in (INFO, "info") for r in results)

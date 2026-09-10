@@ -9,7 +9,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..base import CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 
 logger = logging.getLogger(__name__)
 
@@ -306,11 +306,20 @@ class TieOutSharedMixin:
     def _check_nonnegative_cashflow_field(
         self, cur: Any, *, table: str, field: str, check_name: str, quarterly: bool
     ) -> None:
-        """Shared implementation for the 4 Round 5 sign-flip guard checks below - `field`
-        should always be >= 0 (a non-cash addback or cash outflow magnitude), same
-        "loader-side abs() fix, DB-side regression guard" pairing every other Round 5 check
-        uses. Not a generic helper other rounds should extend - kept private/narrow like the
-        rest of this file's single-purpose check methods.
+        """Shared implementation for the Round 5 sign-flip guard checks and Round 7's
+        balance-sheet nonnegative-magnitude checks (tie_out_nonnegative_magnitudes.py) -
+        `field` should always be >= 0.
+
+        FIXED 2026-09-10 (goal session: "full XBRL best-practices" review, discovered while
+        live-testing the new Round 7 checks that reuse this helper): 14 of 15 new checks
+        produced literally zero rows in data_patrol_log on a clean live run - this helper only
+        ever called self.log() on the WARN branch, identical to the "silent no-op" bug already
+        found and fixed the same session for statistical_anomaly.py/pillar_score_
+        reconciliation.py (see those files' own FIXED 2026-09-10 notes) but missed here. Same
+        consequence: PatrolLogger.log_results' supersede-on-reinsert lifecycle only marks a
+        prior 'open' row 'resolved' when a NEW result for that same (check_name, target_table)
+        key is logged - a check that goes silent when clean can never supersede/resolve an
+        earlier flagged finding, so a fixed bug would show 'open' in data_patrol_log forever.
         """
         try:
             order_cols = (
@@ -346,6 +355,8 @@ class TieOutSharedMixin:
                     f"{len(flagged)} {unit} have negative {field} (should always be >= 0)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
                 )
+            else:
+                self.log(check_name, INFO, table, f"no negative {field} found (should always be >= 0)")
         except Exception as e:
             logger.error(f"[TieOutChecker] {check_name} failed: {e}", exc_info=True)
             self.log(

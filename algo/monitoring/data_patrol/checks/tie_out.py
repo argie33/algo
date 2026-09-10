@@ -171,6 +171,7 @@ from .tie_out_bounds_annual2_quarterly1 import TieOutBoundsAnnual2Quarterly1Mixi
 from .tie_out_bounds_quarterly2_misc import TieOutBoundsQuarterly2MiscMixin
 from .tie_out_identity_annual import TieOutIdentityAnnualMixin
 from .tie_out_identity_quarterly import TieOutIdentityQuarterlyMixin
+from .tie_out_nonnegative_magnitudes import TieOutNonnegativeMagnitudesMixin
 from .tie_out_shared import TieOutSharedMixin
 
 logger = logging.getLogger(__name__)
@@ -182,6 +183,7 @@ class TieOutChecker(
     TieOutBoundsAnnual1Mixin,
     TieOutBoundsAnnual2Quarterly1Mixin,
     TieOutBoundsQuarterly2MiscMixin,
+    TieOutNonnegativeMagnitudesMixin,
     TieOutSharedMixin,
     BaseCheck,
 ):
@@ -255,4 +257,38 @@ class TieOutChecker(
         # Round 6 (same session): no prior check reconciled quarterly figures against their
         # own annual total at all - live-caught APA's genuine quarterly-revenue duplicate bug.
         self.check_quarterly_revenue_annual_duplicate(cur)
+        # Round 7 (2026-09-10, goal: "full XBRL best-practices" review): DQC_0015/US1-style
+        # "negative values" guard for balance-sheet magnitude fields that are non-negative by
+        # GAAP definition - see tie_out_nonnegative_magnitudes.py's module docstring for why
+        # this is a different check class from the X<=Y bound checks above.
+        self.check_total_assets_nonnegative(cur)
+        self.check_quarterly_total_assets_nonnegative(cur)
+        self.check_current_assets_nonnegative(cur)
+        self.check_quarterly_current_assets_nonnegative(cur)
+        self.check_total_liabilities_nonnegative(cur)
+        self.check_quarterly_total_liabilities_nonnegative(cur)
+        self.check_current_liabilities_nonnegative(cur)
+        self.check_quarterly_current_liabilities_nonnegative(cur)
+        self.check_inventory_nonnegative(cur)
+        self.check_quarterly_inventory_nonnegative(cur)
+        self.check_cash_and_equivalents_nonnegative(cur)
+        self.check_quarterly_cash_and_equivalents_nonnegative(cur)
+        self.check_accounts_receivable_nonnegative(cur)
+        self.check_quarterly_accounts_receivable_nonnegative(cur)
+        self.check_ppe_net_nonnegative(cur)
+        self.check_quarterly_ppe_net_nonnegative(cur)
+        self.check_goodwill_nonnegative(cur)
+        self.check_quarterly_goodwill_nonnegative(cur)
+        self.check_long_term_debt_nonnegative(cur)
+        self.check_quarterly_long_term_debt_nonnegative(cur)
+        self.check_short_term_debt_nonnegative(cur)
+        self.check_quarterly_short_term_debt_nonnegative(cur)
+        self.check_operating_lease_liability_nonnegative(cur)
+        self.check_quarterly_operating_lease_liability_nonnegative(cur)
+        self.check_finance_lease_liability_nonnegative(cur)
+        self.check_quarterly_finance_lease_liability_nonnegative(cur)
+        self.check_accounts_payable_nonnegative(cur)
+        self.check_quarterly_accounts_payable_nonnegative(cur)
+        self.check_cash_and_restricted_cash_combined_nonnegative(cur)
+        self.check_quarterly_cash_and_restricted_cash_combined_nonnegative(cur)
         return self.results
