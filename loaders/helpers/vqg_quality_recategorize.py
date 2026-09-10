@@ -91,6 +91,16 @@ class QualityRecategorizeMixin:
                 "stockholders_equity_not_reported",
                 "operating_income_not_itemized",
                 "total_liabilities_not_reported",
+                # FIXED 2026-09-10 (goal: "SEC/XBRL missing data to zero" sweep, under-500
+                # push): live-confirmed NRT (Oil Royalty Traders, a member of this exact
+                # royalty-trust set) stuck on "no_recent_free_cash_flow_reported" for
+                # fcf_margin/free_cash_flow - fcf_margin's own reason chain
+                # (vqg_quality_reasons_profitability.py) resolves to this specific reason
+                # before ever reaching the generic "missing_sec_data" fallback this loop's
+                # source-reason set was built around, so the recategorization never fired
+                # for this population's fcf_margin/free_cash_flow fields even though they're
+                # both in _trust_recategorize_fields above.
+                "no_recent_free_cash_flow_reported",
             }
             for _field in _trust_recategorize_fields:
                 _reason_key = f"{_field}_unavailable_reason"
@@ -362,6 +372,17 @@ class QualityRecategorizeMixin:
                 "stockholders_equity_not_reported",
                 "operating_income_not_itemized",
                 "total_liabilities_not_reported",
+                # FIXED 2026-09-10 (goal: "SEC/XBRL missing data to zero" sweep, under-500
+                # push): live-confirmed COPL/LEGO/MTNE/NWAX/XFLH (all sic_description=
+                # "Blank Checks") stuck on "no_recent_free_cash_flow_reported" for fcf_margin
+                # instead of this loop's "no_revenue_reported" - the profitability chain's
+                # own no_recent_free_cash_flow_reported branch (checked before the generic
+                # missing_sec_data fallback this source-reason set was built around) resolves
+                # first for these symbols, so this loop never fired for fcf_margin/
+                # free_cash_flow/operating_cash_flow/fcf_to_net_income/ocf_to_net_income even
+                # though they're all in _blank_check_recategorize_fields above. Same gap
+                # class as the royalty-trust source-reason set's identical fix just above.
+                "no_recent_free_cash_flow_reported",
             }
             for _field in _blank_check_recategorize_fields:
                 _reason_key = f"{_field}_unavailable_reason"
