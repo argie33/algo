@@ -1570,6 +1570,87 @@ def _verify_open_position_stop_loss_protection_step(
             pass
 
 
+def _reconcile_open_orders_step(log_phase_result_fn: Callable[..., Any], config: Any) -> None:
+    """Detect Alpaca open (resting/unfilled) orders with no matching algo_trades row -
+    alert-only, since auto-cancelling a real resting order we can't currently explain is
+    itself a real-money action that should not happen without a human looking at it first.
+
+    REAL-MONEY-READINESS FINDING (2026-09-10, order-execution re-audit): see
+    AlpacaSyncManager.find_orphaned_open_orders's docstring for the crash-window this
+    closes - a resting order orphaned by a process crash between the broker accepting it
+    and the DB transaction committing was previously invisible to every existing
+    reconciliation check (sync_alpaca_positions only catches FILLED orphans).
+    """
+    try:
+        from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
+
+        sync_mgr = AlpacaSyncManager(config)
+        if not sync_mgr.alpaca_key or not sync_mgr.alpaca_secret:
+            logger.info("[PHASE 9] Open-order reconciliation skipped - no Alpaca credentials (paper mode, DB-only).")
+            log_phase_result_fn(9, "open_order_reconciliation", "info", "skipped - no Alpaca credentials")
+            return
+
+        with DatabaseContext("read") as cur:
+            orphans = sync_mgr.find_orphaned_open_orders(cur)
+
+        if not orphans:
+            log_phase_result_fn(9, "open_order_reconciliation", "success", "no orphaned open orders found")
+            return
+
+        orphan_desc = [
+            f"{o.get('symbol')} (order {o.get('id')}, {o.get('qty')}sh {o.get('side')}, "
+            f"submitted {o.get('submitted_at')})"
+            for o in orphans
+        ]
+        logger.critical(
+            f"[PHASE 9 CRITICAL] {len(orphans)} open Alpaca order(s) have no matching algo_trades "
+            f"row and are older than the reconciliation grace window - likely orphaned by a process "
+            f"crash between broker acceptance and DB commit: {orphan_desc}"
+        )
+        try:
+            from algo.reporting.notifications import notify
+
+            notify(
+                "critical",
+                title="Orphaned open Alpaca order(s) found - no matching trade record",
+                message=(
+                    f"{len(orphans)} order(s) resting at the broker have no matching algo_trades "
+                    f"row and are old enough to rule out a normal in-flight submission: "
+                    f"{orphan_desc}. Investigate whether these are legitimate (e.g. manually placed) "
+                    "or a crash-orphaned entry that needs to be reconciled/cancelled by hand."
+                ),
+                strict=True,
+            )
+        except Exception as notify_err:
+            logger.critical(f"[PHASE 9 CRITICAL] Failed to alert on orphaned open orders: {notify_err}")
+
+        log_phase_result_fn(
+            9,
+            "open_order_reconciliation",
+            "critical",
+            f"{len(orphans)} orphaned open order(s) found: {orphan_desc}",
+        )
+    except Exception as e:
+        logger.error(f"[PHASE 9] Open-order reconciliation step failed unexpectedly: {e}", exc_info=True)
+        try:
+            from algo.reporting.notifications import notify
+
+            notify(
+                "critical",
+                title="Open-Order Reconciliation Step Failed",
+                message=(
+                    "Phase 9's per-cycle check for orphaned resting broker orders failed to run "
+                    f"entirely: {type(e).__name__}: {e}. No orphan check ran this cycle."
+                ),
+            )
+        except Exception as notify_err:
+            logger.critical(f"[PHASE 9 CRITICAL] Failed to alert on open-order reconciliation failure: {notify_err}")
+        try:
+            log_phase_result_fn(9, "open_order_reconciliation", "warn", f"check failed: {str(e)[:500]}")
+        except Exception:
+            pass
+
+
 def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
     config: Any,
     run_date: _date,
@@ -1679,6 +1760,18 @@ def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this c
                     f"{notify_err}. Operator was NOT notified that this cycle's naked-position "
                     f"check was skipped."
                 )
+
+        # SAFETY: Detect Alpaca open orders with no matching algo_trades row (crash-orphaned
+        # entries - see _reconcile_open_orders_step's docstring). Independent of the
+        # stop-loss-protection check above (that covers FILLED positions; this covers
+        # resting, unfilled orders), so it runs regardless of that check's own outcome.
+        try:
+            _reconcile_open_orders_step(log_phase_result_fn, config)
+        except Exception as order_recon_err:
+            logger.critical(
+                f"[PHASE 9] Open-order reconciliation step encountered unexpected error: {order_recon_err}",
+                exc_info=True,
+            )
 
         # CRITICAL: Validate that local P&L matches Broker P&L
         # Skip if reconciliation failed (recon object may be incomplete or paper mode)
