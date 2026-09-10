@@ -645,7 +645,7 @@
   "scripts/xbrl_calculation_linkbase_check.py": 320,
   "scripts/xbrl_concept_continuity_scan.py": 116,
   "scripts/xbrl_concept_coverage_scan.py": 166,
-  "scripts/xbrl_second_opinion_weekly.py": 97,
+  "scripts/xbrl_second_opinion_daily.py": 113,
   "scripts/xbrl_yfinance_crosscheck.py": 263,
   "shared_contracts/__init__.py": 25,
   "shared_contracts/dashboard_api_contract.py": 205,
