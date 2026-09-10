@@ -88,6 +88,30 @@ Review a batch, then record anything genuinely out of scope with `--dismiss "us-
 git) so future scans only surface what's actually new instead of re-litigating the same
 already-reviewed footnote/schedule concepts every time.
 
+**Independent second-opinion cross-check against yfinance (not a bug-report-driven thing,
+run it periodically):**
+```bash
+python scripts/xbrl_yfinance_crosscheck.py               # samples 25 symbols, writes findings
+python scripts/xbrl_yfinance_crosscheck.py --limit 50
+python scripts/xbrl_yfinance_crosscheck.py --symbols AAPL,MSFT,KO
+python scripts/xbrl_yfinance_crosscheck.py --dry-run      # print only, don't write to data_patrol_log
+```
+tie_out.py and statistical_anomaly.py both validate our own SEC-XBRL-derived numbers against
+themselves (arithmetic identities, own trailing history) - neither can catch an extraction/
+mapping bug that's internally self-consistent and doesn't stand out against history either.
+This script fetches yfinance's independently-parsed financials (reuses the existing
+`utils/external/yfinance_financials.py` fallback fetch and its currency/circuit-breaker
+handling, never a value source for real tables - same discipline as `sec_valuations_checks.py`'s
+market_cap/shares_outstanding cross-checks) and flags a >2x divergence on revenue/net_income/
+total_assets/stockholders_equity/operating_cash_flow as a WARN finding, which flows into the
+same `data_patrol_review` triage workflow as every other DataPatrol check. Deliberately NOT
+part of every DataPatrol run - it makes live per-symbol yfinance network calls through the
+same shared-IP rate limit every loader depends on, so a full-universe version every run would
+risk the same self-triggered ban `yfinance_validation_calls_self_triggered_ban_during_reload_20260903`
+describes. Run it by hand every so often (or from a low-frequency schedule) on a small
+rotating sample - the daily pseudo-random sample means broad coverage accumulates over many
+runs rather than needing to cover the whole universe in one pass.
+
 `monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use
 **different freshness methodologies** — a table can show FRESH in the monitor and still halt
 Phase 1 minutes later:

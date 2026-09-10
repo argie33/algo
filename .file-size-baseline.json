@@ -636,6 +636,7 @@
   "scripts/verify_safety_thresholds.py": 260,
   "scripts/xbrl_concept_continuity_scan.py": 116,
   "scripts/xbrl_concept_coverage_scan.py": 166,
+  "scripts/xbrl_yfinance_crosscheck.py": 263,
   "shared_contracts/__init__.py": 25,
   "shared_contracts/dashboard_api_contract.py": 205,
   "shared_contracts/dashboard_api_contract_endpoints_core.py": 585,
