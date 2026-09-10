@@ -709,7 +709,7 @@
   "utils/external/sec_statements_entry_resolution.py": 769,
   "utils/external/sec_statements_shared.py": 129,
   "utils/external/sec_statements_unit_context.py": 301,
-  "utils/external/sec_ticker_cache.py": 419,
+  "utils/external/sec_ticker_cache.py": 441,
   "utils/external/sec_xbrl_segment_revenue.py": 702,
   "utils/external/sec_xbrl_segment_revenue_2.py": 412,
   "utils/external/sec_xbrl_segments.py": 1391,
