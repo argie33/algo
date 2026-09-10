@@ -795,3 +795,8 @@ _.read_from_db  # unused method (utils\watermark_manager.py:34)
 save_dismissed  # unused function (utils\external\xbrl_concept_coverage.py:92) - called from scripts\xbrl_concept_coverage_scan.py's --dismiss/--undismiss CLI flags, which vulture doesn't trace into
 save_continuity_dismissed  # unused function (utils\external\xbrl_concept_coverage.py) - called from scripts\xbrl_concept_continuity_scan.py's --dismiss/--undismiss CLI flags, same as save_dismissed above
 _._get_analyst_forward_eps  # unused method (loaders\load_value_quality_growth_metrics.py:912) - its only production call site (the flawed earnings_surprise_avg proxy) was removed 2026-09-07; kept (not deleted) because several tests still monkeypatch it defensively (test_ev_ebitda_etf_trust_royalty_trust_recategorize_20260906.py etc.) via patch.object, which requires the attribute to exist
+OrchestratorStartupMixin  # unused class (algo\orchestration\orchestrator_startup.py:51) - mixed into Orchestrator via multiple inheritance in orchestrator.py, same false-positive class as ValuationSanityCheckMixin/DcfValuationMixin above (vulture doesn't trace a class used only as a base class, not by name elsewhere)
+OrchestratorLoaderHealthMixin  # unused class (algo\orchestration\orchestrator_loader_health.py:56) - see OrchestratorStartupMixin above
+OrchestratorPhasesMixin  # unused class (algo\orchestration\orchestrator_phases_executor.py:49) - see OrchestratorStartupMixin above
+OrchestratorRunLoopMixin  # unused class (algo\orchestration\orchestrator_run_loop.py:49) - see OrchestratorStartupMixin above
+OrchestratorFinalReportMixin  # unused class (algo\orchestration\orchestrator_final_report.py:24) - see OrchestratorStartupMixin above
