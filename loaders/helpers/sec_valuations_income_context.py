@@ -99,14 +99,24 @@ class IncomeStatementContextMixin:
         """Build a synthetic "annual" row (same 13-column shape
         _fetch_income_statement_context's own query returns) from the 4 most recent real
         quarterly_income_statement rows, for symbols with zero annual_income_statement rows
-        (recent IPOs: real 10-Qs filed, no 10-K yet). Returns [] unless all 4 quarters have
-        real revenue, net_income, AND earnings_per_share - never fabricates a partial-year
-        figure from fewer/incomplete quarters (the caller ORs this onto an empty
-        `cur.fetchall()` result, so an empty list here correctly falls through to the existing
-        "no data at all" handling). Other fields (operating_income/pretax_income/D&A/tax/
-        interest_expense/shares_outstanding_basic) are summed where present and left None
-        otherwise - the existing per-field fallbacks in _fetch_income_statement_context already
-        tolerate those being absent.
+        (recent IPOs: real 10-Qs filed, no 10-K yet). revenue/net_income/earnings_per_share
+        are each independently required to have all 4 quarters real before being summed into
+        a TTM figure - never fabricates a partial-year number from fewer/incomplete quarters
+        for any one of them - but (FIXED 2026-09-10, goal: "SEC/XBRL missing data under 500"
+        sweep) a gap in ONE of the three no longer blocks the other two the way the original
+        single blanket "all 3 present every quarter" gate did. Live-confirmed 13 real
+        pre-revenue/development-stage filers (AADX/BRR/CSQR/DPC/KARD/LABT/LCLN/LFTO/LIME/
+        PBLS/RMIX/SIND/SSMR) have 4 complete real quarters of net_income+earnings_per_share
+        but a real revenue gap in 1+ quarters (e.g. milestone/collaboration-only revenue
+        recognized in some quarters, not others) - the old gate discarded real, complete
+        EPS/net_income data purely because revenue had a gap, wrongly landing these on
+        "no_income_statement" instead of computing a real pe_ratio (which needs EPS alone,
+        not revenue). Returns [] only when NONE of the three are usable (the caller ORs this
+        onto an empty `cur.fetchall()` result, so an empty list here correctly falls through
+        to the existing "no data at all" handling). Other fields (operating_income/
+        pretax_income/D&A/tax/interest_expense/shares_outstanding_basic) are still summed
+        best-effort where present and left None otherwise - the existing per-field fallbacks
+        in _fetch_income_statement_context already tolerate those being absent.
         """
         cur.execute(
             """
@@ -121,7 +131,7 @@ class IncomeStatementContextMixin:
             (symbol,),
         )
         quarters = cur.fetchall()
-        if len(quarters) < 4 or any(q[0] is None or q[1] is None or q[2] is None for q in quarters):
+        if len(quarters) < 4:
             return []
 
         def _sum_col(idx: int) -> float | None:
@@ -131,6 +141,21 @@ class IncomeStatementContextMixin:
                 if values
                 else None
             )
+
+        def _sum_col_strict(idx: int) -> float | None:
+            # revenue/net_income/earnings_per_share each independently require every one of
+            # the 4 quarters to be real before summing - a partial TTM figure for these three
+            # would be actively misleading (see docstring), unlike the best-effort _sum_col
+            # used for the secondary fields below.
+            if any(q[idx] is None for q in quarters):
+                return None
+            return sum(safe_float(q[idx], "ttm_income_context_quarter", allow_none=True) or 0.0 for q in quarters)
+
+        ttm_revenue = _sum_col_strict(0)
+        ttm_net_income = _sum_col_strict(1)
+        ttm_eps = _sum_col_strict(2)
+        if ttm_revenue is None and ttm_net_income is None and ttm_eps is None:
+            return []
 
         cur.execute(
             "SELECT is_foreign_private_issuer, sic_code FROM company_info_sec WHERE symbol = %s",
@@ -145,9 +170,9 @@ class IncomeStatementContextMixin:
         return [
             (
                 fiscal_year,
-                _sum_col(0),  # revenue
-                _sum_col(1),  # net_income
-                _sum_col(2),  # earnings_per_share (TTM EPS = sum of 4 quarterly EPS, standard convention)
+                ttm_revenue,
+                ttm_net_income,
+                ttm_eps,  # TTM EPS = sum of 4 quarterly EPS, standard convention
                 _sum_col(3),  # operating_income
                 _sum_col(4),  # pretax_income
                 _sum_col(5),  # depreciation_expense
