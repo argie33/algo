@@ -864,6 +864,7 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
     _fill_cash_and_restricted_cash_combined(rows, client, symbol, period)
     _fill_cash_and_restricted_cash_combined_from_split(rows, client, symbol, period)
     _fill_liabilities_from_assets_minus_equity(rows, client, symbol, period)
+    _fill_liabilities_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
     return rows
 
 
@@ -939,6 +940,48 @@ def _fill_liabilities_from_assets_minus_equity(
             equity = row.get("stockholders_equity")
             if equity is not None:
                 row["liabilities"] = total - equity
+
+
+def _fill_liabilities_from_ifrs_current_noncurrent_split(
+    rows: list[dict[str, Any]], client: Any, symbol: str, period: str
+) -> None:
+    """Derive `liabilities` (total_liabilities) = CurrentLiabilities + NoncurrentLiabilities for
+    an IFRS filer that splits its balance sheet into the two halves but never tags the combined
+    ifrs-full:Liabilities total at all.
+
+    ADDED 2026-09-09 (goal session: XBRL continuity checker follow-up, right after the FPI
+    scanning-coverage fix - see scripts/xbrl_concept_continuity_scan.py's own 40-F/20-F
+    ifrs-full-merge fix earlier this session). Live-confirmed via HUB Cyber Security Ltd.'s
+    real companyfacts JSON (CIK 0001905660): FY2024 (period end 2024-12-31, form 20-F) tags
+    CurrentLiabilities=USD 106,074,000 and NoncurrentLiabilities=USD 2,159,000 but has ZERO
+    plain ifrs-full:Liabilities fact for that period - cross-checked against the SAME filing's
+    directly-tagged EquityAndLiabilities (USD 27,416,000) minus Equity (USD -80,817,000) =
+    USD 108,233,000, exactly matching the current+noncurrent sum, confirming this is the real
+    total and not a partial figure.
+
+    "CurrentLiabilities" is already fetched under _BALANCE_IFRS_ALIASES for the main
+    `liabilities_current`/`current_liabilities` column, so only "NoncurrentLiabilities" needs a
+    second lookup here (same secondary-aggregate-call pattern as
+    _fill_liabilities_from_assets_minus_equity above). Fallback-only: only fills a fiscal
+    year/quarter where the primary "Liabilities" alias found nothing, and only when BOTH halves
+    are present - a filer with just one half tagged hasn't reported this split, so summing a
+    partial figure would silently understate real liabilities rather than leave an honest NULL
+    (same discipline as _fill_operating_lease_liability_from_current_noncurrent_split above).
+    """
+    noncurrent_rows = _aggregate_concepts(
+        client, symbol, [], period, ifrs_aliases=[("NoncurrentLiabilities", "liabilities_noncurrent")]
+    )
+    noncurrent_by_key = {
+        (r.get("fiscal_year"), r.get("fiscal_period")): r.get("liabilities_noncurrent") for r in noncurrent_rows
+    }
+    for row in rows:
+        if row.get("liabilities") is not None:
+            continue
+        current = row.get("liabilities_current")
+        noncurrent = noncurrent_by_key.get((row.get("fiscal_year"), row.get("fiscal_period")))
+        if current is None or noncurrent is None:
+            continue
+        row["liabilities"] = current + noncurrent
 
 
 def _fill_cash_and_restricted_cash_combined(rows: list[dict[str, Any]], client: Any, symbol: str, period: str) -> None:
