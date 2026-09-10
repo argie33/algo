@@ -124,3 +124,18 @@ class TestRoyaltyTrustNoBalanceSheetReason:
 
         assert metrics["asset_turnover"] is None
         assert metrics["asset_turnover_unavailable_reason"] == "reit_special_entity"
+
+    def test_trust_symbol_gets_reit_special_entity_for_roe_and_sgr(self, monkeypatch):
+        # FIXED 2026-09-10 (goal: "under 300" missing-XBRL push): roe and
+        # sustainable_growth_rate both derive from the same None stockholders_equity as
+        # roa/debt_to_equity/roic_pct above but were never added to
+        # _trust_recategorize_fields - live-confirmed NRT stuck on the generic
+        # "stockholders_equity_not_reported" for both fields despite every sibling
+        # equity-derived field already being covered.
+        loader = _make_loader(monkeypatch)
+        metrics = loader._compute_quality_metrics("PBT", _quality_row(), ev_metrics=(None, None, None, None))
+
+        assert metrics["roe"] is None
+        assert metrics["roe_unavailable_reason"] == "reit_special_entity"
+        assert metrics["sustainable_growth_rate"] is None
+        assert metrics["sustainable_growth_rate_unavailable_reason"] == "reit_special_entity"

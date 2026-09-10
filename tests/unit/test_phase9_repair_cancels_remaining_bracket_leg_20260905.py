@@ -137,3 +137,58 @@ class TestRepairCancelsRemainingBracketLeg:
             )
 
         assert outcome == "repaired"
+
+    def test_take_profit_fills_during_cancel_race_cancels_orphaned_standalone_stop(self):
+        """ORPHANED-STOP RACE FIX (2026-09-10): if the original bracket's take-profit leg
+        fills in the window between submitting the standalone stop and cancelling the
+        bracket's remaining leg(s), cancel_bracket_orders's own fill-vs-cancel-race check
+        reports success=False with a populated filled_qty (see that method's docstring).
+        The just-placed standalone stop is now protecting a position that's already
+        (fully or partially) closed - it must be cancelled too, not left resting to fire
+        against a future unrelated position in this symbol."""
+        order_mgr = _order_mgr(
+            cancel_result={
+                "success": False,
+                "message": "already filled",
+                "filled_qty": 25.0,
+                "filled_avg_price": 215.0,
+            }
+        )
+
+        with _patch_db(25.0, 210.50):
+            outcome = check_and_repair_one_position(
+                order_mgr,
+                pos_id=1,
+                symbol="TSLA",
+                trade_ids_arr=["trade-1"],
+                quantity=25.0,
+                current_stop_price=210.50,
+                standalone_stop_order_id=None,
+            )
+
+        assert outcome == "repaired"
+        # Called twice: once for the original bracket's parent order id, once more to
+        # cancel the now-orphaned standalone stop by ITS order id ("new-stop-1").
+        assert order_mgr.cancel_bracket_orders.call_count == 2
+        second_call_args = order_mgr.cancel_bracket_orders.call_args_list[1]
+        assert second_call_args[0][0] == "new-stop-1"
+
+    def test_take_profit_fill_check_finds_zero_filled_qty_does_not_double_cancel(self):
+        """A genuine cancel failure with no fill (e.g. a real API error, not a fill race)
+        must NOT trigger the orphaned-stop cleanup - the standalone stop is still valid
+        protection for the still-open position."""
+        order_mgr = _order_mgr(cancel_result={"success": False, "message": "network blip", "filled_qty": None})
+
+        with _patch_db(25.0, 210.50):
+            outcome = check_and_repair_one_position(
+                order_mgr,
+                pos_id=1,
+                symbol="TSLA",
+                trade_ids_arr=["trade-1"],
+                quantity=25.0,
+                current_stop_price=210.50,
+                standalone_stop_order_id=None,
+            )
+
+        assert outcome == "repaired"
+        assert order_mgr.cancel_bracket_orders.call_count == 1

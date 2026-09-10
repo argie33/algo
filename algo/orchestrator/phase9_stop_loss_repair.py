@@ -219,6 +219,9 @@ def check_and_repair_one_position(
                 f"[PHASE 9] {symbol} (position {pos_id}): repaired with standalone stop, but "
                 f"failed to cancel original bracket's remaining leg(s) - {cancel_result.get('message')}"
             )
+            _cancel_orphaned_standalone_stop_if_take_profit_filled(
+                order_mgr, symbol, pos_id, cancel_result, repair.get("order_id")
+            )
     except Exception as e:
         logger.warning(
             f"[PHASE 9] {symbol} (position {pos_id}): repaired with standalone stop, but "
@@ -226,3 +229,45 @@ def check_and_repair_one_position(
         )
 
     return "repaired"
+
+
+def _cancel_orphaned_standalone_stop_if_take_profit_filled(
+    order_mgr: Any,
+    symbol: str,
+    pos_id: Any,
+    cancel_result: dict[str, Any],
+    standalone_order_id: str | None,
+) -> None:
+    """ORPHANED-STOP RACE FIX (2026-09-10, real-money-readiness audit): the window between
+    submitting a repair's standalone stop and cancelling the original bracket's remaining
+    leg(s) is real - if the original bracket's take-profit leg filled during it,
+    cancel_bracket_orders's own fill-vs-cancel-race check (see that method's docstring)
+    reports success=False with a populated filled_qty rather than silently no-op'ing. The
+    position the standalone stop was meant to protect is now (fully or partially) already
+    closed via the take-profit fill - leaving that standalone stop resting is exactly the
+    "fires against a future unrelated position in this symbol" hazard the caller's own
+    comment already named but didn't close. Cancel it now rather than leaving it live.
+    """
+    if not cancel_result.get("filled_qty"):
+        return
+    logger.critical(
+        f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}): original bracket's take-profit "
+        f"leg filled {cancel_result.get('filled_qty')} shares during the repair race - "
+        f"cancelling the just-placed standalone stop {standalone_order_id} so it can't "
+        f"later fire against an unrelated future position in this symbol. Position needs "
+        f"manual reconciliation."
+    )
+    try:
+        stop_cancel_result = order_mgr.cancel_bracket_orders(standalone_order_id)
+        if not stop_cancel_result.get("success"):
+            logger.critical(
+                f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}): failed to cancel the "
+                f"now-orphaned standalone stop {standalone_order_id} - "
+                f"{stop_cancel_result.get('message')}. Manual cancellation required."
+            )
+    except Exception as stop_cancel_err:
+        logger.critical(
+            f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}): exception cancelling the "
+            f"now-orphaned standalone stop {standalone_order_id}: {stop_cancel_err}. "
+            f"Manual cancellation required."
+        )

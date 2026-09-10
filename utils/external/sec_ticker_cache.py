@@ -425,6 +425,16 @@ class TickerCache:
             # remaining dotted tickers are ".R" (rights) suffixes, which genuinely have no
             # separate SEC ticker entry - only retried here, not fabricated.
             cik = self._ticker_cache.get(symbol.upper().replace(".", "-"))
+        if not cik and "$" in symbol:
+            # Preferred-share tickers use a "$" + series letter suffix in most market-data
+            # feeds (SCE$L, BAC$L, DBRG$H) but SEC's own company_tickers.json spells the same
+            # series as "-P" + letter (SCE-PL, BAC-PL, DBRG-PH) - live-confirmed 2026-09-10 via
+            # SEC's own company_tickers.json: SCE$L (Southern California Edison Series L
+            # preferred, real CIK 92103) was raising cik_not_found and blocking every SEC/XBRL-
+            # derived quality/value metric for it, purely because "$L" was never translated to
+            # "-PL" before the cache lookup - same bug shape as the dot/dash dual-class case
+            # above, just a different feed-vs-SEC spelling convention.
+            cik = self._ticker_cache.get(symbol.upper().replace("$", "-P"))
         if not cik:
             # FIXED 2026-08-17 (goal: "no SEC data" audit): last-resort browse-edgar fallback
             # for tickers missing from both SEC bulk ticker files - see
