@@ -69,6 +69,35 @@ class TestDividendRegisteredInvestmentCompanyReason:
 
         assert results[0]["data_unavailable_reason"] == "no_us_gaap_facts"
 
+    def test_cef_with_fee_table_only_us_gaap_still_gets_specific_reason(self, monkeypatch):
+        # FIX 2026-09-10: unlike BBN above (zero us-gaap at all), a whole population of real
+        # closed-end funds (BCAT/BGT/BIT/BST/BOT/ECC/GBAB/TYG/VKI/VTN/XFLT, live-confirmed)
+        # carry a non-empty "us-gaap" dict alongside "cef"/"ffd" - just 1-3 N-2-prospectus
+        # fee-table concepts (NetAssetValuePerShare/SharePrice), never an income-statement or
+        # dividend concept - so the original gate (which only fired when us-gaap/ifrs-full
+        # were BOTH completely empty) never caught them and they fell all the way through to
+        # the generic "no_dividend_xbrl_concepts" ("Missing SEC/XBRL data") reason instead of
+        # this same permanent structural absence.
+        def fake_fetch(self, symbol, timeout_sec=20.0):
+            return {
+                "cik": "1",
+                "facts_response": {
+                    "facts": {
+                        "cef": {"ManagementFeesPercent": {"units": {"pure": [{"val": 0.01}]}}},
+                        "us-gaap": {
+                            "NetAssetValuePerShare": {"units": {"USD/shares": [{"end": "2025-12-31", "val": 12.5}]}},
+                            "SharePrice": {"units": {"USD/shares": [{"end": "2025-12-31", "val": 11.9}]}},
+                        },
+                    }
+                },
+            }
+
+        monkeypatch.setattr(DividendDataLoader, "_fetch_sec_data_with_timeout", fake_fetch)
+
+        results = _loader().fetch_incremental("BCAT", None)
+
+        assert results[0]["data_unavailable_reason"] == "registered_investment_company_no_xbrl"
+
     def test_real_us_gaap_facts_unaffected(self, monkeypatch):
         # Control: a normal operating company with real us-gaap facts must never take this
         # branch at all, regardless of whether it happens to also carry unrelated keys.

@@ -790,6 +790,25 @@ class DividendDataLoader(SecLoaderBase):
             if has_real_income_statement_facts:
                 return [self._unavailable_record(symbol, now_et, "non_dividend_paying_stock")]
 
+            # FIX 2026-09-10 (goal: "under 500" coverage push): the registered-investment-
+            # company gate above (line ~701) only fires when us_gaap/ifrs_full are BOTH
+            # completely empty - but live-confirmed a whole population of real closed-end
+            # funds (BlackRock BCAT/BGT/BIT/BST, Invesco BOT/VKI/VTN, Eagle Point ECC,
+            # Guggenheim GBAB, Tortoise TYG, XAI XFLT, ...) DO carry a non-empty "us-gaap"
+            # dict alongside "cef"/"ffd" - just 1-3 N-2-prospectus fee-table concepts
+            # (NetAssetValuePerShare/SharePrice/PreferredStockLiquidationPreference), never
+            # an income-statement or dividend concept - so they skip that gate entirely,
+            # fall through both extraction passes and the income-statement check above, and
+            # land on the generic "no_dividend_xbrl_concepts" ("Missing SEC/XBRL data")
+            # instead of the correct "registered_investment_company_no_xbrl" ("Legitimate /
+            # not applicable") - same permanent structural absence as the fully-empty-facts
+            # case, just with SEC's fee-table concepts also present. Checked here (after
+            # confirming no real income-statement facts either) rather than widening the
+            # earlier gate, so a genuine thin/unavailable operating filer that happens to
+            # lack both is unaffected.
+            if isinstance(facts.get("cef"), dict) or isinstance(facts.get("ffd"), dict):
+                return [self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")]
+
             # No dividend data found in XBRL, and no real income-statement facts either -
             # genuinely can't tell whether this is a non-payer or a thin/unavailable filer.
             return [self._unavailable_record(symbol, now_et, "no_dividend_xbrl_concepts")]
