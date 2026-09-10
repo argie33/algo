@@ -345,7 +345,19 @@ class ExitHandler:
             if cur is not None:
                 return _raise_stop(cur)
             else:
-                return cast(dict[str, Any], self.context._with_cursor(_raise_stop))
+                # DEFENSE-IN-DEPTH FIX (real-money-readiness audit, 2026-09-10): the sibling
+                # full-exit path above (execute_exit's own cur=None branch, line ~131) passes
+                # acquire_locks=True; this one didn't. Not currently live-exploitable - the
+                # only production caller (exit_engine.py, exit_fraction=0) always supplies its
+                # own cur from a SERIALIZABLE transaction that already holds `FOR UPDATE OF p`
+                # on the position row, so this branch is effectively unreached today - but a
+                # future caller invoking _raise_stop_only/execute_exit(exit_fraction=0) without
+                # its own cur would read/write algo_positions.current_stop_price with no
+                # advisory-lock protection against a concurrent writer, the exact race class
+                # phase6_exit_execution.py's broker-stop-sync-staleness fix (same audit,
+                # earlier this session) closed for its own two write sites. Match that
+                # standard here too rather than leaving a latent gap for later.
+                return cast(dict[str, Any], self.context._with_cursor(_raise_stop, acquire_locks=True))
         except DatabaseError as e:
             logger.error(f"Database error raising stop: {e}")
             return {
