@@ -128,13 +128,22 @@ class TestNegativeRoeRoceFloor:
         missing). Both rows below now also set a negative `roa` (consistent with the
         deeply-negative-ROE distress shape this test is modeling) so the ROE component is
         actually included and its floor-at-0-for-negative-values behavior gets exercised,
-        instead of being omitted entirely (total_weight=0, no update issued)."""
+        instead of being omitted entirely (total_weight=0, no update issued).
+
+        Both rows also carry identical margin_volatility/asset_turnover/gross_profitability
+        values (weight 11+18+7+7+7=50, clears the 2026-09-10 40%-of-101 completeness floor)
+        so an update actually fires - with matching values across both rows, those three
+        components pool as ties and z-score to neutral percentile 50.0 for both symbols, so
+        the ROE/ROA floor-to-0 behavior is still the only thing distinguishing the composite
+        from a plain neutral score."""
         rows = [
-            ("WORST_NEG", "Technology", None, -40.0, -30.0, None, None, None, None, None, None, 99.0),
-            ("MID_NEG", "Technology", None, -5.0, -3.0, None, None, None, None, None, None, 99.0),
+            ("WORST_NEG", "Technology", None, -40.0, -30.0, None, None, None, 10.0, 50.0, 25.0, 99.0),
+            ("MID_NEG", "Technology", None, -5.0, -3.0, None, None, None, 10.0, 50.0, 25.0, 99.0),
         ]
         updates = dict(_run_with_mocked_rows(rows))
-        # Both symbols' only components are ROE (weight 11) and ROA (weight 18) - both
-        # negative, both floored to 0 -> weighted average is still 0.0.
-        assert updates.get("WORST_NEG") == 0.0
-        assert updates.get("MID_NEG") == 0.0
+        # Both symbols: ROE (weight 11) and ROA (weight 18) both negative, both floored to 0;
+        # margin_volatility/asset_turnover/gross_profitability (weight 7 each, tied between
+        # the two rows) all z-score to neutral 50.0. Composite = (0*11 + 0*18 + 50*7*3) / 50.
+        expected = round((50.0 * 7 * 3) / 50.0, 2)
+        assert updates.get("WORST_NEG") == expected
+        assert updates.get("MID_NEG") == expected

@@ -291,9 +291,21 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                     gp_component = 0.0 if float(gross_prof) < 0.0 else gross_prof_pct[symbol]
                     components.append((gp_component, 7.0))
 
+                # COMPLETENESS FLOOR (2026-09-10 real-money-readiness re-audit): mirrors
+                # vqg_quality_score.py's Pass-1 `min_quality_weight_pct=40.0` floor on the
+                # identical 8-component/101-point weight scheme. Without it, a symbol that
+                # legitimately clears Pass-1's 40% floor (e.g. via ROE+ROA+ROCE+FCF-margin+
+                # D/E) but has some of those individually None in THIS pass's stricter
+                # inclusion rules (e.g. this pass's roe_component additionally requires roa
+                # is not None, line 266 above) can fall below 40% available weight here and
+                # still get a full sum(v*w)/total_weight extrapolated to 0-100 - unconditionally
+                # overwriting Pass-1's more conservative (possibly None/insufficient-
+                # completeness) score. Below the floor, skip the overwrite and leave whatever
+                # Pass-1 already wrote (real score or None) untouched, same as this loop
+                # already does for the total_weight<=0 case.
                 total_weight = sum(w for _, w in components)
-                if total_weight <= 0:
-                    continue  # defensive only - can't happen if quality_score is real
+                if total_weight <= 0 or total_weight < 40.0:
+                    continue
 
                 quality_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
                 if quality_score_new != quality_score_old:
