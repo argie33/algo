@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Weekly ECS entrypoint for XBRL data-quality layers 4 and 5 (see MEMORY.md's
+"""Daily ECS entrypoint for XBRL data-quality layers 4 and 5 (see MEMORY.md's
 xbrl_calculation_linkbase_check_landed_20260910 and the "5 layers" docstring in
 scripts/xbrl_calculation_linkbase_check.py for the full architecture).
 
@@ -13,6 +13,22 @@ until this script, only the "by hand" half of that sentence was ever actually tr
 Nothing invoked them automatically, so their value depended entirely on a human
 remembering to run two extra commands on top of everything else.
 
+Why DAILY, not weekly (corrected 2026-09-10 after a "verify the decision, not just the
+code" pass): both scripts' own `_select_symbols()` picks its rotating sample via
+`ORDER BY md5(symbol || CURRENT_DATE::text)` - a sample explicitly re-seeded by the
+calendar date, engineered for daily rotation through the universe (CLAUDE.md's own
+description of this mechanism literally says "daily pseudo-random sample"). An earlier
+version of this script ran weekly, copying the "e.g. weekly" example from the two
+underlying scripts' docstrings (written for an unscheduled, run-by-hand world) without
+checking that against the actual selection mechanism. At the live-measured universe
+size (4,896 yfinance-crosscheck-eligible symbols, 4,960 calc-linkbase-eligible symbols,
+2026-09-10), weekly cadence would take ~3.8 years and ~6.4 years respectively to cycle
+through the full universe once - daily drops that to ~6.5 and ~11 months. The documented
+self-triggered-ban risk is specifically about a FULL-UNIVERSE run, not about the
+frequency of a small (25/15-symbol) sample - daily at this sample size is still a small
+fraction of one week's worth of what a single "check everything" run would cost, it just
+multiplies the weekly total by 7x (25->175, 15->105) - trivial next to "full universe."
+
 Deliberately NOT folded into algo/algo_data_patrol.py / the DataPatrol ECS task: that
 task runs twice a day as a hard-timeout (600s) Step Functions state directly gating
 Phase 1 (orchestrator halts if it's missing/stale/CRITICAL) - see
@@ -20,7 +36,7 @@ algo/orchestrator/phase1_data_freshness.py's _check_data_patrol_results. Adding
 unpredictable-latency live network calls (SEC EDGAR + yfinance, dozens of requests)
 into that same timeout budget risks turning an optional, informational WARN-only
 cross-check into an accidental trading-halt trigger. This script is wired to its own
-independent weekly EventBridge trigger instead (terraform/modules/loaders/main.tf,
+independent daily EventBridge trigger instead (terraform/modules/loaders/main.tf,
 xbrl_second_opinion task + schedule) - same small-rotating-sample posture as running
 each script by hand, just no longer dependent on anyone remembering to.
 
@@ -43,7 +59,7 @@ describe when this runs on its schedule - the fixed small sample size (25 + 15 s
 is what actually keeps this within the shared rate-limit budget, not cache reuse.
 
 Usage:
-    python scripts/xbrl_second_opinion_weekly.py
+    python scripts/xbrl_second_opinion_daily.py
 """
 
 from __future__ import annotations
@@ -73,17 +89,17 @@ def main() -> None:
     ):
         try:
             summary = fn(limit=limit, symbols_override=None, dry_run=False)
-            logger.info(f"[SECOND_OPINION_WEEKLY] {label}: sampled {summary['sampled_symbols']} symbol(s)")
+            logger.info(f"[SECOND_OPINION_DAILY] {label}: sampled {summary['sampled_symbols']} symbol(s)")
         except Exception as e:
             # Non-fatal by design (see module docstring): a transient SEC/yfinance outage
             # in one layer must not prevent the other from running, and this task is
             # deliberately independent of the Phase-1-gating DataPatrol task - so a
             # nonzero exit here is only for operator/CloudWatch visibility, never a halt.
             failures += 1
-            logger.error(f"[SECOND_OPINION_WEEKLY] {label} failed: {e}", exc_info=True)
+            logger.error(f"[SECOND_OPINION_DAILY] {label} failed: {e}", exc_info=True)
 
     elapsed = time.monotonic() - started
-    logger.info(f"[SECOND_OPINION_WEEKLY] Done in {elapsed:.1f}s - {failures} of 2 layer(s) failed")
+    logger.info(f"[SECOND_OPINION_DAILY] Done in {elapsed:.1f}s - {failures} of 2 layer(s) failed")
     # Always propagate ANY failure via exit code, even though both layers were still
     # attempted above - a 1-of-2 failure must still mark the ECS task failed so it reaches
     # the DLQ/CloudWatch alarm path (aws_cloudwatch_event_target's dead_letter_config in

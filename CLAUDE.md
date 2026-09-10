@@ -112,18 +112,24 @@ describes. Run it by hand every so often (or from a low-frequency schedule) on a
 rotating sample - the daily pseudo-random sample means broad coverage accumulates over many
 runs rather than needing to cover the whole universe in one pass.
 
-**Layers 4/5 now run on their own weekly schedule, not just "by hand" (added 2026-09-10):**
-`scripts/xbrl_second_opinion_weekly.py` calls `xbrl_yfinance_crosscheck.run()` and
-`xbrl_calculation_linkbase_check.run()` back-to-back with their normal periodic-sample
-defaults (25 / 15 symbols). It's the ECS command for a new, fully independent
-`aws_cloudwatch_event_rule`/`aws_ecs_task_definition` pair in
-`terraform/modules/loaders/main.tf` (`xbrl_second_opinion*`) firing Sunday 10:00 UTC —
-deliberately its own task, NOT folded into the DataPatrol ECS task, because DataPatrol runs
-twice daily on a hard 600s Step Functions timeout gating Phase 1, and these two checks make
-live outbound SEC EDGAR/yfinance calls with unpredictable latency that could turn an
-optional WARN-only check into an accidental trading halt. **This terraform is written but
-NOT applied** — run `terraform plan`/`apply` in `terraform/` to actually turn the schedule
-on; until then these two layers are still manual-only in practice, same as before.
+**Layers 4/5 now run on their own daily schedule, not just "by hand" (added 2026-09-10,
+corrected weekly->daily same day):** `scripts/xbrl_second_opinion_daily.py` calls
+`xbrl_yfinance_crosscheck.run()` and `xbrl_calculation_linkbase_check.run()` back-to-back
+with their normal periodic-sample defaults (25 / 15 symbols). It's the ECS command for a
+new, fully independent `aws_cloudwatch_event_rule`/`aws_ecs_task_definition` pair in
+`terraform/modules/loaders/main.tf` (`xbrl_second_opinion*`) firing 05:00 UTC every day
+(before the 2:00 AM ET morning pipeline starts) — deliberately its own task, NOT folded
+into the DataPatrol ECS task, because DataPatrol runs twice daily on a hard 600s Step
+Functions timeout gating Phase 1, and these two checks make live outbound SEC EDGAR/
+yfinance calls with unpredictable latency that could turn an optional WARN-only check
+into an accidental trading halt. Daily, not the "e.g. weekly" example in the two
+underlying scripts' own docstrings above: both scripts' `_select_symbols()` rotates its
+sample by `CURRENT_DATE`, engineered for daily coverage accumulation across the ~4,900-
+symbol universe (weekly would take 3.8-6.4 years to cycle through it once; daily takes
+6.5-11 months) — an initial version of this schedule copied the "weekly" example
+literally without checking that. **This terraform is written but NOT applied** — run
+`terraform plan`/`apply` in `terraform/` to actually turn the schedule on; until then
+these two layers are still manual-only in practice, same as before.
 
 **Calculation-linkbase self-consistency check (5th and final layer of the XBRL data-quality
 architecture, added 2026-09-10 - not a bug-report-driven thing, run it periodically):**
