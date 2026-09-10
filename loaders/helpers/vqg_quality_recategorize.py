@@ -14,6 +14,8 @@ the `metrics` dict in place, identical to how this code behaved inline.
 
 from typing import TYPE_CHECKING, Any
 
+from loaders.helpers.vqg_shared import recategorize_balance_sheet_currency_fields
+
 
 class QualityRecategorizeMixin:
     """See module docstring. Mixed into ValueQualityGrowthMetricsLoader alongside
@@ -30,6 +32,8 @@ class QualityRecategorizeMixin:
         def _get_blank_check_symbols(self) -> frozenset[str]: ...
 
         def _get_unsupported_currency_ocf_symbols(self) -> frozenset[str]: ...
+
+        def _get_unsupported_currency_balance_sheet_symbols(self) -> frozenset[str]: ...
 
     def _apply_quality_recategorize_reasons_pre(self, metrics: dict[str, Any], symbol: str) -> None:
         """Royalty-trust / ETF-trust / registered-investment-company recategorize loops - run
@@ -392,3 +396,9 @@ class QualityRecategorizeMixin:
                 _reason_key = f"{_field}_unavailable_reason"
                 if metrics.get(_field) is None and metrics.get(_reason_key) in _unsupported_currency_source_reasons:
                     metrics[_reason_key] = "unsupported_currency_no_fx_rate"
+
+        # See recategorize_balance_sheet_currency_fields()'s docstring (vqg_shared.py -
+        # extracted rather than inlined, same file-size-ratchet discipline as
+        # compute_quality_row_level_reason above: vqg_quality.py is past the hard ceiling).
+        if symbol in self._get_unsupported_currency_balance_sheet_symbols():
+            recategorize_balance_sheet_currency_fields(metrics)
