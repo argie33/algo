@@ -277,6 +277,15 @@ class OrderManager(StopLossRepairMixin):
         attempt's outcome. algo_untracked_positions (see GOVERNANCE.md) is a different
         mechanism - it exists for manual/external trades placed outside the algo, not as a
         duplicate-order gate for algo-originated entries.
+
+        NOTE (2026-09-10 real-money-readiness audit, orchestration re-verification): this
+        method does NOT check execution_mode itself and will submit a real order to
+        `self.alpaca_base_url` whenever called, regardless of mode. The paper/dry/review
+        gate lives entirely in the one current caller, executor.py's
+        _submit_and_validate_order (checks execution_mode BEFORE calling this), which is
+        safe today because it is the only call site (verified via repo-wide grep) - but a
+        future second caller must add its own execution_mode gate; nothing here will catch
+        a caller that forgets to.
         """
         if not self.alpaca_key or not self.alpaca_secret:
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
