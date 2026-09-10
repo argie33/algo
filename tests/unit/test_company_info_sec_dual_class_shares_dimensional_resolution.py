@@ -592,3 +592,181 @@ class TestPlainProseClassSharesFallback:
         result = loader._fetch_shares_outstanding_from_filing_text("ZZZZ", "999999", _submissions_with_10k())
 
         assert result is None
+
+
+class TestNonBreakingSpaceEntityNormalization:
+    """FIXED 2026-09-09: get_filing_plaintext returns the raw, un-rendered .txt submission,
+    where real filing HTML often separates a number from the following word with a literal
+    "&#160;"/"&nbsp;" non-breaking-space ENTITY rather than an actual whitespace character -
+    every `\\s+`-based prose regex silently failed to match despite the real text being present.
+
+    Live-confirmed via MTR (Mesa Royalty Trust)'s real, current 10-K (CIK 313364, accession
+    0001104659-26-036896): its raw .txt cover page literally reads "1,863,590&#160;Units of
+    Beneficial Interest were outstanding" - zero matches before this fix even though MTR is a
+    verified plain-prose-units symbol, while its 4 royalty-trust siblings (CRT/PBT/SBR/SJT)
+    resolved correctly the same run because their specific filings happened to use a real space
+    at the equivalent spot.
+    """
+
+    def _loader_with_text(self, text: str) -> CompanyInfoSECLoader:
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = text
+        return loader
+
+    def test_mtr_resolves_when_number_and_units_are_joined_by_nbsp_entity(self):
+        loader = self._loader_with_text(
+            "As of March 24, 2026, 1,863,590&#160;Units of Beneficial Interest were outstanding in Mesa Royalty Trust."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("MTR", "313364", _submissions_with_10k())
+        assert result == 1_863_590
+
+    def test_mtr_resolves_when_joined_by_named_nbsp_entity(self):
+        loader = self._loader_with_text(
+            "At December 31, 2025, the 1,863,590&nbsp;units outstanding were held by 374 unitholders."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("MTR", "313364", _submissions_with_10k())
+        assert result == 1_863_590
+
+    def test_mtr_resolves_when_joined_by_hex_nbsp_entity(self):
+        loader = self._loader_with_text(
+            "At December 31, 2025, the 1,863,590&#xA0;units outstanding were held by 374 unitholders."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("MTR", "313364", _submissions_with_10k())
+        assert result == 1_863_590
+
+    def test_normalization_does_not_break_plain_space_case(self):
+        """Regression guard: the pre-existing plain-space phrasing (already covered by
+        TestPlainProseUnitsOutstandingFallback above) must keep resolving unchanged."""
+        loader = self._loader_with_text(
+            "At December 31, 2025, the 1,863,590 units outstanding were held by 374 unitholders of record."
+        )
+        result = loader._fetch_shares_outstanding_from_filing_text("MTR", "313364", _submissions_with_10k())
+        assert result == 1_863_590
+
+
+class TestUhalSecurityNameOverrideAndLetterlessClassMember:
+    """UHAL/UHAL.B (U-Haul Holding Company/AMERCO) - live-confirmed via CIK 4457's real current
+    10-K (uhal-20260331.htm): cover page tags `us-gaap:CommonClassAMember`=19,607,788 (UHAL's
+    own closely-held voting class) and `us-gaap:NonvotingCommonStockMember`=176,470,092 (UHAL.B's
+    Series N Non-Voting class). UHAL's bare security_name has no "Class X" text (needs
+    _SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES), and UHAL.B's real member name carries no
+    letter at all despite its own target_letter resolving to "B" via the dot suffix (needs
+    _VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES) - this is the "UHAL-burn" case
+    `_context_is_generic_common_class`'s docstring already documents the ground truth for."""
+
+    _UHAL_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-a" name="dei:EntityCommonStockSharesOutstanding">'
+        "19,607,788</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-b" name="dei:EntityCommonStockSharesOutstanding">'
+        "176,470,092</ix:nonFraction>"
+        '<xbrli:context id="c-a"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-b"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:NonvotingCommonStockMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_uhal_resolves_to_its_own_voting_class_a_value_without_db_lookup(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._UHAL_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "UHAL", "4457", _submissions_with_10k(tickers=["UHAL", "UHAL.B"])
+            )
+            mock_db_ctx.assert_not_called()
+
+        assert result == 19_607_788
+
+    def test_uhal_b_resolves_to_its_own_nonvoting_value_not_its_sibling(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._UHAL_FILING_TEXT
+
+        result = loader._fetch_shares_outstanding_from_filing_text(
+            "UHAL.B", "4457", _submissions_with_10k(tickers=["UHAL", "UHAL.B"])
+        )
+
+        assert result == 176_470_092
+
+    def test_unverified_symbol_with_same_nonvoting_member_stays_unresolved(self):
+        """Guards the allowlist discipline: a DIFFERENT dot-suffixed symbol hitting the
+        identical `NonvotingCommonStockMember` shape must NOT be trusted just because UHAL.B's
+        is - only the individually-verified UHAL.B entry is trusted."""
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._UHAL_FILING_TEXT.replace("c-b", "c-z")
+
+        result = loader._fetch_shares_outstanding_from_filing_text(
+            "ZZZZ.B", "999999", _submissions_with_10k(tickers=["ZZZZ", "ZZZZ.B"])
+        )
+
+        assert result is None
+
+
+class TestCentVerifiedCustomDefaultClassMember:
+    """CENT (Central Garden & Pet Company) has THREE classes - live-confirmed via CIK 887733's
+    real current 10-K (cent-20250927.htm): `cent:CommonClassOneMember`=9,650,221 (CENT's own
+    plain "Common Stock"), `us-gaap:CommonClassAMember`=51,080,111 (CENTA, not in this
+    universe), `us-gaap:CommonClassBMember`=1,602,374 (closely-held, no separate ticker). The
+    filing's own prose confirms: "the number of shares outstanding of the registrant's Common
+    Stock was 9,650,221 ... Class A Common Stock was 51,080,111 ... 1,602,374 shares of its
+    Class B Stock" - CENT must resolve to the SMALLEST value here, not the largest (a naive
+    "take the max" would wrongly pick CENTA's count)."""
+
+    _CENT_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-7" name="dei:EntityCommonStockSharesOutstanding">'
+        "9,650,221</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-8" name="dei:EntityCommonStockSharesOutstanding">'
+        "51,080,111</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-9" name="dei:EntityCommonStockSharesOutstanding">'
+        "1,602,374</ix:nonFraction>"
+        '<xbrli:context id="c-7"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">cent:CommonClassOneMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-8"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-9"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassBMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_cent_resolves_to_its_own_plain_common_stock_value_via_verified_override(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._CENT_FILING_TEXT
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Central Garden & Pet Company - Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "CENT", "887733", _submissions_with_10k(tickers=["CENT", "CENTA"])
+            )
+
+        assert result == 9_650_221
+
+    def test_unverified_symbol_with_same_custom_member_stays_unresolved(self):
+        """Guards the allowlist discipline: a DIFFERENT symbol hitting the identical
+        `CommonClassOneMember` shape must NOT be trusted just because CENT's is."""
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._CENT_FILING_TEXT.replace(
+            "cent:CommonClassOneMember", "zzzz:CommonClassOneMember"
+        )
+
+        with patch("loaders.load_company_info_sec.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = ("Some Other Company Common Stock",)
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
+            result = loader._fetch_shares_outstanding_from_filing_text(
+                "ZZZZ", "999999", _submissions_with_10k(tickers=["ZZZZ", "ZZZZA"])
+            )
+
+        assert result is None
