@@ -95,8 +95,8 @@ class TestCheckDataPatrolResults:
             (timedelta(minutes=5),),
         ]
         cur.fetchall.return_value = [
-            ("staleness", "price_daily", "price_daily stale: 3d > 1d threshold"),
-            ("staleness", "technical_data_daily", "technical_data_daily stale: 3d > 1d threshold"),
+            ("staleness", "price_daily", "price_daily stale: 3d > 1d threshold", None),
+            ("staleness", "technical_data_daily", "technical_data_daily stale: 3d > 1d threshold", None),
         ]
         log_fn = _make_log_fn()
 
@@ -116,7 +116,7 @@ class TestCheckDataPatrolResults:
             (timedelta(minutes=5),),
         ]
         cur.fetchall.return_value = [
-            ("staleness", "price_daily", "price_daily stale: 3d > 1d threshold"),
+            ("staleness", "price_daily", "price_daily stale: 3d > 1d threshold", None),
         ]
         log_fn = _make_log_fn()
 
@@ -124,6 +124,56 @@ class TestCheckDataPatrolResults:
 
         assert result is not None
         assert result.halted is True
+
+    def test_finding_with_flagged_symbols_is_quarantined_not_halted(self):
+        """A CRIT/ERROR finding whose details name specific symbols (written by
+        quarantine.apply_symbol_quarantine) is handled via per-symbol quarantine instead of
+        halting the whole run - see migration 1277 / algo/monitoring/data_patrol/quarantine.py.
+        """
+        cur = MagicMock()
+        cur.fetchone.side_effect = [
+            ("run-4", "2026-09-10T09:00:00"),
+            (timedelta(minutes=5),),
+        ]
+        cur.fetchall.return_value = [
+            (
+                "ohlc_sanity",
+                "price_daily",
+                "3 rows with NEGATIVE prices",
+                {"flagged_symbols": [{"symbol": "AAA", "reason": "negative OHLC price"}]},
+            ),
+        ]
+        log_fn = _make_log_fn()
+
+        result = _check_data_patrol_results(cur, log_fn)
+
+        assert result is None
+        assert any("quarantine" in str(call).lower() for call in log_fn.calls)
+
+    def test_mixed_flagged_and_unflagged_findings_still_halts_for_unflagged(self):
+        """A quarantinable finding must not mask a genuinely systemic one in the same run."""
+        cur = MagicMock()
+        cur.fetchone.side_effect = [
+            ("run-5", "2026-09-10T09:00:00"),
+            (timedelta(minutes=5),),
+        ]
+        cur.fetchall.return_value = [
+            (
+                "ohlc_sanity",
+                "price_daily",
+                "3 rows with NEGATIVE prices",
+                {"flagged_symbols": [{"symbol": "AAA", "reason": "negative OHLC price"}]},
+            ),
+            ("staleness", "price_daily", "price_daily stale: 3d > 1d threshold", None),
+        ]
+        log_fn = _make_log_fn()
+
+        result = _check_data_patrol_results(cur, log_fn)
+
+        assert result is not None
+        assert result.halted is True
+        assert "ohlc_sanity" not in result.data["findings"][0]
+        assert "price_daily stale" in result.data["findings"][0]
 
     def test_query_exception_halts_by_default(self):
         """BUG FIX (2026-09-07, real-money-readiness audit): this used to assert result is

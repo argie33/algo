@@ -798,6 +798,28 @@ CREATE INDEX IF NOT EXISTS idx_data_patrol_log_run_id ON data_patrol_log(patrol_
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_date ON data_patrol_log(patrol_date DESC);
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_severity ON data_patrol_log(severity);
 
+-- Per-symbol quarantine (migration 1277): lets a DataPatrol check that can attribute a
+-- CRIT/ERROR finding to specific symbols (e.g. ohlc_sanity's negative-price/bad-high-low
+-- corruption) have just those symbols excluded from scoring/trading instead of the whole
+-- Phase 1 run halting. Checks that can't attribute symbols still halt the whole run as before.
+-- Named symbol_quarantine (not data_quality_flags) to avoid confusion with the unrelated,
+-- already-removed price_daily.data_quality_flags column from the 2026-08-11 write-side-effect
+-- bug (see tests/unit/test_data_patrol_no_write_side_effect_in_ohlc_check.py).
+CREATE TABLE IF NOT EXISTS symbol_quarantine (
+    id BIGSERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    check_name VARCHAR(100) NOT NULL,
+    severity VARCHAR(20) NOT NULL CHECK (severity IN ('error', 'critical')),
+    reason TEXT NOT NULL,
+    patrol_run_id VARCHAR(100) NOT NULL,
+    detected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX IF NOT EXISTS idx_symbol_quarantine_symbol_open
+    ON symbol_quarantine(symbol) WHERE resolved_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_symbol_quarantine_check_open
+    ON symbol_quarantine(check_name) WHERE resolved_at IS NULL;
+
 -- ============================================================================
 -- WEIGHT OPTIMIZATION (Dynamic weight management for portfolio components)
 -- ============================================================================

@@ -65,6 +65,23 @@ def main() -> int:
 
     with DatabaseContext("read", timeout=20) as cur:
         cur.execute(
+            """
+            SELECT symbol, check_name, reason, detected_at
+            FROM symbol_quarantine
+            WHERE resolved_at IS NULL
+            ORDER BY detected_at DESC
+            """
+        )
+        quarantined = cur.fetchall()
+        if quarantined:
+            print(f"{len(quarantined)} symbol(s) currently quarantined (excluded from scoring/trading):")
+            for row in quarantined[:50]:
+                print(f"  {row['symbol']:8} {row['check_name']:30} {row['reason']}")
+            if len(quarantined) > 50:
+                print(f"  ...and {len(quarantined) - 50} more")
+            print()
+
+        cur.execute(
             f"""
             SELECT check_name, target_table, severity, message, created_at,
                    (SELECT MAX(created_at) FROM data_patrol_log p2 WHERE p2.check_name = p1.check_name

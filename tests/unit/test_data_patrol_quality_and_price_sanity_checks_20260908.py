@@ -59,41 +59,42 @@ class TestCheckOhlcSanity:
     def test_valid_ohlc_logs_info(self) -> None:
         checker = _quality_checker()
         cur = MagicMock()
-        cur.fetchone.return_value = (0, 0, 0)
+        cur.fetchall.return_value = []
         checker.check_ohlc_sanity(cur)
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_negative_prices_logs_critical(self) -> None:
+    def test_negative_prices_logs_critical_with_flagged_symbols(self) -> None:
         checker = _quality_checker()
         cur = MagicMock()
-        cur.fetchone.return_value = (0, 0, 3)
+        # (symbol, negative, bad_high, bad_low) - matches check_ohlc_sanity's tuple query shape
+        cur.fetchall.return_value = [
+            ("AAA", True, False, False),
+            ("BBB", True, False, False),
+            ("CCC", True, False, False),
+        ]
         checker.check_ohlc_sanity(cur)
         assert len(checker.results) == 1
         assert checker.results[0].severity == CRIT
         assert checker.results[0].details["negative_count"] == 3
+        flagged = checker.results[0].details["flagged_symbols"]
+        assert {f["symbol"] for f in flagged} == {"AAA", "BBB", "CCC"}
+        assert all(f["reason"] == "negative OHLC price" for f in flagged)
 
-    def test_high_low_violation_logs_error(self) -> None:
+    def test_high_low_violation_logs_error_with_flagged_symbols(self) -> None:
         checker = _quality_checker()
         cur = MagicMock()
-        cur.fetchone.return_value = (4, 2, 0)
+        cur.fetchall.return_value = [
+            ("XXX", False, True, False),
+            ("YYY", False, False, True),
+        ]
         checker.check_ohlc_sanity(cur)
         assert len(checker.results) == 1
         assert checker.results[0].severity == ERROR
-        assert checker.results[0].details == {"bad_high": 4, "bad_low": 2}
-
-    def test_none_row_raises_valueerror_not_caught(self) -> None:
-        # A COUNT(*) query always returns exactly one row in practice, so this is a purely
-        # defensive/unreachable case in production - but the except clause here only catches
-        # (psycopg2.DatabaseError, psycopg2.OperationalError), not ValueError, so this
-        # documents actual (not ideal) behavior rather than assert something the code doesn't do.
-        import pytest
-
-        checker = _quality_checker()
-        cur = MagicMock()
-        cur.fetchone.return_value = None
-        with pytest.raises(ValueError, match="database state corrupted"):
-            checker.check_ohlc_sanity(cur)
+        assert checker.results[0].details["bad_high"] == 1
+        assert checker.results[0].details["bad_low"] == 1
+        flagged = {f["symbol"]: f["reason"] for f in checker.results[0].details["flagged_symbols"]}
+        assert flagged == {"XXX": "high < open/close/low", "YYY": "low > open/close/high"}
 
 
 class TestCheckSequenceContinuity:

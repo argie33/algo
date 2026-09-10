@@ -9,6 +9,7 @@ from typing import Any
 import psycopg2
 
 from .base import CheckResult
+from .quarantine import apply_symbol_quarantine
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,16 @@ class PatrolLogger:
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Failed to log patrol results - health check results not recorded: {e}") from e
+
+        # Any CRIT/ERROR result that names specific symbols (details["flagged_symbols"])
+        # feeds the per-symbol quarantine table so Phase 1 can exclude just those symbols
+        # instead of halting the whole run. See quarantine.py's module docstring.
+        for result in results:
+            if result.severity not in ("error", "critical"):
+                continue
+            flagged = (result.details or {}).get("flagged_symbols")
+            if flagged:
+                apply_symbol_quarantine(cur, result.check_name, result.severity, self.run_id, flagged)
 
     def log_performance(self, cur: Any, elapsed_seconds: float, status: str) -> None:
         """Log patrol execution performance metrics."""

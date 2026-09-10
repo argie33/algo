@@ -836,14 +836,46 @@ def _check_data_patrol_results(
 
         cur.execute(
             """
-            SELECT check_name, target_table, message
+            SELECT check_name, target_table, message, details
             FROM data_patrol_log
             WHERE patrol_run_id = %s AND severity IN ('critical', 'error')
             ORDER BY check_name
             """,
             (latest_run_id,),
         )
-        blocking = cur.fetchall()
+        all_blocking = cur.fetchall()
+
+        # FIX (2026-09-10, goal: institution-grade data-quality architecture): a CRIT/ERROR
+        # finding that names the exact symbols responsible (details["flagged_symbols"] -
+        # written by quarantine.apply_symbol_quarantine, called from PatrolLogger for exactly
+        # this purpose) does not need to halt the whole pipeline - those symbols are already
+        # excluded from scoring via symbol_quarantine. Halting for those too would mean the
+        # same corruption blocks the entire universe from trading twice: once via quarantine
+        # (correct) and once via a full-pipeline halt (unnecessary). A finding with no
+        # flagged_symbols (the overwhelming majority - staleness, coverage, reconciliation,
+        # anything systemic) still halts exactly as before: this is additive, not a loosening
+        # of the default-halt posture.
+        blocking = []
+        quarantine_handled = []
+        for name, table, msg, details in all_blocking:
+            flagged = (details or {}).get("flagged_symbols") if isinstance(details, dict) else None
+            if flagged:
+                quarantine_handled.append((name, table, msg, len(flagged)))
+            else:
+                blocking.append((name, table, msg))
+        if quarantine_handled:
+            logger.warning(
+                "[PHASE 1] DataPatrol findings handled via per-symbol quarantine (not halting): "
+                + "; ".join(f"{n} ({t}): {c} symbol(s)" for n, t, _, c in quarantine_handled)
+            )
+            log_phase_result_fn(
+                1,
+                "data_patrol_check",
+                "warning",
+                f"{sum(c for *_, c in quarantine_handled)} symbol(s) quarantined instead of halting: "
+                + "; ".join(n for n, *_ in quarantine_handled),
+            )
+
         if blocking:
             findings = [f"{name} ({table}): {msg}" for name, table, msg in blocking]
             summary = "; ".join(findings[:5]) + (f" ... and {len(findings) - 5} more" if len(findings) > 5 else "")
