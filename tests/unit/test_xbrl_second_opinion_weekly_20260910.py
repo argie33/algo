@@ -38,7 +38,10 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main()
 
-            assert exc.value.code == 0
+            # Both layers still get attempted, but a partial failure must still exit
+            # nonzero - otherwise it never reaches the ECS-task-failed / DLQ alarm path
+            # and silently degrades back into "depends on a human noticing the logs."
+            assert exc.value.code == 1
             yf_run.assert_called_once()
             calc_run.assert_called_once()
 

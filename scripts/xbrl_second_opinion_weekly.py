@@ -28,7 +28,19 @@ Both underlying scripts already write their own findings straight to data_patrol
 (WARN severity, same data_patrol_review triage queue as every other DataPatrol check) -
 this wrapper just calls their `run()` functions back to back with the same defaults
 the docstrings recommend for a periodic pass, and lets either one's failure (e.g. a
-transient SEC/yfinance outage) not block the other.
+transient SEC/yfinance outage) not block the other. Any failure still exits nonzero
+after both layers have been attempted, so a 1-of-2 failure is not silently swallowed -
+see the exit-code comment at the bottom of main().
+
+Runs cold every time in AWS, unlike an ad-hoc local run: both scripts read a companyfacts/
+calculation-linkbase disk cache (%TEMP%/algo-sec-edgar-cache, see
+utils/external/sec_edgar_client.py) that's normally warm on a LOCAL dev box after a loader
+run on the same machine - but each ECS Fargate task (this one included) gets its own fresh
+ephemeral filesystem, so there is no cross-task cache to inherit here regardless of where
+this runs. Not a correctness issue (both scripts fall back to live SEC/yfinance fetches
+fine), just don't expect the "already warm" request-volume savings their docstrings
+describe when this runs on its schedule - the fixed small sample size (25 + 15 symbols)
+is what actually keeps this within the shared rate-limit budget, not cache reuse.
 
 Usage:
     python scripts/xbrl_second_opinion_weekly.py
@@ -72,7 +84,13 @@ def main() -> None:
 
     elapsed = time.monotonic() - started
     logger.info(f"[SECOND_OPINION_WEEKLY] Done in {elapsed:.1f}s - {failures} of 2 layer(s) failed")
-    sys.exit(1 if failures == 2 else 0)
+    # Always propagate ANY failure via exit code, even though both layers were still
+    # attempted above - a 1-of-2 failure must still mark the ECS task failed so it reaches
+    # the DLQ/CloudWatch alarm path (aws_cloudwatch_event_target's dead_letter_config in
+    # terraform/modules/loaders/main.tf). Exiting 0 on a partial failure would silently
+    # drop that visibility - the exact "depends on a human remembering to check" failure
+    # mode this whole script exists to close.
+    sys.exit(1 if failures > 0 else 0)
 
 
 if __name__ == "__main__":
