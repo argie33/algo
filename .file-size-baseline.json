@@ -516,7 +516,7 @@
   "loaders/helpers/vqg_quality_batch.py": 321,
   "loaders/helpers/vqg_shared.py": 350,
   "loaders/helpers/vqg_symbol_gates.py": 1995,
-  "loaders/helpers/vqg_value.py": 1237,
+  "loaders/helpers/vqg_value.py": 1180,
   "loaders/load_aaii_sentiment.py": 373,
   "loaders/load_algo_metrics_daily.py": 173,
   "loaders/load_analyst_earnings_estimates.py": 180,
