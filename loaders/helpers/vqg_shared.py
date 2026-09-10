@@ -186,6 +186,7 @@ def compute_quality_row_level_reason(
     never_tagged_equity_symbols: frozenset[str],
     no_recent_total_assets_symbols: frozenset[str],
     never_tagged_total_assets_symbols: frozenset[str],
+    reit_or_special_entity_no_balance_data_symbols: frozenset[str] = frozenset(),
 ) -> str | None:
     """Row-level reason for _compute_quality_metrics's "all core ratios None" early return.
     Extracted out of vqg_quality.py (2026-09-09, file-size ratchet: that file is past the
@@ -199,6 +200,12 @@ def compute_quality_row_level_reason(
     under an unsupported currency (e.g. ARS) has a real, non-fabricatable None, not a gap.
 
     "no_recent_balance_sheet_data_reported": genuine "never tagged, real extraction gap".
+
+    "reit_special_entity" (FIXED 2026-09-10, goal: "under 500" missing-XBRL push): checked
+    BEFORE the generic no_recent_balance_sheet_data_reported fallback whenever the balance-
+    sheet loader itself already recorded zero SEC filings for this symbol as a REIT/special-
+    entity structural fact (see _get_reit_or_special_entity_no_balance_data_symbols's
+    docstring in vqg_quality_recategorize.py) - live-confirmed BIOT/IMC/PSQL/RPGL.
 
     "zero_total_assets_reported_shell_entity" (FIXED 2026-09-05): a real reported $0.00
     total_assets/stockholders_equity (blank-check/shell pre-merger, e.g. OBX) trips the same
@@ -216,6 +223,8 @@ def compute_quality_row_level_reason(
         return "etf_trust_no_gaap_financials"
     if stockholders_equity is None and symbol in unsupported_currency_symbols:
         return "unsupported_currency_no_fx_rate"
+    if stockholders_equity is None and symbol in reit_or_special_entity_no_balance_data_symbols:
+        return "reit_special_entity"
     if stockholders_equity is None and (symbol in no_recent_equity_symbols or symbol in never_tagged_equity_symbols):
         return "no_recent_balance_sheet_data_reported"
     if (

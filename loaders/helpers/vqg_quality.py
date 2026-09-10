@@ -1777,6 +1777,7 @@ class QualityMetricsMixin(
                     self._get_never_tagged_stockholders_equity_symbols(),
                     self._get_no_recent_total_assets_symbols(),
                     self._get_never_tagged_total_assets_symbols(),
+                    self._get_reit_or_special_entity_no_balance_data_symbols(),
                 )
                 marker = self._unavailable_marker("quality_metrics", symbol, reason=row_level_reason)
                 # FIXED 2026-09-09: preserve _QUARTERLY_DERIVED_TREND_FIELDS' own reason
