@@ -3139,6 +3139,15 @@ class QualityMetricsMixin(SymbolGateMixin):
                     "quick_ratio",
                     "gross_margin",
                 )
+                # FIXED 2026-09-10 (goal: "under 500" missing-XBRL push, same bug found in the
+                # sibling RIC/ETF-trust/blank-check loops below - each already includes
+                # "capex_never_tagged_in_recent_filings" here, this one never did): a royalty
+                # trust's "Statement of Assets and Liabilities" has no CapitalExpenditures
+                # concept either (same structural fact as its debt/cash/interest gaps), so
+                # fcf_margin/fcf_to_net_income/free_cash_flow (all members of
+                # _trust_recategorize_fields above) legitimately hit
+                # _get_no_recent_capex_symbols() and were landing on "Missing SEC/XBRL data"
+                # instead of this loop's intended "reit_special_entity".
                 _trust_source_reasons = {
                     "missing_sec_data",
                     "total_debt_not_itemized",
@@ -3147,6 +3156,7 @@ class QualityMetricsMixin(SymbolGateMixin):
                     "stockholders_equity_not_reported",
                     "operating_income_not_itemized",
                     "total_liabilities_not_reported",
+                    "capex_never_tagged_in_recent_filings",
                 }
                 for _field in _trust_recategorize_fields:
                     _reason_key = f"{_field}_unavailable_reason"
