@@ -323,6 +323,42 @@ class SecEdgarClient:
         url = f"{EDGAR_BASE}/api/xbrl/companyconcept/CIK{cik_padded}/{taxonomy}/{concept}.json"
         return self._get_json(url)
 
+    def get_frames(self, taxonomy: str, concept: str, unit: str, period: str) -> dict[str, Any]:
+        """One concept's reported value for EVERY filer in a single period, across the
+        whole SEC universe - not just symbols we've already fetched companyfacts for.
+
+        ADDED 2026-09-10 (goal: "missing SEC/XBRL under 500" session, "resources we
+        should be tapping into" ask): xbrl_concept_coverage_scan.py's gap-detection only
+        ever sees concepts used by symbols already sitting in our own on-disk companyfacts
+        cache (iter_companyfacts_cache) - it can't tell "this concept doesn't exist" apart
+        from "this concept exists but no cached filer happens to use it yet". The frames
+        API answers the cross-sectional question directly: is a candidate concept actually
+        tagged by *anyone* in a given period, without needing to fetch every filer's full
+        companyfacts payload first. See scripts/xbrl_frames_check.py for a CLI built on
+        this - probes a symbol's CIK against a list of candidate concept names without a
+        full companyfacts fetch for that symbol.
+
+        Args:
+            taxonomy: "us-gaap" or "ifrs-full".
+            concept: e.g. "PaymentsToAcquirePropertyPlantAndEquipment".
+            unit: e.g. "USD" (duration facts) or "USD-per-shares" (per-share facts).
+            period: "CY2024" (full fiscal year) or "CY2024Q4I" (instantaneous, e.g. balance
+                sheet items as of a quarter-end) - see SEC's XBRL frames documentation.
+
+        Returns: {"data": [{"cik": 320193, "entityName": "Apple Inc.", "val": ..., ...}, ...]}
+
+        Raises FileNotFoundError (permanent, cached) if the concept/unit/period combo has
+        no data at all - same fail-closed contract as get_company_facts/get_concept.
+        """
+        cache_key = f"{taxonomy}_{concept}_{unit}_{period}"
+        disk_cached = _disk_cache_read("frames", cache_key)
+        if disk_cached is not None:
+            return disk_cached
+        url = f"{EDGAR_BASE}/api/xbrl/frames/{taxonomy}/{concept}/{unit}/{period}.json"
+        data = self._get_json(url)
+        _disk_cache_write("frames", cache_key, data)
+        return data
+
     def get_submissions(self, cik: str) -> dict[str, Any]:
         """List of all filings for a company (10K, 10Q, 8K, etc.).
 

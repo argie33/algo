@@ -804,3 +804,4 @@ OrchestratorLoaderHealthMixin  # unused class (algo\orchestration\orchestrator_l
 OrchestratorPhasesMixin  # unused class (algo\orchestration\orchestrator_phases_executor.py:49) - see OrchestratorStartupMixin above
 OrchestratorRunLoopMixin  # unused class (algo\orchestration\orchestrator_run_loop.py:49) - see OrchestratorStartupMixin above
 OrchestratorFinalReportMixin  # unused class (algo\orchestration\orchestrator_final_report.py:24) - see OrchestratorStartupMixin above
+_.get_frames  # unused method (utils\external\sec_edgar_client.py:326) - called only from scripts\xbrl_frames_check.py, which vulture doesn't trace into, same false positive as save_dismissed above
