@@ -110,7 +110,16 @@ class TestRoicFallbackQueriesExcludeIncompleteFilingRows:
 
         assert len(tax_queries) == 2, "expected both the 3-year and full-history tax fallback tiers to run"
         assert len(equity_queries) == 2, "expected both the 3-year and full-history equity/cash fallback tiers to run"
-        assert len(debt_queries) == 2, "expected both the 3-year and full-history debt fallback tiers to run"
+        # 2026-09-10: a new last-resort DebtComponentsFallbackMixin._fetch_total_debt_components_
+        # fallback tier (loaders/helpers/vqg_quality_debt_fallback.py) fires whenever the
+        # original long_term_debt-only anchor fallback still comes back None (ATHR/BRNS-shaped:
+        # real short_term_debt/lease-liability debt, no long_term_debt tag ever) - its own
+        # "long_term_debt, short_term_debt, ..." column-list query also matches this test's
+        # "SELECT long_term_debt" marker, doubling the expected count at each of the two
+        # existing call sites (roic_pct-feeding position + roce_pct-feeding position).
+        assert len(debt_queries) == 4, (
+            "expected both original debt tiers plus the new components-fallback tier at each site"
+        )
 
         for query in tax_queries + equity_queries + debt_queries:
             assert "data_unavailable IS NOT TRUE" in query
