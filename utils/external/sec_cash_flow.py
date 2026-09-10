@@ -125,6 +125,32 @@ _CASHFLOW_IFRS_ALIASES = [
         "AdditionsToNoncurrentAssets",
         "payments_to_acquire_property_plant_and_equipment",
     ),
+    # ADDED 2026-09-10 (goal session: re-verify "capex_never_tagged_in_recent_filings" against
+    # real cached companyfacts JSON, not prior-session claims): DAVA (Endava plc, CIK
+    # 0001656081, IT-services 20-F/IFRS filer with real, growing PropertyPlantAndEquipment on
+    # its balance sheet - GBP20.78M FY2024/GBP14.18M FY2025) tags NONE of the ifrs-full PP&E-
+    # purchase concepts above (nor any us-gaap concept - it files IFRS only) for any fiscal
+    # year. Live-confirmed via real companyfacts JSON: its actual cash outflow for PP&E is
+    # reported under this "other long-term assets" catch-all concept instead - real, continuous,
+    # plausible-scale annual values every fiscal year FY2016-2025 (GBP2.75M-13.97M, consistently
+    # well below both PropertyPlantAndEquipment book value and total CashFlowsFromUsedIn
+    # InvestingActivities, i.e. a genuine partial-of-investing sub-line, not an implausible
+    # outlier or a placeholder). Not a filer-specific quirk: 75 distinct filers in the on-disk
+    # companyfacts cache tag this concept, including large, well-known IFRS names (Unilever,
+    # Novartis, AstraZeneca, Shell, Canadian Natural Resources, RELX) - a standard taxonomy
+    # element genuinely missing from this alias list, same bug class as this list's other IFRS
+    # PP&E-purchase entries. Same "closest available proxy, generic catch-all name" caveat as
+    # AdditionsToNoncurrentAssets/PropertyPlantAndEquipmentExpendituresRecognisedForConstructions
+    # above (this concept name doesn't exclude non-PP&E "other" long-term-asset purchases like
+    # capitalized intangibles, but it's the only PP&E-purchase-shaped concept these filers report
+    # at all). Listed last (lowest priority) - for ifrs_aliases specifically this file keeps the
+    # FIRST match per (fiscal_year, target_key), so this only fills the gap when every
+    # higher-priority PP&E-purchase concept above is absent for that fiscal year, never
+    # overwrites a more specific real value.
+    (
+        "PurchaseOfOtherLongtermAssetsClassifiedAsInvestingActivities",
+        "payments_to_acquire_property_plant_and_equipment",
+    ),
     # FIXED 2026-08-03: no IFRS dividend concept was mapped at all, so every dividend-paying
     # IFRS filer (live-confirmed: WPM/Wheaton Precious Metals, real ifrs-full:DividendsPaid
     # data present back to FY2015, $296M for FY2025) got payout_ratio/dividend_yield
