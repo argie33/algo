@@ -523,7 +523,7 @@
   "loaders/load_analyst_sentiment_analysis.py": 149,
   "loaders/load_analyst_upgrade_downgrade.py": 221,
   "loaders/load_buy_sell_daily.py": 1522,
-  "loaders/load_company_info_sec.py": 1388,
+  "loaders/load_company_info_sec.py": 1401,
   "loaders/load_company_profile.py": 672,
   "loaders/load_current_reports_8k.py": 507,
   "loaders/load_dividend_data.py": 937,
