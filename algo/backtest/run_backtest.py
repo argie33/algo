@@ -64,45 +64,59 @@ more than one regime). The default ranking stays `signal_quality_score` until th
 callers/results are unaffected by this change. Momentum sub-score is price-based (1m/3m/6m/12m)
 so recency bias is expected for stocks that gained since signal date, in either ranking mode.
 
-CAVEAT, unaddressed (real-money-readiness audit, 2026-09-07): this backtest's EXIT logic
-does not match live's. Live (`algo/trading/executor.py`'s `execute_exit`/`ExitHandler`) runs a
-3-tier R-multiple partial-exit system (T1/T2/T3 scale-out targets) with trailing stops on the
-runner. This backtest instead uses a single fixed `--stop-loss`/`--profit-target`/`--max-hold-
-days` all-or-nothing exit per position - no partial scale-outs, no trailing stop. The entry-lag
-and slippage fixes documented above are real and correctly implemented, but this backtest's
-historical Sharpe/return numbers describe a materially SIMPLER exit strategy than the one live
-actually runs - they should NOT be read as validating live's tiered partial-exit behavior
-specifically. Either extend this backtest to simulate the T1/T2/T3 system before treating its
-results as evidence for a real-money go-live decision, or treat backtest output here as "does
-the entry/ranking signal have edge" evidence only, separate from "does the live exit strategy
-work" (which currently has no backtest coverage at all). There is also no live-vs-backtest
-performance drift detector anywhere in this codebase - nothing would alert if live trading
-started deviating from what backtest predicted, even for the parts backtest does simulate.
+EXIT MODE (partially closed 2026-09-10, financial-calculation-integrity re-audit - previously
+this section said live's exit logic had "no backtest coverage at all"; that framing was
+already stale by 2026-09-07 itself and is now fully corrected here):
 
-BIAS DIRECTION (real-money-readiness audit, 2026-09-07, reasoned but not empirically measured -
-flagging the expected direction is more useful than leaving it purely "unknown" for a reader
-deciding how much to trust a given run's numbers): the mismatch does not bias this backtest
-uniformly optimistic or pessimistic - it pulls in OPPOSITE directions on winners vs. losers/
-round-trips, because live's tiered exits are specifically a risk-adjusted-return improvement
-over a single fixed target:
-  - On a "spikes up, pulls back, stops out" round-trip: live raises its stop to breakeven after
-    T1 fires (see exit_position_context.py's check_target_t1), so a real trade in this shape
-    exits near breakeven or with 50% already banked at a profit. This backtest's single stop-
-    loss has no such raise - it rides the full static stop-loss distance down on the same price
-    path. This backtest therefore likely OVERSTATES how much live would actually lose on this
-    trade shape (worse max_drawdown_pct/avg_loss_pct/worst_trade_pct than live's real exposure).
-  - On a strong sustained trend that blows well past this backtest's fixed --profit-target: live
-    only takes 50%/25% off at T1/T2, leaving 25% running behind a trailing stop that keeps
-    riding the trend. This backtest closes/caps the ENTIRE position at the fixed target. This
-    backtest therefore likely UNDERSTATES live's upside capture on its biggest winners
-    (best_trade_pct/avg_win_pct capped below what live's runner would have achieved).
+`--exit-mode fixed` (default, UNCHANGED behavior): a single fixed `--stop-loss`/
+`--profit-target`/`--max-hold-days` all-or-nothing exit per position - no partial scale-outs,
+no trailing stop. Every caveat below this point in the docstring describes ONLY this mode.
+
+`--exit-mode live_trail`: simulates live's ACTUAL current exit chain - hard stop -> breakeven
+floor (once price reaches `--move-be-at-r`, default 1.0R) -> chandelier/21-EMA trail (once
+price reaches 1R) -> time exit at `--max-hold-days` (with the O'Neil 8-week-rule extension).
+Uses `algo/backtest/live_exit_trail.py`'s formulas, which mirror exit_position_context.py's
+check_move_to_breakeven/check_chandelier_trail exactly (not re-derived). IMPORTANT: live
+algo_config currently has `use_scale_out_targets=false` (migration 1273) - the T1/T2/T3
+scale-out chain described in the old version of this docstring is NOT what live actually runs
+today, and is NOT simulated here or in `scripts/backtest_exit_strategy_comparison_20260907.py`
+(the standalone study that found pure-trail beats scale-out across 471,972 paired trades and
+got this seeded into live config in the first place - see that script's own docstring for the
+full methodology). `live_trail` mode is this repo's first integration of that validated exit
+logic into the repeatable/parameterized backtest CLI, so it can be run over the SAME
+entry/ranking signal list (`--rank-by`) the rest of this backtest already exercises, rather
+than only the standalone script's separately-replayed technical-only entries.
+
+SCOPE STILL NOT COVERED, either mode: TD Sequential, RS-line-break, first-red-day,
+climax-exhaustion, distribution-day, and Minervini-break (already disabled) exits are not
+simulated - same documented scope limitation as the standalone comparison script (secondary
+overlays, not the core mechanism, materially larger undertaking to replay faithfully). There
+is also still no live-vs-backtest performance drift detector anywhere in this codebase -
+nothing would alert if live trading started deviating from what backtest predicted, even for
+the parts backtest does simulate.
+
+BIAS DIRECTION for `--exit-mode fixed` (real-money-readiness audit, 2026-09-07, reasoned but
+not empirically measured for THIS specific backtest - `live_trail` mode above is how to
+actually measure it rather than reason about its direction): the mismatch does not bias this
+backtest uniformly optimistic or pessimistic - it pulls in OPPOSITE directions on winners vs.
+losers/round-trips, because live's real trail-based exits are specifically a risk-adjusted-
+return improvement over a single fixed target:
+  - On a "spikes up, pulls back, stops out" round-trip: live raises its stop to breakeven once
+    price reaches move_be_at_r (see exit_position_context.py's check_move_to_breakeven), so a
+    real trade in this shape exits near breakeven rather than riding the full static stop-loss
+    distance down, which is what `fixed` mode does. `fixed` mode therefore likely OVERSTATES
+    how much live would actually lose on this trade shape (worse max_drawdown_pct/
+    avg_loss_pct/worst_trade_pct than live's real exposure).
+  - On a strong sustained trend that blows well past this backtest's fixed --profit-target:
+    live's chandelier/21-EMA trail keeps riding the trend behind a tightening stop instead of
+    capping the position at a fixed target. `fixed` mode closes/caps the ENTIRE position at the
+    fixed target, likely UNDERSTATING live's upside capture on its biggest winners
+    (best_trade_pct/avg_win_pct capped below what live's trail would have achieved).
   - Net effect on Sharpe/total_return is not simply "backtest is optimistic" or "backtest is
-    pessimistic" - both directions push toward this backtest UNDERSTATING live's real risk-
-    adjusted return (tiered partial-exit-with-trailing-stop is a standard risk-adjusted-return
-    improvement over all-or-nothing for exactly these reasons), but the exact magnitude depends
-    on the empirical mix of trade shapes (round-trips vs. sustained trends) in the sampled
-    period and is NOT quantified here. Extending this backtest to simulate T1/T2/T3 remains the
-    only way to actually measure this rather than reason about its direction.
+    pessimistic" for `fixed` mode - both directions push toward UNDERSTATING live's real
+    risk-adjusted return - but the exact magnitude was not quantified for `fixed` mode
+    specifically; use `--exit-mode live_trail` for an actual measurement instead of reasoning
+    about the direction.
 
 Usage:
     python -m algo.backtest.run_backtest [options]
@@ -118,6 +132,11 @@ Usage:
     --position-size PCT  Fixed position size as % of portfolio (default: 10)
     --strategy NAME      Strategy name for results table (default: composite_score_signals)
     --slippage-bps BPS   Per-side slippage/spread haircut in basis points (default: 5.0)
+    --exit-mode MODE     "fixed" (default, single stop/target) or "live_trail" (live's actual
+                          hard-stop -> breakeven -> chandelier-trail -> time-exit chain - see
+                          "EXIT MODE" in this module's docstring)
+    --move-be-at-r R     live_trail only: R-multiple at which the stop raises to breakeven
+                          (default: 1.0, matches live's move_be_at_r)
     --dry-run            Print results without writing to DB
 """
 
@@ -128,9 +147,12 @@ import sys
 from datetime import date, timedelta
 from typing import Any
 
+import pandas as pd
 import psycopg2
 
+from algo.backtest.live_exit_trail import MOVE_BE_AT_R, simulate_live_trail_exit
 from algo.infrastructure.market_calendar import MarketCalendar
+from loaders.technical_indicators import compute_atr, detect_and_adjust_splits
 from utils.db.context import DatabaseContext
 from utils.metrics_calculator import MetricsCalculator
 
@@ -443,6 +465,49 @@ def _get_avg_dollar_volume_batch(symbols: list[str], as_of_date: date) -> dict[s
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch avg dollar volume for symbols: {e}") from e
 
 
+def _load_symbol_ohlc_with_atr(symbol: str, end_date: date) -> pd.DataFrame | None:
+    """Load a symbol's full price_daily history up to end_date, split-adjusted, with a 14-day
+    ATR column - the same shape `--exit-mode live_trail` needs to walk
+    simulate_live_trail_exit() forward. Used only by live_trail mode; `fixed` mode never calls
+    this (zero added DB load for the default/existing behavior).
+
+    Mirrors scripts/backtest_exit_strategy_comparison_20260907.py's load_symbol_frame() (same
+    split-adjustment/ATR/bad-tick-filtering steps) rather than re-deriving it, so the two stay
+    consistent. Returns None if there's not enough history to compute a meaningful ATR/trail
+    (mirrors that script's own 300-row minimum).
+    """
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT date, open, high, low, close, volume
+                FROM price_daily
+                WHERE symbol = %s AND date <= %s
+                      AND close IS NOT NULL AND high IS NOT NULL AND low IS NOT NULL AND open IS NOT NULL
+                ORDER BY date
+                """,
+                (symbol, end_date),
+            )
+            rows = cur.fetchall()
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch price history for {symbol}: {e}") from e
+
+    if len(rows) < 300:
+        return None
+    df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"])
+    for col in ("open", "high", "low", "close", "volume"):
+        df[col] = df[col].astype(float)
+    df = detect_and_adjust_splits(df)
+    # Defensive: a bad tick (zero/negative price) breaks every ratio/R-multiple computation
+    # downstream - drop rows that couldn't be real trading prices, matching
+    # load_symbol_frame()'s identical guard.
+    df = df[(df["open"] > 0) & (df["high"] > 0) & (df["low"] > 0) & (df["close"] > 0)].reset_index(drop=True)
+    if len(df) < 300:
+        return None
+    df["atr_14"] = compute_atr(df["high"], df["low"], df["close"], period=14)
+    return df
+
+
 def run_backtest(  # noqa: C901
     start_date: date,
     end_date: date,
@@ -458,6 +523,8 @@ def run_backtest(  # noqa: C901
     rank_by: str = "signal_quality_score",
     base_risk_pct: float | None = None,
     max_pct_of_adv_dollars: float | None = None,
+    exit_mode: str = "fixed",
+    move_be_at_r: float = MOVE_BE_AT_R,
 ) -> dict[str, Any]:
     """Run backtest and return results dict.
 
@@ -558,6 +625,16 @@ def run_backtest(  # noqa: C901
             f"Must be positive number (in USD). All P&L metrics depend on valid starting capital."
         )
 
+    if exit_mode not in ("fixed", "live_trail"):
+        raise ValueError(f"[BACKTEST] Invalid exit_mode={exit_mode!r}. Must be 'fixed' or 'live_trail'.")
+
+    # live_trail mode resolves each position's ENTIRE exit trajectory (date/price/reason) once,
+    # at entry time, by walking the symbol's own OHLC+ATR history forward via
+    # simulate_live_trail_exit - see that function's docstring. Cached per symbol so a symbol
+    # entered more than once across the backtest window only loads/split-adjusts its price
+    # history once.
+    _symbol_ohlc_cache: dict[str, pd.DataFrame | None] = {}
+
     logger.info(
         f"[BACKTEST] Starting {strategy_name}: {start_date} to {end_date}, "
         f"capital=${initial_capital:,.0f}, max_pos={max_positions}, "
@@ -623,33 +700,48 @@ def run_backtest(  # noqa: C901
             if pos["entry_price"] <= 0:
                 raise ValueError(f"Invalid entry price for {symbol}: {pos['entry_price']} <= 0. Cannot calculate P&L.")
 
-            stop_level = pos["entry_price"] * (1 - stop_loss_pct / 100)
-            target_level = pos["entry_price"] * (1 + profit_target_pct / 100)
-
             exit_reason = None
             exit_price = current_price
 
-            # INTRADAY RANGE CHECK (2026-09-07 fix - see _get_prices_batch_with_range's
-            # docstring): checks the day's actual low/high against the stop/target levels,
-            # not just where the day closed - a close-only check could miss a stop-out or
-            # profit-target hit entirely if the price dipped/spiked and recovered by close.
-            # Still prices the fill at the theoretical stop/target level (not the exact worse
-            # price a real gap-through would produce) - that remains a separate, smaller,
-            # already-documented simplification (no code fix possible without true intraday
-            # tick sequencing). When both stop and target were touched the same day, daily
-            # OHLC alone can't tell which happened first - stop takes priority as the
-            # conservative assumption, consistent with this backtest's general bias toward
-            # not overstating performance (see slippage/entry-lag modeling above).
-            if symbol in sell_signals:
-                exit_reason = "sell_signal"
-            elif day_low <= stop_level:
-                exit_reason = "stop_loss"
-                exit_price = stop_level
-            elif day_high >= target_level:
-                exit_reason = "profit_target"
-                exit_price = target_level
-            elif hold_days >= max_hold_days:
-                exit_reason = "max_hold"
+            if exit_mode == "live_trail":
+                # LIVE_TRAIL MODE (see run_backtest()'s "EXIT MODE" docstring section): the
+                # entire exit trajectory (date/price/reason) was already resolved once, at
+                # entry time, by simulate_live_trail_exit() - see the entry-handling block
+                # below. Here we just check whether TODAY is that pre-resolved exit date, or
+                # whether an earlier sell_signal fires first (the only exit trigger this mode
+                # doesn't pre-resolve, since it depends on the once-daily signal batch, not
+                # price levels - same treatment as `fixed` mode's own sell_signal check).
+                precomputed_exit_date = pos.get("live_trail_exit_date")
+                if symbol in sell_signals:
+                    exit_reason = "sell_signal"
+                elif precomputed_exit_date is not None and sim_date >= precomputed_exit_date:
+                    exit_reason = pos["live_trail_exit_reason"]
+                    exit_price = pos["live_trail_exit_price"]
+            else:
+                stop_level = pos["entry_price"] * (1 - stop_loss_pct / 100)
+                target_level = pos["entry_price"] * (1 + profit_target_pct / 100)
+
+                # INTRADAY RANGE CHECK (2026-09-07 fix - see _get_prices_batch_with_range's
+                # docstring): checks the day's actual low/high against the stop/target levels,
+                # not just where the day closed - a close-only check could miss a stop-out or
+                # profit-target hit entirely if the price dipped/spiked and recovered by close.
+                # Still prices the fill at the theoretical stop/target level (not the exact worse
+                # price a real gap-through would produce) - that remains a separate, smaller,
+                # already-documented simplification (no code fix possible without true intraday
+                # tick sequencing). When both stop and target were touched the same day, daily
+                # OHLC alone can't tell which happened first - stop takes priority as the
+                # conservative assumption, consistent with this backtest's general bias toward
+                # not overstating performance (see slippage/entry-lag modeling above).
+                if symbol in sell_signals:
+                    exit_reason = "sell_signal"
+                elif day_low <= stop_level:
+                    exit_reason = "stop_loss"
+                    exit_price = stop_level
+                elif day_high >= target_level:
+                    exit_reason = "profit_target"
+                    exit_price = target_level
+                elif hold_days >= max_hold_days:
+                    exit_reason = "max_hold"
 
             if exit_reason:
                 # Every exit is a sell - apply the same slippage haircut regardless of which
@@ -762,6 +854,60 @@ def run_backtest(  # noqa: C901
                     )
                     continue
 
+                live_trail_fields: dict[str, Any] = {}
+                if exit_mode == "live_trail":
+                    # SPLIT-ADJUSTMENT SCALE FIX: ohlc_df's high/low/close/atr are BACK-
+                    # adjusted for any split that happened AFTER entry_date but before
+                    # end_date (see _load_symbol_ohlc_with_atr's docstring / detect_and_
+                    # adjust_splits' own docstring) - rows before such a split are scaled DOWN
+                    # to match the post-split scale. `entry_price` here is the RAW (unadjusted)
+                    # fill price from this function's own pipeline (_get_prices_batch never
+                    # split-adjusts). Comparing a raw entry_price/init_stop directly against
+                    # adjusted df_close/df_high/df_low/df_atr would silently corrupt every
+                    # R-multiple computation for any symbol that split between entry and a
+                    # later date in the window - scale entry_price/init_stop into the SAME
+                    # (adjusted) domain the OHLC series is in before simulating, then scale the
+                    # resulting exit_price back to the raw domain this function's own capital/
+                    # P&L accounting uses throughout.
+                    ohlc_df = _symbol_ohlc_cache.get(symbol)
+                    if symbol not in _symbol_ohlc_cache:
+                        ohlc_df = _load_symbol_ohlc_with_atr(symbol, end_date)
+                        _symbol_ohlc_cache[symbol] = ohlc_df
+                    if ohlc_df is None:
+                        logger.warning(
+                            f"[BACKTEST] Rejected entry for {symbol}: insufficient price "
+                            f"history for live_trail exit simulation (need >= 300 rows)"
+                        )
+                        continue  # capital not yet debited below - safe to just skip
+                    entry_matches = ohlc_df.index[ohlc_df["date"] == sim_date]
+                    if len(entry_matches) == 0:
+                        logger.warning(
+                            f"[BACKTEST] Rejected entry for {symbol}: {sim_date} not present in "
+                            f"its own split-adjusted OHLC history (live_trail mode)"
+                        )
+                        continue  # capital not yet debited below - safe to just skip
+                    entry_idx = int(entry_matches[0])
+                    adjusted_entry_ref = float(ohlc_df.at[entry_idx, "close"])
+                    scale = adjusted_entry_ref / entry_price if entry_price > 0 else 1.0
+                    raw_init_stop = entry_price * (1 - stop_loss_pct / 100)
+                    result = simulate_live_trail_exit(
+                        entry_idx=entry_idx,
+                        entry_price=adjusted_entry_ref,
+                        init_stop=raw_init_stop * scale,
+                        dates=ohlc_df["date"].to_numpy(),
+                        df_high=ohlc_df["high"].to_numpy(),
+                        df_low=ohlc_df["low"].to_numpy(),
+                        df_close=ohlc_df["close"].to_numpy(),
+                        df_atr=ohlc_df["atr_14"].to_numpy(),
+                        max_hold_days=max_hold_days,
+                        move_be_at_r=move_be_at_r,
+                    )
+                    live_trail_fields = {
+                        "live_trail_exit_date": (None if result.exit_reason == "still_open" else result.exit_date),
+                        "live_trail_exit_price": result.exit_price / scale if scale > 0 else result.exit_price,
+                        "live_trail_exit_reason": result.exit_reason,
+                    }
+
                 capital -= cost
                 positions[symbol] = {
                     "entry_price": entry_price,
@@ -769,6 +915,7 @@ def run_backtest(  # noqa: C901
                     "entry_date": sim_date,
                     "signal_quality_score": sig.get("signal_quality_score"),
                     "composite_score": sig.get("composite_score"),
+                    **live_trail_fields,
                 }
 
                 sq = sig.get("signal_quality_score")
@@ -951,6 +1098,8 @@ def run_backtest(  # noqa: C901
             "max_positions": max_positions,
             "position_size_pct": position_size_pct,
             "base_risk_pct": base_risk_pct,
+            "exit_mode": exit_mode,
+            "move_be_at_r": move_be_at_r if exit_mode == "live_trail" else None,
         },
         "trades": completed_trades,
         "equity_curve": equity_curve,
@@ -1163,6 +1312,24 @@ def main() -> int:
             "meaningful. See _get_daily_buy_signals()'s docstring."
         ),
     )
+    parser.add_argument(
+        "--exit-mode",
+        type=str,
+        default="fixed",
+        choices=["fixed", "live_trail"],
+        help=(
+            "'fixed' (default): single --stop-loss/--profit-target/--max-hold-days "
+            "all-or-nothing exit. 'live_trail': live's ACTUAL exit chain (hard stop -> "
+            "breakeven floor -> chandelier/21-EMA trail -> time exit) - see 'EXIT MODE' in "
+            "this module's docstring."
+        ),
+    )
+    parser.add_argument(
+        "--move-be-at-r",
+        type=float,
+        default=MOVE_BE_AT_R,
+        help="exit-mode live_trail only: R-multiple at which the stop raises to breakeven",
+    )
     args = parser.parse_args()
 
     from algo.config import MAX_BACKFILL_DAYS_LIMIT
@@ -1185,6 +1352,8 @@ def main() -> int:
         slippage_bps=args.slippage_bps,
         rank_by=args.rank_by,
         base_risk_pct=args.base_risk_pct,
+        exit_mode=args.exit_mode,
+        move_be_at_r=args.move_be_at_r,
     )
 
     if not results:

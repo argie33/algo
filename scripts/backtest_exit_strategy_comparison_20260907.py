@@ -91,6 +91,12 @@ import pandas as pd
 import psycopg2
 from dotenv import load_dotenv
 
+from algo.backtest.live_exit_trail import (
+    EIGHT_WEEK_RULE_MAX_EXTENSION_DAYS,
+    MOVE_BE_AT_R,
+    chandelier_or_ema_stop,
+    eight_week_rule_active,
+)
 from loaders.technical_indicators import compute_atr, detect_and_adjust_splits
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env.local")
@@ -106,17 +112,15 @@ CONN.set_session(readonly=True)
 
 # ---- Live exit-chain parameters (mirrors algo_config as of 2026-09-07 - see
 # algo/infrastructure/config/trading_config.py / config_schema.py / the memory files cited
-# above for where each of these lives in production) ----
+# above for where each of these lives in production). MOVE_BE_AT_R/CHANDELIER_ATR_MULT/
+# SWITCH_TO_21EMA_AFTER_DAYS/EIGHT_WEEK_RULE_* are now imported from
+# algo.backtest.live_exit_trail (2026-09-10 refactor: extracted so run_backtest.py's standard
+# CLI can simulate the same pure-trail exit rules this script validated - see that module's
+# docstring) rather than defined here twice, so the two can never silently drift apart. ----
 T1_R_MULTIPLE = 2.5  # LIVE value (not the 1.5 schema default - see memory)
 T2_R_MULTIPLE = 3.0
 T3_R_MULTIPLE = 4.0
-MOVE_BE_AT_R = 1.0
-CHANDELIER_ATR_MULT = 3.0
-SWITCH_TO_21EMA_AFTER_DAYS = 10
 MAX_HOLD_DAYS = 20
-EIGHT_WEEK_RULE_THRESHOLD_PCT = 20.0
-EIGHT_WEEK_RULE_WINDOW_DAYS = 21
-EIGHT_WEEK_RULE_MAX_EXTENSION_DAYS = 56
 PIVOT_BARS = 3  # left/right confirmation bars, matches buy_signal_generator.py's pivothigh(3,3)
 MIN_RISK_PCT_FLOOR = 1.0  # exclude near-zero-risk-denominator entries (see run_symbol)
 MAX_RISK_PCT_CEILING = 50.0  # exclude extreme-geometry outliers (see run_symbol)
@@ -236,54 +240,6 @@ def find_confirmed_pivots(highs: np.ndarray, lows: np.ndarray) -> tuple[np.ndarr
         last_high[i] = cur_high
         last_low[i] = cur_low
     return last_high, last_low
-
-
-def ema_of_window(closes_window: np.ndarray) -> float:
-    """Matches exit_engine.py's _chandelier_or_ema_stop 21-EMA branch exactly: seeds from the
-    OLDEST close in a 30-bar trailing window (not a full-history recursive EMA), k=2/22."""
-    k = 2.0 / 22.0
-    ema = closes_window[0]
-    for c in closes_window[1:]:
-        ema = c * k + ema * (1 - k)
-    return ema
-
-
-def chandelier_or_ema_stop(
-    days_held: int, highs: np.ndarray, closes: np.ndarray, atr: np.ndarray, i: int
-) -> float | None:
-    """Mirrors exit_engine.py's _chandelier_or_ema_stop exactly (see that function's
-    docstring/body): chandelier (highest-high over max(days_held,5) bars minus
-    CHANDELIER_ATR_MULT x ATR) while days_held < SWITCH_TO_21EMA_AFTER_DAYS, then 0.99x a
-    30-bar-seeded 21-EMA of closes after that."""
-    if days_held >= SWITCH_TO_21EMA_AFTER_DAYS:
-        start = i - 29
-        if start < 0:
-            return None
-        window = closes[start : i + 1]
-        if len(window) < 21:
-            return None
-        return ema_of_window(window) * 0.99
-    lookback = max(days_held, 5)
-    start = max(0, i - lookback + 1)
-    hh = highs[start : i + 1].max()
-    cur_atr = atr[i]
-    if math.isnan(cur_atr) or math.isnan(hh):
-        return None
-    return hh - CHANDELIER_ATR_MULT * cur_atr
-
-
-def eight_week_rule_active(closes: np.ndarray, entry_idx: int, days_held: int, entry_price: float) -> bool:
-    """Mirrors exit_engine.py's _eight_week_rule_active: 20%+ gain within the first
-    EIGHT_WEEK_RULE_WINDOW_DAYS days of the trade grants an extension."""
-    if days_held < EIGHT_WEEK_RULE_WINDOW_DAYS:
-        return False
-    window_start = entry_idx
-    window_end = min(entry_idx + EIGHT_WEEK_RULE_WINDOW_DAYS, entry_idx + days_held + 1)
-    window = closes[window_start:window_end]
-    if len(window) == 0:
-        return False
-    max_close = window.max()
-    return ((max_close - entry_price) / entry_price * 100.0) >= EIGHT_WEEK_RULE_THRESHOLD_PCT
 
 
 def simulate_arm(

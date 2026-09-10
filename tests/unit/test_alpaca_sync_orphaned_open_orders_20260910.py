@@ -17,6 +17,8 @@ in-flight transaction, not a crash).
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
+import pytest
+
 from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
 
 
@@ -100,13 +102,15 @@ class TestOrphanedOpenOrders:
         assert orphans == []
         cur.execute.assert_not_called()
 
-    def test_missing_credentials_skips_without_calling_broker(self):
+    def test_missing_credentials_raises_instead_of_silently_reporting_no_orphans(self):
         manager = _make_manager()
         manager._alpaca_key = ""
         manager._alpaca_secret = ""
         manager._session = MagicMock()
 
-        orphans = manager.find_orphaned_open_orders(MagicMock())
+        # A missing-credentials misconfiguration must fail fast, not silently read
+        # as "verified clean" for a real-money reconciliation safety check.
+        with pytest.raises(RuntimeError, match="no Alpaca credentials"):
+            manager.find_orphaned_open_orders(MagicMock())
 
-        assert orphans == []
         manager._session.get.assert_not_called()
