@@ -223,7 +223,7 @@
   "algo/risk/circuit_breaker_trade_sector.py": 506,
   "algo/risk/earnings_blackout.py": 258,
   "algo/risk/exposure_policy.py": 628,
-  "algo/risk/intraday_risk_monitor.py": 164,
+  "algo/risk/intraday_risk_monitor.py": 204,
   "algo/risk/liquidity_checks.py": 200,
   "algo/risk/market_exposure.py": 892,
   "algo/risk/market_exposure_cache.py": 370,
