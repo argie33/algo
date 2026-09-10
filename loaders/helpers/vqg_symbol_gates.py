@@ -29,6 +29,13 @@ def _database_context() -> Any:
     return _owner.DatabaseContext  # type: ignore[attr-defined]
 
 
+# Shared by the two _get_unsupported_currency_*_symbols gates below - "unsupported_currency_no_fx_rate" (live guard) and "raw_unconverted_currency_stale_value_20260829" (migration 1250's remediation for the same pre-guard, unconvertible-currency rows) mean the same thing.
+_UNSUPPORTED_CURRENCY_REASON_SQL = (
+    "SELECT DISTINCT symbol FROM %s WHERE reason IN "
+    "('unsupported_currency_no_fx_rate', 'raw_unconverted_currency_stale_value_20260829')"
+)
+
+
 def _cached_symbols(method: Any) -> Any:
     """Cache a frozenset-returning symbol-gate query for the life of the loader instance.
 
@@ -1367,10 +1374,10 @@ class SymbolGateMixin:
         (already populated by load_financial_statements.py's own fix once that table is
         reloaded) instead of a fresh live SEC API call, same cheap-reuse discipline as the
         sec_valuations sibling. Cached for the life of this loader instance; this query runs
-        once per pipeline run, not once per symbol.
+        once per pipeline run, not once per symbol (see _UNSUPPORTED_CURRENCY_REASON_SQL above for the 2026-09-09 fix matching migration 1250 too).
         """
         with _database_context()("read") as cur:
-            cur.execute("SELECT DISTINCT symbol FROM annual_cash_flow WHERE reason = 'unsupported_currency_no_fx_rate'")
+            cur.execute(_UNSUPPORTED_CURRENCY_REASON_SQL % "annual_cash_flow")
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
@@ -1391,12 +1398,10 @@ class SymbolGateMixin:
         confirmed all 8 known FPI-ARS symbols (GGAL/BBAR/BSAC/SUPV/TEO/TKC/TGS/TV) currently
         hit that generic row-level reason for every ratio. Reuses annual_balance_sheet.reason
         the same cheap way, no extra live SEC API calls. Cached for the life of this loader
-        instance; this query runs once per pipeline run, not once per symbol.
+        instance; this query runs once per pipeline run, not once per symbol (see _UNSUPPORTED_CURRENCY_REASON_SQL above for the 2026-09-09 fix matching migration 1250 too).
         """
         with _database_context()("read") as cur:
-            cur.execute(
-                "SELECT DISTINCT symbol FROM annual_balance_sheet WHERE reason = 'unsupported_currency_no_fx_rate'"
-            )
+            cur.execute(_UNSUPPORTED_CURRENCY_REASON_SQL % "annual_balance_sheet")
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
