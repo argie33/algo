@@ -24,7 +24,10 @@ import sys
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from loaders.helpers.company_info_sec_reason_cleanup import clear_stale_shares_outstanding_reason
+from loaders.helpers.company_info_sec_reason_cleanup import (
+    clear_stale_shares_outstanding_reason,
+    reclassify_stale_registered_investment_company_reason,
+)
 from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
@@ -94,6 +97,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
     def post_run(self) -> None:
         """Self-heal: see company_info_sec_reason_cleanup.py's docstring."""
         clear_stale_shares_outstanding_reason()
+        reclassify_stale_registered_investment_company_reason()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch company info from SEC EDGAR submissions API.
