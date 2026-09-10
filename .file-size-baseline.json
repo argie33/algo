@@ -692,7 +692,7 @@
   "utils/external/fx_rates.py": 465,
   "utils/external/openfigi_crosswalk.py": 549,
   "utils/external/sec_balance_sheet.py": 1320,
-  "utils/external/sec_cash_flow.py": 710,
+  "utils/external/sec_cash_flow.py": 736,
   "utils/external/sec_custom_xbrl_concepts.py": 1285,
   "utils/external/sec_edgar.py": 10,
   "utils/external/sec_edgar_client.py": 818,
