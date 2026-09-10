@@ -296,6 +296,20 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # summing across the two independent extraction paths would need a new mechanism,
         # not worth building for a ~7-9% single-symbol undercount.
         "PaymentsToAcquireEquipmentOnLease",
+        # ADDED 2026-09-10 (goal session: "missing SEC/XBRL data under 500" push, dcf_fcf
+        # missing_cash_flow_data investigation): TALK (Talkspace, CIK 1803901, a real
+        # telehealth 10-K filer) stopped tagging any PP&E-family concept after its FY2023
+        # 10-K ($151K, its last "PaymentsToAcquirePropertyPlantAndEquipment" entry) -
+        # live-confirmed via real companyfacts JSON that its FY2024/FY2025 capex is
+        # instead tagged under this standard (not filer-specific) us-gaap concept for
+        # capitalized software development costs: $5,443,000 FY2024 / $10,641,000 FY2025,
+        # both real 10-K annual-duration facts, plausible for a SaaS/telehealth business
+        # whose real capex is its software platform, not physical PP&E. dcf_fcf/
+        # free_cash_flow/fcf_margin were stuck at "missing_cash_flow_data" for FY2024-2025
+        # despite real, current operating_cash_flow being tagged every year. Fallback-only
+        # in load_financial_statements.py's field_mapping (_SBC_BUYBACK_FALLBACK_ONLY_FIELDS)
+        # so it never overwrites a real PP&E-family capex value for a filer reporting both.
+        "PaymentsToAcquireSoftware",
         # FIXED 2026-08-24 (goal: "Margin of Safety (DCF) / Cash flow data unavailable"
         # audit): REITs (SIC 6798) never tag any of the PP&E-family concepts above - their
         # capex is real property investment, tagged under a completely different concept
