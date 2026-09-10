@@ -309,6 +309,43 @@ class TestRetriesIncompleteAvailableYearsPastWatermark:
         ):
             assert any(f"{field} IS NULL" in q for q in captured_queries), f"missing retry query for {field}"
 
+    def test_retries_fiscal_year_with_net_income_populated_but_eps_null(self):
+        """2026-09-09 fix: income's core-field retry now ALSO fires on `earnings_per_share`/
+        `diluted_eps` alone - see _CORE_FIELD_BY_STATEMENT_TYPE's comment. Live-confirmed for
+        BP/RYAN/NAK/FMX: real net_income/revenue on file for a decade (watermark long since
+        advanced past every historical year) but earnings_per_share/diluted_eps NULL in every
+        single row - a later EPS concept-alias fix (e.g. IFRS BasicAndDilutedEarningsLossPerShare)
+        could never reach these already-processed years without this addition."""
+        from loaders.load_financial_statements import get_income_statement_config
+
+        loader = ConsolidatedFinancialStatementsLoader.__new__(ConsolidatedFinancialStatementsLoader)
+        config = get_income_statement_config("annual")
+        loader.table_name = config["table_name"]
+        loader.period = "annual"
+        loader.statement_type = "income"
+        loader.is_symbol_based = True
+        loader._schema_cols = config["schema_cols"]
+        loader._field_mapping = config["field_mapping"]
+        loader._sec_client = MagicMock()
+        loader._sec_client.symbol_to_cik.return_value = "0001234567"
+        loader._sec_client.get_income_statement.return_value = [
+            {
+                "symbol": "BP",
+                "fiscal_year": 2025,
+                "net_income": 1_295_000_000,
+                "revenue": 192_549_000_000,
+                "earnings_per_share": None,
+            },
+        ]
+
+        with patch(
+            "utils.db.context.DatabaseContext",
+            side_effect=_fake_db_context(has_rows_for_symbol=True, unavailable_years=[], incomplete_years=[2025]),
+        ):
+            rows = loader.fetch_incremental("BP", since=date(2025, 12, 31))
+
+        assert {r["fiscal_year"] for r in rows} == {2025}
+
     def test_retries_fiscal_year_with_operating_cash_flow_populated_but_capex_null(self):
         """2026-08-29 fix: cashflow's core-field retry now also fires on `capex` alone,
         not just `operating_cash_flow` - see _CORE_FIELD_BY_STATEMENT_TYPE's comment.

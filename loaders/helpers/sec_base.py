@@ -432,6 +432,20 @@ class SecEdgarStatementLoader(SecLoaderBase):
             "income_tax_expense",
             "interest_expense",
             "pretax_income",
+            # ADDED 2026-09-09 (goal: "missing SEC/XBRL data" sweep, BP/RYAN/NAK/FMX
+            # eps_never_tagged_in_filings live-confirmed): earnings_per_share was never in
+            # this tuple, so a symbol with real revenue/net_income on file for a decade but
+            # EPS specifically never tagged (a later concept-alias fix, e.g. today's IFRS
+            # BasicAndDilutedEarningsLossPerShare addition, could now fill it) never gets
+            # retried - the watermark has already advanced past those fiscal years via the
+            # other 6 core fields being non-null, so `fiscal_year > since_year` permanently
+            # excludes them the same way the AVAV case above (stockholders_equity) did for
+            # "balance" before that statement type got its own tuple entries. Live-confirmed
+            # BP (11 years, real $100B+ revenue/net_income every year), RYAN (domestic, not
+            # even an FPI, 7 years of real revenue/net_income), NAK, and FMX all stuck at
+            # earnings_per_share=NULL/diluted_eps=NULL forever under the old 6-field list.
+            "earnings_per_share",
+            "diluted_eps",
         ),
         "balance": ("stockholders_equity", "long_term_debt", "short_term_debt", "retained_earnings"),
         "cashflow": ("operating_cash_flow", "capex"),
