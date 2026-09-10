@@ -260,6 +260,18 @@ class QualityReasonsProfitabilityMixin:
                 # ("Legitimate / not applicable") reason.
                 else "etf_trust_no_gaap_financials"
                 if symbol in self._get_etf_trust_no_stockholders_equity_symbols()
+                # REORDERED 2026-09-10 (goal: "under 500" missing-XBRL push): fcf_margin =
+                # free_cash_flow / revenue, so when revenue is genuinely never reported (a
+                # pre-revenue biotech/pharma, the dominant shape here), that's the actual
+                # binding constraint regardless of whether capex/FCF could ever be computed -
+                # was checked AFTER capex_never_tagged/no_recent_free_cash_flow below, so a
+                # symbol matching both (live-confirmed ACTU/ACXP/ADIL/ANTX/ANVS/AVBP/AVXL/
+                # BIVI/GALT/GNPX and ~35 similar Pharmaceutical Preparations/Biological
+                # Products tickers) was mislabeled capex_never_tagged_in_recent_filings
+                # ("Missing SEC/XBRL data") instead of the correct no_revenue_reported
+                # ("Legitimate / not applicable" - filing is complete, no revenue to divide by).
+                else "no_revenue_reported"
+                if symbol in self._get_no_recent_revenue_symbols() or symbol in self._get_never_tagged_revenue_symbols()
                 # ADDED 2026-09-05: fcf_yield's own reason chain already checks this gate;
                 # fcf_margin's sibling chain here never did (AIG-verified: real OCF every
                 # year, capex-shaped concept stops after FY2023, not PPE-delta-recoverable
@@ -273,8 +285,6 @@ class QualityReasonsProfitabilityMixin:
                 else "no_recent_free_cash_flow_reported"
                 if symbol in self._get_no_recent_free_cash_flow_symbols()
                 or symbol in self._get_never_tagged_free_cash_flow_symbols()
-                else "no_revenue_reported"
-                if symbol in self._get_no_recent_revenue_symbols() or symbol in self._get_never_tagged_revenue_symbols()
                 # A real free_cash_flow value exists somewhere in the symbol's history but
                 # not in the same fiscal year as a real revenue value (the cross-year
                 # fallback above requires both in the SAME year) - live-confirmed FTW/OBX/
