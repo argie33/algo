@@ -914,12 +914,26 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # tags a sibling concept (RedeemableNoncontrollingInterestEquityOtherCarryingAmount,
         # not this one) so its own gap is NOT expected to fully close from this alone.
         "TemporaryEquityCarryingAmountAttributableToParent",
+        # ADDED 2026-09-10 (goal: "under 500" push, total_debt_not_itemized investigation):
+        # MWG (a 20-F filer) tags real, continuous us-gaap lease-liability data exclusively
+        # under the Current/Noncurrent split - live-confirmed via real SEC companyfacts
+        # JSON: FinanceLeaseLiabilityCurrent $2.529M + FinanceLeaseLiabilityNoncurrent
+        # $2.582M FY2025 (real ~$5.1M finance-lease debt), OperatingLeaseLiabilityCurrent/
+        # Noncurrent also both present the same years - no combined "FinanceLeaseLiability"/
+        # "OperatingLeaseLiability" concept ever tagged. Fallback-only (see
+        # _fill_lease_liability_from_us_gaap_current_noncurrent_split below): only fires
+        # when the combined concept is absent for that fiscal year, never overwrites it.
+        "FinanceLeaseLiabilityCurrent",
+        "FinanceLeaseLiabilityNoncurrent",
+        "OperatingLeaseLiabilityCurrent",
+        "OperatingLeaseLiabilityNoncurrent",
     ]
     rows = _aggregate_concepts(
         client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES, alias_groups=_EQUITY_ALIAS_GROUPS
     )
     _fill_long_term_debt_from_noncurrent_current_split(rows)
     _fill_operating_lease_liability_from_current_noncurrent_split(rows)
+    _fill_lease_liability_from_us_gaap_current_noncurrent_split(rows)
     if period == "annual":
         _fill_long_term_debt_from_segment_dimensional_facts(rows, client, symbol)
     _fill_cash_and_restricted_cash_combined(rows, client, symbol, period)
@@ -954,6 +968,43 @@ def _fill_operating_lease_liability_from_current_noncurrent_split(rows: list[dic
         if row.get("operating_lease_liability") is not None or current is None or noncurrent is None:
             continue
         row["operating_lease_liability"] = current + noncurrent
+
+
+def _fill_lease_liability_from_us_gaap_current_noncurrent_split(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: finance_lease_liability / operating_lease_liability = Current +
+    Noncurrent (both us-gaap concepts, added 2026-09-10 - see their own comments in
+    get_balance_sheet()'s concept list above for the MWG live evidence).
+
+    Only fires when the primary combined concept (plain "FinanceLeaseLiability" /
+    "OperatingLeaseLiability", fetched above) is still empty for that fiscal year AND both
+    halves of the split are present - same "both halves must be present" discipline as
+    _fill_operating_lease_liability_from_current_noncurrent_split's ifrs-full pair
+    immediately above (a filer with only one half tagged hasn't reported a lease-liability
+    split this way, so summing a partial figure would silently understate real lease debt
+    rather than leave an honest NULL). Distinct function from that one because these are a
+    different XBRL taxonomy pair (us-gaap Current/Noncurrent suffixes, not ifrs-full's
+    separately-named "CurrentLeaseLiabilities"/"NoncurrentLeaseLiabilities" concepts) -
+    keeping them separate avoids conflating two independent fallback sources for the same
+    target columns. Mutates rows in place and always strips all four raw keys.
+    """
+    for row in rows:
+        finance_current = row.pop("finance_lease_liability_current", None)
+        finance_noncurrent = row.pop("finance_lease_liability_noncurrent", None)
+        if (
+            row.get("finance_lease_liability") is None
+            and finance_current is not None
+            and finance_noncurrent is not None
+        ):
+            row["finance_lease_liability"] = finance_current + finance_noncurrent
+
+        operating_current = row.pop("operating_lease_liability_current", None)
+        operating_noncurrent = row.pop("operating_lease_liability_noncurrent", None)
+        if (
+            row.get("operating_lease_liability") is None
+            and operating_current is not None
+            and operating_noncurrent is not None
+        ):
+            row["operating_lease_liability"] = operating_current + operating_noncurrent
 
 
 def _fill_liabilities_from_assets_minus_equity(
@@ -1352,6 +1403,19 @@ def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]
             row["long_term_debt"] = noncurrent + (current or 0)
         elif noncurrent is not None and current is not None and row.get("long_term_debt") == noncurrent:
             row["long_term_debt"] = noncurrent + current
+        # FIXED 2026-09-10 (goal: "under 500" push, total_debt_not_itemized investigation):
+        # a filer that tags ONLY "LongTermDebtCurrent" for a fiscal year (no
+        # "LongTermDebtNoncurrent" sibling at all that year) fell through every branch above
+        # - `noncurrent is not None` gated both of them - so `current` was popped and
+        # silently discarded rather than ever reaching `long_term_debt`. Live-confirmed via
+        # real SEC companyfacts JSON: DCX (Digital Currency X Technology, a 20-F filer) tags
+        # a real, continuous $95.16M FY2024/$96.96M FY2025 LongTermDebtCurrent with no
+        # LongTermDebtNoncurrent fact ever - total_liabilities/stockholders_equity were both
+        # populated for every fiscal year but long_term_debt stayed NULL throughout. Same
+        # "single figure better than a false NULL" convention as every other fallback-only
+        # concept in the caller's own list (NotesPayable/SeniorNotes/LineOfCredit, etc.).
+        elif row.get("long_term_debt") is None and current is not None:
+            row["long_term_debt"] = current
 
         combined_current = row.pop("long_term_debt_and_capital_lease_obligations_current", None)
         if (
