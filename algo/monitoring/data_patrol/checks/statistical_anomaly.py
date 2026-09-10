@@ -29,6 +29,13 @@ This does NOT replace tie_out.py's identity checks (an identity violation is def
 by construction; a magnitude swing merely needs a human to confirm which case it is) - the two
 are complementary layers, matching how real vendors combine deterministic arithmetic validation
 with statistical outlier routing rather than relying on either alone.
+
+Extended 2026-09-09 (goal session: "are we actually catching weird values") from revenue/
+total_assets only to every other field tie_out.py already reads off the same three tables
+(gross_profit, net_income, operating_income, pretax_income, total_liabilities,
+stockholders_equity, operating_cash_flow) via the same generic _yoy_magnitude_jump helper -
+same threshold, same floor, no new query pattern. The prior 2-field scope wasn't a deliberate
+design choice, just what got built first.
 """
 
 import logging
@@ -54,6 +61,13 @@ class StatisticalAnomalyChecker(BaseCheck):
         self.results = []
         self.check_revenue_yoy_magnitude_jump(cur)
         self.check_total_assets_yoy_magnitude_jump(cur)
+        self.check_gross_profit_yoy_magnitude_jump(cur)
+        self.check_net_income_yoy_magnitude_jump(cur)
+        self.check_operating_income_yoy_magnitude_jump(cur)
+        self.check_pretax_income_yoy_magnitude_jump(cur)
+        self.check_total_liabilities_yoy_magnitude_jump(cur)
+        self.check_stockholders_equity_yoy_magnitude_jump(cur)
+        self.check_operating_cash_flow_yoy_magnitude_jump(cur)
         return self.results
 
     def _yoy_magnitude_jump(
@@ -101,7 +115,16 @@ class StatisticalAnomalyChecker(BaseCheck):
                         }
                     )
             if flagged:
-                flagged.sort(key=lambda r: r["ratio"] if r["ratio"] > 1 else 1.0 / r["ratio"], reverse=True)
+                # ratio is rounded to 4dp for the report; an extreme-enough shrinkage (e.g.
+                # $1 vs $8.18B, JMKE total_assets, found 2026-09-09) rounds to 0.0000, and
+                # 1.0/0.0 would raise - a rounded-to-zero ratio is the most severe case, so
+                # sort it as effectively infinite rather than dividing by it.
+                flagged.sort(
+                    key=lambda r: (
+                        r["ratio"] if r["ratio"] > 1 else (1.0 / r["ratio"] if r["ratio"] > 0 else float("inf"))
+                    ),
+                    reverse=True,
+                )
                 self.log(
                     check_name,
                     WARN,
@@ -120,3 +143,32 @@ class StatisticalAnomalyChecker(BaseCheck):
 
     def check_total_assets_yoy_magnitude_jump(self, cur: Any) -> None:
         self._yoy_magnitude_jump(cur, "total_assets_yoy_magnitude_jump", "annual_balance_sheet", "total_assets")
+
+    def check_gross_profit_yoy_magnitude_jump(self, cur: Any) -> None:
+        self._yoy_magnitude_jump(cur, "gross_profit_yoy_magnitude_jump", "annual_income_statement", "gross_profit")
+
+    def check_net_income_yoy_magnitude_jump(self, cur: Any) -> None:
+        self._yoy_magnitude_jump(cur, "net_income_yoy_magnitude_jump", "annual_income_statement", "net_income")
+
+    def check_operating_income_yoy_magnitude_jump(self, cur: Any) -> None:
+        self._yoy_magnitude_jump(
+            cur, "operating_income_yoy_magnitude_jump", "annual_income_statement", "operating_income"
+        )
+
+    def check_pretax_income_yoy_magnitude_jump(self, cur: Any) -> None:
+        self._yoy_magnitude_jump(cur, "pretax_income_yoy_magnitude_jump", "annual_income_statement", "pretax_income")
+
+    def check_total_liabilities_yoy_magnitude_jump(self, cur: Any) -> None:
+        self._yoy_magnitude_jump(
+            cur, "total_liabilities_yoy_magnitude_jump", "annual_balance_sheet", "total_liabilities"
+        )
+
+    def check_stockholders_equity_yoy_magnitude_jump(self, cur: Any) -> None:
+        self._yoy_magnitude_jump(
+            cur, "stockholders_equity_yoy_magnitude_jump", "annual_balance_sheet", "stockholders_equity"
+        )
+
+    def check_operating_cash_flow_yoy_magnitude_jump(self, cur: Any) -> None:
+        self._yoy_magnitude_jump(
+            cur, "operating_cash_flow_yoy_magnitude_jump", "annual_cash_flow", "operating_cash_flow"
+        )

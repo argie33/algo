@@ -773,14 +773,24 @@ CREATE INDEX IF NOT EXISTS idx_algo_positions_with_risk_status ON algo_positions
 -- Phase 1 data freshness check requires this table to exist
 -- Stores results from DataPatrol data quality checks
 
+-- CORRECTED 2026-09-09 (goal session: "is our XBRL/tie-out validation actually working"):
+-- this CREATE TABLE didn't match the live schema (real table: severity values are 'info'/
+-- 'warn'/'error'/'critical' per algo/monitoring/data_patrol/config.py's INFO/WARN/ERROR/CRIT
+-- constants - the old CHECK constraint said 'warning' not 'warn' and would have rejected every
+-- WARN-severity insert on a fresh install; also missing the `status` column entirely, which
+-- exists live (added out-of-band, itself an undocumented-drift instance) and is now written by
+-- PatrolLogger for the open/resolved lifecycle below). CREATE TABLE IF NOT EXISTS is a no-op
+-- against the live table, which already has the right shape - this only matters for a fresh
+-- install, which would otherwise get the wrong schema.
 CREATE TABLE IF NOT EXISTS data_patrol_log (
     id SERIAL PRIMARY KEY,
     patrol_run_id VARCHAR(100) NOT NULL,
     check_name VARCHAR(100) NOT NULL,
-    severity VARCHAR(20) NOT NULL CHECK (severity IN ('info', 'warning', 'error', 'critical')),
+    severity VARCHAR(20) NOT NULL CHECK (severity IN ('info', 'warn', 'error', 'critical')),
     target_table VARCHAR(100),
     message TEXT,
     details JSONB,
+    status VARCHAR(20),
     patrol_date DATE DEFAULT CURRENT_DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

@@ -41,29 +41,63 @@ class PatrolLogger:
             raise RuntimeError(f"Failed to log patrol configuration - health check data unavailable: {e}") from e
 
     def log_results(self, cur: Any, results: list[CheckResult]) -> None:
-        """Log all check results to database."""
-        if results:
-            try:
+        """Log all check results to database.
+
+        Added 2026-09-09 (goal session: "is our XBRL/tie-out validation actually working").
+        `status` existed as a column (added out-of-band, itself an undocumented-drift instance
+        fixed in schema.sql alongside this) but no code ever wrote to it - it was 100% NULL
+        across all 7,208 live rows, oldest unresolved back to 2026-06-27, with the same ~77
+        (check_name, target_table) combos re-logged on effectively every run since (e.g.
+        revenue_yoy_magnitude_jump/total_assets_yoy_magnitude_jump: 55 occurrences each since
+        2026-09-07). Findings were being detected every run but were functionally invisible -
+        indistinguishable from "not checked" to a human scanning the log.
+
+        This checker's granularity is one row per (check_name, target_table) per run, not one
+        row per symbol/fiscal_year - unlike xbrl_concept_coverage_scan.py's stable per-concept
+        `--dismiss` list, a manual dismiss-list is the wrong shape here (the underlying
+        symbol/fiscal_year population drifts as new filings land and extraction bugs get fixed,
+        so a static allowlist would silently go stale or wrong). Instead: superseding-on-reinsert
+        - when a (check_name, target_table) fires again, the prior 'open' row(s) for that same
+        key are marked 'resolved' before the new one is inserted as 'open'. This collapses the
+        history to "what's true as of the latest run" per check/table, so `status = 'open'`
+        always reflects current state instead of an ever-growing unfiltered feed. A combo that
+        stops firing entirely (the rarer case - none currently in the live population) simply
+        keeps its last 'open' row, which a backlog report can flag via staleness of created_at
+        rather than requiring this write path to know every check's full historical registry.
+        """
+        if not results:
+            return
+        try:
+            keys = {(r.check_name, r.target_table) for r in results}
+            if keys:
                 cur.executemany(
                     """
-                    INSERT INTO data_patrol_log
-                      (patrol_run_id, check_name, severity, target_table, message, details)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """,
-                    [
-                        (
-                            self.run_id,
-                            result.check_name,
-                            result.severity,
-                            result.target_table,
-                            result.message,
-                            (json.dumps(result.details, default=str) if result.details else None),
-                        )
-                        for result in results
-                    ],
+                    UPDATE data_patrol_log
+                    SET status = 'resolved'
+                    WHERE status = 'open' AND check_name = %s AND target_table = %s
+                    """,
+                    list(keys),
                 )
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                raise RuntimeError(f"Failed to log patrol results - health check results not recorded: {e}") from e
+            cur.executemany(
+                """
+                INSERT INTO data_patrol_log
+                  (patrol_run_id, check_name, severity, target_table, message, details, status)
+                VALUES (%s, %s, %s, %s, %s, %s, 'open')
+            """,
+                [
+                    (
+                        self.run_id,
+                        result.check_name,
+                        result.severity,
+                        result.target_table,
+                        result.message,
+                        (json.dumps(result.details, default=str) if result.details else None),
+                    )
+                    for result in results
+                ],
+            )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(f"Failed to log patrol results - health check results not recorded: {e}") from e
 
     def log_performance(self, cur: Any, elapsed_seconds: float, status: str) -> None:
         """Log patrol execution performance metrics."""
