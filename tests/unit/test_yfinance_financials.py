@@ -130,6 +130,58 @@ class TestFetchFinancialStatementIncome:
         assert rows[0]["fiscal_period"] == "Q2"
 
 
+class TestFetchFinancialStatementBalance:
+    def test_missing_total_assets_derived_from_liabilities_plus_equity(self, _patch_circuit_breaker):
+        """Bank holding companies (live: OZK/Bank OZK) frequently have a NaN/absent
+        "Total Assets" row in yfinance's balance-sheet DataFrame while "Total Liabilities
+        Net Minority Interest" and "Stockholders Equity" are both real - Assets =
+        Liabilities + Equity is a balance-sheet identity, not an estimate, so it should
+        be derived rather than left permanently NULL."""
+        df = pd.DataFrame(
+            {
+                pd.Timestamp("2025-12-31"): {
+                    "Total Liabilities Net Minority Interest": 34655989000.0,
+                    "Stockholders Equity": 6129851000.0,
+                },
+            }
+        )
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("balance_sheet", df)):
+            rows = fetch_financial_statement("OZK", "balance", "annual")
+
+        assert rows is not None
+        assert rows[0]["assets"] == 34655989000.0 + 6129851000.0
+
+    def test_real_total_assets_row_not_overwritten_by_derivation(self, _patch_circuit_breaker):
+        df = pd.DataFrame(
+            {
+                pd.Timestamp("2025-12-31"): {
+                    "Total Assets": 1000.0,
+                    "Total Liabilities Net Minority Interest": 400.0,
+                    "Stockholders Equity": 600.0,
+                },
+            }
+        )
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("balance_sheet", df)):
+            rows = fetch_financial_statement("TEST", "balance", "annual")
+
+        assert rows is not None
+        assert rows[0]["assets"] == 1000.0
+
+    def test_no_derivation_without_both_liabilities_and_equity(self, _patch_circuit_breaker):
+        df = pd.DataFrame(
+            {
+                pd.Timestamp("2025-12-31"): {
+                    "Stockholders Equity": 600.0,
+                },
+            }
+        )
+        with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker_with_df("balance_sheet", df)):
+            rows = fetch_financial_statement("TEST", "balance", "annual")
+
+        assert rows is not None
+        assert "assets" not in rows[0]
+
+
 class TestFetchFinancialStatementCashflow:
     def test_capex_and_dividends_sign_normalized(self, _patch_circuit_breaker):
         df = pd.DataFrame(

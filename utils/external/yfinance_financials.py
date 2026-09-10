@@ -223,6 +223,59 @@ def _reject_reason_for_currency(financial_currency: str | None, is_known_foreign
     return None
 
 
+def _build_period_row(
+    df: Any,
+    period_end: Any,
+    symbol: str,
+    fiscal_year: int,
+    period: str,
+    statement_type: str,
+    field_map: dict[str, str],
+    fx_rate: float | None,
+) -> dict[str, Any] | None:
+    """Build one period's row dict from `df`, or None if it has no usable mapped fields."""
+    row: dict[str, Any] = {"symbol": symbol, "fiscal_year": fiscal_year}
+    if period == "quarterly":
+        # Best-effort calendar-quarter label, not a real fiscal-period tag like SEC's
+        # fp field (which is filer-fiscal-calendar-relative, e.g. Apple's Q1 ends in
+        # December). Acceptable here because this fallback only ever fires when SEC
+        # returned NOTHING for the whole symbol/statement (see this module's
+        # docstring) - there's no existing SEC quarterly row for this symbol to
+        # collide with, and fiscal_quarter is used for chronological ordering /
+        # "latest" lookups downstream, not exact fiscal-period matching.
+        row["fiscal_period"] = f"Q{((period_end.month - 1) // 3) + 1}"
+
+    has_data = False
+    for yf_label, target_key in field_map.items():
+        if yf_label not in df.index:
+            continue
+        value = df.loc[yf_label, period_end]
+        if value is None or _is_nan(value):
+            continue
+        value = float(value)
+        if target_key in _ABS_MAGNITUDE_FIELDS:
+            value = abs(value)
+        if fx_rate is not None and target_key not in _SHARE_COUNT_FIELDS:
+            value = value / fx_rate
+        row[target_key] = value
+        has_data = True
+
+    # FIXED 2026-09-10 (goal: XBRL missing-data push): yfinance's "Total Assets" row is
+    # frequently NaN/absent for bank holding companies (live-confirmed OZK/Bank OZK - SEC
+    # EDGAR's own annual Assets concept was also unavailable for this filer, triggering
+    # this exact fallback, which then recovered real liabilities/stockholders_equity/
+    # cash/etc but silently left total_assets NULL forever since "Total Assets" simply
+    # isn't a populated row in yfinance's balance-sheet DataFrame for this filer).
+    # Assets = Liabilities + Stockholders Equity is a balance-sheet identity, not an
+    # estimate - safe to derive whenever both real components are present and yfinance
+    # itself didn't report assets directly.
+    if statement_type == "balance" and "assets" not in row and "liabilities" in row and "stockholders_equity" in row:
+        row["assets"] = row["liabilities"] + row["stockholders_equity"]
+        has_data = True
+
+    return row if has_data else None
+
+
 def fetch_financial_statement(
     symbol: str,
     statement_type: str,
@@ -325,33 +378,8 @@ def fetch_financial_statement(
                 )
                 continue
 
-        row: dict[str, Any] = {"symbol": symbol, "fiscal_year": fiscal_year}
-        if period == "quarterly":
-            # Best-effort calendar-quarter label, not a real fiscal-period tag like SEC's
-            # fp field (which is filer-fiscal-calendar-relative, e.g. Apple's Q1 ends in
-            # December). Acceptable here because this fallback only ever fires when SEC
-            # returned NOTHING for the whole symbol/statement (see this module's
-            # docstring) - there's no existing SEC quarterly row for this symbol to
-            # collide with, and fiscal_quarter is used for chronological ordering /
-            # "latest" lookups downstream, not exact fiscal-period matching.
-            row["fiscal_period"] = f"Q{((period_end.month - 1) // 3) + 1}"
-
-        has_data = False
-        for yf_label, target_key in field_map.items():
-            if yf_label not in df.index:
-                continue
-            value = df.loc[yf_label, period_end]
-            if value is None or _is_nan(value):
-                continue
-            value = float(value)
-            if target_key in _ABS_MAGNITUDE_FIELDS:
-                value = abs(value)
-            if fx_rate is not None and target_key not in _SHARE_COUNT_FIELDS:
-                value = value / fx_rate
-            row[target_key] = value
-            has_data = True
-
-        if has_data:
+        row = _build_period_row(df, period_end, symbol, fiscal_year, period, statement_type, field_map, fx_rate)
+        if row is not None:
             rows.append(row)
 
     if not rows:
