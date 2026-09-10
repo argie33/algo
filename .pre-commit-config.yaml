@@ -21,11 +21,20 @@ repos:
         entry: python -m ruff check --fix --exit-non-zero-on-fix
         language: system
         types: [python]
+        # .vulture_whitelist.py is vulture's stub format (bare names as "usage" markers), not
+        # real Python - pyproject.toml's [tool.ruff] extend-exclude already says so, but that
+        # setting only applies to ruff's own directory walk, never to files pre-commit passes
+        # explicitly (ruff only honors excludes for explicit paths with --force-exclude, which
+        # this hook doesn't set) - discovered 2026-09-10 when editing this file for the
+        # orchestrator.py mixin split tripped ~1600 F821/B018 errors that were always latent,
+        # just never hit because nothing had re-run this hook against the whole file recently.
+        exclude: ^\.vulture_whitelist\.py$
       - id: ruff-format
         name: Ruff format code
         entry: python -m ruff format
         language: system
         types: [python]
+        exclude: ^\.vulture_whitelist\.py$
 
   # Type checking — run on full directories for accurate cross-module analysis
   - repo: local

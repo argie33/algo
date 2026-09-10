@@ -94,6 +94,8 @@ class QualityMetricsMixin(
 
         def _fetch_balance_sheet_anchor_fallback(self, symbol: str, column: str) -> float | None: ...
 
+        def _fetch_total_debt_components_fallback(self, symbol: str) -> float | None: ...
+
         def _fetch_ttm_net_income_from_quarterly(self, symbol: str) -> float | None: ...
 
         def _ratio_with_implausible_fallback(
@@ -829,6 +831,12 @@ class QualityMetricsMixin(
                 fallback_debt = self._fetch_balance_sheet_anchor_fallback(symbol, "long_term_debt")
                 if fallback_debt is not None:
                     roic_long_term_debt = fallback_debt
+                else:
+                    # A filer with real short_term_debt/lease liabilities but no long_term_debt
+                    # tag (ATHR/BRNS) reaches this - see the fallback's own docstring.
+                    fallback_all_debt = self._fetch_total_debt_components_fallback(symbol)
+                    if fallback_all_debt is not None:
+                        roic_long_term_debt = fallback_all_debt
 
             invested_capital = None
             debt_for_roic = (
@@ -966,6 +974,11 @@ class QualityMetricsMixin(
                     implausible_ratio_metrics.append("debt_to_equity")
                 else:
                     metrics["debt_to_equity"] = float(computed_debt_to_equity)
+            elif roic_stockholders_equity == 0:
+                # A real, literal $0.00 equity (FLOC/INR/WBI) is a division-by-zero case, not
+                # missing data - same near-zero-denominator treatment as roic_pct/roce_pct above.
+                failed_metrics.append("debt_to_equity")
+                implausible_ratio_metrics.append("debt_to_equity")
             else:
                 failed_metrics.append("debt_to_equity")
 

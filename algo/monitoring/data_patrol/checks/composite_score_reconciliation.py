@@ -25,7 +25,7 @@ from typing import Any
 from loaders.stock_scores.pillar_weights import _value_risk_adjusted_weights
 
 from ..base import BaseCheck, CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +92,16 @@ class CompositeScoreReconciliationChecker(BaseCheck):
                     f"beyond a {_WARN_PCT}-point rounding budget (max divergence "
                     f"{flagged[0]['divergence']:.4f})",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+            else:
+                # Always log even when clean (FIXED 2026-09-10, see pillar_score_reconciliation.py's
+                # identical fix for the full rationale): a silent return on a clean pass can never
+                # supersede/resolve an earlier flagged finding still marked 'open'.
+                self.log(
+                    "composite_score_reconciliation",
+                    INFO,
+                    "stock_scores",
+                    "composite_score reconciles cleanly to its own pillar inputs",
                 )
         except Exception as e:
             logger.error(

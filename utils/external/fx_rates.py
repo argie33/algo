@@ -282,6 +282,22 @@ ifrs-full:Revenue (COP 133,330,428,000,000) at that fiscal year-end's real rate 
 produces ~$30.3B, consistent with Ecopetrol's known real, public annual revenue scale - no
 magnitude red flag. Before this fix EC's entire income-statement row was blocked by the
 blanket currency guard despite a complete, extractable 20-F on file every year.
+
+FIXED 2026-09-10 (goal: "missing SEC/XBRL data under 500" push, dcf_fcf_unavailable_reason=
+'missing_cash_flow_data' investigation): SGD (Singapore Dollar) added. Found via BLIV (BeLive
+Holdings, CIK 0001982448, recently-listed 20-F filer) - live-confirmed real companyfacts JSON
+shows `ifrs-full:CashFlowsFromUsedInOperatingActivities` and both capex-alias concepts already
+mapped in sec_cash_flow.py tagged every fiscal year 2022-2024, exclusively under unit="SGD", no
+USD-tagged alternative - the blanket guard was silently blocking dcf_fcf/operating_cash_flow/
+free_cash_flow despite a complete, extractable 20-F on file. Frankfurter serves SGD
+(live-confirmed: `GET /2024-12-31?from=USD&to=SGD` returns a real rate); year-end SGD/USD
+year-over-year moves 2019-2024 (live-computed): -1.2%, -1.7%, +2.1%, -0.6%, -1.5%, +3.2% - a
+tighter band than DKK's ERM-II peg comparison and second only to HKD's currency-board peg among
+every currency already on this list; the Monetary Authority of Singapore manages SGD against an
+undisclosed trade-weighted basket, producing this same currency-board-adjacent stability.
+Converting BLIV's real FY2024 operating cash flow (SGD -1,067,138) at that fiscal year-end's
+real rate (0.73348) produces ~-$783K, plausible for a just-IPO'd micro-cap - no magnitude red
+flag.
 """
 
 import json
@@ -328,6 +344,7 @@ MAJOR_CURRENCIES = frozenset(
         "BRL",
         "ILS",
         "SEK",
+        "SGD",
     }
     | _YFINANCE_ONLY_CURRENCIES
 )

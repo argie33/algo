@@ -35,7 +35,7 @@ from typing import Any
 from utils.loaders.helpers import _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS
 
 from ..base import BaseCheck, CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +142,21 @@ class PillarScoreReconciliationChecker(BaseCheck):
                     f"{flagged[0]['divergence']:.4f}) - likely a stale stock_scores row awaiting "
                     f"reload after a quality_metrics recompute/backfill",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+            else:
+                # Always log even when clean (FIXED 2026-09-10, goal: institution-grade
+                # data-quality architecture): PatrolLogger.log_results only supersedes a
+                # (check_name, target_table)'s prior 'open' row when this check fires AGAIN -
+                # a check that silently returns on a clean pass can never resolve its own
+                # earlier flagged finding, leaving a stale phantom ERROR/WARN open in
+                # data_patrol_log forever after the underlying issue is actually fixed. Live-
+                # hit this exact case the same session: a rescore fixed a real 2603-symbol
+                # divergence to 0, but the ERROR row stayed 'open' with nothing to close it.
+                self.log(
+                    "pillar_score_reconciliation",
+                    INFO,
+                    "stock_scores",
+                    "quality_score reconciles cleanly between stock_scores and quality_metrics",
                 )
         except Exception as e:
             logger.error(

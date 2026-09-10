@@ -64,7 +64,8 @@ class TestRevenueYoyMagnitudeJump:
         )
         checker = _checker()
         checker.check_revenue_yoy_magnitude_jump(cur)
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == "info"
 
     def test_ignores_sub_floor_swings(self) -> None:
         cur = _mock_cursor(
@@ -76,7 +77,8 @@ class TestRevenueYoyMagnitudeJump:
         )
         checker = _checker()
         checker.check_revenue_yoy_magnitude_jump(cur)
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == "info"
 
     def test_sort_survives_ratio_rounding_to_zero(self) -> None:
         """2026-09-09: found live against JMKE (curr=$1.00, prior=$8.18B) - ratio rounds to
@@ -136,7 +138,21 @@ class TestExtendedFieldCoverage20260909:
         cur = _mock_cursor([[]] * 9)
         checker.run(cur)
         names = {r.check_name for r in checker.results}
-        assert names == set()  # no rows flagged, but no errors either
+        # no rows flagged, but each of the 9 checks still logs an INFO "clean" result (FIXED
+        # 2026-09-10) so a prior flagged finding can be superseded/resolved
+        assert len(checker.results) == 9
+        assert all(r.severity == "info" for r in checker.results)
+        assert names == {
+            "revenue_yoy_magnitude_jump",
+            "total_assets_yoy_magnitude_jump",
+            "gross_profit_yoy_magnitude_jump",
+            "net_income_yoy_magnitude_jump",
+            "operating_income_yoy_magnitude_jump",
+            "pretax_income_yoy_magnitude_jump",
+            "total_liabilities_yoy_magnitude_jump",
+            "stockholders_equity_yoy_magnitude_jump",
+            "operating_cash_flow_yoy_magnitude_jump",
+        }
         assert cur.execute.call_count == 9
 
     def test_gross_profit_flags_large_jump(self) -> None:
@@ -163,7 +179,8 @@ class TestExtendedFieldCoverage20260909:
         )
         checker = _checker()
         checker.check_operating_income_yoy_magnitude_jump(cur)
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == "info"
 
     def test_pretax_income_flags_large_shrinkage(self) -> None:
         cur = _mock_cursor(

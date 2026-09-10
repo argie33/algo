@@ -1336,6 +1336,123 @@ resource "aws_ecs_task_definition" "data_patrol" {
 }
 
 # ============================================================
+# XBRL "second opinion" (layers 4/5 of the 5-layer XBRL data-quality architecture)
+# ============================================================
+# scripts/xbrl_yfinance_crosscheck.py and scripts/xbrl_calculation_linkbase_check.py were
+# both deliberately kept OUT of the DataPatrol task above (which gates Phase 1 on a tight
+# 600s Step Functions timeout - see the "DataPatrol" state in
+# terraform/modules/pipeline/main.tf) because both make live outbound requests
+# (yfinance / SEC EDGAR) with unpredictable latency through the same rate-limited session
+# every loader shares. Their own docstrings say "run by hand or from a low-frequency
+# schedule" - until this resource, only the "by hand" half was ever wired up anywhere, so
+# their value depended on a human remembering to run two extra commands. This gives them
+# their own independent DAILY trigger (10:00 UTC, off-hours relative to the loader
+# schedule - the pipeline only runs MON-FRI daytime ET, so there is no overlap/contention
+# risk with a trading-day run), fully decoupled from the orchestrator/Phase-1 path: a
+# failure or slow run here can never halt trading. Daily, not weekly: both scripts'
+# _select_symbols() rotates its sample by CURRENT_DATE, engineered for daily coverage
+# accumulation - see scripts/xbrl_second_opinion_daily.py's docstring for the actual
+# universe-size math behind that choice (weekly would have taken 3.8-6.4 years to cycle
+# through the full symbol universe once; daily takes 6.5-11 months).
+
+resource "null_resource" "ensure_xbrl_second_opinion_log_group" {
+  provisioner "local-exec" {
+    command = "aws logs create-log-group --log-group-name /ecs/${var.project_name}-xbrl-second-opinion --region ${var.aws_region} 2>/dev/null || true"
+  }
+}
+
+resource "aws_ecs_task_definition" "xbrl_second_opinion" {
+  depends_on = [null_resource.ensure_xbrl_second_opinion_log_group]
+
+  family = "${var.project_name}-xbrl-second-opinion"
+  container_definitions = jsonencode([
+    {
+      name      = "${var.project_name}-xbrl-second-opinion"
+      image     = "${var.ecr_repository_uri}:${var.environment}-latest"
+      essential = true
+
+      # Do NOT prefix with "python3" — ENTRYPOINT ["python3", "-u"] already provides the interpreter.
+      command = ["scripts/xbrl_second_opinion_daily.py"]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${var.project_name}-xbrl-second-opinion"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
+        { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" }
+      ]
+
+      environment = [
+        { name = "AWS_EXECUTION_ENV", value = "ECS_FARGATE" },
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "DB_HOST", value = var.db_host },
+        { name = "DB_PORT", value = tostring(var.db_port) },
+        { name = "DB_NAME", value = var.db_name },
+        { name = "DB_SECRET_ARN", value = var.db_secret_arn },
+        { name = "ALGO_SECRETS_ARN", value = var.algo_secrets_arn },
+        { name = "DB_SSL", value = var.db_ssl_mode },
+        { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" },
+        { name = "PYTHONPATH", value = "/app" }
+      ]
+    }
+  ])
+
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "512"
+  memory                   = "1024"
+  execution_role_arn       = var.task_execution_role_arn
+  task_role_arn            = var.task_role_arn
+
+  tags = var.common_tags
+}
+
+resource "aws_cloudwatch_event_rule" "xbrl_second_opinion_daily" {
+  name        = "${var.project_name}-xbrl-second-opinion-schedule"
+  description = "Daily independent XBRL cross-check (yfinance second-opinion + calculation-linkbase self-consistency, layers 4/5) - 05:00 UTC every day, before the morning pipeline starts. Daily (not weekly) because the underlying scripts' sample rotation is CURRENT_DATE-seeded - see scripts/xbrl_second_opinion_daily.py's docstring."
+  # 05:00 UTC = 12:00 AM ET (EST) / 1:00 AM ET (EDT) - both comfortably before the
+  # morning_pipeline_trigger's 2:00 AM ET start (terraform/modules/pipeline/main.tf),
+  # which is itself allowed to run until ~6:30 AM ET before its own "running too long"
+  # alarm fires. This EventBridge Rule (unlike aws_scheduler_schedule) has no
+  # schedule_expression_timezone - cron is UTC-only - so 05:00 UTC was chosen with enough
+  # margin either side of DST that it never drifts into that 2:00-9:30 AM ET loader window.
+  schedule_expression = "cron(0 5 * * ? *)"
+  state               = "ENABLED"
+
+  tags = var.common_tags
+}
+
+resource "aws_cloudwatch_event_target" "xbrl_second_opinion_daily_target" {
+  rule      = aws_cloudwatch_event_rule.xbrl_second_opinion_daily.name
+  target_id = "XbrlSecondOpinionTarget"
+  arn       = var.ecs_cluster_arn
+  role_arn  = aws_iam_role.eventbridge_run_task.arn
+
+  ecs_target {
+    launch_type         = "FARGATE"
+    task_definition_arn = aws_ecs_task_definition.xbrl_second_opinion.arn
+    task_count          = 1
+    platform_version    = "LATEST"
+
+    network_configuration {
+      subnets          = var.public_subnet_ids
+      security_groups  = [var.ecs_tasks_sg_id]
+      assign_public_ip = true
+    }
+  }
+
+  dead_letter_config {
+    arn = aws_sqs_queue.loader_dlq.arn
+  }
+}
+
+# ============================================================
 # CloudWatch Alarm — SQS DLQ depth (any loader failure lands here)
 # ============================================================
 

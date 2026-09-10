@@ -47,7 +47,7 @@ class _FakeDatabaseContext:
 
 class TestSecValuationsCapexNeverTaggedDcfFcfReason:
     def test_capex_never_tagged_symbol_gets_specific_reason(self, monkeypatch):
-        import loaders.load_sec_valuations as mod
+        import loaders.helpers.sec_valuations_dcf_fcf_recategorize as mod
 
         monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(matches=True))
         loader = _make_loader()
@@ -58,7 +58,7 @@ class TestSecValuationsCapexNeverTaggedDcfFcfReason:
         assert result["dcf_fcf_unavailable_reason"] == "capex_never_tagged_in_recent_filings"
 
     def test_non_matching_symbol_keeps_generic_reason(self, monkeypatch):
-        import loaders.load_sec_valuations as mod
+        import loaders.helpers.sec_valuations_dcf_fcf_recategorize as mod
 
         monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(matches=False))
         loader = _make_loader()
@@ -72,7 +72,7 @@ class TestSecValuationsCapexNeverTaggedDcfFcfReason:
         # Guard against ever overriding anything other than the exact generic
         # "missing_cash_flow_data" fallback this method targets, even for a matching symbol -
         # mirrors _recategorize_ric_dcf_fcf_reason's identical guard.
-        import loaders.load_sec_valuations as mod
+        import loaders.helpers.sec_valuations_dcf_fcf_recategorize as mod
 
         monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(matches=True))
         loader = _make_loader()

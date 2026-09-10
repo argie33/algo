@@ -22,6 +22,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
+from loaders.helpers.vqg_quality_debt_fallback import DebtComponentsFallbackMixin
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 
 
@@ -34,8 +35,12 @@ def _owner() -> Any:
 logger = logging.getLogger("loaders.load_value_quality_growth_metrics")
 
 
-class QualityBatchMixin:
-    """See module docstring."""
+class QualityBatchMixin(DebtComponentsFallbackMixin):
+    """See module docstring. Also carries DebtComponentsFallbackMixin so
+    ValueQualityGrowthMetricsLoader picks up _fetch_total_debt_components_fallback via this
+    already-inherited mixin, same diamond-inheritance precedent as _margin_curve/_weighted_avg
+    above - avoids adding another base to load_value_quality_growth_metrics.py's own class
+    statement (already past the file-size-ratchet hard ceiling, blocked from any growth)."""
 
     if TYPE_CHECKING:
 

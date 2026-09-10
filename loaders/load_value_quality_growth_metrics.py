@@ -1573,28 +1573,25 @@ class ValueQualityGrowthMetricsLoader(
         denominator_must_be_positive: bool = False,
     ) -> tuple[float | None, bool]:
         """Shared `_find_plausible_cross_year_ratio` wiring for ROE/ROA/asset_turnover.
-
         Returns (value, hit_implausible_with_no_fallback) - value is None either because an
-        input was missing/zero (denominator_must_be_positive=True for asset_turnover, which
-        requires denominator > 0 rather than merely != 0) or because the anchor ratio was
-        implausible and no plausible cross-year fallback existed; the second element tells the
-        caller which of those two happened, since ROE/ROA/asset_turnover each track that
-        distinction differently in their own bookkeeping.
+        input is missing, or the ratio was rejected (implausible |x|>1000, or a real-but-
+        degenerate denominator: exactly 0, or <=0 when denominator_must_be_positive=True)
+        and no plausible cross-year fallback existed either.
+        FIXED 2026-09-10: a real $0.00 denominator (FLOC/INR/WBI) used to skip both the
+        fallback attempt and the implausible flag, mislabeling ROE/ROA "missing_sec_data"
+        instead of "implausible_ratio" - same bug class as debt_to_equity's (vqg_quality.py).
         """
         if numerator is None or denominator is None:
             return None, False
-        if denominator_must_be_positive:
-            if denominator <= 0:
-                return None, False
-        elif denominator == 0:
-            return None, False
-        computed = numerator / denominator * 100.0
-        if abs(computed) > 1000:
-            fallback = self._find_plausible_cross_year_ratio(symbol, numerator_field, denominator_field)
-            if fallback is not None:
-                return fallback, False
-            return None, True
-        return float(computed), False
+        denominator_is_bad = denominator <= 0 if denominator_must_be_positive else denominator == 0
+        if not denominator_is_bad:
+            computed = numerator / denominator * 100.0
+            if abs(computed) <= 1000:
+                return float(computed), False
+        fallback = self._find_plausible_cross_year_ratio(symbol, numerator_field, denominator_field)
+        if fallback is not None:
+            return fallback, False
+        return None, True
 
     # _get_symbol_sector/_get_symbol_industry moved to SectorIndustryCacheMixin in
     # loaders/helpers/vqg_shared.py (see this class's base-class list and the MOVED HERE

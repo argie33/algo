@@ -72,6 +72,12 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # already reflects the fuller combined-distribution figure whenever tagged.
         "dividends_preferred_stock_cash",
         "dividends_preferred_stock",
+        # ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 500" push, dcf_fcf
+        # missing_cash_flow_data investigation): TALK's capitalized-software-development
+        # concept - see sec_cash_flow.py's get_cash_flow() comment for the live evidence.
+        # Fallback-only so it never overwrites a real PaymentsToAcquirePropertyPlantAndEquipment
+        # (or sibling PP&E-family) value for a filer that reports both.
+        "payments_to_acquire_software",
     }
 )
 
@@ -119,6 +125,19 @@ _CASHFLOW_FIELD_MAPPING = {
     # LLY/ADP tag it ONLY under "OtherPropertyPlantAndEquipment" (same failure shape).
     "payments_to_acquire_other_productive_assets": "capex",
     "payments_to_acquire_other_property_plant_and_equipment": "capex",
+    # ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 500" push, dcf_fcf
+    # missing_cash_flow_data investigation): TALK (Talkspace, CIK 1803901, a real
+    # telehealth 10-K filer) stopped tagging any PP&E-family capex concept after FY2023
+    # ($151K, its last "PaymentsToAcquirePropertyPlantAndEquipment" entry) - live-confirmed
+    # via real companyfacts JSON that its FY2024/FY2025 capex is instead tagged under this
+    # standard (not filer-specific) us-gaap concept for capitalized software development
+    # costs, the real dominant capex line for a light-physical-footprint SaaS/telehealth
+    # business: $5,443,000 FY2024 / $10,641,000 FY2025, both real 10-K annual-duration
+    # facts. dcf_fcf/free_cash_flow/fcf_margin were stuck at "missing_cash_flow_data" for
+    # FY2024-2025 despite real, current operating_cash_flow being tagged every year.
+    # Fallback-only (see _SBC_BUYBACK_FALLBACK_ONLY_FIELDS above) so it never overwrites a
+    # real PP&E-family capex value for a filer that reports both.
+    "payments_to_acquire_software": "capex",
     # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep) - see
     # sec_statements.py's get_cash_flow() comment for the live CTOS evidence: a standard
     # (not filer-specific) equipment-rental-fleet capex concept, never fetched at all.

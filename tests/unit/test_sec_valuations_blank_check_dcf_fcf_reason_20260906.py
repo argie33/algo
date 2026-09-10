@@ -48,7 +48,7 @@ class _FakeDatabaseContext:
 
 class TestSecValuationsBlankCheckDcfFcfReason:
     def test_blank_check_symbol_gets_no_revenue_reported(self, monkeypatch):
-        import loaders.load_sec_valuations as mod
+        import loaders.helpers.sec_valuations_dcf_fcf_recategorize as mod
 
         monkeypatch.setattr(mod, "DatabaseContext", _FakeDatabaseContext(matches=True))
         loader = _make_loader()
@@ -59,7 +59,7 @@ class TestSecValuationsBlankCheckDcfFcfReason:
         assert result["dcf_fcf_unavailable_reason"] == "no_revenue_reported"
 
     def test_non_blank_check_symbol_keeps_generic_reason(self, monkeypatch):
-        import loaders.load_sec_valuations as mod
+        import loaders.helpers.sec_valuations_dcf_fcf_recategorize as mod
 
         monkeypatch.setattr(mod, "DatabaseContext", _FakeDatabaseContext(matches=False))
         loader = _make_loader()
@@ -73,7 +73,7 @@ class TestSecValuationsBlankCheckDcfFcfReason:
         # Guard against ever overriding anything other than the exact generic
         # "missing_cash_flow_data" fallback this method targets, even for a matching symbol -
         # mirrors every sibling recategorize_*_dcf_fcf_reason function's identical guard.
-        import loaders.load_sec_valuations as mod
+        import loaders.helpers.sec_valuations_dcf_fcf_recategorize as mod
 
         monkeypatch.setattr(mod, "DatabaseContext", _FakeDatabaseContext(matches=True))
         loader = _make_loader()
