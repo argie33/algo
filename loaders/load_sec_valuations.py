@@ -1343,6 +1343,7 @@ class SecValuationsLoader(
             self._recategorize_unsupported_currency_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_royalty_trust_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_capex_never_tagged_dcf_fcf_reason(symbol, valuation_row)
+            self._recategorize_no_recent_ocf_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_blank_check_dcf_fcf_reason(symbol, valuation_row)
             # Deliberately LAST DB-touching call in this method (after every _recategorize_*
             # above, each of which opens its own cursor) - see that method's own docstring for
@@ -1636,6 +1637,56 @@ class SecValuationsLoader(
             )
             if cur.fetchone() is not None:
                 valuation_row["dcf_fcf_unavailable_reason"] = "capex_never_tagged_in_recent_filings"
+
+    def _recategorize_no_recent_ocf_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
+        """Overrides a generic dcf_fcf_unavailable_reason with "no_recent_operating_cash_flow_
+        reported" for a filer with real historical OCF whose 3 most recent fiscal years are all
+        unusable. Mutates `valuation_row` in place.
+
+        ADDED 2026-09-10 (goal: "under 500" push, missing_cash_flow_data investigation):
+        quality_metrics.accruals_ratio/ocf_to_net_income and value_metrics.fcf_yield already
+        recognize this exact structural fact via vqg_symbol_gates.py's
+        _get_no_recent_operating_cash_flow_symbols() (a filer whose 3 most recent fiscal years
+        are ALL missing operating_cash_flow, despite real values existing further back) - this
+        dcf_fcf ground-truth reason chain never checked for it, same "sibling-wiring gap" bug
+        class as _recategorize_capex_never_tagged_dcf_fcf_reason just above (which only covers
+        the OCF-present-but-capex-missing half of this same population). Live-confirmed GLNG
+        (Golar LNG, 20-F filer): real NetCashProvidedByUsedInOperatingActivitiesContinuingOperations
+        tagged through FY2021 ($253.9M), then absent under every cash-flow-shaped us-gaap
+        concept in its companyfacts payload for FY2022 onward - a genuine filer-side tagging
+        stop, not an extraction gap this loader could recover from. XRTX confirmed the same
+        shape via the same live audit that established the gate this reuses (see that
+        function's own 2026-09-03 fix comment, which names both symbols explicitly).
+
+        Query mirrors _get_no_recent_operating_cash_flow_symbols() exactly (same `fiscal_year >
+        0` filter, same 3-most-recent-real-row window, same `COUNT(*) = 3` completeness
+        requirement) rather than reusing that cached whole-universe helper directly - this
+        mixin has no access to SymbolGateMixin (different class hierarchy), same convention as
+        every other _recategorize_*_dcf_fcf_reason inline query in this file. Checked after the
+        capex-never-tagged gate above (mutually exclusive: that gate requires real OCF to
+        exist, this one requires it not to) so a real cause never gets overridden by a less
+        specific one.
+        """
+        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
+            return
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                WITH recent AS (
+                    SELECT CASE WHEN data_unavailable THEN NULL ELSE operating_cash_flow END AS operating_cash_flow,
+                           ROW_NUMBER() OVER (ORDER BY fiscal_year DESC) AS rn
+                    FROM annual_cash_flow
+                    WHERE symbol = %s AND fiscal_year > 0
+                )
+                SELECT 1 FROM recent
+                WHERE rn <= 3
+                GROUP BY 1
+                HAVING COUNT(operating_cash_flow) = 0 AND COUNT(*) = 3
+                """,
+                (symbol,),
+            )
+            if cur.fetchone() is not None:
+                valuation_row["dcf_fcf_unavailable_reason"] = "no_recent_operating_cash_flow_reported"
 
     def _recategorize_blank_check_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
         """Overrides a generic dcf_fcf_unavailable_reason with "no_revenue_reported"
