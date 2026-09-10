@@ -54,7 +54,7 @@ class _RoutingCursor:
 
     def fetchone(self):
         if "annual_cash_flow" in self._last_query and "dividends_paid" in self._last_query:
-            return (self._cash_flow_dividends_paid,) if self._cash_flow_dividends_paid is not None else None
+            return (self._cash_flow_dividends_paid, None, None) if self._cash_flow_dividends_paid is not None else None
         if "dividend_data" in self._last_query:
             return (1,) if self._dividend_history_exists else None
         return None
@@ -90,12 +90,13 @@ class TestSustainableGrowthRateIncompleteCashflowRowFallback:
         assert metrics["sustainable_growth_rate"] == 10.0
         assert metrics.get("sustainable_growth_rate_unavailable_reason") is None
 
-    def test_explicit_dividends_paid_skips_fallback_query_entirely(self):
+    def test_explicit_dividends_paid_never_overwritten_by_fallback_query(self):
         loader = _make_loader()
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
-            # cash_flow_dividends_paid deliberately set to a DIFFERENT value (999.0) - if the
-            # fallback query fired despite dividends_paid already being known, this would leak
-            # in and change the result. It must not.
+            # cash_flow_dividends_paid deliberately set to a DIFFERENT value (999.0) - the
+            # fallback query still fires (2026-09-10: it now also rescues operating_cash_flow/
+            # free_cash_flow, both unset in this fixture), but an already-known dividends_paid
+            # must never be overwritten by it.
             cur = _RoutingCursor(cash_flow_dividends_paid=999.0)
             mock_db_ctx.return_value.__enter__.return_value = cur
             metrics = loader._compute_quality_metrics(

@@ -255,28 +255,51 @@ class QualityMetricsMixin(SymbolGateMixin):
             free_cash_flow = self._nan_to_none(safe_float(quality_row[14], f"{symbol}.free_cash_flow", allow_none=True))
             dividends_paid = self._nan_to_none(safe_float(quality_row[15], f"{symbol}.dividends_paid", allow_none=True))
             # The shared query's `acf.data_unavailable = FALSE` JOIN condition discards
-            # dividends_paid whenever the row is flagged incomplete_sec_filing_cashflow (missing
-            # operating_cash_flow flags the WHOLE row), even when dividends_paid itself was
-            # extracted fine. Recover it directly for the SAME fiscal year as the anchor row -
-            # never mixes years, and operating_cash_flow/free_cash_flow correctly stay None.
-            if dividends_paid is None:
+            # dividends_paid/operating_cash_flow/free_cash_flow whenever the row is flagged
+            # incomplete_sec_filing_cashflow. Usually that flag means operating_cash_flow itself
+            # is the missing field required_metrics enforces (see sec_cash_flow.py) - in the
+            # common case a rescue correctly finds nothing and both stay None. But a stale flag
+            # can outlive a later backfill: live-confirmed BEBE/PONO have a real, current-year
+            # operating_cash_flow despite data_unavailable=TRUE, so free_cash_flow (which shares
+            # this exact symbol population) was also mislabeled "missing_sec_data". Recover all
+            # three directly for the SAME fiscal year as the anchor row - never mixes years.
+            # FIXED 2026-09-10 (goal: "under 500" missing-XBRL push): extended from a
+            # dividends_paid-only rescue to also cover operating_cash_flow/free_cash_flow.
+            if dividends_paid is None or operating_cash_flow is None or free_cash_flow is None:
                 with _owner().DatabaseContext("read") as cur:
                     cur.execute(
                         """
-                        SELECT dividends_paid FROM annual_cash_flow
-                        WHERE symbol = %s AND fiscal_year = %s AND dividends_paid IS NOT NULL
+                        SELECT dividends_paid, operating_cash_flow, free_cash_flow FROM annual_cash_flow
+                        WHERE symbol = %s AND fiscal_year = %s
                         """,
                         (symbol, quality_row[8]),
                     )
-                    same_year_dividends_row = cur.fetchone()
-                if same_year_dividends_row:
-                    dividends_paid = self._nan_to_none(
-                        safe_float(
-                            same_year_dividends_row[0],
-                            f"{symbol}.dividends_paid_incomplete_row_fallback",
-                            allow_none=True,
+                    same_year_row = cur.fetchone()
+                if same_year_row:
+                    if dividends_paid is None and same_year_row[0] is not None:
+                        dividends_paid = self._nan_to_none(
+                            safe_float(
+                                same_year_row[0],
+                                f"{symbol}.dividends_paid_incomplete_row_fallback",
+                                allow_none=True,
+                            )
                         )
-                    )
+                    if operating_cash_flow is None and same_year_row[1] is not None:
+                        operating_cash_flow = self._nan_to_none(
+                            safe_float(
+                                same_year_row[1],
+                                f"{symbol}.operating_cash_flow_incomplete_row_fallback",
+                                allow_none=True,
+                            )
+                        )
+                    if free_cash_flow is None and same_year_row[2] is not None:
+                        free_cash_flow = self._nan_to_none(
+                            safe_float(
+                                same_year_row[2],
+                                f"{symbol}.free_cash_flow_incomplete_row_fallback",
+                                allow_none=True,
+                            )
+                        )
             earnings_per_share = self._nan_to_none(
                 safe_float(quality_row[16], f"{symbol}.earnings_per_share", allow_none=True)
             )
