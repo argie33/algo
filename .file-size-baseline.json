@@ -516,7 +516,7 @@
   "loaders/helpers/vqg_growth.py": 366,
   "loaders/helpers/vqg_quality.py": 1886,
   "loaders/helpers/vqg_quality_batch.py": 321,
-  "loaders/helpers/vqg_quality_inputs.py": 330,
+  "loaders/helpers/vqg_quality_inputs.py": 344,
   "loaders/helpers/vqg_quality_reasons_profitability.py": 577,
   "loaders/helpers/vqg_quality_reasons_valuation.py": 597,
   "loaders/helpers/vqg_quality_recategorize.py": 426,
