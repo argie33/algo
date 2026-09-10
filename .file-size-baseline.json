@@ -502,7 +502,7 @@
   "loaders/helpers/financial_statements_value_validation.py": 528,
   "loaders/helpers/price_batch_fetch_retry.py": 557,
   "loaders/helpers/price_loader_reporting.py": 341,
-  "loaders/helpers/sec_base.py": 1984,
+  "loaders/helpers/sec_base.py": 1998,
   "loaders/helpers/sec_dual_class_eps.py": 270,
   "loaders/helpers/sec_segment_debt.py": 193,
   "loaders/helpers/sec_valuations_checks.py": 737,
