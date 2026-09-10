@@ -16,6 +16,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_earnings_per_share_from_continuing_discontinued_split,
     _fill_eps_shares_from_dual_class_dimensional_facts,
     _fill_income_tax_expense_from_current_deferred_split,
+    _fill_operating_income_from_bank_net_interest_and_noninterest,
     _fill_operating_income_from_revenue_minus_cogs_and_opex,
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
     _fill_pretax_income_from_domestic_foreign_split,
@@ -741,6 +742,32 @@ def get_income_statement(
         "CostsAndExpenses",
         "GrossProfit",
         "OperatingIncomeLoss",
+        # ADDED 2026-09-09 (goal: "SEC/XBRL missing data under 500" sweep,
+        # operating_income_not_itemized investigation): banks/custodians (BNY, CIK
+        # 0001390777, live-confirmed) permanently never tag OperatingIncomeLoss/
+        # CostsAndExpenses/OperatingExpenses at all - a bank income statement has no
+        # single-step or multi-step "operating income" subtotal to begin with, since
+        # "cost of revenue" isn't a meaningful concept when the business is lending/fee
+        # income rather than selling goods. Standard bank-analysis practice (the same
+        # "Pre-Provision Net Revenue" metric published by the Fed/OCC and used by
+        # Bloomberg/FactSet bank templates) computes an operating-income analog as net
+        # interest income + noninterest income - noninterest expense instead. BNY tags
+        # all three of these concepts every fiscal year: live-confirmed FY2025
+        # InterestIncomeExpenseNet=$4,944,000,000 + NoninterestIncome=$15,136,000,000 -
+        # NoninterestExpense=$13,054,000,000 = $7,026,000,000 pre-provision/pretax-ish
+        # figure, consistent with BNY's real FY2025 NetIncomeLoss of $5,549,000,000 at a
+        # plausible ~21-24% implied effective tax rate (no separate pretax_income concept
+        # tagged either, so this can't be cross-checked against that directly, but the
+        # net-income-implied range is the right order of magnitude, not off by 10-100x).
+        # See _fill_operating_income_from_bank_net_interest_and_noninterest() below for
+        # the derivation - fallback-only, requires all three real values present, never
+        # overwrites a real OperatingIncomeLoss/CostsAndExpenses-derived value, and only
+        # ever fires for filers that tag these bank-specific concepts (no other filer type
+        # observed tagging InterestIncomeExpenseNet/NoninterestIncome/NoninterestExpense
+        # together), so this is self-gating without a separate SIC-code check.
+        "InterestIncomeExpenseNet",
+        "NoninterestIncome",
+        "NoninterestExpense",
         # ADDED 2026-09-07 (goal: SEC/XBRL missing-data audit, migration 1264, found via
         # scripts/xbrl_concept_coverage_scan.py's systematic gap scan): 2,820+ real filers tag
         # this concept and it was never fetched at all - no operating_expenses/SG&A-shaped
@@ -1130,6 +1157,7 @@ def get_income_statement(
     _fill_pretax_income_from_results_of_operations_when_validated(rows)
     _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
     _fill_operating_income_from_revenue_minus_cogs_and_opex(rows)
+    _fill_operating_income_from_bank_net_interest_and_noninterest(rows)
     _fill_sga_from_general_and_administrative_when_no_selling_component(rows)
     if period == "annual":
         _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol, security_name)

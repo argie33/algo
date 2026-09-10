@@ -370,6 +370,32 @@ def _fill_operating_income_from_revenue_minus_cogs_and_opex(rows: list[dict[str,
         row["operating_income_loss"] = row["revenues"] - cogs_ex_dda - cogs_dda - operating_expenses
 
 
+def _fill_operating_income_from_bank_net_interest_and_noninterest(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: operating_income = InterestIncomeExpenseNet + NoninterestIncome -
+    NoninterestExpense, for banks/custodians that never tag OperatingIncomeLoss/
+    CostsAndExpenses/OperatingExpenses at all (see get_income_statement()'s own comment on
+    "InterestIncomeExpenseNet" for the live-verified evidence).
+
+    This is the standard bank-analysis "Pre-Provision Net Revenue" formula, not a guessed
+    combination - a bank income statement has no cost-of-revenue/operating-income subtotal
+    to begin with, since lending/fee income isn't "sold" the way goods are. Deliberately
+    requires ALL THREE real values present (same "no partial, systematically-wrong value"
+    discipline as the COGS/opex sibling above) and never overwrites a real
+    operating_income_loss value already filled by an earlier fallback in this module (this
+    function runs last in get_income_statement()'s fallback chain). Mutates rows in place
+    and always strips the three raw keys unique to this function.
+    """
+    for row in rows:
+        interest_income_expense_net = row.pop("interest_income_expense_net", None)
+        noninterest_income = row.pop("noninterest_income", None)
+        noninterest_expense = row.pop("noninterest_expense", None)
+        if row.get("operating_income_loss") is not None:
+            continue
+        if interest_income_expense_net is None or noninterest_income is None or noninterest_expense is None:
+            continue
+        row["operating_income_loss"] = interest_income_expense_net + noninterest_income - noninterest_expense
+
+
 def _fill_cost_of_revenue_from_other_operating_cost(rows: list[dict[str, Any]]) -> None:
     """Add OtherCostOfOperatingRevenue and/or ExciseAndSalesTaxes into
     cost_of_goods_and_services_sold - see each concept's own comment in
