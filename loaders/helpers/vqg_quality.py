@@ -1647,12 +1647,41 @@ class QualityMetricsMixin(SymbolGateMixin):
                         # outside the 370-day TTM window just used is genuine recent data, too
                         # stale to compute a confident current dividends_paid figure from - a
                         # real fact, not a missing SEC concept, same "Legitimate / not
-                        # applicable" class as a confirmed non-payer. Only applies when the TTM
-                        # attempt actually ran (shares_outstanding was available) - no
-                        # shares_outstanding at all stays the genuine "missing_sec_data" gap.
+                        # applicable" class as a confirmed non-payer.
                         sgr_reason = "dividend_lapsed_beyond_ttm_window"
                     elif sgr_dividends_paid is None:
-                        sgr_reason = "missing_sec_data"
+                        # FIXED 2026-09-09 (goal session: "missing SEC/XBRL data under 500"
+                        # sweep): the TTM attempt above never even ran when shares_outstanding
+                        # is None, and this used to blame the generic "missing_sec_data" for
+                        # that case unconditionally - live-confirmed TX (Ternium S.A.)/CYD
+                        # (China Yuchai)/AUXX/FGL/GAUZ/GIXI/INCR: all confirmed real, current
+                        # dividend payers (has_real_dividend_history True) with real, positive
+                        # net_income and stockholders_equity, whose shares_outstanding is None
+                        # not because SEC/XBRL data is missing but because
+                        # company_info_sec.shares_outstanding_unavailable_reason is
+                        # "fpi_shares_excluded_domestic_only" - a DELIBERATE exclusion (see
+                        # sec_statements_entry_resolution.py's dei-facts-domestic-only guard)
+                        # to avoid a foreign filer's local-share/ADS-ratio unit mismatch, not a
+                        # genuine extraction gap. Reuse the real, already-correctly-categorized
+                        # ("Legitimate / not applicable") reason recorded on company_info_sec
+                        # for this exact fact when that's the actual cause, instead of
+                        # mislabeling a known, deliberate design constraint as a missing-data
+                        # bug. Falls back to the pre-existing "missing_sec_data" label for every
+                        # other real "shares_outstanding is genuinely unknown" case (e.g.
+                        # cik_not_found), which this was never meant to touch.
+                        _sgr_shares_reason: str | None = None
+                        with _owner().DatabaseContext("read") as cur:
+                            cur.execute(
+                                "SELECT shares_outstanding_unavailable_reason FROM company_info_sec WHERE symbol = %s",
+                                (symbol,),
+                            )
+                            _sgr_shares_row = cur.fetchone()
+                            _sgr_shares_reason = _sgr_shares_row[0] if _sgr_shares_row else None
+                        sgr_reason = (
+                            _sgr_shares_reason
+                            if _sgr_shares_reason == "fpi_shares_excluded_domestic_only"
+                            else "missing_sec_data"
+                        )
                 else:
                     sgr_dividends_paid = 0.0
 
