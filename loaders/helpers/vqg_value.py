@@ -70,6 +70,52 @@ class ValueMetricsMixin(SymbolGateMixin):
 
         def _fetch_positioning_metrics(self, symbol: str) -> tuple[float | None, str | None]: ...
 
+        def _nan_to_none(self, value: float | None) -> float | None: ...
+
+    def _fetch_ttm_eps_from_quarterly(self, symbol: str) -> float | None:
+        """Trailing-twelve-month earnings_per_share summed from quarterly_income_statement -
+        the EPS-column analog of load_value_quality_growth_metrics.py's own
+        _fetch_ttm_net_income_from_quarterly (same class, that file is at its hard file-size
+        ceiling so this sibling lives here instead - see .file-size-baseline.json).
+
+        FIXED 2026-09-10 (goal: "SEC/XBRL missing data under 300" push, eps_never_tagged_in_
+        filings re-investigation): the pe_ratio reason cascade just above queries only
+        annual_income_statement for earnings_per_share and, finding zero real annual rows,
+        concludes "eps_never_tagged_in_filings" - a genuine-data-gap label - even for symbols
+        with a complete, real quarterly earnings_per_share history (e.g. SKT/Tanger Inc,
+        whose real 10-Ks apparently never tag a calendar-year-duration EarningsPerShareBasic/
+        Diluted fact at all - live-confirmed via companyfacts, only Q1-Q3 durations exist for
+        every income-statement concept including Revenues/NetIncomeLoss, not just an
+        AADX/AIB-style "too-new-IPO, no 10-K yet" case; and recent-IPO filers like AADX/AIB/
+        AIAI/AKTS/AVEX/etc, which DO have a real 10-K but its own annual_income_statement rows
+        are correctly flagged data_unavailable/'incomplete_sec_filing_income'). Both shapes
+        have real, usable quarterly EPS sitting unused (live-confirmed: 30 of the 38 live
+        eps_never_tagged_in_filings symbols have >=4 real quarterly earnings_per_share rows;
+        the remaining 8 - AVAT/AVEX/CCXI/GSRFR/HONA/KLRA/PGACR/XXI - have too few real
+        quarters and correctly stay on this reason until more quarterly history accumulates).
+        Same "4 consecutive real quarters, never a partial-year figure" discipline as the
+        net_income sibling - most of these symbols are currently loss-making, so this mainly
+        reclassifies them from the misleading "Missing SEC/XBRL data" bucket to the correct
+        "unprofitable_stock" -> "Legitimate / not applicable" bucket via the existing
+        `latest_eps <= 0` branch just below, not from actually granting them a P/E ratio
+        (load_sec_valuations.py's `_compute_pe_ratio` already correctly requires ttm_eps > 0).
+        """
+        with _owner().DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT earnings_per_share FROM quarterly_income_statement
+                WHERE symbol = %s AND data_unavailable IS NOT TRUE AND earnings_per_share IS NOT NULL
+                ORDER BY period_end DESC NULLS LAST, fiscal_year DESC, fiscal_quarter DESC
+                LIMIT 4
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
+        if len(rows) < 4:
+            return None
+        total = sum(safe_float(r[0], f"{symbol}.ttm_eps_quarter", allow_none=True) or 0.0 for r in rows)
+        return self._nan_to_none(total)
+
     def _compute_dividend_and_payout_yield(  # noqa: C901 -- multi-tier fallback chain,
         # extracted verbatim from _build_value_metrics (which carried the same noqa) - not
         # entangled with anything else, left as one function rather than force-split further.
@@ -711,6 +757,25 @@ class ValueMetricsMixin(SymbolGateMixin):
                 )
                 eps_row = cur.fetchone()
             latest_eps = eps_row[0] if eps_row else None
+            # FIXED 2026-09-10 (goal: "SEC/XBRL missing data under 300" push): this query only
+            # ever looks at annual_income_statement, so a symbol with real quarterly earnings
+            # but zero usable annual EPS (recent IPOs mid-first-fiscal-year, or a filer like
+            # SKT/Tanger Inc whose real 10-Ks never tag a calendar-year-duration EPS fact at
+            # all - see _fetch_ttm_eps_from_quarterly's own docstring for the live evidence)
+            # fell all the way through to "eps_never_tagged_in_filings" - a genuine-data-gap
+            # label - even when a real TTM EPS is trivially derivable from 4 real quarters.
+            # Treating that derived figure as `latest_eps`/a found `eps_row` routes these
+            # symbols through the SAME downstream reason cascade every other latest_eps-having
+            # symbol already goes through (unprofitable_stock/implausible_ratio/etc) instead of
+            # the generic missing-data catch-all - most of these are currently loss-making, so
+            # this mainly reclassifies them into the correct "Legitimate / not applicable"
+            # bucket, not into a fabricated P/E ratio (pe itself, computed upstream in
+            # load_sec_valuations.py, is untouched by this - only the reason label here changes).
+            if eps_row is None:
+                ttm_eps_from_quarterly = self._fetch_ttm_eps_from_quarterly(symbol)
+                if ttm_eps_from_quarterly is not None:
+                    latest_eps = ttm_eps_from_quarterly
+                    eps_row = (ttm_eps_from_quarterly,)
             # FIXED 2026-09-07 (goal session: real-money-readiness audit): sec_valuations_
             # ratios.py's _compute_pe_ratio deliberately nulls a real, positive, plausible
             # pe_ratio when _pe_earnings_too_volatile/_pe_earnings_tax_benefit_inflated fire
@@ -881,6 +946,16 @@ class ValueMetricsMixin(SymbolGateMixin):
             # See _get_preferred_or_debt_security_symbols()'s docstring - same "wrong, not
             # missing" reasoning as pe_ratio_reason above, for book value per share.
             pb_ratio_reason = "preferred_or_debt_security_no_common_equity_ratio"
+        elif pb is None and symbol in self._ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS:
+            # FIXED 2026-09-10 (goal: "under 300" missing-XBRL push): same structural
+            # "Statement of Distributable Income has no StockholdersEquity concept at all"
+            # fact as vqg_quality_recategorize.py's royalty-trust loop (which already
+            # covers total_debt/roa/roe/current_ratio/... for these same 6 symbols) - this
+            # pb_ratio_reason chain never checked royalty-trust membership at all before
+            # falling to the generic "stockholders_equity_never_tagged_in_filings", live-
+            # confirmed on NRT (the one member of this set with genuinely no equity concept
+            # tagged; CRT/MTR/SBR/SJT report real equity, PBT's pb is real and computes).
+            pb_ratio_reason = "reit_special_entity"
         elif pb is None:
             with _owner().DatabaseContext("read") as cur:
                 # Must mirror load_sec_valuations.py's real book_value query's `data_unavailable
