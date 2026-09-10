@@ -1336,6 +1336,114 @@ resource "aws_ecs_task_definition" "data_patrol" {
 }
 
 # ============================================================
+# XBRL "second opinion" (layers 4/5 of the 5-layer XBRL data-quality architecture)
+# ============================================================
+# scripts/xbrl_yfinance_crosscheck.py and scripts/xbrl_calculation_linkbase_check.py were
+# both deliberately kept OUT of the DataPatrol task above (which gates Phase 1 on a tight
+# 600s Step Functions timeout - see the "DataPatrol" state in
+# terraform/modules/pipeline/main.tf) because both make live outbound requests
+# (yfinance / SEC EDGAR) with unpredictable latency through the same rate-limited session
+# every loader shares. Their own docstrings say "run by hand or from a low-frequency
+# schedule" - until this resource, only the "by hand" half was ever wired up anywhere, so
+# their value depended on a human remembering to run two extra commands. This gives them
+# their own independent weekly trigger (Sunday, deep off-hours - the pipeline only runs
+# MON-FRI, so there is zero overlap/contention risk with a trading-day run), fully decoupled
+# from the orchestrator/Phase-1 path: a failure or slow run here can never halt trading.
+# See scripts/xbrl_second_opinion_weekly.py for the actual entrypoint.
+
+resource "null_resource" "ensure_xbrl_second_opinion_log_group" {
+  provisioner "local-exec" {
+    command = "aws logs create-log-group --log-group-name /ecs/${var.project_name}-xbrl-second-opinion --region ${var.aws_region} 2>/dev/null || true"
+  }
+}
+
+resource "aws_ecs_task_definition" "xbrl_second_opinion" {
+  depends_on = [null_resource.ensure_xbrl_second_opinion_log_group]
+
+  family = "${var.project_name}-xbrl-second-opinion"
+  container_definitions = jsonencode([
+    {
+      name      = "${var.project_name}-xbrl-second-opinion"
+      image     = "${var.ecr_repository_uri}:${var.environment}-latest"
+      essential = true
+
+      # Do NOT prefix with "python3" — ENTRYPOINT ["python3", "-u"] already provides the interpreter.
+      command = ["scripts/xbrl_second_opinion_weekly.py"]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${var.project_name}-xbrl-second-opinion"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
+        { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" }
+      ]
+
+      environment = [
+        { name = "AWS_EXECUTION_ENV", value = "ECS_FARGATE" },
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "DB_HOST", value = var.db_host },
+        { name = "DB_PORT", value = tostring(var.db_port) },
+        { name = "DB_NAME", value = var.db_name },
+        { name = "DB_SECRET_ARN", value = var.db_secret_arn },
+        { name = "ALGO_SECRETS_ARN", value = var.algo_secrets_arn },
+        { name = "DB_SSL", value = var.db_ssl_mode },
+        { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" },
+        { name = "PYTHONPATH", value = "/app" }
+      ]
+    }
+  ])
+
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "512"
+  memory                   = "1024"
+  execution_role_arn       = var.task_execution_role_arn
+  task_role_arn            = var.task_role_arn
+
+  tags = var.common_tags
+}
+
+resource "aws_cloudwatch_event_rule" "xbrl_second_opinion_weekly" {
+  name        = "${var.project_name}-xbrl-second-opinion-schedule"
+  description = "Weekly independent XBRL cross-check (yfinance second-opinion + calculation-linkbase self-consistency, layers 4/5) - Sunday 10:00 UTC, off-hours/no pipeline overlap"
+  # Sunday 10:00 UTC (~5-6 AM ET depending on DST) - deep off-hours, pipeline is MON-FRI only.
+  schedule_expression = "cron(0 10 ? * SUN *)"
+  state               = "ENABLED"
+
+  tags = var.common_tags
+}
+
+resource "aws_cloudwatch_event_target" "xbrl_second_opinion_weekly_target" {
+  rule      = aws_cloudwatch_event_rule.xbrl_second_opinion_weekly.name
+  target_id = "XbrlSecondOpinionTarget"
+  arn       = var.ecs_cluster_arn
+  role_arn  = aws_iam_role.eventbridge_run_task.arn
+
+  ecs_target {
+    launch_type         = "FARGATE"
+    task_definition_arn = aws_ecs_task_definition.xbrl_second_opinion.arn
+    task_count          = 1
+    platform_version    = "LATEST"
+
+    network_configuration {
+      subnets          = var.public_subnet_ids
+      security_groups  = [var.ecs_tasks_sg_id]
+      assign_public_ip = true
+    }
+  }
+
+  dead_letter_config {
+    arn = aws_sqs_queue.loader_dlq.arn
+  }
+}
+
+# ============================================================
 # CloudWatch Alarm — SQS DLQ depth (any loader failure lands here)
 # ============================================================
 

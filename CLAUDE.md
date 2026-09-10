@@ -112,6 +112,19 @@ describes. Run it by hand every so often (or from a low-frequency schedule) on a
 rotating sample - the daily pseudo-random sample means broad coverage accumulates over many
 runs rather than needing to cover the whole universe in one pass.
 
+**Layers 4/5 now run on their own weekly schedule, not just "by hand" (added 2026-09-10):**
+`scripts/xbrl_second_opinion_weekly.py` calls `xbrl_yfinance_crosscheck.run()` and
+`xbrl_calculation_linkbase_check.run()` back-to-back with their normal periodic-sample
+defaults (25 / 15 symbols). It's the ECS command for a new, fully independent
+`aws_cloudwatch_event_rule`/`aws_ecs_task_definition` pair in
+`terraform/modules/loaders/main.tf` (`xbrl_second_opinion*`) firing Sunday 10:00 UTC —
+deliberately its own task, NOT folded into the DataPatrol ECS task, because DataPatrol runs
+twice daily on a hard 600s Step Functions timeout gating Phase 1, and these two checks make
+live outbound SEC EDGAR/yfinance calls with unpredictable latency that could turn an
+optional WARN-only check into an accidental trading halt. **This terraform is written but
+NOT applied** — run `terraform plan`/`apply` in `terraform/` to actually turn the schedule
+on; until then these two layers are still manual-only in practice, same as before.
+
 **Calculation-linkbase self-consistency check (5th and final layer of the XBRL data-quality
 architecture, added 2026-09-10 - not a bug-report-driven thing, run it periodically):**
 ```bash
