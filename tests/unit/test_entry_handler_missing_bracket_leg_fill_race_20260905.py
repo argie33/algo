@@ -14,6 +14,13 @@ zero stop-loss, invisible to every downstream risk/exit check.
 
 Fixed by extracting the race-recovery logic into `_recover_bracket_cancel_race()` and calling it
 from all three cancel-then-check-for-a-race sites, not just the timeout one.
+
+BUG FOUND 2026-09-10 (real-money-readiness audit): the recovery above stopped at "recorded
+correctly" and left the recovered fill with zero protective stop at the broker until the next
+Phase 9 reconciliation cycle (up to hours away). `_recover_bracket_cancel_race` now submits a
+standalone protective stop immediately via `context._submit_standalone_protective_stop`, at the
+entry's own `stop_loss_price` - asserted below so this can't silently regress back to "naked
+until Phase 9".
 """
 
 from decimal import Decimal
@@ -24,6 +31,11 @@ from algo.trading.executor_entry_handler import EntryHandler
 
 def _make_handler(order_result: dict) -> tuple[EntryHandler, MagicMock]:
     handler_context = MagicMock()
+    handler_context._submit_standalone_protective_stop.return_value = {
+        "success": True,
+        "order_id": "standalone-stop-racefill",
+        "message": "placed",
+    }
     handler_context._submit_and_validate_order.return_value = (
         True,  # order_ok
         "alpaca-order-legrace",  # alpaca_order_id
@@ -69,6 +81,11 @@ class TestMissingLegFillRaceRecovered:
         assert executed_price == Decimal("50.10")
         mock_notify.assert_called_once()
 
+        handler_context._submit_standalone_protective_stop.assert_called_once()
+        _, kwargs = handler_context._submit_standalone_protective_stop.call_args
+        assert kwargs["qty"] == 10.0, "must protect the actual raced-fill qty, not the requested qty"
+        assert kwargs["stop_price"] == 47.50, "must use the entry's own computed stop, not a generic default"
+
     def test_missing_take_profit_leg_but_entry_raced_a_partial_fill_is_recorded(self):
         """Bracket has both order_type legs but is missing take_profit specifically (only a
         stop leg present) - and the entry partially filled during the cleanup cancel."""
@@ -98,6 +115,11 @@ class TestMissingLegFillRaceRecovered:
         assert order_status == "partially_filled"
         assert executed_price == Decimal("49.90")
 
+        handler_context._submit_standalone_protective_stop.assert_called_once()
+        _, kwargs = handler_context._submit_standalone_protective_stop.call_args
+        assert kwargs["qty"] == 3.0, "must protect only the shares actually filled, not the full requested size"
+        assert kwargs["stop_price"] == 47.50
+
     def test_missing_leg_genuine_zero_fill_still_reports_failure_and_no_trade_record(self):
         """Sanity check: when the cancel confirms zero fill (the common case for a truly
         rejected bracket), the original "missing leg" failure must still be reported."""
@@ -126,3 +148,39 @@ class TestMissingLegFillRaceRecovered:
         assert order_ok is False
         assert "missing stop loss leg" in error_msg
         assert executed_price is None
+        handler_context2._submit_standalone_protective_stop.assert_not_called()
+
+    def test_standalone_stop_submission_failure_does_not_lose_the_recorded_fill(self):
+        """If the immediate standalone-stop submission itself fails (broker error), the raced
+        fill must still be recorded as a real position (never silently discarded) - the failure
+        is surfaced via a critical log/notify for a human to act on, not by dropping the trade."""
+        handler, handler_context = _make_handler({"legs": [{"order_type": "limit"}], "order_class": "bracket"})
+        handler_context._cancel_bracket_orders.return_value = {
+            "success": False,
+            "message": "already terminal",
+            "filled_qty": 10.0,
+            "filled_avg_price": 50.10,
+        }
+        handler_context._submit_standalone_protective_stop.return_value = {
+            "success": False,
+            "message": "broker rejected stop order",
+        }
+
+        with patch("algo.trading.executor_entry_handler.notify") as mock_notify:
+            result = handler._submit_entry_phase(
+                cur=MagicMock(),
+                symbol="LEGRACE4",
+                trade_id="trade-legrace-4",
+                shares=Decimal("10"),
+                entry_price=Decimal("50.00"),
+                stop_loss_price=Decimal("47.50"),
+                target_1_price=Decimal("55.00"),
+                execution_mode="auto",
+                idempotency_key="1" * 64,
+            )
+
+        order_ok, _, order_status, _, executed_price, _, _ = result
+        assert order_ok is True, "a real broker fill must never be discarded even if the stop-repair itself fails"
+        assert order_status == "filled"
+        assert executed_price == Decimal("50.10")
+        mock_notify.assert_called_once()

@@ -35,6 +35,7 @@ class HandlerContext:
         validate_entry_conditions_fn: Callable[..., Any],
         submit_and_validate_order_fn: Callable[..., Any],
         cancel_bracket_orders_fn: Callable[..., Any],
+        submit_standalone_protective_stop_fn: Callable[..., Any],
         sync_bracket_stop_loss_fn: Callable[..., Any],
         sync_standalone_stop_fn: Callable[..., Any],
         verify_order_status_fn: Callable[..., Any],
@@ -73,6 +74,7 @@ class HandlerContext:
         self._validate_entry_conditions = validate_entry_conditions_fn
         self._submit_and_validate_order = submit_and_validate_order_fn
         self._cancel_bracket_orders = cancel_bracket_orders_fn
+        self._submit_standalone_protective_stop = submit_standalone_protective_stop_fn
         self._sync_bracket_stop_loss = sync_bracket_stop_loss_fn
         self._sync_standalone_stop = sync_standalone_stop_fn
         self._verify_order_status = verify_order_status_fn
