@@ -1,12 +1,12 @@
-"""Regression test (2026-09-10, "under 500" SEC/XBRL missing-data push): two real
-debt_to_equity gaps found while live-auditing quality_metrics.debt_to_equity_unavailable_
-reason='missing_sec_data' rows against real SEC companyfacts.
+"""Regression test (2026-09-10, "under 500" SEC/XBRL missing-data push): real gaps found
+while live-auditing quality_metrics *_unavailable_reason='missing_sec_data' rows against
+real SEC companyfacts.
 
-1. A real, literal $0.00 anchor-year stockholders_equity (live-confirmed FLOC/INR/WBI - a
-   genuinely tagged value, not a missing one) fell into the same generic branch as "equity
-   was never tagged at all" and landed on the vague "missing_sec_data" reason instead of
-   "implausible_ratio" (division by zero) - same near-zero-denominator discipline
-   roic_pct/roce_pct above it in vqg_quality.py already apply.
+1. debt_to_equity: a real, literal $0.00 anchor-year stockholders_equity (live-confirmed
+   FLOC/INR/WBI - a genuinely tagged value, not a missing one) fell into the same generic
+   branch as "equity was never tagged at all" and landed on the vague "missing_sec_data"
+   reason instead of "implausible_ratio" (division by zero) - same near-zero-denominator
+   discipline roic_pct/roce_pct above it in vqg_quality.py already apply.
 
 2. debt_for_roic's only fallback (when total_debt_ev and the anchor year's own long_term_debt
    are both absent) searched ONLY the `long_term_debt` column - live-confirmed ATHR (real
@@ -15,6 +15,11 @@ reason='missing_sec_data' rows against real SEC companyfacts.
    _fetch_total_debt_components_fallback sums all 4 canonical debt components - the SAME
    definition sec_valuations_checks.py's own total_debt fallback already uses - as a final
    rescue tier.
+
+3. roe/roa (the shared _ratio_with_implausible_fallback helper): the SAME zero-denominator
+   bug as (1), independently present here too - a real $0.00 denominator short-circuited to
+   `(None, False)` without ever trying the cross-year fallback every other rejection case
+   gets, mislabeling ROE "missing_sec_data" for FLOC/INR/WBI as well.
 """
 
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
@@ -121,6 +126,41 @@ class TestDebtToEquityZeroEquity:
 
         assert metrics["debt_to_equity"] is None
         assert metrics["debt_to_equity_unavailable_reason"] == "implausible_ratio"
+
+
+class TestRoeRoaZeroDenominator:
+    def test_roe_zero_equity_reports_implausible_ratio_not_missing_sec_data(self, monkeypatch):
+        loader = _make_loader(monkeypatch)
+        # A real, tagged $0.00 equity (not None) - same FLOC/INR/WBI shape as debt_to_equity's
+        # sibling bug, but in the shared _ratio_with_implausible_fallback helper.
+        row = _quality_row(stockholders_equity=0.0, net_income=5_000_000.0)
+
+        metrics = loader._compute_quality_metrics("FLOC", row, ev_metrics=None)
+
+        assert metrics["roe"] is None
+        assert metrics["roe_unavailable_reason"] == "implausible_ratio"
+
+    def test_ratio_with_implausible_fallback_zero_denominator_tries_cross_year_first(self, monkeypatch):
+        loader = _make_loader(monkeypatch)
+        loader._find_plausible_cross_year_ratio = lambda *a, **kw: 12.5
+
+        value, hit_implausible = loader._ratio_with_implausible_fallback(
+            "WBI", 5_000_000.0, 0.0, "net_income", "stockholders_equity"
+        )
+
+        assert value == 12.5
+        assert hit_implausible is False
+
+    def test_ratio_with_implausible_fallback_zero_denominator_no_fallback_is_implausible(self, monkeypatch):
+        loader = _make_loader(monkeypatch)
+        loader._find_plausible_cross_year_ratio = lambda *a, **kw: None
+
+        value, hit_implausible = loader._ratio_with_implausible_fallback(
+            "INR", 5_000_000.0, 0.0, "net_income", "stockholders_equity"
+        )
+
+        assert value is None
+        assert hit_implausible is True
 
 
 class TestDebtForRoicTotalDebtComponentsFallback:
