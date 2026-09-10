@@ -39,9 +39,11 @@ class _FakeCursor:
         return []
 
     def fetchone(self):
-        # Only the standalone free_cash_flow fallback issues a single-table (no JOIN)
-        # SELECT free_cash_flow FROM annual_cash_flow query via fetchone().
-        if "FROM annual_cash_flow" in self._last_query and "JOIN" not in self._last_query:
+        # Only the standalone free_cash_flow fallback issues this "most recent real value,
+        # any fiscal year" query (ORDER BY ... LIMIT 1) - distinct from the same-year
+        # incomplete-row rescue (vqg_quality_inputs.py), which matches on an exact
+        # fiscal_year = %s and returns a 3-column row instead.
+        if "FROM annual_cash_flow" in self._last_query and "ORDER BY fiscal_year DESC LIMIT" in self._last_query:
             return self._fallback_row
         return None
 
