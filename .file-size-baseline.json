@@ -130,7 +130,7 @@
   "algo/orchestrator/phase3_position_monitor.py": 939,
   "algo/orchestrator/phase4_reconciliation.py": 370,
   "algo/orchestrator/phase5_exposure_policy.py": 420,
-  "algo/orchestrator/phase6_exit_execution.py": 1862,
+  "algo/orchestrator/phase6_exit_execution.py": 1910,
   "algo/orchestrator/phase7_candidate_builder.py": 249,
   "algo/orchestrator/phase7_run_steps.py": 790,
   "algo/orchestrator/phase7_signal_generation.py": 1689,
