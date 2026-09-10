@@ -10,7 +10,7 @@ own YoY magnitude checks).
 from unittest.mock import MagicMock
 
 from algo.monitoring.data_patrol.checks.score_ratio_outliers import ScoreRatioOutlierChecker
-from algo.monitoring.data_patrol.config import PatrolConfig
+from algo.monitoring.data_patrol.config import INFO, PatrolConfig
 
 
 def _checker() -> ScoreRatioOutlierChecker:
@@ -43,7 +43,8 @@ class TestLowDirectionOutlier:
         cur = _mock_cursor(rows)
         checker = _checker()
         checker._check_ratio_outliers(cur, "value_metrics", "pe_ratio", "low")
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == INFO
 
     def test_negative_values_never_flagged_as_cheap(self) -> None:
         # Negative pe_ratio means something else entirely (e.g. negative book value context) -
@@ -75,7 +76,8 @@ class TestHighDirectionOutlier:
         cur = _mock_cursor(rows)
         checker = _checker()
         checker._check_ratio_outliers(cur, "quality_metrics", "roe", "high")
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == INFO
 
 
 class TestAbsHighDirectionOutlier:
@@ -110,7 +112,8 @@ class TestAbsHighDirectionOutlier:
         cur = _mock_cursor(rows)
         checker = _checker()
         checker._check_ratio_outliers(cur, "quality_metrics", "interest_coverage", "abs_high")
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == INFO
 
 
 class TestSmallPopulationGuard:

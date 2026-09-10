@@ -31,7 +31,7 @@ from typing import Any
 from utils.external.xbrl_concept_coverage import find_continuity_gaps, iter_companyfacts_cache
 
 from ..base import BaseCheck, CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,16 @@ class XbrlConceptContinuityChecker(BaseCheck):
                 return
             gaps = find_continuity_gaps(min_prior_years=_MIN_PRIOR_YEARS)
             if not gaps:
+                # Always log even when clean (FIXED 2026-09-10, see
+                # pillar_score_reconciliation.py's identical fix for the full rationale): a
+                # silent return here can never supersede/resolve an earlier flagged finding
+                # still marked 'open' in data_patrol_log.
+                self.log(
+                    "xbrl_concept_continuity",
+                    INFO,
+                    "sec_edgar_companyfacts_cache",
+                    "no filer/concept continuity gaps detected",
+                )
                 return
             examples = gaps[:_MAX_REPORTED]
             self.log(

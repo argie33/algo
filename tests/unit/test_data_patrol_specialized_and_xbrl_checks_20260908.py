@@ -203,7 +203,8 @@ class TestCheckNewConcepts:
             ),
         ):
             checker.check_new_concepts()
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == INFO
 
     def test_new_concept_gap_logs_warn(self) -> None:
         checker = _xbrl_checker()

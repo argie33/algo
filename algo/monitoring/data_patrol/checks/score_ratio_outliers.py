@@ -43,7 +43,7 @@ import logging
 from typing import Any
 
 from ..base import BaseCheck, CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +152,16 @@ class ScoreRatioOutlierChecker(BaseCheck):
                 flagged.sort(key=lambda sv: sv[1], reverse=True)
 
             if not flagged:
+                # Always log even when clean (FIXED 2026-09-10, see
+                # pillar_score_reconciliation.py's identical fix for the full rationale): a
+                # silent return here can never supersede/resolve an earlier flagged finding for
+                # this same check_name still marked 'open' in data_patrol_log.
+                self.log(
+                    check_name,
+                    INFO,
+                    table,
+                    f"{field} has no cross-sectional outliers beyond {_OUTLIER_MULTIPLE:.0f}x",
+                )
                 return
 
             examples = [

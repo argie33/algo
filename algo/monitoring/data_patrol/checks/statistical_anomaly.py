@@ -42,7 +42,7 @@ import logging
 from typing import Any
 
 from ..base import BaseCheck, CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +134,12 @@ class StatisticalAnomalyChecker(BaseCheck):
                     "real M&A/divestiture/pre-revenue events can produce swings this large",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
                 )
+            else:
+                # Always log even when clean (FIXED 2026-09-10, see
+                # pillar_score_reconciliation.py's identical fix for the full rationale): a
+                # silent no-op here can never supersede/resolve an earlier flagged finding for
+                # this same check_name still marked 'open' in data_patrol_log.
+                self.log(check_name, INFO, table, f"no >{_MAGNITUDE_JUMP_RATIO:.0f}x YoY swing in {field}")
         except Exception as e:
             logger.error(f"[StatisticalAnomalyChecker] {check_name} failed: {e}", exc_info=True)
             self.log(check_name, ERROR, table, f"{check_name} failed: {e}")

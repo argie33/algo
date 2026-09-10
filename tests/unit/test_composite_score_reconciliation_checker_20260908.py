@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 from algo.monitoring.data_patrol.checks.composite_score_reconciliation import (
     CompositeScoreReconciliationChecker,
 )
-from algo.monitoring.data_patrol.config import ERROR, WARN, PatrolConfig
+from algo.monitoring.data_patrol.config import ERROR, INFO, WARN, PatrolConfig
 
 
 def _checker() -> CompositeScoreReconciliationChecker:
@@ -50,9 +50,12 @@ class TestCompositeScoreReconciliation:
     def test_all_pillars_at_50_with_risk_50_reconciles_exactly(self) -> None:
         # risk_score=50 is the interaction's own midpoint - base weights apply unmodified, so
         # a uniform 50 across every pillar must reconcile to exactly 50.0 composite.
+        # FIXED 2026-09-10: a clean pass still logs one INFO result (not []) so a prior WARN/
+        # ERROR finding can be superseded/resolved on the next patrol run.
         cur = _mock_cursor([_row("FLAT", composite_score=50.0)])
         results = _checker().run(cur)
-        assert results == []
+        assert len(results) == 1
+        assert results[0].severity == INFO
 
     def test_legitimate_value_risk_interaction_shift_not_flagged(self) -> None:
         # risk_score=0 (riskiest) shifts weight from Risk to Value by the full
@@ -71,7 +74,8 @@ class TestCompositeScoreReconciliation:
         )
         cur = _mock_cursor([_row("RISKY", composite_score=round(composite, 2), value=100.0, risk=0.0)])
         results = _checker().run(cur)
-        assert results == []
+        assert len(results) == 1
+        assert results[0].severity == INFO
 
     def test_missing_pillar_contributes_zero_not_flagged(self) -> None:
         # momentum missing (None) - contributes 0 to the weighted sum, not redistributed to the
@@ -84,7 +88,8 @@ class TestCompositeScoreReconciliation:
         )
         cur = _mock_cursor([_row("NOMOM", composite_score=round(composite, 2), momentum=None)])
         results = _checker().run(cur)
-        assert results == []
+        assert len(results) == 1
+        assert results[0].severity == INFO
 
     def test_real_divergence_flagged_warn(self) -> None:
         # Stored composite is 0.5 points off the true recompute - beyond the 0.10 rounding

@@ -55,7 +55,8 @@ class TestXbrlConceptContinuityChecker:
             patch(f"{_MOD}.find_continuity_gaps", return_value=[]),
         ):
             checker.run(cur=None)
-        assert checker.results == []
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == "info"
 
     def test_scan_failure_logs_error_not_raise(self) -> None:
         checker = _checker()
