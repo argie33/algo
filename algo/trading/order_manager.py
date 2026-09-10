@@ -117,14 +117,17 @@ class OrderManager(StopLossRepairMixin):
         self.alpaca_key = alpaca_key
         self.alpaca_secret = alpaca_secret
         self.alpaca_base_url = alpaca_base_url
-        # Optional (2026-09-10 real-money-readiness audit): when a caller supplies it,
-        # send_bracket_order() gates on it directly instead of relying solely on that
-        # caller having already checked execution_mode before calling in. Left as an
-        # opt-in constructor arg (default None => no extra gate) rather than required, so
-        # existing call sites that already guard before construction/call (e.g.
-        # alpaca_sync_manager.py's untracked-stop path, order_manager_stop_repair.py)
-        # don't need to change - only the one real "auto"-mode order-submission caller
-        # (executor.py) needs to actually pass it for the defense-in-depth to matter.
+        # (2026-09-10 real-money-readiness audit, hardened same day): send_bracket_order()
+        # gates on this directly, fail-closed - an omitted execution_mode is treated as
+        # "not auto" (see the guard in send_bracket_order below), not as "no gate". A prior
+        # version of this guard only applied when a caller happened to pass execution_mode,
+        # which was the same call-site-convention fragility already found and fixed for
+        # send_bracket_order/_attach_protective_stop_if_missing/the untracked-stop path -
+        # a future new caller that forgot to pass it would have silently gotten no
+        # protection instead of failing closed. grep confirms send_bracket_order() (the
+        # only real order-submission path this guards) has exactly one production caller
+        # (executor.py), which always passes execution_mode, so this changes no live
+        # behavior today - it just removes the silent-bypass footgun for the next caller.
         self.execution_mode = execution_mode
 
     def _entry_result_from_order_data(self, symbol: str, data: dict[str, Any]) -> dict[str, Any]:
@@ -293,42 +296,43 @@ class OrderManager(StopLossRepairMixin):
         mechanism - it exists for manual/external trades placed outside the algo, not as a
         duplicate-order gate for algo-originated entries.
 
-        NOTE (2026-09-10 real-money-readiness audit, order-execution re-audit): the
-        primary paper/dry/review gate still lives in executor.py's
-        _submit_and_validate_order (checks execution_mode BEFORE calling this). As of the
-        same-day re-audit, this method ALSO gates on execution_mode itself when the
-        caller supplies one via the constructor (see __init__) - executor.py's real
-        OrderManager instance does. This is defense-in-depth, not a replacement for the
-        caller-side check: a caller that constructs OrderManager without passing
-        execution_mode gets no gate here and must keep guarding itself before calling in
-        (existing callers like alpaca_sync_manager.py's untracked-stop path already do).
+        NOTE (2026-09-10 real-money-readiness audit, order-execution re-audit, hardened
+        same day): the primary paper/dry/review gate still lives in executor.py's
+        _submit_and_validate_order (checks execution_mode BEFORE calling this). This
+        method ALSO gates on execution_mode itself, unconditionally and fail-closed - a
+        caller that constructs OrderManager without passing execution_mode is treated the
+        same as one explicitly passing a non-"auto" mode (submission only proceeds if the
+        resolved base_url looks like paper). This is defense-in-depth, not a replacement
+        for the caller-side check, but it can no longer be silently skipped by omission.
         """
         if not self.alpaca_key or not self.alpaca_secret:
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
             return {"success": False, "message": "Alpaca credentials not configured"}
 
-        # REAL-MONEY-READINESS FIX (2026-09-10 order-execution re-audit, defense-in-depth):
-        # this method previously had no execution_mode awareness of its own and relied
-        # entirely on the one current caller (executor.py's _submit_and_validate_order)
-        # checking execution_mode before ever calling in - safe today only because grep
-        # confirms a single call site, a fragile invariant for the actual real-order-to-
-        # broker submission path. Mirrors the same execution_mode != "auto" + base_url
-        # pattern already used in alpaca_sync_manager.py's untracked-stop guard. Only
-        # fires when a caller actually supplies execution_mode (see __init__) - existing
-        # callers/tests that don't pass it are unaffected.
-        if self.execution_mode is not None:
-            base_url_is_paper = "paper" in (self.alpaca_base_url or "").lower()
-            if self.execution_mode != "auto" and not base_url_is_paper:
-                error_msg = (
-                    f"[SEND_ORDER CRITICAL] {symbol}: bracket order submission ABORTED - "
-                    f"execution_mode='{self.execution_mode}' but resolved Alpaca base_url "
-                    f"does not look like the paper endpoint ({self.alpaca_base_url}). "
-                    "Refusing to submit a real order in a non-auto mode against what may "
-                    "be a live endpoint."
-                )
-                logger.critical(error_msg)
-                _notify_bracket_validation_failure(symbol, error_msg)
-                return {"success": False, "message": error_msg}
+        # REAL-MONEY-READINESS FIX (2026-09-10 order-execution re-audit, defense-in-depth,
+        # hardened same day to fail closed): this method previously had no execution_mode
+        # awareness of its own and relied entirely on the one current caller (executor.py's
+        # _submit_and_validate_order) checking execution_mode before ever calling in - safe
+        # today only because grep confirms a single call site, a fragile invariant for the
+        # actual real-order-to-broker submission path. An intermediate version of this
+        # guard only fired when a caller supplied execution_mode via the constructor,
+        # which reintroduced the same fragility one layer up (a future caller that forgot
+        # to pass it would get no gate at all). Now unconditional: a missing/None
+        # execution_mode is treated as "not auto", same as any other non-"auto" value -
+        # only a resolved paper base_url lets submission through without an explicit
+        # execution_mode="auto".
+        base_url_is_paper = "paper" in (self.alpaca_base_url or "").lower()
+        if self.execution_mode != "auto" and not base_url_is_paper:
+            error_msg = (
+                f"[SEND_ORDER CRITICAL] {symbol}: bracket order submission ABORTED - "
+                f"execution_mode='{self.execution_mode}' but resolved Alpaca base_url "
+                f"does not look like the paper endpoint ({self.alpaca_base_url}). "
+                "Refusing to submit a real order in a non-auto mode against what may "
+                "be a live endpoint."
+            )
+            logger.critical(error_msg)
+            _notify_bracket_validation_failure(symbol, error_msg)
+            return {"success": False, "message": error_msg}
 
         # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): this function - the
         # ACTUAL real-order-to-the-broker submission path - had zero validation on
