@@ -22,7 +22,7 @@ flag's value - see the function's own updated docstring for the full explanation
 
 import pytest
 
-from algo.orchestrator.phase8_entry_execution import _check_pdt_limit_breach
+from algo.orchestrator.phase8_pdt_check import _check_pdt_limit_breach
 
 
 def test_not_yet_flagged_but_at_threshold_blocks():
@@ -58,14 +58,23 @@ def test_pattern_day_trader_above_threshold_blocks():
     assert breach is True
 
 
-def test_missing_daytrade_count_does_not_block():
-    """Can't verify the count - not treated as a breach here (Phase 2's own missing-count
-    warning already surfaces this; blocking on unknown-but-possibly-fine data would halt
-    entries in cases where the account is nowhere near the limit)."""
+def test_missing_daytrade_count_fails_closed():
+    """FIX (real-money-readiness audit): a missing count on a sub-$25k account is an
+    unknown, not a known-safe state - given the real 90-day-lockout consequence of guessing
+    wrong, this must block, consistent with this file's fail-fast stance on every other
+    missing PDT-relevant field."""
     breach, reason = _check_pdt_limit_breach({"pattern_day_trader": True, "daytrade_count": None})
-    assert breach is False
-    assert reason is None
+    assert breach is True
+    assert reason is not None
     breach, reason = _check_pdt_limit_breach({"pattern_day_trader": False, "daytrade_count": None})
+    assert breach is True
+    assert reason is not None
+
+
+def test_missing_daytrade_count_does_not_block_when_equity_exempt():
+    """Equity >=$25k exempts before daytrade_count is ever inspected, so a missing count
+    on an already-exempt account correctly still does not block."""
+    breach, reason = _check_pdt_limit_breach({"pattern_day_trader": False, "daytrade_count": None, "equity": 100_000.0})
     assert breach is False
     assert reason is None
 
