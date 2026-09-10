@@ -1814,6 +1814,22 @@ class ConsolidatedFinancialStatementsLoader(
                         and row.get("stockholders_equity") is not None
                     ):
                         row["total_liabilities"] = row["total_assets"] - row["stockholders_equity"]
+                    # FIXED 2026-09-10 (goal: "under 500" XBRL coverage push): symmetric
+                    # counterpart to the total_liabilities derivation above - live-confirmed
+                    # BTTC (Black Titan Corp) and XLAB (Exascale Labs Holdings) both tag
+                    # "Liabilities" and "StockholdersEquity" directly (real, non-null values)
+                    # but never tag a combined "Assets" concept at all. Since "stockholders_equity"
+                    # alone satisfies _has_required's any()-check for balance, these rows were
+                    # already reaching this "valid" branch with total_assets left permanently
+                    # NULL - not a genuine gap, just the balance-sheet identity Assets =
+                    # Liabilities + StockholdersEquity never being applied in this direction.
+                    if (
+                        self.statement_type == "balance"
+                        and row.get("total_assets") is None
+                        and row.get("total_liabilities") is not None
+                        and row.get("stockholders_equity") is not None
+                    ):
+                        row["total_assets"] = row["total_liabilities"] + row["stockholders_equity"]
                     # INVESTIGATED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k"
                     # sweep, pretax_income generic-gap investigation) and deliberately NOT added
                     # here: live-confirmed CVNA (Carvana, CIK 0001690820) never tags ANY of the

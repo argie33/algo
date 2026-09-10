@@ -23,7 +23,7 @@ guarding against a future edit reverting it.
 
 from pathlib import Path
 
-_SEC_VALUATIONS_SOURCE = Path("loaders/load_sec_valuations.py").read_text(encoding="utf-8")
+_SEC_VALUATIONS_SOURCE = Path("loaders/helpers/sec_valuations_dcf_fcf_recategorize.py").read_text(encoding="utf-8")
 _ENHANCED_QUALITY_GROWTH_SOURCE = Path("loaders/load_enhanced_quality_growth_metrics.py").read_text(encoding="utf-8")
 
 

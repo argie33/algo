@@ -47,7 +47,7 @@ class _FakeDatabaseContext:
 
 class TestSecValuationsNoRecentOcfDcfFcfReason:
     def test_no_recent_ocf_symbol_gets_specific_reason(self, monkeypatch):
-        import loaders.load_sec_valuations as mod
+        import loaders.helpers.sec_valuations_dcf_fcf_recategorize as mod
 
         monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(matches=True))
         loader = _make_loader()
@@ -58,7 +58,7 @@ class TestSecValuationsNoRecentOcfDcfFcfReason:
         assert result["dcf_fcf_unavailable_reason"] == "no_recent_operating_cash_flow_reported"
 
     def test_non_matching_symbol_keeps_generic_reason(self, monkeypatch):
-        import loaders.load_sec_valuations as mod
+        import loaders.helpers.sec_valuations_dcf_fcf_recategorize as mod
 
         monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(matches=False))
         loader = _make_loader()
@@ -72,7 +72,7 @@ class TestSecValuationsNoRecentOcfDcfFcfReason:
         # Guard against ever overriding anything other than the exact generic
         # "missing_cash_flow_data" fallback this method targets, mirroring every sibling
         # _recategorize_*_dcf_fcf_reason guard in this file.
-        import loaders.load_sec_valuations as mod
+        import loaders.helpers.sec_valuations_dcf_fcf_recategorize as mod
 
         monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(matches=True))
         loader = _make_loader()

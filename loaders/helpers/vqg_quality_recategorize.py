@@ -83,6 +83,15 @@ class QualityRecategorizeMixin:
                 "quick_ratio",
                 "gross_margin",
             )
+            # FIXED 2026-09-10 (goal: "under 500" missing-XBRL push, same bug found in the
+            # sibling RIC/ETF-trust/blank-check loops below - each already includes
+            # "capex_never_tagged_in_recent_filings" here, this one never did): a royalty
+            # trust's "Statement of Assets and Liabilities" has no CapitalExpenditures
+            # concept either (same structural fact as its debt/cash/interest gaps), so
+            # fcf_margin/fcf_to_net_income/free_cash_flow (all members of
+            # _trust_recategorize_fields above) legitimately hit
+            # _get_no_recent_capex_symbols() and were landing on "Missing SEC/XBRL data"
+            # instead of this loop's intended "reit_special_entity".
             _trust_source_reasons = {
                 "missing_sec_data",
                 "total_debt_not_itemized",
@@ -91,6 +100,7 @@ class QualityRecategorizeMixin:
                 "stockholders_equity_not_reported",
                 "operating_income_not_itemized",
                 "total_liabilities_not_reported",
+                "capex_never_tagged_in_recent_filings",
                 # FIXED 2026-09-10 (goal: "SEC/XBRL missing data to zero" sweep, under-500
                 # push): live-confirmed NRT (Oil Royalty Traders, a member of this exact
                 # royalty-trust set) stuck on "no_recent_free_cash_flow_reported" for
@@ -364,6 +374,17 @@ class QualityRecategorizeMixin:
             # local rather than reused directly, since that name only exists inside the
             # sibling RIC `if` block above (a blank-check symbol that isn't ALSO RIC-shaped,
             # the normal case, would otherwise hit an UnboundLocalError here).
+            # FIXED 2026-09-10 (goal: "under 500" missing-XBRL push): unlike this set,
+            # both _ric_source_reasons and _etf_trust_broad_source_reasons above already
+            # include "capex_never_tagged_in_recent_filings" (each fixed 2026-09-06 for the
+            # identical reason - a fund/trust shape has no CapitalExpenditures concept to
+            # tag) - this set never got the same addition, despite fcf_margin/
+            # fcf_to_net_income/free_cash_flow already being members of this loop's own
+            # _blank_check_recategorize_fields tuple just above. A pre-merger blank-check
+            # SPAC has the identical "no real operating business, nothing to capitalize"
+            # structural fact, so it hits _get_no_recent_capex_symbols() and lands on
+            # "capex_never_tagged_in_recent_filings" ("Missing SEC/XBRL data") instead of
+            # this loop's intended "no_revenue_reported" ("Legitimate / not applicable").
             _blank_check_source_reasons = {
                 "missing_sec_data",
                 "total_debt_not_itemized",
@@ -372,6 +393,7 @@ class QualityRecategorizeMixin:
                 "stockholders_equity_not_reported",
                 "operating_income_not_itemized",
                 "total_liabilities_not_reported",
+                "capex_never_tagged_in_recent_filings",
                 # FIXED 2026-09-10 (goal: "SEC/XBRL missing data to zero" sweep, under-500
                 # push): live-confirmed COPL/LEGO/MTNE/NWAX/XFLH (all sic_description=
                 # "Blank Checks") stuck on "no_recent_free_cash_flow_reported" for fcf_margin
