@@ -21,6 +21,7 @@ from loaders.helpers.vqg_shared import (
     MAX_TREND_PERCENTAGE_POINTS,
     compute_quality_row_level_reason,
     get_loader_timestamp,
+    recategorize_balance_sheet_currency_fields,
 )
 from loaders.helpers.vqg_symbol_gates import SymbolGateMixin
 from utils.type_conversion import safe_float
@@ -3715,6 +3716,12 @@ class QualityMetricsMixin(SymbolGateMixin):
                     _reason_key = f"{_field}_unavailable_reason"
                     if metrics.get(_field) is None and metrics.get(_reason_key) in _unsupported_currency_source_reasons:
                         metrics[_reason_key] = "unsupported_currency_no_fx_rate"
+
+            # See recategorize_balance_sheet_currency_fields()'s docstring (vqg_shared.py -
+            # extracted rather than inlined, same file-size-ratchet discipline as
+            # compute_quality_row_level_reason above: this file is past the hard ceiling).
+            if symbol in self._get_unsupported_currency_balance_sheet_symbols():
+                recategorize_balance_sheet_currency_fields(metrics)
 
             if stale_fallback_metrics:
                 # One or more fields above came from a prior fiscal year (up to 6 years

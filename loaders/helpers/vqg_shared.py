@@ -227,6 +227,43 @@ def compute_quality_row_level_reason(
     return None
 
 
+_BS_CURRENCY_TOTAL_ASSETS_FIELDS = ("roa", "asset_turnover", "debt_to_assets", "gross_profitability")
+_BS_CURRENCY_TOTAL_ASSETS_SOURCE_REASONS = frozenset({"no_recent_total_assets_reported", "missing_sec_data"})
+_BS_CURRENCY_EQUITY_FIELDS = ("roe", "debt_to_equity", "sustainable_growth_rate")
+_BS_CURRENCY_EQUITY_SOURCE_REASONS = frozenset({"stockholders_equity_not_reported", "missing_sec_data"})
+
+
+def recategorize_balance_sheet_currency_fields(metrics: dict[str, Any]) -> None:
+    """Mutates `metrics` in place: for a symbol already confirmed as
+    _get_unsupported_currency_balance_sheet_symbols()-shaped (an FPI whose Assets/equity is
+    only tagged under a hyperinflationary/unsupported currency, e.g. CRESY's Assets tagged
+    only under ARS - live-confirmed via real SEC companyfacts JSON), overrides each
+    total_assets/stockholders_equity-derived field's generic unavailable_reason with the
+    real, specific "unsupported_currency_no_fx_rate" cause.
+
+    ADDED 2026-09-09 (goal: "SEC/XBRL missing data under 500" sweep). Extracted into this
+    module rather than inlined in vqg_quality.py (file-size ratchet: that file is past the
+    hard ceiling and cannot grow) - same discipline as compute_quality_row_level_reason
+    above. That row-level function already covers this cause for the "all core ratios None"
+    early return, but a symbol with SOME other ratio available (CRESY has operating_margin/
+    net_margin from its income statement, needing neither total_assets nor
+    stockholders_equity) skips that early return entirely, so its individual per-field
+    reasons never got the same treatment - same reason-string-doesn't-match-real-cause bug
+    class as the sibling OCF recategorize loop in vqg_quality.py this mirrors. Only overrides
+    a generic fallback reason on a field whose value is still None - never a real computed
+    value or a more specific already-set reason.
+    """
+    for field in _BS_CURRENCY_TOTAL_ASSETS_FIELDS:
+        reason_key = f"{field}_unavailable_reason"
+        if metrics.get(field) is None and metrics.get(reason_key) in _BS_CURRENCY_TOTAL_ASSETS_SOURCE_REASONS:
+            metrics[reason_key] = "unsupported_currency_no_fx_rate"
+
+    for field in _BS_CURRENCY_EQUITY_FIELDS:
+        reason_key = f"{field}_unavailable_reason"
+        if metrics.get(field) is None and metrics.get(reason_key) in _BS_CURRENCY_EQUITY_SOURCE_REASONS:
+            metrics[reason_key] = "unsupported_currency_no_fx_rate"
+
+
 def acquire_pooled_connection(table_name: str) -> Any:
     """Acquire one pooled DB connection for a whole loader run and register it for reuse.
 
