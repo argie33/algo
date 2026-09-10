@@ -259,3 +259,29 @@ def test_dependency_genuinely_errored_still_stores_critical_error_result() -> No
     assert result_5 is not None
     assert result_5.status == "error"
     assert "DEPENDENCY FAILED" in (result_5.error or "")
+
+
+def test_error_phase_attribution_keeps_the_first_failure_not_the_last() -> None:
+    """REAL-MONEY-READINESS FIX (2026-09-10): error_phase/error_message used to be plain
+    variables overwritten by the LAST failing phase. If an early phase halts for a real
+    reason and a later always_run phase then fails independently, the final report must
+    still attribute the run to the FIRST (root-cause) failure - not the later one, which
+    would mask the actual halt cause from an operator reading the report."""
+    executor = OrchestratorPhaseExecutor(config={}, halt_check_fn=lambda: False)
+    executor.register_phases(
+        [
+            PhaseDefinition(2, "circuit_breakers", [], lambda executor, **kw: _halting_phase(2)),
+            PhaseDefinition(
+                6,
+                "exit_execution",
+                [],
+                lambda executor, **kw: PhaseResult(6, "exit_execution", "error", {}, False, "unrelated later failure"),
+                always_run=True,
+            ),
+        ]
+    )
+
+    summary = executor.run()
+
+    assert summary["error_phase"] == 2, "root-cause phase 2's halt must not be overwritten by phase 6's later failure"
+    assert summary["error_message"] == "simulated halt"
