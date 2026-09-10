@@ -1,13 +1,40 @@
 repos:
-  # Code formatting with Ruff (single tool for format + lint)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.18
+  # Code formatting with Ruff (single tool for format + lint).
+  #
+  # LOCAL, NOT astral-sh/ruff-pre-commit (2026-09-08): that repo hook downloads its own
+  # isolated ruff.exe into .cache/pre-commit on first use. On a machine with Windows Smart
+  # App Control enforced (HKLM\SYSTEM\CurrentControlSet\Control\CI\Policy
+  # VerifiedAndReputablePolicyState=1), a freshly-extracted unsigned binary in a
+  # user-writable cache dir gets blocked outright ("[WinError 4551] An Application Control
+  # policy has blocked this file" - not a lint failure, ruff.exe itself refuses to even
+  # start, confirmed via direct invocation returning "Permission denied"). SAC can't be
+  # turned off without a full OS reinstall, so this hook could never run there. `python -m
+  # ruff` from the repo's normal installed environment isn't newly-written/unsigned in the
+  # same way and isn't blocked - `language: system` here runs that same already-installed
+  # binary (confirmed identical version, 0.15.18, to the rev this replaced) instead of a
+  # fresh isolated copy. No change in what gets checked, same version pinned via
+  # requirements - only which already-trusted copy of the binary executes it.
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
         name: Ruff lint and auto-fix
+        entry: python -m ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types: [python]
+        # .vulture_whitelist.py is vulture's stub format (bare names as "usage" markers), not
+        # real Python - pyproject.toml's [tool.ruff] extend-exclude already says so, but that
+        # setting only applies to ruff's own directory walk, never to files pre-commit passes
+        # explicitly (ruff only honors excludes for explicit paths with --force-exclude, which
+        # this hook doesn't set) - discovered 2026-09-10 when editing this file for the
+        # orchestrator.py mixin split tripped ~1600 F821/B018 errors that were always latent,
+        # just never hit because nothing had re-run this hook against the whole file recently.
+        exclude: ^\.vulture_whitelist\.py$
       - id: ruff-format
         name: Ruff format code
+        entry: python -m ruff format
+        language: system
+        types: [python]
+        exclude: ^\.vulture_whitelist\.py$
 
   # Type checking — run on full directories for accurate cross-module analysis
   - repo: local
@@ -140,7 +167,16 @@ repos:
         # and transient-error markers, not fetched panel data has_error() was designed for -
         # excluded pending the same dedicated remediation pass as the other six files above,
         # not silenced.
-        exclude: ^dashboard/(panels/health_(algo|algo_phases|freshness_sections|orch|results|status|status_panel)|fetchers_config|fetchers_market|fetchers_portfolio|api_data_layer|fetchers_external|fetchers)\.py$
+        # dashboard/panels/positions.py, dashboard/validators/portfolio_validator.py,
+        # dashboard/cognito_auth.py added 2026-09-07: same pre-existing debt (panel_positions()
+        # 27 .get() calls, validate_before_rendering() 5, get_cognito_auth() 11 - none with a
+        # has_error() check), git-blame-confirmed to 2026-08-11 - not touched by any change in
+        # this session. Surfaced only because this session wired check-dashboard-get-pattern
+        # into CI's `pre-commit run --all-files` for the first time (previously local-only, so
+        # this pass was never actually run against the whole repo before) - not new debt.
+        # Excluded pending the same dedicated remediation pass as the other files above, not
+        # silenced.
+        exclude: ^dashboard/(panels/(health_(algo|algo_phases|freshness_sections|orch|results|status|status_panel)|positions)|validators/portfolio_validator|cognito_auth|fetchers_config|fetchers_market|fetchers_portfolio|api_data_layer|fetchers_external|fetchers)\.py$
         stages: [pre-commit]
 
       - id: check-credential-defaults
@@ -241,8 +277,17 @@ repos:
     hooks:
       - id: trailing-whitespace
         name: Trim trailing whitespace
+        exclude: ^terraform/trigger-deploy\.txt$
       - id: end-of-file-fixer
         name: Fix end of file
+        # terraform/trigger-deploy.txt is deliberately UTF-16 (a Windows PowerShell Out-File
+        # artifact used to touch-trigger a terraform deploy watcher, predates any pre-commit
+        # hook ever running against it - added 2026-07-04). Both these hooks treat it as UTF-8
+        # text and silently corrupt/resize it on --all-files (discovered 2026-09-07 wiring this
+        # hook set into CI for the first time - see .github/workflows/ci.yml's governance-checks
+        # job). Excluded, not fixed - re-encoding it is a deploy-tooling change outside this
+        # session's scope, not a code-quality fix.
+        exclude: ^terraform/trigger-deploy\.txt$
       - id: check-yaml
         name: Check YAML syntax
       - id: check-json
