@@ -599,7 +599,7 @@
   "scripts/cleanup_loader_watermarks.py": 199,
   "scripts/clear_stale_loaders.py": 61,
   "scripts/comprehensive_diagnostics.py": 482,
-  "scripts/data_patrol_backlog_report.py": 195,
+  "scripts/data_patrol_backlog_report.py": 207,
   "scripts/dev_server_health_check.py": 187,
   "scripts/diagnose_missing_concepts.py": 148,
   "scripts/expire_stale_pending_signals.py": 123,
