@@ -638,6 +638,29 @@ class OrchestratorPhasesMixin(_Base):
             executor=executor,
             exposure_constraints=exposure_constraints,
         )
+        if result.halted:
+            # REAL-MONEY-READINESS FINDING (2026-09-10, orchestration re-audit): Phase 6
+            # (exit execution) returns PhaseResult(halted=True) on a DB error or any
+            # unexpected exception during exit/stop evaluation (see phase6_exit_execution.py's
+            # DatabaseError and generic Exception handlers), but this executor wrapper only
+            # ever returned that result straight to OrchestratorPhaseExecutor.execute_phase(),
+            # which just logs it at CRITICAL - it never reaches self.halt_manager's shared halt
+            # flag. Phase 8 only consults Phase 5's exposure_constraints (unrelated to Phase 6),
+            # so it had no way of knowing exit execution had catastrophically failed - it could
+            # still submit brand-new entry orders in the same run while existing positions were
+            # left with unverified/unmanaged exits. Mirrors Phase 3/9's identical
+            # set_halt_flag-on-halted pattern (see phase_3_position_monitor / _executor_phase_9).
+            halt_reason = f"Phase 6 (exit execution) halted: {result.error}"
+            logger.critical(f"[PHASE 6] Setting halt flag due to halted status: {halt_reason}")
+            halt_set_result = self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase6_exit_execution")
+            if not halt_set_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set despite Phase 6 "
+                    "(exit execution) halted status. This is a critical safety failure - exit "
+                    "execution failed and we can't stop new entries from proceeding this run. "
+                    "Orchestrator MUST fail. Check database connectivity (RDS and DynamoDB) and "
+                    "AWS credentials."
+                )
         return result
 
     def _executor_phase_7(self, executor: Any = None, **kwargs: Any) -> Any:
