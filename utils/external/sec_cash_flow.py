@@ -209,6 +209,22 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # the same fiscal year, where the plain tag is the fuller total (continuing +
         # discontinued) and must keep winning whenever it's actually present.
         "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+        # ADDED 2026-09-10 (goal session: SEC/XBRL missing-data count under 500,
+        # missing_cash_flow_data investigation): a DIFFERENT, shorter concept name than the
+        # "OperatingActivitiesContinuingOperations" one just above - live-confirmed via KN
+        # (Knowles Corporation, CIK 0001587523) real companyfacts JSON tagging real,
+        # continuous, plausible-scale annual figures ($78.4M-$182.1M) under this concept for
+        # every FY2012-2025 10-K, while the standard "NetCashProvidedByUsedInOperatingActivities"
+        # concept (and its own "OperatingActivitiesContinuingOperations" sibling above) only
+        # ever carry quarterly/YTD partial-period facts for KN, never a full annual duration -
+        # operating_cash_flow (and everything derived: free_cash_flow, fcf_to_net_income,
+        # fcf_yield, dcf_fcf) was NULL for KN's entire history, marked
+        # "incomplete_sec_filing_cashflow" despite capex being real and present every year.
+        # Listed before the plain concept (this file's own "last-listed wins" convention) and
+        # marked fallback-only in load_financial_statements.py's field_mapping
+        # (_OCF_FALLBACK_ONLY_FIELDS) for the same reason as its sibling above - a filer
+        # reporting the fuller plain-concept total must keep winning whenever present.
+        "NetCashProvidedByUsedInContinuingOperations",
         "NetCashProvidedByUsedInOperatingActivities",
         # FIXED 2026-09-07 (goal session: "make sure the list/checks are right, then fix
         # issues" audit): same "discontinued-operations filer" failure shape as the Operating

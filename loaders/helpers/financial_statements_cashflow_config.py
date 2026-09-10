@@ -44,6 +44,13 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # APD/ANGI (which report both concepts) keep the fuller plain-concept total
         # whenever it's actually present for that fiscal year.
         "net_cash_provided_by_used_in_operating_activities_continuing_operations",
+        # ADDED 2026-09-10 (goal session: SEC/XBRL missing-data count under 500,
+        # missing_cash_flow_data investigation): shorter-named sibling concept - see
+        # sec_statements.py's get_cash_flow() comment on "NetCashProvidedByUsedInContinuing
+        # Operations" (KN/Knowles Corporation live-confirmed: real annual figures every
+        # FY2012-2025, never a full-year fact under either OperatingActivities concept).
+        # Fallback-only, same never-overwrite-a-real-plain-value rationale.
+        "net_cash_provided_by_used_in_continuing_operations",
         # FIXED 2026-09-07 (goal session: "make sure the list/checks are right, then fix
         # issues" audit): same fallback-only rationale as the Operating entry above - see
         # sec_statements.py's get_cash_flow() comment on these 2 concepts for the live APD
@@ -75,6 +82,9 @@ _CASHFLOW_FIELD_MAPPING = {
     # _OCF_FALLBACK-style comment on _SBC_BUYBACK_FALLBACK_ONLY_FIELDS above and
     # sec_statements.py's get_cash_flow() comment for the live ASH evidence.
     "net_cash_provided_by_used_in_operating_activities_continuing_operations": "operating_cash_flow",
+    # ADDED 2026-09-10: see this dict's own _OCF_FALLBACK_ONLY_FIELDS comment above (KN live
+    # evidence) - fallback-only, same convention as the sibling entry immediately above.
+    "net_cash_provided_by_used_in_continuing_operations": "operating_cash_flow",
     "net_cash_provided_by_used_in_investing_activities": "investing_cash_flow",
     "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
     # FIXED 2026-09-07 (goal session: "make sure the list/checks are right, then fix issues"
