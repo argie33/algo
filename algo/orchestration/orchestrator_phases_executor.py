@@ -551,6 +551,25 @@ class OrchestratorPhasesMixin(_Base):
             self.verbose,
             self.log_phase_result,
         )
+        if result.halted:
+            # REAL-MONEY-READINESS FINDING (2026-09-10, orchestration re-audit): Phase 4
+            # (DB-vs-broker reconciliation) setting result.halted=True never reached the
+            # shared halt flag, the same gap already found and fixed for Phases 1/2/3/6/9
+            # this session. Phase 4 is always_run=True and downstream phases 5-9 only ever
+            # consult self.halt_manager's shared flag, not Phase 4's own result - without
+            # this call, Phase 8 could still submit brand-new entries in the same run
+            # despite Phase 4 detecting real broker-vs-DB position drift.
+            halt_reason = f"Phase 4 halted: {result.error}"
+            logger.critical(f"[PHASE 4] Setting halt flag due to halted status: {halt_reason}")
+            halt_set_result = self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase4_reconciliation")
+            if not halt_set_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set despite Phase 4 "
+                    "(reconciliation) halted status. This is a critical safety failure - "
+                    "we can no longer trust broker-vs-DB position state but can't stop new "
+                    "entries. Orchestrator MUST fail. Check database connectivity (RDS and "
+                    "DynamoDB) and AWS credentials."
+                )
         return result
 
     def _executor_phase_5(self, **kwargs: Any) -> Any:
