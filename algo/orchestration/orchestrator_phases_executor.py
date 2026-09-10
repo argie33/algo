@@ -285,6 +285,28 @@ class OrchestratorPhasesMixin(_Base):
         )
         self._phase3_result = result
         if not result.ok:
+            if result.halted:
+                # REAL-MONEY-READINESS FINDING (2026-09-10, orchestration re-audit): Phase 3
+                # setting result.halted=True (position-monitor crash - see
+                # phase3_position_monitor.py's PAPER MODE and live-mode crash branches) never
+                # reached the shared halt flag. Phase 6 already treats Phase 3's own result as
+                # informational-only and continues (documented "always_run" behavior), and
+                # Phase 5/7/8 never look at Phase 3's result at all - they only check
+                # self.halt_manager's shared flag. Without this call, Phase 8 could still
+                # submit brand-new entry orders in the same run despite Phase 3 believing
+                # position monitoring - and therefore trading - should be halted. Mirrors
+                # Phase 1/2/9's identical set_halt_flag-on-halted pattern.
+                halt_reason = f"Phase 3 halted: {result.error}"
+                logger.critical(f"[PHASE 3] Setting halt flag due to halted status: {halt_reason}")
+                halt_set_result = self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase3_position_monitor")
+                if not halt_set_result:
+                    raise RuntimeError(
+                        "[GOVERNANCE VIOLATION] Halt flag could not be set despite Phase 3 "
+                        "(position monitor) halted status. This is a critical safety failure - "
+                        "we can no longer safely monitor open positions but can't stop new "
+                        "entries. Orchestrator MUST fail. Check database connectivity (RDS and "
+                        "DynamoDB) and AWS credentials."
+                    )
             return False
         # GOVERNANCE: Fail-fast on data contract violations. Phase 3 MUST provide recommendations.
         if result.data is None or "recommendations" not in result.data:
