@@ -1214,8 +1214,36 @@ def run(
                                         raise RuntimeError(
                                             "[PHASE 6] trade_executor unavailable - cannot sync tightened stop to broker"
                                         )
+
+                                    # BROKER-SYNC STALENESS FIX (real-money-readiness audit,
+                                    # 2026-09-10): this used to push action["new_stop"] - a candidate
+                                    # computed from an active_stop SNAPSHOT read earlier in the
+                                    # Phase 5->6 pipeline - straight to the broker, before the
+                                    # GREATEST() DB write below could resolve it against whatever
+                                    # current_stop_price actually is right now. The DB write's own
+                                    # GREATEST() only protects the DB row; the broker call had zero
+                                    # equivalent protection, so it was possible to correctly leave a
+                                    # HIGHER stop in algo_positions while pushing a stale, LOWER
+                                    # candidate to Alpaca - the exact "wrong stop wins" regression the
+                                    # DB-side GREATEST() fix was meant to close, just relocated to the
+                                    # layer that actually protects real money. Read the live
+                                    # current_stop_price under the SAME advisory lock immediately
+                                    # before syncing, resolve to the max here, and sync/write that
+                                    # resolved value - never the raw, possibly-stale candidate.
+                                    cur.execute(
+                                        "SELECT current_stop_price FROM algo_positions WHERE id = %s",
+                                        (action["position_id"],),
+                                    )
+                                    current_stop_row = cur.fetchone()
+                                    current_stop_price = current_stop_row[0] if current_stop_row else None
+                                    resolved_stop = (
+                                        max(float(current_stop_price), float(action["new_stop"]))
+                                        if current_stop_price is not None
+                                        else float(action["new_stop"])
+                                    )
+
                                     sync_result = trade_executor.order_manager.sync_bracket_stop_loss(
-                                        alpaca_order_id, action["new_stop"]
+                                        alpaca_order_id, resolved_stop
                                     )
                                     if not sync_result.get("success"):
                                         raise RuntimeError(f"broker sync failed - {sync_result.get('message')}")
@@ -1232,12 +1260,13 @@ def run(
                                     # already committed a HIGHER current_stop_price for this same position earlier in
                                     # the same run would silently overwrite it with the older, lower value - a real
                                     # risk-management regression (loosening a stop), not just a cosmetic race. GREATEST()
-                                    # makes the write itself monotonic regardless of staleness upstream; rowcount==0
-                                    # still means exactly "position not found" as before (this never changes match
-                                    # semantics, only the value written when matched).
+                                    # makes the write itself monotonic regardless of staleness upstream (kept as
+                                    # defense-in-depth even though resolved_stop above is already the max as of the
+                                    # SELECT a moment ago); rowcount==0 still means exactly "position not found" as
+                                    # before (this never changes match semantics, only the value written when matched).
                                     cur.execute(
                                         "UPDATE algo_positions SET current_stop_price = GREATEST(current_stop_price, %s) WHERE id = %s",
-                                        (action["new_stop"], action["position_id"]),
+                                        (resolved_stop, action["position_id"]),
                                     )
                                     # rowcount guards against silently counting a no-op as a success -
                                     # e.g. the position closed (a race with a concurrent exit) between
@@ -1263,7 +1292,7 @@ def run(
                                         stop_raises += 1
                                         if verbose:
                                             logger.info(
-                                                f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}"
+                                                f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${resolved_stop:.2f}"
                                             )
                                 finally:
                                     release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
@@ -1448,8 +1477,26 @@ def run(
                                         raise RuntimeError(
                                             "[PHASE 6] trade_executor unavailable - cannot sync stop-loss to broker"
                                         )
+
+                                    # BROKER-SYNC STALENESS FIX (real-money-readiness audit,
+                                    # 2026-09-10): same bug class as the sibling tighten_stop write
+                                    # above - see its comment for the full reasoning. Resolve against
+                                    # the live current_stop_price (read under the same advisory lock)
+                                    # before syncing to the broker, not after.
+                                    cur.execute(
+                                        "SELECT current_stop_price FROM algo_positions WHERE id = %s",
+                                        (rec["position_id"],),
+                                    )
+                                    current_stop_row = cur.fetchone()
+                                    current_stop_price = current_stop_row[0] if current_stop_row else None
+                                    resolved_stop = (
+                                        max(float(current_stop_price), float(rec["new_stop_recommended"]))
+                                        if current_stop_price is not None
+                                        else float(rec["new_stop_recommended"])
+                                    )
+
                                     sync_result = trade_executor.order_manager.sync_bracket_stop_loss(
-                                        alpaca_order_id, rec["new_stop_recommended"]
+                                        alpaca_order_id, resolved_stop
                                     )
                                     if not sync_result.get("success"):
                                         raise RuntimeError(f"broker sync failed - {sync_result.get('message')}")
@@ -1459,12 +1506,14 @@ def run(
                                     # DB-LEVEL MONOTONICITY GUARD (2026-08-10): position_monitor.py's own recommendation
                                     # (`if proposed_stop > active_stop`) is only guaranteed monotonic against the
                                     # active_stop snapshot it read - same staleness risk, same GREATEST() fix, as the
-                                    # sibling tighten_stop write above (see its comment for the full reasoning).
+                                    # sibling tighten_stop write above (see its comment for the full reasoning). Kept
+                                    # as defense-in-depth even though resolved_stop above is already the max as of
+                                    # the SELECT a moment ago.
                                     cur.execute(
                                         "UPDATE algo_positions SET current_stop_price = GREATEST(current_stop_price, %s) "
                                         "WHERE id = %s AND status = %s",
                                         (
-                                            rec["new_stop_recommended"],
+                                            resolved_stop,
                                             rec["position_id"],
                                             PositionStatus.OPEN.value,
                                         ),
@@ -1492,7 +1541,7 @@ def run(
                                         stop_raises += 1
                                         if verbose:
                                             logger.info(
-                                                f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}"
+                                                f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${resolved_stop:.2f}"
                                             )
                                 finally:
                                     release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
