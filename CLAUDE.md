@@ -112,6 +112,32 @@ describes. Run it by hand every so often (or from a low-frequency schedule) on a
 rotating sample - the daily pseudo-random sample means broad coverage accumulates over many
 runs rather than needing to cover the whole universe in one pass.
 
+**Calculation-linkbase self-consistency check (5th and final layer of the XBRL data-quality
+architecture, added 2026-09-10 - not a bug-report-driven thing, run it periodically):**
+```bash
+python scripts/xbrl_calculation_linkbase_check.py               # samples 15 symbols, writes findings
+python scripts/xbrl_calculation_linkbase_check.py --limit 30
+python scripts/xbrl_calculation_linkbase_check.py --symbols AAPL,MSFT,KO
+python scripts/xbrl_calculation_linkbase_check.py --dry-run      # print only, don't write to data_patrol_log
+```
+Unlike the other four layers (self-consistency of our own derived fields, statistical/peer
+outliers, DQC-style negative-value guards, yfinance second-opinion), this one never touches
+our own tables at all - it parses each sampled symbol's latest 10-K's XBRL calculation
+linkbase (`utils/external/sec_calculation_linkbase.py`, fetched via
+`SecEdgarClient.get_calculation_linkbase_xml`) to get the filer's OWN declared summation-item
+relationships (e.g. `Assets = AssetsCurrent + AssetsNoncurrent`), then checks those against
+the filer's own reported us-gaap fact values (matched by accession number, from the already-
+cached companyfacts payload) for that exact filing. A mismatch means the FILING itself doesn't
+tie, independent of anything our extraction code does. Restricted to primary-statement
+extended link roles only (role name has no "Details"/"Tables" suffix) - SEC's companyfacts API
+collapses all dimensional facts for a concept into one flat list with no axis/member info, so
+note-schedule concepts reused across dimensional breakdowns (lease maturity tables, debt
+schedules, segment detail) produce false "mismatches" that are really just companyfacts
+losing the dimensional context, not a real filing error (live-confirmed on AAPL's FY2025
+10-K before this filter was added: all 3 raw mismatches were note-schedule concepts, 0 were
+face-financial-statement concepts). Same rate-limit posture as the yfinance script - not part
+of every DataPatrol run, small rotating sample only.
+
 `monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use
 **different freshness methodologies** — a table can show FRESH in the monitor and still halt
 Phase 1 minutes later:

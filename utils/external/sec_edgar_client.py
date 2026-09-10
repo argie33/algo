@@ -450,6 +450,51 @@ class SecEdgarClient:
                 last_error = RuntimeError(f"Timeout fetching SEC XML: {url}: {e}")
         raise last_error
 
+    def get_filing_index(self, cik: str, accession_number: str) -> dict[str, Any]:
+        """Directory listing (index.json) for one filing's accession folder.
+
+        Used to discover the calculation linkbase filename, which (unlike the instance
+        document) has no primaryDocument-style pointer in the submissions API - filers
+        name it "{doc-stem}_cal.xml" but the stem itself varies, so the directory listing
+        is the only reliable way to find it.
+        """
+        path_accession = accession_number.replace("-", "")
+        cik_number = str(cik).lstrip("0") or "0"
+        url = f"https://www.sec.gov/Archives/edgar/data/{cik_number}/{path_accession}/index.json"
+        return self._get_json(url)
+
+    def get_calculation_linkbase_xml(self, cik: str, accession_number: str) -> str:
+        """Fetch the raw XBRL calculation linkbase (_cal.xml) for one filing.
+
+        Added 2026-09-10 (institutional XBRL data-quality build, layer 5/5: calculation-
+        linkbase self-consistency - see algo/monitoring/data_patrol/checks/README or
+        scripts/xbrl_calculation_linkbase_check.py for what this feeds). The calc linkbase
+        declares the filer's OWN summation-item relationships (e.g. Assets =
+        AssetsCurrent + AssetsNoncurrent) - a source of truth that exists independent of
+        our own extraction/mapping code, unlike tie_out.py's identity checks which only
+        confirm OUR derived fields are self-consistent with each other.
+
+        Not all filings pre-date Inline XBRL adoption; very old filings (pre-~2011) may
+        lack a calculation linkbase entirely - callers should treat FileNotFoundError as
+        "nothing to check", not an error.
+        """
+        index = self.get_filing_index(cik, accession_number)
+        items = index.get("directory", {}).get("item", [])
+        cal_name = next(
+            (
+                it["name"]
+                for it in items
+                if isinstance(it, dict) and str(it.get("name", "")).lower().endswith("_cal.xml")
+            ),
+            None,
+        )
+        if cal_name is None:
+            raise FileNotFoundError(f"No calculation linkbase (_cal.xml) found for accession {accession_number}")
+        path_accession = accession_number.replace("-", "")
+        cik_number = str(cik).lstrip("0") or "0"
+        url = f"https://www.sec.gov/Archives/edgar/data/{cik_number}/{path_accession}/{cal_name}"
+        return cast(str, self._get_with_retry(url, error_label="SEC calculation linkbase").text)
+
     def get_filing_plaintext(self, cik: str, accession_number: str) -> str:
         """Fetch raw plain-text document from SEC EDGAR filing.
 
