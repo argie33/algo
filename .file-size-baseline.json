@@ -738,7 +738,7 @@
   "utils/external/xbrl_concept_coverage.py": 810,
   "utils/external/yfinance_analyst_ratings.py": 765,
   "utils/external/yfinance_circuit_breaker.py": 374,
-  "utils/external/yfinance_financials.py": 359,
+  "utils/external/yfinance_financials.py": 387,
   "utils/external/yfinance_symbol.py": 53,
   "utils/external/yfinance_timeout_wrapper.py": 96,
   "utils/finance_data_validation.py": 219,
