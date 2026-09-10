@@ -927,7 +927,41 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
     _fill_liabilities_from_assets_minus_equity(rows, client, symbol, period)
     _fill_liabilities_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
     _fill_assets_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
+    _fill_assets_from_liabilities_plus_equity(rows)
     return rows
+
+
+def _fill_assets_from_liabilities_plus_equity(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: assets = liabilities + stockholders_equity for a filer that never tags
+    "Assets" (or any Assets/AssetsCurrent/AssetsNoncurrent/LiabilitiesAndStockholdersEquity
+    variant already fetched above) but DOES directly tag both "Liabilities" and
+    "StockholdersEquity" - a real balance-sheet-identity-guaranteed sum
+    (Assets = Liabilities + StockholdersEquity by definition), not an estimate.
+
+    ADDED 2026-09-10 (goal session: "Missing SEC/XBRL data" under-300 push,
+    no_recent_total_assets_reported/roa/asset_turnover investigation). Live-confirmed via real
+    SEC companyfacts JSON for two thinly-reporting shells: Black Titan Corp (CIK 0002034400)
+    and D. Boral ARC Merger Corp / XLAB (CIK 0002109869) - both tag "Liabilities" and
+    "StockholdersEquity" every period they report but have NEVER tagged "Assets" or any
+    combined-total concept in their full companyfacts history (confirmed by listing every
+    us-gaap key present - neither filer has anything asset-shaped at all). Distinct from
+    _fill_liabilities_from_assets_minus_equity above, which needs a combined
+    "LiabilitiesAndStockholdersEquity" fact to subtract from - these filers never tag that
+    either, only the two separate halves.
+
+    Only fires when `assets` is still None after every earlier concept/derivation - never
+    overwrites a real value - and only when BOTH halves are real (non-None); a filer missing
+    either half hasn't reported enough to derive from, so this leaves an honest NULL rather
+    than summing a partial figure.
+    """
+    for row in rows:
+        if row.get("assets") is not None:
+            continue
+        liabilities = row.get("liabilities")
+        equity = row.get("stockholders_equity")
+        if liabilities is None or equity is None:
+            continue
+        row["assets"] = liabilities + equity
 
 
 def _fill_operating_lease_liability_from_current_noncurrent_split(rows: list[dict[str, Any]]) -> None:
