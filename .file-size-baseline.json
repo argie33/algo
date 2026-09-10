@@ -142,7 +142,7 @@
   "algo/orchestrator/phase8_technical_data.py": 229,
   "algo/orchestrator/phase9_reconciliation.py": 2068,
   "algo/orchestrator/phase9_reporting.py": 515,
-  "algo/orchestrator/phase9_stop_loss_repair.py": 228,
+  "algo/orchestrator/phase9_stop_loss_repair.py": 261,
   "algo/orchestrator/phase_data_contract.py": 423,
   "algo/orchestrator/phase_error_handling.py": 124,
   "algo/orchestrator/phase_executor.py": 562,
