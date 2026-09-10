@@ -39,12 +39,12 @@ class TestCustomExtensionDividendsFallback:
                 ConsolidatedFinancialStatementsLoader.__mro__[1],
                 "fetch_incremental",
                 return_value=[
-                    {"symbol": "CMS", "fiscal_year": 2025, "operating_cash_flow": 2_000_000_000},
-                    {"symbol": "CMS", "fiscal_year": 2024, "operating_cash_flow": 1_900_000_000},
+                    {"symbol": "CMS", "fiscal_year": 2025, "fiscal_period": "FY", "operating_cash_flow": 2_000_000_000},
+                    {"symbol": "CMS", "fiscal_year": 2024, "fiscal_period": "FY", "operating_cash_flow": 1_900_000_000},
                 ],
             ),
             patch(
-                "loaders.load_financial_statements.fetch_custom_dividends",
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_dividends",
                 return_value={2025: 663_000_000.0, 2024: 626_000_000.0},
             ) as mock_fetch,
         ):
@@ -63,7 +63,9 @@ class TestCustomExtensionDividendsFallback:
                 "fetch_incremental",
                 return_value=[{"symbol": "AAPL", "fiscal_year": 2025, "operating_cash_flow": 1}],
             ),
-            patch("loaders.load_financial_statements.fetch_custom_dividends") as mock_fetch,
+            patch(
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_dividends"
+            ) as mock_fetch,
         ):
             loader.fetch_incremental("AAPL", since=None)
 
@@ -80,7 +82,9 @@ class TestCustomExtensionDividendsFallback:
                 "fetch_incremental",
                 return_value=[{"symbol": "CMS", "fiscal_year": 2025, "revenue": 1}],
             ),
-            patch("loaders.load_financial_statements.fetch_custom_dividends") as mock_fetch,
+            patch(
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_dividends"
+            ) as mock_fetch,
         ):
             loader.fetch_incremental("CMS", since=None)
 
@@ -95,7 +99,7 @@ class TestCustomExtensionDividendsFallback:
                 return_value=[{"symbol": "CMS", "fiscal_year": 2010, "operating_cash_flow": 1}],
             ),
             patch(
-                "loaders.load_financial_statements.fetch_custom_dividends",
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_dividends",
                 return_value={2025: 663_000_000.0},  # No entry for 2010
             ),
         ):

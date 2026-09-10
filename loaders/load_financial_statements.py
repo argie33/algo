@@ -39,6 +39,11 @@ from collections.abc import Iterable  # noqa: E402
 from datetime import date  # noqa: E402
 from typing import Any  # noqa: E402
 
+from loaders.helpers.financial_statements_custom_extension_fallbacks import (  # noqa: E402
+    apply_custom_cashflow_extensions,
+    apply_custom_debt_extensions,
+    apply_custom_income_extensions,
+)
 from loaders.helpers.financial_statements_prefetch import start_companyfacts_prefetch  # noqa: E402
 from loaders.helpers.financial_statements_q4_sweeps import Q4DerivationSweepMixin  # noqa: E402
 from loaders.helpers.financial_statements_share_count_validation import (  # noqa: E402
@@ -50,24 +55,6 @@ from loaders.helpers.financial_statements_value_validation import (  # noqa: E40
 from loaders.helpers.sec_base import SecEdgarStatementLoader  # noqa: E402
 from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
-from utils.external.sec_custom_xbrl_concepts import (  # noqa: E402
-    CUSTOM_CAPEX_CONCEPTS,
-    CUSTOM_CAPEX_DIMENSIONED_CONCEPTS,
-    CUSTOM_DEBT_CONCEPTS,
-    CUSTOM_DEBT_LONGTERM_CONCEPTS,
-    CUSTOM_DEBT_SHORTTERM_CONCEPTS,
-    CUSTOM_DIVIDEND_CONCEPTS,
-    CUSTOM_INCOME_DIMENSIONED_CONCEPTS,
-    CUSTOM_REVENUE_CONCEPTS,
-    fetch_custom_capex,
-    fetch_custom_capex_dimensioned_sum,
-    fetch_custom_debt,
-    fetch_custom_debt_longterm,
-    fetch_custom_debt_shortterm,
-    fetch_custom_dividends,
-    fetch_custom_income_dimensioned,
-    fetch_custom_revenue,
-)
 from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
 from utils.external.sec_statements_shared import has_unsupported_currency_only_fact  # noqa: E402
 from utils.loaders.enum_validator import validate_period, validate_statement_type  # noqa: E402
@@ -1102,40 +1089,18 @@ class ConsolidatedFinancialStatementsLoader(
             self._reject_shared_etf_cik_data(symbol)
             return [self._unavailable_marker(symbol, "shared_issuer_or_trust_cik_not_attributable")]
         rows = super().fetch_incremental(symbol, since)
+        # Custom-XBRL-extension fallbacks (CUSTOM_REVENUE_CONCEPTS/CUSTOM_INCOME_DIMENSIONED_
+        # CONCEPTS/CUSTOM_CAPEX_CONCEPTS/CUSTOM_CAPEX_DIMENSIONED_CONCEPTS/CUSTOM_DIVIDEND_
+        # CONCEPTS/CUSTOM_DEBT_CONCEPTS/CUSTOM_DEBT_LONGTERM_CONCEPTS/CUSTOM_DEBT_SHORTTERM_
+        # CONCEPTS) - extracted to loaders/helpers/financial_statements_custom_extension_
+        # fallbacks.py 2026-09-10 (file-size ratchet), see that module's docstring for the
+        # full root-cause trail on why every one of these is gated to annual rows only
+        # (fiscal_period == "FY") - the APA quarterly_revenue_annual_duplicate bug.
         if self.statement_type == "cashflow":
-            self._apply_custom_cashflow_extensions(symbol, rows)
-
-        # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit, no_revenue_reported bucket):
-        # same structural gap as the capex block above, for the top-line revenue figure -
-        # see utils/external/sec_custom_xbrl_concepts.py's CUSTOM_REVENUE_CONCEPTS
-        # docstring for the live-verified APA evidence (real $8.951B FY2025 consolidated
-        # revenue tagged only under its own apachecorp.com extension concept, invisible to
-        # the companyfacts-API-driven normal extraction). Cheap no-op for every other
-        # symbol (dict lookup miss, zero extra network calls).
-        if self.statement_type == "income" and symbol in CUSTOM_REVENUE_CONCEPTS:
-            custom_revenue_by_year = fetch_custom_revenue(symbol, self._sec_client)
-            for row in rows:
-                fiscal_year = row.get("fiscal_year")
-                if fiscal_year in custom_revenue_by_year:
-                    row["custom_extension_revenue"] = custom_revenue_by_year[fiscal_year]
-
-        # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, pe_ratio/
-        # peg_ratio investigation, BRK diluted_eps follow-up): DB's real net_income/basic_
-        # eps/diluted_eps are tagged only under a single-explicitMember dimensioned context
-        # (dei:LegalEntityAxis=db:ConsolidatedBankEntityMember), invisible to the normal
-        # concept-list extraction the same way CUSTOM_DEBT_CONCEPTS's Berkshire debt is -
-        # see utils/external/sec_custom_xbrl_concepts.py's CUSTOM_INCOME_DIMENSIONED_CONCEPTS
-        # docstring for the live-verified evidence. Cheap no-op for every other symbol.
-        if self.statement_type == "income" and symbol in CUSTOM_INCOME_DIMENSIONED_CONCEPTS:
-            custom_income_fields = fetch_custom_income_dimensioned(symbol, self._sec_client)
-            for row in rows:
-                fiscal_year = row.get("fiscal_year")
-                for field_key, values_by_year in custom_income_fields.items():
-                    if fiscal_year in values_by_year:
-                        row[field_key] = values_by_year[fiscal_year]
-
-        if self.statement_type == "balance":
-            self._apply_custom_debt_extensions(symbol, rows)
+            apply_custom_cashflow_extensions(symbol, rows, self._sec_client)
+        elif self.statement_type == "balance":
+            apply_custom_debt_extensions(symbol, rows, self._sec_client)
+        apply_custom_income_extensions(symbol, rows, self.statement_type, self._sec_client)
 
         # FIX 2026-09-03 (goal session: "get the missing-XBRL number down the right way" -
         # quality_metrics.interest_coverage's "interest_expense_not_itemized" bucket):
@@ -1375,86 +1340,6 @@ class ConsolidatedFinancialStatementsLoader(
             if key in already_has_data:
                 continue  # Already-confirmed real data on file - this run's empty fetch is untrusted, let COALESCE preserve it
             self._reject_stale_all_none_annual_row(symbol, row)
-
-    def _apply_custom_cashflow_extensions(self, symbol: str, rows: list[dict[str, Any]]) -> None:
-        """Supplement `rows` with any of this loader's per-symbol custom-XBRL-extension
-        cash-flow fallbacks, for symbols where the normal companyfacts-driven concept-list
-        extraction structurally can't reach the real figure. Extracted out of
-        fetch_incremental() to keep its own cyclomatic complexity in check (ruff C901) -
-        purely a call-site split, no behavior change (same reasoning as
-        _apply_custom_debt_extensions below, for the balance-sheet case).
-
-        - CUSTOM_CAPEX_CONCEPTS (DHT/CMRE/...): filer-specific custom XBRL extension
-          concept(s) -> custom_extension_vessel_capex (capex). See
-          utils/external/sec_custom_xbrl_concepts.py's module docstring.
-        - CUSTOM_CAPEX_DIMENSIONED_CONCEPTS (NJR/MUX): real capex split across N axis
-          members with no consolidated total -> custom_extension_capex_dimensioned_sum
-          (capex). See that module's CUSTOM_CAPEX_DIMENSIONED_CONCEPTS docstring.
-        - CUSTOM_DIVIDEND_CONCEPTS (CMS/SPG/RS/HUBB): filer-specific custom XBRL extension
-          (or, for HUBB, a mistagged standard) dividends concept ->
-          custom_extension_dividends_paid (dividends_paid). See that module's
-          CUSTOM_DIVIDEND_CONCEPTS docstring.
-
-        Cheap no-op for every symbol in none of these registries (dict lookup miss, zero
-        extra network calls) - only called when self.statement_type == "cashflow".
-        """
-        if symbol in CUSTOM_CAPEX_CONCEPTS:
-            custom_capex_by_year = fetch_custom_capex(symbol, self._sec_client)
-            for row in rows:
-                fiscal_year = row.get("fiscal_year")
-                if fiscal_year in custom_capex_by_year:
-                    row["custom_extension_vessel_capex"] = custom_capex_by_year[fiscal_year]
-
-        if symbol in CUSTOM_CAPEX_DIMENSIONED_CONCEPTS:
-            dimensioned_capex_by_year = fetch_custom_capex_dimensioned_sum(symbol, self._sec_client)
-            for row in rows:
-                fiscal_year = row.get("fiscal_year")
-                if fiscal_year in dimensioned_capex_by_year:
-                    row["custom_extension_capex_dimensioned_sum"] = dimensioned_capex_by_year[fiscal_year]
-
-        if symbol in CUSTOM_DIVIDEND_CONCEPTS:
-            custom_dividends_by_year = fetch_custom_dividends(symbol, self._sec_client)
-            for row in rows:
-                fiscal_year = row.get("fiscal_year")
-                if fiscal_year in custom_dividends_by_year:
-                    row["custom_extension_dividends_paid"] = custom_dividends_by_year[fiscal_year]
-
-    def _apply_custom_debt_extensions(self, symbol: str, rows: list[dict[str, Any]]) -> None:
-        """Supplement `rows` with any of this loader's per-symbol custom-XBRL-extension
-        debt fallbacks, for symbols where the normal companyfacts-driven concept-list
-        extraction structurally can't reach the real figure. Extracted out of
-        fetch_incremental() to keep its own cyclomatic complexity in check (ruff C901) -
-        purely a call-site split, no behavior change.
-
-        - CUSTOM_DEBT_CONCEPTS (BRK.A/BRK.B): dimensioned-sum extraction, single combined
-          figure -> custom_extension_total_debt (long_term_debt). See
-          utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_CONCEPTS module comment.
-        - CUSTOM_DEBT_LONGTERM_CONCEPTS/CUSTOM_DEBT_SHORTTERM_CONCEPTS (AES): plain
-          filer-extension concepts, real current/noncurrent split preserved ->
-          custom_extension_total_debt (long_term_debt) / custom_extension_total_debt_current
-          (short_term_debt). See that module's CUSTOM_DEBT_LONGTERM_CONCEPTS comment.
-
-        Cheap no-op for every symbol in none of these registries (dict lookup miss, zero
-        extra network calls) - only called when self.statement_type == "balance".
-        """
-        if symbol in CUSTOM_DEBT_CONCEPTS:
-            custom_debt_by_year = fetch_custom_debt(symbol, self._sec_client)
-            for row in rows:
-                fiscal_year = row.get("fiscal_year")
-                if fiscal_year in custom_debt_by_year:
-                    row["custom_extension_total_debt"] = custom_debt_by_year[fiscal_year]
-        if symbol in CUSTOM_DEBT_LONGTERM_CONCEPTS:
-            custom_debt_lt_by_year = fetch_custom_debt_longterm(symbol, self._sec_client)
-            for row in rows:
-                fiscal_year = row.get("fiscal_year")
-                if fiscal_year in custom_debt_lt_by_year:
-                    row["custom_extension_total_debt"] = custom_debt_lt_by_year[fiscal_year]
-        if symbol in CUSTOM_DEBT_SHORTTERM_CONCEPTS:
-            custom_debt_st_by_year = fetch_custom_debt_shortterm(symbol, self._sec_client)
-            for row in rows:
-                fiscal_year = row.get("fiscal_year")
-                if fiscal_year in custom_debt_st_by_year:
-                    row["custom_extension_total_debt_current"] = custom_debt_st_by_year[fiscal_year]
 
     _INTEREST_EXPENSE_NET_CONCEPTS = ("InterestIncomeExpenseNet", "InterestIncomeExpenseNonoperatingNet")
 

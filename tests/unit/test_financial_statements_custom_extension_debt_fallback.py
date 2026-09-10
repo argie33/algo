@@ -37,12 +37,12 @@ class TestCustomExtensionDebtFallback:
                 ConsolidatedFinancialStatementsLoader.__mro__[1],
                 "fetch_incremental",
                 return_value=[
-                    {"symbol": "BRK.B", "fiscal_year": 2025, "total_assets": 1_222_176_000_000},
-                    {"symbol": "BRK.B", "fiscal_year": 2024, "total_assets": 1_153_881_000_000},
+                    {"symbol": "BRK.B", "fiscal_year": 2025, "fiscal_period": "FY", "total_assets": 1_222_176_000_000},
+                    {"symbol": "BRK.B", "fiscal_year": 2024, "fiscal_period": "FY", "total_assets": 1_153_881_000_000},
                 ],
             ),
             patch(
-                "loaders.load_financial_statements.fetch_custom_debt",
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_debt",
                 return_value={2025: 129_081_000_000.0},
             ) as mock_fetch,
         ):
@@ -61,7 +61,7 @@ class TestCustomExtensionDebtFallback:
                 "fetch_incremental",
                 return_value=[{"symbol": "AAPL", "fiscal_year": 2025, "total_assets": 1}],
             ),
-            patch("loaders.load_financial_statements.fetch_custom_debt") as mock_fetch,
+            patch("loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_debt") as mock_fetch,
         ):
             loader.fetch_incremental("AAPL", since=None)
 
@@ -78,7 +78,7 @@ class TestCustomExtensionDebtFallback:
                 "fetch_incremental",
                 return_value=[{"symbol": "BRK.B", "fiscal_year": 2025, "operating_cash_flow": 1}],
             ),
-            patch("loaders.load_financial_statements.fetch_custom_debt") as mock_fetch,
+            patch("loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_debt") as mock_fetch,
         ):
             loader.fetch_incremental("BRK.B", since=None)
 
@@ -113,16 +113,16 @@ class TestCustomExtensionDebtLongtermShorttermFallback:
                 ConsolidatedFinancialStatementsLoader.__mro__[1],
                 "fetch_incremental",
                 return_value=[
-                    {"symbol": "AES", "fiscal_year": 2025, "total_assets": 54_238_000_000},
-                    {"symbol": "AES", "fiscal_year": 2024, "total_assets": 50_000_000_000},
+                    {"symbol": "AES", "fiscal_year": 2025, "fiscal_period": "FY", "total_assets": 54_238_000_000},
+                    {"symbol": "AES", "fiscal_year": 2024, "fiscal_period": "FY", "total_assets": 50_000_000_000},
                 ],
             ),
             patch(
-                "loaders.load_financial_statements.fetch_custom_debt_longterm",
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_debt_longterm",
                 return_value={2025: 26_786_000_000.0},
             ) as mock_fetch_lt,
             patch(
-                "loaders.load_financial_statements.fetch_custom_debt_shortterm",
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_debt_shortterm",
                 return_value={2025: 3_111_000_000.0},
             ) as mock_fetch_st,
         ):
@@ -144,8 +144,12 @@ class TestCustomExtensionDebtLongtermShorttermFallback:
                 "fetch_incremental",
                 return_value=[{"symbol": "AAPL", "fiscal_year": 2025, "total_assets": 1}],
             ),
-            patch("loaders.load_financial_statements.fetch_custom_debt_longterm") as mock_lt,
-            patch("loaders.load_financial_statements.fetch_custom_debt_shortterm") as mock_st,
+            patch(
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_debt_longterm"
+            ) as mock_lt,
+            patch(
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_debt_shortterm"
+            ) as mock_st,
         ):
             loader.fetch_incremental("AAPL", since=None)
 
