@@ -15,9 +15,11 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from loaders.helpers.vqg_shared import (
+    _QUARTERLY_DERIVED_TREND_FIELDS,
     MAX_ABSOLUTE_DOLLAR_VALUE,
     MAX_PLAUSIBLE_GROWTH_PCT,
     MAX_TREND_PERCENTAGE_POINTS,
+    compute_quality_row_level_reason,
     get_loader_timestamp,
 )
 from loaders.helpers.vqg_symbol_gates import SymbolGateMixin
@@ -1929,51 +1931,29 @@ class QualityMetricsMixin(SymbolGateMixin):
                 # real quarters exist, so checking it here is a direct signal that real
                 # quarterly data exists - guards against this early return's blanket
                 # None+"missing_sec_data" stamp wiping already-computed quarterly-derived
-                # fields. This return also fires before any of the per-field reason blocks
-                # below run, so propagate a real row-level reason when one is knowable instead
-                # of leaving _unavailable_marker's generic default on every column.
-                row_level_reason = (
-                    "etf_trust_no_gaap_financials"
-                    if stockholders_equity is None and symbol in self._get_etf_trust_no_stockholders_equity_symbols()
-                    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling to
-                    # this session's FPI-unsupported-currency cash-flow-side fix): a foreign
-                    # private issuer that tags Assets/Equity only under an unsupported currency
-                    # (e.g. ARS) has a real, non-fabricatable stockholders_equity=None, not a
-                    # genuine loader gap - checked before the generic fallback below, same
-                    # priority as the ETF-trust check just above.
-                    else "unsupported_currency_no_fx_rate"
-                    if stockholders_equity is None and symbol in self._get_unsupported_currency_balance_sheet_symbols()
-                    else "no_recent_balance_sheet_data_reported"
-                    if stockholders_equity is None
-                    and (
-                        symbol in self._get_no_recent_stockholders_equity_symbols()
-                        or symbol in self._get_never_tagged_stockholders_equity_symbols()
-                    )
-                    # FIXED 2026-09-05 (goal session: "implausible values" sweep follow-up): a
-                    # real, reported $0.00 total_assets/stockholders_equity (a blank-check/
-                    # shell company pre-merger, e.g. OBX) makes every ratio in the `all( ...
-                    # is None)` check above genuinely undefined (division by zero), tripping
-                    # this same blanket early return - but neither branch above catches it
-                    # since both only check `is None`, not "real zero". Distinct reason string
-                    # from "no_recent_balance_sheet_data_reported" just above (a genuine "never
-                    # tagged, real extraction gap" fact for most of its population) - a real
-                    # reported zero is a known business fact (pre-merger shell, no assets yet),
-                    # same "Legitimate / not applicable" class as reit_special_entity/
-                    # non_dividend_paying_stock, not a data gap. Live-confirmed OBX: real
-                    # total_assets=$0.00/stockholders_equity=$0.00 (2026 anchor row, not
-                    # data_unavailable) - every quality_metrics ratio correctly came back None,
-                    # but the row-level reason defaulted to generic "missing_sec_data" instead
-                    # of this real, knowable cause.
-                    else "zero_total_assets_reported_shell_entity"
-                    if total_assets is not None
-                    and total_assets <= 0
-                    and (
-                        symbol in self._get_no_recent_total_assets_symbols()
-                        or symbol in self._get_never_tagged_total_assets_symbols()
-                    )
-                    else None
+                # fields. row_level_reason logic extracted to vqg_shared.py's
+                # compute_quality_row_level_reason() 2026-09-09 (file-size ratchet).
+                row_level_reason = compute_quality_row_level_reason(
+                    symbol,
+                    stockholders_equity,
+                    total_assets,
+                    self._get_etf_trust_no_stockholders_equity_symbols(),
+                    self._get_unsupported_currency_balance_sheet_symbols(),
+                    self._get_no_recent_stockholders_equity_symbols(),
+                    self._get_never_tagged_stockholders_equity_symbols(),
+                    self._get_no_recent_total_assets_symbols(),
+                    self._get_never_tagged_total_assets_symbols(),
                 )
-                return self._unavailable_marker("quality_metrics", symbol, reason=row_level_reason)
+                marker = self._unavailable_marker("quality_metrics", symbol, reason=row_level_reason)
+                # FIXED 2026-09-09: preserve _QUARTERLY_DERIVED_TREND_FIELDS' own reason
+                # (e.g. "foreign_private_issuer_no_quarterly_filings") instead of letting
+                # _unavailable_marker overwrite it with the unrelated row_level_reason above -
+                # see compute_quality_row_level_reason()'s docstring.
+                for _qfield in _QUARTERLY_DERIVED_TREND_FIELDS:
+                    _qreason_field = f"{_qfield}_unavailable_reason"
+                    if metrics.get(_qreason_field):
+                        marker[_qreason_field] = metrics[_qreason_field]
+                return marker
 
             # Compute composite quality_score from available metrics
             # Score is average of available metrics (0-100 scale)

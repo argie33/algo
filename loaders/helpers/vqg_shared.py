@@ -163,6 +163,69 @@ _SHARED_TREND_FIELDS = (
     "earnings_beat_rate",
 )
 
+# Subset of _SHARED_TREND_FIELDS sourced from _compute_quarterly_metrics() (quarterly
+# income-statement history), not the annual balance-sheet ratios the rest of quality_metrics
+# computes - see compute_quality_row_level_reason()'s docstring below.
+_QUARTERLY_DERIVED_TREND_FIELDS = (
+    "quarterly_growth_momentum",
+    "consecutive_positive_quarters",
+    "earnings_growth_4q_avg",
+    "eps_growth_stability",
+    "earnings_surprise_avg",
+    "earnings_beat_rate",
+)
+
+
+def compute_quality_row_level_reason(
+    symbol: str,
+    stockholders_equity: float | None,
+    total_assets: float | None,
+    etf_trust_symbols: frozenset[str],
+    unsupported_currency_symbols: frozenset[str],
+    no_recent_equity_symbols: frozenset[str],
+    never_tagged_equity_symbols: frozenset[str],
+    no_recent_total_assets_symbols: frozenset[str],
+    never_tagged_total_assets_symbols: frozenset[str],
+) -> str | None:
+    """Row-level reason for _compute_quality_metrics's "all core ratios None" early return.
+    Extracted out of vqg_quality.py (2026-09-09, file-size ratchet: that file is past the
+    hard ceiling and cannot grow) - pure function, gate symbol sets passed in rather than
+    fetched via self so this has no DB/mixin dependency.
+
+    "etf_trust_no_gaap_financials" (ADDED 2026-09-05): GLD/SLV/... file a "Statement of
+    Assets and Liabilities" with no GAAP stockholders_equity concept at all.
+
+    "unsupported_currency_no_fx_rate" (ADDED 2026-09-06): an FPI tagging Assets/Equity only
+    under an unsupported currency (e.g. ARS) has a real, non-fabricatable None, not a gap.
+
+    "no_recent_balance_sheet_data_reported": genuine "never tagged, real extraction gap".
+
+    "zero_total_assets_reported_shell_entity" (FIXED 2026-09-05): a real reported $0.00
+    total_assets/stockholders_equity (blank-check/shell pre-merger, e.g. OBX) trips the same
+    `all(... is None)` check via division-by-zero-shaped ratios, not a data gap - a known
+    business fact, same "Legitimate / not applicable" class as reit_special_entity.
+
+    Callers must NOT apply this reason to _QUARTERLY_DERIVED_TREND_FIELDS - those fields'
+    unavailability (if any) comes from a completely different input (quarterly income
+    statement history, via _compute_quarterly_metrics), already diagnosed with its own
+    specific reason (e.g. "foreign_private_issuer_no_quarterly_filings") before this
+    function ever runs; overwriting it here would be the same class of bug this function's
+    own 2026-09-09 extraction fixed (see caller's own comment for the live-confirmed symbols).
+    """
+    if stockholders_equity is None and symbol in etf_trust_symbols:
+        return "etf_trust_no_gaap_financials"
+    if stockholders_equity is None and symbol in unsupported_currency_symbols:
+        return "unsupported_currency_no_fx_rate"
+    if stockholders_equity is None and (symbol in no_recent_equity_symbols or symbol in never_tagged_equity_symbols):
+        return "no_recent_balance_sheet_data_reported"
+    if (
+        total_assets is not None
+        and total_assets <= 0
+        and (symbol in no_recent_total_assets_symbols or symbol in never_tagged_total_assets_symbols)
+    ):
+        return "zero_total_assets_reported_shell_entity"
+    return None
+
 
 def acquire_pooled_connection(table_name: str) -> Any:
     """Acquire one pooled DB connection for a whole loader run and register it for reuse.
