@@ -118,6 +118,7 @@ class DataPatrol:
         from .checks import (
             AlignmentChecker,
             CoverageChecker,
+            FinancialStatementFlagDriftChecker,
             PriceSanityChecker,
             QualityChecker,
             SpecializedChecker,
@@ -140,6 +141,7 @@ class DataPatrol:
                 AlignmentChecker(self.config),
                 SpecializedChecker(self.config),
                 TieOutChecker(self.config),
+                FinancialStatementFlagDriftChecker(self.config),
             ]
 
             for checker in checkers:

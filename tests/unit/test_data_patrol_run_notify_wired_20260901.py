@@ -18,6 +18,7 @@ from algo.monitoring.data_patrol.base import CheckResult, DataPatrol
 from algo.monitoring.data_patrol.checks import (
     AlignmentChecker,
     CoverageChecker,
+    FinancialStatementFlagDriftChecker,
     PriceSanityChecker,
     QualityChecker,
     SpecializedChecker,
@@ -38,6 +39,7 @@ def _run_patrol_with_results(results_by_checker: dict) -> dict:
         "PriceSanityChecker": PriceSanityChecker,
         "AlignmentChecker": AlignmentChecker,
         "SpecializedChecker": SpecializedChecker,
+        "FinancialStatementFlagDriftChecker": FinancialStatementFlagDriftChecker,
     }
 
     mock_conn = MagicMock()
@@ -137,6 +139,7 @@ class TestDataPatrolNotifyWiring:
             patch.object(PriceSanityChecker, "run", return_value=[]),
             patch.object(AlignmentChecker, "run", return_value=[]),
             patch.object(SpecializedChecker, "run", return_value=[]),
+            patch.object(FinancialStatementFlagDriftChecker, "run", return_value=[]),
         ):
             # Must not raise despite notify() failing internally.
             summary = patrol.run()
