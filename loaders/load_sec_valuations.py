@@ -867,6 +867,107 @@ class SecValuationsLoader(
     # _risk_free_rate_cache immediately above.
     _equity_risk_premium_cache: float | None = None
 
+    @classmethod
+    def _fetch_cash_flow_rows(cls, cur: Any, symbol: str) -> list[tuple[Any, Any, Any, Any, Any]]:
+        """The 3-most-recent-fiscal-year annual_cash_flow tier of fetch_incremental's cash-flow
+        fetch, falling back to `_fetch_ttm_cash_flow_row`'s synthetic TTM-from-quarterly row
+        when that comes back completely empty. Extracted verbatim out of fetch_incremental
+        (2026-09-10, Ruff C901: adding the quarterly fallback as an inline branch there pushed
+        it 1 over the complexity ceiling) - same query/fallback logic, just its own method.
+
+        FIXED 2026-08-20 (goal: finance-accuracy audit): data_unavailable=TRUE rows were being
+        read anyway (an earlier change removed the `data_unavailable = FALSE` filter here to
+        stop it excluding legitimate rows where the column is simply unset/NULL). But
+        `data_unavailable=TRUE` with reason='incomplete_sec_filing_cashflow' means the filer's
+        cash-flow section itself is incomplete/inconsistent, not merely unset - the non-NULL
+        numbers on those rows can be raw, unconverted foreign-currency magnitudes (e.g. KT/
+        Korea Telecom FY2025: operating_cash_flow=4.94e12, still-untranslated KRW) or other
+        known-bad values, and downstream has no NULL to catch since the column IS populated.
+        Live-confirmed 13 universe symbols (BAP, DLB, PHG, GLDG, GTN, GTN.A, OLP, PAL, REA,
+        RUM, VS, WYFI, APC) currently computing fcf_yield in the hundreds-to-thousands-of-
+        percent range (e.g. BAP=40.81, DLB=4.80, PHG=3.52, i.e. 4081%/480%/352%) purely from
+        this. `data_unavailable IS NOT TRUE` (not `= FALSE`) keeps admitting NULL-flag rows
+        exactly as before while excluding only the confirmed-bad ones, falling back to the
+        next real fiscal year (or to the quarterly TTM tier below) instead of a fabricated
+        number.
+        """
+        cur.execute(
+            """
+            SELECT operating_cash_flow, capex, dividends_paid, stock_based_compensation,
+                   common_stock_repurchased
+            FROM annual_cash_flow
+            WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
+            ORDER BY fiscal_year DESC LIMIT 3
+            """,
+            (symbol,),
+        )
+        cash_rows = cur.fetchall()
+        return cash_rows if cash_rows else cls._fetch_ttm_cash_flow_row(cur, symbol)
+
+    @staticmethod
+    def _fetch_ttm_cash_flow_row(cur: Any, symbol: str) -> list[tuple[Any, Any, Any, Any, Any]]:
+        """Synthetic TTM cash-flow row built from the 4 most recent real quarterly_cash_flow
+        rows, reached only when the annual_cash_flow tier (fetch_incremental's `cash_rows`
+        query, 3 most recent fiscal years) comes back completely empty. Returns [] unless all
+        4 quarters have a real, non-NULL operating_cash_flow - never fabricates a partial-year
+        figure from fewer/incomplete quarters, same discipline as
+        sec_valuations_income_context.py's `_fetch_ttm_income_statement_row` (its income-
+        statement sibling, added 2026-09-09 for the analogous no_income_statement gap).
+
+        FIXED 2026-09-10 (goal: "under 500" push, missing_cash_flow_data bucket): every
+        annual_cash_flow row can be flagged `data_unavailable=TRUE` (a stale-orphan fiscal
+        year, an incomplete filing, or a filer SIC-coded as having "no annual cashflow data
+        in SEC EDGAR" for its entity type) while quarterly_cash_flow has real, current,
+        `data_unavailable=FALSE` data every quarter - live-confirmed XRTX (real OCF/capex
+        every quarter, annual rows all `stale_fiscal_year_not_confirmed_by_full_sec_refetch`),
+        AIBZ/GLND (annual `incomplete_sec_filing_cashflow`, real quarterly OCF+capex), USDE/
+        BXDC (annual `no_annual_cashflow_data_in_sec_edgar_reit_or_special_entity`, but real
+        quarterly OCF on file - that annual-only classification doesn't hold at the quarterly
+        level for these two).
+
+        capex is summed only when ALL 4 quarters have a real value (unlike operating_cash_flow,
+        a single quarter's capex commonly isn't separately re-tagged yet even when OCF is -
+        same "can't tell true zero from not-yet-tagged" caution `is_capex_exempt`'s docstring
+        two call-sites up describes) - `None` here correctly still skips fcf_yield/DCF via
+        `_compute_valuations`'s existing `if ocf and capex is not None` guard rather than
+        fabricating a FCF figure from a false-zero capex. dividends_paid/
+        stock_based_compensation/common_stock_repurchased are summed where present (any single
+        NULL quarter treated as 0 for these, matching `_compute_avg_fcf_fallback`'s own SBC
+        convention) - none of them gate an all-or-nothing computation the way capex does.
+        """
+        cur.execute(
+            """
+            SELECT operating_cash_flow, capex, dividends_paid, stock_based_compensation,
+                   common_stock_repurchased
+            FROM quarterly_cash_flow
+            WHERE symbol = %s AND data_unavailable IS NOT TRUE
+            ORDER BY fiscal_year DESC, fiscal_quarter DESC
+            LIMIT 4
+            """,
+            (symbol,),
+        )
+        quarters = cur.fetchall()
+        if len(quarters) < 4 or any(q[0] is None for q in quarters):
+            return []
+
+        def _sum_col(idx: int) -> float | None:
+            values = [q[idx] for q in quarters if q[idx] is not None]
+            return (
+                sum(safe_float(v, "ttm_cash_flow_quarter", allow_none=True) or 0.0 for v in values) if values else None
+            )
+
+        capex_values = [q[1] for q in quarters]
+        ttm_capex = _sum_col(1) if all(v is not None for v in capex_values) else None
+        return [
+            (
+                _sum_col(0),  # operating_cash_flow
+                ttm_capex,
+                _sum_col(2),  # dividends_paid
+                _sum_col(3),  # stock_based_compensation
+                _sum_col(4),  # common_stock_repurchased
+            )
+        ]
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute SEC-derived valuations for one symbol.
 
@@ -1174,17 +1275,15 @@ class SecValuationsLoader(
                 # `= FALSE`) keeps admitting NULL-flag rows exactly as before while excluding
                 # only the confirmed-bad ones, falling back to the next real fiscal year (or to
                 # the existing None-handling below) instead of a fabricated number.
-                cur.execute(
-                    """
-                    SELECT operating_cash_flow, capex, dividends_paid, stock_based_compensation,
-                           common_stock_repurchased
-                    FROM annual_cash_flow
-                    WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
-                    ORDER BY fiscal_year DESC LIMIT 3
-                    """,
-                    (symbol,),
-                )
-                cash_rows = cur.fetchall()
+                # FIXED 2026-09-10 (goal: "under 500" push, missing_cash_flow_data bucket):
+                # _fetch_cash_flow_rows now falls back to a synthetic TTM-from-quarterly row
+                # (_fetch_ttm_cash_flow_row) when every annual_cash_flow row is flagged
+                # data_unavailable=TRUE (stale/incomplete filing, or a "no annual cashflow
+                # data" entity-type classification) but quarterly_cash_flow has real, recent
+                # data - live-confirmed XRTX/AIBZ/GLND/USDE/BXDC/CMII. See that method's own
+                # docstring for the full rationale; extracted out of this method (was inline
+                # here) to keep fetch_incremental's own Ruff C901 complexity under the ceiling.
+                cash_rows = self._fetch_cash_flow_rows(cur, symbol)
                 ocf, capex, dividends_paid, stock_based_compensation, common_stock_repurchased = (
                     cash_rows[0] if cash_rows else (None, None, None, None, None)
                 )
