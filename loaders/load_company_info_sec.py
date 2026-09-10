@@ -547,12 +547,28 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # Stock" alone would say nothing about which of B/C it is, since Class B and Class C are
     # NOT distinguished by the security_name text but by which one is real-world publicly
     # traded, only knowable via this ticker's exchange listing itself.
+    # ADDED 2026-09-09 (goal: "Missing SEC/XBRL data" reduction, shares_outstanding_not_in_xbrl_
+    # or_filing_text investigation): UHAL (U-Haul Holding Company/AMERCO) has the identical
+    # vendor/master-data gap as WLY/TR/AGM above - `stock_symbols.security_name` for bare "UHAL"
+    # is the generic "U-Haul Holding Company Common Stock" (no "Class X" text) - but its real
+    # current 10-Q (CIK 4457, uhal-20260630.htm, filed 2026-08-05) cleanly tags TWO standard-
+    # dimensioned StatementClassOfStockAxis contexts on its cover page:
+    # `us-gaap:CommonClassAMember`=19,224,580 (UHAL's own closely-held voting class) and
+    # `us-gaap:NonvotingCommonStockMember`=175,168,915 (UHAL.B's Series N Non-Voting class,
+    # separately handled via `_VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES` below) - matching the
+    # already-documented "UHAL-burn" ground truth in `_context_is_generic_common_class`'s own
+    # docstring, which stopped the wrong cross-assignment but never added the override needed to
+    # complete correct resolution. The dei:EntityCommonStockSharesOutstanding fact in companyfacts
+    # JSON is separately just stale (last tagged 2022-11-09, >730 days, correctly filtered by
+    # `_STALENESS_CUTOFF_DAYS`) - not dropped by SEC's aggregation like PLNT, just genuinely
+    # unmaintained there - so this filing-text path is the only route to a current value.
     _SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES: dict[str, str] = {
         "WLY": "A",
         "WLYB": "B",
         "TR": "A",
         "TROLB": "B",
         "AGM": "C",
+        "UHAL": "A",
     }
     # ADDED 2026-09-06 (same sweep, continued): ATRO (Astronics Corporation) has only ONE
     # registered common ticker ("ATRO"; the CIK's other ticker "ATROB" is its Class B, not
@@ -581,9 +597,23 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # shares outstanding of the registrant's Common Stock and Class A Common Stock ... were
     # 15,622,386 and 6,455,602" - MOVAA (Class A, not in this universe) is the smaller, separately
     # dimensioned `us-gaap:CommonClassAMember` value.
+    # ADDED 2026-09-09 (same investigation, continued): CENT (Central Garden & Pet Company) has
+    # the identical non-standard-custom-member shape as ATRO/MOV above, but with THREE classes
+    # instead of two - its real current 10-K (CIK 887733, cent-20250927.htm, filed 2025-11-26)
+    # tags `cent:CommonClassOneMember`=9,650,221, `us-gaap:CommonClassAMember`=51,080,111, and
+    # `us-gaap:CommonClassBMember`=1,602,374. The filing's own cover-page prose independently
+    # confirms which is which: "the number of shares outstanding of the registrant's Common
+    # Stock was 9,650,221 ... Class A Common Stock was 51,080,111 ... [and] outstanding 1,602,374
+    # shares of its Class B Stock" - CENT's own ticker is the plain "Common Stock" (bare,
+    # non-lettered per security_name), i.e. the `CommonClassOneMember`-tagged value, not the much
+    # larger publicly-traded-as-CENTA Class A figure a naive "take the max" would have picked.
+    # us-gaap:CommonStockSharesOutstanding in companyfacts JSON is separately just 12+ years
+    # stale (last tagged 2013, value 12,246,751 - correctly filtered by staleness cutoff), so
+    # this filing-text path is the only route to a current value.
     _VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS: dict[str, frozenset[str]] = {
         "ATRO": frozenset({"commonclassundefinedmember"}),
         "MOV": frozenset({"commonstockclassundefinedmember"}),
+        "CENT": frozenset({"commonclassonemember"}),
     }
     # ADDED 2026-09-06 (same sweep, continued): FWONA (Liberty Media's Formula One tracking
     # stock, Series A) has its OWN target_letter correctly resolved to "A" (security_name says
@@ -600,8 +630,15 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # verified exact-string mapping for ONE specific filer-custom member name to its real,
     # confirmed letter - same discipline as `_VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS` above, not
     # a heuristic that could misfire on an unrelated filer's differently-shaped ambiguity.
+    # ADDED 2026-09-09 (same investigation, continued): UHAL.B (U-Haul Holding Company's Series N
+    # Non-Voting Common Stock) resolves its OWN target_letter to "B" via the dot-suffix rule
+    # (`_target_class_letter`), but its real filing tags that exact class as
+    # `us-gaap:NonvotingCommonStockMember` - genuinely no letter in the member name at all, same
+    # shape as FWONA below. See `_SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES`'s own UHAL comment
+    # above for the shared live evidence (both classes verified together, same filing).
     _VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES: dict[str, dict[str, str]] = {
         "FWONA": {"libertyformulaonegroupcommonclassmember": "A"},
+        "UHAL.B": {"nonvotingcommonstockmember": "B"},
     }
     # ADDED 2026-09-06 (same sweep, continued): 5 oil/gas royalty trusts (CRT, MTR, PBT, SBR,
     # SJT) have ZERO XBRL companyfacts (404, live-confirmed for all 5) AND zero
@@ -1084,6 +1121,26 @@ class CompanyInfoSECLoader(SecLoaderBase):
         except (FileNotFoundError, TimeoutError, RuntimeError) as e:
             logger.debug(f"[{symbol}] Could not fetch filing text for shares_outstanding fallback: {e}")
             return None
+
+        # FIXED 2026-09-09 (goal: "Missing SEC/XBRL data" reduction, shares_outstanding_not_in_
+        # xbrl_or_filing_text investigation): get_filing_plaintext returns the raw, un-rendered
+        # .txt submission - real filing HTML routinely separates a number from the following word
+        # with a literal "&#160;"/"&nbsp;" non-breaking-space ENTITY (6+ raw characters), not an
+        # actual whitespace character, so every `\s+`-based prose regex below (
+        # _PLAIN_PROSE_UNITS_OUTSTANDING_RE, _PLAIN_PROSE_CLASS_SHARES_RE) silently fails to
+        # match even though the real number/text is sitting right there. Live-confirmed via MTR
+        # (Mesa Royalty Trust)'s real, current 10-K (CIK 313364, accession
+        # 0001104659-26-036896): its cover page literally reads "1,863,590&#160;Units of
+        # Beneficial Interest were outstanding" in the raw .txt - zero matches for
+        # _PLAIN_PROSE_UNITS_OUTSTANDING_RE against the untouched text despite MTR being in
+        # _VERIFIED_PLAIN_PROSE_UNIT_SYMBOLS (added by commit be2893394) and its 4 royalty-trust
+        # siblings (CRT/PBT/SBR/SJT) resolving correctly the same run - those filers' specific
+        # cover-page sentences apparently use a real space at that exact spot, MTR's doesn't.
+        # Normalizing both entity spellings to a real space before any regex runs closes this for
+        # MTR and any other filer that hits the same shape in the future - inert for the inline-
+        # XBRL tag regex just below, which never relies on `\s+` between a number and adjacent
+        # text.
+        text = re.sub(r"&#0*160;|&#[xX]0*[aA]0;|&nbsp;", " ", text)
 
         matches = self._INLINE_XBRL_SHARES_OUTSTANDING_RE.findall(text)
         if not matches:
