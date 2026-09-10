@@ -25,7 +25,7 @@ from algo.risk.var import ValueAtRisk
 def var_calculator():
     # max_simulated_var_pct/max_top5_concentration_pct/max_portfolio_beta added 2026-09-06:
     # generate_daily_risk_report()'s alert thresholds now read these config-driven values
-    # (fixed cross-layer drift vs. pretrade_checks.py/unified_risk_monitor.py, which already
+    # (fixed cross-layer drift vs. pretrade_checks.py/intraday_risk_monitor.py, which already
     # enforced them) instead of hardcoded literals - required whenever the corresponding
     # metric dict is non-empty.
     return ValueAtRisk(
@@ -109,7 +109,7 @@ class TestAlertThresholdsUseConfigNotHardcodedLiterals:
     """Regression for the 2026-09-06 cross-layer risk threshold consistency audit:
     generate_daily_risk_report()'s beta/concentration/VaR alert thresholds used to be
     hardcoded literals (2.0, 30, 2.0) even though pretrade_checks.py and
-    unified_risk_monitor.py/intraday_risk_monitor.py already enforce the exact same limits
+    intraday_risk_monitor.py already enforce the exact same limits
     from algo_config (max_portfolio_beta/max_top5_concentration_pct/max_simulated_var_pct).
     If an admin ever changed one of those config values, the enforcement layers picked it
     up immediately but this report kept alerting against the stale default - a real drift
@@ -168,3 +168,57 @@ class TestAlertThresholdsUseConfigNotHardcodedLiterals:
 
         assert any("Concentration Risk" in a for a in result["alerts"])
         assert any("15.0" in a for a in result["alerts"])
+
+    def test_cvar_alert_fires_when_configured_threshold_exceeded(self):
+        """Regression test for the 2026-09-07 real-money-readiness audit fix: CVaR was
+        computed and persisted every run but never alerted on anywhere - two portfolios with
+        identical, compliant VaR can have very different uncaught tail severity."""
+        var_calculator = ValueAtRisk(
+            {
+                "var_percentile": 5,
+                "cvar_percentile": 5,
+                "stressed_var_percentile": 10,
+                "max_simulated_var_pct": 2.0,
+                "max_top5_concentration_pct": 30.0,
+                "max_portfolio_beta": 2.0,
+                "max_cvar_pct": 3.0,
+            }
+        )
+        mock_cur = MagicMock()
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+        _stub_out_everything_except(
+            var_calculator,
+            cvar=lambda: {"cvar_pct": 4.5, "data_unavailable": False},
+        )
+
+        with patch("algo.risk.var.DatabaseContext", return_value=mock_ctx):
+            result = var_calculator.generate_daily_risk_report(date(2026, 8, 4))
+
+        assert any("CVaR Risk" in a for a in result["alerts"])
+        assert any("3.0" in a for a in result["alerts"])
+
+    def test_cvar_alert_does_not_fire_below_threshold(self):
+        var_calculator = ValueAtRisk(
+            {
+                "var_percentile": 5,
+                "cvar_percentile": 5,
+                "stressed_var_percentile": 10,
+                "max_simulated_var_pct": 2.0,
+                "max_top5_concentration_pct": 30.0,
+                "max_portfolio_beta": 2.0,
+                "max_cvar_pct": 3.0,
+            }
+        )
+        mock_cur = MagicMock()
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+        _stub_out_everything_except(
+            var_calculator,
+            cvar=lambda: {"cvar_pct": 1.0, "data_unavailable": False},
+        )
+
+        with patch("algo.risk.var.DatabaseContext", return_value=mock_ctx):
+            result = var_calculator.generate_daily_risk_report(date(2026, 8, 4))
+
+        assert not any("CVaR Risk" in a for a in result["alerts"])

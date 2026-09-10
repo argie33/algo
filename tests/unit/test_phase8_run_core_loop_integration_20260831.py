@@ -60,6 +60,11 @@ def _base_config(execution_mode: str = "paper", **overrides: object) -> _ConfigS
         max_position_size_pct=8.0,
         min_signal_quality_score=60,
         market_open_exclusion_enabled=False,
+        # Required by Phase 8's fresh drawdown/daily-loss re-check (2026-09-07) -
+        # CircuitBreaker._check_drawdown/_check_daily_loss fail closed (blocking every
+        # candidate) if either is missing, matching config_defaults_risk.py's real defaults.
+        halt_drawdown_pct=-20.0,
+        max_daily_loss_pct=2.0,
     )
     cfg.update(overrides)
     return cfg
@@ -106,6 +111,14 @@ class _FakeCursor:
 
     def fetchone(self):
         sql = self._last_sql.upper()
+        # Phase 8's fresh drawdown/daily-loss re-check (2026-09-07) - answer with a flat,
+        # non-breaching equity curve so these unrelated tests pass straight through it.
+        if "MAX(ADJUSTED_EQUITY)" in sql:
+            return (self.portfolio_value, self.portfolio_value)  # peak == current -> no drawdown
+        if "ADJUSTED_EQUITY" in sql and "SNAPSHOT_DATE =" in sql:
+            return (self.portfolio_value,)  # today's snapshot
+        if "ADJUSTED_EQUITY" in sql and "SNAPSHOT_DATE <" in sql:
+            return (self.portfolio_value,)  # previous snapshot, same value -> no daily loss
         if "MAX(DATE) AS LATEST_PRICE_DATE" in sql:
             return (RUN_DATE,)
         if "TOTAL_PORTFOLIO_VALUE" in sql:
@@ -135,7 +148,7 @@ class Phase8Deps:
 
     def __init__(self, executor_result, sizer_result=None, liquidity_result=(True, "ok"), pretrade_result=(True, "ok")):
         self.executor_result = executor_result
-        self.sizer_result = sizer_result or {"status": "ok", "shares": 10}
+        self.sizer_result = sizer_result or {"status": "ok", "shares": 10, "risk_dollars": 50}
         self.liquidity_result = liquidity_result
         self.pretrade_result = pretrade_result
         self._patches = []
@@ -339,3 +352,57 @@ def test_halt_flag_tripped_mid_loop_stops_processing_remaining_symbols():
     assert deps.mock_trade_executor.execute_trade.call_count == 1
     assert deps.mock_trade_executor.execute_trade.call_args.kwargs["symbol"] == "FIRST"
     assert result.data["entered"] == 1
+
+
+def test_fresh_drawdown_breach_blocks_all_entries_before_the_loop():
+    """Phase 8's own re-check of drawdown (2026-09-07 audit fix) must block every candidate
+    when the freshest algo_portfolio_snapshots row (possibly written by Phase 4's
+    reconciliation, which runs AFTER Phase 2's own circuit-breaker check but BEFORE Phase 8)
+    shows a real drawdown breach that Phase 2 could not have seen yet this cycle."""
+    signal = _make_signal("AAPL")
+
+    with Phase8Deps(executor_result={"success": True}) as deps:
+        # peak = 100k, current = 75k -> 25% drawdown, breaching the -20% default halt_drawdown_pct.
+        deps.fake_cursor.portfolio_value = 100_000.0
+
+        def _fetchone_with_drawdown_breach():
+            sql = deps.fake_cursor._last_sql.upper()
+            if "MAX(ADJUSTED_EQUITY)" in sql:
+                return (100_000.0, 75_000.0)
+            if "ADJUSTED_EQUITY" in sql:
+                return (100_000.0,)
+            return _FakeCursor.fetchone(deps.fake_cursor)
+
+        deps.fake_cursor.fetchone = _fetchone_with_drawdown_breach
+
+        result = run(**_run_kwargs([signal]))
+
+    assert deps.mock_trade_executor.execute_trade.call_count == 0
+    assert result.data["entered"] == 0
+    assert result.status == "blocked"
+
+
+def test_fresh_daily_loss_breach_blocks_all_entries_before_the_loop():
+    """Same re-check, daily-loss side: today's equity down >2% (default max_daily_loss_pct)
+    from the prior snapshot must block every candidate, even though drawdown itself is fine."""
+    signal = _make_signal("AAPL")
+
+    with Phase8Deps(executor_result={"success": True}) as deps:
+
+        def _fetchone_with_daily_loss_breach():
+            sql = deps.fake_cursor._last_sql.upper()
+            if "MAX(ADJUSTED_EQUITY)" in sql:
+                return (100_000.0, 100_000.0)  # no drawdown
+            if "ADJUSTED_EQUITY" in sql and "SNAPSHOT_DATE =" in sql:
+                return (95_000.0,)  # today
+            if "ADJUSTED_EQUITY" in sql and "SNAPSHOT_DATE <" in sql:
+                return (100_000.0,)  # previous -> -5% daily loss, breaches -2% default
+            return _FakeCursor.fetchone(deps.fake_cursor)
+
+        deps.fake_cursor.fetchone = _fetchone_with_daily_loss_breach
+
+        result = run(**_run_kwargs([signal]))
+
+    assert deps.mock_trade_executor.execute_trade.call_count == 0
+    assert result.data["entered"] == 0
+    assert result.status == "blocked"

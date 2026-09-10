@@ -229,7 +229,13 @@ class TestExtractSegmentRevenueFromXbrlXml:
         total = 200_000_000 + 50_000_000
         assert result["largest_segment_revenue_pct"] == pytest.approx(200_000_000 / total * 100, abs=0.01)
 
-    def test_no_segment_dimensioned_contexts(self) -> None:
+    def test_no_segment_dimensioned_contexts_but_real_revenue_recovers_single_segment(self) -> None:
+        """UPDATED 2026-09-06 (commit 7108922a4): zero segment-dimensioned contexts anywhere
+        in the filing, with a real plain revenue fact and no NumberOfReportableSegments tag
+        at all, is exactly the Abeona Therapeutics shape this fix deliberately recovers as a
+        genuine single-reportable-segment result rather than a data gap - see
+        _extract_single_segment_revenue's docstring. This test used to assert the OLD
+        pre-fix "give up" behavior; renamed/updated to assert the new, correct one."""
         xml_content = """<?xml version="1.0"?>
 <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31">
     <context id="c1">
@@ -237,6 +243,24 @@ class TestExtractSegmentRevenueFromXbrlXml:
         <period><startDate>2024-01-01</startDate><endDate>2024-12-31</endDate></period>
     </context>
     <us-gaap:Revenues contextRef="c1">100000000</us-gaap:Revenues>
+</xbrl>
+"""
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 1
+        assert result["segments"][0]["revenue"] == 100_000_000.0
+        assert result["segments"][0]["segment_id"] == "single_reportable_segment"
+
+    def test_no_segment_dimensioned_contexts_and_no_revenue_stays_unavailable(self) -> None:
+        """The true "nothing to recover" case - no segment dims AND no plain revenue
+        concept anywhere - must still correctly report unavailable, not fabricate a value."""
+        xml_content = """<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31">
+    <context id="c1">
+        <entity><identifier scheme="http://www.sec.gov/CIK">0000789019</identifier></entity>
+        <period><startDate>2024-01-01</startDate><endDate>2024-12-31</endDate></period>
+    </context>
 </xbrl>
 """
         result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
@@ -791,12 +815,77 @@ class TestExtractSegmentRevenueFromXbrlXml:
             "NEERSegmentMember": 8_760_000_000.0,
         }
 
-    def test_legal_entity_axis_not_stripped_when_member_differs_from_segment(self) -> None:
-        """Guard against over-stripping: a LegalEntityAxis dimension whose member
-        does NOT match the segment axis member in the same context is a genuine
-        further breakdown (e.g. a different co-registrant reporting within the same
-        segment) and must still disqualify the context as a cross-tab, exactly like
-        any other unrecognized second dimension."""
+    def test_legal_entity_axis_stripped_when_bijective_but_differently_named(self) -> None:
+        """Real filer shape (verified live against American States Water's (AWR)
+        real FY2025 10-K instance document): AWR's segments each map to ONE
+        DEDICATED regulated subsidiary, but the subsidiary's own name never matches
+        the segment label - StatementBusinessSegmentsAxis=WaterServiceUtilityOperationsMember
+        is always paired with LegalEntityAxis=GoldenStateWaterCompanyMember,
+        ElectricServiceUtilityOperationsMember always with
+        BearValleyElectricServiceIncMember. Since the exact-name-match rule (NEE's
+        shape) can't recognize this, it must be recognized via the document-wide
+        1:1 (entity <-> segment) check instead: neither entity is EVER paired with
+        the other's segment anywhere in the document, so both are safe to treat as
+        identity, not a further breakdown. Values match AWR's real reported FY2025
+        segment revenue (Water $464,114,000 + Electric $57,217,000), which together
+        with a third bijective segment/entity pair sums exactly to AWR's own plain
+        consolidated Revenues total ($658,073,000 FY2025)."""
+        contexts = (
+            _multi_dim_context(
+                "c1",
+                [
+                    ("StatementBusinessSegmentsAxis", "WaterServiceUtilityOperationsMember"),
+                    ("LegalEntityAxis", "GoldenStateWaterCompanyMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [
+                    ("StatementBusinessSegmentsAxis", "ElectricServiceUtilityOperationsMember"),
+                    ("LegalEntityAxis", "BearValleyElectricServiceIncMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [
+                    ("StatementBusinessSegmentsAxis", "ContractedServicesMember"),
+                    ("LegalEntityAxis", "AmericanStatesUtilityServicesMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">464114000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">57217000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c3">136742000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "AWR")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 3
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "WaterServiceUtilityOperationsMember": 464_114_000.0,
+            "ElectricServiceUtilityOperationsMember": 57_217_000.0,
+            "ContractedServicesMember": 136_742_000.0,
+        }
+        assert sum(revenues.values()) == 658_073_000.0
+
+    def test_legal_entity_axis_not_stripped_when_used_across_multiple_segments(self) -> None:
+        """Guard against over-stripping: a LegalEntityAxis member that appears
+        paired with 2+ DIFFERENT segment-axis members somewhere in the document is
+        a genuine further breakdown (a co-registrant reporting within more than one
+        segment), not a fixed one-segment-per-subsidiary identity like NEE's or
+        AWR's - it must still disqualify the context as a cross-tab, exactly like
+        any other unrecognized second dimension. This is the case the bijective
+        LegalEntityAxis-stripping fix above must NOT also start stripping."""
         contexts = _multi_dim_context(
             "c1",
             [
@@ -806,9 +895,19 @@ class TestExtractSegmentRevenueFromXbrlXml:
             ],
             "2025-01-01",
             "2025-12-31",
+        ) + _multi_dim_context(
+            "c2",
+            [
+                ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("StatementBusinessSegmentsAxis", "NEERSegmentMember"),
+                ("LegalEntityAxis", "SomeOtherSubsidiaryMember"),
+            ],
+            "2025-01-01",
+            "2025-12-31",
         )
         facts = """
         <us-gaap:RegulatedAndUnregulatedOperatingRevenue contextRef="c1">18262000000</us-gaap:RegulatedAndUnregulatedOperatingRevenue>
+        <us-gaap:RegulatedAndUnregulatedOperatingRevenue contextRef="c2">8760000000</us-gaap:RegulatedAndUnregulatedOperatingRevenue>
         """
         xml_content = self._xml(contexts, facts)
 
@@ -927,6 +1026,52 @@ class TestExtractSegmentRevenueFromXbrlXml:
         assert revenues == {
             "OpticalCommunicationsMember": 6_274_000_000.0,
             "DisplayMember": 3_697_000_000.0,
+        }
+        assert result["segment_count"] == 2
+
+    def test_reportable_segment_member_singular_dropped_only_with_2plus_siblings(self) -> None:
+        """FIXED 2026-09-07 (goal: stock_scores/tie-out sanity audit, segment-sum-to-
+        consolidated investigation): us-gaap:ReportableSegmentMember (SINGULAR) is ambiguous -
+        live-confirmed against Electronic Arts' (EA) real FY2026 10-K instance:
+        StatementBusinessSegmentsAxis=ReportableSegmentMember tags $7.531B (EA's real, correct
+        total net revenue) alongside 2+ separate real segment-shaped members - summing every
+        member including this one roughly doubles the true total. Only dropped when 2+ OTHER
+        distinct members share the axis (see the single-segment fallback tests elsewhere in
+        this file for the case where it must NOT be dropped)."""
+        contexts = (
+            _multi_dim_context(
+                "c1",
+                [("StatementBusinessSegmentsAxis", "MobileMember")],
+                "2026-01-01",
+                "2026-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("StatementBusinessSegmentsAxis", "LiveServicesMember")],
+                "2026-01-01",
+                "2026-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [("StatementBusinessSegmentsAxis", "ReportableSegmentMember")],
+                "2026-01-01",
+                "2026-12-31",
+            )
+        )
+        facts = """
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="c1">1091000000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="c2">5383000000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="c3">7531000000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "MobileMember": 1_091_000_000.0,
+            "LiveServicesMember": 5_383_000_000.0,
         }
         assert result["segment_count"] == 2
 
@@ -1850,6 +1995,98 @@ class TestComponentSumSegmentRevenueFallback:
         revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
         # AlphaMember = plain NII (61.2M, NOT summed with the 95.84M paired duplicate) + NonInterestIncome (20.73M)
         assert revenues == {"AlphaMember": 81_930_000.0, "BetaMember": 119_700_000.0}
+
+
+class TestGseNetInterestIncomeSegmentRevenueFallback:
+    """Real gap found live against Federal Agricultural Mortgage Corporation's ("Farmer
+    Mac") FY2025 10-K instance: it tags segment-level GROSS interest income
+    (InterestAndDividendIncomeOperating) and interest expense (InterestExpenseOperating)
+    as two separate concepts requiring SUBTRACTION (net interest income) - unlike
+    TestComponentSumSegmentRevenueFallback's banks, which tag an already-netted
+    InterestIncomeExpenseNet concept. Summing the 7 real segments' (income - expense) for
+    FY2025 reconciled EXACTLY ($390,734,000) against Farmer Mac's own plain consolidated
+    InterestIncomeExpenseNet fact for the same period - see
+    _extract_gse_net_interest_income_segment_revenue's own docstring.
+
+    Deliberately scoped to AGM/AGM.A only (an explicit symbol allowlist, not a general
+    concept-pair list any filer could match) - a symbol outside the allowlist must fall
+    through to the generic "no data" result even with the identical XML shape.
+    """
+
+    def _xml(self, contexts: str, facts: str) -> str:
+        return f"""<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+    {contexts}
+    {facts}
+</xbrl>
+"""
+
+    def test_gse_net_interest_income_used_for_allowlisted_symbol(self) -> None:
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "BetaMember", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_nii", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c1">60000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c1">45000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c2">40000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c2">33000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestIncomeExpenseNet contextRef="anchor_nii">22000000</us-gaap:InterestIncomeExpenseNet>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "AGM")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        # AlphaMember = 60M - 45M = 15M; BetaMember = 40M - 33M = 7M; total = 22M, matches anchor.
+        assert revenues == {"AlphaMember": 15_000_000.0, "BetaMember": 7_000_000.0}
+
+    def test_gse_net_interest_income_not_used_for_symbol_outside_allowlist(self) -> None:
+        """Identical XML shape, but a symbol NOT in the explicit allowlist - must not
+        match, even though the concepts and reconciliation would otherwise succeed."""
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "BetaMember", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_nii", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c1">60000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c1">45000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c2">40000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c2">33000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestIncomeExpenseNet contextRef="anchor_nii">22000000</us-gaap:InterestIncomeExpenseNet>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "AGMH")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
+
+    def test_gse_net_interest_income_fails_closed_when_reconciliation_off(self) -> None:
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "BetaMember", "2025-01-01", "2025-12-31")
+            + _plain_context("anchor_nii", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c1">60000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c1">45000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestAndDividendIncomeOperating contextRef="c2">40000000</us-gaap:InterestAndDividendIncomeOperating>
+        <us-gaap:InterestExpenseOperating contextRef="c2">33000000</us-gaap:InterestExpenseOperating>
+        <us-gaap:InterestIncomeExpenseNet contextRef="anchor_nii">999000000</us-gaap:InterestIncomeExpenseNet>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "AGM")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
 
 
 class TestAltAssetManagerComponentSumSegmentRevenueFallback:

@@ -273,6 +273,100 @@ def send_test_alert() -> list[str]:
         return [f"  Test alert failed to send: {type(e).__name__}: {e!s:.150}"]
 
 
+MIN_PAPER_TRADES = 100
+"""Below this many closed paper trades, win-rate/avg-R point estimates are dominated by
+sample noise (a single-quartile slice of a 130-trade sample was seen to show a strong-looking
+but statistically insignificant r=-0.10, t=-1.19 relationship during the 2026-09-07
+real-money-readiness audit) - not enough evidence either way to responsibly size real capital.
+"""
+
+
+def check_paper_trading_track_record() -> tuple[list[str], list[str]]:
+    """The one check this script was missing before 2026-09-07: every other check here
+    verifies the MACHINE won't misfire (credentials, halt flag, alerts) - none of them verify
+    the STRATEGY currently has real edge. A clean pass on every infra check is meaningless if
+    the thing about to trade real money is, on its own live-logic paper track record, still
+    losing money.
+
+    Added after the 2026-09-07 real-money-readiness audit pulled the actual algo_trades paper
+    history (using live's real 3-tier partial-exit/trailing-stop exit logic, not backtest's
+    simplified single exit) and found: 130 closed trades, Aug 7 - Sep 3 2026, win rate 37.7%,
+    total -10.15R, with the two most recent weeks the worst (not improving). That same session
+    found and fixed one real contributing bug (GIVING_BACK_GAINS health flag used a fixed 5%
+    price threshold instead of an R-normalized one - see algo/monitoring/position_monitor.py),
+    but explicitly could NOT declare the strategy ready off that fix alone - only a fresh
+    sample of real paper trading can show whether it actually closed the gap. This check is
+    that fresh sample's gate: it fails loud on a stale or still-negative track record instead
+    of letting a human eyeball a dashboard number and talk themselves into "probably fine."
+
+    Deliberately does NOT hard-fail on statistical insignificance (t-stat) - realistic
+    pre-launch paper-trading windows rarely reach formal significance, and requiring it would
+    make this gate impossible to ever pass. It DOES hard-fail on a negative point-estimate
+    expectancy (total R <= 0) and on too small a sample (see MIN_PAPER_TRADES) - both
+    unambiguous, not statistical-power judgment calls a human should be trusted to override
+    without evidence.
+    """
+    import statistics
+
+    failures: list[str] = []
+    warnings: list[str] = []
+
+    try:
+        from utils.db.context import DatabaseContext
+
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT exit_r_multiple, entry_date FROM algo_trades
+                WHERE execution_mode = 'paper' AND status = 'closed' AND exit_r_multiple IS NOT NULL
+                ORDER BY entry_date
+                """
+            )
+            rows = cur.fetchall()
+    except Exception as e:
+        return ([f"  Could not read paper-trading history from algo_trades: {type(e).__name__}: {e!s:.150}"], [])
+
+    n = len(rows)
+    if n == 0:
+        failures.append("  No closed paper trades with a recorded exit_r_multiple found - zero track record to verify.")
+        return (failures, warnings)
+
+    r_values = [float(row[0]) for row in rows]
+    wins = [r for r in r_values if r > 0]
+    total_r = sum(r_values)
+    avg_r = total_r / n
+    win_rate = len(wins) / n * 100
+
+    print(
+        f"    n={n} trades ({rows[0][1]} to {rows[-1][1]}), win_rate={win_rate:.1f}%, "
+        f"total_R={total_r:+.2f}, avg_R={avg_r:+.3f}"
+    )
+
+    if n >= 2:
+        stdev = statistics.stdev(r_values)
+        if stdev > 0:
+            t_stat = avg_r / (stdev / (n**0.5))
+            print(
+                f"    t-stat (avg_R vs 0) = {t_stat:.2f} (informational - see docstring on why this doesn't hard-fail)"
+            )
+
+    if n < MIN_PAPER_TRADES:
+        failures.append(
+            f"  Only {n} closed paper trades on record (need >= {MIN_PAPER_TRADES}) - "
+            f"too small a sample to trust a win-rate/expectancy point estimate over sample noise."
+        )
+
+    if total_r <= 0:
+        failures.append(
+            f"  Paper-trading point-estimate expectancy is non-positive (total_R={total_r:+.2f} "
+            f"over {n} trades) - this strategy's own live exit logic is currently losing money "
+            f"in the sample available. Do not size real capital off a backtest number instead - "
+            f"the backtest does not simulate this system's real partial-exit/trailing-stop exits."
+        )
+
+    return (failures, warnings)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Pre-flight check before flipping to real-money trading")
     parser.add_argument(
@@ -355,6 +449,18 @@ def main() -> int:
             )
     else:
         print("\n[5b] Skipped (pass --send-test-alert to actually send one and confirm receipt)")
+
+    print("\n[6] Paper-trading track record (does the strategy currently have real edge)...")
+    failures, warnings = check_paper_trading_track_record()
+    if failures:
+        print("FAIL:")
+        for f in failures:
+            print(f)
+        all_failures.extend(failures)
+    else:
+        print("OK  — paper-trading sample size and expectancy both clear the minimum bar")
+    for w in warnings:
+        print(f"  WARNING: {w}")
 
     print("\n" + "=" * 60)
     print("Not covered by this script (run separately before going live):")

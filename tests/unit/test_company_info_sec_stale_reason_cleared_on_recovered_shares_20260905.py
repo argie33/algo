@@ -19,7 +19,10 @@ per-symbol upsert path structurally cannot.
 
 from unittest.mock import MagicMock, patch
 
-from loaders.helpers.company_info_sec_reason_cleanup import clear_stale_shares_outstanding_reason
+from loaders.helpers.company_info_sec_reason_cleanup import (
+    clear_stale_shares_outstanding_reason,
+    reclassify_stale_registered_investment_company_reason,
+)
 from loaders.load_company_info_sec import CompanyInfoSECLoader
 
 
@@ -72,7 +75,54 @@ class TestStaleSharesOutstandingReasonClearedOnRecovery:
     def test_loader_post_run_delegates_to_cleanup_helper(self) -> None:
         loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
 
-        with patch("loaders.load_company_info_sec.clear_stale_shares_outstanding_reason") as mock_cleanup:
+        with (
+            patch("loaders.load_company_info_sec.clear_stale_shares_outstanding_reason") as mock_cleanup,
+            patch(
+                "loaders.load_company_info_sec.reclassify_stale_registered_investment_company_reason"
+            ) as mock_reclassify,
+        ):
             loader.post_run()
 
         mock_cleanup.assert_called_once_with()
+        mock_reclassify.assert_called_once_with()
+
+
+class TestStaleRegisteredInvestmentCompanyReasonReclassified:
+    """2026-09-09/10 fix: CompanyInfoSECLoader's exclude_etfs_from_symbols=True means
+    get_active_symbols(exclude_etfs=True) never includes a symbol already classified
+    entity_type in ('other','investment')/sic_code NULL (the exact CEF/RIC signature) in any
+    later run's symbol list - so a symbol correctly classified as a CEF by an old run can
+    never reach fetch_incremental() again, and the 2026-09-06 fix that relabels this exact
+    shape from the generic "no_annual_report_filing" to "registered_investment_company_
+    no_annual_report" can never actually apply to it. This is a companion self-heal:
+    relabel directly from the row's own already-known entity_type/sic_code, no live SEC call
+    needed."""
+
+    def test_reclassifies_stale_generic_reason_for_cef_signature(self) -> None:
+        mock_ctx, fake_cur = _mock_write_context(rowcount=88)
+
+        with patch(
+            "loaders.helpers.company_info_sec_reason_cleanup.DatabaseContext",
+            return_value=mock_ctx,
+        ):
+            reclassify_stale_registered_investment_company_reason()
+
+        assert len(fake_cur.execute_calls) == 1
+        query, params = fake_cur.execute_calls[0]
+        assert "UPDATE company_info_sec" in query
+        assert "SET shares_outstanding_unavailable_reason = 'registered_investment_company_no_annual_report'" in query
+        assert "shares_outstanding_unavailable_reason = 'no_annual_report_filing'" in query
+        assert "entity_type IN ('other', 'investment')" in query
+        assert "sic_code IS NULL" in query
+        assert params is None
+
+    def test_no_op_when_nothing_matches(self) -> None:
+        mock_ctx, fake_cur = _mock_write_context(rowcount=0)
+
+        with patch(
+            "loaders.helpers.company_info_sec_reason_cleanup.DatabaseContext",
+            return_value=mock_ctx,
+        ):
+            reclassify_stale_registered_investment_company_reason()
+
+        assert len(fake_cur.execute_calls) == 1

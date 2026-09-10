@@ -78,6 +78,7 @@ class CircuitBreakerTradeSectorMixin:
             """
         )
         recent_close = cur.fetchone()
+        pending_recent_loss = False
         if recent_close and recent_close[0] is not None:
             recent_pnl = _cb._float(recent_close[0], None, context="recent_position_pnl")
             if recent_pnl >= 0:
@@ -86,6 +87,17 @@ class CircuitBreakerTradeSectorMixin:
                     f"in last 90s breaks loss streak - skipping algo_trades check"
                 )
                 return {"halted": False, "reason": "0 losses (recent win resets streak)"}
+            # FIXED 2026-09-07 (real-money-readiness audit): the win case above correctly
+            # short-circuits using algo_positions (Phase 9 hasn't recorded this close into
+            # algo_trades yet - see the FIX (2026-08-05) comment above), but a recent LOSS in
+            # this same 90s window had no equivalent handling - it just fell through to the
+            # algo_trades query below, which by the same comment's own logic does NOT yet
+            # contain this trade. Net effect: a just-closed loss was invisible to this check
+            # for up to one Phase-2 cycle, under-counting the live consecutive-loss streak by
+            # exactly the case that matters most (a NEW loss, not a new win) - the opposite of
+            # what a capital-protection check should fail toward. Flag it here and fold it
+            # into the streak below instead of silently dropping it.
+            pending_recent_loss = True
 
         cur.execute(
             """
@@ -110,11 +122,14 @@ class CircuitBreakerTradeSectorMixin:
             ),
         )
         rows = cur.fetchall()
-        if not rows:
+        if not rows and not pending_recent_loss:
             return {"halted": False, "reason": "No closed trades"}
         # Count consecutive losses from most recent. Skip trades with NULL P&L (incomplete data).
         # Do not default NULL to 0 (would mask incomplete records), but do skip rather than fail.
-        streak = 0
+        # pending_recent_loss (see above) is strictly more recent than every algo_trades row -
+        # it hasn't been recorded there yet - so it counts as streak==1 before the loop below
+        # continues counting older consecutive losses from algo_trades.
+        streak = 1 if pending_recent_loss else 0
         for r in rows:
             if r[0] is None:
                 # Skip trades with incomplete exit data; do not count as losses

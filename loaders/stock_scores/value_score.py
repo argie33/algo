@@ -20,6 +20,75 @@ from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger("loaders.load_stock_scores")
 
+# VALUE_MIN_WEIGHT (added 2026-09-07, /goal session: "dig into the scoring results" sweep).
+# _score_value's `if total_weight > 0: return weighted_sum / total_weight` accepted ANY nonzero
+# weight as a fully-confident score - live-verified this lets a single satellite input (most
+# often dividend_yield=0.0 for a non-dividend-paying stock, 10% of nominal weight, or the
+# unprofitable-PE floor at 27%) produce a value_score indistinguishable in the DB from a name
+# scored off real coverage of PE/PB/PS. Live sweep: 71 universe symbols currently get a
+# value_score built from <=20% of nominal weight (17 from dividend_yield ALONE). This is the
+# identical thin-sample-extrapolation problem Growth (GROWTH_MIN_FIELDS_AVAILABLE, ~42% of its
+# 12 fields - see growth_scoring.py) and Quality (40-point floor out of a 101-point nominal
+# total - see quality_scoring.py's own docstring) already solved for themselves; Value never
+# got the same treatment. 0.40 mirrors that same ~40% convention against this pillar's own
+# 1.00 nominal total (PE 0.27 + PB 0.27 + PS 0.27 + Forward P/E 0.09 + Dividend Yield 0.10).
+# Below this, _score_value returns a data_unavailable marker instead of a score built from too
+# little evidence, same principle, not a new one invented here.
+VALUE_MIN_WEIGHT = 0.40
+
+# DIVIDEND PAYOUT-SUSTAINABILITY GATE (added 2026-09-08, real-money-readiness audit: "does the
+# dividend_yield term correctly penalize a high yield that's funded by negative FCF, or does it
+# reward a value-trap the same as a genuinely cheap, well-covered dividend?"). Confirmed real
+# gap: dividend_yield's scoring block (below) only ever looked at yield magnitude - a stock
+# with a 21%+ yield funded entirely by negative free cash flow (a classic, well-documented
+# value-trap pattern: the dividend is one downgrade/cut away from a price collapse) scored the
+# SAME as an equally-high yield backed by strong FCF coverage. fcf_yield is already
+# fetched into `metrics` (value_metrics.py's _get_value_metrics) but unused here - it was
+# REMOVED as its own standalone scored input 2026-08-28 ("FCF YIELD - RESOLVED" docstring note
+# below) because it was robustly WRONG-SIGNED as an independent cheapness signal (higher
+# fcf_yield predicted LOWER forward returns). That finding does not apply here: this is not
+# re-adding fcf_yield as an alpha input, it's using it as a risk GATE on a different input
+# (dividend_yield) - conceptually distinct, same way this pillar already treats
+# "unprofitable_stock"/"negative_book_value" as floors on PE/PB rather than standalone inputs.
+# Since dividend_yield and fcf_yield are both yield-on-price (dividends/price, fcf/price), their
+# ratio is exactly the FCF payout ratio (dividends/FCF) with price canceling out - no new data
+# needed. FCF_PAYOUT_UNSUSTAINABLE_RATIO=1.0: paying out 100%+ of FCF as dividends is the
+# standard unsustainable-payout threshold (any coverage ratio below 1x means the dividend is
+# funded by debt/asset sales/equity issuance, not organic cash generation). Below 1.0x: no
+# penalty (this is what a well-covered dividend looks like). 1.0x-2.0x: linearly taper the
+# dividend score to 0 (this file's existing "worst" floor value, see PE/PB's own floors) by
+# 2.0x. Negative or zero FCF while paying any dividend at all is floored straight to 0 -
+# unambiguously the worst case, not merely "high payout ratio" (division would give a
+# meaningless negative "ratio" otherwise). Missing fcf_yield (no coverage available) leaves
+# dividend_yield scored on magnitude alone, same fail-safe-on-missing-data convention as every
+# other input in this pillar - this gate only fires when there's real evidence to fire on.
+FCF_PAYOUT_UNSUSTAINABLE_RATIO = 1.0
+FCF_PAYOUT_ZERO_SCORE_RATIO = 2.0
+
+
+def _dividend_sustainability_factor(dividend_yield: float, fcf_yield: float | None) -> float:
+    """Scale factor (0.0-1.0) to apply to the raw dividend_yield score.
+
+    See FCF_PAYOUT_UNSUSTAINABLE_RATIO's module-level docstring for the full reasoning. Pure
+    function, no I/O - dividend_yield/fcf_yield are both already-fetched value_metrics fields.
+    """
+    if dividend_yield <= 0 or fcf_yield is None:
+        return 1.0
+    if fcf_yield <= 0:
+        # Dividend funded by negative (or zero) free cash flow - the classic value-trap
+        # pattern (e.g. a stock scoring well on a double-digit yield that's actually being
+        # paid out of debt/asset sales while operations burn cash). Unambiguously the worst
+        # case - floor straight to 0 rather than computing a meaningless negative "ratio".
+        return 0.0
+    payout_ratio = dividend_yield / fcf_yield
+    if payout_ratio <= FCF_PAYOUT_UNSUSTAINABLE_RATIO:
+        return 1.0
+    if payout_ratio >= FCF_PAYOUT_ZERO_SCORE_RATIO:
+        return 0.0
+    # Linear taper between 1.0x (fully covered, no penalty) and 2.0x (floor)
+    span = FCF_PAYOUT_ZERO_SCORE_RATIO - FCF_PAYOUT_UNSUSTAINABLE_RATIO
+    return 1.0 - (payout_ratio - FCF_PAYOUT_UNSUSTAINABLE_RATIO) / span
+
 
 class ValueScoreMixin:
     """See module docstring.
@@ -578,8 +647,10 @@ class ValueScoreMixin:
         Internal function: caller (_compute_stock_score) explicitly handles marker dicts
         and uses them for value metric computation.
 
-        MINIMUM DATA REQUIREMENT: At least one of PE/PB/FCF/dividend metrics must be
-        non-NULL. If all value metrics are None, returns data_unavailable marker.
+        MINIMUM DATA REQUIREMENT: at least VALUE_MIN_WEIGHT (0.40) of nominal weight
+        (PE 0.27 + PB 0.27 + PS 0.27 + Forward P/E 0.09 + Dividend Yield 0.10 = 1.00) must be
+        available - see that constant's own docstring. Below that, or if all value metrics are
+        None, returns a data_unavailable marker rather than a thin-sample score.
         Critical metric for stock scoring (high priority upstream loader).
         """
         if not metrics or metrics.get("data_unavailable"):
@@ -798,6 +869,11 @@ class ValueScoreMixin:
         if metrics.get("dividend_yield") is not None:
             div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
             div_score = min(100, div * 16.7)
+            # PAYOUT-SUSTAINABILITY GATE - see FCF_PAYOUT_UNSUSTAINABLE_RATIO's module-level
+            # docstring above. Penalizes (does not just cap) a high yield that isn't covered by
+            # free cash flow - the CATO-pattern value trap this pillar previously scored
+            # identically to a well-covered dividend of the same magnitude.
+            div_score *= _dividend_sustainability_factor(metrics["dividend_yield"], metrics.get("fcf_yield"))
             weighted_sum += div_score * 0.10
             total_weight += 0.10
 
@@ -879,8 +955,20 @@ class ValueScoreMixin:
         # by this function, same "computed-but-unscored" convention as ev_ebitda/ev_revenue
         # above (forward_pe is no longer in this bucket - see the Forward P/E block above).
 
-        if total_weight > 0:
+        if total_weight >= VALUE_MIN_WEIGHT:
             return weighted_sum / total_weight
+        if total_weight > 0:
+            logger.warning(
+                f"[STOCK_SCORES] {symbol} value_score withheld: only {total_weight:.2f}/1.00 nominal "
+                f"weight available, below VALUE_MIN_WEIGHT={VALUE_MIN_WEIGHT}. See that constant's "
+                f"docstring - a single satellite input's weight is thin-sample extrapolation, not an "
+                f"honest partial score."
+            )
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "insufficient_value_inputs_thin_sample",
+            }
         logger.debug(f"[STOCK_SCORES] No value metrics found to score for {symbol}")
         logger.debug(
             f"[STOCK_SCORES] Returning data_unavailable marker for value_score({symbol}) - no scoreable fields"

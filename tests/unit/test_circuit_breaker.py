@@ -415,6 +415,50 @@ class TestConsecutiveLossesOrdering:
         assert "%CONCENTRATION%" in params
 
 
+class TestConsecutiveLossesRecentCloseAsymmetry:
+    """FIXED 2026-09-07 (real-money-readiness audit): the 90s-recent-algo_positions-close
+    fast-path only had a branch for a recent WIN (breaks the streak early). A recent LOSS in
+    that same window fell through to the algo_trades query, which - per this file's own
+    2026-08-05 comment - does NOT yet contain that trade (Phase 9 exit-recording runs after
+    Phase 2). Net effect: a just-closed loss was invisible to this capital-protection check
+    for up to one Phase-2 cycle, under-counting the live consecutive-loss streak by exactly
+    the case that matters (a NEW loss), the opposite direction a fail-closed check should
+    ever be wrong in.
+    """
+
+    @pytest.fixture
+    def config_with_threshold(self, mock_config):
+        return {**mock_config, "alpaca_paper_trading": False, "max_consecutive_losses": 3}
+
+    def test_recent_loss_in_last_90s_counts_toward_streak(self, config_with_threshold):
+        cb = CircuitBreaker(config=config_with_threshold)
+        mock_cur = Mock()
+        # algo_positions recent-close query returns a loss closed in the last 90s
+        mock_cur.fetchone.return_value = (-2.5, "2026-09-07T10:00:00")
+        # algo_trades has 1 older consecutive loss behind it
+        mock_cur.fetchall.return_value = [(-1.0, "2026-09-06")]
+        result = cb._check_consecutive_losses(current_date=None, cur=mock_cur)
+        # 1 for the pending recent loss (not yet in algo_trades) + 1 from algo_trades = 2
+        assert result["value"] == 2
+
+    def test_recent_loss_alone_with_no_algo_trades_history_still_counts(self, config_with_threshold):
+        cb = CircuitBreaker(config=config_with_threshold)
+        mock_cur = Mock()
+        mock_cur.fetchone.return_value = (-1.5, "2026-09-07T10:00:00")
+        mock_cur.fetchall.return_value = []  # no algo_trades history yet
+        result = cb._check_consecutive_losses(current_date=None, cur=mock_cur)
+        assert result["value"] == 1
+
+    def test_recent_win_still_breaks_streak_unaffected_by_fix(self, config_with_threshold):
+        cb = CircuitBreaker(config=config_with_threshold)
+        mock_cur = Mock()
+        mock_cur.fetchone.return_value = (3.0, "2026-09-07T10:00:00")
+        mock_cur.fetchall.return_value = [(-1.0, "2026-09-06")]
+        result = cb._check_consecutive_losses(current_date=None, cur=mock_cur)
+        assert result["halted"] is False
+        assert result["reason"] == "0 losses (recent win resets streak)"
+
+
 class TestCircuitBreakerTotalRisk:
     """_check_total_risk's algo_trades JOIN can silently drop open positions whose
     trade_ids_arr doesn't resolve to a real algo_trades row (empty array, orphaned/stale

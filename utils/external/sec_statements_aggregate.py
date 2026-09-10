@@ -17,10 +17,66 @@ from utils.external.sec_statements_entry_resolution import (
     _aggregate_concepts_resolve_entry_period,
     _aggregate_concepts_should_replace_entry,
 )
-from utils.external.sec_statements_shared import _extract_currency_code
+from utils.external.sec_statements_shared import _ANNUAL_REPORT_FORMS, _extract_currency_code
 from utils.external.sec_statements_unit_context import _aggregate_concepts_build_unit_context
 
 logger = logging.getLogger(__name__)
+
+
+def _aggregate_concepts_build_alias_group_history(
+    concept_specs: list[tuple[str, str, str]],
+    alias_groups: dict[str, str] | None,
+    us_gaap_facts: dict[str, Any] | None,
+    ifrs_facts: dict[str, Any] | None,
+    dei_facts: dict[str, Any] | None,
+) -> dict[str, str]:
+    """Latest confirmed 10-K/20-F/40-F instant-fact end date per alias group.
+
+    ADDED 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push, ANDG live-confirmed) - see
+    `_aggregate_concepts`'s own `alias_groups` docstring for the full rationale. Only concepts
+    present in `alias_groups` are considered; everything else returns nothing for that
+    target_key group, an explicit opt-in with no effect on callers that don't pass the param.
+    """
+    group_max_annual_report_end: dict[str, str] = {}
+    if not alias_groups:
+        return group_max_annual_report_end
+    for concept, target_key, source in concept_specs:
+        group_key = alias_groups.get(target_key)
+        if group_key is None:
+            continue
+        units = _aggregate_concepts_lookup_units(concept, source, us_gaap_facts, ifrs_facts, dei_facts)
+        if not units:
+            continue
+        for entries in units.values():
+            for entry in entries:
+                if entry.get("form") in _ANNUAL_REPORT_FORMS and not entry.get("start") and entry.get("end"):
+                    prev = group_max_annual_report_end.get(group_key)
+                    if prev is None or entry["end"] > prev:
+                        group_max_annual_report_end[group_key] = entry["end"]
+    return group_max_annual_report_end
+
+
+def _aggregate_concepts_widen_to_alias_group(
+    target_key: str,
+    alias_groups: dict[str, str] | None,
+    group_max_annual_report_end: dict[str, str],
+    has_annual_report_form: bool,
+    max_annual_report_end: str | None,
+) -> tuple[bool, str | None]:
+    """Widen one concept's own annual-report-form history to its alias group's, if any.
+
+    Extracted from `_aggregate_concepts`'s per-concept loop to keep that loop's own
+    complexity in check - see `_aggregate_concepts`'s `alias_groups` docstring for the
+    rationale. Only ever grows the boundary already computed for this concept, never
+    shrinks it.
+    """
+    group_key = alias_groups.get(target_key) if alias_groups else None
+    group_end = group_max_annual_report_end.get(group_key) if group_key is not None else None
+    if group_end is None:
+        return has_annual_report_form, max_annual_report_end
+    if max_annual_report_end is None or group_end > max_annual_report_end:
+        max_annual_report_end = group_end
+    return True, max_annual_report_end
 
 
 def _aggregate_concepts(
@@ -30,6 +86,7 @@ def _aggregate_concepts(
     period: str,
     ifrs_aliases: list[tuple[str, str]] | None = None,
     dei_aliases: list[tuple[str, str]] | None = None,
+    alias_groups: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Pivot multiple concepts into rows keyed by (fiscal_year, fiscal_period).
 
@@ -55,6 +112,16 @@ def _aggregate_concepts(
             us-gaap/ifrs target_key sharing a downstream db column, or a cruder cover-page
             fact could silently overwrite a better weighted-average figure - see
             load_financial_statements.py's field_mapping comment on shares_outstanding_dei.
+        alias_groups: Optional target_key -> canonical group-key map, for target_keys the
+            caller already knows collapse to the SAME final DB column downstream (e.g.
+            sec_balance_sheet.py's StockholdersEquity/...IncludingNCI/PartnersCapital/
+            MembersEquity family, all bound for "stockholders_equity" via
+            load_financial_statements.py's field_mapping - a mapping this function has no
+            visibility into on its own). ADDED 2026-09-10 (goal: "Missing SEC/XBRL data"
+            under-500 push, ANDG live-confirmed) - see this function's own comment at
+            `_group_max_annual_report_end` below for why this exists. A target_key absent
+            from this map is unaffected (grouped only with itself, identical to omitting
+            the parameter).
 
     Returns:
         List of dicts with aggregated concept data
@@ -75,10 +142,60 @@ def _aggregate_concepts(
 
     concept_specs = _aggregate_concepts_build_specs(concepts, ifrs_aliases, dei_aliases)
 
+    # FIXED 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push, ANDG live-confirmed):
+    # _aggregate_concepts_build_unit_context's has_annual_report_form/_max_annual_report_end
+    # guard (see its own GM/DIS/WEC comments) tracks confirmed 10-K/20-F/40-F history PER RAW
+    # CONCEPT NAME, but several concepts can map to the SAME target_key (e.g.
+    # "StockholdersEquity" and "StockholdersEquityIncludingPortionAttributableToNoncontrolling
+    # Interest" both feed "stockholders_equity"). A filer that tags one concept name in its
+    # 10-K but switches to a DIFFERENT same-target concept name in a later 10-Q (ANDG:
+    # bare "StockholdersEquity" in its FY2025 10-K, "...IncludingPortionAttributableTo
+    # NoncontrollingInterest" in its FY2026 Q2 10-Q) defeats the guard entirely for that 10-Q
+    # concept, since IT has no 10-K history of its own - its premature mid-year snapshot
+    # leaks into the current fiscal year's bucket while sibling fields (Assets/LongTermDebt,
+    # tagged under the SAME concept name in both filings) are correctly withheld by the same
+    # guard, producing an inconsistent partial row instead of a clean "not yet confirmed"
+    # state. Widening the guard's annual-report-form history to the target_key GROUP (every
+    # concept spec sharing this target column) rather than one concept name in isolation
+    # closes this - purely additive (a target_key with no cross-alias confirmed history
+    # behaves exactly as before; this can only make the existing guard fire MORE often, never
+    # less, so it can't newly leak anything through that wasn't leaking before).
+    _group_max_annual_report_end = _aggregate_concepts_build_alias_group_history(
+        concept_specs, alias_groups, us_gaap_facts, ifrs_facts, dei_facts
+    )
+
     for concept, target_key, source in concept_specs:
         units = _aggregate_concepts_lookup_units(concept, source, us_gaap_facts, ifrs_facts, dei_facts)
         if units is None:
             continue
+
+        # FIXED 2026-09-07 (score-sanity audit, BWMX/Betterware de Mexico live-confirmed):
+        # a foreign private issuer can tag the exact SAME raw (unconverted) local-currency
+        # number under BOTH its real local-currency unit AND a "USD" unitRef for the same
+        # concept+period - a filer-side XBRL tagging error, not a real USD-denominated fact.
+        # BWMX's 20-F tags ifrs-full:RevenueFromContractsWithCustomers as both
+        # MXN 10,067,683,000 and USD 10,067,683,000 for FY2023 (real revenue is ~MXN 10.07B,
+        # roughly $500-600M USD - the "USD" tag is off by the full MXN/USD rate, ~18-20x).
+        # Since MXN isn't in MAJOR_CURRENCIES, the MXN-tagged fact is correctly skipped below,
+        # but nothing previously cross-checked the USD-tagged sibling against it, so the
+        # spurious raw-MXN-value-as-USD fact sailed through untouched, inflating revenue
+        # (and cascading into ps_ratio/ev_revenue/pe_ratio) by an order of magnitude.
+        # Precompute every (start, end, val) triple from this concept's rejected (non-major,
+        # non-USD) currency units so the USD branch below can refuse to trust a USD-tagged
+        # entry that exactly duplicates one - a real independent USD fact would essentially
+        # never coincide in both value AND period with a raw local-currency figure this way.
+        _suspect_foreign_entries: set[tuple[Any, Any, float]] = set()
+        for _u, _entries in units.items():
+            _u_currency = _aggregate_concepts_currency_code(_u)
+            if _u_currency == "USD" or _u_currency in MAJOR_CURRENCIES:
+                continue
+            if not (len(_u_currency) == 3 and _u_currency.isalpha() and _u_currency.isupper()):
+                continue
+            for _e in _entries:
+                _val = _e.get("val")
+                if _val is None:
+                    continue
+                _suspect_foreign_entries.add((_e.get("start"), _e.get("end"), _val))
 
         for _unit, entries in units.items():
             _currency_code = _aggregate_concepts_currency_code(_unit)
@@ -92,6 +209,15 @@ def _aggregate_concepts(
             ):
                 continue
 
+            if _currency_code == "USD" and _suspect_foreign_entries:
+                entries = [
+                    _e
+                    for _e in entries
+                    if (_e.get("start"), _e.get("end"), _e.get("val")) not in _suspect_foreign_entries
+                ]
+                if not entries:
+                    continue
+
             (
                 has_annual_report_form,
                 _max_annual_report_end,
@@ -100,6 +226,14 @@ def _aggregate_concepts(
                 _short_span_val_by_accn,
                 _fy_by_start_end_val,
             ) = _aggregate_concepts_build_unit_context(entries)
+
+            # Widen to the alias-group's confirmed annual-report history (see this
+            # function's own comment above `_group_max_annual_report_end` for why) - only
+            # ever grows the boundary already computed above, never shrinks it. A concept
+            # with no alias_groups entry (or no group history at all) is unaffected.
+            has_annual_report_form, _max_annual_report_end = _aggregate_concepts_widen_to_alias_group(
+                target_key, alias_groups, _group_max_annual_report_end, has_annual_report_form, _max_annual_report_end
+            )
 
             for entry in entries:
                 resolved = _aggregate_concepts_resolve_entry_period(
@@ -161,6 +295,7 @@ def _aggregate_concepts(
                     start_date,
                     end_date,
                     period,
+                    concept,
                 )
                 if should_replace:
                     _aggregate_concepts_apply_entry_value(
@@ -174,6 +309,7 @@ def _aggregate_concepts(
                         period,
                         is_major_currency,
                         _currency_code,
+                        concept,
                     )
 
     # period_end/filed/form are row bookkeeping set unconditionally above (not XBRL
@@ -195,6 +331,19 @@ def _aggregate_concepts(
     # instead of guessing from (fiscal_year, fiscal_quarter). Annual extraction still strips
     # it - annual_income_statement has no such column and no such ordering ambiguity (a
     # single fiscal_year value already identifies one row per symbol unambiguously).
+    # `_rank_{col}` (see _aggregate_concepts_apply_entry_value) is deliberately KEPT here,
+    # unlike the other `_filed_`/`_end_`/`_frame_`/`_span_`/`_is_instant_` bookkeeping
+    # prefixes it's stripped alongside - see sec_base.py's transform() cross-concept
+    # net_income guard (FIXED 2026-09-07, PCG live-confirmed) for why: two DIFFERENT
+    # concepts (e.g. "ProfitLoss" and "NetIncomeLoss") can both target the same downstream
+    # db column, and transform() resolves that collision by "whichever concept's row key
+    # was inserted last wins" - a rule that is correct when both concepts came from a real
+    # primary financial-statement form, but not when the later one is only present because
+    # of the "non-primary form as last-resort fallback" allowance
+    # (_aggregate_concepts_should_replace_entry's own docstring/tests) - a DEF 14A Pay vs
+    # Performance re-tag can silently win over a correct 10-K figure from a sibling concept
+    # this way. transform() needs the per-concept rank to tell the two cases apart; the rank
+    # itself is meaningless without also keeping the row.
     result = []
     for row in rows.values():
         result.append(
@@ -203,7 +352,6 @@ def _aggregate_concepts(
                 for k, v in row.items()
                 if not k.startswith("_filed_")
                 and not k.startswith("_end_")
-                and not k.startswith("_rank_")
                 and not k.startswith("_frame_")
                 and not k.startswith("_span_")
                 and not k.startswith("_is_instant_")

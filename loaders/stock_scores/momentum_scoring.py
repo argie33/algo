@@ -14,9 +14,22 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
+from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.type_conversion import safe_float
 
 logger = logging.getLogger("loaders.load_stock_scores")
+
+# MOMENTUM_MIN_WEIGHT (added 2026-09-07, /goal real-money-readiness audit): same thin-sample-
+# extrapolation gate already applied to Value (VALUE_MIN_WEIGHT), Growth
+# (GROWTH_MIN_FIELDS_AVAILABLE), and Risk (RISK_MIN_WEIGHT_AVAILABLE) - _score_momentum's old
+# `if total_weight > 0: return weighted_sum / total_weight` treated ANY nonzero nominal weight
+# as a fully-confident 0-100 score, including a single near-zero MACD-sign reading (0.37
+# weight) with no price-return momentum, no RSI, no SMA data at all. Live-confirmed: NCPL and
+# 7 similar thin-coverage symbols (XLAB/CURX/PAAI/SGLD/BOXL/PSQL/VAI) scored momentum_score=70
+# flat off nothing but "MACD is barely positive". Same 0.40 floor as Value/Risk (~40% of
+# nominal weight is this file's established floor for "the score reflects the pillar's actual
+# construction, not a fragment of it").
+MOMENTUM_MIN_WEIGHT = 0.40
 
 
 def _owner() -> Any:
@@ -419,8 +432,19 @@ class MomentumScoringMixin:
             weighted_sum += (sum(sma_scores) / len(sma_scores)) * 0.08
             total_weight += 0.08
 
-        if total_weight > 0:
+        if total_weight >= MOMENTUM_MIN_WEIGHT:
             return weighted_sum / total_weight
+        if total_weight > 0:
+            logger.debug(
+                f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol}) - "
+                f"only {total_weight:.2f} weight available, below MOMENTUM_MIN_WEIGHT={MOMENTUM_MIN_WEIGHT}. "
+                f"See that constant's docstring - a thin fragment of the pillar isn't a confident score."
+            )
+            return {
+                "symbol": symbol,
+                "data_unavailable": True,
+                "reason": "insufficient_momentum_inputs_thin_sample",
+            }
         logger.debug(
             f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol}) - no scoreable fields"
         )
@@ -494,35 +518,86 @@ class MomentumScoringMixin:
         """
         try:
             with _owner().DatabaseContext("write") as cur:
+                # ACTIVE-UNIVERSE GUARD (added 2026-09-09, migration 1276's own code fix - see
+                # NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE's own module-level comment in
+                # utils/loaders/helpers.py for the full evidence trail). All three UPDATEs below
+                # previously ran over every stock_scores row unconditionally - a closed-end fund/
+                # BDC/trust row that predates (or later drifted out of) the active-universe
+                # exclusion get_active_symbols(exclude_etfs=True) enforces for the per-symbol
+                # fetch path (a) polluted the PERCENT_RANK() ranking population real stocks are
+                # scored against, (b) kept getting its own rs_percentile freshly computed, and
+                # (c) kept getting updated_at bumped to look like a live, current-day score every
+                # single run - the mechanism that let RGT/ASA/GGN/etc. resurface with a
+                # fresh-looking updated_at despite the fetch path itself never writing them again.
+                _active_universe_join = (
+                    "JOIN stock_symbols su ON su.symbol = stock_scores.symbol "
+                    "LEFT JOIN company_info_sec cis ON cis.symbol = stock_scores.symbol "
+                    "WHERE stock_scores.momentum_score IS NOT NULL AND ("
+                    + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                    + ")"
+                )
                 # First, update rs_percentile via PERCENT_RANK for symbols with momentum scores
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE stock_scores ss
                     SET rs_percentile = ranked.pct,
                         updated_at = CURRENT_TIMESTAMP
                     FROM (
-                        SELECT symbol,
+                        SELECT stock_scores.symbol,
                                ROUND(
-                                   (PERCENT_RANK() OVER (ORDER BY momentum_score))::NUMERIC * 100,
+                                   (PERCENT_RANK() OVER (ORDER BY stock_scores.momentum_score))::NUMERIC * 100,
                                    2
                                ) AS pct
                         FROM stock_scores
-                        WHERE momentum_score IS NOT NULL
+                        """
+                    + _active_universe_join
+                    + """
                     ) ranked
                     WHERE ss.symbol = ranked.symbol
-                """)
+                """
+                )
                 # Second, explicitly null out rs_percentile for symbols without momentum scores
+                # (original behavior, no join needed - also correctly covers a stock_scores row
+                # for a symbol with no stock_symbols row at all, which the join-based branch
+                # below can never reach).
                 cur.execute("""
                     UPDATE stock_scores
                     SET rs_percentile = NULL,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE momentum_score IS NULL AND rs_percentile IS NOT NULL
                 """)
-                # Third, update timestamp for any remaining rows to mark post_run completion
-                cur.execute("""
-                    UPDATE stock_scores
+                # Second-b, also null out rs_percentile for symbols that DO have a momentum_score
+                # but no longer belong to the active, non-fund scored universe (the case the
+                # original query never handled at all).
+                cur.execute(
+                    """
+                    UPDATE stock_scores ss
+                    SET rs_percentile = NULL,
+                        updated_at = CURRENT_TIMESTAMP
+                    FROM stock_symbols su
+                    LEFT JOIN company_info_sec cis ON cis.symbol = su.symbol
+                    WHERE ss.symbol = su.symbol
+                      AND ss.rs_percentile IS NOT NULL
+                      AND ss.momentum_score IS NOT NULL
+                      AND NOT ("""
+                    + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                    + ")"
+                )
+                # Third, update timestamp for any remaining rows to mark post_run completion -
+                # scoped to the same active universe so an excluded symbol's updated_at doesn't
+                # get bumped to look like a fresh score on every run.
+                cur.execute(
+                    """
+                    UPDATE stock_scores ss
                     SET updated_at = CURRENT_TIMESTAMP
-                    WHERE rs_percentile IS NOT NULL OR momentum_score IS NOT NULL
-                """)
+                    FROM stock_symbols su
+                    LEFT JOIN company_info_sec cis ON cis.symbol = su.symbol
+                    WHERE ss.symbol = su.symbol
+                      AND (ss.rs_percentile IS NOT NULL OR ss.momentum_score IS NOT NULL)
+                      AND ("""
+                    + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                    + ")"
+                )
             logger.info("RS percentiles updated via batch rank (post_run completed)")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             error_msg = f"RS percentile batch update failed - stock scores cannot be finalized: {e}"

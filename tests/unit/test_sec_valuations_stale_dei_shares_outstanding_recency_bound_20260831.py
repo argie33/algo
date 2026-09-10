@@ -48,6 +48,13 @@ class _RecordingCursor:
         return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -88,6 +95,7 @@ class TestStaleDeiSharesOutstandingRecencyBound:
         filer fixture: this tier is gated off entirely for FPI as of the same-day
         is_foreign_private_issuer fix (see module docstring), so it can only still fire here."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (5_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no matching row
@@ -120,6 +128,7 @@ class TestStaleDeiSharesOutstandingRecencyBound:
         company_info_sec are both gated off for FPI) - when that also fails, the result must
         be an honest unavailable marker, not a wrong market_cap built from a stale value."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),
             (5_000_000.0, None, None, None),
         ]

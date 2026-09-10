@@ -16,7 +16,9 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
-from loaders.stock_scores.pillar_weights import _value_risk_adjusted_weights
+from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
+from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT, _dividend_sustainability_factor
+from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.type_conversion import safe_float
 
 logger = logging.getLogger("loaders.load_stock_scores")
@@ -230,6 +232,52 @@ class ValueMetricsMixin:
         return result
 
     _MIN_SECTOR_SLICE = 20
+    _WINSORIZE_MIN_GROUP_SIZE = 5
+
+    @staticmethod
+    def _winsorize_group_values(values: dict[str, float]) -> dict[str, float]:
+        """Clip a group's raw values to its own [1st, 99th] percentile before ranking.
+
+        FIX (2026-09-07, real-money-readiness leaderboard audit): `_percent_rank_cheap_high`/
+        `_percent_rank_cheap_high_sector_relative` are pure rank transforms with no cross-check
+        between metrics - the single most extreme raw value in a group always monopolized
+        percentile 100 alone, even when the extremeness was a data/accounting artifact rather
+        than genuine mispricing. Live-confirmed: VCIG's pb_ratio=0.01/ps_ratio=0.02, each the
+        single cheapest in the whole 4,500+-symbol universe, won percentile 100/99.8 outright
+        off that one observation.
+
+        Below `_WINSORIZE_MIN_GROUP_SIZE`, an empirical quantile isn't a trustworthy clip
+        boundary (too few points to estimate one reliably) - values pass through unchanged,
+        same "too small to trust" precedent as `_MIN_SECTOR_SLICE`'s residual-pool fallback.
+        Since this only clips, never reorders, non-extreme values are always untouched and
+        ranking is otherwise rank-order-preserving except at the newly-shared boundary - two
+        near-tied extreme peers now SHARE the top percentile instead of one arbitrarily
+        winning it alone.
+
+        Validated in `algo/research/value_percentile_rank_winsorization_test_20260907.py`
+        (Fama-MacBeth + Spearman IC, fit 2017-2021 / holdout 2022-2026): winsorized-then-ranked
+        is statistically indistinguishable from raw-then-ranked on every aggregate spec - this
+        closes a real correctness gap at zero measured aggregate cost, not because it improved
+        predictive power.
+        """
+        n = len(values)
+        if n < ValueMetricsMixin._WINSORIZE_MIN_GROUP_SIZE:
+            return dict(values)
+
+        sorted_vals = sorted(values.values())
+
+        def _percentile(pct: float) -> float:
+            # Linear-interpolation percentile (matches numpy's default 'linear' method) -
+            # no numpy dependency needed for a single-array quantile.
+            rank = pct / 100.0 * (n - 1)
+            lo = int(rank)
+            hi = min(lo + 1, n - 1)
+            frac = rank - lo
+            return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * frac
+
+        low = _percentile(1.0)
+        high = _percentile(99.0)
+        return {symbol: min(max(val, low), high) for symbol, val in values.items()}
 
     @classmethod
     def _percent_rank_cheap_high_sector_relative(
@@ -241,7 +289,8 @@ class ValueMetricsMixin:
         universe. Symbols with no sector_map entry, or belonging to a sector with fewer than
         `_MIN_SECTOR_SLICE` members among `values`, are pooled into one residual group and ranked
         via the plain universe-wide `_percent_rank_cheap_high` instead - never dropped, never
-        left unranked.
+        left unranked. Each group (per-sector and the residual pool) is winsorized via
+        `_winsorize_group_values` before ranking - see that method's docstring for why.
 
         ADDED 2026-09-04 (real-money-readiness review, "always do what is best" directive - see
         this method's caller, `update_value_multiples_percentiles()`, for the full evidence
@@ -264,14 +313,14 @@ class ValueMetricsMixin:
                     residual[symbol] = values[symbol]
                 continue
             sector_values = {symbol: values[symbol] for symbol in symbols}
-            result.update(cls._percent_rank_cheap_high(sector_values))
+            result.update(cls._percent_rank_cheap_high(cls._winsorize_group_values(sector_values)))
 
         if residual:
-            result.update(cls._percent_rank_cheap_high(residual))
+            result.update(cls._percent_rank_cheap_high(cls._winsorize_group_values(residual)))
         return result
 
     @staticmethod
-    def _components_with_corrected_value(components_old: Any, value_score_new: float) -> str:
+    def _components_with_corrected_value(components_old: Any, value_score_new: float | None) -> str:
         """Return components (the Pass-1 JSON breakdown dict) re-serialized with its 'value'
         key set to value_score_new, every other pillar untouched.
 
@@ -400,15 +449,13 @@ class ValueMetricsMixin:
         only ever WRITE targets here, never also read inputs, so running this any number of
         times with unchanged inputs produces the identical result every time.
 
-        NOTE (separate, NOT fixed by this pass): `_percent_rank_cheap_high` itself has no
-        winsorization - the single most extreme raw P/B or P/S in the entire universe always
-        wins percentile 100 regardless of whether that extremeness is genuine undervaluation or
-        a data/accounting artifact (live-confirmed: VCIG's pb_ratio=0.01/ps_ratio=0.02, tied for
-        the cheapest in a 4,500+-symbol universe, both win percentile 100/99.8 outright). This is
-        a real, standard-practice gap (MSCI's own cited z-score methodology conventionally
-        winsorizes before ranking) distinct from the compounding bug above, and is a candidate
-        for a future pass - not addressed here to keep this fix scoped to the confirmed
-        correctness bug.
+        STALE NOTE, RESOLVED (originally: `_percent_rank_cheap_high` had no winsorization, so
+        the single most extreme raw P/B or P/S always won percentile 100/0 regardless of whether
+        that extremeness was genuine or a data artifact, e.g. VCIG's pb_ratio=0.01/ps_ratio=0.02).
+        `_winsorize_group_values` (see `_percent_rank_cheap_high_sector_relative` below) now
+        winsorizes each sector group at the 1st/99th percentile before ranking, matching MSCI's
+        cited convention - kept here only so a future reader doesn't re-litigate an already-fixed
+        gap (real-money-readiness audit, 2026-09-08).
 
         SECTOR-RELATIVE RANKING ADOPTED 2026-09-04 (real-money-readiness review, user directive
         "always do what is best, dig in and do the right best things around all of this",
@@ -483,19 +530,34 @@ class ValueMetricsMixin:
         """
         try:
             with _owner().DatabaseContext("write") as cur:
-                cur.execute("""
+                # ACTIVE-UNIVERSE GUARD (added 2026-09-09, migration 1276's own code fix - see
+                # NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE's own module-level comment in
+                # utils/loaders/helpers.py for the full evidence trail). Without this, a closed-
+                # end fund/BDC/trust row that predates (or later drifted out of) the active-
+                # universe exclusion get_active_symbols(exclude_etfs=True) enforces for the
+                # per-symbol fetch path keeps getting value_score/composite_score freshly
+                # recomputed here forever - the per-symbol fetch that WOULD exclude it going
+                # forward never runs an UPDATE/DELETE against a row it no longer selects.
+                cur.execute(
+                    """
                     SELECT ss.symbol, ss.value_score, ss.composite_score, ss.risk_score,
                            ss.quality_score, ss.growth_score, ss.momentum_score,
                            vm.pe_ratio, vm.pb_ratio, vm.ps_ratio, vm.forward_pe,
-                           vm.dividend_yield,
+                           vm.dividend_yield, vm.fcf_yield,
                            vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason,
-                           ss.components, cp.sector
+                           ss.components, cp.sector, ss.data_completeness, ss.data_unavailable,
+                           ss.unavailable_metrics
                     FROM stock_scores ss
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
+                    JOIN stock_symbols su ON su.symbol = ss.symbol
+                    LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
                     WHERE ss.value_score IS NOT NULL
                       AND COALESCE(vm.data_unavailable, false) = false
-                """)
+                      AND ("""
+                    + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                    + ")"
+                )
                 rows = cur.fetchall()
 
             if not rows:
@@ -518,8 +580,8 @@ class ValueMetricsMixin:
             sector_map: dict[str, str] = {}
             for row in rows:
                 symbol, pe, pb, ps, fwd_pe = row[0], row[7], row[8], row[9], row[10]
-                pe_reason, fwd_pe_reason = row[12], row[13]
-                sector = row[15]
+                pe_reason, fwd_pe_reason = row[13], row[14]
+                sector = row[16]
                 if sector is not None:
                     sector_map[symbol] = sector
                 if pe is not None and float(pe) > 0:
@@ -551,13 +613,23 @@ class ValueMetricsMixin:
                 f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast) symbols"
             )
 
-            updates: list[tuple[str, float, float, str | None]] = []
+            # Same configurable completeness gate load_stock_scores.py's Pass 1 uses (default
+            # 70.0) - needed below so a value_score this pass withholds is reflected in
+            # data_completeness/data_unavailable too, not just left at Pass 1's stale (higher)
+            # reading (2026-09-07 real-money-readiness audit).
+            min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
+
+            updates: list[tuple[str, float | None, float, str | None, float, bool, str, str | None]] = []
             for row in rows:
                 symbol, value_score_old, composite_score_old, risk_score = row[0], row[1], row[2], row[3]
                 quality_score, growth_score, momentum_score = row[4], row[5], row[6]
                 pe, pb, ps, fwd_pe, dividend_yield = row[7], row[8], row[9], row[10], row[11]
-                pe_reason, fwd_pe_reason = row[12], row[13]
-                components_old = row[14]
+                fcf_yield = safe_float(row[12], f"{symbol}.fcf_yield") if row[12] is not None else None
+                pe_reason, fwd_pe_reason = row[13], row[14]
+                components_old = row[15]
+                data_completeness_old = float(row[17]) if row[17] is not None else None
+                data_unavailable_old = bool(row[18]) if row[18] is not None else False
+                unavailable_metrics_old: dict[str, str] = dict(row[19]) if row[19] else {}
                 value_score_old = float(value_score_old)
                 composite_score_old = float(composite_score_old)
 
@@ -596,6 +668,14 @@ class ValueMetricsMixin:
                 if dividend_yield is not None:
                     div = min(float(dividend_yield) * 100, 6)  # decimal -> percent, cap 6%
                     div_score = min(100, div * 16.7)
+                    # REAL-MONEY-READINESS FIX 2026-09-08: this recompute pass unconditionally
+                    # overwrote _score_value's gated value_score with this magnitude-only
+                    # dividend term, silently undoing the CATO value-trap payout-sustainability
+                    # gate (value_score.py's _dividend_sustainability_factor) on every run of
+                    # this post_run() pass - the exact stock that gate exists to catch (high
+                    # yield funded by negative FCF) got its full ungated score written to the
+                    # real stock_scores/composite_score row that trading reads.
+                    div_score *= _dividend_sustainability_factor(float(dividend_yield), fcf_yield)
                     components.append((div_score, 0.10))
 
                 total_weight = sum(w for _, w in components)
@@ -604,7 +684,28 @@ class ValueMetricsMixin:
                     # total_weight > 0 to compute in the first place), but never divide by zero.
                     continue
 
-                value_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
+                # VALUE_MIN_WEIGHT gate (2026-09-07 real-money-readiness audit): this pass fully
+                # recomputes value_score every run but never re-applied _score_value's own
+                # VALUE_MIN_WEIGHT gate (loaders/stock_scores/value_score.py) - so a symbol that
+                # cleared Pass 1 off a thicker component set, but loses components by the time
+                # THIS batch pass runs (e.g. PE excluded by _pe_earnings_too_volatile with no PB
+                # available), could end up with total_weight as low as 0.27 - a single multiple -
+                # and that one raw (winsorized) percentile became the entire value_score
+                # verbatim. Live-confirmed RILY
+                # (B. Riley Financial): PE excluded, PB missing, only PS available (ratio 0.22) -
+                # value_score=97.61, #1 in the whole 5,047-symbol universe off a single metric
+                # with no PE/PB cross-check. Same "insufficient data, don't fabricate a score"
+                # treatment as Pass 1 (see test_value_score_min_weight_gate_percentile_pass_
+                # 20260907.py).
+                if total_weight < VALUE_MIN_WEIGHT:
+                    logger.warning(
+                        f"[STOCK_SCORES] {symbol} value_score withheld in percentile pass: only "
+                        f"{total_weight:.2f}/1.00 nominal weight available, below "
+                        f"VALUE_MIN_WEIGHT={VALUE_MIN_WEIGHT}."
+                    )
+                    value_score_new = None
+                else:
+                    value_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
 
                 # Pure recompute of composite_score from the 5 pillar scores as they currently
                 # stand in stock_scores (quality/growth/risk/momentum are untouched by this
@@ -625,13 +726,72 @@ class ValueMetricsMixin:
                         composite_val += float(pillar_score) * weights[pillar_name]
                 composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
 
-                if value_score_new != value_score_old or composite_score_new != composite_score_old:
+                # data_completeness/data_unavailable resync (2026-09-07, same audit as the
+                # VALUE_MIN_WEIGHT gate above): nulling value_score here without also updating
+                # these two columns would leave a stale (too-high) data_completeness and
+                # data_unavailable=False from Pass 1 sitting next to a now-NULL value_score - the
+                # exact inconsistency Pass 1's own "CRITICAL FIX...Enforce completeness
+                # threshold" block (load_stock_scores.py) exists to prevent, just reintroduced by
+                # this second write path. Mirrors that same available_weight-of-BASE_PILLAR_
+                # WEIGHTS formula exactly (quality/growth/value/risk/momentum).
+                all_scores_new: dict[str, float | None] = {
+                    "quality": float(quality_score) if quality_score is not None else None,
+                    "growth": float(growth_score) if growth_score is not None else None,
+                    "value": value_score_new,
+                    "risk": float(risk_score) if risk_score is not None else None,
+                    "momentum": float(momentum_score) if momentum_score is not None else None,
+                }
+                available_weight = sum(
+                    BASE_PILLAR_WEIGHTS[pillar] for pillar, score in all_scores_new.items() if score is not None
+                )
+                data_completeness_new = min(99.99, round(available_weight * 100, 2))
+                data_unavailable_new = data_completeness_new < min_completeness_threshold
+
+                # unavailable_metrics/reason resync (2026-09-08, live-found via LTGO: DB row had
+                # value_score=NULL but unavailable_metrics only listed
+                # growth/risk/momentum, and reason still read the stale higher completeness
+                # from before this pass withheld value_score - same inconsistency class the
+                # data_completeness/data_unavailable fix above closed, just missed for these two
+                # sibling fields - a coverage/debugging consumer reading `reason` or
+                # `unavailable_metrics` off this row undercounts "value" as a missing factor and
+                # misstates the real completeness %.
+                unavailable_metrics_new = dict(unavailable_metrics_old)
+                if value_score_new is None:
+                    unavailable_metrics_new["value"] = "value_min_weight_gate_below_threshold"
+                else:
+                    unavailable_metrics_new.pop("value", None)
+                if data_unavailable_new:
+                    reason_new = (
+                        f"Completeness {data_completeness_new:.2f}% < {min_completeness_threshold}% "
+                        f"threshold (missing metrics: {', '.join(sorted(unavailable_metrics_new.keys()))})"
+                    )
+                else:
+                    reason_new = None
+
+                if (
+                    value_score_new != value_score_old
+                    or composite_score_new != composite_score_old
+                    or data_completeness_new != data_completeness_old
+                    or data_unavailable_new != data_unavailable_old
+                    or unavailable_metrics_new != unavailable_metrics_old
+                ):
                     # BUG FIX 2026-08-29 (goal-mode composite-score validation pass): components
                     # must be kept in sync with the corrected value_score here, or it silently
                     # drifts from the real composite_score math - see
                     # _components_with_corrected_value's own docstring for the full evidence.
                     components_json = self._components_with_corrected_value(components_old, value_score_new)
-                    updates.append((symbol, value_score_new, composite_score_new, components_json))
+                    updates.append(
+                        (
+                            symbol,
+                            value_score_new,
+                            composite_score_new,
+                            components_json,
+                            data_completeness_new,
+                            data_unavailable_new,
+                            json.dumps(unavailable_metrics_new),
+                            reason_new,
+                        )
+                    )
 
             if not updates:
                 logger.info(
@@ -649,12 +809,18 @@ class ValueMetricsMixin:
                     SET value_score = v.value_score,
                         composite_score = v.composite_score,
                         components = v.components::jsonb,
+                        data_completeness = v.data_completeness,
+                        data_unavailable = v.data_unavailable,
+                        unavailable_metrics = v.unavailable_metrics::jsonb,
+                        reason = v.reason,
                         updated_at = CURRENT_TIMESTAMP
-                    FROM (VALUES %s) AS v(symbol, value_score, composite_score, components)
+                    FROM (VALUES %s) AS v(symbol, value_score, composite_score, components,
+                                           data_completeness, data_unavailable,
+                                           unavailable_metrics, reason)
                     WHERE ss.symbol = v.symbol
                     """,
                     updates,
-                    template="(%s, %s, %s, %s)",
+                    template="(%s, %s, %s, %s, %s, %s, %s, %s)",
                 )
             logger.info(
                 f"[STOCK_SCORES] Value multiples cross-sectional percentile pass corrected "

@@ -31,6 +31,7 @@ def mock_config():
         "exit_on_td_sequential": False,
         "exit_on_rs_line_break_50dma": False,
         "require_target_pullback": True,
+        "use_scale_out_targets": True,
         "execution_mode": "paper",
         "alpaca_paper_trading": True,
     }
@@ -132,6 +133,7 @@ class TestFetchAlpacaQuoteRetriesTransientErrors:
             "exit_on_td_sequential": False,
             "exit_on_rs_line_break_50dma": False,
             "require_target_pullback": True,
+            "use_scale_out_targets": True,
             "execution_mode": "auto",  # Live mode
             "alpaca_paper_trading": False,
         }

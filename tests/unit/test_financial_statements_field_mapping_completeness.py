@@ -87,6 +87,12 @@ _CASHFLOW_CONCEPTS = [
     "ShareBasedCompensation",
     "PaymentsForRepurchaseOfEquity",
     "PaymentsForRepurchaseOfCommonStock",
+    # ADDED 2026-09-07: net_change_cash was fetched by none of these and mapped nowhere -
+    # see sec_cash_flow.py's get_cash_flow() comment on these 4 concepts.
+    "CashAndCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+    "CashAndCashEquivalentsPeriodIncreaseDecrease",
+    "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+    "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect",
 ]
 
 
@@ -103,6 +109,41 @@ _FALLBACK_ONLY_ALIAS_KEYS = {
     "earnings_per_share_basic_discontinued",
     "earnings_per_share_diluted_continuing",
     "earnings_per_share_diluted_discontinued",
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 3rd batch this
+    # session): "CurrentLeaseLiabilities"/"NoncurrentLeaseLiabilities" ifrs-full aliases -
+    # popped and summed into the already-mapped "operating_lease_liability" column by
+    # sec_balance_sheet.py's _fill_operating_lease_liability_from_current_noncurrent_split(),
+    # same fallback-only-key pattern as the earnings-per-share keys above.
+    "current_lease_liabilities",
+    "noncurrent_lease_liabilities",
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan exhaustiveness audit, found while
+    # fixing an unrelated noise-filter gap): the 4th batch's IFRS current-portion-of-
+    # borrowings fix (commit d725cc8ca) added "LongtermBorrowings"/"CurrentPortionOf
+    # LongtermBorrowings"/"CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings" ifrs
+    # aliases targeting "long_term_debt_noncurrent"/"long_term_debt_current" but never added
+    # those two keys here - popped and summed into the already-mapped "long_term_debt" column
+    # by _fill_long_term_debt_from_noncurrent_current_split(), same fallback-only-key pattern
+    # as current_lease_liabilities/noncurrent_lease_liabilities above. Pre-existing test gap,
+    # not a live data-loss bug (the fallback function itself was correct and tested).
+    "long_term_debt_current",
+    "long_term_debt_noncurrent",
+    # ADDED 2026-09-09 (goal: XBRL coverage-scan comment-leak follow-up): "GeneralAndAdministra
+    # tiveExpense" (us-gaap and ifrs-full) and its 5 selling/marketing/distribution-type "gate"
+    # concepts (SellingExpense/SellingAndMarketingExpense/SalesAndMarketingExpense/
+    # MarketingExpense/DistributionCosts) - popped and conditionally promoted into the already-
+    # mapped "selling_general_and_administrative_expense" key by
+    # _fill_sga_from_general_and_administrative_when_no_selling_component() in
+    # utils/external/sec_income_statement_fallbacks.py, same fallback-only-key pattern as the
+    # earnings-per-share keys above. Deliberately never given their own field_mapping entry -
+    # see that fallback's docstring for why (roughly half of filers tagging G&A with no combined
+    # SG&A also separately tag a selling-type expense, so a plain always-mapped alias would
+    # silently understate combined SG&A for them).
+    "general_and_administrative_expense",
+    "selling_expense",
+    "selling_and_marketing_expense",
+    "sales_and_marketing_expense",
+    "marketing_expense",
+    "distribution_costs",
 }
 
 

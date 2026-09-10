@@ -42,6 +42,19 @@ logger = logging.getLogger(__name__)
 # updating, which this callers' real-time exit/stop evaluation must not silently trust.
 _MAX_QUOTE_AGE_SECONDS = 300
 
+# SPREAD SANITY GUARD (real-money-readiness audit, found 2026-09-06): the bid/ask
+# midpoint below was computed whenever both sides were present and positive, with no
+# check on how far apart they actually are. A wildly wide spread - a thin/halted/broken
+# quote (e.g. bid=$1, ask=$100) - passes that check silently and produces a garbage
+# midpoint that this function's own docstring says feeds directly into real-time
+# exit/stop evaluation (position_monitor.py's health-flag exits, exit_engine.py's
+# stop/target checks). A midpoint computed from a non-tradable spread could trigger (or
+# suppress) a real stop-loss/target exit on a price nobody could actually transact at.
+# 10% relative spread is already very wide for a liquid equity (typical spreads are
+# pennies/basis points) - conservative enough to only reject genuinely broken/illiquid
+# quotes, not flag normal intraday noise.
+_MAX_RELATIVE_SPREAD = 0.10
+
 
 def _check_quote_freshness(symbol: str, quote: dict[str, object], log_prefix: str) -> None:
     """Raises RuntimeError if quote's own timestamp shows it's stale while the market is
@@ -73,6 +86,100 @@ def _check_quote_freshness(symbol: str, quote: dict[str, object], log_prefix: st
             f"just a normal reporting gap. Refusing to feed a stale price into a "
             f"real-time exit/stop decision."
         )
+
+
+def _fetch_last_trade_price(symbol: str, key: str, secret: str, data_url: str, log_prefix: str) -> float | None:
+    """Best-effort fallback to /v2/stocks/trades/latest (last executed print) for when
+    /v2/stocks/quotes/latest (last NBBO quote) has no usable bid/ask or last_price - a
+    distinct IEX data source that can be populated even when the quote side is empty for a
+    thin symbol. Returns None (never raises) on any failure so the caller's own error
+    message/behavior for a genuinely unavailable price is unchanged; this only adds a
+    chance to recover a usable price, never removes the existing fail-closed path."""
+    try:
+        response = requests.get(
+            f"{data_url}/v2/stocks/trades/latest",
+            params={"symbols": symbol, "feed": "iex"},
+            headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret},
+            timeout=get_alpaca_timeout(),
+        )
+        if response.status_code != 200:
+            return None
+        data = response.json()
+        trades = data.get("trades")
+        if not isinstance(trades, dict) or symbol not in trades:
+            return None
+        trade = trades[symbol]
+        if not isinstance(trade, dict):
+            return None
+        price = trade.get("p")
+        if price is None:
+            return None
+        price_f = float(price)
+        if price_f <= 0:
+            return None
+        return price_f
+    except (requests.RequestException, ValueError, TypeError) as e:
+        logger.warning(f"[{log_prefix}] {symbol}: trades/latest fallback failed: {type(e).__name__}: {e}")
+        return None
+
+
+def _resolve_price_from_quote(
+    symbol: str, quote: dict[str, object], key: str, secret: str, data_url: str, log_prefix: str
+) -> float:
+    """Extracted from fetch_live_quote() to keep it under the repo's C901 complexity
+    ceiling. Resolves a usable price from an already-fetched quote object: bid/ask
+    midpoint (if the spread is sane), else last_price, else a best-effort fallback to
+    /v2/stocks/trades/latest (see _fetch_last_trade_price's docstring for why that's a
+    distinct, sometimes-populated-when-quotes-aren't data source), else raises."""
+    bid = quote.get("bp")
+    ask = quote.get("ap")
+    last_price = quote.get("lp")
+    if bid is not None and ask is not None and bid > 0 and ask > 0:  # type: ignore[operator]
+        bid_f, ask_f = float(bid), float(ask)  # type: ignore[arg-type]
+        mid = (bid_f + ask_f) / 2.0
+        relative_spread = (ask_f - bid_f) / mid
+        if relative_spread > _MAX_RELATIVE_SPREAD:
+            logger.warning(
+                f"[{log_prefix}] {symbol}: bid/ask spread {relative_spread:.1%} exceeds "
+                f"{_MAX_RELATIVE_SPREAD:.0%} sanity threshold (bid={bid_f}, ask={ask_f}) - "
+                f"midpoint is not a trustworthy price for a real-time exit/stop decision. "
+                f"Falling back to last trade price if available."
+            )
+        else:
+            return mid
+
+    if last_price is not None:
+        return float(last_price)  # type: ignore[arg-type]
+
+    # FALLBACK (2026-09-07, real-money-readiness audit): live-reproduced via
+    # algo_exit_check_errors - NUTX (a currently open position) and CLMB repeatedly got NO
+    # usable price from /v2/stocks/quotes/latest across multiple sessions (2026-09-02
+    # through 2026-09-04, market open each time): no bid/ask AND no `lp` in the quote object
+    # itself. That left check_and_execute_exits() unable to evaluate ANY exit strategy for
+    # the position each time it happened - not just trailing-stop raises/targets, the whole
+    # ExitStrategyChain - for potentially many consecutive cycles, with only the broker's
+    # already-resting GTC stop order as a backstop. /v2/stocks/trades/latest is a genuinely
+    # different IEX data source (the last actual print) from /v2/stocks/quotes/latest (the
+    # last NBBO quote) - a thin symbol can easily have a recent trade with no resting quote
+    # on IEX specifically. Try it before giving up; still raises below if also empty.
+    trade_price = _fetch_last_trade_price(symbol, key, secret, data_url, log_prefix)
+    if trade_price is not None:
+        logger.warning(
+            f"[{log_prefix}] {symbol}: quotes/latest had no usable bid/ask/last_price - "
+            f"falling back to trades/latest, got {trade_price}."
+        )
+        return trade_price
+
+    if MarketCalendar.is_market_open():
+        raise RuntimeError(
+            f"Alpaca quote API returned status 200 but no valid price data for {symbol} "
+            f"(quotes/latest and trades/latest fallback both empty). "
+            f"Market is open; this indicates an API issue, not market closure."
+        )
+    raise RuntimeError(
+        f"[{log_prefix}] Cannot fetch intraday quote for {symbol}: market closed. "
+        f"Caller must check market hours before requesting intraday data."
+    )
 
 
 def fetch_live_quote(
@@ -157,25 +264,7 @@ def fetch_live_quote(
                 raise RuntimeError(f"Alpaca quote API returned invalid data type for {symbol}: {type(quote)}")
 
             _check_quote_freshness(symbol, quote, log_prefix)
-
-            bid = quote.get("bp")
-            ask = quote.get("ap")
-            if bid is not None and ask is not None and bid > 0 and ask > 0:
-                return (float(bid) + float(ask)) / 2.0
-
-            last_price = quote.get("lp")
-            if last_price is not None:
-                return float(last_price)
-
-            if MarketCalendar.is_market_open():
-                raise RuntimeError(
-                    f"Alpaca quote API returned status 200 but no valid price data for {symbol}. "
-                    f"Market is open; this indicates an API issue, not market closure."
-                )
-            raise RuntimeError(
-                f"[{log_prefix}] Cannot fetch intraday quote for {symbol}: market closed. "
-                f"Caller must check market hours before requesting intraday data."
-            )
+            return _resolve_price_from_quote(symbol, quote, key, secret, data_url, log_prefix)
 
         elif response.status_code == 401:
             if execution_mode == "auto":

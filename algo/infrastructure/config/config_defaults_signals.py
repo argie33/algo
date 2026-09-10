@@ -101,6 +101,19 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "held-at-today's-weights over historical per-symbol price returns) above this pct of equity",
         "Filter Thresholds",
     ),
+    "max_cvar_pct": (
+        "3.0",
+        "float",
+        "Alert (informational only, algo/risk/var.py's daily report - not a pretrade entry gate) "
+        "when realized 95%/252d CVaR (Expected Shortfall - the average loss on days worse than "
+        "VaR) exceeds this pct of equity. Default is 1.5x max_simulated_var_pct's 2.0%, matching "
+        "the standard fat-tailed-equity-returns ES/VaR multiplier (~1.25x under normality; higher "
+        "for real equity tails) - not independently backtested against this portfolio's own "
+        "return distribution, so treat as a reasonable starting point to tune once real CVaR "
+        "history accumulates, not a validated number. Added 2026-09-07 (real-money-readiness "
+        "audit) - CVaR was computed and persisted everywhere but never alerted on anywhere.",
+        "Filter Thresholds",
+    ),
     # Entry Rules (Minervini)
     "require_sma50_above_sma200": ("true", "bool", "Price and MA alignment", "Entry Rules"),
     "min_percent_from_52w_low": (
@@ -158,6 +171,14 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "Require 2%+ pullback before partial profit exits at T1/T2 (false = exit immediately at target)",
         "Exit Rules",
     ),
+    "use_scale_out_targets": (
+        "true",
+        "bool",
+        "Enable T1/T2/T3 partial-exit scale-out (code-fallback default; live algo_config "
+        "is seeded false by migration 1273 after a validation backtest found a pure trail "
+        "design superior - see exit_position_context.py check_target_t1 docstring)",
+        "Exit Rules",
+    ),
     "t1_target_r_multiple": ("1.5", "float", "Tier 1 profit target R-mult", "Exit Rules"),
     "t2_target_r_multiple": ("3.0", "float", "Tier 2 profit target R-mult", "Signal Quality Thresholds"),
     "t3_target_r_multiple": ("4.0", "float", "Tier 3 profit target R-mult", "Signal Quality Thresholds"),
@@ -166,6 +187,26 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "5.0",
         "float",
         "Default stop loss % for imported positions",
+        "Exit Rules",
+    ),
+    # REAL-MONEY-READINESS (2026-09-07 audit): an orphaned broker position (found at Alpaca,
+    # no matching algo_trades/algo_positions row - e.g. a manual trade placed directly at the
+    # broker) previously got a critical alert but literally zero stop-loss protection, because
+    # algo_untracked_positions is deliberately kept out of algo_positions (migration 1118: "to
+    # avoid circuit breaker conflicts" - it may be a deliberate manual/external holding the
+    # operator does not want the algo's signal-driven exit logic touching). The fix attaches a
+    # standalone (non-bracket) broker-side protective stop directly to the position - real
+    # downside protection without enrolling it in algo-managed targets/Minervini-break/etc
+    # exits. Reuses imported_position_default_stop_loss_pct as the stop distance below current
+    # price. Defaults true (protect capital by default) but is an explicit off-switch for an
+    # operator who has a specific, deliberately-unprotected manual holding at the same broker
+    # account this system trades from.
+    "untracked_position_auto_protective_stop_enabled": (
+        "true",
+        "bool",
+        "Auto-submit a standalone protective stop-loss for orphaned broker positions "
+        "(detected at Alpaca, not in algo_positions). Does NOT enroll the position in "
+        "algo-managed exits - only attaches downside protection. Set false to disable.",
         "Exit Rules",
     ),
     "imported_position_default_target_1_pct": (

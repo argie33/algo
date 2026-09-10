@@ -40,19 +40,26 @@ from datetime import date, datetime, timezone
 from math import isnan, sqrt
 from typing import Any, cast
 
-import psycopg2
-from psycopg2.extras import execute_values
+import psycopg2  # noqa: F401 - used via _owner().psycopg2 in vqg_quality_batch.py
+from psycopg2.extras import execute_values  # noqa: F401 - used via _owner().execute_values in vqg_quality_batch.py
 
 from loaders.helpers.vqg_growth import GrowthMetricsMixin
 from loaders.helpers.vqg_quality import QualityMetricsMixin
+from loaders.helpers.vqg_quality_batch import QualityBatchMixin
 from loaders.helpers.vqg_shared import (
     _SHARED_TREND_FIELDS,
+    DEPOSITORY_BANK_INDUSTRIES,  # noqa: F401 -- re-exported, see comment below
+    INSURANCE_UNDERWRITER_INDUSTRIES,  # noqa: F401 -- re-exported, see comment below
     MAX_ABSOLUTE_DOLLAR_VALUE,  # noqa: F401 -- re-exported, see comment below
     MAX_PLAUSIBLE_GROWTH_PCT,
     MAX_TREND_PERCENTAGE_POINTS,  # noqa: F401 -- re-exported, see comment below
+    UTILITY_INDUSTRIES,  # noqa: F401 -- re-exported, see comment below
+    SectorIndustryCacheMixin,
+    acquire_pooled_connection,
     get_loader_timestamp,
     intrinsic_value_reason_from_fcf_yield,  # noqa: F401 -- re-exported, see comment below
     peg_ratio_reason_from_eps_history,  # noqa: F401 -- re-exported, see comment below
+    release_pooled_connection,
 )
 from loaders.helpers.vqg_symbol_gates import SymbolGateMixin
 from loaders.helpers.vqg_value import ValueMetricsMixin
@@ -79,6 +86,11 @@ logger = logging.getLogger(__name__)
 # delisted/inactive or a genuine data gap.
 MAX_FISCAL_YEAR_AGE_YEARS = 3
 
+# DEPOSITORY_BANK_INDUSTRIES/INSURANCE_UNDERWRITER_INDUSTRIES/UTILITY_INDUSTRIES moved to
+# loaders/helpers/vqg_shared.py (goal session 20260908, shrinking this file back toward the
+# file-size ratchet's hard ceiling) - re-imported below under the same names, full rationale
+# comments live at their new definitions.
+
 
 def _mirror_shared_trend_fields(quality_dict: dict[str, Any], growth_dict: dict[str, Any]) -> None:
     """Copy _SHARED_TREND_FIELDS values/reasons from quality_dict into growth_dict in place.
@@ -99,7 +111,13 @@ def _mirror_shared_trend_fields(quality_dict: dict[str, Any], growth_dict: dict[
 
 
 class ValueQualityGrowthMetricsLoader(
-    ValueMetricsMixin, QualityMetricsMixin, GrowthMetricsMixin, OptimalLoader, SymbolGateMixin
+    ValueMetricsMixin,
+    QualityMetricsMixin,
+    QualityBatchMixin,
+    GrowthMetricsMixin,
+    OptimalLoader,
+    SymbolGateMixin,
+    SectorIndustryCacheMixin,
 ):
     """Consolidated value + quality + growth metrics from SEC + valuations.
 
@@ -201,7 +219,14 @@ class ValueQualityGrowthMetricsLoader(
 
         parallelism = parallelism or get_default_parallelism("value_quality_growth_metrics")
 
+        # PERF FIX (goal session 20260908): this loader never calls super().run(), so it
+        # missed OptimalLoader's pooled-connection reuse - see acquire_pooled_connection's
+        # docstring for the full rationale (~13 fresh DatabaseContext connections/symbol x
+        # ~5,100 symbols, all avoidable).
+        conn_manager = None
         try:
+            conn_manager = acquire_pooled_connection(self.table_name)
+
             # Mark all 3 tables as loading via LoaderStatusManager (uses advisory locks)
             managers = {}
             for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
@@ -418,6 +443,12 @@ class ValueQualityGrowthMetricsLoader(
                 manager.mark_failed(error_msg)
             _log_sla_status()
             raise
+        finally:
+            # Must run on every exit path so the pooled connection is always returned.
+            try:
+                release_pooled_connection(conn_manager)
+            except Exception as cleanup_err:
+                logger.warning(f"[VALUE_QUALITY_GROWTH] Failed to clean up pooled connection: {cleanup_err}")
 
     def fetch_incremental(
         self, symbol: str, since: date | None
@@ -578,6 +609,27 @@ class ValueQualityGrowthMetricsLoader(
                     -- revenue/matched-income preference is only a tiebreak within the fresh tier
                     -- and, separately, within the stale-fallback tier - a fresh but revenue-poor
                     -- balance sheet must never lose to an older year just for having revenue.
+                    --
+                    -- FIXED 2026-09-07 (goal: "anchor-year tiebreak masked profit/loss flips" -
+                    -- re-applied after this fix was lost to concurrent-session churn the same
+                    -- day it first landed): this sort used to have a THIRD tiebreak here, keyed
+                    -- off cash-flow-statement availability, running ahead of plain year recency
+                    -- within the same fresh/revenue-present tier. Since fiscal year is unique per
+                    -- symbol in this table, that extra tiebreak could actually fire and WIN over
+                    -- recency: among two fresh years that both have real revenue, the one with a
+                    -- cash-flow row tagged always won the anchor row, regardless of which was more
+                    -- recent. Live-confirmed PHOE: FY2026 (a genuine swing to a $1.2M loss, no
+                    -- cash-flow row tagged yet) lost anchor selection to FY2025 (profitable, had
+                    -- one) - quality_score came out 88.76, built entirely on last year's positive
+                    -- margins as if they were current, one of 42 universe symbols with the same
+                    -- profit/loss-flip-masking shape. Removed entirely rather than reordered below
+                    -- year recency (a lower-priority tiebreak on a per-symbol-unique column could
+                    -- never fire anyway) - the free-cash-flow-derived ratios already have their
+                    -- own per-field fallback to a prior year for exactly this missing-data case
+                    -- (matching stockholders_equity/interest_expense/etc elsewhere in this file),
+                    -- so dropping the row-level tiebreak doesn't lose that coverage, it just stops
+                    -- it from silently overriding net_income/revenue/margins for unrelated,
+                    -- already-available, more-current fields.
                     ORDER BY (CASE WHEN abs.data_unavailable THEN 1 ELSE 0 END),
                              (CASE
                                    WHEN abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
@@ -588,9 +640,7 @@ class ValueQualityGrowthMetricsLoader(
                                    WHEN ais.revenue IS NOT NULL THEN 3
                                    WHEN ais.symbol IS NOT NULL THEN 4
                                    ELSE 5 END),
-                             (CASE WHEN acf.free_cash_flow IS NOT NULL
-                                    AND abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
-                                    THEN 0 ELSE 1 END), abs.fiscal_year DESC
+                             abs.fiscal_year DESC
                     LIMIT 1
                     """,
                     (
@@ -611,10 +661,20 @@ class ValueQualityGrowthMetricsLoader(
                         MAX_FISCAL_YEAR_AGE_YEARS,
                         MAX_FISCAL_YEAR_AGE_YEARS,
                         MAX_FISCAL_YEAR_AGE_YEARS,
-                        MAX_FISCAL_YEAR_AGE_YEARS,
                     ),
                 )
                 quality_row_db = cur.fetchone()
+                # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700):
+                # recent IPOs (real 10-Qs filed, no 10-K yet) have zero annual_balance_sheet
+                # rows, so the query above returns nothing at all - quality_row_db stays None
+                # and _compute_quality_metrics short-circuits the WHOLE row to a single generic
+                # unavailable marker, even though several ratios (debt_to_assets/current_ratio/
+                # quick_ratio directly, roa/roe/net_margin/sustainable_growth_rate via the
+                # net_income TTM fallback already added this session) could still compute from
+                # real quarterly_balance_sheet + quarterly_income_statement data. See
+                # _fetch_balance_sheet_row_from_quarterly's own docstring.
+                if quality_row_db is None:
+                    quality_row_db = self._fetch_balance_sheet_row_from_quarterly(cur, symbol)
 
                 # Get annual income statement history for growth computation (not from growth_metrics
                 # table). No revenue IS NOT NULL filter - banks often have NULL revenue but valid
@@ -789,6 +849,116 @@ class ValueQualityGrowthMetricsLoader(
         if not row:
             return None
         return self._nan_to_none(safe_float(row[0], f"{symbol}.{column}_fallback_year", allow_none=True))
+
+    def _fetch_ttm_net_income_from_quarterly(self, symbol: str) -> float | None:
+        """Trailing-twelve-month net_income summed from quarterly_income_statement, used when
+        the annual anchor row has no usable net_income (recent IPOs with real 10-Q filings but
+        no 10-K filed yet, or an S-1/pre-IPO stub annual row whose net_income never got
+        populated).
+
+        Requires 4 consecutive real quarters (same `data_unavailable IS NOT TRUE` filter and
+        `period_end DESC NULLS LAST` ordering `_compute_quarterly_metrics` already uses) so this
+        never fabricates a partial-year figure from 1-3 quarters as if it were a full year -
+        symbols with fewer than 4 real quarters correctly stay unavailable until enough
+        history accumulates.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT net_income FROM quarterly_income_statement
+                WHERE symbol = %s AND data_unavailable IS NOT TRUE AND net_income IS NOT NULL
+                ORDER BY period_end DESC NULLS LAST, fiscal_year DESC, fiscal_quarter DESC
+                LIMIT 4
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
+        if len(rows) < 4:
+            return None
+        total = sum(safe_float(r[0], f"{symbol}.ttm_net_income_quarter", allow_none=True) or 0.0 for r in rows)
+        return self._nan_to_none(total)
+
+    @staticmethod
+    def _fetch_balance_sheet_row_from_quarterly(cur: Any, symbol: str) -> tuple[Any, ...] | None:
+        """Build a substitute quality_row (same 35-column shape the caller's primary
+        annual_balance_sheet-anchored query returns) from the latest real quarterly_balance_sheet
+        row, for symbols with zero annual_balance_sheet rows (recent IPOs: real 10-Qs filed, no
+        10-K yet).
+
+        Only the balance-sheet columns (stockholders_equity/total_liabilities/total_assets/
+        current_assets/current_liabilities/inventory/long_term_debt/cash_and_equivalents) and
+        fiscal_year are populated - a balance sheet is a point-in-time snapshot, so unlike
+        net_income/revenue there's no TTM summing concept; the latest real quarter's figures
+        ARE the current position. Every income-statement/cash-flow column is left None:
+        _compute_quality_metrics's own per-field fallbacks already tolerate that (including the
+        net_income TTM-from-quarterly fallback added this session, which independently queries
+        quarterly_income_statement when quality_row[3] is None). Returns None (not a fabricated
+        row) when no real quarterly_balance_sheet row exists either - callers must keep their
+        existing "truly no data" handling in that case.
+        """
+        cur.execute(
+            """
+            SELECT stockholders_equity, total_liabilities, total_assets, current_assets,
+                   current_liabilities, inventory, long_term_debt, cash_and_equivalents,
+                   fiscal_year
+            FROM quarterly_balance_sheet
+            WHERE symbol = %s AND data_unavailable IS NOT TRUE
+            ORDER BY fiscal_year DESC, fiscal_quarter DESC
+            LIMIT 1
+            """,
+            (symbol,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        (
+            stockholders_equity,
+            total_liabilities,
+            total_assets,
+            current_assets,
+            current_liabilities,
+            inventory,
+            long_term_debt,
+            cash_and_equivalents,
+            fiscal_year,
+        ) = row
+        return (
+            stockholders_equity,  # 0
+            total_liabilities,  # 1
+            total_assets,  # 2
+            None,  # 3 net_income
+            None,  # 4 revenue
+            None,  # 5 operating_income
+            current_assets,  # 6
+            current_liabilities,  # 7
+            fiscal_year,  # 8
+            inventory,  # 9
+            None,  # 10 interest_expense
+            None,  # 11 shares_outstanding
+            None,  # 12 cost_of_revenue
+            None,  # 13 operating_cash_flow
+            None,  # 14 free_cash_flow
+            None,  # 15 dividends_paid
+            None,  # 16 earnings_per_share
+            None,  # 17 prior_year_eps
+            None,  # 18 prior_year_revenue
+            None,  # 19 gross_profit
+            long_term_debt,  # 20
+            cash_and_equivalents,  # 21
+            None,  # 22 income_tax_expense
+            None,  # 23 pretax_income
+            None,  # 24 prior_year_net_income
+            None,  # 25 prior_year_operating_income
+            None,  # 26 prior_year_operating_cash_flow
+            None,  # 27 prior_year_free_cash_flow
+            None,  # 28 prior_year_cost_of_revenue
+            None,  # 29 prior_year_total_assets
+            None,  # 30 prior_year_stockholders_equity
+            None,  # 31 prior_year_pretax_income
+            None,  # 32 prior_year_interest_expense
+            None,  # 33 prior_year_gross_profit
+            None,  # 34 prior_year_dividends_paid
+        )
 
     def _fetch_positioning_metrics(self, symbol: str) -> tuple[float | None, str | None]:
         """Fetch held_percent_institutions from positioning_metrics.
@@ -1119,38 +1289,30 @@ class ValueQualityGrowthMetricsLoader(
                     "insufficient_year_over_year_quarterly_history"
                 )
 
-            # Phase 3A: Earnings surprise and beat rate
-            # Use last quarter EPS vs current analyst forward EPS as proxy for surprise
-            last_eps = last_4q[-1]["eps"]
-            forward_eps = self._get_analyst_forward_eps(symbol)
-
-            if last_eps is not None and forward_eps is not None and last_eps != 0:
-                # Earnings surprise: (last reported - forward estimate) / |forward estimate| * 100
-                # Bounded like quarterly_growth_momentum above - a near-zero forward_eps estimate
-                # (common for turnaround/recovery names) can otherwise divide this into a
-                # meaningless, orders-of-magnitude "surprise" percentage.
-                if forward_eps != 0:
-                    surprise = ((last_eps - forward_eps) / abs(forward_eps)) * 100
-                    if abs(surprise) < MAX_PLAUSIBLE_GROWTH_PCT:
-                        metrics["earnings_surprise_avg"] = float(round(surprise, 2))
-                    else:
-                        metrics["earnings_surprise_avg_unavailable_reason"] = (
-                            "garbage_metric_value_implausible_growth_rate"
-                        )
-
-                # Earnings beat rate: % of recent quarters with positive EPS growth (proxy for beats)
-                if len(eps_growth_rates) > 0:
-                    beat_count = sum(1 for rate in eps_growth_rates if rate > 0)
-                    beat_rate = (beat_count / len(eps_growth_rates)) * 100
-                    metrics["earnings_beat_rate"] = float(round(beat_rate, 2))
-            else:
-                # Set unavailable reasons for earnings metrics when analyst data missing
-                if forward_eps is None:
-                    metrics["earnings_surprise_avg_unavailable_reason"] = "no_analyst_estimates"
-                    metrics["earnings_beat_rate_unavailable_reason"] = "no_analyst_estimates"
-                elif last_eps is None:
-                    metrics["earnings_surprise_avg_unavailable_reason"] = "insufficient_quarterly_history"
-                    metrics["earnings_beat_rate_unavailable_reason"] = "insufficient_quarterly_history"
+            # Phase 3A: Earnings surprise and beat rate - REMOVED 2026-09-07 (goal-mode score
+            # sanity audit). This block computed both fields as a crude proxy: "surprise" was
+            # (last quarter's TRAILING actual EPS - CURRENT FORWARD full-year analyst estimate)
+            # / |forward estimate|, and "beat rate" was really "% of recent quarters with
+            # positive EPS growth", not an actual consensus-vs-actual beat count. For any
+            # genuinely high-growth company (quarterly EPS structurally well below a forward
+            # full-year estimate), this proxy is negative almost by construction regardless of
+            # real quarterly beats - live-confirmed for NVDA: this proxy produced
+            # earnings_surprise_avg=-84.02% for a stock whose real, per-quarter actual-vs-
+            # consensus surprises (load_earnings_calendar.py's own eps_estimate/actual_eps/
+            # surprise_pct, ground truth) were all POSITIVE (+3.46% to +8.02%, matching this
+            # same file's own earnings_beat_rate=100% exactly) the last 4 quarters. Found via
+            # the mathematically-impossible combination this block could produce
+            # (earnings_beat_rate=100 with earnings_surprise_avg<0, or the reverse) - confirmed
+            # at population scale: 931 of ~5,140 symbols showed this exact impossible combo
+            # live. load_enhanced_quality_growth_metrics.py's _compute_earnings_surprise_metrics
+            # already computes the correct version (real per-quarter consensus-estimate-vs-
+            # actual surprise from yfinance earnings_dates, matching load_earnings_calendar.py's
+            # independently-sourced ground truth) and is now the sole writer of both columns to
+            # growth_metrics too (see that loader's growth_fields list - already wired for
+            # quality_metrics, growth_metrics wiring added the same session). Removing the
+            # proxy here rather than relabeling it: no valid definition of "surprise" should mix
+            # a trailing single-quarter actual with a forward multi-quarter estimate, so there's
+            # no smaller fix that keeps this computation while making it correct.
 
         except Exception as e:
             logger.debug(f"[{symbol}] Failed to compute quarterly metrics: {type(e).__name__}: {e}")
@@ -1411,55 +1573,29 @@ class ValueQualityGrowthMetricsLoader(
         denominator_must_be_positive: bool = False,
     ) -> tuple[float | None, bool]:
         """Shared `_find_plausible_cross_year_ratio` wiring for ROE/ROA/asset_turnover.
-
         Returns (value, hit_implausible_with_no_fallback) - value is None either because an
-        input was missing/zero (denominator_must_be_positive=True for asset_turnover, which
-        requires denominator > 0 rather than merely != 0) or because the anchor ratio was
-        implausible and no plausible cross-year fallback existed; the second element tells the
-        caller which of those two happened, since ROE/ROA/asset_turnover each track that
-        distinction differently in their own bookkeeping.
+        input is missing, or the ratio was rejected (implausible |x|>1000, or a real-but-
+        degenerate denominator: exactly 0, or <=0 when denominator_must_be_positive=True)
+        and no plausible cross-year fallback existed either.
+        FIXED 2026-09-10: a real $0.00 denominator (FLOC/INR/WBI) used to skip both the
+        fallback attempt and the implausible flag, mislabeling ROE/ROA "missing_sec_data"
+        instead of "implausible_ratio" - same bug class as debt_to_equity's (vqg_quality.py).
         """
         if numerator is None or denominator is None:
             return None, False
-        if denominator_must_be_positive:
-            if denominator <= 0:
-                return None, False
-        elif denominator == 0:
-            return None, False
-        computed = numerator / denominator * 100.0
-        if abs(computed) > 1000:
-            fallback = self._find_plausible_cross_year_ratio(symbol, numerator_field, denominator_field)
-            if fallback is not None:
-                return fallback, False
-            return None, True
-        return float(computed), False
+        denominator_is_bad = denominator <= 0 if denominator_must_be_positive else denominator == 0
+        if not denominator_is_bad:
+            computed = numerator / denominator * 100.0
+            if abs(computed) <= 1000:
+                return float(computed), False
+        fallback = self._find_plausible_cross_year_ratio(symbol, numerator_field, denominator_field)
+        if fallback is not None:
+            return fallback, False
+        return None, True
 
-    def _get_symbol_sector(self, symbol: str) -> str | None:
-        """Lazily fetches and caches symbol -> company_profile.sector (GICS) once per loader
-        run, reused across every _compute_quality_metrics call (no per-symbol query).
-
-        Financial Services and Real Estate get a 7-input variant of quality_score (see
-        quality_components below) that drops asset_turnover_score - Revenue/Total Assets isn't a
-        coherent "operating efficiency" measure for a bank's loan book or a REIT's portfolio the
-        way it is for an operating company (confirmed via isolated testing, matches Fama-French's
-        practice of excluding financials from similar factor constructions).
-
-        Returns None (falls through to the universal formula) if the sector map can't be
-        fetched or the symbol isn't in company_profile - fails open to the well-tested
-        universal formula rather than silently miscategorizing a symbol."""
-        if not hasattr(self, "_sector_cache"):
-            self._sector_cache: dict[str, str] = {}
-            try:
-                with DatabaseContext("read") as cur:
-                    cur.execute("SELECT symbol, sector FROM company_profile WHERE sector IS NOT NULL")
-                    self._sector_cache = dict(cur.fetchall())
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(
-                    f"[QUALITY_METRICS] Failed to fetch company_profile sector map for the "
-                    f"sector-conditional Quality formula - falling back to the universal "
-                    f"8-input formula for every symbol this run: {e}"
-                )
-        return self._sector_cache.get(symbol)
+    # _get_symbol_sector/_get_symbol_industry moved to SectorIndustryCacheMixin in
+    # loaders/helpers/vqg_shared.py (see this class's base-class list and the MOVED HERE
+    # comment at their new definition) - kept as plain inherited methods, no behavior change.
 
     @staticmethod
     def _cagr(latest: float, previous: float, years: int) -> float | None:
@@ -2275,217 +2411,8 @@ class ValueQualityGrowthMetricsLoader(
 
     def post_run(self) -> None:
         """Runs automatically after fetch_incremental() completes for every symbol - see
-        loaders/runner.py's `hasattr(loader, "post_run")` dispatch (the same generic mechanism
-        loaders/load_stock_scores.py's own post_run()/update_rs_percentiles() already use)."""
-        self.update_quality_roe_roce_percentiles()
-
-    @staticmethod
-    def _margin_curve(value: float, breakpoints: list[tuple[float, float]]) -> float:
-        """breakpoints: [(x0,y0), (x1,y1), ...] increasing x; value<x0 -> 0-ramp to y0,
-        value>=last x -> last y. Piecewise-linear between points.
-
-        Shared by `_compute_quality_metrics`'s ROE/ROA/gross_profitability/roce_pct/fcf_margin/
-        asset_turnover/margin_volatility score curves and `update_quality_roe_roce_percentiles()`'s
-        reconciliation math (which must reconstruct what Pass 1 originally scored ROE/ROCE at) -
-        one shared definition so the two call sites can't silently diverge.
-        """
-        if value < 0:
-            return 0.0
-        if value < breakpoints[0][0]:
-            x1, y1 = breakpoints[0]
-            return (value / x1) * y1 if x1 > 0 else y1
-        for (x0, y0), (x1, y1) in itertools.pairwise(breakpoints):
-            if value < x1:
-                return y0 + (value - x0) / (x1 - x0) * (y1 - y0)
-        return breakpoints[-1][1]
-
-    @staticmethod
-    def _weighted_avg(components: list[tuple[float | None, float]], min_weight_pct: float = 0.0) -> float | None:
-        """components: [(score_or_None, weight), ...]. Renormalizes over whichever
-        components are actually available, same "1/n over available" spirit as the old
-        equal-weighted average, just weighted instead of equal. Returns None if the
-        available weight doesn't clear min_weight_pct - renormalizing a 1-2 component
-        sample up to a full 0-100 score is a thin-sample extrapolation, not an honest
-        partial score (see quality_score's own call site for the live-verified case)."""
-        available = [(v, w) for v, w in components if v is not None]
-        total_weight = sum(w for _, w in available)
-        if not available or total_weight <= 0 or total_weight < min_weight_pct:
-            return None
-        return sum(v * w for v, w in available) / total_weight
-
-    @staticmethod
-    def _percent_rank_higher_is_better(values: dict[str, float]) -> dict[str, float]:
-        """symbol -> percentile in [0, 100], HIGHEST raw value = HIGHEST percentile (ROE/ROCE
-        convention - more return-on-capital is better, the opposite direction from
-        load_stock_scores.py's `_percent_rank_cheap_high`, which is for "lower is better"
-        metrics like P/E - deliberately NOT importing that one across loader files to avoid a
-        sign mixup like the one caught by this repo's own
-        tests/unit/test_size_percentile_ranking_20260828.py). Ties share the same percentile
-        (RANK()-style). A universe of 1 gets 50.0; empty input returns an empty mapping (not a
-        silent fallback for missing/failed data - this is a pure function over an
-        already-validated `values` dict, so an empty input mathematically has nothing to
-        rank; `dict()` here, not the `{}` literal, so this doesn't false-positive-trip
-        .pre-commit-scripts/check-silent-fallbacks.py's return-empty-dict pattern check)."""
-        n = len(values)
-        if n == 0:
-            return dict()  # noqa: C408 - see docstring: intentional, not the `{}` literal
-        if n == 1:
-            return dict.fromkeys(values, 50.0)
-        sorted_items = sorted(values.items(), key=lambda kv: kv[1])
-        result: dict[str, float] = {}
-        i = 0
-        while i < n:
-            j = i
-            while j < n and sorted_items[j][1] == sorted_items[i][1]:
-                j += 1
-            pct = 100.0 * i / (n - 1)  # LOWEST raw value here (i=0) -> percentile 0
-            for sym, _ in sorted_items[i:j]:
-                result[sym] = pct
-            i = j
-        return result
-
-    def update_quality_roe_roce_percentiles(self) -> None:
-        """Batch pass: replace ROE's and ROCE's Pass-1 PROVISIONAL fixed-curve scores with a
-        true cross-sectional percentile rank against the current run's universe, then
-        FULLY RECOMPUTE quality_score from scratch off the raw stored ratio columns (not
-        patched relative to whatever quality_score currently holds) - mirrors
-        `update_rs_percentiles()`'s pure-overwrite pattern, NOT
-        `update_value_multiples_percentiles()`'s additive-delta one.
-
-        Only ROE/ROCE are percentile-ranked (of the 8 Quality components) - a sweep found
-        those two the only ones where cross-sectional percentile consistently beat the fixed
-        curve across eras; the other 6 keep their Pass-1 curve formulas.
-
-        MUST be a pure function of the raw stored ratio columns, never reading
-        quality_score itself as an input: an earlier additive-delta design read/wrote the
-        same mutable column every run, so the same delta re-applied on top of an
-        already-corrected value each pipeline cycle with no convergence except the 0/100
-        clamp - over time this pinned ~30% of the universe at exactly 100.00.
-
-        ROE/ROCE percentile ranking is computed only over the non-negative population, with
-        negative-raw-value symbols explicitly floored to percentile 0.0 (matching curve-based
-        Pass-1's own `if value < 0: return 0.0`) - a plain percentile rank doesn't floor at 0
-        for a non-worst performer, which otherwise systematically over-scores unprofitable
-        companies (e.g. negative ROE still landing mid-percentile).
-
-        Raises on failure, same as every other post_run() batch pass - an inconsistent
-        quality_score is a live-trading-relevant correctness issue.
-
-        Skips Financial Services/Real Estate: those sectors' quality_score uses a two-cluster
-        (profitability + safety) structure, not the flat 8-input weighted average this method
-        recomputes: reconciling ROE/ROCE through that structure needs its own derivation.
-        """
-        try:
-            with DatabaseContext("write") as cur:
-                cur.execute("""
-                    SELECT qm.symbol, qm.quality_score, qm.roe, qm.roa, qm.roce_pct, qm.fcf_margin,
-                           qm.debt_to_equity, qm.margin_volatility, qm.asset_turnover, qm.gross_profitability
-                    FROM quality_metrics qm
-                    LEFT JOIN company_profile cp ON cp.symbol = qm.symbol
-                    WHERE qm.quality_score IS NOT NULL
-                      AND COALESCE(qm.data_unavailable, false) = false
-                      AND COALESCE(cp.sector, '') NOT IN ('Financial Services', 'Real Estate')
-                """)
-                rows = cur.fetchall()
-
-            if not rows:
-                logger.warning(
-                    "[QUALITY_METRICS] update_quality_roe_roce_percentiles: no eligible rows found - skipping."
-                )
-                return
-
-            # Percentile universe restricted to non-negative raw values (same "floor, don't
-            # dilute the ranking" precedent as load_stock_scores.py's unprofitable-P/E fix) -
-            # a negative ROE/ROCE symbol is floored to 0.0 directly below, never ranked.
-            roe_raw = {row[0]: float(row[2]) for row in rows if row[2] is not None and float(row[2]) >= 0.0}
-            roce_raw = {row[0]: float(row[4]) for row in rows if row[4] is not None and float(row[4]) >= 0.0}
-            roe_pct = self._percent_rank_higher_is_better(roe_raw)
-            roce_pct = self._percent_rank_higher_is_better(roce_raw)
-            logger.info(
-                f"[QUALITY_METRICS] ROE/ROCE percentile universe: ROE {len(roe_pct)}, ROCE {len(roce_pct)} symbols"
-            )
-
-            updates: list[tuple[str, float]] = []
-            for row in rows:
-                symbol, quality_score_old = row[0], float(row[1])
-                roe, roa, roce_pct_val, fcf_margin, d2e, margin_vol, asset_turnover, gross_prof = row[2:10]
-
-                components: list[tuple[float, float]] = []
-
-                if roe is not None:
-                    roe_component = 0.0 if float(roe) < 0.0 else roe_pct[symbol]
-                    components.append((roe_component, 11.0))
-                if roa is not None:
-                    components.append((self._margin_curve(float(roa), [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)]), 18.0))
-                if roce_pct_val is not None:
-                    roce_component = 0.0 if float(roce_pct_val) < 0.0 else roce_pct[symbol]
-                    components.append((roce_component, 18.0))
-                if fcf_margin is not None:
-                    components.append(
-                        (
-                            self._margin_curve(float(fcf_margin), [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)]),
-                            15.0,
-                        )
-                    )
-                if d2e is not None:
-                    d2e_val = float(d2e)
-                    d2e_score = 0.0 if d2e_val < 0.0 else max(0.0, min(100.0, 100.0 - (d2e_val / 2.0) * 100.0))
-                    components.append((d2e_score, 18.0))
-                if margin_vol is not None:
-                    components.append(
-                        (
-                            100.0 - self._margin_curve(float(margin_vol), [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)]),
-                            7.0,
-                        )
-                    )
-                if asset_turnover is not None:
-                    components.append(
-                        (
-                            self._margin_curve(float(asset_turnover), [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)]),
-                            7.0,
-                        )
-                    )
-                if gross_prof is not None:
-                    components.append(
-                        (
-                            self._margin_curve(float(gross_prof), [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)]),
-                            7.0,
-                        )
-                    )
-
-                total_weight = sum(w for _, w in components)
-                if total_weight <= 0:
-                    continue  # defensive only - can't happen if quality_score is real
-
-                quality_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
-                if quality_score_new != quality_score_old:
-                    updates.append((symbol, quality_score_new))
-
-            if not updates:
-                logger.info("[QUALITY_METRICS] ROE/ROCE percentile pass: no symbol's quality_score changed.")
-                return
-
-            with DatabaseContext("write") as cur:
-                execute_values(
-                    cur,
-                    """
-                    UPDATE quality_metrics AS qm
-                    SET quality_score = v.quality_score,
-                        updated_at = CURRENT_TIMESTAMP
-                    FROM (VALUES %s) AS v(symbol, quality_score)
-                    WHERE qm.symbol = v.symbol
-                    """,
-                    updates,
-                    template="(%s, %s)",
-                )
-            logger.info(
-                f"[QUALITY_METRICS] ROE/ROCE cross-sectional percentile pass corrected "
-                f"{len(updates)}/{len(rows)} symbols' quality_score (post_run completed)"
-            )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            error_msg = f"ROE/ROCE percentile batch update failed - quality_metrics cannot be finalized: {e}"
-            logger.error(error_msg)
-            raise RuntimeError(error_msg) from e
+        loaders/runner.py's `hasattr(loader, "post_run")` dispatch (same mechanism load_stock_scores.py's own post_run() uses)."""
+        self.update_quality_sector_neutral_scores()
 
 
 if __name__ == "__main__":

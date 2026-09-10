@@ -652,6 +652,21 @@ variable "enable_intraday_risk_monitor" {
   default     = false
 }
 
+# FIX (2026-09-06 real-money-readiness audit): enable_trade_update_listener below was
+# declared only inside its module (modules/loaders/trade-update-listener.tf) with no
+# root-module declaration and no pass-through in main.tf's module "loaders" block. prod.tfvars
+# already sets it (currently to `false`, matching the module's own default, so no behavioral
+# difference today) - but `terraform plan/apply -var-file=prod.tfvars` only WARNS
+# ("Value for undeclared variable") and silently drops the value; it never reaches the module.
+# Whoever eventually flips it to `true` to actually deploy this real-money safety upgrade
+# would get a clean-looking apply that deploys nothing, believing the flag took effect. Root
+# declaration + explicit pass-through below closes that gap.
+variable "enable_trade_update_listener" {
+  description = "Enable the always-on Alpaca trade_updates websocket listener (modules/loaders/trade-update-listener.tf) - new ongoing Fargate cost + new infrastructure pattern for this repo; needs explicit sign-off per that file's header comment before flipping true in an environment's tfvars."
+  type        = bool
+  default     = false
+}
+
 variable "enable_morning_orchestrator" {
   description = "Enable 2x daily orchestrator execution (morning 9:30 AM ET + evening 5:30 PM ET)"
   type        = bool
@@ -785,6 +800,42 @@ variable "alert_smtp_from" {
   default     = ""
 }
 
+# PagerDuty/Twilio critical-alert paging (2026-09-06 real-money-readiness fix) - see
+# modules/services/variables.tf's identical declarations for full rationale. Both
+# channels independently optional; empty defaults leave paging disabled.
+variable "pagerduty_routing_key" {
+  description = "PagerDuty Events API v2 routing key for critical-alert paging. Empty disables PagerDuty paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_account_sid" {
+  description = "Twilio Account SID for SMS critical-alert paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_auth_token" {
+  description = "Twilio Auth Token for SMS critical-alert paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_from_number" {
+  description = "Twilio phone number (E.164) to send critical-alert SMS from."
+  type        = string
+  default     = ""
+}
+
+variable "alert_sms_to" {
+  description = "Comma-separated E.164 phone numbers to receive critical-alert SMS. Empty disables SMS paging even if Twilio credentials are set."
+  type        = string
+  default     = ""
+}
+
 # ============================================================
 # Alpaca Trading Configuration
 # ============================================================
@@ -821,6 +872,30 @@ variable "alpaca_paper_trading" {
   description = "Enable Alpaca paper trading mode"
   type        = bool
   default     = true
+}
+
+# SECURITY FIX (2026-09-09 real-money-readiness audit): this used to be entirely absent as its
+# own variable - modules/services/main.tf derived the algo executor's ALGO_LIVE_TRADING env var
+# as `var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"`. algo/trading/executor_
+# strategies.py's AutoExecutionMode is deliberately designed as THREE INDEPENDENT guards that
+# must all separately agree before live trading is permitted (ALGO_LIVE_TRADING ==
+# "I_UNDERSTAND_REAL_MONEY" AND ALPACA_PAPER_TRADING != "true" AND APCA_API_BASE_URL doesn't say
+# paper) specifically so one misconfigured/fat-fingered flag can't flip real money on by itself.
+# Deriving ALGO_LIVE_TRADING from the SAME variable as ALPACA_PAPER_TRADING collapsed two of
+# those three guards into one - and APCA_API_BASE_URL in prod.tfvars is already hardcoded to the
+# live endpoint regardless of paper/live mode - so in practice all three were controlled by this
+# single boolean, defeating the entire defense-in-depth design. Now a genuinely separate,
+# safe-by-default variable: must be deliberately set via TF_VAR_algo_live_trading_ack, distinct
+# from the paper-trading toggle, before going live.
+variable "algo_live_trading_ack" {
+  description = "Explicit real-money acknowledgment, independent of alpaca_paper_trading by design (see comment above) - must be exactly 'I_UNDERSTAND_REAL_MONEY' to permit live trading. Leave empty/default in every environment except when a human is deliberately flipping to real money."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.algo_live_trading_ack == "" || var.algo_live_trading_ack == "I_UNDERSTAND_REAL_MONEY"
+    error_message = "algo_live_trading_ack must be either empty (paper/default) or exactly 'I_UNDERSTAND_REAL_MONEY' (no other value is recognized by the executor's live-intent check, so a typo here would silently stay in paper mode - this validation catches that at plan time instead)."
+  }
 }
 
 # ============================================================

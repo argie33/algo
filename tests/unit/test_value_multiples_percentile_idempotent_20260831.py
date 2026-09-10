@@ -39,10 +39,14 @@ def _row(
     ps: float | None,
     fwd_pe: float | None,
     dividend_yield: float | None,
+    fcf_yield: float | None = None,
     pe_reason: str | None = None,
     fwd_pe_reason: str | None = None,
     components: dict | None = None,
     sector: str | None = None,
+    data_completeness: float | None = 99.99,
+    data_unavailable: bool = False,
+    unavailable_metrics: dict | None = None,
 ) -> tuple:
     return (
         symbol,
@@ -57,10 +61,14 @@ def _row(
         ps,
         fwd_pe,
         dividend_yield,
+        fcf_yield,
         pe_reason,
         fwd_pe_reason,
         components if components is not None else {},
         sector,
+        data_completeness,
+        data_unavailable,
+        unavailable_metrics if unavailable_metrics is not None else {},
     )
 
 

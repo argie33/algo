@@ -533,8 +533,16 @@ class OrchestratorPhaseExecutor:
             if success:
                 success_count += 1
             else:
-                error_phase = phase_num
-                error_message = error
+                # REAL-MONEY-READINESS FIX (2026-09-10 orchestration re-audit): error_phase/
+                # error_message used to be plain variables overwritten by the LAST failing
+                # phase, not the first. If Phase 2 halted for a real reason and a later
+                # always_run phase (e.g. Phase 6) then failed independently, the final report
+                # attributed the whole run to Phase 6 - masking the actual halt cause an
+                # operator reading the report needs to see. Keep the first (root-cause)
+                # failure instead.
+                if error_phase is None:
+                    error_phase = phase_num
+                    error_message = error
                 if not phase_def.always_run:
                     halted = True
                     logger.critical(f"[EXECUTOR] Phase {phase_num} halted - continuing to always_run phases")

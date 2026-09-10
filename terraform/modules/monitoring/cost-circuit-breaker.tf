@@ -22,6 +22,15 @@ resource "aws_sns_topic_subscription" "cost_circuit_breaker_email" {
   endpoint  = var.alert_email_address
 }
 
+# REAL-MONEY-READINESS FIX (2026-09-07 audit): see services/main.tf's algo_alerts_sms - same
+# email-only gap, same fix, applied consistently across every alarm topic in this module.
+resource "aws_sns_topic_subscription" "cost_circuit_breaker_sms" {
+  for_each  = toset([for n in split(",", var.alert_sms_to) : trimspace(n) if trimspace(n) != ""])
+  topic_arn = aws_sns_topic.cost_circuit_breaker_alerts.arn
+  protocol  = "sms"
+  endpoint  = each.value
+}
+
 # ============================================================
 # 1. IAM Role for Cost Circuit Breaker Lambda
 # ============================================================

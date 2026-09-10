@@ -12,8 +12,10 @@ state outside the exit-price-reconciliation flow (see reconciliation_exit_fills.
 3. `_fetch_initial_capital` - fail-fast fetch of initial capital from broker portfolio
    history (no stale-DB-snapshot fallback), used by the broker-connected cumulative-return
    calculation in reconciliation_broker_snapshot.py.
-4. `validate_pnl` - compares broker-reported equity against locally-computed equity within
-   tolerance (called by phase9_reconciliation.py).
+4. `validate_pnl` - cross-checks two Alpaca-reported account fields (`equity` vs
+   `portfolio_value`) against each other within tolerance (called by
+   phase9_reconciliation.py) - see its own docstring for why this is NOT a broker-vs-DB
+   check despite its old naming implying that.
 
 NO BEHAVIOR CHANGE: every method here is a verbatim relocation of code that used to live
 directly on `DailyReconciliation` in reconciliation.py - control flow, thresholds, SQL, and
@@ -31,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import psycopg2
@@ -64,7 +67,20 @@ class FillAndAccountValidationMixin:
         try:
             if not self.broker:
                 return {"mismatches": 0, "message": "No broker available (paper trading mode)", "no_broker": True}
-            orders = self.broker.fetch_closed_orders()
+            # REAL-MONEY-READINESS FIX (2026-09-08 audit): this used to call
+            # fetch_closed_orders() with no `since` bound at all - unlike its sibling
+            # reconcile_exit_fills() (reconciliation_exit_fills.py), which has always bounded
+            # to a 2-day window. alpaca_broker_adapter.fetch_closed_orders() only sends an
+            # `after` param when `since` is given, and never sends an explicit `limit` either -
+            # so an unbounded call relied entirely on Alpaca's own undocumented-here default
+            # page size for GET /v2/orders, with no guaranteed lookback window. This function's
+            # own docstring is "Alpaca fills part of an order and then network fails before we
+            # can sync" - exactly the outage-recovery case that needs a reliable bounded window,
+            # not an implicit "most recent N orders overall" default that could silently exclude
+            # an older still-unreconciled fill on a high-order-volume day. Matches the sibling's
+            # 2-day window exactly - same recovery-outage assumption, same reconciliation cadence.
+            since = datetime.now(timezone.utc) - timedelta(days=2)
+            orders = self.broker.fetch_closed_orders(since=since)
             if not orders:
                 logger.debug(
                     "No closed orders returned from broker in partial fill check. "
@@ -355,47 +371,67 @@ class FillAndAccountValidationMixin:
             "Reconciliation requires live broker history for accurate P&L - cannot proceed."
         )
 
-    def validate_pnl(self, broker_equity: float, local_equity: float) -> dict[str, Any]:
-        """Validate that local P&L matches Alpaca P&L within tolerance.
+    def validate_pnl(self, broker_equity: float, broker_portfolio_value: float) -> dict[str, Any]:
+        """Cross-check two Alpaca-reported account fields (`equity` vs `portfolio_value`)
+        against each other within tolerance.
+
+        NAMING FIX (2026-09-07, real-money-readiness audit): the second argument used to be
+        named/documented `local_equity` ("Equity calculated from local positions and cash")
+        and the alert messages below said "Alpaca $X vs Local $Y". That was never true: every
+        caller (phase9_reconciliation.py's `_validate_pnl_step`) passes
+        `result["portfolio_value"]`, which `reconciliation.py`'s own `sync_positions` sets to
+        `alpaca_portfolio_value_dec` unconditionally ("Always use Alpaca's live value, never
+        fall back to stale DB cache") - the actual DB-computed total
+        (`total_equity_db_dec`) is never even returned to the caller. So this function
+        compares Alpaca's `equity` field to Alpaca's `portfolio_value` field, not
+        broker-vs-DB. That's still a legitimate internal-consistency check (those two Alpaca
+        fields can genuinely diverge, e.g. around unsettled funds), but it is NOT the
+        safety-critical broker-vs-DB drift detector a reader would assume from the old
+        naming/messages - that detector is `reconciliation.py`'s own
+        `_track_and_maybe_halt_on_sustained_drift` (>5% threshold, 2-consecutive-run halt
+        escalation, deliberately still in shadow mode - see its own docstring). Renamed/
+        reworded so an operator reading a P&L-validation alert during an incident doesn't
+        mistake this for that check. No behavior/threshold change.
 
         Args:
-            broker_equity: Equity reported by Alpaca
-            local_equity: Equity calculated from local positions and cash
+            broker_equity: Alpaca account `equity` field
+            broker_portfolio_value: Alpaca account `portfolio_value` field (NOT locally/DB
+                computed - see above)
 
         Returns:
             Dict with validation results: {
                 'valid': bool,
                 'broker_equity': float,
-                'local_equity': float,
+                'broker_portfolio_value': float,
                 'variance_pct': float,
                 'variance_dollars': float,
                 'status': 'ok'|'alert'|'critical',
                 'message': str
             }
         """
-        if broker_equity is None or local_equity is None:
+        if broker_equity is None or broker_portfolio_value is None:
             return {
                 "valid": False,
                 "broker_equity": broker_equity,
-                "local_equity": local_equity,
+                "broker_portfolio_value": broker_portfolio_value,
                 "variance_pct": None,
                 "variance_dollars": None,
                 "status": "error",
-                "message": "Cannot validate P&L: missing Alpaca or local equity data",
+                "message": "Cannot validate P&L: missing Alpaca equity or portfolio_value data",
             }
 
-        if broker_equity <= 0 or local_equity <= 0:
+        if broker_equity <= 0 or broker_portfolio_value <= 0:
             return {
                 "valid": False,
                 "broker_equity": broker_equity,
-                "local_equity": local_equity,
+                "broker_portfolio_value": broker_portfolio_value,
                 "variance_pct": None,
                 "variance_dollars": None,
                 "status": "error",
                 "message": "Cannot validate P&L: equity values must be positive",
             }
 
-        variance_dollars = broker_equity - local_equity
+        variance_dollars = broker_equity - broker_portfolio_value
         if broker_equity <= 0:
             raise ValueError("CRITICAL: Broker equity must be positive for variance calculation")
         variance_pct = (variance_dollars / broker_equity) * 100.0
@@ -404,21 +440,21 @@ class FillAndAccountValidationMixin:
 
         if abs(variance_pct) <= threshold:
             status = "ok"
-            message = f"P&L validated: Alpaca ${broker_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%)"
+            message = f"P&L validated: Alpaca equity ${broker_equity:,.2f} vs Alpaca portfolio_value ${broker_portfolio_value:,.2f} (variance {variance_pct:+.3f}%)"
             valid = True
         elif abs(variance_pct) <= 1.0:
             status = "alert"
-            message = f"P&L variance ALERT: Alpaca ${broker_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%, ${variance_dollars:+,.2f})"
+            message = f"P&L variance ALERT: Alpaca equity ${broker_equity:,.2f} vs Alpaca portfolio_value ${broker_portfolio_value:,.2f} (variance {variance_pct:+.3f}%, ${variance_dollars:+,.2f})"
             valid = False
         else:
             status = "critical"
-            message = f"P&L MISMATCH CRITICAL: Alpaca ${broker_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%, ${variance_dollars:+,.2f}) - verify position prices and trade exit prices"
+            message = f"P&L MISMATCH CRITICAL: Alpaca equity ${broker_equity:,.2f} vs Alpaca portfolio_value ${broker_portfolio_value:,.2f} (variance {variance_pct:+.3f}%, ${variance_dollars:+,.2f}) - verify position prices and trade exit prices"
             valid = False
 
         return {
             "valid": valid,
             "broker_equity": broker_equity,
-            "local_equity": local_equity,
+            "broker_portfolio_value": broker_portfolio_value,
             "variance_pct": variance_pct,
             "variance_dollars": variance_dollars,
             "status": status,

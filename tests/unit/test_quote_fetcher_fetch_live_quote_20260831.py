@@ -74,6 +74,49 @@ class TestFetchLiveQuoteHappyPath:
         assert price == 50.0
 
 
+class TestFetchLiveQuoteSpreadSanityGuard:
+    """Regression coverage for a CRITICAL real-money-readiness bug (found 2026-09-06):
+    the bid/ask midpoint used to be returned whenever both sides were present and
+    positive, with no check on how far apart they actually are. A wildly wide spread (a
+    thin/halted/broken quote) produced a garbage midpoint fed directly into real-time
+    exit/stop decisions (position_monitor.py's health-flag exits, exit_engine.py's
+    stop/target checks)."""
+
+    def test_narrow_spread_returns_midpoint(self):
+        resp = _quote_response(200, bp=100.0, ap=100.5)
+        with (
+            patch("algo.trading.quote_fetcher.get_alpaca_credentials", return_value={"key": "k", "secret": "s"}),
+            patch("algo.trading.quote_fetcher.get_alpaca_data_url", return_value="https://data.alpaca.markets"),
+            patch("algo.trading.quote_fetcher.requests.get", return_value=resp),
+        ):
+            price = fetch_live_quote("AAPL", execution_mode="auto")
+        assert price == 100.25
+
+    def test_wide_spread_falls_back_to_last_price_not_midpoint(self):
+        """bid=$1, ask=$100 -> a 99% relative spread must not be trusted as a midpoint."""
+        resp = _quote_response(200, bp=1.0, ap=100.0, lp=2.0)
+        with (
+            patch("algo.trading.quote_fetcher.get_alpaca_credentials", return_value={"key": "k", "secret": "s"}),
+            patch("algo.trading.quote_fetcher.get_alpaca_data_url", return_value="https://data.alpaca.markets"),
+            patch("algo.trading.quote_fetcher.requests.get", return_value=resp),
+        ):
+            price = fetch_live_quote("AAPL", execution_mode="auto")
+        assert price == 2.0
+
+    def test_wide_spread_with_no_last_price_raises(self):
+        """No safe price at all (wide spread, no last trade) must fail closed, not return
+        the untrustworthy midpoint."""
+        resp = _quote_response(200, bp=1.0, ap=100.0, lp=None)
+        with (
+            patch("algo.trading.quote_fetcher.get_alpaca_credentials", return_value={"key": "k", "secret": "s"}),
+            patch("algo.trading.quote_fetcher.get_alpaca_data_url", return_value="https://data.alpaca.markets"),
+            patch("algo.trading.quote_fetcher.requests.get", return_value=resp),
+            patch("algo.trading.quote_fetcher.MarketCalendar.is_market_open", return_value=True),
+            pytest.raises(RuntimeError),
+        ):
+            fetch_live_quote("AAPL", execution_mode="auto")
+
+
 class TestFetchLiveQuoteNoValidPriceData:
     def test_no_price_data_market_open_raises(self):
         resp = _quote_response(200, bp=None, ap=None, lp=None)

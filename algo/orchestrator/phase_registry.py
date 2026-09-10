@@ -7,6 +7,20 @@ _setup_executor() method or adding new methods.
 
 This design eliminates the Shotgun Surgery pattern where phase changes required
 touching multiple methods in the Orchestrator class.
+
+HALT ENFORCEMENT NOTE (2026-09-07 real-money-readiness audit): every phase below is
+`always_run=True`/`skip_if_halted=False` except Phase 1/2, which always run first and can
+never themselves observe a halt set by an earlier phase in the same cycle. This means
+`OrchestratorPhaseExecutor`'s generic halt-skip mechanism (the `halted` flag in its run loop,
+and `execute_phase()`'s own skip branch) is effectively dead code for every phase in this
+registry - it can never fire for phases 3-9 given the current configuration. Halt enforcement
+for the phases that actually gate new risk (5, 7, 8) is NOT structural/framework-level; it is
+each phase's own internal `check_halt_flag()` call (deliberately so - Phase 3/4/6/9 must keep
+running risk-management/reconciliation work during a halt, and Phase 7 must keep generating
+signals so Phase 8 has fresh candidates once a halt clears). If you add a new phase between 3
+and 9 and it needs to actually stop new risk during a halt, do NOT rely on `skip_if_halted`/
+`always_run` alone - add an explicit `check_halt_flag()` call inside that phase's own function,
+matching Phase 5/7/8's pattern.
 """
 
 import logging

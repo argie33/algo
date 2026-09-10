@@ -85,6 +85,90 @@ class StopLossRepairMixin:
             return None
         return sell_stop_orders[0] if sell_stop_orders else None
 
+    def cancel_pending_entry_order(self, symbol: str, client_order_id: str) -> dict[str, Any]:
+        """Cancel ONLY the still-unfilled entry bracket order matching client_order_id -
+        used on a halt, where cancelling every open order for the symbol is NOT safe.
+
+        REAL-MONEY-READINESS FIX (2026-09-07): halt_flag_manager.py's pending-entry-cancel
+        used to call cancel_all_open_orders_for_symbol(symbol), which cancels every open
+        order Alpaca reports for that symbol with no regard for whose order it is. Pyramiding
+        (see position_sizer.py's max_reentries_per_name) means a FILLED position's own live
+        protective stop-loss/take-profit legs can rest at the broker for the same symbol as a
+        new, still-unfilled pyramid entry. Cancelling by symbol during a halt could strip that
+        already-filled position's stop-loss exactly when the system is trying to get safer,
+        not less safe.
+
+        Every entry order is submitted with client_order_id=idempotency_key (see
+        order_manager.py's send_bracket_order docstring) - a value unique to this specific
+        entry attempt and never reused by a stop-loss leg or by any other position's orders.
+        An unfilled bracket order is still a single order object in the open-orders list (its
+        legs don't split into independent orders until the parent fills), so matching on the
+        top-level client_order_id and cancelling only that one order id is sufficient to
+        cancel the whole pending bracket without touching anything else resting for the symbol.
+
+        Returns: {"success": bool, "cancelled_order_ids": list[str], "message": str}.
+        Not finding a matching order is treated as success (nothing to cancel - it may have
+        already filled or been cancelled by another path).
+        """
+        if not self.alpaca_key or not self.alpaca_secret:  # type: ignore[attr-defined]
+            return {"success": False, "cancelled_order_ids": [], "message": "Alpaca credentials missing"}
+        if not client_order_id:
+            return {"success": False, "cancelled_order_ids": [], "message": "client_order_id required"}
+
+        try:
+            resp = requests.get(
+                f"{self.alpaca_base_url}/v2/orders",  # type: ignore[attr-defined]
+                params={"status": "open", "symbols": symbol},
+                headers={
+                    "APCA-API-KEY-ID": self.alpaca_key,  # type: ignore[attr-defined]
+                    "APCA-API-SECRET-KEY": self.alpaca_secret,  # type: ignore[attr-defined]
+                },
+                timeout=get_api_timeout(),
+            )
+            resp.raise_for_status()
+            open_orders = resp.json()
+        except (requests.RequestException, requests.Timeout, ValueError) as e:
+            return {
+                "success": False,
+                "cancelled_order_ids": [],
+                "message": f"Could not list open orders for {symbol}: {e}",
+            }
+        if not isinstance(open_orders, list) or not open_orders:
+            return {"success": True, "cancelled_order_ids": [], "message": f"No open orders for {symbol}"}
+
+        matches = [o for o in open_orders if o.get("client_order_id") == client_order_id]
+        if not matches:
+            return {
+                "success": True,
+                "cancelled_order_ids": [],
+                "message": f"No open order for {symbol} matches client_order_id={client_order_id} - nothing to cancel",
+            }
+
+        cancelled: list[str] = []
+        failures: list[str] = []
+        for order in matches:
+            order_id = order.get("id")
+            if not order_id:
+                continue
+            try:
+                result = self.cancel_bracket_orders(order_id)  # type: ignore[attr-defined]
+            except Exception as e:
+                failures.append(f"{order_id}: {e}")
+                continue
+            if result.get("success"):
+                cancelled.append(order_id)
+            else:
+                failures.append(f"{order_id}: {result.get('message')}")
+
+        return {
+            "success": not failures,
+            "cancelled_order_ids": cancelled,
+            "message": (
+                f"Cancelled {len(cancelled)} pending entry order(s) for {symbol}"
+                + (f"; {len(failures)} failed: {'; '.join(failures)}" if failures else "")
+            ),
+        }
+
     def cancel_all_open_orders_for_symbol(self, symbol: str) -> dict[str, Any]:
         """Cancel every open order resting at the broker for a symbol - used when a
         position has been confirmed CLOSED at the broker (Alpaca's own /v2/positions no
@@ -206,11 +290,13 @@ class StopLossRepairMixin:
         only for backward compatibility with any caller that doesn't yet track pos_id;
         phase9_stop_loss_repair.py (the only current caller) always has it.
 
-        Uses time_in_force=gtc, deliberately different from the bracket entry's day TIF -
-        this repair exists specifically because a day-TIF leg may have already expired
-        unprotected once; resubmitting another day order would just recreate the same
-        expiry risk every single day until someone notices. A resting GTC sell-stop is
-        the correct fix for a position already known to be held multi-day.
+        Uses time_in_force=gtc. STALE COMMENT FIXED 2026-09-07 (order-type/TIF audit): this
+        used to read "deliberately different from the bracket entry's day TIF" - true when
+        written, but order_manager.py's _build_bracket_order_payload changed the bracket
+        entry's own TIF to gtc on 2026-09-06 (see that function's comment), so both paths
+        are gtc now. This repair still exists as a backstop for other failure modes (fill/
+        cancel races, broker-side leg rejection - see this method's own docstring above),
+        not to compensate for a day-TIF self-inflicted expiry that no longer happens.
 
         Side is hardcoded "sell" - this codebase is long-only (see order_manager.py's
         _build_bracket_order_payload hardcoded "side": "buy" for entries); there is no
@@ -221,11 +307,29 @@ class StopLossRepairMixin:
         if not self.alpaca_key or not self.alpaca_secret:  # type: ignore[attr-defined]
             return {"success": False, "message": "Cannot submit protective stop - Alpaca credentials missing"}
 
+        # REAL-MONEY-READINESS FIX (2026-09-06 audit): a failed pre-submission lookup used to
+        # be swallowed and treated as "no existing stop", falling through to submit a brand-new
+        # standalone stop with a fresh client_order_id every call - so the client_order_id-based
+        # dedup below can never catch a genuine duplicate either (it only matches a RETRY of the
+        # same id). This left duplicate-order prevention resting entirely on Alpaca's own 422
+        # qty-reservation rejection, in exactly the failure mode (broker API instability) where
+        # that backstop is least trustworthy. Treat "can't verify" as "unknown - skip this cycle"
+        # instead: the next repair pass will re-check once the broker is reachable again, and a
+        # position that already has a resting stop stays protected in the meantime.
         try:
             existing_stop = self._find_open_sell_stop_order(symbol, pos_id=pos_id)
         except Exception as e:
-            existing_stop = None
-            logger.warning(f"[PROTECTIVE_STOP] {symbol}: pre-submission existing-order check failed: {e}")
+            logger.warning(
+                f"[PROTECTIVE_STOP] {symbol}: pre-submission existing-order check failed: {e}. "
+                f"Skipping this repair cycle rather than risking a duplicate stop submission."
+            )
+            return {
+                "success": False,
+                "message": (
+                    f"Cannot verify whether {symbol} already has a resting protective stop "
+                    f"(broker lookup failed: {e}). Skipping submission this cycle."
+                ),
+            }
         if existing_stop:
             return {
                 "success": True,

@@ -92,15 +92,22 @@ from algo.infrastructure.constants import (
 from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase8_guards import (
+    _check_drawdown_daily_loss_guard,
     _check_market_hours_guards,
     _check_pending_orders_guard,
     _check_price_freshness_guard,
     _check_signal_freshness_guard,
 )
 from algo.orchestrator.phase8_preentry_health_check import PreEntryHealthValidator
+from algo.orchestrator.phase8_technical_data import _batch_fetch_technical_data
 from algo.orchestrator.phase_data_contract import ExposureConstraints, QualifiedTrade
 from algo.orchestrator.phase_result import PhaseResult
-from algo.orchestrator.validation_thresholds import MIN_ATR_THRESHOLD, MIN_ENTRY_PRICE, REJECTION_REASON_MAX_LEN
+from algo.orchestrator.validation_thresholds import (
+    MAX_PLAUSIBLE_ENTRY_PRICE_MOVE_PCT,
+    MIN_ATR_THRESHOLD,
+    MIN_ENTRY_PRICE,
+    REJECTION_REASON_MAX_LEN,
+)
 from algo.risk import LiquidityChecks
 from algo.trading.exceptions import DatabaseError
 from algo.trading.executor import TradeExecutor
@@ -358,6 +365,17 @@ def _check_pdt_limit_breach(account_data: dict[str, Any]) -> tuple[bool, str | N
             "[PHASE 8] Account data missing required 'pattern_day_trader' field. "
             "Cannot verify PDT status before submitting live entries."
         )
+    # EQUITY-AWARE FIX (2026-09-06 real-money-readiness audit): FINRA Rule 4210's PDT
+    # restriction (90-day day-trading lockout after a 4th day-trade in 5 business days)
+    # applies ONLY to accounts with equity under $25,000 - an account at or above that
+    # threshold cannot be PDT-restricted at all, regardless of daytrade_count. This check
+    # previously blocked new entries purely on daytrade_count>=3 with no equity awareness,
+    # needlessly halting a well-capitalized account's real trading on a restriction that
+    # genuinely cannot apply to it. Not a regulatory-exposure bug (it was over-conservative,
+    # never under), but a real correctness gap worth closing before real-money trading.
+    equity = account_data.get("equity")
+    if equity is not None and float(equity) >= 25_000:
+        return False, None
     daytrade_count = account_data.get("daytrade_count")
     if daytrade_count is None or int(daytrade_count) < 3:
         return False, None
@@ -393,6 +411,37 @@ def _check_buying_power_sufficient(remaining_buying_power: Decimal, position_val
         return False, (
             f"Insufficient buying power: position ${position_value:.2f} exceeds "
             f"remaining account buying power ${remaining_buying_power:.2f}"
+        )
+    return True, None
+
+
+def _check_risk_capacity_sufficient(
+    remaining_risk_capacity_pct: float, candidate_risk_pct: float
+) -> tuple[bool, str | None]:
+    """Check a candidate position's own risk against this run's remaining total-risk capacity.
+
+    REAL-MONEY-READINESS FIX (2026-09-10): mirrors _check_buying_power_sufficient's shape -
+    see remaining_risk_capacity_pct's initialization comment (above the pre-loop
+    max_total_risk_pct guard) for the full gap this closes. Without this running-tally check,
+    several qualifying signals in one Phase 8 run could each individually pass the single
+    pre-loop available_capacity_pct snapshot and collectively push total open risk past
+    max_total_risk_pct before the next cycle's circuit breaker (CB4) caught the overshoot
+    after the fact.
+
+    Args:
+        remaining_risk_capacity_pct: This run's running risk-capacity balance (starts at the
+            pre-loop available_capacity_pct, decremented by the caller as entries are
+            accepted).
+        candidate_risk_pct: This candidate's own risk as a percentage of portfolio value
+            (risk_dollars / portfolio_value * 100).
+
+    Returns:
+        (sufficient: bool, reason: str | None) - sufficient=False means skip this candidate.
+    """
+    if candidate_risk_pct > remaining_risk_capacity_pct:
+        return False, (
+            f"Entry risk {candidate_risk_pct:.2f}% of portfolio exceeds this run's remaining "
+            f"risk capacity {remaining_risk_capacity_pct:.2f}%"
         )
     return True, None
 
@@ -825,213 +874,54 @@ def _persist_signals_to_database(qualified_trades: list[QualifiedTrade], run_dat
         raise RuntimeError(f"[PHASE 8] Failed to persist entry signals: {e}") from e
 
 
-def _batch_fetch_technical_data(
-    symbols_with_precomputed: dict[str, dict[str, Any]], run_date: _date, period: int = 14
-) -> dict[str, dict[str, float | None]]:
-    """Batch-fetch missing ATR and SMA_50 data, using pre-computed values from Phase 5 when available.
+def _batch_fetch_prior_close(symbols: list[str], run_date: _date) -> dict[str, float]:
+    """Fetch each symbol's prior-trading-day close (the row immediately before the one
+    _batch_fetch_technical_data's "close" is drawn from), for the day-over-day price-
+    plausibility gate below.
 
+    REAL-MONEY-READINESS FINDING (2026-09-06 audit): Phase 1 checks table-level
+    freshness/completeness but has no per-symbol day-over-day plausibility check, and
+    data_patrol's check_price_moves (algo/monitoring/data_patrol/checks/price_sanity.py)
+    is a disconnected diagnostic report, never wired into any trading decision. A non-null
+    but garbage price (bad print, stale cache, decimal-shift error) would pass Phase 1 and
+    flow straight into position sizing with nothing to catch it. This closes that gap for
+    the one place it matters most: right before a candidate's entry_price is used to size
+    a real order.
 
-
-    Args:
-
-        symbols_with_precomputed: Dict mapping symbol -> {pre-computed fields from Phase 5}
-
-        run_date: Trading date
-
-        period: ATR period (default 14)
-
-
-
-    Returns dict keyed by symbol with {atr, sma_50, close} values.
-
-
-
-    ISSUE #8 FIX: Reuses Phase 5's SMA_50 and ATR computations instead of recomputing.
-
-    Only fetches missing data (symbols with no phase5_precomputed values).
-
+    Returns only symbols with a resolvable prior close - a symbol with no second row
+    (new listing, data gap) is simply absent from the result and the caller must treat
+    "no prior close available" as "cannot check, don't block" rather than a rejection.
     """
-
-    if not symbols_with_precomputed:
-        # Phase 5 didn't run or produced no candidates (e.g., circuit breaker halted entry)
-        # This is not an error-it means no entries are allowed. Return empty dict (no candidates to process).
-        logger.warning(
-            "[PHASE8] No precomputed technical data available for entry execution. "
-            "Phase 5 likely halted or produced no candidates. No entries will be executed this run."
-        )
+    if not symbols:
+        # No candidates to check - not an error, nothing to process, correctly represented
+        # as an empty map rather than a data-unavailable marker (there is no missing data
+        # here, just zero symbols to look up).
         return {}
-
-    # Separate symbols that have precomputed values from those that don't
-
-    precomputed_by_symbol = {}
-
-    symbols_needing_fetch = []
-
-    for symbol, data in symbols_with_precomputed.items():
-        has_atr = data.get("atr_14") is not None
-
-        has_sma = data.get("sma_50") is not None
-
-        has_close = data.get("close") is not None
-
-        if has_atr and has_sma and has_close:
-            # All values precomputed in Phase 5
-
-            precomputed_by_symbol[symbol] = {
-                "atr": float(data["atr_14"]),
-                "sma_50": float(data["sma_50"]),
-                "close": float(data["close"]),
-            }
-
-        else:
-            # Missing at least one value � fetch from DB
-
-            symbols_needing_fetch.append(symbol)
-
-    if not symbols_needing_fetch:
-        # All data precomputed in Phase 5, no DB fetch needed
-
-        return cast(dict[str, dict[str, float | None]], precomputed_by_symbol)
-
-    # Fetch missing data only for symbols that lack precomputed values
-    # Use SQL parameter markers (%s) for safe parameterized queries
-    symbol_placeholders = ",".join(["%s"] * len(symbols_needing_fetch))
-
-    result: dict[str, dict[str, float | None]] = cast(dict[str, dict[str, float | None]], precomputed_by_symbol.copy())
-
-    try:
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                f"""WITH latest_prices AS (
-                    SELECT DISTINCT ON (symbol) symbol, close
-                    FROM price_daily
-                    WHERE symbol IN ({symbol_placeholders}) AND date <= %s
-                    ORDER BY symbol, date DESC
-                ),
-                sma_50_data AS (
-                    SELECT symbol, AVG(close) AS sma_50
-                    FROM (
-                        SELECT symbol, close,
-                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-                        FROM price_daily
-                        WHERE symbol IN ({symbol_placeholders}) AND date <= %s
-                    ) t
-                    WHERE rn <= 50
-                    GROUP BY symbol
-                )
-                SELECT lp.symbol, sma.sma_50, lp.close
-                FROM latest_prices lp
-                INNER JOIN sma_50_data sma ON sma.symbol = lp.symbol""",
-                [
-                    *symbols_needing_fetch,
-                    run_date,
-                    *symbols_needing_fetch,
-                    run_date,
-                ],
-            )
-
-            sma_close_by_symbol: dict[str, tuple[Any, Any]] = {}
-            for row in cur.fetchall():
-                if isinstance(row, dict):
-                    row_symbol = row.get("symbol")
-                    sma_50 = row.get("sma_50")
-                    close = row.get("close")
-                else:
-                    if len(row) < 3:
-                        raise IndexError(f"Row has {len(row)} columns, expected 3")
-                    row_symbol, sma_50, close = row
-                if row_symbol is not None:
-                    sma_close_by_symbol[row_symbol] = (sma_50, close)
-
-            # FIXED 2026-08-24 (was: flat SMA-of-True-Range, a documented methodology mismatch -
-            # see batch_fetch_atr_methodology_mismatch_found_20260824 in memory for the original
-            # finding): compute ATR using the exact same compute_atr() (Wilder's EMA,
-            # loaders/technical_indicators.py) that populates technical_data_daily.atr_14 - the
-            # value this whole function exists to substitute for when missing - instead of
-            # reimplementing Wilder smoothing by hand in SQL (a recursive-CTE EMA is easy to get
-            # subtly wrong and hard to validate). Fetches atr_history_trading_days of OHLC
-            # history per symbol as a warm-up window: ewm(alpha=1/period, adjust=False) weighs
-            # data exponentially, so any finite warm-up window introduces some seed-value error,
-            # but at alpha=1/14 the residual weight from >70 trading days back decays below 1%
-            # ((13/14)^70 =~ 0.007) - 100 trading days gives ample margin. Empirically validated
-            # (2026-08-24) against technical_data_daily.atr_14 for 9 real symbols (spot-checked
-            # + 8 random): 8/9 matched to within 0.04% (float/warm-up rounding); one microcap
-            # (NDRA) differed 2.48%, but the gap was IDENTICAL across 160/300/500/1000-day
-            # warm-up windows - ruling out warm-up convergence as the cause - most likely
-            # technical_data_daily's stored value is simply stale relative to current price_daily
-            # for that symbol (this function computing fresh from current data is a feature of
-            # the fix, not a flaw). Same formula as the primary loader by construction (calls the
-            # identical compute_atr()), so per-symbol drift here is a data-freshness question,
-            # not a methodology one.
-            atr_history_trading_days = 100
-            history_start = run_date - timedelta(days=int(atr_history_trading_days * 1.6))
-            cur.execute(
-                f"""SELECT symbol, date, high, low, close
-                    FROM price_daily
-                    WHERE symbol IN ({symbol_placeholders}) AND date <= %s AND date >= %s
-                    ORDER BY symbol, date ASC""",
-                [*symbols_needing_fetch, run_date, history_start],
-            )
-            ohlc_rows = cur.fetchall()
-
-        atr_by_symbol: dict[str, float] = {}
-        if ohlc_rows:
-            import math as _math
-
-            import pandas as pd
-
-            from loaders.technical_indicators import compute_atr
-
-            ohlc_records = [dict(r) if isinstance(r, dict) else r for r in ohlc_rows]
-            ohlc_df = pd.DataFrame(ohlc_records, columns=["symbol", "date", "high", "low", "close"])
-            for col in ("high", "low", "close"):
-                ohlc_df[col] = ohlc_df[col].astype(float)
-            for sym, group in ohlc_df.groupby("symbol"):
-                if len(group) < period:
-                    # Not enough history for a real ATR (same as the old fallback's implicit
-                    # behavior when insufficient rows existed) - leave missing, handled below.
+    placeholders = ",".join(["%s"] * len(symbols))
+    with DatabaseContext("read") as cur:
+        cur.execute(
+            f"""
+            SELECT symbol, close
+            FROM (
+                SELECT symbol, close,
+                       ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                FROM price_daily
+                WHERE symbol IN ({placeholders}) AND date <= %s
+            ) ranked
+            WHERE rn = 2
+            """,
+            [*symbols, run_date],
+        )
+        prior_close: dict[str, float] = {}
+        for row in cur.fetchall():
+            sym = row.get("symbol") if isinstance(row, dict) else row[0]
+            close = row.get("close") if isinstance(row, dict) else row[1]
+            if sym is not None and close is not None:
+                try:
+                    prior_close[sym] = float(close)
+                except (TypeError, ValueError):
                     continue
-                group = group.sort_values("date")
-                atr_series = compute_atr(group["high"], group["low"], group["close"], period)
-                last_atr = atr_series.iloc[-1]
-                if last_atr is not None and not (_math.isnan(last_atr) or _math.isinf(last_atr)):
-                    atr_by_symbol[sym] = float(last_atr)
-
-        for row_symbol, (sma_50, close) in sma_close_by_symbol.items():
-            atr = atr_by_symbol.get(row_symbol)
-            if atr is None or sma_50 is None or close is None:
-                logger.warning(
-                    f"[PHASE 8] Symbol {row_symbol}: Technical data incomplete (ATR={atr}, SMA_50={sma_50}, close={close}). "
-                    f"Skipping this symbol. Check technical_data_daily table for completeness."
-                )
-                # CRITICAL FIX: Skip this symbol instead of halting all entry execution
-                # One symbol with bad technical data should not block entries for all other symbols
-                continue
-
-            # CRITICAL FIX: Session 345 - Validate type conversions (handles NaN/Infinity)
-            try:
-                from utils.type_conversion import safe_float
-
-                atr_float = safe_float(atr, f"{row_symbol}.atr", allow_none=False)
-                sma_50_float = safe_float(sma_50, f"{row_symbol}.sma_50", allow_none=False)
-                close_float = safe_float(close, f"{row_symbol}.close", allow_none=False)
-            except (ValueError, TypeError) as e:
-                logger.error(f"[ENTRY EXECUTION] {row_symbol}: Technical data type conversion failed: {e}")
-                raise ValueError(f"Technical data validation failed for {row_symbol}: {e}") from e
-
-            result[row_symbol] = cast(
-                dict[str, float | None],
-                {
-                    "atr": atr_float,
-                    "sma_50": sma_50_float,
-                    "close": close_float,
-                },
-            )
-
-        return result
-
-    except (ValueError, ZeroDivisionError, TypeError) as e:
-        raise RuntimeError(f"Batch fetch technical data failed: {e}") from e
+        return prior_close
 
 
 def _signal_age_trading_days(sig_date_obj: _date, run_date_obj: _date) -> int:
@@ -1405,11 +1295,8 @@ def run(
         )
         raise RuntimeError(f"Signal persistence failed (dashboard sync broken): {e}") from e
 
-    # Halt flag check before any trades
-    # SESSION 396 FIX: When halt flag is set (circuit breaker triggered), Phase 8 should
-    # gracefully skip entries without failing. This is expected behavior - it means the
-    # circuit breaker prevented new positions due to existing risk or market conditions.
-    # Circuit breaker active - entries blocked. This is a safety guard, not a failure.
+    # Halt flag check before any trades - a set flag means the circuit breaker already
+    # prevented new positions; skip gracefully, this is a safety guard, not a failure.
     if check_halt_flag and check_halt_flag():
         msg = "[PHASE 8] Circuit breaker active (halt flag set) - entries blocked to protect portfolio"
         logger.warning(msg)
@@ -1423,6 +1310,8 @@ def run(
             msg,
         )
 
+    if (guard_result := _check_drawdown_daily_loss_guard(config, run_date, log_phase_result_fn)) is not None:
+        return guard_result
     # CRITICAL FIX 2026-08-01: Ensure exposure_constraints always has required fields
     # Either Phase 5 provided them, or safe defaults were applied earlier.
     # As a final safety check, ensure all required fields exist before proceeding.
@@ -1956,8 +1845,25 @@ def run(
             logger.warning(
                 f"[PHASE 8 RISK GUARD] Current risk {current_risk_pct:.2f}%, "
                 f"only {available_capacity_pct:.2f}% capacity available. "
-                f"Will size positions conservatively to stay within limit."
+                f"Entries this run will be capped against this remaining capacity (see "
+                f"remaining_risk_capacity_pct below), not just position-sized normally."
             )
+
+        # RUNNING RISK-CAPACITY TALLY (real-money-readiness fix, 2026-09-10): unlike
+        # remaining_buying_power above (decremented per-accepted-entry within this same
+        # run), available_capacity_pct here used to be checked ONCE before the loop and
+        # never decremented as entries were accepted - the elif branch above only ever
+        # logged "will size conservatively", with no code anywhere actually enforcing it.
+        # Several qualifying signals in a single run could each individually pass this
+        # one-time check (e.g. available_capacity_pct=1.5%, 5 available position slots,
+        # ~1% base_risk_pct per entry -> up to +5% new risk added against a 4% limit)
+        # before the NEXT reconciliation cycle's circuit breaker (CB4) catches the
+        # overshoot after the fact - a real gap between this defensive pre-check and
+        # what it claimed to guarantee. remaining_risk_capacity_pct now tracks the same
+        # "running total within this run" shape remaining_buying_power already uses,
+        # decremented in the entry loop below as each candidate's own computed
+        # risk_dollars clears the check.
+        remaining_risk_capacity_pct: float = available_capacity_pct
     except Exception as e:
         msg = (
             f"[PHASE 8 CRITICAL] Risk pre-check failed: {e}. "
@@ -1996,6 +1902,7 @@ def run(
         }
 
     technical_data = _batch_fetch_technical_data(symbols_with_precomputed, run_date)
+    prior_close_by_symbol = _batch_fetch_prior_close(list(symbols_with_precomputed.keys()), run_date)
 
     def _is_valid_numeric(v: Any) -> bool:
         return isinstance(v, (int, float)) and not isinstance(v, bool)
@@ -2193,6 +2100,47 @@ def run(
         try:
             tier_max_conc_val = float(exposure_constraints["max_concentration_pct"])
 
+            # ENTRY-SIDE SECTOR CONCENTRATION GATE (2026-09-08): phase6_exit_execution.py's
+            # _check_sector_concentration() already enforces max_positions_per_sector, but only
+            # by force-exiting existing positions AFTER a sector is already over the limit -
+            # nothing on the entry side stops a new position from creating that overload in the
+            # first place. This closes that gap using the same config key and the same "count of
+            # open algo_positions per company_profile.sector" definition phase6 already uses, so
+            # the two enforcement points agree on what "over the limit" means. Fails OPEN (gate
+            # disabled, not entries halted) if the config or the position-count query is
+            # unavailable - this is a diversification control, not a capital-safety gate, and
+            # phase6's exit-side check remains as a backstop either way.
+            max_positions_per_sector_val = config.get("max_positions_per_sector")
+            sector_gate_enabled = max_positions_per_sector_val is not None
+            sector_position_counts: dict[str, int] = {}
+            max_positions_per_sector = 0
+            if sector_gate_enabled:
+                max_positions_per_sector = int(max_positions_per_sector_val)
+                try:
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT cs.sector, COUNT(*) as position_count
+                            FROM algo_positions ap
+                            JOIN company_profile cs ON ap.symbol = cs.symbol
+                            WHERE ap.status = 'open'
+                            GROUP BY cs.sector
+                            """
+                        )
+                        sector_position_counts = {row[0]: int(row[1]) for row in cur.fetchall() if row[0]}
+                except Exception as e:
+                    logger.warning(
+                        f"[PHASE 8 SECTOR_GATE] Failed to load current sector position counts: {e}. "
+                        "Disabling entry-side sector gate for this run (fail open)."
+                    )
+                    sector_gate_enabled = False
+                    sector_position_counts = {}
+            else:
+                logger.warning(
+                    "[PHASE 8 SECTOR_GATE] max_positions_per_sector config missing - entry-side "
+                    "sector concentration gate disabled for this run."
+                )
+
             # Instead of all-or-nothing rejection, intelligently rank signals by quality
             # and enter as many as fit within concentration limit
             # This prevents wasting high-quality signals when some would fit
@@ -2256,10 +2204,9 @@ def run(
                                 None,
                             )
                             continue
-                except Exception as e:
-                    logger.warning(
-                        f"[PHASE 8] {symbol}: Error checking for duplicate entry: {type(e).__name__}: {e}. Proceeding with caution."
-                    )
+                except Exception as e:  # FAIL CLOSED (2026-09-07): was "proceed with caution"
+                    logger.warning(f"[PHASE 8] {symbol}: duplicate_check_error: {e}. Skipping (fail closed).")
+                    continue
 
                 try:
                     symbol_key = str(symbol)
@@ -2308,6 +2255,49 @@ def run(
                             None,
                         )
                         continue
+
+                    # PRICE-PLAUSIBILITY GATE (2026-09-06 real-money-readiness audit): entry_price
+                    # above comes straight from price_daily.close with no cross-check against the
+                    # prior day's close - a bad print, stale cache, or decimal-shift error would
+                    # pass Phase 1 (table-level freshness/completeness only, not per-symbol
+                    # plausibility) and size a real order off garbage data. Skip (not raise) - a
+                    # single symbol's implausible print is a per-symbol data-quality signal, not
+                    # something that should halt the rest of Phase 8's real candidates. No prior
+                    # close available (new listing, data gap) means "cannot check" - fail open on
+                    # that specific symbol rather than blocking every recent listing.
+                    prior_close = prior_close_by_symbol.get(str(symbol))
+                    if prior_close is not None and prior_close > 0:
+                        move_pct = abs(entry_price - prior_close) / prior_close * 100
+                        if move_pct > MAX_PLAUSIBLE_ENTRY_PRICE_MOVE_PCT:
+                            skipped_reason_counts["implausible_price_move"] = (
+                                skipped_reason_counts.get("implausible_price_move", 0) + 1
+                            )
+                            reject_msg = (
+                                f"implausible_price_move: {symbol} entry_price={entry_price} vs "
+                                f"prior_close={prior_close} ({move_pct:.0f}% > "
+                                f"{MAX_PLAUSIBLE_ENTRY_PRICE_MOVE_PCT:.0f}% max)"
+                            )
+                            logger.critical(f"[PHASE 8] {reject_msg} - skipping, likely bad data not a real move")
+                            try:
+                                from algo.reporting import notify
+
+                                notify(
+                                    "CRITICAL",
+                                    "Implausible entry price rejected",
+                                    reject_msg,
+                                    symbol=str(symbol),
+                                )
+                            except Exception as notify_err:
+                                logger.error(f"[PHASE 8] Failed to send implausible-price alert: {notify_err}")
+                            _log_signal_rejection(
+                                symbol,
+                                "concentration_prefilter",
+                                reject_msg,
+                                run_date,
+                                signal_entry_price_hint,
+                                None,
+                            )
+                            continue
 
                     stop_loss = _calculate_dynamic_stop_loss(entry_price, atr, sma_50)
 
@@ -2397,10 +2387,34 @@ def run(
                     )
                     conc_pct = float((position_value / portfolio_value_dec) * Decimal(100))
 
+                    # SECTOR CONCENTRATION GATE: unlike the $ concentration cascade below, a
+                    # sector-limit rejection only disqualifies this one candidate, not every
+                    # remaining candidate - a lower-ranked signal in a different sector may still
+                    # fit, so this continues to the next signal instead of breaking the loop.
+                    signal_sector = signal.get("sector")
+                    if sector_gate_enabled and signal_sector:
+                        current_sector_count = sector_position_counts.get(signal_sector, 0)
+                        if current_sector_count >= max_positions_per_sector:
+                            skipped_reason_counts["sector_concentration_limit"] = (
+                                skipped_reason_counts.get("sector_concentration_limit", 0) + 1
+                            )
+                            _log_signal_rejection(
+                                symbol,
+                                "concentration_prefilter",
+                                f"sector_concentration_limit: {signal_sector} at {current_sector_count} "
+                                f"positions (limit {max_positions_per_sector})",
+                                run_date,
+                                entry_price,
+                                None,
+                            )
+                            continue
+
                     # Check if adding this signal would exceed the limit
                     if cumulative_conc + conc_pct <= tier_max_conc_val:
                         cumulative_conc += conc_pct
                         qualified_trades_that_fit.append(signal)
+                        if sector_gate_enabled and signal_sector:
+                            sector_position_counts[signal_sector] = sector_position_counts.get(signal_sector, 0) + 1
                     else:
                         # This and all remaining lower-ranked signals don't fit either (sorted
                         # descending by score, cumulative_conc only grows) - log all of them,
@@ -2539,9 +2553,16 @@ def run(
             logger.critical(error_msg)
             raise RuntimeError(error_msg) from db_test_err
 
-        # Pre-flight validation pass: test position sizing and pretrade checks
-        # for all trades before executing any. This catches issues upfront that would
-        # cause partial execution if discovered mid-loop.
+        # Pre-flight validation pass (2026-09-07 doc fix, real-money-readiness audit -
+        # comment previously overstated this): checks candidate DATA COMPLETENESS only
+        # (symbol present, entry_price positive, required technical fields present) - it
+        # does NOT call the real position sizer or pretrade_checks.run_all(). Those still
+        # run individually per-trade in the main loop below, exactly as designed; a normal
+        # pretrade rejection there (duplicate position, concentration cap, correlation,
+        # etc.) is an expected safe outcome, not the "unrecoverable partial execution"
+        # scenario this block exists to prevent. What THIS preflight actually prevents is
+        # a malformed/incomplete candidate causing an unhandled exception mid-loop after
+        # earlier trades in the same batch have already been submitted to the broker.
         validation_failures = []
         for preflight_signal in qualified_trades:
             preflight_symbol = preflight_signal.get("symbol")
@@ -3011,6 +3032,40 @@ def run(
                 # for a check whose entire purpose is preventing broker-side overspend.
                 remaining_buying_power -= position_value_dec
 
+            # PROACTIVE TOTAL-RISK-CAPACITY CHECK (real-money-readiness fix, 2026-09-10, see
+            # remaining_risk_capacity_pct's initialization above for the full gap this
+            # closes). Same running-tally shape as remaining_buying_power immediately above:
+            # each candidate's own sizer-computed risk_dollars is converted to a %-of-
+            # portfolio figure using the same pv_for_sizer the sizer itself just used, checked
+            # against what capacity is left THIS run (not the pre-loop snapshot), and
+            # decremented once the candidate clears the check - so a batch of several
+            # qualifying signals in one run can no longer collectively add risk past
+            # max_total_risk_pct before CB4 catches it on the next cycle.
+            candidate_risk_dollars = sizing.get("risk_dollars")
+            if candidate_risk_dollars is None:
+                raise RuntimeError(
+                    f"[PHASE 8] {symbol}: Position sizer returned status='ok' but no 'risk_dollars' "
+                    f"field. Cannot enforce the running total-risk-capacity budget without it."
+                )
+            candidate_risk_pct = (
+                float(candidate_risk_dollars) / float(pv_for_sizer) * 100.0 if pv_for_sizer > 0 else 0.0
+            )
+            risk_cap_ok, risk_cap_reason = _check_risk_capacity_sufficient(
+                remaining_risk_capacity_pct, candidate_risk_pct
+            )
+            if not risk_cap_ok:
+                reason_risk = risk_cap_reason or (
+                    f"Entry risk {candidate_risk_pct:.2f}% exceeds remaining risk capacity "
+                    f"{remaining_risk_capacity_pct:.2f}%"
+                )
+                logger.info(f"[PHASE 8] {symbol}: {reason_risk}")
+                _log_signal_rejection(
+                    symbol, "insufficient_risk_capacity", reason_risk, run_date, entry_price, risk_pct
+                )
+                skipped_count += 1
+                continue
+            remaining_risk_capacity_pct -= candidate_risk_pct
+
             # Final hard-stop validation (includes earnings blackout check)
 
             try:
@@ -3036,12 +3091,19 @@ def run(
             # CRITICAL DEFENSIVE CHECK: Verify no open/pending positions exist for this symbol
             # FIXED (Session 381): Using serializable isolation level to prevent race condition.
             # Previously: Two concurrent runs could both pass the check, then both create positions.
-            # SOLUTION: Check within a SERIALIZABLE transaction so conflicts are detected.
-            # This is PostgreSQL's strictest isolation level - concurrent transactions that
-            # read/write the same data will conflict, and one will fail with a serialization error.
-            # This converts the race condition from "silent duplicate" to "explicit retry needed".
-            # BACKSTOP: UNIQUE constraint on algo_trades(symbol) WHERE status IN (open/filled/...)
-            # (migration 1158) still provides final safety if isolation level check is bypassed.
+            # NOTE (corrected 2026-09-06 real-money-readiness audit): this read-only SERIALIZABLE
+            # check commits and closes BEFORE execute_trade()'s later insert transaction even
+            # opens - Postgres SERIALIZABLE only detects conflicts between transactions that are
+            # concurrently LIVE, so a committed, closed read-only transaction provides no
+            # serialization guarantee against a future transaction. This check is a same-run
+            # early-exit convenience only (skips obviously-duplicate work sooner), NOT what
+            # actually prevents a real duplicate entry.
+            # REAL PROTECTION: the UNIQUE constraint on algo_trades(symbol) WHERE status IN
+            # (open/filled/...) (migration 1158, enforced via the
+            # algo_trades_symbol_live_status_idx partial index) is what actually converts a
+            # genuine concurrent-insert race into a caught duplicate-key violation at insert time
+            # - see execute_trade()'s handling of that violation as a benign "already executed"
+            # outcome. Do not rely on the SERIALIZABLE check above for correctness.
             try:
                 open_statuses = TradeStatus.all_open()
                 # Use read isolation level - PostgreSQL will detect conflicts at commit time
@@ -3371,8 +3433,21 @@ def run(
                                 break
 
                         else:
-                            message = trade_result["message"]
-                            status = trade_result["status"]
+                            # CRITICAL FIX (real-money-readiness audit, found 2026-09-06):
+                            # this used to bare-index trade_result for its status field.
+                            # executor_entry_handler.py's _validate_entry_phase returns
+                            # error_details={} for several real validation failures (missing
+                            # stop_loss_price, NaN/Infinite entry or stop, stop <= 0, stop >=
+                            # entry) - in every one of those cases the returned dict has NO
+                            # "status" key at all, only "success"/"trade_id"/"message". The
+                            # outer per-signal exception handler below does not catch
+                            # KeyError, so a validation failure of this shape raised
+                            # unhandled, terminating the `for signal in qualified_trades`
+                            # loop entirely and silently skipping every remaining candidate
+                            # in the run with no per-symbol isolation - the exact failure
+                            # mode this loop's own exception handling exists to prevent.
+                            message = trade_result.get("message", "Unknown error (no message field)")
+                            status = trade_result.get("status", "unknown")
                             if status in _POLICY_REJECTION_STATUSES:
                                 logger.info(f"[PHASE 8] {symbol}: SKIPPED (policy) - {message} (status={status})")
                                 _log_signal_rejection(symbol, status, message, run_date, entry_price, risk_pct)

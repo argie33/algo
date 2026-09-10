@@ -43,6 +43,13 @@ class _RecordingCursor:
         return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -113,6 +120,7 @@ _DDI_EPS_SHAPED_INCOME_ROWS = [
 class TestDdiFpiAdsRatioResolvesPeRatio:
     def test_fpi_eps_adjusted_produces_plausible_pe_ratio(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             (12.97,),  # price_daily.close (live, ADS)
@@ -132,7 +140,7 @@ class TestDdiFpiAdsRatioResolvesPeRatio:
             ),
             patch(
                 "loaders.load_sec_valuations.SecValuationsLoader._fetch_live_fpi_yfinance_check_values",
-                return_value=(None, None),
+                return_value=(None, None, None),
             ),
         ):
             result, _ = _run_fetch_incremental("DDI", _DDI_EPS_SHAPED_INCOME_ROWS, fetchone_results)

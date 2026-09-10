@@ -649,14 +649,14 @@ class EntryHandler:
                     signal_quality_score, trend_template_score, base_type, base_quality, stage_phase,
                     rs_percentile, market_exposure_at_entry, exposure_tier_at_entry, stop_reasoning, advanced_components,
                     status, sector, industry, execution_mode, idempotency_key, position_id, position_size_pct,
-                    alpaca_order_id
+                    alpaca_order_id, rejection_reason
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s, %s,
-                    %s
+                    %s, %s
                 )
                 ON CONFLICT (idempotency_key) DO UPDATE SET
                     entry_price = EXCLUDED.entry_price,
@@ -671,6 +671,7 @@ class EntryHandler:
                     status = EXCLUDED.status,
                     position_size_pct = EXCLUDED.position_size_pct,
                     alpaca_order_id = EXCLUDED.alpaca_order_id,
+                    rejection_reason = EXCLUDED.rejection_reason,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
@@ -704,6 +705,13 @@ class EntryHandler:
                     request.position_id,
                     request.position_size_pct,
                     request.alpaca_order_id or None,
+                    # CRITICAL FIX (real-money-readiness audit, found 2026-09-06): this column
+                    # has a real migrated schema (migration 029) and request.rejection_reason
+                    # is already populated with Alpaca's actual rejection error above - it was
+                    # simply never threaded into this INSERT/ON CONFLICT UPDATE, so it was NULL
+                    # for every row regardless of whether the order was actually rejected. Same
+                    # bug shape as the previously-fixed position_size_pct/alpaca_order_id gaps.
+                    request.rejection_reason,
                 ),
             )
             logger.info(
@@ -879,6 +887,7 @@ class EntryHandler:
         order_send_time: float | None,
         rejection_reason: str | None,
         failure_context: str,
+        stop_loss_price: Decimal,
     ) -> tuple[bool, str, str, str, Decimal | None, str | None, float | None] | None:
         """Cancel a bracket order, then check whether the entry leg actually filled during
         the cancel race despite the caller's reason for cancelling it (missing protective
@@ -896,6 +905,20 @@ class EntryHandler:
         held at the broker with zero DB record and zero stop-loss, invisible to every downstream
         risk/exit check. Extracted so all three cancel-then-check-for-a-race call sites share
         the same correct behavior instead of two of them dropping it.
+
+        BUG FOUND 2026-09-10 (real-money-readiness audit): recovering the fill (below) used to
+        stop at "recorded correctly, not lost" and leave the position with zero protective stop
+        at the broker until the NEXT Phase 9 reconciliation cycle (up to several hours away,
+        depending on where in the day this race lands) - a real, filled position sitting naked
+        against a gap-down or intraday move in the meantime, and even that eventual repair uses
+        a generic default stop percentage rather than this entry's own computed stop_loss_price.
+        Submit a standalone protective stop immediately, at the strategy's intended risk
+        distance, instead of waiting. `submit_standalone_protective_stop` is itself idempotent
+        (checks for an already-resting stop before submitting - see its docstring), so a later
+        Phase 9 pass finding this same position naked-looking (this repair's success isn't
+        persisted to algo_positions.standalone_stop_order_id from here, since the trade row
+        doesn't exist yet at this point in the entry flow) will discover and reuse this order
+        rather than submit a duplicate.
         """
         cancel_result: dict[str, Any] = {}
         try:
@@ -928,6 +951,39 @@ class EntryHandler:
             f"({failure_context}) - {raced_filled_qty} shares filled @ ${executed_price} despite "
             f"attempting to cancel. Recording as a real fill, not discarding it."
         )
+
+        stop_result: dict[str, Any] = {}
+        try:
+            stop_client_order_id = f"race-stop-{alpaca_order_id}"
+            stop_result = self.context._submit_standalone_protective_stop(
+                symbol,
+                qty=float(raced_filled_qty),
+                stop_price=float(stop_loss_price),
+                client_order_id=stop_client_order_id,
+                pos_id=None,
+            )
+        except Exception as e:
+            logger.critical(
+                f"[ENTRY_HANDLER CRITICAL] {symbol} {alpaca_order_id}: fill-vs-cancel race left "
+                f"{raced_filled_qty} shares live with NO protective stop, and the immediate "
+                f"standalone-stop submission itself raised {type(e).__name__}: {e}. Position is "
+                f"naked until Phase 9 reconciliation runs."
+            )
+        else:
+            if not stop_result.get("success"):
+                logger.critical(
+                    f"[ENTRY_HANDLER CRITICAL] {symbol} {alpaca_order_id}: fill-vs-cancel race left "
+                    f"{raced_filled_qty} shares live with NO protective stop - immediate standalone-stop "
+                    f"submission failed: {stop_result.get('message')}. Position is naked until Phase 9 "
+                    f"reconciliation runs."
+                )
+            else:
+                logger.warning(
+                    f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: immediate standalone protective stop "
+                    f"placed @ ${stop_loss_price} (order id {stop_result.get('order_id')}) for the "
+                    f"race-recovered fill - not left naked until Phase 9."
+                )
+
         try:
             notify(
                 "warning",
@@ -935,7 +991,8 @@ class EntryHandler:
                 message=(
                     f"Trade {trade_id}: cancel attempted ({failure_context}) but "
                     f"{raced_filled_qty} shares actually filled @ ${executed_price} - recorded "
-                    f"correctly, not lost."
+                    f"correctly, not lost. Protective stop: "
+                    f"{'placed @ $' + str(stop_loss_price) if stop_result.get('success') else 'FAILED - naked until Phase 9, see logs'}."
                 ),
             )
         except NotificationError as e:
@@ -1022,7 +1079,14 @@ class EntryHandler:
                 if len(legs) < 2:
                     failure_context = f"bracket missing stop loss leg ({len(legs)} legs)"
                     raced = self._recover_bracket_cancel_race(
-                        symbol, trade_id, alpaca_order_id, shares, order_send_time, rejection_reason, failure_context
+                        symbol,
+                        trade_id,
+                        alpaca_order_id,
+                        shares,
+                        order_send_time,
+                        rejection_reason,
+                        failure_context,
+                        stop_loss_price,
                     )
                     if raced is not None:
                         return raced
@@ -1047,7 +1111,14 @@ class EntryHandler:
                         missing.append("take_profit")
                     failure_context = f"bracket missing required legs: {', '.join(missing)}"
                     raced = self._recover_bracket_cancel_race(
-                        symbol, trade_id, alpaca_order_id, shares, order_send_time, rejection_reason, failure_context
+                        symbol,
+                        trade_id,
+                        alpaca_order_id,
+                        shares,
+                        order_send_time,
+                        rejection_reason,
+                        failure_context,
+                        stop_loss_price,
                     )
                     if raced is not None:
                         return raced
@@ -1094,6 +1165,7 @@ class EntryHandler:
                     order_send_time,
                     rejection_reason,
                     failure_context=f"30s poll timeout ({fill_error})",
+                    stop_loss_price=stop_loss_price,
                 )
                 if raced is not None:
                     return raced

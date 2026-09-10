@@ -148,19 +148,31 @@ class BrokerPositionSyncMixin:
                 ORDER BY symbol, date DESC
             ),
             open_trades AS (
-                SELECT DISTINCT ON (at.symbol)
-                    at.symbol, at.entry_quantity as quantity,
-                    at.entry_price as avg_entry_price,
+                -- CRITICAL FIX (real-money-readiness audit): this used to be a
+                -- one-row-per-symbol DISTINCT-ON query ordered by trade_date DESC, which
+                -- keeps only the MOST RECENT algo_trades row per symbol. A pyramided
+                -- (scaled-in) position - 2+ open algo_trades rows for the same symbol, a real,
+                -- supported case per position_sizer.py - silently dropped every earlier leg's
+                -- quantity/entry_price. That understated unrealized_pnl/winning_count here and,
+                -- via _compute_broker_snapshot_metrics, the concentration/Herfindahl metrics
+                -- written to algo_portfolio_snapshots - meaning the concentration circuit-
+                -- breaker could be blind to a symbol's true aggregate size. Aggregate all open
+                -- legs per symbol instead: sum quantity, cost-basis-weighted average entry
+                -- price (matches PositionAnalyzer's own cost-basis-weighted P&L% convention),
+                -- one current_price per symbol (same latest_prices join for every leg).
+                SELECT at.symbol,
+                    SUM(at.entry_quantity) as quantity,
+                    SUM(at.entry_quantity * at.entry_price) / NULLIF(SUM(at.entry_quantity), 0) as avg_entry_price,
                     'trade_price' as entry_price_source,
-                    lp.current_price,
-                    (at.entry_quantity * lp.current_price) as position_value
+                    MAX(lp.current_price) as current_price,
+                    SUM(at.entry_quantity) * MAX(lp.current_price) as position_value
                 FROM algo_trades at
                 LEFT JOIN latest_prices lp ON at.symbol = lp.symbol
                 WHERE at.status = ANY(%s)
                   AND at.exit_date IS NULL
                   AND at.entry_price IS NOT NULL
                   AND at.entry_price > 0
-                ORDER BY at.symbol, at.trade_date DESC
+                GROUP BY at.symbol
             )
             SELECT symbol, quantity, avg_entry_price, entry_price_source, current_price, position_value
             FROM open_trades

@@ -101,6 +101,22 @@ variable "alert_email_address" {
   default     = ""
 }
 
+# REAL-MONEY-READINESS FIX (2026-09-07 audit): every SNS alert topic in this module
+# (circuit_breaker_alerts, cost_circuit_breaker_alerts, loader_alerts) previously had only an
+# email subscription. algo/reporting/alerts.py's AlertManager.page_critical() already pages via
+# PagerDuty/Twilio for in-process critical events, but a CloudWatch alarm firing because the
+# orchestrator process itself never ran at all (crashed, scheduler dead, EventBridge rule
+# disabled) has no Python code executing to call that in-process pager - the alarm's SNS topic
+# is the only path left, and email-only means that exact "nothing is running" scenario silently
+# degrades to inbox-only paging, contradicting the after-hours paging intent already established
+# for in-process criticals. Comma-separated E.164 numbers, same format/variable name as
+# services/variables.tf's alert_sms_to, so a single tfvars value covers both.
+variable "alert_sms_to" {
+  description = "Comma-separated E.164 phone numbers to receive SMS for circuit-breaker/cost-breaker/loader CloudWatch alarms. Empty disables SMS paging for these topics."
+  type        = string
+  default     = ""
+}
+
 variable "cloudwatch_log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number

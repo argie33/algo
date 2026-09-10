@@ -276,42 +276,17 @@ class TestQuarterlyGrowthMomentumGarbageBound:
         assert abs(metrics["quarterly_growth_momentum"]) < 100_000.0
 
 
-class TestEarningsSurpriseAvgGarbageBound:
-    """ADDED 2026-08-30 (goal: full-data audit, live sanity-check pass): earnings_surprise_avg
-    ((last_eps - forward_eps) / |forward_eps| * 100) had NO bound at all, unlike every sibling
-    field in this same function (quarterly_growth_momentum/earnings_growth_4q_avg/
-    eps_growth_stability, see TestQuarterlyGrowthMomentumGarbageBound above) - live-caught
-    min=-433,067.03%/max=936,616.42% already on file, a near-zero forward_eps analyst estimate
-    (common for turnaround/recovery names) blowing up an otherwise-real surprise percentage.
-    Same MAX_PLAUSIBLE_GROWTH_PCT (2,000) bound this file's other growth-shaped fields
-    already use.
-    """
-
-    def _quarters_with_eps(self, last_eps):
-        # _compute_quarterly_metrics reverses `quarters` before slicing `last_4q = [-4:]`, so
-        # the row that ends up as `last_4q[-1]` (the one `last_eps` actually reads) is the
-        # FIRST "current"-year row here, not the last - keep all 4 uniform to sidestep the
-        # reversal bookkeeping entirely.
-        current = [(2025, 4 - i, 1_000_000.0, 100_000_000.0, last_eps) for i in range(4)]
-        prior = [(2024, 4 - i, 1_000_000.0, 100_000_000.0, 0.5) for i in range(4)]
-        return current + prior
-
-    def test_near_zero_forward_eps_marked_unavailable(self, monkeypatch):
-        rows = self._quarters_with_eps(last_eps=0.5)
-        loader = _make_loader(monkeypatch, quarterly_rows=rows)
-        monkeypatch.setattr(loader, "_get_analyst_forward_eps", lambda symbol: 0.001)
-
-        metrics = loader._compute_quarterly_metrics("SURPRISECO")
-
-        assert metrics.get("earnings_surprise_avg") is None
-        assert metrics.get("earnings_surprise_avg_unavailable_reason") == "garbage_metric_value_implausible_growth_rate"
-
-    def test_normal_earnings_surprise_still_computes(self, monkeypatch):
-        rows = self._quarters_with_eps(last_eps=0.55)
-        loader = _make_loader(monkeypatch, quarterly_rows=rows)
-        monkeypatch.setattr(loader, "_get_analyst_forward_eps", lambda symbol: 0.50)
-
-        metrics = loader._compute_quarterly_metrics("NORMALCO3")
-
-        assert metrics.get("earnings_surprise_avg") == pytest.approx(10.0, abs=1e-2)
-        assert metrics.get("earnings_surprise_avg_unavailable_reason") is None
+# TestEarningsSurpriseAvgGarbageBound REMOVED 2026-09-07 (goal-mode score sanity audit): the
+# (last_eps - forward_eps)/|forward_eps| "earnings surprise" proxy this class bounded was
+# itself the bug, not just its missing outlier guard - it compared a trailing single-quarter
+# actual EPS against a forward FULL-YEAR analyst estimate, producing negative "surprise"
+# values for real, live, consistently-beating companies (e.g. NVDA: -84.02% proxy vs. real
+# per-quarter consensus surprises of +3.46% to +8.02%, live-confirmed against
+# load_earnings_calendar.py's independently-sourced ground truth). Population-scale check:
+# 931 of ~5,140 symbols showed the mathematically-impossible combination this proxy could
+# produce (earnings_beat_rate=100 alongside earnings_surprise_avg<0, or the reverse) against
+# load_enhanced_quality_growth_metrics.py's correct, real consensus-vs-actual computation.
+# The proxy block in load_value_quality_growth_metrics.py was removed entirely (see that
+# file's own "Phase 3A" removal note) rather than just adding the missing bound this class
+# tested for - a correctly-bounded wrong formula is still wrong. That loader's
+# _compute_earnings_surprise_metrics is now the sole source of both columns.

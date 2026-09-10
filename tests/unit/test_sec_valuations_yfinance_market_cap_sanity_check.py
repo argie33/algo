@@ -56,6 +56,13 @@ class _RecordingCursor:
         return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -86,6 +93,7 @@ _ONC_SHAPED_INCOME_ROWS = [
 class TestYfinanceMarketCapSanityCheck:
     def test_large_mismatch_nulls_shares_dependent_fields_not_pe_ratio(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -126,6 +134,7 @@ class TestYfinanceMarketCapSanityCheck:
         """When yfinance_snapshot has nothing for this symbol, the sanity check must be a
         no-op - never treat missing comparison data as a reason to null anything."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -150,6 +159,7 @@ class TestYfinanceMarketCapSanityCheck:
         """A real, modest disagreement (well under the 10x threshold) must not trigger the
         override - only a large-magnitude scale mismatch should."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row

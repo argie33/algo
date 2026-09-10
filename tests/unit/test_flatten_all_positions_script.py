@@ -21,8 +21,11 @@ import pytest
 import scripts.flatten_all_positions as flatten_all_positions
 
 
-def _run(argv):
-    with patch.object(sys, "argv", ["flatten_all_positions.py", *argv]):
+def _run(argv, broker_only=()):
+    with (
+        patch.object(sys, "argv", ["flatten_all_positions.py", *argv]),
+        patch.object(flatten_all_positions, "_fetch_broker_only_symbols", return_value=list(broker_only)),
+    ):
         return flatten_all_positions.main()
 
 
@@ -47,19 +50,25 @@ class TestStatusMode:
             "_fetch_open_trades",
             return_value=[(1, "AAPL", "filled"), (2, "MSFT", "filled")],
         ):
-            with patch.object(flatten_all_positions, "HaltFlagManager") as mock_halt_cls:
+            with (
+                patch.object(flatten_all_positions, "HaltFlagManager") as mock_halt_cls,
+                patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
+            ):
                 exit_code = _run(["--status"])
 
         assert exit_code == 0
         mock_halt_cls.assert_not_called()
         out = capsys.readouterr().out
         assert "AAPL" in out and "MSFT" in out
-        assert "Open positions: 2" in out
+        assert "Open positions (DB-tracked): 2" in out
 
 
 class TestFlattenFlow:
     def test_no_open_positions_is_a_noop(self, capsys):
-        with patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[]):
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[]),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
+        ):
             with patch.object(flatten_all_positions, "HaltFlagManager") as mock_halt_cls:
                 exit_code = _run(["--confirm", "--reason", "test"])
 
@@ -221,6 +230,94 @@ class TestFlattenFlow:
 
         assert exit_code == 1
         mock_executor.exit_trade.assert_not_called()
+
+
+class TestBrokerOnlyPositionCrossCheck:
+    """REAL-MONEY-READINESS FIX (2026-09-07 audit): flatten_all_positions.py used to decide
+    "nothing to flatten" purely from algo_trades - exactly wrong for a tool whose entire
+    purpose is "something is badly wrong", which includes the DB and broker having diverged
+    (e.g. circuit_breaker.py deleting an "orphan" algo_positions row for a still-live broker
+    position). It must cross-check against the broker's own positions and never silently
+    report flat while real exposure remains."""
+
+    def test_status_reports_untracked_broker_position(self, capsys):
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[]),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
+            patch.object(flatten_all_positions, "HaltFlagManager") as mock_halt_cls,
+        ):
+            exit_code = _run(["--status"], broker_only=[("ORPHAN", 10.0)])
+
+        assert exit_code == 0
+        mock_halt_cls.assert_not_called()
+        out = capsys.readouterr().out
+        assert "UNTRACKED broker-only positions" in out
+        assert "ORPHAN" in out
+
+    def test_untracked_broker_position_is_not_a_noop(self, capsys):
+        """The core bug: DB empty + broker has a real position must NOT report 'nothing to
+        flatten' - it must be flagged and closed."""
+        mock_halt_manager = MagicMock()
+        mock_halt_manager.set_halt_flag.return_value = True
+        mock_executor = MagicMock()
+
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[]),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
+            patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
+            patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
+            patch.object(
+                flatten_all_positions,
+                "_close_untracked_broker_position",
+                return_value={"success": True, "message": "closed"},
+            ),
+        ):
+            exit_code = _run(["--confirm", "--reason", "test emergency"], broker_only=[("ORPHAN", 10.0)])
+
+        out = capsys.readouterr().out
+        assert "nothing to flatten" not in out.lower()
+        assert exit_code == 0
+        assert "ORPHAN" in out
+        mock_halt_manager.set_halt_flag.assert_called_once()
+
+    def test_untracked_broker_position_close_failure_is_reported(self, capsys):
+        mock_halt_manager = MagicMock()
+        mock_halt_manager.set_halt_flag.return_value = True
+        mock_executor = MagicMock()
+
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[]),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
+            patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
+            patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
+            patch.object(
+                flatten_all_positions,
+                "_close_untracked_broker_position",
+                return_value={"success": False, "message": "broker rejected close"},
+            ),
+        ):
+            exit_code = _run(["--confirm", "--reason", "test emergency"], broker_only=[("ORPHAN", 10.0)])
+
+        assert exit_code == 1
+        out = capsys.readouterr().out
+        assert "broker rejected close" in out
+
+    def test_broker_fetch_failure_fails_closed_not_silent(self, capsys):
+        """If we can't reach the broker to verify, never fall back to trusting DB-only state
+        (which is exactly the failure mode this fix closes)."""
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[]),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
+            patch.object(
+                flatten_all_positions, "_fetch_broker_only_symbols", side_effect=ValueError("broker auth failed")
+            ),
+        ):
+            with patch.object(sys, "argv", ["flatten_all_positions.py", "--status"]):
+                exit_code = flatten_all_positions.main()
+
+        assert exit_code == 1
+        err = capsys.readouterr().err
+        assert "Could not verify against broker" in err
 
 
 class TestUnfilledOrderCancellation:

@@ -49,6 +49,13 @@ class _FakeCursor:
         return result
 
     def fetchone(self) -> Any:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -73,6 +80,7 @@ _DUAL_CLASS_ALL_SEC_TIERS_FAIL_INCOME_ROWS = [
     (2025, 400_000_000_000.0, 90_000_000_000.0, 54.0, None, None, None, None, None, None, False),
 ]
 _DUAL_CLASS_ALL_SEC_TIERS_FAIL_FETCHONE = [
+    None,  # entity_type exemption gate check (138006446) - not exempt
     (5_000_000_000.0,),  # cash_and_equivalents
     (10_000_000_000.0, None, None, None),  # debt_row
     (1,),  # dual-class sibling check - found
@@ -99,8 +107,8 @@ class TestDualClassYfinanceSharesFallback:
             # is_foreign_private_issuer`) sits BEFORE the dual-class yfinance tier in the
             # code and only fires if shares_out is ALREADY truthy at that point - it is
             # NOT re-evaluated after the dual-class tier resolves shares_out later, so it
-            # makes no query at all in this scenario (every SEC tier failed). No padding
-            # entry needed here - the very next real fetchone() call is price_daily.close.
+            # makes no query at all in this scenario (every SEC tier failed).
+            None,  # separate-class entity-wide-shares sibling lookup (466a485d6) - no sibling row
             (743_500.0,),  # price_daily.close
             (700_000_000_000.0,),  # stockholders_equity
             (1.0,),  # beta
@@ -148,6 +156,7 @@ class TestDualClassYfinanceSharesFallback:
             (2025, 400_000_000_000.0, 90_000_000_000.0, 54.0, None, None, None, None, None, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000_000.0,),  # cash_and_equivalents
             (10_000_000_000.0, None, None, None),  # debt_row
             (1,),  # dual-class sibling check - found
@@ -158,6 +167,7 @@ class TestDualClassYfinanceSharesFallback:
             # class-safe (resolved by load_company_info_sec.py's own dual-class guard).
             (1_030_780.0,),  # company_info_sec fallback (tier 4) - REAL row
             None,  # company_info_sec cross-check (line ~689) - no data, no-op
+            None,  # separate-class entity-wide-shares sibling lookup (466a485d6) - no sibling row
             (376.86,),  # price_daily.close
             (700_000_000_000.0,),  # stockholders_equity
             (1.0,),  # beta

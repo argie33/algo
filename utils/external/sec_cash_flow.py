@@ -32,6 +32,31 @@ _CASHFLOW_IFRS_ALIASES = [
     # everything downstream: free_cash_flow, fcf_margin, accruals_ratio) was blocked by
     # this gap.
     ("CashFlowsFromUsedInOperatingActivitiesContinuingOperations", "net_cash_provided_by_used_in_operating_activities"),
+    # FIXED 2026-09-08 (goal session: "Missing SEC/XBRL data" 993 sweep, dcf_fcf/fcf_margin
+    # "missing_cash_flow_data" investigation): SU (Suncor Energy, $50B+ Canadian oil major,
+    # CIK 0000311337, 40-F/IFRS filer) and several smaller miners (GLDG/SLI/SLSR) and other
+    # 20-F/40-F filers (LPA/CDRO) tag NEITHER "CashFlowsFromUsedInOperatingActivities" NOR
+    # the "...ContinuingOperations" variant above - live-confirmed via real companyfacts
+    # JSON, the ONLY operating-cash-flow-shaped concept they report at all is
+    # "CashFlowsFromUsedInOperations" (SU FY2025: CAD 12.781B, real, current, full 12-month
+    # annual duration from a 40-F). The comment above this list's own NGG entry documents
+    # this same concept as "a before-tax subtotal" that normally needs
+    # "IncomeTaxesPaidRefundClassifiedAsOperatingActivities" subtracted to reconcile with
+    # the final post-tax figure - but NGG separately tags an
+    # "...OperatingActivitiesContinuingOperations" concept that already IS the correct
+    # final figure, so that subtraction was never actually needed to populate NGG's
+    # operating_cash_flow (see that entry's own comment: "operating_cash_flow ... was
+    # already populated for NGG via a separate concept"). For SU/GLDG/SLI/SLSR/LPA/CDRO,
+    # live-confirmed via the same real companyfacts JSON: none of them tag ANY
+    # "IncomeTaxesPaidRefundClassifiedAsOperatingActivities" fact either - i.e. these
+    # filers don't disaggregate a separate tax-paid line at all, so
+    # "CashFlowsFromUsedInOperations" is the only, and therefore the best-available, real
+    # total operating cash flow figure on file for them (same "partial but far better than
+    # missing" precedent as RevenueFromSaleOfGold below in the revenue aliases). Listed
+    # last (lowest priority) so it only ever fills the gap when both more precise concepts
+    # above are absent - never overrides a real, more complete figure a filer that
+    # separately itemizes tax already provides via the higher-priority entries.
+    ("CashFlowsFromUsedInOperations", "net_cash_provided_by_used_in_operating_activities"),
     ("CashFlowsFromUsedInInvestingActivities", "net_cash_provided_by_used_in_investing_activities"),
     ("CashFlowsFromUsedInFinancingActivities", "net_cash_provided_by_used_in_financing_activities"),
     (
@@ -206,8 +231,40 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # the same fiscal year, where the plain tag is the fuller total (continuing +
         # discontinued) and must keep winning whenever it's actually present.
         "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+        # ADDED 2026-09-10 (goal session: SEC/XBRL missing-data count under 500,
+        # missing_cash_flow_data investigation): a DIFFERENT, shorter concept name than the
+        # "OperatingActivitiesContinuingOperations" one just above - live-confirmed via KN
+        # (Knowles Corporation, CIK 0001587523) real companyfacts JSON tagging real,
+        # continuous, plausible-scale annual figures ($78.4M-$182.1M) under this concept for
+        # every FY2012-2025 10-K, while the standard "NetCashProvidedByUsedInOperatingActivities"
+        # concept (and its own "OperatingActivitiesContinuingOperations" sibling above) only
+        # ever carry quarterly/YTD partial-period facts for KN, never a full annual duration -
+        # operating_cash_flow (and everything derived: free_cash_flow, fcf_to_net_income,
+        # fcf_yield, dcf_fcf) was NULL for KN's entire history, marked
+        # "incomplete_sec_filing_cashflow" despite capex being real and present every year.
+        # Listed before the plain concept (this file's own "last-listed wins" convention) and
+        # marked fallback-only in load_financial_statements.py's field_mapping
+        # (_OCF_FALLBACK_ONLY_FIELDS) for the same reason as its sibling above - a filer
+        # reporting the fuller plain-concept total must keep winning whenever present.
+        "NetCashProvidedByUsedInContinuingOperations",
         "NetCashProvidedByUsedInOperatingActivities",
+        # FIXED 2026-09-07 (goal session: "make sure the list/checks are right, then fix
+        # issues" audit): same "discontinued-operations filer" failure shape as the Operating
+        # pair above, live-confirmed via real companyfacts JSON. Air Products and Chemicals
+        # (APD, a major real 10-K filer) tags investing/financing cash flow ONLY under these
+        # ContinuingOperations concepts for EVERY fiscal year 2016-2025 - the plain concepts
+        # below have zero entries for APD in that entire span - so investing_cash_flow/
+        # financing_cash_flow were silently NULL for APD's whole recent history despite real
+        # data being available. More broadly: of 1,887/1,925 filers that tag the financing/
+        # investing ContinuingOperations concepts at all, 1,391/1,373 have at least one
+        # individual fiscal year present ONLY under the ContinuingOperations tag (not just
+        # APD - a widespread partial-year gap, not a single-filer quirk). Listed BEFORE the
+        # plain concepts (this file's "last-listed wins on overwrite" convention) so a filer
+        # that reports BOTH for the same fiscal year keeps the fuller plain-concept total
+        # whenever it's actually present, same precedent as Operating above.
+        "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations",
         "NetCashProvidedByUsedInInvestingActivities",
+        "NetCashProvidedByUsedInFinancingActivitiesContinuingOperations",
         "NetCashProvidedByUsedInFinancingActivities",
         "PaymentsToAcquirePropertyPlantAndEquipment",
         # FIXED 2026-08-10: real capex concept some filers use INSTEAD of the concept
@@ -261,6 +318,20 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # summing across the two independent extraction paths would need a new mechanism,
         # not worth building for a ~7-9% single-symbol undercount.
         "PaymentsToAcquireEquipmentOnLease",
+        # ADDED 2026-09-10 (goal session: "missing SEC/XBRL data under 500" push, dcf_fcf
+        # missing_cash_flow_data investigation): TALK (Talkspace, CIK 1803901, a real
+        # telehealth 10-K filer) stopped tagging any PP&E-family concept after its FY2023
+        # 10-K ($151K, its last "PaymentsToAcquirePropertyPlantAndEquipment" entry) -
+        # live-confirmed via real companyfacts JSON that its FY2024/FY2025 capex is
+        # instead tagged under this standard (not filer-specific) us-gaap concept for
+        # capitalized software development costs: $5,443,000 FY2024 / $10,641,000 FY2025,
+        # both real 10-K annual-duration facts, plausible for a SaaS/telehealth business
+        # whose real capex is its software platform, not physical PP&E. dcf_fcf/
+        # free_cash_flow/fcf_margin were stuck at "missing_cash_flow_data" for FY2024-2025
+        # despite real, current operating_cash_flow being tagged every year. Fallback-only
+        # in load_financial_statements.py's field_mapping (_SBC_BUYBACK_FALLBACK_ONLY_FIELDS)
+        # so it never overwrites a real PP&E-family capex value for a filer reporting both.
+        "PaymentsToAcquireSoftware",
         # FIXED 2026-08-24 (goal: "Margin of Safety (DCF) / Cash flow data unavailable"
         # audit): REITs (SIC 6798) never tag any of the PP&E-family concepts above - their
         # capex is real property investment, tagged under a completely different concept
@@ -283,6 +354,20 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "PaymentsToAcquireAndDevelopRealEstate",
         "PaymentsToAcquireRealEstate",
         "PaymentsForCapitalImprovements",
+        # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep,
+        # capex_never_tagged_in_recent_filings continuation, scored-symbol sample beyond the
+        # earlier 2026-09-06 REIT sweep above): Tanger Inc (SKT, CIK 0000899715, real outlet-mall
+        # REIT) reports NEITHER "PaymentsForCapitalImprovements" nor any other RealEstate/
+        # PP&E-family concept above - live-confirmed via real companyfacts JSON its actual
+        # property-improvement capex is tagged under this standard (not filer-specific) us-gaap
+        # concept instead: $188.863M FY2023, $77.194M FY2024, $93.868M FY2025 (10-K, accession
+        # confirmed via real end-dates) - plausible ~15-19% of SKT's real ~$500M annual revenue,
+        # consistent with an outlet-center REIT's ongoing renovation/expansion spend, not a
+        # placeholder. Standard taxonomy element, so likely generalizes beyond SKT even though
+        # only this one filer was live-confirmed this session (same "standard concept, single
+        # filer verified" precedent as PaymentsToDevelopRealEstateAssets/
+        # PaymentsToAcquireCommercialRealEstate above).
+        "RealEstateImprovements",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
         # no_recent_free_cash_flow_reported investigation): a standard (not filer-specific)
         # us-gaap concept for real-estate development spend, never in this fetch list at
@@ -349,6 +434,53 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # capital expenditure, and adding them here would misrepresent free_cash_flow for
         # these business models. Not added.
         "PaymentsToAcquireLand",
+        # FIXED 2026-09-09 (goal session: "capex_never_tagged_in_recent_filings" 86-symbol
+        # sweep): mineral exploration/development-stage filers report capex under this
+        # ifrs-full concept instead of any PP&E-family concept above - live-confirmed via
+        # real companyfacts JSON across 2 independent filers. Lifezone Metals (LZM, CIK
+        # 1958217, developing the Kabanga Nickel project in Tanzania): FY2025 $21,826,327 /
+        # FY2024 $49,951,501 / FY2023 $51,355,297 (all 20-F), each closely tracking (~95-105%
+        # of) the same fiscal year's real "CashFlowsFromUsedInInvestingActivities" total
+        # (FY2025 $21,283,241 / FY2024 $52,659,817 / FY2023 $59,947,767) - i.e. this concept
+        # is the dominant, not incidental, driver of LZM's investing outflow, not a minor
+        # sub-line. Foremost Clean Energy (FMST, CIK 1935418): CAD 249,957 FY2024/24-25 /
+        # CAD 198,829 prior FY - smaller scale but the same concept, confirming this is a
+        # standard (not filer-specific) IFRS taxonomy element for the mineral-exploration
+        # sector, not a coincidence specific to LZM. Per scripts/xbrl_concept_coverage_scan.py
+        # (--grep Explor), 45 distinct filers in the on-disk companyfacts cache tag this
+        # concept. This was the direct cause of LZM's dcf_fcf/fcf_margin/free_cash_flow
+        # being stuck at "capex_never_tagged_in_recent_filings" despite real, current,
+        # well-populated investing-activity data existing. Rejected for this same reason
+        # bucket in the same investigation: TFPM's (Triple Flag Precious Metals)
+        # semantically-similar "PaymentsForExplorationAndEvaluationExpenses" concept - only
+        # $8.8M of TFPM's $218M FY2025 investing outflow (4%, genuinely $0 in FY2024), i.e.
+        # a minor incidental sub-line for a royalty/streaming company whose real investing
+        # activity is buying royalty interests (no PP&E), not a capex proxy worth adding -
+        # correctly still missing_sec_data. Also rejected: Trilogy Metals' (TMQ)
+        # "SignificantCostsIncurredToAcquireMineralInterestOfProvedReserves" - only 6 filers
+        # use it and TMQ's own values are "since inception" cumulative totals (2003-12-01
+        # through the period end), not per-fiscal-year durations, so aggregating by
+        # fiscal_year would misattribute a 17-year cumulative figure as one year's capex;
+        # TMQ's real recent-year investing activity is also genuinely near-zero (its Ambler
+        # project capex is spent at the South32 joint-venture level, not on TMQ's own
+        # balance sheet) - correctly left as no-capex, not a bug this concept addition
+        # should paper over.
+        "PurchaseOfExplorationAndEvaluationAssets",
+        # FIXED 2026-09-09 (same sweep): "PaymentsToAcquireMineralRights" is a real,
+        # standard (not filer-specific) us-gaap concept for cash paid to acquire mineral
+        # rights/interests - never fetched at all despite being a substantial, common real
+        # capex line (33 distinct filers tag it per the coverage scan). Live-confirmed via
+        # real companyfacts JSON across large, well-known filers already in the broader
+        # universe: Freeport-McMoRan $2,200,000,000, Royal Gold $1,164,753,000, Diamondback
+        # Energy $444,083,000, Coeur Mining $116,898,000 - all real, current, substantial
+        # 10-K figures, not noise. Also live-confirmed on Trilogy Metals (TMQ, one of this
+        # session's 86 target symbols): real annual values through FY2021 ($119,000), though
+        # TMQ's own capex genuinely goes to ~$0 from FY2022 onward (see the
+        # PurchaseOfExplorationAndEvaluationAssets comment above for why that's a genuine
+        # business-model change, not a missing-concept bug for TMQ specifically). Standard
+        # taxonomy element, so this should recover other mining/oil-and-gas filers beyond
+        # the ones checked live this session, not just TMQ.
+        "PaymentsToAcquireMineralRights",
         # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurers (SIC
         # 6311/6321/6331/6351/6361/6399) hold investment real estate as part of their
         # portfolio, tagged under these two insurer-specific concepts rather than any
@@ -494,6 +626,17 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # duplicate tag, so it must never win over a real DividendsCommonStock*/
         # PaymentsOfDividends* value.
         "InvestmentCompanyDividendDistribution",
+        # ADDED 2026-09-09 (xbrl_concept_coverage_scan.py comment-leak fix follow-up: this
+        # standard us-gaap concept was quoted in the PSA comment above describing what
+        # PaymentsOfCapitalDistribution equals, but never actually fetched - 639 real filers
+        # tag it (scan-confirmed post-fix). Fallback-only (_SBC_BUYBACK_FALLBACK_ONLY_FIELDS)
+        # so it only fills dividends_paid for a preferred-only distributor (no common
+        # dividend concept tagged at all, e.g. a mortgage REIT/BDC with only preferred stock
+        # outstanding) - never overwrites a real DividendsCommonStock*/PaymentsOfDividends*
+        # total, which would otherwise silently understate combined common+preferred
+        # distributions if this simply won the ordinary last-listed-wins overwrite.
+        "DividendsPreferredStockCash",
+        "DividendsPreferredStock",
         "DividendsCommonStockCash",
         "DividendsCommonStock",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,
@@ -567,6 +710,29 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "ShareBasedCompensation",
         "PaymentsForRepurchaseOfEquity",
         "PaymentsForRepurchaseOfCommonStock",
+        # ADDED 2026-09-07 (goal: "SEC/XBRL missing data" + tie-out sweep): net_change_cash
+        # has been a real, declared schema column on annual_cash_flow/quarterly_cash_flow/
+        # ttm_cash_flow since this loader's creation, but NO concept was ever fetched for
+        # it and no field_mapping entry ever targeted it - live-confirmed via direct DB
+        # query, 0 of 66,580 annual_cash_flow rows have net_change_cash populated, for
+        # every symbol, ever. Standard XBRL concept for "cash flow statement's total
+        # change in cash for the period" comes in two generations: the plain pre-ASU-
+        # 2016-18 concept (live-confirmed via AMZN's real companyfacts JSON: real values
+        # FY2015-2017, e.g. $1,188,000,000 FY2017) and the post-ASU-2016-18 restricted-
+        # cash-inclusive concept most large filers switched to afterward (live-confirmed
+        # via AMZN again: real values every year since, e.g. $7,794,000,000 FY2025) - most
+        # filers use exactly one of the two for any given fiscal year, not both, so listing
+        # the modern concept last (this file's "last-listed wins on overwrite" convention)
+        # lets it take priority for filers who report both in a transition year without
+        # ever losing the plain concept's value for filers who never switched. Each has an
+        # "ExcludingExchangeRateEffect" sibling for filers with no material FX translation
+        # effect on cash - same target column, listed immediately before its "Including"
+        # counterpart so the fuller (higher-priority, present-when-tagged) figure still
+        # wins when a filer tags both.
+        "CashAndCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+        "CashAndCashEquivalentsPeriodIncreaseDecrease",
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseExcludingExchangeRateEffect",
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect",
     ]
     # REMOVED 2026-07-28: "Depreciation"/"DepreciationAndAmortization" (and the matching
     # ("DepreciationExpense", "depreciation") IFRS alias) used to be fetched here too, but

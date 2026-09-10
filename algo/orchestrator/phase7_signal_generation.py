@@ -617,9 +617,17 @@ def _score_candidates_inline(candidates: list[dict[str, Any]]) -> list[dict[str,
                         f"Using fallback data or missing entirely. Signal quality scores reduced (lose 15-25 points). "
                         f"Allowing signal to pass with quality degradation. Check trend_template_data loader schedule."
                     )
-                    # Set sensible defaults to allow signal to pass with quality degradation
-                    minervini = minervini or 2.0  # Conservative estimate
-                    weinstein = weinstein or 1  # Conservative estimate
+                    # Set sensible defaults to allow signal to pass with quality degradation.
+                    # FIX (2026-09-07 real-money-readiness audit): `or` treats a genuine 0.0
+                    # minervini_trend_score (a real "fails every trend criterion" result, not a
+                    # missing-data sentinel - see loaders/load_trend_analysis.py's 0-8 point
+                    # sum) as falsy, silently overwriting a legitimately terrible score with
+                    # this "conservative estimate" and actively inflating signal_quality_score
+                    # for a stock with a dead trend template - the same falsy-vs-None bug class
+                    # already fixed elsewhere in this codebase this session. Only substitute
+                    # when the value is genuinely missing (None).
+                    minervini = minervini if minervini is not None else 2.0  # Conservative estimate
+                    weinstein = weinstein if weinstein is not None else 1  # Conservative estimate
 
                 # Compute scores via the single shared formula (loaders/signal_quality_scorer.py::
                 # compute_signal_quality_components) - the SAME function the batch/EOD loader
@@ -1665,7 +1673,13 @@ def _backfill_orphaned_signal_scores() -> None:
         else:
             logger.debug("[PHASE 7 BACKFILL] No orphaned signals to backfill")
     except RuntimeError as rt_e:
-        raise RuntimeError(f"[PHASE 7 BACKFILL] Backfill process critical error: {rt_e}") from rt_e
+        logger.critical(
+            f"[PHASE 7 BACKFILL] Backfill process critical error: {rt_e} "
+            f"This is a secondary/optional process to score orphaned signals that weren't scored during initial "
+            f"generation. Logging for investigation but allowing Phase 7 to continue - primary score computation "
+            f"already ran, and Phase 9 must still run to write this run's portfolio snapshot.",
+            exc_info=True,
+        )
     except Exception as bf_outer_e:
         msg = (
             f"[PHASE 7 BACKFILL] Backfill process failed: {type(bf_outer_e).__name__}: {bf_outer_e} "

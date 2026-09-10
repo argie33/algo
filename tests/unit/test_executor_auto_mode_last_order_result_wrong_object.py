@@ -48,6 +48,7 @@ def _make_real_context(submit_and_validate_order_fn):
         validate_entry_conditions_fn=MagicMock(),
         submit_and_validate_order_fn=submit_and_validate_order_fn,
         cancel_bracket_orders_fn=MagicMock(),
+        submit_standalone_protective_stop_fn=MagicMock(),
         sync_bracket_stop_loss_fn=MagicMock(),
         sync_standalone_stop_fn=MagicMock(),
         verify_order_status_fn=MagicMock(),

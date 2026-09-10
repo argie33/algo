@@ -74,10 +74,14 @@ class TestValuePercentileComponentsSync:
             ps,
             fwd_pe,
             dividend_yield,
+            None,  # fcf_yield
             None,
             None,  # pe_reason, fwd_pe_reason
             components_old,
             None,  # sector (added 2026-09-04, sector-relative Value percentile ranking)
+            90.0,  # data_completeness (added 2026-09-07, VALUE_MIN_WEIGHT gate completeness sync)
+            False,  # data_unavailable
+            {},  # unavailable_metrics (added 2026-09-08, unavailable_metrics/reason resync)
         )
 
         select_cursor = MagicMock()
@@ -97,7 +101,16 @@ class TestValuePercentileComponentsSync:
         _, args, _kwargs = mock_execute_values.mock_calls[0]
         updates = args[2]  # execute_values(cur, sql, updates, template=...)
         assert len(updates) == 1
-        symbol, value_score_new, composite_score_new, components_json = updates[0]
+        (
+            symbol,
+            value_score_new,
+            composite_score_new,
+            components_json,
+            _completeness_new,
+            _unavailable_new,
+            _unavailable_metrics_new,
+            _reason_new,
+        ) = updates[0]
 
         assert symbol == "META"
         components_new = json.loads(components_json)

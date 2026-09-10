@@ -7,7 +7,7 @@ Methods are verbatim, no logic changed - mixed into SecValuationsLoader.
 import logging
 from datetime import date, timedelta
 from itertools import pairwise
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from utils.db.context import DatabaseContext
 
@@ -34,8 +34,14 @@ class ValuationSanityCheckMixin:
     executing and is present in sys.modules under its real name.
     """
 
-    def _fetch_live_fpi_yfinance_check_values(self, symbol: str) -> tuple[float | None, float | None]:
-        """Live market_cap/trailingPE for a foreign private issuer, for sanity-check use only.
+    if TYPE_CHECKING:
+
+        def _compute_pb_ratio(
+            self, symbol: str, current_price: float, book_value: float | None, shares_out: float
+        ) -> float | None: ...
+
+    def _fetch_live_fpi_yfinance_check_values(self, symbol: str) -> tuple[float | None, float | None, float | None]:
+        """Live market_cap/trailingPE/sharesOutstanding for a foreign private issuer, for sanity-check use only.
 
         Never a value source for pe_ratio/market_cap themselves (those stay 100% SEC-derived
         per this file's module docstring) - only used to validate/reject an already-computed
@@ -58,7 +64,7 @@ class ValuationSanityCheckMixin:
                 circuit_breaker.wait_or_raise()
             except YFinanceStillBannedError as e:
                 logger.debug(f"[{symbol}] yfinance shared IP ban active, skipping FPI sanity-check fetch: {e}")
-                return None, None
+                return None, None, None
 
             # FIXED 2026-08-29: fetches via the shared _YfinanceAttrProcessWorker (see
             # utils/external/yfinance_analyst_ratings.py) rather than an in-process
@@ -77,19 +83,21 @@ class ValuationSanityCheckMixin:
                 except Exception:
                     pass
             logger.debug(f"[{symbol}] Live FPI yfinance sanity-check fetch failed (non-fatal): {e}")
-            return None, None
+            return None, None, None
 
         try:
             get_circuit_breaker().report_success()
         except Exception:
             pass
         if not isinstance(info, dict):
-            return None, None
+            return None, None, None
         mcap = info.get("marketCap")
         pe = info.get("trailingPE")
+        shares_out = info.get("sharesOutstanding")
         yf_market_cap = float(mcap) if isinstance(mcap, (int, float)) and mcap > 0 else None
         yf_pe_ratio = float(pe) if isinstance(pe, (int, float)) and pe > 0 else None
-        return yf_market_cap, yf_pe_ratio
+        yf_shares_outstanding = float(shares_out) if isinstance(shares_out, (int, float)) and shares_out > 0 else None
+        return yf_market_cap, yf_pe_ratio, yf_shares_outstanding
 
     # ADDED 2026-08-22 (goal session - real-money-readiness audit): the one narrow, deliberate
     # exception to this file's "SEC data only, yfinance never a value source" rule - see the
@@ -272,12 +280,31 @@ class ValuationSanityCheckMixin:
         # (FPI / >$50B-ceiling tiers) means this IS already a live number - no help there,
         # already the best signal available; keep it as-is and reject as before.
         if not yf_market_cap_is_live:
-            live_mcap, _live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+            live_mcap, _live_pe, live_shares_out = self._fetch_live_fpi_yfinance_check_values(symbol)
             if live_mcap is not None:
                 yf_market_cap = live_mcap
                 ratio = max(market_cap, yf_market_cap) / min(market_cap, yf_market_cap)
                 if ratio <= 10:
                     return
+            # FIXED 2026-09-07 (goal: "missing/implausible XBRL data to zero" sweep - PIII
+            # live-investigated per shares_outstanding_scale_mismatch_domestic_split_
+            # candidates_20260903 in memory, "needs fresh investigation"). yfinance's own
+            # `marketCap` field can be internally inconsistent with its own `sharesOutstanding`
+            # field for a recent-reverse-split/reorg microcap: live-confirmed PIII (P3 Health
+            # Partners) reports marketCap=$1.87B but its OWN sharesOutstanding=3,911,962 times
+            # its OWN price $9.35 implies only ~$36.6M - a ~51x internal self-disagreement
+            # (marketCap evidently still reflects a stale pre-reorg valuation while
+            # sharesOutstanding was updated). Our SEC-derived shares_outstanding (3,269,000)
+            # matches yfinance's own sharesOutstanding within 20% - strong evidence our share
+            # count is right and yfinance's marketCap field, not our data, is the bad number.
+            # Cross-checking shares_outstanding directly sidesteps having to decide which of
+            # yfinance's two mutually-inconsistent fields to trust for a dollar comparison.
+            if live_shares_out is not None:
+                sec_shares_out = result.get("shares_outstanding")
+                if sec_shares_out is not None and sec_shares_out > 0:
+                    shares_ratio = max(sec_shares_out, live_shares_out) / min(sec_shares_out, live_shares_out)
+                    if shares_ratio <= 3:
+                        return
         logger.warning(
             f"[{symbol}] market_cap sanity check failed: SEC-derived=${market_cap:,.0f} vs "
             f"yfinance=${yf_market_cap:,.0f} (ratio {ratio:.0f}x) - shares_outstanding is "
@@ -303,6 +330,74 @@ class ValuationSanityCheckMixin:
         # ran once before this nulling and may have passed on a metric this method just
         # cleared) - re-evaluate so a row that's now genuinely all-NULL is correctly flagged
         # data_unavailable instead of silently claiming success with nothing but a symbol/price.
+        key_metrics = [result.get("pe_ratio"), result.get("pb_ratio"), result.get("ps_ratio"), result.get("fcf_yield")]
+        if all(m is None for m in key_metrics):
+            result["data_unavailable"] = True
+
+    # ADDED 2026-09-06 (goal: "digging into stock_scores symbols" spot-check session, extreme
+    # fcf_yield tail follow-up - see stock_scores_symbol_spotcheck_20260906/
+    # shares_outstanding_impossible_volume_gate in memory). _sanity_check_market_cap above
+    # already catches a >10x disagreement with yfinance_snapshot.market_cap, but that ratio
+    # gate missed a real case: CISS's SEC-derived shares_outstanding (274,402) implied
+    # market_cap ($408,859) vs yfinance's $2,595,698 - only a 6.35x gap, under the 10x bar,
+    # so it survived. A completely independent, always-available signal proves it wrong
+    # anyway: CISS traded 12,332,426 shares on a single day within the prior 30 days - a stock
+    # cannot trade 45x its own total share count in one session. This doesn't depend on
+    # yfinance (which can be stale/unavailable - see _sanity_check_market_cap's own "frozen
+    # since Session 275" history) at all; price_daily's own recorded volume is ground truth
+    # for what actually traded. Universe-wide, this same test caught 2 further real cases
+    # (WHLR, IZM) among the 34 symbols with fcf_yield>100% that session found, out of 34
+    # checked - the other 31 have real, if extreme, share counts consistent with their own
+    # trading volume, so this check is deliberately narrow (mathematical impossibility, not a
+    # plausibility judgment call) rather than a broader fcf_yield ceiling, to avoid discarding
+    # real signal for genuinely tiny/distressed/serially-diluted names (TOPS/WHLR-shaped
+    # penny-stock distrust discounts are real market behavior, not data errors, when the
+    # share count itself is internally consistent with trading volume).
+    def _sanity_check_shares_outstanding_vs_volume(
+        self, symbol: str, result: dict[str, Any], cur: Any, lookback_days: int = 30
+    ) -> None:
+        shares_outstanding = result.get("shares_outstanding")
+        if shares_outstanding is None or shares_outstanding <= 0:
+            return
+        cur.execute(
+            "SELECT MAX(volume) FROM price_daily WHERE symbol = %s AND date >= CURRENT_DATE - %s::interval",
+            (symbol, f"{lookback_days} days"),
+        )
+        row = cur.fetchone()
+        max_volume = row[0] if row and row[0] is not None else None
+        if max_volume is None or max_volume <= shares_outstanding:
+            return
+        logger.warning(
+            f"[{symbol}] shares_outstanding sanity check failed: recorded shares_outstanding="
+            f"{shares_outstanding:,.0f} but a single day's trading volume in the last "
+            f"{lookback_days} days reached {max_volume:,.0f} - mathematically impossible unless "
+            f"shares_outstanding is stale/wrong; nulling shares_outstanding-dependent fields"
+        )
+        for field in (
+            "market_cap",
+            "pb_ratio",
+            "ps_ratio",
+            "fcf_yield",
+            "dividend_yield",
+            "net_payout_yield",
+            "enterprise_value",
+            "ev_ebitda",
+            "ev_revenue",
+            "intrinsic_value_per_share",
+            "margin_of_safety_pct",
+        ):
+            result[field] = None
+        # Reuses "shares_outstanding_scale_mismatch" rather than a new reason string -
+        # downstream (vqg_value.py's _build_value_metrics) has ~10 call sites that specifically
+        # check for that exact string to give each nulled field a precise per-field reason
+        # instead of falling through to generic "missing_sec_data"; a new string here would
+        # silently skip all of them (same gap test_value_metrics_shares_outstanding_scale_
+        # mismatch_sibling_fields_20260903.py exists to prevent for the sibling check above).
+        # Both failure modes are the same underlying category (shares_outstanding is
+        # untrustworthy) with identical downstream field effects, so sharing the reason is
+        # correct, not just convenient.
+        if result.get("reason") is None:
+            result["reason"] = "shares_outstanding_scale_mismatch"
         key_metrics = [result.get("pe_ratio"), result.get("pb_ratio"), result.get("ps_ratio"), result.get("fcf_yield")]
         if all(m is None for m in key_metrics):
             result["data_unavailable"] = True
@@ -334,7 +429,7 @@ class ValuationSanityCheckMixin:
         # so an 7-8-week-stale comparison value is just as unreliable here. One bounded live
         # re-check before committing to a rejection.
         if not yf_value_is_live:
-            _live_mcap, live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+            _live_mcap, live_pe, _live_shares_out = self._fetch_live_fpi_yfinance_check_values(symbol)
             if live_pe is not None:
                 yf_pe_ratio = live_pe
                 ratio = max(pe_ratio, yf_pe_ratio) / min(pe_ratio, yf_pe_ratio)
@@ -526,6 +621,73 @@ class ValuationSanityCheckMixin:
 
         return total_cash, total_debt
 
+    def _get_market_cap_without_income_statement(
+        self, cur: Any, symbol: str
+    ) -> tuple[float | None, float | None, float | None, float | None]:
+        """Pure price * shares_outstanding (and, from that, book-value-derived pb_ratio)
+        lookup - no income-statement dependency, so callable even before
+        annual_income_statement has any usable row.
+
+        FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling to
+        _get_total_cash_and_debt's 2026-09-02 fix): market_cap only needs a live price
+        (price_daily) and a share count (company_info_sec.shares_outstanding - the same
+        tier _resolve_shares_outstanding itself falls back to when the income-statement
+        tiers are unavailable) - neither depends on annual_income_statement having any
+        rows. Live-confirmed 19/22 symbols hitting the "no_income_statement" early return
+        (AADX, DPC, SIND, PBLS, ADBT, ADIG, BSEM, AIB, KARD, AVEX, SSMR, CSQR, LFTO, FCBM,
+        HMH, LCLN, LIME, SECZ, SUJA) have a real, current (2026-09-04) price_daily row and
+        a real company_info_sec.shares_outstanding, both nulled out purely because this
+        early return ran before fetch_incremental ever reached its own price/shares_out
+        queries - the exact same "these fields don't need X" gap total_cash/total_debt
+        already had fixed here.
+
+        pb_ratio (ADDED same day, same population): also needs only shares_out (above) and
+        annual_balance_sheet.stockholders_equity - a pure balance-sheet fact, same as
+        total_cash/total_debt just above - so it's resolved via the same real
+        _compute_pb_ratio() every other pb_ratio computation in this loader uses (same
+        bounds/cross-year-fallback behavior), not a separate ad-hoc formula.
+
+        Returns (current_price, shares_outstanding, market_cap, pb_ratio) - any/all None
+        when an input is missing (a company_info_sec shares_outstanding_unavailable_reason,
+        no recent price_daily row, no usable stockholders_equity, etc.).
+        """
+        cur.execute(
+            """
+            SELECT close FROM price_daily
+            WHERE symbol = %s AND close IS NOT NULL AND close > 0
+            ORDER BY date DESC LIMIT 1
+            """,
+            (symbol,),
+        )
+        price_row = cur.fetchone()
+        current_price = float(price_row[0]) if price_row and price_row[0] else None
+
+        cur.execute(
+            "SELECT shares_outstanding FROM company_info_sec WHERE symbol = %s AND shares_outstanding IS NOT NULL AND shares_outstanding > 0",
+            (symbol,),
+        )
+        shares_row = cur.fetchone()
+        shares_outstanding = float(shares_row[0]) if shares_row else None
+
+        market_cap = current_price * shares_outstanding if current_price and shares_outstanding else None
+
+        pb_ratio = None
+        if current_price and shares_outstanding:
+            cur.execute(
+                """
+                SELECT stockholders_equity FROM annual_balance_sheet
+                WHERE symbol = %s AND fiscal_year IS NOT NULL AND data_unavailable IS NOT TRUE
+                ORDER BY (CASE WHEN stockholders_equity IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                LIMIT 1
+                """,
+                (symbol,),
+            )
+            equity_row = cur.fetchone()
+            book_value = float(equity_row[0]) if equity_row and equity_row[0] is not None else None
+            pb_ratio = self._compute_pb_ratio(symbol, current_price, book_value, shares_outstanding)
+
+        return current_price, shares_outstanding, market_cap, pb_ratio
+
     def _unavailable_marker(
         self,
         symbol: str,
@@ -533,16 +695,19 @@ class ValuationSanityCheckMixin:
         total_debt: float | None = None,
         total_cash: float | None = None,
         ebitda: float | None = None,
+        current_price: float | None = None,
+        shares_outstanding: float | None = None,
+        market_cap: float | None = None,
+        pb_ratio: float | None = None,
     ) -> dict[str, Any]:
         """Return data_unavailable marker for symbol.
 
-        total_debt/total_cash/ebitda are optional overrides (2026-08-19, goal session
-        continuation): these three are pure balance-sheet/income-statement dollar figures
-        that don't need shares_outstanding or current_price to compute, unlike every other
-        field this marker nulls out - see fetch_incremental's "MOVED 2026-08-19" comment for
-        why they're now computed before the gates that produce this marker. Callers that
-        genuinely have nothing yet (e.g. "no_income_statement", before any balance-sheet
-        query has even run) simply omit them and get the same all-NULL behavior as before.
+        total_debt/total_cash/ebitda/current_price/shares_outstanding/market_cap/pb_ratio
+        are optional overrides (2026-08-19, extended 2026-09-06 for the rest): these are
+        pure balance-sheet/price/share-count figures that don't need every other field
+        this marker nulls out - see fetch_incremental's "MOVED 2026-08-19" comment
+        and _get_market_cap_without_income_statement's docstring. Callers that genuinely
+        have nothing yet simply omit them and get the same all-NULL behavior as before.
         """
         return {
             "symbol": symbol,
@@ -550,16 +715,16 @@ class ValuationSanityCheckMixin:
             "data_unavailable": True,
             "reason": reason,
             "data_source": "none",
-            # All metrics NULL except the three overridable ones above
-            "current_price": None,
-            "shares_outstanding": None,
-            "market_cap": None,
+            # All metrics NULL except the overridable ones above
+            "current_price": current_price,
+            "shares_outstanding": shares_outstanding,
+            "market_cap": market_cap,
             "total_debt": total_debt,
             "total_cash": total_cash,
             "enterprise_value": None,
             "ebitda": ebitda,
             "pe_ratio": None,
-            "pb_ratio": None,
+            "pb_ratio": pb_ratio,
             "ps_ratio": None,
             "peg_ratio": None,
             "fcf_yield": None,

@@ -52,7 +52,7 @@ class TestReconcileExitFillsMultiLeg:
         recon = _make_recon([_sell_order(filled_qty="100", filled_avg_price="55.00")])
         cur = MagicMock()
         cur.fetchone.side_effect = [
-            (1, 50.0, 45.0, 100),  # trade_id, entry_price, stop_loss_price, entry_quantity
+            (1, 50.0, 45.0, 100, None),  # trade_id, entry_price, stop_loss_price, entry_quantity, position_id
             (Decimal("0"),),  # prior partial pnl sum - no prior legs
             None,  # estimated_exit_price lookup - none set
         ]
@@ -78,7 +78,7 @@ class TestReconcileExitFillsMultiLeg:
         recon = _make_recon([_sell_order(filled_qty="60", filled_avg_price="50.00")])
         cur = MagicMock()
         cur.fetchone.side_effect = [
-            (42, 50.0, 45.0, 100),  # entry_price=50, entry_qty=100 (ORIGINAL, not 60)
+            (42, 50.0, 45.0, 100, None),  # entry_price=50, entry_qty=100 (ORIGINAL, not 60), position_id
             (Decimal("200.0"),),  # prior partial leg already realized +$200
             None,  # estimated_exit_price lookup
         ]
@@ -104,7 +104,7 @@ class TestReconcileExitFillsMultiLeg:
         recon = _make_recon([_sell_order(filled_qty="6.3", filled_avg_price="50.00")])
         cur = MagicMock()
         cur.fetchone.side_effect = [
-            (13, 50.0, 45.0, 10.5),  # entry_qty=10.5 (fractional)
+            (13, 50.0, 45.0, 10.5, None),  # entry_qty=10.5 (fractional), position_id
             (Decimal("200.0"),),  # prior partial leg already realized +$200
             None,  # estimated_exit_price lookup
         ]
@@ -126,7 +126,7 @@ class TestReconcileExitFillsMultiLeg:
         recon = _make_recon([_sell_order(filled_qty="60", filled_avg_price="48.00")])
         cur = MagicMock()
         cur.fetchone.side_effect = [
-            (7, 50.0, 45.0, 100),
+            (7, 50.0, 45.0, 100, None),
             (Decimal("300.0"),),
             None,  # estimated_exit_price lookup
         ]

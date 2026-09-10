@@ -69,9 +69,18 @@ class CorporateActionsMixin:
 
             for pos_id, symbol, db_qty, db_stop, _entry_price, trade_ids_arr in positions:
                 try:
-                    alpaca_qty = self._fetch_alpaca_qty(alpaca_base_url, alpaca_key, alpaca_secret, symbol)
+                    alpaca_pos = self._fetch_alpaca_position(alpaca_base_url, alpaca_key, alpaca_secret, symbol)
+                    alpaca_qty = None if alpaca_pos is None else int(alpaca_pos["qty"])
                     self._handle_qty_variance(
-                        cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, trade_ids_arr, adjustments
+                        cur,
+                        pos_id,
+                        symbol,
+                        db_qty,
+                        db_stop,
+                        alpaca_qty,
+                        trade_ids_arr,
+                        adjustments,
+                        alpaca_pos,
                     )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     error_msg = (
@@ -80,6 +89,17 @@ class CorporateActionsMixin:
                     )
                     logger.error(error_msg)
                     raise RuntimeError(error_msg) from e
+                except RuntimeError as e:
+                    # FIX (2026-09-07 real-money-readiness audit): a genuine per-symbol failure
+                    # (malformed Alpaca response, an unexpected non-200/404 status, missing qty
+                    # field) used to propagate out of this loop entirely - a DB error is a
+                    # systemic problem worth halting the whole cycle for (caught above), but one
+                    # symbol's own API oddity is not, and must not block split-detection/
+                    # reconciliation for every OTHER open position in the same run.
+                    logger.error(
+                        f"[CORP_ACTION] {symbol}: skipping this symbol's corporate-action check "
+                        f"after an unexpected error, continuing with remaining positions: {e}"
+                    )
 
             return adjustments
 
@@ -100,11 +120,26 @@ class CorporateActionsMixin:
             raise RuntimeError("Alpaca credentials unavailable - cannot detect corporate actions. Halted.")
         return alpaca_base_url, alpaca_key, alpaca_secret
 
-    def _fetch_alpaca_qty(self, alpaca_base_url: str, alpaca_key: str, alpaca_secret: str, symbol: str) -> int:
-        """Fetch position quantity from Alpaca API.
+    def _fetch_alpaca_position(
+        self, alpaca_base_url: str, alpaca_key: str, alpaca_secret: str, symbol: str
+    ) -> dict[str, Any] | None:
+        """Fetch the raw position payload from Alpaca API.
+
+        Returns None when Alpaca has no position for this symbol (404) - matching the
+        established 200/204/404 pattern already used elsewhere in this codebase for the
+        identical endpoint (position_order_management.py:332, order_manager.py:1153) - a
+        symbol that closed, was delisted, or was renamed by a merger/ticker change legitimately
+        has no position at the broker, not a data-integrity failure. FIX (2026-09-07 real-money-
+        readiness audit): this used to raise RuntimeError on ANY non-200, including 404, making
+        _handle_qty_variance's own `alpaca_qty == 0` "position closed at broker" branch
+        unreachable in practice and, worse, propagating an uncaught RuntimeError out of
+        check_corporate_actions's per-symbol loop (only psycopg2 errors were caught there) -
+        one delisted/renamed symbol could silently abort corporate-action detection, including
+        split-adjustment, for every OTHER open position in the same cycle.
 
         Raises:
-            RuntimeError: If qty field is missing from Alpaca response (fail-fast for data integrity)
+            RuntimeError: On any other non-200 status, or if qty is missing from a 200 response
+                (fail-fast for data integrity).
         """
         url = f"{alpaca_base_url}/v2/positions/{symbol}"
         headers = {
@@ -145,6 +180,9 @@ class CorporateActionsMixin:
             break
 
         assert resp is not None, "Response should be set after loop"
+        if resp.status_code == 404:
+            logger.info(f"[CORP_ACTION] {symbol}: no position at Alpaca (404) - treating as closed at broker.")
+            return None
         if resp.status_code != 200:
             raise RuntimeError(f"Alpaca API returned {resp.status_code} for {symbol}")
 
@@ -158,7 +196,7 @@ class CorporateActionsMixin:
                 f"Alpaca response for {symbol} missing qty field (malformed response). "
                 f"Response: {alpaca_pos}. Cannot verify position quantity - halting corporate action check."
             )
-        return int(alpaca_pos["qty"])
+        return dict(alpaca_pos)
 
     def _handle_qty_variance(
         self,
@@ -167,20 +205,37 @@ class CorporateActionsMixin:
         symbol: str,
         db_qty: int,
         db_stop: float,
-        alpaca_qty: int,
+        alpaca_qty: int | None,
         trade_ids_arr: list[int] | None,
         adjustments: list[dict[str, Any]],
+        alpaca_pos: dict[str, Any] | None = None,
     ) -> None:
-        """Handle quantity changes between DB and Alpaca."""
-        if alpaca_qty == 0:
-            # FIX: Calculate profit_loss_dollars before closing position (was leaving it NULL)
+        """Handle quantity changes between DB and Alpaca.
+
+        alpaca_qty is None specifically means Alpaca has NO position for this symbol at all
+        (404). A real qty of 0 never reaches this branch by a different route: this whole
+        method only runs against rows this query already filtered to `status = 'open'`, and
+        our own exit path (executor_exit_handler.py) always flips status to 'closed' as part
+        of the same transaction that reduces quantity to 0 - so a position landing here as
+        'open' in our DB while Alpaca shows qty 0/404 was NOT closed by an exit WE recorded.
+        It's an unexplained broker-side discrepancy: possibly a genuine liquidation, but
+        _fetch_alpaca_qty's own docstring notes 404 is indistinguishable from a ticker
+        rename/merger, where the real position still exists at the broker under a new symbol
+        - fabricating a P&L and marking this 'closed' as if it were a routine, self-initiated
+        exit would silently orphan that still-open (and possibly still-protected-under-the-
+        old-symbol-only) position from all further stop/exit monitoring. FIX (2026-09-09
+        real-money-readiness audit): treat this as requiring human confirmation, the same way
+        exit_engine.py's delisted/unavailable branch refuses to compute P&L off a price it
+        can't trust, rather than a routine close.
+        """
+        if alpaca_qty is None or alpaca_qty == 0:
             cur.execute(
                 """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                    exit_reason = %s,
-                   profit_loss_dollars = (current_price - avg_entry_price) * quantity,
+                   profit_loss_dollars = NULL,
                    unrealized_pnl = NULL
                    WHERE id = %s""",
-                ("position_closed_at_broker", pos_id),
+                ("broker_position_not_found|requires_manual_review", pos_id),
             )
             adjustments.append(
                 {
@@ -190,9 +245,46 @@ class CorporateActionsMixin:
                     "alpaca_qty": alpaca_qty,
                 }
             )
+            try:
+                from algo.reporting.notifications import notify
+
+                notify(
+                    "critical",
+                    title="Position closed at broker without a matching exit - verify not a rename/merger",
+                    message=(
+                        f"{symbol} (position id {pos_id}, {db_qty} shares) showed no position at "
+                        f"Alpaca (404/qty=0) despite being 'open' in our DB with no exit we recorded. "
+                        f"Marked closed with NO computed P&L (unknown - do not trust current_price for "
+                        f"this). This can be a genuine liquidation, OR a ticker rename/merger where the "
+                        f"real position still exists at the broker under a NEW symbol and is no longer "
+                        f"being monitored/protected by this system under either symbol. Verify at Alpaca "
+                        f"directly before treating this as resolved."
+                    ),
+                )
+            except Exception as notify_err:
+                logger.critical(
+                    f"[CORP_ACTION] Failed to alert on unexplained broker-side close for {symbol} "
+                    f"(position id {pos_id}): {notify_err}",
+                    exc_info=True,
+                )
             return
 
         if alpaca_qty == db_qty:
+            # FIX (2026-09-09 real-money-readiness audit, spinoff-handling gap): a corporate
+            # action that doesn't change share count (a spinoff distributes NEW shares of a
+            # different symbol, it doesn't change how many shares of THIS symbol you hold) used
+            # to fall straight through this equal-qty branch with zero investigation - the qty
+            # check above is qty-only by construction, so it can never see a spinoff coming.
+            # The position would keep being monitored at its stale pre-spinoff entry_price/
+            # stop/targets indefinitely, with no alert, until (if ever) the resulting price gap
+            # happened to breach the stop - and even then, only exit_engine.py's `_gap_risk_note`
+            # would flag it, and only in an exit's own reason string after the fact. Detect the
+            # same signature exit_engine.py already treats as gap risk (see its
+            # `_GAP_RISK_PCT_THRESHOLD` docstring: "a real fix needs a proper corporate-actions
+            # data feed... until then, annotate, don't alter") one layer earlier, right here in
+            # the daily corp-actions pass, using price fields Alpaca already returned in the
+            # same position lookup above - no new API call or data feed required.
+            self._check_price_gap_anomaly(cur, pos_id, symbol, alpaca_pos, adjustments)
             return
 
         if db_qty <= 0:
@@ -205,7 +297,138 @@ class CorporateActionsMixin:
         if qty_change_pct <= 20:
             return
 
+        # FIX (2026-09-09 real-money-readiness audit): a >20% qty mismatch used to be treated
+        # as "likely a stock split" with zero corroboration against an actual split ratio -
+        # ANY other cause of a large qty divergence (a mistaken manual broker-side share
+        # adjustment, a reconciliation bug elsewhere, a partial-fill accounting error) would
+        # be misclassified as a split and would actively CORRUPT good entry/stop/target prices
+        # by dividing them by a bogus ratio (e.g. a mistaken 30%-share manual reduction at the
+        # broker would get "corrected" by dividing the real stop-loss price by 0.7, moving a
+        # working stop to the wrong level on a real position). Reuse the same canonical-ratio
+        # matcher the offline loader/tick_validator use to detect splits from price data, so a
+        # qty change is only ever treated as a split here if it actually snaps to a real split
+        # ratio (2, 3, 4, 5, 10, 1/2, 1/3, ...) within tolerance - anything else is an
+        # unexplained mismatch that gets a critical alert for manual review instead of a
+        # silent price rewrite.
+        from loaders.technical_indicators import _match_split_ratio
+
+        observed_ratio = alpaca_qty / db_qty
+        canonical_ratio = _match_split_ratio(observed_ratio)
+        if canonical_ratio is None:
+            adjustments.append(
+                {
+                    "symbol": symbol,
+                    "action": "QTY_MISMATCH_NOT_A_SPLIT|requires_manual_review",
+                    "db_qty": db_qty,
+                    "alpaca_qty": alpaca_qty,
+                }
+            )
+            try:
+                from algo.reporting.notifications import notify
+
+                notify(
+                    "critical",
+                    title="Unexplained quantity mismatch does not match any known split ratio - verify manually",
+                    message=(
+                        f"{symbol} (position id {pos_id}) shows {db_qty} shares in our DB vs "
+                        f"{alpaca_qty} at Alpaca ({qty_change_pct:.1f}% change), but the ratio "
+                        f"{observed_ratio:.4f} doesn't match any canonical stock-split ratio. NOT "
+                        f"treating this as a split and NOT rescaling entry/stop/target prices, since "
+                        f"doing so on a non-split cause would corrupt real risk-protection prices. "
+                        f"Verify at Alpaca directly (manual adjustment, reconciliation error, partial "
+                        f"fill discrepancy, or a genuine but unusual split) before resolving."
+                    ),
+                )
+            except Exception as notify_err:
+                logger.critical(
+                    f"[CORP_ACTION] Failed to alert on unexplained qty mismatch for {symbol} "
+                    f"(position id {pos_id}): {notify_err}",
+                    exc_info=True,
+                )
+            return
+
         self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, trade_ids_arr, adjustments)
+
+    def _check_price_gap_anomaly(
+        self,
+        cur: PsycopgCursor[Any],
+        pos_id: int,
+        symbol: str,
+        alpaca_pos: dict[str, Any] | None,
+        adjustments: list[dict[str, Any]],
+    ) -> None:
+        """Flag (never auto-adjust) an unexplained overnight price gap on a position whose
+        share count didn't change - the one signature a spinoff, special cash-in-lieu
+        distribution, or similar corporate action leaves behind that qty-based detection above
+        can never see (see the FIX comment at this method's call site). Deliberately
+        annotation-only, same philosophy as exit_engine.py's `_gap_risk_note`: we have no
+        corporate-actions data feed to confirm the cause or compute a real cost-basis/price
+        adjustment, and guessing would risk corrupting a correct entry/stop/target on what
+        could just as easily be an ordinary large move (earnings, litigation, M&A news) instead
+        of a corporate action. This only buys earlier visibility - a human can check Alpaca's
+        account activity for a spinoff/distribution and manually correct cost basis/stop before
+        it matters, rather than finding out weeks later (or not at all, if the gap never
+        happens to breach the stop).
+
+        Silently returns if `alpaca_pos` lacks usable current_price/lastday_price - those
+        fields aren't part of `_fetch_alpaca_position`'s own required-fields contract (only
+        `qty` is), so a payload shape change elsewhere must not turn this best-effort check
+        into a new failure mode for corporate-action detection as a whole.
+        """
+        if not alpaca_pos:
+            return
+        try:
+            current_price = float(alpaca_pos["current_price"])
+            lastday_price = float(alpaca_pos["lastday_price"])
+        except (KeyError, TypeError, ValueError):
+            return
+        if lastday_price <= 0:
+            return
+
+        from algo.trading.exit_engine import _GAP_RISK_PCT_THRESHOLD
+
+        pct_change = (lastday_price - current_price) / lastday_price
+        if abs(pct_change) < _GAP_RISK_PCT_THRESHOLD:
+            return
+
+        direction = "drop" if pct_change > 0 else "rise"
+        adjustments.append(
+            {
+                "symbol": symbol,
+                "action": "UNEXPLAINED_PRICE_GAP|requires_manual_review",
+                "lastday_price": lastday_price,
+                "current_price": current_price,
+                "pct_change": round(pct_change * 100, 2),
+            }
+        )
+        details = (
+            f"{symbol} (position id {pos_id}): {abs(pct_change) * 100:.1f}% overnight {direction} "
+            f"(${lastday_price:.2f} -> ${current_price:.2f}) with NO quantity change at the broker. "
+            f"Not treated as a split (qty unchanged) and NOT adjusting entry/stop/target prices - "
+            f"verify at Alpaca account activity for a spinoff, special cash-in-lieu distribution, or "
+            f"other corporate action before assuming this reflects genuine trading performance. If "
+            f"a spinoff distributed new shares, they should also surface separately as an untracked "
+            f"broker position (see algo_untracked_positions)."
+        )
+        cur.execute(
+            "INSERT INTO algo_audit_log (action_type, action_date, details, severity) VALUES (%s, %s, %s, %s)",
+            ("CORPORATE_ACTION_PRICE_GAP", datetime.now(timezone.utc), details, "CRITICAL"),
+        )
+        logger.critical(f"[CORP_ACTION] {details}")
+        try:
+            from algo.reporting.notifications import notify
+
+            notify(
+                "critical",
+                title="Unexplained overnight price gap with no quantity change - verify for corporate action",
+                message=details,
+            )
+        except Exception as notify_err:
+            logger.critical(
+                f"[CORP_ACTION] Failed to alert on unexplained price gap for {symbol} "
+                f"(position id {pos_id}): {notify_err}",
+                exc_info=True,
+            )
 
     def _apply_split_adjustment(
         self,
@@ -373,3 +596,70 @@ class CorporateActionsMixin:
                 "new_stop": new_stop,
             }
         )
+
+        self._reconcile_broker_orders_after_split(cur, pos_id, symbol, new_stop)
+
+    def _reconcile_broker_orders_after_split(
+        self, cur: PsycopgCursor[Any], pos_id: int, symbol: str, new_stop: float
+    ) -> None:
+        """CRITICAL FIX (2026-09-06 real-money-readiness audit): _apply_split_adjustment above
+        only ever rescaled DB price columns. The live protective stop-loss (and take-profit)
+        order(s) resting at the broker were never cancelled/replaced, so they stayed at their
+        stale PRE-split price indefinitely - phase9_stop_loss_repair.py's
+        check_stop_loss_leg_live only verifies a stop LEG'S PRESENCE and QTY, never its price,
+        so it would report "protected" forever while the real broker-side stop sat at up to
+        Nx the correct level (a forward split leaves it far too high - fires immediately or
+        nonsensically; a reverse split leaves it far too low - never fires, unbounded downside
+        exposure). Whether Alpaca itself auto-adjusts a resting order's price on a split is not
+        something this codebase can assume or verify from here, so treat every resting order
+        for this symbol as stale and force a real re-verification rather than trust it.
+
+        Fix: cancel every open order resting at the broker for this symbol (the stale-priced
+        bracket/standalone legs) and clear standalone_stop_order_id, so phase9's normal
+        check_stop_loss_leg_live/is_order_still_live checks correctly see "no live stop" on
+        the next cycle and submit a fresh standalone protective stop at the just-rescaled
+        new_stop price - reusing the existing, already-tested repair path instead of
+        duplicating order-submission logic here. With enable_stop_loss_guardian now on (see
+        prod.tfvars), that next cycle is at most ~15 minutes away, not the once-daily
+        orchestrator run.
+        """
+        from algo.trading.order_manager import OrderManager
+
+        try:
+            alpaca_base_url, alpaca_key, alpaca_secret = self._get_alpaca_creds()
+            order_mgr = OrderManager(alpaca_key, alpaca_secret, alpaca_base_url)
+            cancel_result = order_mgr.cancel_all_open_orders_for_symbol(symbol)
+        except Exception as e:
+            cancel_result = {"success": False, "cancelled_order_ids": [], "message": str(e)}
+
+        cur.execute(
+            "UPDATE algo_positions SET standalone_stop_order_id = NULL WHERE id = %s",
+            (pos_id,),
+        )
+
+        severity = "WARN" if cancel_result.get("success") else "CRITICAL"
+        details = (
+            f"Split follow-up for {symbol} (position {pos_id}): cancelled stale-priced broker "
+            f"order(s) {cancel_result.get('cancelled_order_ids')} so the next stop-loss-repair "
+            f"cycle resubmits at the corrected post-split stop {new_stop:.2f}. "
+            f"{cancel_result.get('message')}"
+        )
+        cur.execute(
+            "INSERT INTO algo_audit_log (action_type, action_date, details, severity) VALUES (%s, %s, %s, %s)",
+            ("CORPORATE_ACTION_SPLIT_BROKER_RECONCILE", datetime.now(timezone.utc), details, severity),
+        )
+        if not cancel_result.get("success"):
+            logger.critical(f"[POSITION_MONITOR] {details}")
+            try:
+                from algo.reporting import notify
+
+                notify(
+                    "CRITICAL",
+                    "Split detected but stale broker order cancel failed",
+                    details,
+                    symbol=symbol,
+                )
+            except Exception as notify_err:
+                logger.error(f"[POSITION_MONITOR] Failed to send split-broker-reconcile alert: {notify_err}")
+        else:
+            logger.warning(f"[POSITION_MONITOR] {details}")

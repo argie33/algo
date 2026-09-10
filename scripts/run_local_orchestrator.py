@@ -329,7 +329,7 @@ def main() -> None:
             print(f"  Run ID: {run_id}")
             print("  Mode: paper (local development)")
 
-            # Get AlgoConfig singleton (required for WeightOptimizer.get/set methods)
+            # Get AlgoConfig singleton (for its get/set config methods)
             config = get_config()
             config.set("execution_mode", "paper", "string")  # Always use paper trading for local dev
 

@@ -8,6 +8,7 @@ for two sessions - it never actually verified the 100-requested/60-filled scenar
 its own docstring described.
 """
 
+from datetime import timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from algo.infrastructure.reconciliation import DailyReconciliation
@@ -232,3 +233,30 @@ def test_lookup_query_covers_pending_and_paper_pending_statuses():
     sql_text, params = lookup_calls[0].args
     for status in TradeStatus.all_open():
         assert status in params, f"expected {status!r} among lookup query params, got {params!r}"
+
+
+def test_fetches_closed_orders_with_a_bounded_since_window():
+    """REGRESSION for the 2026-09-08 fix: check_partial_fills() used to call
+    fetch_closed_orders() with no `since` at all - relying entirely on Alpaca's own
+    undocumented default page size/window (no `after`, no explicit `limit`), unlike its
+    sibling reconcile_exit_fills() which has always bounded to a 2-day window. A fill
+    reconciliation whose own docstring is "network fails before we can sync" needs a
+    reliable, explicit lookback window, not an implicit "most recent N orders overall"
+    default that could silently exclude an older unreconciled fill on a busy trading day.
+    """
+    reconciliation = _reconciliation_with_mock_broker()
+    reconciliation.broker.fetch_closed_orders.return_value = []
+    cur = MagicMock()
+
+    reconciliation.check_partial_fills(cur)
+
+    reconciliation.broker.fetch_closed_orders.assert_called_once()
+    _, kwargs = reconciliation.broker.fetch_closed_orders.call_args
+    since = kwargs["since"]
+    assert since.tzinfo is not None
+    from datetime import datetime as _dt
+
+    age = _dt.now(timezone.utc) - since
+    # Must be bounded (not None/unbounded) and match the 2-day sibling convention -
+    # generous tolerance only for test wall-clock slack, not a loose spec.
+    assert timedelta(days=1, hours=23) < age < timedelta(days=2, hours=1)

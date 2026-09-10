@@ -13,14 +13,142 @@ from utils.external.sec_statements_aggregate import _aggregate_concepts
 
 logger = logging.getLogger(__name__)
 
+# ADDED 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push, ANDG live-confirmed): every
+# concept below is a real, mutually-exclusive-in-practice equivalent of "stockholders_equity"
+# (see this file's own comments on each below, and load_financial_statements.py's
+# _BALANCE_FIELD_MAPPING, which is where they all actually collapse onto that one DB column -
+# _aggregate_concepts itself has no visibility into that mapping, hence this local group).
+# Passed as `alias_groups` to _aggregate_concepts so its has_annual_report_form/
+# _max_annual_report_end "don't accept a premature 10-Q snapshot once a real 10-K exists"
+# guard (see that function's own GM/DIS/WEC comments) sees ALL of a filer's equity-family
+# concepts together, not just whichever single one it's currently resolving. Without this, a
+# filer that tags one equity concept in its 10-K but a DIFFERENT one (still same DB column) in
+# a later 10-Q defeats the guard entirely for that 10-Q concept - live-confirmed via ANDG:
+# FY2025 10-K tags bare "StockholdersEquity", but its FY2026 Q2 10-Q instead tags
+# "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest" - which, having no
+# 10-K history of its OWN, sailed straight into the FY2026 bucket as if it were fiscal-year-end
+# data while sibling concepts (Assets/LongTermDebt, same concept name in both filings) were
+# correctly withheld by the same guard - an inconsistent partial row instead of a clean
+# "not yet confirmed" state.
+_EQUITY_ALIAS_GROUPS = {
+    "stockholders_equity": "stockholders_equity_group",
+    "stockholders_equity_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity_group",
+    "partners_capital": "stockholders_equity_group",
+    "partners_capital_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity_group",
+    "members_equity": "stockholders_equity_group",
+    "limited_liability_company_llc_members_equity_including_portion_attributable_to_noncontrolling_interest": (
+        "stockholders_equity_group"
+    ),
+}
+
 _BALANCE_IFRS_ALIASES = [
     # (IFRS concept name, target key = _to_snake() of the equivalent GAAP concept)
     ("Assets", "assets"),
     ("CurrentAssets", "assets_current"),
+    # FIXED 2026-09-07 (tie-out check_current_assets_le_total_assets, SSL/Sasol live-
+    # confirmed): a filer that reclassifies part of its balance sheet under IFRS 5
+    # ("non-current assets/disposal groups held for sale") splits the plain "CurrentAssets"
+    # concept above into two: this concept (current assets EXCLUDING the held-for-sale
+    # reclassification) plus "NoncurrentAssetsOrDisposalGroupsClassifiedAsHeldForSale"
+    # (assets originally non-current but presented WITHIN current assets per IFRS 5 -
+    # "Noncurrent" in the name refers to their original classification, not their balance-
+    # sheet presentation). Live-confirmed via SSL's real companyfacts JSON (CIK 0000314590):
+    # plain ifrs-full:CurrentAssets has ZERO facts after FY2020 (last: 2020-06-30) - Sasol
+    # switched to this split style from FY2021 onward - so the bare alias above has silently
+    # returned nothing for 5 straight fiscal years while SSL's DB rows for FY2022-2025 sat on
+    # a STALE raw-ZAR (unconverted) current_assets value from some earlier extraction,
+    # preserved indefinitely by preserve_on_missing_fields' COALESCE. FY2025:
+    # CurrentAssetsOtherThan...=ZAR 130,101,000,000 + NoncurrentAssetsOrDisposalGroups...=
+    # ZAR 53,000,000 = ZAR 130,154,000,000, exactly matching the stale unconverted DB value -
+    # confirming this concept pairing IS the real "current assets" figure, just never
+    # FX-converted because nothing was fetching it. Listed AFTER the bare "CurrentAssets"
+    # alias, deliberately - NOT this file's usual "fallback listed first" convention.
+    # Live-verified via _aggregate_concepts_should_replace_entry's actual instant-fact
+    # tiebreak (utils/external/sec_statements_entry_resolution.py): when two DIFFERENT
+    # concepts for the same column collide on an identical (end_date, filed_date) - which
+    # genuinely happens for SSL's own FY2020, where BOTH "CurrentAssets" ($177,969,000,000)
+    # and this concept ($93,701,000,000) are tagged in the same 20-F - the FIRST-listed
+    # concept wins the tie (a strict `>` comparison, not `>=`), matching this file's own
+    # "first-populated-wins" terminology already used for the SubordinatedDebt/
+    # JuniorSubordinatedDebenture pair further below. SSL's real, currently-correct FY2020
+    # DB row uses the bare CurrentAssets concept ($177.969B ZAR / 17.3625 2020-06-30 rate =
+    # $10.25B, live-confirmed matching the DB) - listing the fallback second preserves that
+    # already-correct year; only fiscal years where the bare concept has NO fact at all
+    # (FY2021+ for SSL) ever reach this fallback. Not summed with the held-for-sale
+    # component (this loader's transform() has no summing mechanism for two concepts mapped
+    # to the same column - see the DebtCurrent/SecuredDebt comment below) - capturing the
+    # larger, near-total figure alone is strictly better than the prior stale/wrong value,
+    # same accepted-partial-figure precedent as elsewhere in this file.
+    (
+        "CurrentAssetsOtherThanAssetsOrDisposalGroupsClassifiedAsHeldForSaleOrAsHeldForDistributionToOwners",
+        "assets_current",
+    ),
+    # ADDED 2026-09-09 (goal session: XBRL coverage-scan gap triage, 101 undismissed filers):
+    # the held-for-sale component itself, for the rare filer that tags ONLY this concept for
+    # a given fiscal year (neither bare "CurrentAssets" nor the "OtherThan..." concept above
+    # has a fact) - live-confirmed via the real companyfacts cache that this genuinely happens
+    # for some filer/year combinations, not just as a sibling of the other two. Deliberately
+    # listed LAST (after both other current-assets concepts) so first-populated-wins (see
+    # _aggregate_concepts_should_replace_entry in sec_statements_entry_resolution.py) means it
+    # only ever fills a column that's otherwise completely empty for that period - it can
+    # never partially overwrite/double-count against the "OtherThan..." figure when a filer
+    # tags both (the common case, confirmed via cross-referencing the cache: many filers tag
+    # identical values under both concepts for the same period, e.g. Korea Electric Power,
+    # Brookfield, National Grid, GSK - summing those would double-count). NOT a substitute for
+    # real summing (this loader's transform() still has no summing mechanism for two concepts
+    # targeting the same column, same limitation noted above for the OtherThan... concept) -
+    # for filers that tag both concepts as genuinely separate non-overlapping pieces (e.g. YPF
+    # 2017: HeldForSale=$8.823B vs OtherThan=$43M, a ~99.5%/0.5% split, clearly not duplicate
+    # values), the OtherThan concept alone (already fetched, listed first) still undercounts -
+    # that residual gap is real and NOT closed by this entry; it would need an actual summing
+    # feature, out of scope here.
+    ("NoncurrentAssetsOrDisposalGroupsClassifiedAsHeldForSale", "assets_current"),
     ("Liabilities", "liabilities"),
     ("CurrentLiabilities", "liabilities_current"),
+    # FIXED 2026-09-07 (same SSL fix): paired liabilities-side concept for the same IFRS 5
+    # split - SSL's plain ifrs-full:CurrentLiabilities also has zero facts after FY2020.
+    # FY2025 CurrentLiabilitiesOtherThan...=ZAR 69,436,000,000 exactly matches the stale
+    # unconverted DB current_liabilities value (SSL had no held-for-sale liabilities that
+    # year, so no summing gap here). Listed AFTER the bare concept for the same first-
+    # populated-wins reasoning as the assets-side fallback above.
+    ("CurrentLiabilitiesOtherThanLiabilitiesIncludedInDisposalGroupsClassifiedAsHeldForSale", "liabilities_current"),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 403 undismissed
+    # filers - the single highest-count undismissed concept after the IFRS namespace fix
+    # earlier this session): IFRS's combined trade-plus-other current-payables concept, the
+    # closest IFRS analog to us-gaap "AccountsPayableCurrent" - live-confirmed via Agnico
+    # Eagle's real companyfacts JSON (CIK 0000002809, an ifrs-full-only filer with no
+    # us-gaap accounts_payable-shaped concept tagged at all): FY2025 (period end
+    # 2025-12-31) TradeAndOtherCurrentPayables=USD 1,033,444,000, a sane ~42% of that same
+    # period's CurrentLiabilities (USD 2,472,206,000) - plausible for a mining major's real
+    # trade-payables scale, not a placeholder or an implausible near-total figure. Target
+    # key "accounts_payable_current" (not a new column) is deliberate - it's the
+    # _to_snake() raw key the us-gaap "AccountsPayableCurrent" concept already produces,
+    # which _BALANCE_FIELD_MAPPING already routes to the accounts_payable column (reused
+    # here, not duplicated, same convention as this file's own "NoncontrollingInterests"/
+    # "minority_interest" entry above). Deliberately did NOT alias the bare (no "Current")
+    # "TradeAndOtherPayables"/"TradeAndOtherReceivables" sibling concepts elsewhere in the
+    # ifrs-full taxonomy to this or the accounts-receivable target - live-checked via
+    # PLDT's real companyfacts JSON (CIK 0000078150) that those bare concepts are NOT
+    # equivalent to their Current-suffixed counterparts for the same fiscal year (e.g.
+    # FY2022: bare TradeAndOtherPayables=PHP 1,745,000,000 vs.
+    # TradeAndOtherCurrentPayables=PHP 105,187,000,000 - a ~60x difference, not the same
+    # line item at all), so those stay unmapped rather than risk a wildly wrong figure.
+    ("TradeAndOtherCurrentPayables", "accounts_payable_current"),
     ("Equity", "stockholders_equity"),
     ("EquityAttributableToOwnersOfParent", "stockholders_equity"),
+    # ADDED 2026-09-08 (goal session: scores-reload due-diligence audit, IFRS coverage-scan
+    # follow-up): IFRS's own noncontrolling-interest equity concept, direct equivalent of the
+    # us-gaap "MinorityInterest" concept already mapped to the same target below via
+    # _BALANCE_FIELD_MAPPING's "minority_interest": "noncontrolling_interest" entry (reused
+    # here, not duplicated) - live-confirmed via Bank of Nova Scotia's real companyfacts JSON
+    # (CIK 0000009631): FY2026 Q1 (period end 2026-01-31) NoncontrollingInterests=
+    # CAD 1,434,000,000, and EquityAttributableToOwnersOfParent (CAD 87,588,000,000) +
+    # NoncontrollingInterests exactly equals the filer's own total Equity fact
+    # (CAD 89,022,000,000) - confirms this is the real, complete NCI figure, not a partial
+    # component. Target key "minority_interest" (not "noncontrolling_interest" directly) is
+    # deliberate - it's the _to_snake() raw key the us-gaap concept produces, which
+    # _BALANCE_FIELD_MAPPING already routes to the noncontrolling_interest column.
+    ("NoncontrollingInterests", "minority_interest"),
     ("CashAndCashEquivalents", "cash_and_cash_equivalents_at_carrying_value"),
     ("TradeAndOtherCurrentReceivables", "accounts_receivable_net_current"),
     # FIXED 2026-09-03 (same sweep): TSM (Taiwan Semiconductor) live-confirmed via real
@@ -30,6 +158,25 @@ _BALANCE_IFRS_ALIASES = [
     # receivables only" IFRS taxonomy element (not a combined trade+other concept), close
     # enough in meaning to the us-gaap "AccountsReceivableNetCurrent" target it feeds.
     ("CurrentTradeReceivables", "accounts_receivable_net_current"),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 227 undismissed
+    # filers): "TradeReceivables" - live-confirmed via Himax Technologies' real companyfacts
+    # JSON (CIK 0001342338, a fabless semiconductor 20-F filer with none of the concepts
+    # above tagged at all): FY2024 (period end 2024-12-31) TradeReceivables=USD 89,527,000,
+    # a sane ~7.7% of that year's CurrentAssets (USD 1,168,043,000) - previously invisible,
+    # not a placeholder. Cross-checked against Agnico Eagle (which already has a working
+    # "CurrentTradeReceivables" alias above): AEM's own TradeReceivables FY2025 value (USD
+    # 18,690,000) is within 0.05% of its CurrentTradeReceivables value for the same period
+    # (USD 18,700,000) - confirms this is genuinely the same "current trade receivables"
+    # concept, not a broader/noncurrent-inclusive one (ruled out via PLDT's real
+    # companyfacts JSON for the analogous bare-vs-Current "TradeAndOtherReceivables" pair
+    # below, where the bare concept is ~50% LARGER than its Current-suffixed sibling - a
+    # genuinely different, noncurrent-inclusive scope, correctly NOT aliased here). Same
+    # target as CurrentTradeReceivables/TradeAndOtherCurrentReceivables above - listed
+    # LAST in this same-target group so this aggregation's first-populated-wins tiebreak
+    # (see the "Borrowings" comment further below for the live-verified mechanics) defers
+    # to either of those more-established concepts for a filer reporting more than one in
+    # the same fiscal year.
+    ("TradeReceivables", "accounts_receivable_net_current"),
     ("Inventories", "inventory_net"),
     ("PropertyPlantAndEquipment", "property_plant_and_equipment_net"),
     ("Goodwill", "goodwill"),
@@ -41,6 +188,50 @@ _BALANCE_IFRS_ALIASES = [
     # us-gaap's LongTermDebt); live-confirmed present with real 2018-2024 values for
     # ASR. This alias had never worked for any filer.
     ("LongtermBorrowings", "long_term_debt"),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan exhaustive triage, "get data issues to
+    # zero"): the SAME "LongtermBorrowings" concept, fetched a SECOND time under a different
+    # target key purely so _fill_long_term_debt_from_noncurrent_current_split below can detect
+    # "this filer's long_term_debt came from LongtermBorrowings specifically (not Borrowings)"
+    # and add the current-maturities figure it was otherwise missing. Live-confirmed via Agnico
+    # Eagle's real companyfacts JSON (CIK 0000002809): FY2024 LongtermBorrowings=
+    # USD 1,052,956,000 is a DIFFERENT, smaller figure than that plus
+    # CurrentPortionOfLongtermBorrowings=USD 90,000,000 - i.e. LongtermBorrowings alone is the
+    # noncurrent-only portion, not the total, silently understating total debt by the current
+    # maturities every time (the tuple above, mapping straight to "long_term_debt", has no way
+    # to add a second concept's value on top of it). Deliberately did NOT simply retarget the
+    # tuple above to "long_term_debt_noncurrent" instead of adding this duplicate: that would
+    # let "Borrowings" (also a direct "long_term_debt" writer, listed further below) populate
+    # first whenever both are present, silently dropping the more-precise LongtermBorrowings/
+    # current-portion split - a real regression caught by
+    # tests/unit/test_ifrs_borrowings_and_nci_aliases_20260908.py's existing
+    # test_split_concepts_win_over_borrowings_fallback (asserts the split wins over Borrowings).
+    # Keeping BOTH the direct mapping above (preserves that existing win-over-Borrowings
+    # precedence) and this second fetch (only consumed by the equality check in
+    # _fill_long_term_debt_from_noncurrent_current_split, never written directly) avoids the
+    # regression while still fixing the current-maturities understatement.
+    ("LongtermBorrowings", "long_term_debt_noncurrent"),
+    # ADDED 2026-09-08 (same fix as immediately above): IFRS's current-maturities-of-long-term-
+    # debt concept, the direct analog of us-gaap's "LongTermDebtCurrent" - 174 undismissed
+    # filers. Same raw key ("long_term_debt_current") as that us-gaap concept so it's consumed
+    # by the identical existing _fill_long_term_debt_from_noncurrent_current_split fallback,
+    # fallback-only (never overwrites a real value; only fires when "long_term_debt" is still
+    # unset after the direct-concept pass, e.g. no "Borrowings"/other combined total tagged).
+    ("CurrentPortionOfLongtermBorrowings", "long_term_debt_current"),
+    # ADDED 2026-09-08 (same triage batch): "CurrentBorrowingsAndCurrentPortionOfNoncurrent
+    # Borrowings" - IFRS's COMBINED current-debt concept (short-term borrowings + current
+    # maturities of long-term debt together), 158 undismissed filers. Live-confirmed via PLDT's
+    # real companyfacts JSON (CIK 0000078150) FY2024: LongtermBorrowings (PHP 258,246,000,000)
+    # + this concept (PHP 23,340,000,000) = PHP 281,586,000,000, an EXACT match to PLDT's own
+    # separately-tagged combined "Borrowings" total for the same period - confirms this concept
+    # is genuinely the correct current-side addend to sum with LongtermBorrowings, not a
+    # narrower or broader figure. Mapped to the same "long_term_debt_current" raw key as
+    # CurrentPortionOfLongtermBorrowings above; per this codebase's "first-populated-wins for
+    # cross-concept collisions on the same raw key" rule (see
+    # _aggregate_concepts_should_replace_entry's 2026-09-07 CVE fix comment), the
+    # earlier-listed CurrentPortionOfLongtermBorrowings would win if a filer ever tagged both
+    # for the same period - no filer checked (Agnico, PLDT) tags both, so this ordering is
+    # low-risk/arbitrary rather than load-bearing.
+    ("CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings", "long_term_debt_current"),
     # FIXED 2026-08-17 (loader-review goal, continued): "ShorttermBorrowings" is IFRS's
     # paired current-portion concept for the above (same convention as us-gaap's
     # CommercialPaper/ShortTermBorrowings, which already map to the same short_term_debt
@@ -53,6 +244,59 @@ _BALANCE_IFRS_ALIASES = [
     # sec_ifrs_sbc_buyback_alias_gap_fixed_20260817 memory for this exact class of bug
     # caught before shipping on the SBC/buyback aliases below).
     ("ShorttermBorrowings", "short_term_borrowings"),
+    # ADDED 2026-09-08 (goal session: scores-reload due-diligence audit, IFRS coverage-scan
+    # follow-up): "Borrowings" is IFRS's single COMBINED debt concept for filers that don't
+    # split current/noncurrent the way the LongtermBorrowings/ShorttermBorrowings pair above
+    # assumes - live-confirmed via Unilever PLC's real companyfacts JSON (CIK 0000217410):
+    # FY2025 (period end 2025-12-31) Borrowings=EUR 26,038,000,000, and Unilever tags NO
+    # LongtermBorrowings/ShorttermBorrowings/CurrentBorrowings/NoncurrentBorrowings concept at
+    # all - a real, ~EUR 26B debt load previously invisible to this extractor entirely for a
+    # major global filer. Listed AFTER the split pair above (this aggregation's own
+    # first-populated-wins tiebreak - live-verified via a real test that listing a fallback
+    # BEFORE its more-precise sibling lets the fallback win when both are present for the same
+    # period, the opposite of what's wanted - so unlike the "list fallback first" IFRS-alias
+    # convention documented on the CurrentAssetsOtherThan... entry further up, a same-column
+    # fallback here must be listed LAST for a filer reporting both to keep the split value).
+    # Maps to the same long_term_debt raw key as "DebtLongtermAndShorttermCombinedAmount" (PGR,
+    # us-gaap) uses for the identical no-current/noncurrent-split shape.
+    #
+    # CORRECTED 2026-09-08: the "listed after the split pair" reasoning above no longer
+    # describes a same-raw-key race - LongtermBorrowings was retargeted (see its own comment
+    # above) from "long_term_debt" to "long_term_debt_noncurrent", so this "Borrowings" entry
+    # is now the ONLY concept in this list that writes "long_term_debt" directly during
+    # aggregation. It still behaves as intended (a combined-total filer's real figure always
+    # wins over the noncurrent+current fallback sum): the fallback in
+    # _fill_long_term_debt_from_noncurrent_current_split only fires when "long_term_debt" is
+    # still None post-aggregation, so a populated Borrowings value is never overwritten.
+    ("Borrowings", "long_term_debt"),
+    # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+    # total_debt_not_itemized investigation): bank/financial-institution IFRS filers commonly
+    # fund via debt securities issuance rather than generic "Borrowings" - live-confirmed via
+    # KSPI (Kazakhstan bank)'s real companyfacts JSON tagging "DebtSecurities" (debt securities
+    # issued, a real bank funding-side liability) while never tagging LongtermBorrowings/
+    # ShorttermBorrowings/Borrowings at all. Listed LAST (after Borrowings) so any filer
+    # reporting the more specific concepts above always keeps that value - same
+    # last-listed-wins fallback convention as the "Borrowings" entry itself.
+    ("DebtSecurities", "long_term_debt"),
+    # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data reduction, total_debt_not_itemized
+    # investigation continuation): BMA (Banco Macro, an Argentine bank ADR filing 20-F) tags
+    # NEITHER "Borrowings" NOR "DebtSecurities" NOR any LongtermBorrowings/ShorttermBorrowings
+    # concept above - live-confirmed via its real companyfacts JSON (CIK 0001347426) that its
+    # only debt-instrument-shaped liability concept is "SubordinatedLiabilities": continuous,
+    # material, real values every fiscal year 2018-2024 (e.g. FY2024 period end 2024-12-31 =
+    # ARS 417,675,451,000, ~4% of that year's total Liabilities of ARS 10,441,712,229,000 - a
+    # plausible subordinated-notes tranche scale for a bank, not a placeholder or near-total
+    # figure). BMA's broader "FinancialLiabilities"/"FinancialLiabilitiesAtAmortisedCost"
+    # concepts were deliberately NOT aliased here instead - live-confirmed those include
+    # customer deposits (BMA's real primary funding source as a bank), so mapping either to
+    # long_term_debt would grossly overstate real debt, not just fill a gap. Listed LAST (after
+    # DebtSecurities) so any filer reporting the more common concepts above always keeps that
+    # value - same last-listed-wins fallback convention as DebtSecurities/Borrowings
+    # themselves. Same semantic class as the existing us-gaap "SubordinatedDebt"/
+    # "JuniorSubordinatedDebentureOwedToUnconsolidatedSubsidiaryTrust" fallback further below
+    # (IBOC/HBT trust-preferred securities) - this is IFRS's equivalent concept name for the
+    # same real instrument type.
+    ("SubordinatedLiabilities", "long_term_debt"),
     # FIXED 2026-08-17 (loader-review goal continuation): IFRS 16 lessee accounting
     # doesn't distinguish operating vs. finance leases the way US GAAP does - IFRS
     # filers report a single combined "LeaseLiabilities" concept, not separate
@@ -67,6 +311,33 @@ _BALANCE_IFRS_ALIASES = [
     # doesn't separate the two anyway - the combined total lands intact either way.
     # Foreign filers previously got NULL lease liabilities entirely.
     ("LeaseLiabilities", "operating_lease_liability"),
+    # ADDED 2026-09-08 (goal session: XBRL coverage-scan backlog triage, 3rd batch this
+    # session - CurrentLeaseLiabilities/NoncurrentLeaseLiabilities, 438/426 undismissed
+    # filers, the single highest-count pair left in the backlog): NOT plain aliases to
+    # "operating_lease_liability" - a filer reporting BOTH the combined "LeaseLiabilities"
+    # concept above AND this split pair for the same fiscal year (live-confirmed via Agnico
+    # Eagle's real companyfacts JSON, CIK 0000002809: FY2025 LeaseLiabilities=
+    # USD 125,199,000 == CurrentLeaseLiabilities USD 30,480,000 +
+    # NoncurrentLeaseLiabilities USD 94,719,000, exact match, same identity holds FY2023-2024
+    # too) would have this plain-alias pair silently racing the combined concept for the same
+    # target column on ordinary last-listed-wins semantics - harmless when they agree (as for
+    # AEM), but not verified to always agree for every filer, and unnecessary risk when a
+    # dedicated fallback-only mechanism (matching this file's own
+    # _fill_long_term_debt_from_noncurrent_current_split precedent below) can express "only
+    # sum the split when the combined concept found nothing" exactly. A real, non-trivial gap
+    # exists for filers that tag ONLY the split pair, never the combined concept: a scan of
+    # this session's full on-disk companyfacts cache found 38 such filers (POSCO Holdings,
+    # LATAM Airlines, Fresenius Medical Care AG, Franco-Nevada, MakeMyTrip among them) -
+    # live-confirmed via POSCO Holdings' real companyfacts JSON (CIK 0000889132): FY2024
+    # (period end 2024-12-31) CurrentLeaseLiabilities=KRW 161,601,000,000 +
+    # NoncurrentLeaseLiabilities=KRW 744,500,000,000, with zero "LeaseLiabilities" fact for
+    # any fiscal year - a real, material combined lease liability (~KRW 906B) previously
+    # invisible to this extractor entirely. Raw keys deliberately reuse this file's own
+    # "current_lease_liabilities"/"noncurrent_lease_liabilities" _to_snake() output (not a
+    # new naming scheme) - see _fill_operating_lease_liability_from_current_noncurrent_split
+    # below for the summing logic.
+    ("CurrentLeaseLiabilities", "current_lease_liabilities"),
+    ("NoncurrentLeaseLiabilities", "noncurrent_lease_liabilities"),
     # FIXED 2026-09-03 (same sweep): Altman Z''-Score's Retained Earnings/Total Assets
     # term (see get_balance_sheet()'s "RetainedEarningsAccumulatedDeficit" comment - that
     # concept is us-gaap only, and its own comment's "no known taxonomy-variant fallback
@@ -128,6 +399,29 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # fallback-only for the same defensive reason as the concept above).
         "PartnersCapitalIncludingPortionAttributableToNoncontrollingInterest",
         "PartnersCapital",
+        # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep, same session
+        # this file's own balance_sheet_identity check flagged 887 symbol/years - ARXS,
+        # ironically the very symbol this file's MembersEquity comment below cites as its
+        # original evidence, was one of them): the "IncludingPortionAttributableTo
+        # NoncontrollingInterest" fallback pattern already applied to StockholdersEquity/
+        # PartnersCapital two entries below was never mirrored for MembersEquity - live-
+        # confirmed via ARXS's own real companyfacts JSON (CIK 0002093536): its most recent
+        # 10-Q (filed 2026-07-30, period end 2026-06-30) tags plain MembersEquity=$0 while
+        # LimitedLiabilityCompanyLlcMembersEquityIncludingPortionAttributableToNoncontrolling
+        # Interest=$4,467,558,000 for the SAME period - exactly matching Assets($7,006,652,000)
+        # - Liabilities($2,539,094,000). Fallback-only (listed before "MembersEquity", same
+        # last-listed-wins convention as StockholdersEquityIncludingPortionAttributableTo
+        # NoncontrollingInterest above): fills only an LLC filer with zero real MembersEquity
+        # facts for any period at all, never overwrites a present MembersEquity value - so
+        # this does NOT by itself resolve ARXS's specific $0-vs-$4.47B period (that $0 is a
+        # present, non-null fact under the winning concept name, ambiguous between a genuine
+        # Up-C-style near-zero-parent-equity structure - see this file's own
+        # balance_sheet_identity docstring on PROK/ATTO/FAC/LTGO/SCTX for that already-accepted
+        # pattern - and an isolated filer tagging error; not enough evidence from one symbol to
+        # override the general "parent-only figure wins when both present" precedent). Closes
+        # the same class of gap ADM/AAON already got for StockholdersEquity for any OTHER LLC
+        # filer that never tags plain MembersEquity at all.
+        "LimitedLiabilityCompanyLlcMembersEquityIncludingPortionAttributableToNoncontrollingInterest",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" audit):
         # LLC-structured domestic filers (not FPIs) tag "MembersEquity" instead of any
         # StockholdersEquity/PartnersCapital concept - live-confirmed via real SEC
@@ -219,6 +513,17 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # LongTermDebt concept always keeps that value - these only fill the gap when
         # LongTermDebt is absent for that fiscal year, never overwrite it.
         "NotesPayableRelatedPartiesNoncurrent",
+        # ADDED 2026-09-10 (goal session: SEC/XBRL missing-data count under 500,
+        # total_debt_not_itemized investigation): GNPX (Genprex) real current-portion
+        # related-party notes payable - live-confirmed via real SEC companyfacts JSON
+        # tagging "NotesPayableRelatedPartiesClassifiedCurrent" (a real, current-year
+        # short-term related-party loan) while never tagging plain NotesPayableCurrent/
+        # ShortTermBorrowings/any other short_term_debt concept above. Current-portion
+        # sibling of NotesPayableRelatedPartiesNoncurrent immediately above (same either/or
+        # convention, this one targets short_term_debt via _BALANCE_FIELD_MAPPING).
+        # Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS) - generic enough a name that a
+        # filer reporting a more specific standard concept must keep that value.
+        "NotesPayableRelatedPartiesClassifiedCurrent",
         "LongTermNotesPayable",
         "ConvertibleNotesPayable",
         # FIXED 2026-08-18 (goal: "no SEC data" loader audit, roic_pct missing_sec_data
@@ -248,6 +553,24 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # Both fallback-only, same convention as the rest of this block.
         "LongTermDebtNoncurrent",
         "LongTermDebtAndCapitalLeaseObligations",
+        # FIXED 2026-09-07 (goal session: XBRL concept-coverage backlog sweep): the SAME
+        # "noncurrent-alone understates real debt" gap the LongTermDebtCurrent fix above
+        # already closed for the plain LongTermDebtNoncurrent concept, but for THIS
+        # concept's own current-portion sibling instead. Live-confirmed via real SEC
+        # companyfacts JSON: for filers that tag "LongTermDebtAndCapitalLeaseObligations"
+        # (fetched above, fallback-only into long_term_debt as if it were the total) AND
+        # this concept for the same fiscal year, with no plain LongTermDebt/
+        # LongTermDebtNoncurrent/"...IncludingCurrentMaturities" fact present that year -
+        # 258 distinct filers, 1,263 filer-years, including Adobe, AT&T, AbbVie, Best Buy,
+        # Amphenol, and American Water Works - "LongTermDebtAndCapitalLeaseObligations" is
+        # the NONCURRENT-only portion, not the total (e.g. AMD FY2015: noncurrent-tagged
+        # concept=$2,032,000,000, this concept=$230,000,000 current maturities, real total
+        # $2,262,000,000 - the current portion was silently dropped every such year).
+        # _fill_long_term_debt_from_noncurrent_current_split() below sums both into
+        # "long_term_debt" (same mechanism as the LongTermDebtNoncurrent/Current pair,
+        # only firing as a second-priority fallback when that pair's own fill didn't
+        # already resolve it) and pops both raw keys before returning.
+        "LongTermDebtAndCapitalLeaseObligationsCurrent",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): the
         # SAME "wiring half-landed" bug the comment immediately above this one already
         # describes and fixed once - the 2026-08-18 ADC/net-lease-REIT fix added
@@ -295,18 +618,26 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # ("Short-term borrowings" $13,796,000,000 FY2025/$13,533,000,000 FY2024, real and
         # continuous back to FY2020; DE never tags CommercialPaper/ShortTermBorrowings/
         # SeniorNotesCurrent, so no overwrite collision with the concepts above for this
-        # filer). DELIBERATELY excludes DE's smaller sibling concept "SecuredDebt"
-        # ("Short-term securitization borrowings", $6,596,000,000 FY2025) - this loader's
-        # transform() has no summing mechanism for two concepts mapped to the same target
-        # column (confirmed by reading loaders/helpers/sec_base.py's transform(): plain
-        # `row[db_field] = value` overwrite, last-processed-wins, not additive - same as
-        # the CommercialPaper/ShortTermBorrowings pair above already documents as a known,
-        # accepted limitation), so adding both here would silently DROP one of the two
-        # real figures rather than capture both. Capturing DebtCurrent alone (the larger,
-        # ~68% of DE's true current debt) is strictly better than the current NULL and
-        # carries no risk of a wrong/incomplete-looking "complete" figure since it's not
-        # claimed to include the securitization piece.
+        # filer). DE's smaller sibling concept "SecuredDebt" ("Short-term securitization
+        # borrowings", $6,596,000,000 FY2025) was ORIGINALLY excluded here on the reasoning
+        # that this loader's transform() has no summing mechanism for two concepts mapped
+        # to the same target column (plain `row[db_field] = value` overwrite,
+        # last-processed-wins, not additive) - SUPERSEDED 2026-09-09: added as a
+        # fallback-only entry right below instead (never sums the two, but no longer
+        # silently drops SecuredDebt for the ~399 OTHER filers that tag only it).
         "DebtCurrent",
+        # ADDED 2026-09-09 (xbrl_concept_coverage_scan.py comment-leak fix follow-up: this
+        # standard us-gaap concept was quoted in the DE comment above discussing what was
+        # deliberately excluded, but never actually fetched - 400 real filers tag it
+        # (scan-confirmed post-fix). Same generic-name caution as DebtCurrent immediately
+        # above (fallback-only: only fills short_term_debt when no other, more specific
+        # concept already did) - this is exactly the mechanism that resolves the DE
+        # collision concern in that comment: DebtCurrent (processed first, listed above)
+        # already fills short_term_debt for DE, so this entry's own fallback-only check
+        # correctly skips DE and never overwrites; for a filer that tags ONLY SecuredDebt
+        # (no CommercialPaper/ShortTermBorrowings/DebtCurrent/etc. at all), this now fills
+        # a previously-NULL short_term_debt instead of silently doing nothing.
+        "SecuredDebt",
         # FIXED 2026-09-03 (same sweep): EXPD (Expeditors International) tags its entire
         # real short-term debt under this concept - live-confirmed via real companyfacts
         # JSON: $53,068,000 FY2023 / $30,660,000 FY2024 / $30,263,000 FY2025, small but
@@ -372,6 +703,24 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # name that a filer reporting a real, more complete LongTermDebt/SeniorNotes figure
         # must always keep that value instead.
         "NotesPayable",
+        # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+        # total_debt_not_itemized investigation): ETS real short-term-loan concept - live-
+        # confirmed via ETS's real companyfacts JSON tagging "LoansPayable"/"LoansPayableCurrent"
+        # (a real, if small, funding-side liability) while never tagging any of the concepts
+        # above. Same either/or-alternative, plain-mapping convention as senior_notes/
+        # notes_payable above (fallback-only, never wins over a more specific standard concept).
+        "LoansPayable",
+        "LoansPayableCurrent",
+        # ADDED 2026-09-09 (xbrl_concept_coverage_scan.py comment-leak fix follow-up: this
+        # standard us-gaap concept was quoted in the NotesPayable comment above ("no
+        # NotesPayableCurrent sibling concept" for AFL/MAA), but never actually fetched -
+        # 834 real filers tag it (scan-confirmed post-fix). Targets short_term_debt (the
+        # current-portion split of a filer's notes payable, same relationship as
+        # LongTermDebt/LongTermDebtCurrent). Fallback-only, same generic-name caution as
+        # bare NotesPayable above - only fills short_term_debt when no more specific
+        # concept (CommercialPaper/ShortTermBorrowings/SeniorNotesCurrent/DebtCurrent/etc.)
+        # already did.
+        "NotesPayableCurrent",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep,
         # continuation): PGR (Progressive) stopped tagging plain "LongTermDebt" after
         # FY2015 (last real fact 2015-12-31, $2.708B) - live-confirmed via real companyfacts
@@ -514,17 +863,69 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # IFRS filers report the equivalent under ifrs-full "RetainedEarnings" instead, went
         # universally NULL for every one of them until _BALANCE_IFRS_ALIASES added it above.
         "RetainedEarningsAccumulatedDeficit",
+        # ADDED 2026-09-07 (goal: SEC/XBRL missing-data audit, found via
+        # scripts/xbrl_concept_coverage_scan.py's systematic gap scan): 3,392 real filers tag
+        # this concept and it was never fetched at all - no accounts_payable-shaped column
+        # existed anywhere in the schema before migration 1263. Live-confirmed via real SEC
+        # companyfacts JSON: WMT FY2026 (period end 2026-01-31) = $63,061,000,000, TGT FY2026
+        # (period end 2026-01-31) = $12,622,000,000 - both sane, material trade-payables
+        # figures. No known taxonomy-variant/IFRS fallback verified yet (none appeared in the
+        # coverage scan at any company-count threshold checked) - add one only with the same
+        # live-evidence standard as every other fallback in this file, not by guessing a
+        # plausible-sounding concept name.
+        # ADDED 2026-09-07 (goal session: XBRL concept-coverage backlog sweep, found via
+        # scripts/xbrl_concept_coverage_scan.py's systematic gap scan): 485 real filers tag
+        # this concept and 223 of them (46%) - including Abbott Labs, Air Products and
+        # Chemicals, Armstrong World Industries, Balchem, Brown-Forman - tag NO
+        # "AccountsPayableCurrent" at all, live-confirmed against the real on-disk companyfacts
+        # cache. Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS in field_mapping) so a filer
+        # reporting the standard concept always keeps that value - listed BEFORE
+        # "AccountsPayableCurrent" so the standard concept wins on last-listed-wins overwrite
+        # when a filer reports both.
+        "AccountsPayableTradeCurrent",
+        "AccountsPayableCurrent",
+        # ADDED 2026-09-07 (goal session: check_balance_sheet_identity NCI gap rootcaused -
+        # see tie_out.py's check_balance_sheet_identity docstring): our schema's
+        # stockholders_equity column stores the narrower parent-only concept, so any filer
+        # with a material noncontrolling/minority interest fails
+        # assets == liabilities + stockholders_equity by exactly that NCI amount - 15% of the
+        # annual universe (761/5,078 symbols: XOM, CVX, KKR, APO, CB, RTX, BLK, NEE, D, ENB,
+        # VOYA, FNF, IBKR, etc.), not an extraction bug. Live-confirmed via real SEC
+        # companyfacts JSON: XOM directly tags this concept (not the combined
+        # StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest variant) -
+        # FY2009 (period end 2009-12-31) MinorityInterest=$4,823,000,000, exactly closing the
+        # gap between XOM's assets ($233,323M) and liabilities+stockholders_equity ($117,931M
+        # + $110,569M = $228,500M). Single directly-tagged concept, same convention as
+        # accounts_payable above - no summing/derivation needed.
+        "MinorityInterest",
+        # ADDED 2026-09-09 (goal session: XBRL scan/tie-out exhaustiveness audit, migration
+        # 1274): the check_balance_sheet_identity docstring's "PROK/ATTO/FAC/LTGO/SCTX-style"
+        # mezzanine-equity population (modest assets/liabilities, huge negative
+        # stockholders_equity, no noncontrolling_interest/MinorityInterest tagged either) was
+        # left unfixed as "this schema has no column for at all". Live-confirmed via real SEC
+        # companyfacts JSON that this concept closes it exactly: OBAI (Our Bond Inc) FY2025
+        # residual $11,389,000 == TemporaryEquityCarryingAmountAttributableToParent
+        # $11,389,000 for the same period; LTGO (Latigo Biotherapeutics) and SCTX (Scribe
+        # Therapeutics) residuals match this same concept exactly too. This was previously
+        # dismissed in xbrl_concept_coverage_dismissed.json under a copy-paste-wrong reason
+        # ("stock-comp-plan footnote detail" - describes a different concept entirely, not
+        # this one) - corrected by mapping it here instead. Single directly-tagged concept, no
+        # summing/derivation needed, same convention as MinorityInterest above. PROK itself
+        # tags a sibling concept (RedeemableNoncontrollingInterestEquityOtherCarryingAmount,
+        # not this one) so its own gap is NOT expected to fully close from this alone.
+        "TemporaryEquityCarryingAmountAttributableToParent",
     ]
-    rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
+    rows = _aggregate_concepts(
+        client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES, alias_groups=_EQUITY_ALIAS_GROUPS
+    )
     _fill_long_term_debt_from_noncurrent_current_split(rows)
+    _fill_operating_lease_liability_from_current_noncurrent_split(rows)
     if period == "annual":
         _fill_long_term_debt_from_segment_dimensional_facts(rows, client, symbol)
     _fill_cash_and_restricted_cash_combined(rows, client, symbol, period)
     _fill_cash_and_restricted_cash_combined_from_split(rows, client, symbol, period)
     _fill_liabilities_from_assets_minus_equity(rows, client, symbol, period)
     _fill_liabilities_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
-    _fill_assets_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
-    _fill_operating_lease_liability_from_current_noncurrent_split(rows)
     return rows
 
 
@@ -642,48 +1043,6 @@ def _fill_liabilities_from_ifrs_current_noncurrent_split(
         if current is None or noncurrent is None:
             continue
         row["liabilities"] = current + noncurrent
-
-
-def _fill_assets_from_ifrs_current_noncurrent_split(
-    rows: list[dict[str, Any]], client: Any, symbol: str, period: str
-) -> None:
-    """Derive `assets` (total_assets) = CurrentAssets + NoncurrentAssets for an IFRS filer that
-    splits its balance sheet into the two halves but never tags the combined ifrs-full:Assets
-    total at all.
-
-    ADDED 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push, WPP/RTO live-confirmed):
-    the liabilities side of this exact gap was already fixed
-    (_fill_liabilities_from_ifrs_current_noncurrent_split above, 2026-09-09) but the assets side
-    was never mirrored - live-confirmed via real companyfacts JSON that WPP plc (CIK
-    0000806968, 341 cached ifrs-full concepts) and Rentokil Initial plc (CIK 0000930157, 299
-    concepts) both tag CurrentAssets/NoncurrentAssets every fiscal year but have ZERO plain
-    ifrs-full:Assets fact ever, leaving total_assets (and everything derived from it -
-    asset_turnover, roa, gross_profitability) permanently NULL despite a complete, extractable
-    filing. Not a currency/volatility issue (both report in GBP, already in MAJOR_CURRENCIES) -
-    a pure missing-derivation gap, same class of bug as the liabilities-side fix this mirrors.
-
-    "CurrentAssets" is already fetched under _BALANCE_IFRS_ALIASES for the main
-    `assets_current`/`current_assets` column, so only "NoncurrentAssets" needs a second lookup
-    here (same secondary-aggregate-call pattern as _fill_liabilities_from_ifrs_current_noncurrent_split
-    above). Fallback-only: only fills a fiscal year/quarter where the primary "Assets" alias
-    found nothing, and only when BOTH halves are present - a filer with just one half tagged
-    hasn't reported this split, so summing a partial figure would silently understate real
-    assets rather than leave an honest NULL (same discipline as the liabilities-side sibling).
-    """
-    noncurrent_rows = _aggregate_concepts(
-        client, symbol, [], period, ifrs_aliases=[("NoncurrentAssets", "assets_noncurrent")]
-    )
-    noncurrent_by_key = {
-        (r.get("fiscal_year"), r.get("fiscal_period")): r.get("assets_noncurrent") for r in noncurrent_rows
-    }
-    for row in rows:
-        if row.get("assets") is not None:
-            continue
-        current = row.get("assets_current")
-        noncurrent = noncurrent_by_key.get((row.get("fiscal_year"), row.get("fiscal_period")))
-        if current is None or noncurrent is None:
-            continue
-        row["assets"] = current + noncurrent
 
 
 def _fill_cash_and_restricted_cash_combined(rows: list[dict[str, Any]], client: Any, symbol: str, period: str) -> None:
@@ -912,10 +1271,50 @@ def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]
     keys, including "long_term_debt_noncurrent" (fetched above as a plain fallback concept
     for a different, concurrent fix) - this function's sum is strictly more accurate, so it
     always supersedes that field_mapping-level fallback rather than leaving both to race.
+
+    Second, lower-priority pass (2026-09-07, XBRL concept-coverage backlog sweep):
+    long_term_debt = LongTermDebtAndCapitalLeaseObligations + ...Current, the same
+    noncurrent-alone understatement bug for XOM/CAT-style filers' OWN concept instead of
+    the plain LongTermDebtNoncurrent one - see "LongTermDebtAndCapitalLeaseObligations
+    Current"'s own comment in the concepts list above for the live evidence (258 filers,
+    1,263 filer-years, Adobe/AT&T/AbbVie/Best Buy among them). Only fires when BOTH halves
+    are present for that fiscal year (unlike the primary pair above, a missing current-
+    portion tag here is left as the existing, already-correct single-figure fallback
+    behavior - the field_mapping-level fallback-only mapping for
+    "long_term_debt_and_capital_lease_obligations" alone, untouched by this function,
+    still needs that raw key when there is no current-portion sibling to sum it with) and
+    only when neither the primary pair above nor a real
+    "long_term_debt_and_capital_lease_obligations_including_current_maturities" fact (a
+    genuinely more authoritative combined-total concept, fetched separately) already
+    resolved this fiscal year - guards against this lower-priority pair racing ahead of a
+    better total that the field_mapping stage would otherwise have picked.
+
+    Third pass (2026-09-08, IFRS current-portion-of-Borrowings triage): unlike
+    LongTermDebtNoncurrent above, IFRS's "LongtermBorrowings" concept IS mapped directly to
+    "long_term_debt" (see its own comment in the concepts list - deliberately kept that way so
+    a filer reporting the precise split still outranks a same-period "Borrowings" combined-total
+    fact, per this aggregation's first-populated-wins rule and
+    test_ifrs_borrowings_and_nci_aliases_20260908.py's existing regression coverage) AND fetched
+    a second time under the "long_term_debt_noncurrent" raw key purely so this function can
+    detect that case. When "long_term_debt" already equals "noncurrent" exactly, it can only
+    have come from LongtermBorrowings itself (Borrowings/other combined concepts would produce
+    a different total) - safe to add the current-maturities addend on top without any risk of
+    double-counting a Borrowings-sourced total (which already includes its own current portion
+    and never equals the noncurrent-only figure).
     """
     for row in rows:
         noncurrent = row.pop("long_term_debt_noncurrent", None)
         current = row.pop("long_term_debt_current", None)
-        if row.get("long_term_debt") is not None or noncurrent is None:
-            continue
-        row["long_term_debt"] = noncurrent + (current or 0)
+        if row.get("long_term_debt") is None and noncurrent is not None:
+            row["long_term_debt"] = noncurrent + (current or 0)
+        elif noncurrent is not None and current is not None and row.get("long_term_debt") == noncurrent:
+            row["long_term_debt"] = noncurrent + current
+
+        combined_current = row.pop("long_term_debt_and_capital_lease_obligations_current", None)
+        if (
+            row.get("long_term_debt") is None
+            and combined_current is not None
+            and row.get("long_term_debt_and_capital_lease_obligations") is not None
+            and row.get("long_term_debt_and_capital_lease_obligations_including_current_maturities") is None
+        ):
+            row["long_term_debt"] = row.pop("long_term_debt_and_capital_lease_obligations") + combined_current

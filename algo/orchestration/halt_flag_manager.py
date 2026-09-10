@@ -135,6 +135,111 @@ class HaltFlagManager:
         self._alert_halt_detected("both DynamoDB and RDS unavailable - failing closed")
         return True
 
+    def _cancel_pending_entry_orders_on_halt(self, reason: str, triggered_by: str) -> None:
+        """Best-effort: cancel every resting-at-broker, not-yet-filled ENTRY order the moment a
+        halt is set, so a halt actually stops new exposure instead of only blocking future
+        submissions.
+
+        REAL-MONEY-READINESS FIX (2026-09-07 audit): set_halt_flag() only ever gated Phase 8's
+        decision to submit a NEW order - an order already sent to Alpaca before the halt fired
+        (e.g. a bracket entry sitting as `new`/`accepted`/`pending_new`) was left completely
+        untouched and could still fill minutes later, adding exactly the exposure the halt was
+        meant to prevent.
+
+        REAL-MONEY-READINESS FIX (2026-09-07, second pass): the first version of this fix
+        cancelled by calling `OrderManager.cancel_all_open_orders_for_symbol(symbol)`, which
+        cancels every open order Alpaca reports for the symbol regardless of whose order it is.
+        That's fine for a symbol with only the one pending entry, but pyramiding (see
+        position_sizer.py's max_reentries_per_name) means an already-FILLED position's own live
+        protective stop-loss/take-profit legs can rest at the broker for the same symbol as a
+        new, still-unfilled pyramid entry - cancelling by symbol during a halt could strip that
+        filled position's stop-loss exactly when the system is trying to get safer. Now cancels
+        via `OrderManager.cancel_pending_entry_order(symbol, idempotency_key)`, which matches
+        only the specific still-open order whose client_order_id is this entry's own
+        idempotency_key - see that method's docstring. Deliberately does NOT touch already-
+        FILLED positions' resting bracket (stop-loss/take-profit) legs - those are the
+        position's own protection and cancelling them on a routine halt would make things
+        worse, not safer (see flatten_all_positions.py's docstring for the same design decision
+        - a full flatten remains a separate, explicit operator action). Only PENDING/OPEN
+        (unfilled) entries are cancelled here.
+
+        Must never raise or block the halt flag write that already succeeded by the time this
+        runs - failures are logged and alerted, never propagated.
+        """
+        try:
+            from algo.config.api_endpoints import get_alpaca_base_url
+            from algo.config.credential_manager import get_alpaca_credentials
+            from algo.infrastructure.config import AlgoConfig
+            from algo.trading.order_manager import OrderManager
+            from utils.db import DatabaseContext
+            from utils.trading import TradeStatus
+
+            config = AlgoConfig()
+            execution_mode = str(config["execution_mode"]).lower()
+            try:
+                alpaca_creds = get_alpaca_credentials()
+                alpaca_key = alpaca_creds.get("key")
+                alpaca_secret = alpaca_creds.get("secret")
+            except ValueError:
+                alpaca_key = None
+                alpaca_secret = None
+            if not alpaca_key or not alpaca_secret:
+                logger.debug("[HALT_FLAG] No Alpaca credentials available - skipping pending-order cancel on halt")
+                return
+
+            base_url = get_alpaca_base_url(execution_mode)
+            order_mgr = OrderManager(alpaca_key, alpaca_secret, base_url)
+
+            unfilled_statuses = (TradeStatus.PENDING.value, TradeStatus.OPEN.value)
+            placeholders = ", ".join(["%s"] * len(unfilled_statuses))
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    f"SELECT DISTINCT symbol, idempotency_key FROM algo_trades "
+                    f"WHERE status IN ({placeholders}) AND idempotency_key IS NOT NULL",
+                    unfilled_statuses,
+                )
+                pending_entries = [(row[0], row[1]) for row in cur.fetchall()]
+
+            if not pending_entries:
+                logger.info("[HALT_FLAG] No pending/unfilled entry orders to cancel on halt")
+                return
+
+            # Cancel by client_order_id (idempotency_key), NOT cancel_all_open_orders_for_symbol -
+            # a pyramided position's already-FILLED entry can leave its own live protective
+            # stop-loss/take-profit legs resting for the same symbol as this still-unfilled
+            # entry, and cancelling by symbol would strip that filled position's stop-loss too.
+            # See cancel_pending_entry_order's docstring for the full incident/rationale.
+            cancelled: list[str] = []
+            failed: list[str] = []
+            for symbol, idempotency_key in pending_entries:
+                result = order_mgr.cancel_pending_entry_order(symbol, idempotency_key)
+                if result.get("success"):
+                    cancelled.append(symbol)
+                else:
+                    failed.append(f"{symbol}: {result.get('message')}")
+
+            logger.critical(
+                f"[HALT_FLAG_ORDER_CANCEL] Halt triggered_by={triggered_by} reason={reason[:200]!r} - "
+                f"cancelled pending entry orders for {len(cancelled)} symbol(s): {cancelled}"
+                + (f"; {len(failed)} FAILED: {failed}" if failed else "")
+            )
+            if failed:
+                try:
+                    self.alerts.send_position_alert(
+                        "HALT_ORDER_CANCEL_FAILED",
+                        "PENDING_ENTRY_ORDER_CANCEL_FAILED",
+                        f"Halt fired but {len(failed)} symbol(s) still have resting entry orders at "
+                        f"the broker that could fill despite the halt: {failed}. Manual cancellation required.",
+                        {"failed": failed, "triggered_by": triggered_by},
+                    )
+                except Exception as alert_err:
+                    logger.error(f"[HALT_FLAG] Could not send order-cancel-failure alert: {alert_err}")
+        except Exception as e:
+            logger.error(
+                f"[HALT_FLAG] Best-effort pending-order cancel on halt raised (halt flag itself still stands): "
+                f"{type(e).__name__}: {e}"
+            )
+
     def _alert_halt_detected(self, source: str) -> None:
         """Notify operators that trading is halted.
 
@@ -776,6 +881,23 @@ class HaltFlagManager:
                     logger.critical(f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})")
                 else:
                     logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
+                # BUG FIX (real-money-readiness audit): DynamoDB is the authoritative store the
+                # orchestrator itself gates on (check_halt_flag), but the dashboard/API
+                # (lambda/api/routes/algo_handlers/market/data_status.py) and TUI read
+                # algo_runtime_state in RDS directly - which was previously ONLY written on the
+                # RDS-fallback path (DynamoDB unreachable). A halt that succeeded via DynamoDB
+                # (the normal case) never touched RDS, so operators could see a stale "READY TO
+                # TRADE" dashboard while trading was genuinely halted. Best-effort mirror: never
+                # let an RDS write failure affect the halt's success (DynamoDB already committed
+                # it) or raise - this is dashboard-visibility sync, not the safety-critical write.
+                try:
+                    self._set_halt_flag_rds(reason, now_utc, now_et, triggered_by, force)
+                except Exception as rds_mirror_err:
+                    logger.warning(
+                        f"[HALT_FLAG] Best-effort RDS mirror of DynamoDB halt failed (dashboard may show "
+                        f"stale status until the next halt/clear write): {rds_mirror_err}"
+                    )
+                self._cancel_pending_entry_orders_on_halt(reason, triggered_by)
                 return True
             except Exception as e:
                 last_error = e
@@ -795,6 +917,7 @@ class HaltFlagManager:
                             continue
                         else:
                             break
+                    self._cancel_pending_entry_orders_on_halt(reason, triggered_by)
                     return rds_result  # Return True on success
                 except Exception as rds_err:
                     logger.warning(f"[HALT_FLAG] RDS fallback exception (attempt {attempt + 1}): {rds_err}")
@@ -1281,6 +1404,16 @@ class HaltFlagManager:
                 logger.info(
                     f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}"
                 )
+                # BUG FIX (real-money-readiness audit): mirror to RDS for the dashboard/API's
+                # benefit - see the matching comment in set_halt_flag above. Best-effort only;
+                # DynamoDB already committed the authoritative clear.
+                try:
+                    self._clear_halt_flag_rds(reason)
+                except Exception as rds_mirror_err:
+                    logger.warning(
+                        f"[HALT_FLAG] Best-effort RDS mirror of DynamoDB clear failed (dashboard may show "
+                        f"stale halted status until the next halt/clear write): {rds_mirror_err}"
+                    )
                 return True
             except Exception as e:
                 last_error = e

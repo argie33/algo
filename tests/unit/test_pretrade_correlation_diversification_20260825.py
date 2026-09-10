@@ -111,7 +111,13 @@ class TestCorrelationConcentrationCheck:
         assert ok is True
         assert reason is None
 
-    def test_insufficient_overlap_fails_open(self):
+    def test_insufficient_candidate_overlap_fails_closed(self):
+        # REAL-MONEY-READINESS FIX (2026-09-08 audit): was test_insufficient_overlap_fails_open,
+        # asserting ok is True/reason is None. Re-verified against the live DB that the
+        # data-maturity gap this fail-open behavior was justified by is now largely resolved
+        # (98.7% of the active universe has sufficient history) - failing closed (blocking, not
+        # silently assuming zero correlation) for the narrow remainder is now the correct,
+        # conservative behavior for a diversification risk control.
         checks = PreTradeChecks(config=_config(correlation_min_overlap_days=30))
         start = date(2026, 1, 1)
         prices = [100, 101, 102]  # far fewer than the 30-day minimum overlap
@@ -120,8 +126,10 @@ class TestCorrelationConcentrationCheck:
 
         ok, reason = checks._check_correlation_concentration("NEWSYM", cur)
 
-        assert ok is True
-        assert reason is None
+        assert ok is False
+        assert reason is not None
+        assert "NEWSYM" in reason
+        assert "cannot verify diversification" in reason
 
     def test_missing_config_key_raises(self):
         checks = PreTradeChecks(config={})

@@ -70,6 +70,209 @@ class ValueMetricsMixin(SymbolGateMixin):
 
         def _fetch_positioning_metrics(self, symbol: str) -> tuple[float | None, str | None]: ...
 
+    def _compute_dividend_and_payout_yield(  # noqa: C901 -- multi-tier fallback chain,
+        # extracted verbatim from _build_value_metrics (which carried the same noqa) - not
+        # entangled with anything else, left as one function rather than force-split further.
+        self,
+        symbol: str,
+        market_cap: float | None,
+        current_price: float | None,
+    ) -> tuple[float | None, float | None, str | None]:
+        """Dividend/net-payout yield fallback tiers (dividend_data / annual_cash_flow) plus
+        the final dividend_yield_reason classification.
+
+        EXTRACTED 2026-09-09 (goal: "SEC/XBRL missing data under 500" sweep) out of
+        _build_value_metrics's inline body so it can also run from that method's
+        no-income-statement early-return branch above: needs only market_cap/current_price
+        (both already recovered there via _get_market_cap_without_income_statement, same
+        as the existing market_cap/pb_ratio overrides in that branch) - no income-statement
+        dependency at all. That branch used to return before ever reaching this logic, so a
+        symbol whose sec_valuations row was flagged data_unavailable=True for
+        "no_income_statement" (a real 10-K/10-Q on file, just no income-statement concepts
+        tagged) could never get dividend_yield recovered from dividend_data/
+        annual_cash_flow even when both are fully populated for it.
+
+        Returns (dividend_yield, net_payout_yield, dividend_yield_reason) - reason is None
+        when dividend_yield was recovered to a real (non-zero-non-payer) value.
+        """
+        dividend_yield: float | None = None
+        net_payout_yield: float | None = None
+        # TIER 2 FALLBACK: Try SEC dividend_data (most recent dividend)
+        try:
+            with _owner().DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT dividend_yield_pct FROM dividend_data
+                    WHERE symbol = %s AND data_unavailable = FALSE AND dividend_yield_pct IS NOT NULL
+                    ORDER BY ex_dividend_date DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                sec_div_row = cur.fetchone()
+                if sec_div_row:
+                    dividend_yield = float(sec_div_row[0]) / 100.0
+                    logger.debug(f"[VALUE_METRICS] {symbol}: Using SEC dividend_data: {dividend_yield:.2%}")
+        except Exception as e:
+            logger.debug(f"[VALUE_METRICS] {symbol}: SEC dividend_data fallback failed: {e}")
+
+        # TIER 3 FALLBACK: aggregate dividends_paid / market_cap
+        dividend_yield_implausible_from_cash_flow = False
+        if dividend_yield is None and market_cap is not None and market_cap > 0:
+            try:
+                with _owner().DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT dividends_paid FROM annual_cash_flow
+                        WHERE symbol = %s AND dividends_paid IS NOT NULL AND dividends_paid > 0
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
+                          AND data_unavailable IS NOT TRUE
+                        ORDER BY fiscal_year DESC
+                        """,
+                        (symbol,),
+                    )
+                    cf_div_rows = cur.fetchall()
+                    if cf_div_rows:
+                        dividend_yield_implausible_from_cash_flow = True
+                        for (cf_dividends_paid,) in cf_div_rows:
+                            candidate = float(cf_dividends_paid) / float(market_cap)
+                            if 0 < candidate <= self.MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO:
+                                dividend_yield = candidate
+                                dividend_yield_implausible_from_cash_flow = False
+                                logger.debug(
+                                    f"[VALUE_METRICS] {symbol}: Using annual_cash_flow.dividends_paid "
+                                    f"aggregate yield: {dividend_yield:.2%}"
+                                )
+                                break
+                        else:
+                            logger.debug(
+                                f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback - "
+                                "no within-window candidate produced a plausible yield, leaving NULL"
+                            )
+            except Exception as e:
+                logger.debug(f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback failed: {e}")
+
+        # TIER for net_payout_yield: aggregate (dividends + buybacks) / market_cap
+        if net_payout_yield is None and market_cap is not None and market_cap > 0:
+            try:
+                with _owner().DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT dividends_paid, common_stock_repurchased FROM annual_cash_flow
+                        WHERE symbol = %s
+                          AND (COALESCE(dividends_paid, 0) > 0 OR COALESCE(common_stock_repurchased, 0) != 0)
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
+                          AND data_unavailable IS NOT TRUE
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    cf_payout_row = cur.fetchone()
+                    if cf_payout_row:
+                        cf_div, cf_buyback = cf_payout_row
+                        total_payout = (0.0 if cf_div is None else float(cf_div)) + (
+                            0.0 if cf_buyback is None else abs(float(cf_buyback))
+                        )
+                        if 0 < total_payout / float(market_cap) <= 0.5:
+                            net_payout_yield = total_payout / float(market_cap)
+                            logger.debug(
+                                f"[VALUE_METRICS] {symbol}: Using annual_cash_flow "
+                                f"dividends+buybacks aggregate net payout yield: {net_payout_yield:.2%}"
+                            )
+                        elif total_payout > 0:
+                            logger.debug(
+                                f"[VALUE_METRICS] {symbol}: annual_cash_flow net payout yield "
+                                f"out of bounds ({total_payout / float(market_cap):.2%}), leaving NULL"
+                            )
+            except Exception as e:
+                logger.debug(f"[VALUE_METRICS] {symbol}: annual_cash_flow net payout fallback failed: {e}")
+
+        # TIER 4 FALLBACK for dividend_yield: sum trailing ~370 days of dividend_data.
+        # dividend_per_share / current_price
+        dividend_yield_implausible_from_ttm_dividend_data = False
+        dividend_yield_no_ttm_payment = False
+        if dividend_yield is None and current_price is not None and current_price > 0:
+            try:
+                with _owner().DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT SUM(dividend_per_share) FROM dividend_data
+                        WHERE symbol = %s AND data_unavailable = FALSE
+                          AND dividend_per_share IS NOT NULL
+                          AND ex_dividend_date > CURRENT_DATE - INTERVAL '370 days'
+                        """,
+                        (symbol,),
+                    )
+                    ttm_row = cur.fetchone()
+                    ttm_dividends = ttm_row[0] if ttm_row else None
+                    if ttm_dividends is not None and ttm_dividends > 0:
+                        candidate = float(ttm_dividends) / float(current_price)
+                        if 0 < candidate <= self.MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO:
+                            dividend_yield = candidate
+                            logger.debug(
+                                f"[VALUE_METRICS] {symbol}: Using dividend_data.dividend_per_share "
+                                f"TTM/current_price yield: {dividend_yield:.2%}"
+                            )
+                        else:
+                            dividend_yield_implausible_from_ttm_dividend_data = True
+                            logger.debug(
+                                f"[VALUE_METRICS] {symbol}: dividend_per_share TTM fallback yield "
+                                f"out of bounds ({candidate:.2%}), leaving NULL"
+                            )
+                    else:
+                        dividend_yield_no_ttm_payment = True
+            except Exception as e:
+                logger.debug(f"[VALUE_METRICS] {symbol}: dividend_per_share TTM fallback failed: {e}")
+
+        # Determine dividend yield reason: non-payer vs missing data
+        dividend_yield_reason = None
+        if dividend_yield is None:
+            if dividend_yield_implausible_from_cash_flow or dividend_yield_implausible_from_ttm_dividend_data:
+                dividend_yield_reason = "implausible_ratio"
+            else:
+                with _owner().DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT 1 FROM dividend_data
+                        WHERE symbol = %s AND data_unavailable = FALSE
+                          AND ex_dividend_date > CURRENT_DATE - INTERVAL '2 years'
+                        LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    has_dividend_history = cur.fetchone() is not None
+
+                if has_dividend_history and dividend_yield_no_ttm_payment:
+                    dividend_yield_reason = "dividend_lapsed_beyond_ttm_window"
+                elif not has_dividend_history:
+                    dividend_yield = 0.0
+                    dividend_yield_reason = "non_dividend_paying_stock"
+                else:
+                    dividend_yield_reason = "missing_sec_data"
+
+        # TIER for net_payout_yield: a confirmed non-dividend-payer with no recent buyback
+        # either should get 0.0, not permanently NULL.
+        if net_payout_yield is None and dividend_yield_reason == "non_dividend_paying_stock":
+            try:
+                with _owner().DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT 1 FROM annual_cash_flow
+                        WHERE symbol = %s
+                          AND COALESCE(common_stock_repurchased, 0) != 0
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
+                          AND data_unavailable IS NOT TRUE
+                        LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    has_recent_buyback = cur.fetchone() is not None
+                if not has_recent_buyback:
+                    net_payout_yield = 0.0
+            except Exception as e:
+                logger.debug(f"[VALUE_METRICS] {symbol}: net payout confirmed-non-payer fallback failed: {e}")
+
+        return dividend_yield, net_payout_yield, dividend_yield_reason
+
     def _build_value_metrics(  # noqa: C901 -- net_payout_yield's TIER 2 fallback pushed this
         # pre-existing multi-tier function over the complexity threshold; self-contained, not
         # entangled with the existing tiers, so left in place rather than force-extracted.
@@ -116,6 +319,64 @@ class ValueMetricsMixin(SymbolGateMixin):
                 for field in ("pe_ratio", "pb_ratio", "ps_ratio", "peg_ratio"):
                     if marker.get(f"{field}_unavailable_reason") is not None:
                         marker[f"{field}_unavailable_reason"] = "preferred_or_debt_security_no_common_equity_ratio"
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling to
+            # sec_valuations_income_context.py's _get_market_cap_without_income_statement):
+            # sec_valuations' own "no_income_statement"/etc. data_unavailable marker can
+            # still carry a real market_cap (price * shares_outstanding needs neither an
+            # income statement nor this method's other tiers) - this method's own all-NULL
+            # `_unavailable_marker("value_metrics", ...)` above discarded it unconditionally.
+            # Live-confirmed AADX/DPC/SIND/PBLS/ADBT/ADIG/BSEM/AIB/KARD/AVEX/SSMR/CSQR/LFTO/
+            # FCBM/HMH/LCLN/LIME/SECZ/SUJA all have a real row_dict["market_cap"] here despite
+            # data_unavailable=True.
+            if row_dict.get("market_cap") is not None:
+                marker["market_cap"] = row_dict["market_cap"]
+                marker["market_cap_unavailable_reason"] = None
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+            # follow-up, sibling to the market_cap override above): pb_ratio only needs
+            # current_price/shares_outstanding (already recovered above) and
+            # annual_balance_sheet.stockholders_equity - no income-statement dependency
+            # either. Skipped for a preferred/subordinated-debenture ticker (the override
+            # just above already correctly recategorizes its pb_ratio reason as
+            # "preferred_or_debt_security_no_common_equity_ratio" - a real business fact,
+            # not a missing value, so it must not be clobbered by a real number here even
+            # if sec_valuations happened to compute one).
+            if row_dict.get("pb_ratio") is not None and symbol not in self._get_preferred_or_debt_security_symbols():
+                marker["pb_ratio"] = row_dict["pb_ratio"]
+                marker["pb_ratio_unavailable_reason"] = None
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+            # follow-up): held_percent_institutions comes from positioning_metrics (13F
+            # ownership data) - a completely separate feed from sec_valuations/SEC XBRL, but
+            # `_fetch_positioning_metrics` is only ever called further down this method, past
+            # this early return, so a sec_valuations data_unavailable row (of ANY reason, not
+            # just no_income_statement) silently fell back to that reason instead of its own
+            # real, more specific positioning_metrics status. Live-confirmed 17/19 symbols
+            # hitting the no_income_statement gate (AADX/DPC/SIND/etc.) have a real, specific
+            # "no_resolved_13f_holdings" reason recorded in positioning_metrics (correctly
+            # "Ownership data unresolved" in /api/scores/coverage, not "Missing SEC/XBRL
+            # data" - see coverage_category_rules.py) and 2/19 (AIB, FCBM) have a real,
+            # computed institutional_ownership_pct that was being discarded outright.
+            held_percent_institutions, held_percent_institutions_reason = self._fetch_positioning_metrics(symbol)
+            if held_percent_institutions is not None:
+                marker["held_percent_institutions"] = held_percent_institutions
+                marker["held_percent_institutions_unavailable_reason"] = None
+            elif held_percent_institutions_reason is not None:
+                marker["held_percent_institutions_unavailable_reason"] = held_percent_institutions_reason
+            # ADDED 2026-09-09 (goal: "SEC/XBRL missing data under 500" sweep, sibling to the
+            # market_cap/pb_ratio overrides just above): dividend_yield/net_payout_yield need
+            # only market_cap/current_price (both already recovered above in this same branch
+            # via _get_market_cap_without_income_statement), not an income statement - this
+            # early return used to discard dividend_data/annual_cash_flow fallback recovery
+            # entirely for every "no_income_statement"-style data_unavailable row, even for
+            # confirmed real dividend payers with a full dividend_data history on file.
+            dividend_yield, net_payout_yield, dividend_yield_reason = self._compute_dividend_and_payout_yield(
+                symbol, row_dict.get("market_cap"), row_dict.get("current_price")
+            )
+            if dividend_yield is not None:
+                marker["dividend_yield"] = dividend_yield
+                marker["dividend_yield_unavailable_reason"] = dividend_yield_reason
+            if net_payout_yield is not None:
+                marker["net_payout_yield"] = net_payout_yield
+                marker["net_payout_yield_unavailable_reason"] = None
             return marker
 
         pe = row_dict.get("pe_ratio")
@@ -123,159 +384,21 @@ class ValueMetricsMixin(SymbolGateMixin):
         ps = row_dict.get("ps_ratio")
         peg = row_dict.get("peg_ratio")
         fcf_yield = row_dict.get("fcf_yield")
-        dividend_yield = row_dict.get("dividend_yield")
-        net_payout_yield = row_dict.get("net_payout_yield")
         enterprise_value = row_dict.get("enterprise_value")
         ev_ebitda = row_dict.get("ev_ebitda")
         ev_revenue = row_dict.get("ev_revenue")
         market_cap = row_dict.get("market_cap")
         intrinsic_value_per_share = row_dict.get("intrinsic_value_per_share")
         margin_of_safety_pct = row_dict.get("margin_of_safety_pct")
+        current_price = row_dict.get("current_price")
 
-        # yfinance_snapshot has had no live writer for a long time (frozen table) - dropping
-        # any fallback that reads it only removes stale/frozen values, doesn't touch anything live.
-        if dividend_yield is None:
-            # TIER 2 FALLBACK: Try SEC dividend_data (most recent dividend)
-            try:
-                with _owner().DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT dividend_yield_pct FROM dividend_data
-                        WHERE symbol = %s AND data_unavailable = FALSE AND dividend_yield_pct IS NOT NULL
-                        ORDER BY ex_dividend_date DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    sec_div_row = cur.fetchone()
-                    if sec_div_row:
-                        # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction - same
-                        # Decimal/float class as the fcf_margin fallback fix elsewhere in this
-                        # file): sec_div_row[0] is a raw psycopg2 Decimal (dividend_yield_pct is
-                        # NUMERIC) - `Decimal / 100.0` raises TypeError, silently caught by this
-                        # block's own try/except below and logged at debug level, so this SEC
-                        # dividend_data fallback tier never actually populated dividend_yield for
-                        # any symbol that reached it.
-                        dividend_yield = float(sec_div_row[0]) / 100.0  # Convert percentage to decimal
-                        logger.debug(f"[VALUE_METRICS] {symbol}: Using SEC dividend_data: {dividend_yield:.2%}")
-            except Exception as e:
-                logger.debug(f"[VALUE_METRICS] {symbol}: SEC dividend_data fallback failed: {e}")
-
-        # TIER 3 FALLBACK 2026-08-18 (goal: "no SEC data"/loader audit): the dividend_data
-        # table (per-share/ex-dividend-date XBRL concepts) and annual_cash_flow (the
-        # financing-activities "dividends paid" cash-flow-statement line, sourced
-        # independently by load_financial_statements.py) are two separate extractions -
-        # live-confirmed 153 universe symbols (incl. HSBC, SHEL, BHP, VOD - all real,
-        # well-known dividend payers) had a real, recent, positive annual_cash_flow.
-        # dividends_paid figure while dividend_data had no usable row, so the reason logic
-        # below fell through to "non_dividend_paying_stock" - a factually wrong
-        # classification for a company that demonstrably paid a real dividend, not just a
-        # missing-data label. Aggregate yield = total dividends paid / market cap is a
-        # standard, real approximation (no per-share/shares-outstanding intermediate
-        # needed - both cancel out), same "recover a real value instead of a misleading
-        # non-payer label" precedent as the dividend_data TIER 2 fallback above.
-        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): the TIER 3
-        # fallback below already independently confirms - via this exact aggregate-yield
-        # computation - a case entirely distinct from "no dividend data": a REAL dividends_
-        # paid figure and a REAL market_cap producing a REAL ratio that's simply too large to
-        # be a genuine current yield (live-confirmed BGSF 37.3%, CMCT 60.1%, CMTG 53.2% -
-        # small/distressed-price companies whose historical dividend now dwarfs a since-
-        # collapsed market cap). That fact was computed and then silently discarded (just a
-        # debug log) instead of being propagated to dividend_yield_reason below, which instead
-        # fell through to the generic "missing_sec_data" - the same "real value, deliberately
-        # rejected as implausible" mislabel class already fixed elsewhere in this file, just
-        # not yet wired here. `implausible_ratio` is a different, already-correctly-bucketed
-        # coverage category ("Implausible / rejected value") than "missing_sec_data" ("Missing
-        # SEC/XBRL data") - this is a real headline-relevant fix, not just a diagnostic one.
-        dividend_yield_implausible_from_cash_flow = False
-        if dividend_yield is None and market_cap is not None and market_cap > 0:
-            try:
-                with _owner().DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT dividends_paid FROM annual_cash_flow
-                        WHERE symbol = %s AND dividends_paid IS NOT NULL AND dividends_paid > 0
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
-                          AND data_unavailable IS NOT TRUE
-                        ORDER BY fiscal_year DESC
-                        """,
-                        (symbol,),
-                    )
-                    cf_div_rows = cur.fetchall()
-                    # FIXED 2026-09-05 (goal session: "implausible values" sweep, same gap class
-                    # as fcf_margin/ps_ratio/pe_ratio/pb_ratio): this used to check only the
-                    # single most recent qualifying year (LIMIT 1) - a real but tiny/artifact-
-                    # scale dividends_paid figure in that one year could reject the whole
-                    # fallback even when an ALSO-within-window older year has a genuinely
-                    # representative figure. Still bounded to the same 2-year recency window
-                    # (deliberate - a stale multi-year-old dividend shouldn't drive a current
-                    # yield), just no longer gives up after the first candidate.
-                    if cf_div_rows:
-                        dividend_yield_implausible_from_cash_flow = True
-                        for (cf_dividends_paid,) in cf_div_rows:
-                            # market_cap here can be a real but badly-scaled shares_outstanding
-                            # figure sec_valuations itself already refused to compute a ratio
-                            # against (a scale mismatch inflates the yield) - bound matches
-                            # load_sec_valuations.py's own primary dividend_yield bound.
-                            candidate = float(cf_dividends_paid) / float(market_cap)
-                            if 0 < candidate <= self.MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO:
-                                dividend_yield = candidate
-                                dividend_yield_implausible_from_cash_flow = False
-                                logger.debug(
-                                    f"[VALUE_METRICS] {symbol}: Using annual_cash_flow.dividends_paid "
-                                    f"aggregate yield: {dividend_yield:.2%}"
-                                )
-                                break
-                        else:
-                            logger.debug(
-                                f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback - "
-                                "no within-window candidate produced a plausible yield, leaving NULL"
-                            )
-            except Exception as e:
-                logger.debug(f"[VALUE_METRICS] {symbol}: annual_cash_flow dividend fallback failed: {e}")
-
-        # TIER 2 FALLBACK for net_payout_yield - same rationale as the dividend TIER 3 fallback
-        # above: aggregate (dividends + buybacks) / market_cap when sec_valuations.
-        # net_payout_yield is NULL but annual_cash_flow has raw dividends_paid/
-        # common_stock_repurchased. No curated buyback-specific table exists, so this is the
-        # only fallback tier for this field.
-        if net_payout_yield is None and market_cap is not None and market_cap > 0:
-            try:
-                with _owner().DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT dividends_paid, common_stock_repurchased FROM annual_cash_flow
-                        WHERE symbol = %s
-                          AND (COALESCE(dividends_paid, 0) > 0 OR COALESCE(common_stock_repurchased, 0) != 0)
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
-                          AND data_unavailable IS NOT TRUE
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    cf_payout_row = cur.fetchone()
-                    if cf_payout_row:
-                        cf_div, cf_buyback = cf_payout_row
-                        total_payout = (0.0 if cf_div is None else float(cf_div)) + (
-                            0.0 if cf_buyback is None else abs(float(cf_buyback))
-                        )
-                        # Bound is tighter (50%) than sec_valuations' own fresh computation
-                        # (150%, which has upstream cross-checks this fallback lacks): this
-                        # fallback's market_cap can be a broken shares_outstanding figure
-                        # sec_valuations itself already refused to compute a ratio against -
-                        # real shareholder-return companies rarely exceed 15-20%/yr anyway.
-                        if 0 < total_payout / float(market_cap) <= 0.5:
-                            net_payout_yield = total_payout / float(market_cap)
-                            logger.debug(
-                                f"[VALUE_METRICS] {symbol}: Using annual_cash_flow "
-                                f"dividends+buybacks aggregate net payout yield: {net_payout_yield:.2%}"
-                            )
-                        elif total_payout > 0:
-                            logger.debug(
-                                f"[VALUE_METRICS] {symbol}: annual_cash_flow net payout yield "
-                                f"out of bounds ({total_payout / float(market_cap):.2%}), leaving NULL"
-                            )
-            except Exception as e:
-                logger.debug(f"[VALUE_METRICS] {symbol}: annual_cash_flow net payout fallback failed: {e}")
+        # dividend_yield/net_payout_yield TIER 2/3/4 fallbacks + final dividend_yield_reason
+        # classification, extracted to _compute_dividend_and_payout_yield (2026-09-09) so the
+        # same logic is reusable from this method's own no-income-statement early-return branch
+        # above - see that method's docstring for the full history of these fallback tiers.
+        dividend_yield, net_payout_yield, dividend_yield_reason = self._compute_dividend_and_payout_yield(
+            symbol, market_cap, current_price
+        )
 
         # forward_pe = current_price / consensus forward EPS, joined from analyst_earnings_estimates
         # (load_sec_valuations.py stays SEC-only by design; SEC filings never carry forward estimates).
@@ -295,21 +418,39 @@ class ValueMetricsMixin(SymbolGateMixin):
             if market_cap is not None
             else None
         )
-        if ebitda_raw is not None and ebitda_raw <= 0:
-            ev_ebitda_reason = "unprofitable_stock"
-        elif ebitda_raw is None:
-            ev_ebitda_reason = "ebitda_not_extracted"
         # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, comprehensive RIC-gap
         # scan): a registered investment company (see _get_registered_investment_company_
         # symbols()' docstring) has no debt concept to tag at all, same structural fact already
         # recategorized for quality_metrics.total_debt/roic_pct/roce_pct/debt_to_equity - this
-        # chain reused the "total_debt_not_itemized" branch below (same root gate,
-        # _get_no_recent_debt_components_symbols()) without ever checking RIC first. Live-
-        # confirmed CEV (a real ebitda>0 but no debt concept RIC) was falling to the generic
-        # "total_debt_not_itemized" ("Missing SEC/XBRL data") instead of
-        # "registered_investment_company_no_xbrl" ("Legitimate / not applicable").
+        # chain used to reuse the "total_debt_not_itemized" branch below (same root gate,
+        # _get_no_recent_debt_components_symbols()) without ever checking RIC first, and was
+        # ALSO placed after the ebitda_raw None/<=0 checks below - a RIC's own EBITDA concept is
+        # equally absent (no GAAP income statement at all), so it was silently outranked by
+        # "ebitda_not_extracted"/"unprofitable_stock" whenever ebitda_raw happened to be None or
+        # 0 instead of ever reaching this check. Live-confirmed CEV (a real ebitda>0 but no debt
+        # concept RIC) was falling to the generic "total_debt_not_itemized" ("Missing SEC/XBRL
+        # data") instead of "registered_investment_company_no_xbrl" ("Legitimate / not
+        # applicable"). Moved to the front of this chain so it wins regardless of ebitda_raw's
+        # own state, mirroring fcf_yield_reason_str's own RIC/etf-trust/royalty-trust priority
+        # order just above in this file.
+        #
+        # FIXED same sweep, same-day follow-up: a physical commodity/currency/crypto trust
+        # (etf_trust) or royalty trust has no EBITDA concept either (no operating business to
+        # report income/expenses for) - same structural fact, added as siblings to the RIC check
+        # here since neither was ever wired into this specific chain (fcf_yield/total_debt/
+        # quality_metrics.ebitda already have all three). Live-confirmed 37 active etf_symbols
+        # tickers (GLDM/BITW/CPER/USCI-class) stuck on "missing_sec_data"/"ebitda_not_extracted"
+        # for ev_ebitda.
+        if symbol in self._ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS:
+            ev_ebitda_reason = "reit_special_entity"
         elif symbol in self._get_registered_investment_company_symbols():
             ev_ebitda_reason = "registered_investment_company_no_xbrl"
+        elif symbol in self._get_etf_trust_no_stockholders_equity_symbols():
+            ev_ebitda_reason = "etf_trust_no_gaap_financials"
+        elif ebitda_raw is not None and ebitda_raw <= 0:
+            ev_ebitda_reason = "unprofitable_stock"
+        elif ebitda_raw is None:
+            ev_ebitda_reason = "ebitda_not_extracted"
         # ebitda>0 present, enterprise_value missing or out of bounds: enterprise_value =
         # market_cap + total_debt - total_cash, so it fails whenever total_debt can't be
         # itemized - reuse the same gate quality_metrics.total_debt already uses.
@@ -429,6 +570,15 @@ class ValueMetricsMixin(SymbolGateMixin):
                 # intrinsic_value/margin_of_safety's reasons below, which derive from this value.
                 else "shares_outstanding_scale_mismatch"
                 if row_dict.get("reason") == "shares_outstanding_scale_mismatch"
+                # FIXED 2026-09-07 (goal: "1600 missing XBRL" reduction sweep):
+                # _get_structural_entity_type_exemptions() (broader SIC-code/entity_type CEF/
+                # BDC/ETF-trust gate than the RIC/etf_trust/royalty-trust checks above, which
+                # only cover their own narrower membership tests) was wired into quality_metrics
+                # but never checked here. Live-confirmed 64 of 153 active-universe fcf_yield
+                # "missing_sec_data" symbols are covered by this gate but fall through every
+                # narrower check above to the generic fallback.
+                else "entity_type_structurally_exempt_10k_filing"
+                if symbol in self._get_structural_entity_type_exemptions()
                 else "missing_sec_data"
             )
             if fcf_yield is None
@@ -482,7 +632,6 @@ class ValueMetricsMixin(SymbolGateMixin):
         # (price / negative earnings isn't a valid multiple) - distinguish that from genuinely
         # having zero analyst coverage rather than lumping both under "no_analyst_estimates".
         forward_pe_reason = "no_analyst_estimates"
-        current_price = row_dict.get("current_price")
         if current_price is not None and current_price > 0:
             with _owner().DatabaseContext("read") as cur:
                 cur.execute(
@@ -523,143 +672,6 @@ class ValueMetricsMixin(SymbolGateMixin):
         if all(m is None for m in core_metrics):
             return self._unavailable_marker("value_metrics", symbol)
 
-        # TIER 4 FALLBACK for dividend_yield 2026-08-28 (goal: "get this data" - dividend yield
-        # showing "SEC data not available" for confirmed real payers). Root cause: dividend_data.
-        # dividend_yield_pct is 0/91569 populated universe-wide (live-confirmed) - no writer for
-        # this repo has ever set it, so TIER 2 above (which filters on it being non-NULL) can
-        # never match anything, for any symbol. TIER 3's annual_cash_flow.dividends_paid is also
-        # unpopulated for many real payers (live-confirmed on SPG/RS/CNK, all real, well-known
-        # dividend stocks with 5 straight quarters of real dividend_per_share on file and zero
-        # rows written to annual_cash_flow's dividends_paid). dividend_data.dividend_per_share
-        # itself IS populated (86859 rows) and unused by any fallback tier. Sum trailing ~370
-        # days of per-share payments (covers a full year of quarterly cadence with slack for
-        # reporting lag) and divide by current_price - the standard trailing dividend yield
-        # calculation. Live-confirmed this recovers 47 of the universe's 66 remaining
-        # "missing_sec_data" dividend_yield rows, incl. SPG/RS/CNK. Same 0-100% plausibility
-        # bound as TIER 3 (share-count/market-cap scale errors aren't a risk here since this
-        # tier never divides by market_cap, but a bad per-share figure or stock split artifact
-        # could still produce nonsense).
-        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit, same gap class
-        # as TIER 3's own implausible-ratio wiring just above - added the same day that fix was
-        # made, just never mirrored here since this tier predates it by over a week): an
-        # out-of-bounds candidate here used to just log-and-discard, exactly like TIER 3 before
-        # its fix - so a real, positive dividend_per_share/current_price combination that's
-        # simply too large to be a genuine yield (a stale/pre-split per-share figure against a
-        # since-changed price, or a preferred/unit security's real payout dwarfing a common-
-        # equivalent price) fell through to the generic "missing_sec_data" instead of
-        # "implausible_ratio". Live-confirmed CVKD: real $16.50/share quarterly payments (4
-        # straight quarters within the trailing-370-day window) against a $1.22 price implies a
-        # ~2705% yield - real data, correctly rejected, mislabeled all the same.
-        dividend_yield_implausible_from_ttm_dividend_data = False
-        # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" follow-up): tracks
-        # whether this tier's own 370-day window found ANY real payment at all, regardless of
-        # magnitude - distinct from "found one but it was implausible" above. A symbol whose
-        # most recent real payment falls between 371 days and 2 years ago (has_dividend_history
-        # below confirms it, but this tier's tighter window doesn't) previously fell straight
-        # through to the generic "missing_sec_data" - real data exists, a current yield just
-        # can't be computed with confidence from a stale payment, the same "real fact, not an
-        # extraction gap" class as a confirmed non-payer. Live-confirmed NHP: 46 real dividend_
-        # data rows on file, most recent 2025-02-14 (~568 days before this fix - within the
-        # 2-year non-payer check but outside the 370-day TTM window).
-        dividend_yield_no_ttm_payment = False
-        if dividend_yield is None and current_price is not None and current_price > 0:
-            try:
-                with _owner().DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT SUM(dividend_per_share) FROM dividend_data
-                        WHERE symbol = %s AND data_unavailable = FALSE
-                          AND dividend_per_share IS NOT NULL
-                          AND ex_dividend_date > CURRENT_DATE - INTERVAL '370 days'
-                        """,
-                        (symbol,),
-                    )
-                    ttm_row = cur.fetchone()
-                    ttm_dividends = ttm_row[0] if ttm_row else None
-                    if ttm_dividends is not None and ttm_dividends > 0:
-                        candidate = float(ttm_dividends) / float(current_price)
-                        if 0 < candidate <= self.MAX_PLAUSIBLE_DIVIDEND_YIELD_RATIO:
-                            dividend_yield = candidate
-                            logger.debug(
-                                f"[VALUE_METRICS] {symbol}: Using dividend_data.dividend_per_share "
-                                f"TTM/current_price yield: {dividend_yield:.2%}"
-                            )
-                        else:
-                            dividend_yield_implausible_from_ttm_dividend_data = True
-                            logger.debug(
-                                f"[VALUE_METRICS] {symbol}: dividend_per_share TTM fallback yield "
-                                f"out of bounds ({candidate:.2%}), leaving NULL"
-                            )
-                    else:
-                        dividend_yield_no_ttm_payment = True
-            except Exception as e:
-                logger.debug(f"[VALUE_METRICS] {symbol}: dividend_per_share TTM fallback failed: {e}")
-
-        # Determine dividend yield reason: non-payer vs missing data
-        # If dividend_yield is None, check if stock is a known dividend payer
-        dividend_yield_reason = None
-        if dividend_yield is None:
-            if dividend_yield_implausible_from_cash_flow or dividend_yield_implausible_from_ttm_dividend_data:
-                dividend_yield_reason = "implausible_ratio"
-            else:
-                # Must filter data_unavailable=FALSE: load_dividend_data.py writes an explicit
-                # "confirmed no dividend" marker row for every symbol it checks, not just payers -
-                # without the filter those marker rows would look like real payment history.
-                # 2-year recency window on ex_dividend_date so a stock that discontinued its
-                # dividend years ago reads as "not a data gap, a stock characteristic" too, same
-                # as one that never paid at all.
-                with _owner().DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT 1 FROM dividend_data
-                        WHERE symbol = %s AND data_unavailable = FALSE
-                          AND ex_dividend_date > CURRENT_DATE - INTERVAL '2 years'
-                        LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    has_dividend_history = cur.fetchone() is not None
-
-                # A real payment inside the 2-year window but outside the 370-day TTM window -
-                # genuine recent data, just too stale to compute a confident current yield from,
-                # not a missing SEC concept. "Legitimate / not applicable", same as
-                # non_dividend_paying_stock just below.
-                if has_dividend_history and dividend_yield_no_ttm_payment:
-                    dividend_yield_reason = "dividend_lapsed_beyond_ttm_window"
-                # Confirmed non-payers get dividend_yield=0.0 (semantically correct), not NULL,
-                # with the reason tracked for transparency.
-                elif not has_dividend_history:
-                    dividend_yield = 0.0
-                    dividend_yield_reason = "non_dividend_paying_stock"
-                else:
-                    dividend_yield_reason = "missing_sec_data"
-
-        # TIER 3 FALLBACK for net_payout_yield: a confirmed non-dividend-payer (dividend_yield_
-        # reason == "non_dividend_paying_stock") with no recent buyback either should get 0.0,
-        # not permanently NULL - NULL silently drops the symbol out of _score_value's weighted
-        # average (the `is not None` gate there) instead of scoring it at the low end. Same
-        # 2-year recency window as TIER 2's buyback check, same `!= 0` convention (sign isn't
-        # guaranteed consistent).
-        if net_payout_yield is None and dividend_yield_reason == "non_dividend_paying_stock":
-            try:
-                with _owner().DatabaseContext("read") as cur:
-                    cur.execute(
-                        """
-                        SELECT 1 FROM annual_cash_flow
-                        WHERE symbol = %s
-                          AND COALESCE(common_stock_repurchased, 0) != 0
-                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 2
-                          AND data_unavailable IS NOT TRUE
-                        LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    has_recent_buyback = cur.fetchone() is not None
-                if not has_recent_buyback:
-                    net_payout_yield = 0.0
-            except Exception as e:
-                logger.debug(f"[VALUE_METRICS] {symbol}: net payout confirmed-non-payer fallback failed: {e}")
-
         # load_sec_valuations.py only computes pe_ratio when ttm_eps > 0 (a negative/zero-EPS
         # company has no meaningful P/E, same "not applicable" class as
         # non_dividend_paying_stock). peg_ratio requires pe_ratio, so it inherits the same
@@ -699,6 +711,56 @@ class ValueMetricsMixin(SymbolGateMixin):
                 )
                 eps_row = cur.fetchone()
             latest_eps = eps_row[0] if eps_row else None
+            # FIXED 2026-09-07 (goal session: real-money-readiness audit): sec_valuations_
+            # ratios.py's _compute_pe_ratio deliberately nulls a real, positive, plausible
+            # pe_ratio when _pe_earnings_too_volatile/_pe_earnings_tax_benefit_inflated fire
+            # (see those methods' own docstrings - live-confirmed BA/RILY and AES/RIGL/AXON),
+            # but only logs a warning, recording no reason on the row - so this cascade, which
+            # only ever sees a real positive latest_eps for these symbols, fell all the way
+            # through to the generic "missing_sec_data" catch-all instead of the correct
+            # "Implausible / rejected value" bucket (coverage_category_rules.py maps both
+            # strings there, same bucket as eps_scale_mismatch/implausible_dcf_result above).
+            # Re-derives both checks directly (same "recompute the real gate's logic here"
+            # convention as every other guard in this cascade, e.g. the implausible_ratio pe/
+            # pb/ps bound rechecks just below) since this loader is a different class than
+            # SecValuationsLoader and has no access to its instance methods. Checked BEFORE the
+            # implausible-ratio/unprofitable/never-tagged branches below: a real, in-bounds pe
+            # that was excluded for earnings-quality reasons is a more specific, more accurate
+            # cause than any of those generic fallbacks.
+            _pe_too_volatile = False
+            _pe_tax_benefit_inflated = False
+            if latest_eps is not None and latest_eps > 0:
+                with _owner().DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT net_income FROM annual_income_statement
+                        WHERE symbol = %s AND net_income IS NOT NULL AND data_unavailable IS NOT TRUE
+                        ORDER BY fiscal_year DESC LIMIT 3
+                        """,
+                        (symbol,),
+                    )
+                    _volatility_rows = cur.fetchall()
+                if len(_volatility_rows) >= 3:
+                    _negative_years = sum(1 for (ni,) in _volatility_rows if ni < 0)
+                    _pe_too_volatile = _negative_years >= 2
+                if not _pe_too_volatile:
+                    with _owner().DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT pretax_income, income_tax_expense FROM annual_income_statement
+                            WHERE symbol = %s AND pretax_income IS NOT NULL AND income_tax_expense IS NOT NULL
+                              AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        _tax_row = cur.fetchone()
+                    if _tax_row and len(_tax_row) == 2:
+                        _pretax_income, _income_tax_expense = _tax_row
+                        if _pretax_income is not None and _pretax_income > 0:
+                            _pretax_f = float(_pretax_income)
+                            _tax_f = float(_income_tax_expense)
+                            _pe_tax_benefit_inflated = _tax_f < 0 and abs(_tax_f) >= 0.30 * _pretax_f
             # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data to zero" audit): mirrors
             # load_sec_valuations.py's own pe_ratio bounds check (MIN_PLAUSIBLE_PE_RATIO..10000)
             # - a real, positive, tiny EPS (near-zero-denominator) produces a real but
@@ -726,7 +788,11 @@ class ValueMetricsMixin(SymbolGateMixin):
                     if _implied_pe > 10000 or _implied_pe < 0.05 or float(latest_eps) < 0.10:
                         _pe_implausible_from_eps = True
             pe_ratio_reason = (
-                "implausible_ratio"
+                "pe_earnings_too_volatile"
+                if _pe_too_volatile
+                else "pe_earnings_tax_benefit_inflated"
+                if _pe_tax_benefit_inflated
+                else "implausible_ratio"
                 if _pe_implausible_from_eps
                 else "unprofitable_stock"
                 if latest_eps is not None and latest_eps <= 0
@@ -775,7 +841,36 @@ class ValueMetricsMixin(SymbolGateMixin):
                     (symbol,),
                 )
                 eps_rows = cur.fetchall()
-            peg_ratio_reason = peg_ratio_reason_from_eps_history(eps_rows)
+            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): only pay for this
+            # second query on the rare symbols with explosive apparent growth - same cheap-
+            # pre-filter discipline sec_valuations_ratios.py's own _compute_peg_ratio uses
+            # before it does the identical query to detect a low-base trough year. See
+            # peg_ratio_reason_from_eps_history()'s own docstring for why this is needed at
+            # all: without it, the low-base-effect rejection this mirrors falls through to
+            # "missing_sec_data" instead of "peg_ratio_low_base_effect".
+            other_positive_eps: list[float] | None = None
+            if len(eps_rows) >= 2:
+                ttm_eps_for_growth, prior_eps_for_growth = eps_rows[0][1], eps_rows[1][1]
+                if (
+                    prior_eps_for_growth is not None
+                    and prior_eps_for_growth > 0
+                    and ttm_eps_for_growth is not None
+                    and ((ttm_eps_for_growth - prior_eps_for_growth) / abs(prior_eps_for_growth)) * 100 > 300
+                ):
+                    with _owner().DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT earnings_per_share FROM annual_income_statement
+                            WHERE symbol = %s AND earnings_per_share IS NOT NULL
+                              AND earnings_per_share > 0 AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC
+                            """,
+                            (symbol,),
+                        )
+                        other_positive_eps = [
+                            float(r[0]) for r in cur.fetchall() if float(r[0]) != prior_eps_for_growth
+                        ]
+            peg_ratio_reason = peg_ratio_reason_from_eps_history(eps_rows, other_positive_eps)
         else:
             peg_ratio_reason = pe_ratio_reason if peg is None and pe is None else None
 

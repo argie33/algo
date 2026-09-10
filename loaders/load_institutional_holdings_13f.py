@@ -912,8 +912,24 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 
                     if row and row[0] and row[0] > 0:
                         shares_os = row[0]
-                        pct = round((inst_shares / shares_os) * 100, 2)
-                        pct = min(pct, 100.0)  # Cap at 100%
+                        raw_pct = (inst_shares / shares_os) * 100
+                        pct = round(min(raw_pct, 100.0), 2)  # Cap at 100%
+                        # FLAGGED 2026-09-07 (goal: "digging into scores" audit): raw_pct
+                        # regularly exceeds 100% (aggregated 13F SSHPRNAMT summed per CUSIP
+                        # can double-count the same underlying position - voting-authority
+                        # splits, amendment refilings, or sub-adviser/parent-fund overlap in
+                        # SEC's raw INFOTABLE.tsv, a well-known industry-wide 13F data quirk,
+                        # not unique to this loader). Live-confirmed 1,674/5,137 universe
+                        # symbols (32.6%) hit this cap. Deliberately NOT attempting to
+                        # deduplicate the raw aggregation here - doing that correctly requires
+                        # parsing SEC's COVERPAGE.tsv/SUBMISSION.tsv to identify amendment
+                        # types and filer relationships, real schema work this fix doesn't
+                        # have grounds to rush; institutional_ownership_pct isn't a scored
+                        # input anywhere (Positioning was retired from stock_scores' composite,
+                        # see BASE_PILLAR_WEIGHTS), so getting the cap flagged (for anyone
+                        # investigating "why is this always exactly 100.00") outweighs the risk
+                        # of a rushed, unverified change to the aggregation math itself.
+                        pct_was_capped = raw_pct > 100.0
 
                         # Per-manager detail (see _get_known_tracked_cusips) - only available
                         # for CUSIPs already resolved to this ticker in a PRIOR run, so a
@@ -935,7 +951,11 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                                 "number_of_institutional_holders": holder_count,
                                 "top_10_institutions_pct": top_10_pct,
                                 "data_unavailable": False,
-                                "reason": None,
+                                "reason": (
+                                    "institutional_ownership_pct_capped_raw_ratio_exceeded_100pct"
+                                    if pct_was_capped
+                                    else None
+                                ),
                                 "sec_filing_url": None,
                                 "most_recent_filing_date": filing_date,
                                 "data_source": "sec_form13f_bulk",

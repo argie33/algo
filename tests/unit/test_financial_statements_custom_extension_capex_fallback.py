@@ -39,12 +39,12 @@ class TestCustomExtensionCapexFallback:
                 ConsolidatedFinancialStatementsLoader.__mro__[1],
                 "fetch_incremental",
                 return_value=[
-                    {"symbol": "DHT", "fiscal_year": 2025, "operating_cash_flow": 500_000_000},
-                    {"symbol": "DHT", "fiscal_year": 2024, "operating_cash_flow": 300_000_000},
+                    {"symbol": "DHT", "fiscal_year": 2025, "fiscal_period": "FY", "operating_cash_flow": 500_000_000},
+                    {"symbol": "DHT", "fiscal_year": 2024, "fiscal_period": "FY", "operating_cash_flow": 300_000_000},
                 ],
             ),
             patch(
-                "loaders.load_financial_statements.fetch_custom_capex",
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_capex",
                 return_value={2025: 309_636_000.0, 2024: 96_883_000.0},
             ) as mock_fetch,
         ):
@@ -63,7 +63,7 @@ class TestCustomExtensionCapexFallback:
                 "fetch_incremental",
                 return_value=[{"symbol": "AAPL", "fiscal_year": 2025, "operating_cash_flow": 1}],
             ),
-            patch("loaders.load_financial_statements.fetch_custom_capex") as mock_fetch,
+            patch("loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_capex") as mock_fetch,
         ):
             loader.fetch_incremental("AAPL", since=None)
 
@@ -80,7 +80,7 @@ class TestCustomExtensionCapexFallback:
                 "fetch_incremental",
                 return_value=[{"symbol": "DHT", "fiscal_year": 2025, "revenue": 1}],
             ),
-            patch("loaders.load_financial_statements.fetch_custom_capex") as mock_fetch,
+            patch("loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_capex") as mock_fetch,
         ):
             loader.fetch_incremental("DHT", since=None)
 
@@ -95,7 +95,7 @@ class TestCustomExtensionCapexFallback:
                 return_value=[{"symbol": "DHT", "fiscal_year": 2020, "operating_cash_flow": 1}],
             ),
             patch(
-                "loaders.load_financial_statements.fetch_custom_capex",
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_capex",
                 return_value={2025: 309_636_000.0},  # No entry for 2020
             ),
         ):

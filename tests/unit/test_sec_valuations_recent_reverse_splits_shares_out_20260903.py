@@ -45,6 +45,13 @@ class _RecordingCursor:
         return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -73,6 +80,7 @@ _PPCB_SHAPED_INCOME_ROWS = [
 class TestRecentReverseSplitsSharesOut:
     def test_ppcb_shares_out_divided_by_reverse_split_ratio(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),  # cash_and_equivalents
             (500_000.0, None, None, None),  # debt_row
             None,  # has_dual_class_sibling check - no matching row
@@ -100,6 +108,7 @@ class TestRecentReverseSplitsSharesOut:
         """The override must only apply to registered symbols - a similarly-shaped domestic
         filer with the same real share count must be untouched."""
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (1_000_000.0,),
             (500_000.0, None, None, None),
             None,

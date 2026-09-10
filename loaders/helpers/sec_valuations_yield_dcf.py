@@ -268,7 +268,38 @@ class SecValuationYieldDcfMixin:
             if 0 < ev_revenue <= 10000 and _ev_revenue_per_share_ok:
                 result["ev_revenue"] = round(ev_revenue, 2)
             else:
-                logger.debug(f"[{symbol}] EV/Revenue out of bounds ({ev_revenue:.0f}), marking as NULL")
+                # FIXED 2026-09-07 (goal: "1600 missing XBRL" reduction sweep, data-accuracy
+                # finding): sec_valuations_ratios.py's _compute_ps_ratio already falls back to
+                # an older fiscal year's revenue when the anchor year's revenue-per-share fails
+                # this exact $0.10 floor (both divide by the identical ttm_revenue/shares_out
+                # pair) - this method never mirrored that fallback, so a real, computable
+                # EV/Revenue was silently dropped to None on rows where ps_ratio recovers fine.
+                # Live-confirmed ABUS: anchor FY2025 revenue $14.08M/191.6M shares=$0.0735/share
+                # fails the floor here, while ps_ratio=25.29 is real and comes from FY2022's
+                # $39.02M/191.6M=$0.2037/share (the exact fallback this mirrors) - EV/Revenue
+                # was left None instead of the equally-computable ~68.8 from that same year.
+                if entity_shares_out is not None and entity_shares_out > 0:
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT revenue FROM annual_income_statement
+                            WHERE symbol = %s AND revenue IS NOT NULL AND revenue > 0
+                              AND data_unavailable IS NOT TRUE
+                            ORDER BY fiscal_year DESC
+                            """,
+                            (symbol,),
+                        )
+                        older_revenue_rows = cur.fetchall()
+                    for (older_revenue,) in older_revenue_rows:
+                        older_rps = float(older_revenue) / entity_shares_out
+                        if older_rps < 0.10:
+                            continue
+                        candidate_ev_revenue = result["enterprise_value"] / float(older_revenue)
+                        if 0 < candidate_ev_revenue <= 10000:
+                            result["ev_revenue"] = round(candidate_ev_revenue, 2)
+                            break
+                if result["ev_revenue"] is None:
+                    logger.debug(f"[{symbol}] EV/Revenue out of bounds ({ev_revenue:.0f}), marking as NULL")
 
         # Intrinsic Value / Margin of Safety: 2-stage FCFE DCF (migration 1208, Value factor
         # goal 2026-08-17). Reuses the same FCF base (OCF - CapEx - SBC, see the 2026-08-25
@@ -446,10 +477,41 @@ class SecValuationYieldDcfMixin:
                         (symbol,),
                     )
                     sic_row = cur.fetchone()
+                    # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
+                    # follow-up): a physical commodity/currency/crypto trust
+                    # (vqg_symbol_gates._get_etf_trust_no_stockholders_equity_symbols - GLD/
+                    # GLDM/IAU/BITW/CPER/USCI/etc.) structurally never tags a CapitalExpenditures
+                    # concept either (it holds bullion/currency/crypto/futures, not PP&E), the
+                    # exact same "no such GAAP concept exists" fact as REIT/insurance just above -
+                    # but this DCF reason chain never checked for it, so CPER/USCI fell to the
+                    # generic "missing_cash_flow_data" instead of "etf_trust_no_gaap_financials".
+                    # SecValuationsLoader doesn't mix in vqg_symbol_gates.SymbolGateMixin, so
+                    # queried directly here (same reasoning as the REIT/insurance SIC lookup just
+                    # above) rather than reusing that mixin's cached helper.
+                    is_etf_trust = False
+                    if sic_row is None or sic_row[0] not in (6798, 6311, 6321, 6331, 6351, 6361, 6399):
+                        cur.execute(
+                            """
+                            SELECT 1 FROM etf_symbols e
+                            WHERE e.symbol = %s
+                              AND EXISTS (
+                                SELECT 1 FROM annual_balance_sheet b
+                                WHERE b.symbol = e.symbol AND b.data_unavailable = FALSE
+                              )
+                              AND NOT EXISTS (
+                                SELECT 1 FROM annual_balance_sheet b
+                                WHERE b.symbol = e.symbol AND b.stockholders_equity IS NOT NULL
+                              )
+                            """,
+                            (symbol,),
+                        )
+                        is_etf_trust = cur.fetchone() is not None
                 sic_code = sic_row[0] if sic_row else None
                 result["dcf_fcf_unavailable_reason"] = (
                     "reit_special_entity"
                     if sic_code in (6798, 6311, 6321, 6331, 6351, 6361, 6399)
+                    else "etf_trust_no_gaap_financials"
+                    if is_etf_trust
                     else "missing_cash_flow_data"
                 )
             elif dcf_fcf_base <= 0:

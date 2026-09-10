@@ -53,6 +53,10 @@ def _prices_batch(symbols: list[str], target_date: date) -> dict[str, float]:
     return dict.fromkeys(symbols, price)
 
 
+def _prices_batch_with_range(symbols: list[str], target_date: date) -> dict[str, tuple[float, float, float]]:
+    return {symbol: (price, price, price) for symbol, price in _prices_batch(symbols, target_date).items()}
+
+
 class TestRunBacktestSlippage:
     def test_default_slippage_haircuts_entry_and_exit(self) -> None:
         """Default DEFAULT_SLIPPAGE_BPS (5 bps/side): buy fills above the raw signal price,
@@ -63,6 +67,7 @@ class TestRunBacktestSlippage:
             patch("algo.backtest.run_backtest._get_daily_buy_signals", side_effect=_buy_signals),
             patch("algo.backtest.run_backtest._get_daily_sell_signals", side_effect=_sell_signals),
             patch("algo.backtest.run_backtest._get_prices_batch", side_effect=_prices_batch),
+            patch("algo.backtest.run_backtest._get_prices_batch_with_range", side_effect=_prices_batch_with_range),
         ):
             results = run_backtest(
                 start_date=DAY1_SIGNAL,
@@ -91,6 +96,7 @@ class TestRunBacktestSlippage:
             patch("algo.backtest.run_backtest._get_daily_buy_signals", side_effect=_buy_signals),
             patch("algo.backtest.run_backtest._get_daily_sell_signals", side_effect=_sell_signals),
             patch("algo.backtest.run_backtest._get_prices_batch", side_effect=_prices_batch),
+            patch("algo.backtest.run_backtest._get_prices_batch_with_range", side_effect=_prices_batch_with_range),
         ):
             results = run_backtest(
                 start_date=DAY1_SIGNAL,

@@ -85,6 +85,13 @@ class _FakeCursor:
         return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -101,6 +108,7 @@ class TestTotalDebtNotTotalLiabilities:
         # price, balance_row (stockholders_equity). [cash_rows is a fetchall(), not a fetchone() -
         # see _FakeCursor].
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (
                 20_000_000.0,  # long_term_debt - real debt
@@ -145,6 +153,7 @@ class TestTotalDebtNotTotalLiabilities:
         loader = _make_loader()
 
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (
                 20_000_000.0,  # long_term_debt
@@ -183,6 +192,7 @@ class TestTotalDebtNotTotalLiabilities:
         loader = _make_loader()
 
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (None, None, None, None),  # debt_row: nothing reported
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row
@@ -219,6 +229,7 @@ class TestTotalDebtNotTotalLiabilities:
         loader = _make_loader()
 
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (30_000_000.0,),  # cash_and_equivalents
             (None, 0.0, None, None),  # debt_row: only short_term_debt reported, and it's 0
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row

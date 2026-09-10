@@ -44,31 +44,32 @@ def _patch_circuit_breaker():
 class TestFetchLiveFpiYfinanceCheckValues:
     def test_returns_market_cap_and_pe_from_worker(self):
         loader = _make_loader()
-        worker = _mock_worker({"marketCap": 5_000_000_000.0, "trailingPE": 22.5})
+        worker = _mock_worker({"marketCap": 5_000_000_000.0, "trailingPE": 22.5, "sharesOutstanding": 222_222_222.0})
         with patch(_WORKER_PATCH_TARGET, return_value=worker):
-            mcap, pe = loader._fetch_live_fpi_yfinance_check_values("SAP")
+            mcap, pe, shares_out = loader._fetch_live_fpi_yfinance_check_values("SAP")
 
         assert mcap == 5_000_000_000.0
         assert pe == 22.5
+        assert shares_out == 222_222_222.0
         worker.fetch.assert_called_once_with("SAP", "info", timeout_seconds=10.0)
 
     def test_worker_timeout_fails_open_to_none_none(self):
         """A hung/timed-out worker must not block or crash this sanity-check path - it
-        fails open (None, None), same as any other fetch error."""
+        fails open (None, None, None), same as any other fetch error."""
         loader = _make_loader()
         worker = MagicMock()
         worker.fetch.side_effect = TimeoutError("worker terminated")
         with patch(_WORKER_PATCH_TARGET, return_value=worker):
-            mcap, pe = loader._fetch_live_fpi_yfinance_check_values("SAP")
+            mcap, pe, shares_out = loader._fetch_live_fpi_yfinance_check_values("SAP")
 
-        assert (mcap, pe) == (None, None)
+        assert (mcap, pe, shares_out) == (None, None, None)
 
     def test_non_dict_info_fails_open(self):
         loader = _make_loader()
         with patch(_WORKER_PATCH_TARGET, return_value=_mock_worker(None)):
-            mcap, pe = loader._fetch_live_fpi_yfinance_check_values("SAP")
+            mcap, pe, shares_out = loader._fetch_live_fpi_yfinance_check_values("SAP")
 
-        assert (mcap, pe) == (None, None)
+        assert (mcap, pe, shares_out) == (None, None, None)
 
 
 class TestFetchLiveDualClassSharesOutstanding:

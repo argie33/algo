@@ -13,8 +13,8 @@ from algo.exceptions import ValidationError
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_result import PhaseResult
 from algo.orchestrator.type_converters import ensure_float, ensure_int
-from algo.reporting import AlertManager
-from algo.trading.exceptions import DatabaseError
+from algo.reporting import AlertManager, notify
+from algo.trading.exceptions import DatabaseError, NotificationError
 from utils.db.advisory_locks import (
     ALGO_POSITIONS_LOCK_ID,
     acquire_advisory_lock,
@@ -232,10 +232,29 @@ def run(
         try:
             with DatabaseContext("write") as cur:
                 time_threshold = "0 minutes" if execution_mode_check != "auto" else "5 minutes"
+                # CRITICAL FIX (real-money-readiness audit, found 2026-09-06): this DELETE
+                # used to match ANY orphaned trade (position_id IS NULL) regardless of
+                # alpaca_order_id. executor_entry_handler.py persists alpaca_order_id on the
+                # algo_trades row at INSERT time (before the position row is created) - so a
+                # row with position_id IS NULL but alpaca_order_id IS NOT NULL means a REAL
+                # broker order was actually submitted/filled and the crash happened between
+                # that fill and the position-row insert, not before order submission at all.
+                # Deleting that row permanently erased the only DB trace of a real, live,
+                # broker-side position (including the alpaca_order_id needed to find and
+                # manage it) after just 5 minutes in auto mode - the position would then sit
+                # unmanaged (no algo-side stop-loss/exit coverage) with no record pointing to
+                # it, discoverable only via AlpacaSyncManager's untracked-position alert on
+                # its NEXT run (not immediate). Scope automatic deletion to the genuinely
+                # harmless case (no real order was ever placed - paper mode, or a crash
+                # before submission); a row that DID get a real broker order is alerted for
+                # manual review instead of silently destroyed, mirroring
+                # alpaca_sync_manager.py's own "alert, don't auto-close" pattern for the
+                # broker-position-missing-from-DB direction of this same class of gap.
                 cur.execute(
                     f"""
                     DELETE FROM algo_trades
                     WHERE position_id IS NULL
+                    AND alpaca_order_id IS NULL
                     AND status IN ('filled', 'partially_filled', 'paper_pending', 'open')
                     AND updated_at < now() - interval '{time_threshold}'
                     """
@@ -243,9 +262,48 @@ def run(
                 orphaned_count = cur.rowcount
                 if orphaned_count > 0:
                     logger.warning(
-                        f"[PHASE 6] Cleaned up {orphaned_count} orphaned trade(s) in 'filled' status with NULL position_id. "
-                        f"These likely resulted from race condition during order entry. Check logs for Phase 8 errors."
+                        f"[PHASE 6] Cleaned up {orphaned_count} orphaned trade(s) in 'filled' status with NULL position_id "
+                        f"and no broker order attached. These likely resulted from a race condition during order entry "
+                        f"before any Alpaca order was submitted. Check logs for Phase 8 errors."
                     )
+
+                cur.execute(
+                    f"""
+                    SELECT trade_id, symbol, alpaca_order_id, updated_at FROM algo_trades
+                    WHERE position_id IS NULL
+                    AND alpaca_order_id IS NOT NULL
+                    AND status IN ('filled', 'partially_filled', 'paper_pending', 'open')
+                    AND updated_at < now() - interval '{time_threshold}'
+                    """
+                )
+                orphaned_with_broker_order = list(cur.fetchall())
+                if len(orphaned_with_broker_order) > 0:
+                    details = ", ".join(
+                        f"{row[1]} (trade {row[0]}, order {row[2]})" for row in orphaned_with_broker_order
+                    )
+                    logger.critical(
+                        f"[PHASE 6 CRITICAL] {len(orphaned_with_broker_order)} orphaned trade(s) have a REAL Alpaca "
+                        f"order attached but no position row - NOT deleting (would erase the only trace of a real "
+                        f"broker-side fill). Manual reconciliation required: {details}"
+                    )
+                    try:
+                        notify(
+                            "critical",
+                            title="Orphaned trade(s) with real broker order - manual reconciliation required",
+                            message=(
+                                f"{len(orphaned_with_broker_order)} algo_trades row(s) have position_id NULL but a "
+                                f"real alpaca_order_id set - a broker order was likely submitted/filled but the "
+                                f"position row was never created (crash between fill and position insert). These "
+                                f"positions may have no algo-managed stop-loss. Not auto-deleted. Review: {details}"
+                            ),
+                            strict=True,
+                        )
+                    except NotificationError as notify_err:
+                        raise RuntimeError(
+                            f"CRITICAL: Failed to alert on orphaned trade(s) with real broker orders: {notify_err}. "
+                            f"Operator was NOT notified of {len(orphaned_with_broker_order)} potentially unmanaged "
+                            f"positions."
+                        ) from notify_err
         except Exception as e:
             # CRITICAL FIX: If orphaned trade cleanup fails (permissions, connection, etc.),
             # Phase 6 must halt rather than continue. Orphaned trades will cause subsequent Phase 6 runs to fail.
@@ -904,10 +962,18 @@ def run(
         # DRY-RUN: Process counts of what WOULD happen, then skip actual execution
         # (Don't return early - we still need to count exits for logging/dashboard visibility)
 
-        # Initialize TradeExecutor only in non-dry-run mode
-        # CRITICAL FIX: Preserve passed-in executor parameter for accessing Phase 5 constraints
-        # even in dry-run mode. Concentration check MUST use tier limits (from Phase 5),
-        # not fall back to config individual position limits (6%).
+        # CLARIFIED (real-money-readiness audit, 2026-09-08): `exposure_constraints` above is
+        # unused here - not a live gap. Phase 5's max_concentration_pct tier limit is already
+        # enforced by the time this runs (policy.review_existing_positions() turns it into
+        # tighten_stop/partial_exit/force_exit actions BEFORE Phase 6, executed here via the
+        # `exposure_actions` param below), and the two local checks just below use different,
+        # deliberately-separate metrics (position count/sector, %-of-portfolio/position) - see
+        # _check_position_size_concentration's own comment for why substituting
+        # max_concentration_pct into them was already tried and reverted as a bug.
+        #
+        # Initialize TradeExecutor only in non-dry-run mode. Preserve passed-in executor param
+        # even in dry-run mode so downstream code reading Phase 5 data off the executor object
+        # still works.
         trade_executor = None
         if not dry_run:
             # ISSUE #4 FIX: Check if paper mode is active before initializing TradeExecutor
@@ -1127,6 +1193,61 @@ def run(
                             with DatabaseContext("write") as cur:
                                 acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                                 try:
+                                    # BROKER SYNC (real-money-readiness audit, found 2026-09-06,
+                                    # same bug class as the sibling RAISE_STOP path below): this
+                                    # write used to only ever update our own DB's belief about the
+                                    # stop. The bracket order's stop-loss leg placed once at entry
+                                    # kept resting at the broker at its ORIGINAL, wider price
+                                    # forever - nothing pushed an exposure-driven tighten back to
+                                    # Alpaca, so a fast adverse move between orchestrator runs could
+                                    # blow through the stop we thought we'd tightened with nothing
+                                    # live at the exchange to catch it. Fail closed exactly like
+                                    # RAISE_STOP: don't record the tighten if we can't confirm the
+                                    # broker matches.
+                                    cur.execute(
+                                        "SELECT alpaca_order_id FROM algo_trades WHERE trade_id = %s",
+                                        (action.get("trade_id"),),
+                                    )
+                                    order_id_row = cur.fetchone()
+                                    alpaca_order_id = order_id_row[0] if order_id_row else None
+                                    if trade_executor is None:
+                                        raise RuntimeError(
+                                            "[PHASE 6] trade_executor unavailable - cannot sync tightened stop to broker"
+                                        )
+                                    # REAL-MONEY-READINESS FIX (2026-09-10 order-execution re-audit):
+                                    # action["new_stop"] was computed by exposure_policy.py earlier in the
+                                    # Phase 5->6 pipeline from a snapshot of current_stop_price that can go
+                                    # stale by the time this write executes - the sibling GREATEST() guard
+                                    # below already protects the DB column from ever moving down, but this
+                                    # broker sync call ran BEFORE that guard, using the raw (possibly stale/
+                                    # lower) action["new_stop"] value. Under a race with another path (e.g.
+                                    # ExitEngine's own breakeven/chandelier raise) already having committed
+                                    # a HIGHER current_stop_price for this same position earlier in the same
+                                    # run, this could push a stop to the broker that is LOWER than what's
+                                    # already resting there - independent of the DB's own monotonic
+                                    # guarantee. Re-read current_stop_price under the advisory lock we
+                                    # already hold (so nothing else can write it between this SELECT and our
+                                    # own UPDATE below) and resolve the value to sync as the max of the two,
+                                    # matching what the DB write will actually end up recording.
+                                    cur.execute(
+                                        "SELECT current_stop_price FROM algo_positions WHERE id = %s",
+                                        (action["position_id"],),
+                                    )
+                                    current_row = cur.fetchone()
+                                    db_current_stop = (
+                                        float(current_row[0]) if current_row and current_row[0] is not None else None
+                                    )
+                                    resolved_stop = (
+                                        max(db_current_stop, action["new_stop"])
+                                        if db_current_stop is not None
+                                        else action["new_stop"]
+                                    )
+                                    sync_result = trade_executor.order_manager.sync_bracket_stop_loss(
+                                        alpaca_order_id, resolved_stop
+                                    )
+                                    if not sync_result.get("success"):
+                                        raise RuntimeError(f"broker sync failed - {sync_result.get('message')}")
+
                                     # CRITICAL FIX: Update current_stop_price (live trailing stop), not stop_loss_price (entry-time stop)
                                     # Phase 3 computes new trailing stops using current_stop_price and recommends updates to that column
                                     # Phase 6 was updating stop_loss_price (wrong column), so trailing stops never increased
@@ -1144,7 +1265,7 @@ def run(
                                     # semantics, only the value written when matched).
                                     cur.execute(
                                         "UPDATE algo_positions SET current_stop_price = GREATEST(current_stop_price, %s) WHERE id = %s",
-                                        (action["new_stop"], action["position_id"]),
+                                        (resolved_stop, action["position_id"]),
                                     )
                                     # rowcount guards against silently counting a no-op as a success -
                                     # e.g. the position closed (a race with a concurrent exit) between
@@ -1355,8 +1476,28 @@ def run(
                                         raise RuntimeError(
                                             "[PHASE 6] trade_executor unavailable - cannot sync stop-loss to broker"
                                         )
+                                    # REAL-MONEY-READINESS FIX (2026-09-10 order-execution re-audit): same
+                                    # bug class and fix as the sibling tighten_stop broker sync above -
+                                    # rec["new_stop_recommended"] can be stale relative to a HIGHER
+                                    # current_stop_price another path already committed for this position
+                                    # earlier in the same run. Re-read under the advisory lock we already
+                                    # hold and sync the resolved (max) value, matching what the DB write
+                                    # below will actually end up recording.
+                                    cur.execute(
+                                        "SELECT current_stop_price FROM algo_positions WHERE id = %s",
+                                        (rec["position_id"],),
+                                    )
+                                    current_row = cur.fetchone()
+                                    db_current_stop = (
+                                        float(current_row[0]) if current_row and current_row[0] is not None else None
+                                    )
+                                    resolved_stop = (
+                                        max(db_current_stop, rec["new_stop_recommended"])
+                                        if db_current_stop is not None
+                                        else rec["new_stop_recommended"]
+                                    )
                                     sync_result = trade_executor.order_manager.sync_bracket_stop_loss(
-                                        alpaca_order_id, rec["new_stop_recommended"]
+                                        alpaca_order_id, resolved_stop
                                     )
                                     if not sync_result.get("success"):
                                         raise RuntimeError(f"broker sync failed - {sync_result.get('message')}")
@@ -1371,7 +1512,7 @@ def run(
                                         "UPDATE algo_positions SET current_stop_price = GREATEST(current_stop_price, %s) "
                                         "WHERE id = %s AND status = %s",
                                         (
-                                            rec["new_stop_recommended"],
+                                            resolved_stop,
                                             rec["position_id"],
                                             PositionStatus.OPEN.value,
                                         ),

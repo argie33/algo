@@ -47,3 +47,46 @@ def clear_stale_shares_outstanding_reason() -> None:
                 f"[company_info_sec] post_run: cleared stale shares_outstanding_unavailable_reason "
                 f"on {cur.rowcount} row(s) with a real shares_outstanding value already on file"
             )
+
+
+def reclassify_stale_registered_investment_company_reason() -> None:
+    """Relabel a stale generic "no_annual_report_filing" reason to the specific
+    "registered_investment_company_no_annual_report" one for rows that already carry the
+    CEF/RIC signature (entity_type in ('other','investment'), sic_code NULL) on their OWN
+    row - a companion self-heal to clear_stale_shares_outstanding_reason() above, for the
+    "reason needs relabeling" case rather than the "reason needs clearing" case.
+
+    FOUND 2026-09-09/10 (goal: "SEC/XBRL missing data under 500" sweep): the 2026-09-06 fix
+    to fetch_incremental() (this loader's own `shares_outstanding_unavailable_reason =
+    "registered_investment_company_no_annual_report" if entity_type in (...) and sic_code is
+    None else "no_annual_report_filing"` branch) can only ever fire for a symbol this run's
+    `symbols` list actually contains - and this loader's `exclude_etfs_from_symbols = True`
+    (inherited from SecLoaderBase) means `runner.py` builds that list via
+    `get_active_symbols(exclude_etfs=True)`, which excludes exactly this same
+    entity_type/sic_code signature (see utils/loaders/helpers.py's own 2026-08-20 comment on
+    that filter). A symbol correctly classified as a CEF by any earlier run becomes
+    permanently invisible to every later run of THIS loader - the very row the 2026-09-06
+    fix was written to correct can never reach `fetch_incremental()` again to have that fix
+    applied. Live-confirmed 88 rows DB-wide (BCAT/GAB/GGN/PIM/VKQ/HQH/GDV/HQH/IIM/BGY/VCV/
+    VMO/VVR and dozens of siblings) stuck at the pre-fix generic reason, last touched
+    2026-08-26 (10+ days before the relabeling fix even landed). Pure column-to-column
+    relabeling using data already on the row (no live SEC call, no risk of overwriting a
+    real classification) - same "the row's own current data is the correct source of truth"
+    principle as clear_stale_shares_outstanding_reason() above.
+    """
+    with DatabaseContext("write") as cur:
+        cur.execute(
+            """
+            UPDATE company_info_sec
+            SET shares_outstanding_unavailable_reason = 'registered_investment_company_no_annual_report'
+            WHERE shares_outstanding_unavailable_reason = 'no_annual_report_filing'
+              AND entity_type IN ('other', 'investment')
+              AND sic_code IS NULL
+            """
+        )
+        if cur.rowcount:
+            logger.info(
+                f"[company_info_sec] post_run: reclassified {cur.rowcount} row(s) from the generic "
+                f"'no_annual_report_filing' to 'registered_investment_company_no_annual_report' "
+                f"based on their own entity_type/sic_code CEF signature"
+            )

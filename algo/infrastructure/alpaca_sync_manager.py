@@ -9,6 +9,7 @@ import json
 import logging
 import math
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -20,6 +21,48 @@ from algo.trading.executor_strategies import create_execution_mode_strategy
 from utils.db.advisory_locks import ALGO_POSITIONS_LOCK_ID, acquire_advisory_lock, release_advisory_lock
 
 logger = logging.getLogger(__name__)
+
+# A position missing at Alpaca for more than this long has had many reconciliation cycles
+# (the orchestrator runs multiple passes/day) to resolve a genuine fill-pending/API-lag
+# condition on its own - continued absence past this window is a real, persistent divergence,
+# not transient sync noise. See _find_stale_missing_symbols's docstring.
+STALE_MISSING_ESCALATION_HOURS = 24
+
+# An open (resting/unfilled) Alpaca order with no matching algo_trades row younger than this
+# is treated as a genuine crash-orphan, not an in-flight transaction still mid-commit - see
+# find_orphaned_open_orders's docstring.
+ORPHANED_ORDER_GRACE_MINUTES = 10
+
+
+def _find_stale_missing_symbols(missing_rows: list[tuple[str, Any]]) -> list[str]:
+    """Of the symbols found "in DB but not at Alpaca" this cycle, return the ones that have
+    been missing for more than STALE_MISSING_ESCALATION_HOURS - see the FIXED 2026-09-07
+    comment at this function's call site in _sync_alpaca_positions_impl for the full
+    rationale. Split out of that function (same C901-complexity-budget reason as
+    _cancel_stale_orders_for_missing_positions below) rather than inlined.
+
+    algo_positions.updated_at is the only signal ever written for an open position by the
+    matched-position branch of _sync_alpaca_positions_impl - a row still missing this cycle
+    keeps whatever updated_at it had from its last successful match, so its staleness is a
+    direct, real measurement of how long the divergence has actually persisted.
+    """
+    stale_missing = []
+    for symbol, updated_at in missing_rows:
+        if updated_at is None:
+            continue
+        # algo_positions.updated_at is written via SQL CURRENT_TIMESTAMP - a naive value here
+        # is in the DB session's local wall-clock timezone, not UTC (same documented
+        # convention as position_order_management.py's stale-order age check; see
+        # get_db_timezone()'s docstring). Mislabeling it as UTC would silently shift the
+        # staleness window by the DB session's UTC offset.
+        if updated_at.tzinfo is None:
+            from utils.db.timezone_utils import get_db_timezone
+
+            updated_at = updated_at.replace(tzinfo=get_db_timezone())
+        age_hours = (datetime.now(timezone.utc) - updated_at).total_seconds() / 3600
+        if age_hours > STALE_MISSING_ESCALATION_HOURS:
+            stale_missing.append(symbol)
+    return stale_missing
 
 
 def _is_non_finite_qty(symbol: str, raw_qty: Any, qty_float: float) -> bool:
@@ -180,6 +223,100 @@ class AlpacaSyncManager:
             logger.error(f"Failed to fetch Alpaca account: {e}")
             raise
 
+    def find_orphaned_open_orders(self, cur: Any) -> list[dict[str, Any]]:
+        """Find open (resting, unfilled) Alpaca orders with no matching algo_trades row.
+
+        REAL-MONEY-READINESS FINDING (2026-09-10, order-execution re-audit): the crash-
+        recovery story for order submission has a gap this method closes. executor.py's
+        _with_cursor wraps the broker POST /v2/orders call and the algo_trades INSERT in a
+        single DB transaction (see executor.py's _execute_entry_txn/_with_cursor) - if the
+        process dies after Alpaca accepts the order but before that transaction commits, the
+        INSERT rolls back entirely. sync_alpaca_positions (above) only catches this once the
+        order FILLS into a real position (orphan_symbols cross-check against algo_positions).
+        An order that is still resting/unfilled (status new/accepted/partially_filled) at the
+        moment of the crash is invisible to both algo_trades (rolled back) and
+        sync_alpaca_positions (no position exists yet) - it would sit unrecorded until it
+        either fills (becoming an algo_untracked_positions row, once discovered) or expires,
+        with nothing in between ever surfacing it.
+
+        client_order_id doubles as the idempotency_key we insert into algo_trades (see
+        executor.py's send_bracket_order call site: "use idempotency_key ... NOT trade_id" -
+        same 64-char SHA256 hexdigest on both sides), so a straightforward existence check is
+        enough to detect the gap - no separate order-tracking table needed.
+
+        Excludes orders submitted within ORPHANED_ORDER_GRACE_MINUTES of "now" - a genuinely
+        in-flight transaction (broker accepted, DB commit not yet reached) is not evidence of
+        a crash, and this reconciliation pass runs far more often than any single entry
+        transaction should ever take to complete.
+
+        FIXED 2026-09-10 (check_silent_fallbacks pre-commit hook): raises instead of silently
+        returning [] when credentials are missing - a caller reaching this method without
+        Alpaca credentials configured is a real misuse (the sole real caller,
+        phase9_reconciliation.py's _reconcile_open_orders_step, already checks
+        sync_mgr.alpaca_key/alpaca_secret itself and skips with an explicit log BEFORE ever
+        calling this method), and a silent [] here would be indistinguishable from "checked
+        and found no orphans" - the exact silent-fallback shape GOVERNANCE.md flags, same
+        fail-loud discipline as the timeout/fetch-failure branches below.
+        """
+        if not self._alpaca_key or not self._alpaca_secret:
+            raise RuntimeError(
+                "[ORDER_RECONCILE] find_orphaned_open_orders called with no Alpaca credentials "
+                "configured - callers must check alpaca_key/alpaca_secret before calling."
+            )
+
+        try:
+            url = f"{self._alpaca_base_url}/v2/orders"
+            headers = {
+                "APCA-API-KEY-ID": self._alpaca_key,
+                "APCA-API-SECRET-KEY": self._alpaca_secret,
+                "Accept": "application/json",
+            }
+            timeout = self.config.get("api_request_timeout_seconds")
+            if timeout is None:
+                raise ValueError(
+                    "CRITICAL: api_request_timeout_seconds config missing. "
+                    "API requests require explicit timeout configuration. "
+                    "Check config and ensure api_request_timeout_seconds is set."
+                )
+            response = self._session.get(
+                url, headers=headers, params={"status": "open", "limit": "500"}, timeout=timeout
+            )
+            response.raise_for_status()
+            open_orders = response.json()
+        except (requests.RequestException, ValueError, json.JSONDecodeError) as e:
+            logger.error(f"[ORDER_RECONCILE] Failed to fetch open Alpaca orders: {e}")
+            raise RuntimeError(f"[ORDER_RECONCILE] Cannot fetch open orders from Alpaca: {e}") from e
+
+        if not open_orders:
+            return []
+
+        client_order_ids = [o.get("client_order_id") for o in open_orders if o.get("client_order_id")]
+        if not client_order_ids:
+            return []
+
+        cur.execute(
+            "SELECT idempotency_key FROM algo_trades WHERE idempotency_key = ANY(%s)",
+            (client_order_ids,),
+        )
+        known_ids = {row[0] for row in cur.fetchall()}
+
+        grace_cutoff = datetime.now(timezone.utc).timestamp() - (ORPHANED_ORDER_GRACE_MINUTES * 60)
+        orphans = []
+        for order in open_orders:
+            client_order_id = order.get("client_order_id")
+            if not client_order_id or client_order_id in known_ids:
+                continue
+            submitted_at = order.get("submitted_at") or order.get("created_at")
+            if submitted_at:
+                try:
+                    submitted_ts = datetime.fromisoformat(str(submitted_at).replace("Z", "+00:00")).timestamp()
+                    if submitted_ts > grace_cutoff:
+                        continue
+                except ValueError:
+                    pass  # Unparseable timestamp - don't let it hide a genuine orphan; treat as orphaned.
+            orphans.append(order)
+        return orphans
+
     def _sync_untracked_positions(
         self, cur: Any, orphan_symbols: list[str], alpaca_positions: list[dict[str, Any]]
     ) -> tuple[int, int]:
@@ -223,10 +360,11 @@ class AlpacaSyncManager:
 
                 try:
                     cur.execute(
-                        "SELECT id FROM algo_untracked_positions WHERE symbol = %s LIMIT 1",
+                        "SELECT id, protective_stop_order_id FROM algo_untracked_positions WHERE symbol = %s LIMIT 1",
                         (symbol,),
                     )
                     existing = cur.fetchone()
+                    existing_stop_order_id = existing[1] if existing and len(existing) > 1 else None
 
                     if existing:
                         cur.execute(
@@ -293,6 +431,13 @@ class AlpacaSyncManager:
                         f"Alpaca and database position state must remain synchronized."
                     ) from e
 
+                # REAL-MONEY-READINESS FIX (2026-09-07 audit): attach a standalone broker-side
+                # protective stop to any orphaned position that doesn't already have one -
+                # best-effort, never raises (a submission failure must not abort the rest of
+                # reconciliation; the "Untracked Broker Position(s) Detected" alert above/below
+                # already covers the human-notification obligation for this gap either way).
+                self._attach_protective_stop_if_missing(cur, symbol, qty_float, current_price, existing_stop_order_id)
+
         if newly_detected:
             try:
                 from algo.reporting.notifications import notify
@@ -319,10 +464,25 @@ class AlpacaSyncManager:
                 ) from e
 
         try:
+            # BUG FOUND 2026-09-07 (real-money-readiness audit): this used to be an UPDATE
+            # that only bumped `updated_at` for rows whose symbol is no longer in the current
+            # orphan_symbols list - it never actually removed or flagged them. Every consumer
+            # of this table (lambda/api/routes/algo_handlers/dashboard/positions.py's
+            # untracked-position count/list, both grepped repo-wide) reads it with NO
+            # last_seen_at/staleness filter at all, so a row created once - a manual broker
+            # position later closed at Alpaca, or one that became properly algo-tracked -
+            # stayed in "Untracked Broker Position(s)" counts/alerts forever. For a real-money
+            # dashboard, a permanently-stuck phantom alert is exactly the kind of noise that
+            # trains an operator to stop trusting (or stop reading) the one alert meant to
+            # catch a genuinely orphaned, un-stopped position. Migration 1118's own column
+            # comment says last_seen_at is "used to detect closed positions" - actually do
+            # that here by deleting rows for symbols no longer orphaned this cycle, rather
+            # than leaving that intent unimplemented. Safe when orphan_symbols is empty too:
+            # `symbol != ALL('{}')` is true for every row, correctly clearing the table when
+            # Alpaca currently holds zero untracked positions.
             cur.execute(
                 """
-                UPDATE algo_untracked_positions
-                SET updated_at = CURRENT_TIMESTAMP
+                DELETE FROM algo_untracked_positions
                 WHERE symbol != ALL(%s)
             """,
                 (list(orphan_symbols),),
@@ -330,8 +490,8 @@ class AlpacaSyncManager:
             untracked_closed_count = cur.rowcount
         except Exception as e:
             raise RuntimeError(
-                f"[POSITION_SYNC] Failed to mark closed untracked positions: {e}. "
-                f"Cannot mark stale untracked positions as closed - position tracking state would be incomplete. "
+                f"[POSITION_SYNC] Failed to remove resolved untracked positions: {e}. "
+                f"Cannot clear stale untracked-position rows - position tracking state would be incomplete. "
                 f"Reconciliation integrity requires all position updates to succeed."
             ) from e
 
@@ -342,6 +502,147 @@ class AlpacaSyncManager:
             )
 
         return untracked_count, untracked_closed_count
+
+    def _attach_protective_stop_if_missing(
+        self,
+        cur: Any,
+        symbol: str,
+        qty: float,
+        current_price: float | None,
+        existing_stop_order_id: str | None,
+    ) -> None:
+        """Best-effort: submit a standalone (non-bracket) protective sell-stop for an
+        orphaned broker position that doesn't already have one live. Real-money-readiness
+        fix (2026-09-07 audit) - see the comment at this method's call site for the full
+        rationale (algo_untracked_positions is deliberately kept out of algo_positions, so
+        this attaches downside protection without enrolling the position in algo-managed
+        signal-driven exits).
+
+        Never raises: a failure here must not abort the rest of untracked-position sync or
+        the reconciliation run - the existing "Untracked Broker Position(s) Detected"
+        critical alert already covers the human-notification obligation for this gap.
+        """
+        try:
+            enabled = self.config.get("untracked_position_auto_protective_stop_enabled")
+            if enabled is None:
+                enabled = True  # fail toward protecting capital, not toward silently skipping it
+            if not enabled:
+                return
+
+            if not (self.alpaca_key and self.alpaca_secret and self.alpaca_base_url):
+                logger.warning(
+                    f"[UNTRACKED_STOP] {symbol}: Alpaca credentials/base URL not configured - "
+                    "skipping protective stop submission."
+                )
+                return
+
+            # REAL-MONEY-READINESS FIX (2026-09-10 order-execution re-audit): mirrors
+            # phase9_reconciliation.py's _verify_open_position_stop_loss_protection_step
+            # explicit execution_mode guard (2026-09-07). This method runs on every
+            # sync_alpaca_positions cycle in every execution mode and, before this fix, only
+            # gated on credential presence - relying entirely on self.alpaca_base_url having
+            # already been resolved to the paper endpoint for non-"auto" modes by
+            # AlpacaSyncManager.__init__'s create_execution_mode_strategy(...) call. That's an
+            # implicit coupling, not a guard at this call site: a future refactor of that
+            # shared resolution logic could silently start submitting real protective-stop
+            # orders here with nothing catching it. Fail closed instead of trusting it.
+            execution_mode = str(self.config.get("execution_mode") or "").lower()
+            base_url_is_paper = "paper" in self.alpaca_base_url.lower()
+            if execution_mode != "auto" and not base_url_is_paper:
+                logger.critical(
+                    f"[UNTRACKED_STOP] {symbol}: protective stop submission ABORTED - "
+                    f"execution_mode='{execution_mode}' but resolved Alpaca base_url does not "
+                    f"look like the paper endpoint ({self.alpaca_base_url}). Refusing to submit "
+                    "orders in a non-auto mode against what may be a live endpoint."
+                )
+                return
+
+            from algo.trading.order_manager import OrderManager
+
+            order_mgr = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
+
+            if existing_stop_order_id:
+                try:
+                    still_live = order_mgr.is_order_still_live(existing_stop_order_id)
+                except Exception as e:
+                    logger.warning(
+                        f"[UNTRACKED_STOP] {symbol}: could not verify existing protective stop "
+                        f"{existing_stop_order_id} is still live ({e}) - skipping this cycle "
+                        "rather than risking a duplicate submission."
+                    )
+                    return
+                if still_live:
+                    return
+                if still_live is None:
+                    # Paper/local mode, or the order id is no longer resolvable - neither
+                    # confirms nor rules out protection. Skip rather than guess; a real
+                    # broker order id in auto mode always resolves to True/False here.
+                    return
+                logger.warning(
+                    f"[UNTRACKED_STOP] {symbol}: previously-submitted protective stop "
+                    f"{existing_stop_order_id} is no longer live (filled/cancelled) - "
+                    "attempting to submit a new one."
+                )
+
+            if current_price is None or current_price <= 0 or qty <= 0:
+                logger.warning(
+                    f"[UNTRACKED_STOP] {symbol}: cannot compute a protective stop without a "
+                    f"valid current_price/qty (price={current_price}, qty={qty}) - skipping."
+                )
+                return
+
+            stop_pct = self.config.get("imported_position_default_stop_loss_pct")
+            if stop_pct is None:
+                logger.warning(
+                    "[UNTRACKED_STOP] imported_position_default_stop_loss_pct config missing - "
+                    "skipping protective stop submission this cycle."
+                )
+                return
+            stop_price = round(current_price * (1 - float(stop_pct) / 100.0), 4)
+            if stop_price <= 0:
+                logger.warning(
+                    f"[UNTRACKED_STOP] {symbol}: computed stop_price={stop_price} is not positive - skipping."
+                )
+                return
+
+            import uuid
+
+            client_order_id = (
+                f"untracked-stop-{symbol}-{uuid.uuid5(uuid.NAMESPACE_DNS, f'{symbol}-{qty}-{stop_price}')}"
+            )
+            result = order_mgr.submit_standalone_protective_stop(
+                symbol=symbol,
+                qty=qty,
+                stop_price=stop_price,
+                client_order_id=client_order_id,
+                pos_id=None,
+            )
+            if result.get("success"):
+                cur.execute(
+                    """
+                    UPDATE algo_untracked_positions
+                    SET protective_stop_order_id = %s,
+                        protective_stop_price = %s,
+                        protective_stop_submitted_at = CURRENT_TIMESTAMP
+                    WHERE symbol = %s
+                    """,
+                    (result.get("order_id"), stop_price, symbol),
+                )
+                logger.critical(
+                    f"[UNTRACKED_STOP] {symbol}: attached protective stop @ ${stop_price:.4f} "
+                    f"({qty} shares, order id {result.get('order_id')}): {result.get('message')}"
+                )
+            else:
+                logger.critical(
+                    f"[UNTRACKED_STOP] {symbol}: FAILED to attach protective stop - this "
+                    f"position remains unprotected: {result.get('message')}"
+                )
+        except Exception as e:
+            logger.critical(
+                f"[UNTRACKED_STOP] {symbol}: unexpected error attaching protective stop "
+                f"(position remains unprotected): {e}",
+                exc_info=True,
+            )
 
     def sync_alpaca_positions(self, cur: Any) -> dict[str, Any]:
         """Sync Alpaca positions to database - advisory-lock-guarded wrapper.
@@ -603,33 +904,65 @@ class AlpacaSyncManager:
         # - NOT just because Alpaca didn't list it (could be sync lag)
 
         try:
+            # FIXED 2026-09-07 (real-money-readiness audit): also fetch each missing symbol's
+            # updated_at, which the matched-position branch above (lines ~639/681) is the ONLY
+            # thing that ever bumps for an open position - a row excluded from that branch (i.e.
+            # still missing at Alpaca this cycle) keeps whatever updated_at it had from its last
+            # successful match. That makes staleness of updated_at a direct, real measurement of
+            # "how long has this position actually been missing," not just "missing this one
+            # check." Before this fix, every cycle re-alerted at the SAME "warning" severity
+            # forever with no escalation - a position genuinely closed outside the algo (a stop
+            # filled with nobody watching) could sit "open" in the DB indefinitely as long as the
+            # recurring warning kept getting missed, with no automatic path to operator attention
+            # rising to match how stale the divergence actually is.
             cur.execute(
                 """
-                SELECT DISTINCT symbol FROM algo_positions
+                SELECT symbol, updated_at FROM algo_positions
                 WHERE status = 'open' AND symbol != ALL(%s)
             """,
                 (list(alpaca_symbols),),
             )
-            missing_positions = [row[0] for row in cur.fetchall()]
+            missing_rows = cur.fetchall()
+            missing_positions = [row[0] for row in missing_rows]
 
             if missing_positions:
+                stale_missing = _find_stale_missing_symbols(missing_rows)
+                escalate = bool(stale_missing)
+
                 # ALERT but do NOT close - log for manual operator review
                 logger.warning(
                     f"[POSITION_SYNC] ALERT: {len(missing_positions)} positions in DB but not in Alpaca: "
                     f"{', '.join(missing_positions[:10])}{'...' if len(missing_positions) > 10 else ''}. "
                     f"NOT automatically closing - may be fill-pending, API lag, or network sync issue. "
                     f"Manual review required if these should actually be closed."
+                    + (
+                        f" ESCALATED: {len(stale_missing)} of these have been missing for over "
+                        f"{STALE_MISSING_ESCALATION_HOURS}h - this is no longer transient sync lag."
+                        if escalate
+                        else ""
+                    )
                 )
                 try:
                     from algo.reporting import notify
 
                     notify(
-                        severity="warning",
-                        title="Position Sync Alert - Missing at Broker",
+                        severity="critical" if escalate else "warning",
+                        title=(
+                            "Position Sync CRITICAL - Persistently Missing at Broker"
+                            if escalate
+                            else "Position Sync Alert - Missing at Broker"
+                        ),
                         message=f"{len(missing_positions)} positions in DB but not found at Alpaca. "
                         f"May indicate fill-pending orders or broker sync lag. "
-                        f"Review: {', '.join(missing_positions[:5])}{'...' if len(missing_positions) > 5 else ''}",
-                        details={"missing_positions": missing_positions},
+                        f"Review: {', '.join(missing_positions[:5])}{'...' if len(missing_positions) > 5 else ''}"
+                        + (
+                            f" {len(stale_missing)} have been missing for over "
+                            f"{STALE_MISSING_ESCALATION_HOURS}h: {', '.join(stale_missing[:5])} - "
+                            f"treat as confirmed-closed pending manual verification, not sync lag."
+                            if escalate
+                            else ""
+                        ),
+                        details={"missing_positions": missing_positions, "stale_missing": stale_missing},
                     )
                 except Exception as notify_err:
                     logger.error(f"[POSITION_SYNC] Failed to send alert: {notify_err}")

@@ -2,11 +2,15 @@
 the industry-best right formula" - see algo/research/quality_industry_leader_formula_comparison_
 20260828.py for the full Fama-MacBeth evidence trail and MEMORY.md for the write-up):
 
-1. SECTOR-CONDITIONAL FORMULA: Financial Services/Real Estate symbols now use a 7-input,
-   two-cluster (profitability + safety) quality_score construction instead of the universal
-   flat 8-input weighted average - asset_turnover_score is dropped for these two sectors only,
-   confirmed via isolated testing to be the specific input responsible for their weaker Quality
-   signal (Real Estate Spearman IC t=0.49 -> 2.35, Financial Services t=1.73 -> 3.31).
+1. SECTOR-CONDITIONAL FORMULA (superseded 2026-09-07): Financial Services/Real Estate symbols
+   used to get a 7-input, two-cluster (profitability + safety) quality_score construction
+   instead of the universal flat 8-input weighted average, dropping asset_turnover_score for
+   those two sectors. The "best and brightest" scoring-methodology rewrite collapsed this back
+   to one flat formula for every sector (see TestUniformFormulaAcrossSectors below) - published
+   multi-factor methodology has no per-sector aggregation shape, and the isolated-testing
+   finding behind the original split was diagnosed against the old absolute-curve
+   architecture, which no longer applies once quality_score is finalized by
+   update_quality_sector_neutral_scores()'s sector-neutral z-scoring.
 
 2. MARGIN VOLATILITY DEAD-CODE BUG: found by accident while building test #1's fixture -
    `margin_volatility_score` read `metrics.get("margin_volatility")` before that key was ever
@@ -173,11 +177,18 @@ class TestMarginVolatilityScoreActuallyWired:
         assert metrics["quality_score"] == expected
 
 
-class TestSectorConditionalFormula:
-    """Financial Services/Real Estate use a 7-input, two-cluster construction that drops
-    asset_turnover_score - everything else (universal formula, other sectors) is unchanged."""
+class TestUniformFormulaAcrossSectors:
+    """REWRITE 2026-09-07 ("best and brightest" scoring-methodology directive): the Financial
+    Services/Real Estate two-cluster construction this class used to test was collapsed to the
+    same flat 8-input weighted average every sector uses (see vqg_quality.py's REWRITE comment
+    where that branch used to be) - published multi-factor methodology (Barra/AQR/Fama-French)
+    has no per-sector aggregation shape, only per-sector metric substitution/z-score peer
+    grouping (handled in update_quality_sector_neutral_scores(), not here). This Pass-1
+    curve-based composite is now PROVISIONAL for every sector alike; these tests confirm every
+    sector reaches the identical universal formula, not a different one.
+    """
 
-    def _expected_cluster_score(self):
+    def _expected_universal_score(self):
         roe_curve = L._margin_curve(15.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
         roa_curve = L._margin_curve(10.0, [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
         roce_curve = L._margin_curve(15.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
@@ -185,74 +196,59 @@ class TestSectorConditionalFormula:
         gp_curve = L._margin_curve(53.333333333333336, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
         d2e_score = max(0.0, min(100.0, 100.0 - (0.2 / 2.0) * 100.0))
         mv_score = 100.0 - L._margin_curve(10.0, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
+        at_curve = L._margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
 
-        profitability_cluster = (roe_curve + roa_curve + roce_curve + fcf_curve + gp_curve) / 5.0
-        safety_cluster = (d2e_score + mv_score) / 2.0
-        # WEIGHTS FIXED 2026-09-01: top-level cluster combination is now weighted by each
-        # cluster's actual share of the universal branch's nominal weight (profitability 69 =
-        # roe 11+roa 18+roce 18+fcf_margin 15+gross_profitability 7; safety 25 = debt_to_equity
-        # 18+margin_volatility 7), not a flat 1.0/1.0 split - see that fix's own comment in
-        # loaders/load_value_quality_growth_metrics.py for why (a flat split let a single thin
-        # cluster like safety-only produce a full, undiscounted score - SBR/PBT/XP live-confirmed).
-        return (profitability_cluster * 69.0 + safety_cluster * 25.0) / 94.0
+        weighted_sum = (
+            roe_curve * 11
+            + roa_curve * 18
+            + roce_curve * 18
+            + fcf_curve * 15
+            + d2e_score * 18
+            + mv_score * 7
+            + at_curve * 7
+            + gp_curve * 7
+        )
+        return weighted_sum / 101.0
 
-    def test_real_estate_uses_cluster_formula_not_universal(self):
+    def test_real_estate_uses_the_same_universal_formula_as_technology(self):
         loader = _make_loader()
         loader._get_symbol_sector = lambda symbol: "Real Estate"
 
         metrics = loader._compute_quality_metrics("REITCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
-        assert metrics["quality_score"] == self._expected_cluster_score()
+        assert metrics["quality_score"] == self._expected_universal_score()
 
-    def test_financial_services_uses_cluster_formula_not_universal(self):
+    def test_financial_services_uses_the_same_universal_formula_as_technology(self):
         loader = _make_loader()
         loader._get_symbol_sector = lambda symbol: "Financial Services"
 
         metrics = loader._compute_quality_metrics("BANKCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
-        assert metrics["quality_score"] == self._expected_cluster_score()
+        assert metrics["quality_score"] == self._expected_universal_score()
 
-    def test_technology_still_uses_universal_8_input_formula(self):
+    def test_utilities_uses_the_same_universal_formula_as_technology(self):
         loader = _make_loader()
-        loader._get_symbol_sector = lambda symbol: "Technology"
+        loader._get_symbol_sector = lambda symbol: "Utilities"
 
-        metrics = loader._compute_quality_metrics("TECHCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
+        metrics = loader._compute_quality_metrics("UTILCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
-        assert metrics["quality_score"] != self._expected_cluster_score()
+        assert metrics["quality_score"] == self._expected_universal_score()
 
-    def test_unknown_or_missing_sector_falls_back_to_universal_formula(self):
-        # _get_symbol_sector returning None (sector map fetch failed, or symbol not in
-        # company_profile) must fail OPEN to the well-tested universal formula, not silently
-        # misclassify or crash.
+    def test_unknown_or_missing_sector_also_uses_universal_formula(self):
         loader = _make_loader()
         loader._get_symbol_sector = lambda symbol: None
 
         metrics = loader._compute_quality_metrics("UNKNOWNCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
-        assert metrics["quality_score"] != self._expected_cluster_score()
+        assert metrics["quality_score"] == self._expected_universal_score()
 
-    def test_real_estate_missing_entire_safety_cluster_still_scores_off_profitability(self):
-        # FIXED 2026-08-31 (goal: data-loading gap investigation): both debt_to_equity and
-        # margin_volatility unavailable -> safety_cluster_score is None -> only 1 of 2
-        # top-level cluster terms available. Previously required min_weight_pct=2.0 (BOTH
-        # clusters present, 100% of the top-level weight) - far stricter than the universal
-        # formula's own 40%-of-101 floor just below in the same function, and contradicting
-        # this file's own "score what's available" convention (see the comment above
-        # quality_components' construction) which only actually held for a PARTIAL cluster
-        # gap, not a WHOLE one. Live-confirmed on real symbols (e.g. BAP/Credicorp, a real,
-        # large, profitable Peruvian bank with 3/5 real profitability inputs but both safety
-        # inputs missing) - 66 of 91 FS/RE symbols null on quality_score via
-        # "insufficient_completeness" had exactly this shape: one well-populated cluster, one
-        # entirely empty. Now: min_quality_weight_pct=1.0 (at least ONE cluster, which must
-        # have already cleared its own internal completeness floor) - quality_score renders
-        # off the profitability cluster alone, not silently discarded.
+    def test_real_estate_missing_debt_and_volatility_still_scores_off_remaining_inputs(self):
+        # debt_to_equity/roce_pct/margin_volatility unavailable - the universal formula's own
+        # completeness floor (40% of 101) still clears off roe/roa/fcf_margin/asset_turnover/
+        # gross_profitability alone, no sector-specific handling needed now that every sector
+        # shares one formula.
         loader = _make_loader()
         loader._get_symbol_sector = lambda symbol: "Real Estate"
-        # long_term_debt=None (row) + total_debt_ev=None (ev_metrics) removes debt_to_equity's
-        # AND roce_pct's shared debt input without touching stockholders_equity (so roe stays
-        # available) - margin_volatility=None removes the other safety-cluster input. Leaves
-        # profitability_cluster with roe/roa/fcf_margin/gross_profitability (4/5, still well
-        # above that cluster's own 40% floor) and safety_cluster completely empty (0/2).
         row = _row(long_term_debt=None)
         ev_metrics_no_debt = (None, 500_000.0, 3_000_000.0)  # (total_debt, total_cash, ebitda)
 
@@ -261,21 +257,22 @@ class TestSectorConditionalFormula:
         assert metrics.get("debt_to_equity") is None
         assert metrics.get("margin_volatility") is None
         assert metrics.get("roce_pct") is None
-        assert metrics.get("roe") is not None  # profitability cluster's other inputs intact
+        assert metrics.get("roe") is not None
 
         roe_curve = L._margin_curve(15.0, [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
         roa_curve = L._margin_curve(10.0, [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)])
         fcf_curve = L._margin_curve(8.0, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
+        at_curve = L._margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
         gp_curve = L._margin_curve(53.333333333333336, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
-        expected_profitability_only = (roe_curve + roa_curve + fcf_curve + gp_curve) / 4.0
+        expected = (roe_curve * 11 + roa_curve * 18 + fcf_curve * 15 + at_curve * 7 + gp_curve * 7) / (
+            11 + 18 + 15 + 7 + 7
+        )
 
-        assert metrics["quality_score"] == expected_profitability_only
+        assert metrics["quality_score"] == expected
         assert metrics["quality_score_unavailable_reason"] is None
 
-    def test_neither_cluster_populated_still_reports_insufficient_completeness(self):
-        # Genuine floor case retained: if BOTH clusters come back empty, quality_score must
-        # still be None - the fix above only stops discarding a real single-cluster signal,
-        # it doesn't remove the floor entirely.
+    def test_almost_nothing_available_reports_insufficient_completeness(self):
+        # Genuine floor case: with everything nulled out, quality_score must be None.
         loader = _make_loader()
         loader._get_symbol_sector = lambda symbol: "Real Estate"
         row = _row(
@@ -294,41 +291,36 @@ class TestSectorConditionalFormula:
         assert metrics.get("quality_score") is None
         assert metrics["quality_score_unavailable_reason"] == "insufficient_completeness"
 
-    def test_safety_cluster_alone_no_longer_produces_a_full_score(self):
-        # REGRESSION for the bug the 2026-08-31 fix (min_quality_weight_pct 2.0->1.0, see the
-        # test above) unintentionally reintroduced: a flat (cluster_score, 1.0)/(cluster_score,
-        # 1.0) top-level split let the safety cluster ALONE - even fully populated with both its
-        # own inputs - clear "at least one cluster present" and produce a full, undiscounted
-        # quality_score off just debt_to_equity/margin_volatility, with zero profitability
-        # signal at all. Live-confirmed on real symbols 2026-09-01: SBR (an Oil Royalty Trust,
-        # vendor-classified "Financial Services" by legal/trust structure, not economics) scored
-        # 97.13 off margin_volatility ALONE; PBT scored 87.52 the same way; XP (a real,
-        # legitimately Financial-Services brokerage) scored 98.19, also off margin_volatility
-        # alone. FIXED by weighting each cluster by its actual share of the universal branch's
-        # nominal weight (profitability 69, safety 25, of 94 total) and gating on a proportional
-        # 37.2 floor - safety alone (25 points) no longer clears it, matching the universal
-        # branch's own "don't extrapolate a full score from a thin sample" principle.
+    def test_debt_volatility_and_roce_clear_the_universal_floor(self):
+        # net_income/total_assets/revenue nulled kills roe/roa/fcf_margin/gross_profitability/
+        # asset_turnover, but roce_pct is independent of all three (it comes from
+        # stockholders_equity/debt_for_roic/cash via invested_capital, untouched here) - so
+        # debt_to_equity(18)+margin_volatility(7)+roce(18)=43 of the universal formula's 101
+        # nominal weight clears its 40.0 floor. Under the old two-cluster architecture this
+        # sector used to test, roce alone (1 of profitability_cluster's 5 inputs) failed that
+        # cluster's own >=2/5 floor, so the composite came back None entirely - that
+        # cluster-level gating no longer exists (see the class docstring), so this now scores.
         loader = _make_loader()
         loader._get_symbol_sector = lambda symbol: "Financial Services"
-        # debt_to_equity = debt_for_roic / roic_stockholders_equity, where roic_stockholders_equity
-        # comes straight from stockholders_equity and debt_for_roic prefers _EV_METRICS's
-        # total_debt over row's long_term_debt - so stockholders_equity (and _EV_METRICS) must
-        # stay real for debt_to_equity to survive while every profitability-cluster input dies:
-        # net_income kills roe/roa, total_assets kills roa/roce/gross_profitability, revenue
-        # kills fcf_margin (the same-fiscal-year DB fallback is neutralized by the autouse
-        # _mock_db fixture returning no rows).
         row = _row(net_income=None, total_assets=None, revenue=None)
 
         metrics = loader._compute_quality_metrics("SAFETYONLYCO", row, ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
         assert metrics.get("debt_to_equity") is not None
         assert metrics.get("margin_volatility") is not None
+        assert metrics.get("roce_pct") is not None
         assert metrics.get("roe") is None
         assert metrics.get("roa") is None
         assert metrics.get("fcf_margin") is None
         assert metrics.get("gross_profitability") is None
-        assert metrics["quality_score"] is None
-        assert metrics["quality_score_unavailable_reason"] == "insufficient_completeness"
+
+        roce_curve = L._margin_curve(15.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
+        d2e_score = max(0.0, min(100.0, 100.0 - (0.2 / 2.0) * 100.0))
+        mv_score = 100.0 - L._margin_curve(10.0, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
+        expected = (roce_curve * 18 + d2e_score * 18 + mv_score * 7) / (18 + 18 + 7)
+
+        assert metrics["quality_score"] == expected
+        assert metrics["quality_score_unavailable_reason"] is None
 
 
 class TestGetSymbolSector:
@@ -336,7 +328,9 @@ class TestGetSymbolSector:
         loader = _make_loader()
         mock_cur = MagicMock()
         mock_cur.fetchall.return_value = [("AAPL", "Technology"), ("JPM", "Financial Services")]
-        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_ctx:
+        # _get_symbol_sector lives in SectorIndustryCacheMixin (loaders/helpers/vqg_shared.py)
+        # since the 20260908 extraction - patch DatabaseContext where it's actually called.
+        with patch("loaders.helpers.vqg_shared.DatabaseContext") as mock_ctx:
             mock_ctx.return_value.__enter__.return_value = mock_cur
 
             assert loader._get_symbol_sector("AAPL") == "Technology"
@@ -350,7 +344,7 @@ class TestGetSymbolSector:
         import psycopg2
 
         loader = _make_loader()
-        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_ctx:
+        with patch("loaders.helpers.vqg_shared.DatabaseContext") as mock_ctx:
             mock_ctx.side_effect = psycopg2.OperationalError("connection refused")
 
             assert loader._get_symbol_sector("AAPL") is None

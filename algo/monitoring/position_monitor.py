@@ -655,9 +655,28 @@ class PositionMonitor(
         if sector_state == "weakening":
             flags.append("SECTOR_WEAK")
 
-        # 3c. Giving back gains (>33% retrace from peak)?
+        # 3c. Giving back gains (retraced from a meaningful peak)?
+        # FIXED 2026-09-07 (goal: real-money-readiness audit): peak_pct > 5 was a fixed
+        # percentage-of-price threshold applied uniformly regardless of the trade's own stop
+        # distance (which ranges ~2%-20% across trades in live paper data). For a wide-stop
+        # trade, 5% is a small fraction of its own risk unit, so this correctly stays quiet on
+        # ordinary noise; for a tight-stop trade, 5% can exceed its entire initial risk, so
+        # this almost never fires even after a real, R-significant favorable move reverses.
+        # Live paper-trading data (Aug-Sep 2026, 130 closed trades) showed the latter in
+        # practice: 73% of losing trades had a favorable peak before reversing into a full
+        # loss (median peak +1.16% of price), almost all under the fixed 5% floor, so this
+        # flag was structurally unable to help even flag that pattern. Normalize the trigger
+        # to the trade's own risk unit (R) instead, consistent with how every other exit/
+        # target rule in this system (t1/t2/t3_target_r_multiple) already measures moves in
+        # R, not raw price %. 1% floor keeps this from firing on sub-1% noise for very
+        # tight-stop trades. Note this only adds one candidate health flag - EARLY_EXIT still
+        # requires `position_halt_flag_count` flags together (see below), so this alone does
+        # not make exits more aggressive, only makes this specific flag capable of firing at
+        # all for tighter-stop trades where it previously effectively never could.
+        stop_distance_pct = (risk_per_share / entry_price) * 100 if entry_price > 0 else 0
+        peak_trigger_pct = max(1.0, stop_distance_pct * 0.3)
         peak_pct = self._max_unrealized_pct(symbol, trade_date, current_date, entry_price, cur=cur)
-        if peak_pct > 5 and unrealized_pct < peak_pct * 0.66:
+        if peak_pct > peak_trigger_pct and unrealized_pct < peak_pct * 0.66:
             flags.append("GIVING_BACK_GAINS")
 
         # 3d. Time decay (>= half of max_hold, but no T1 hit yet)

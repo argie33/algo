@@ -14,6 +14,12 @@ from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
 
+# Symbols individually live-verified (2026-09-07, via SEC's own companyfacts API) to have
+# zero real us-gaap/ifrs-full XBRL facts ever filed - only `ffd` (fee-disclosure,
+# registration-statement-only) facts, or no companyfacts entry at all (BIOT). See the
+# reason-assignment call site below for the full rationale.
+_NO_REAL_XBRL_FACTS_SYMBOLS = frozenset({"AIIR", "WATR", "RPGL", "VRXA", "PSQL", "IMC", "BIOT"})
+
 
 class IncomeStatementContextMixin:
     """Income-statement fetch/derivation (revenue/EPS anchor-row fallbacks, EBITDA,
@@ -35,6 +41,10 @@ class IncomeStatementContextMixin:
 
         def _get_total_cash_and_debt(self, cur: Any, symbol: str) -> tuple[float | None, float | None]: ...
 
+        def _get_market_cap_without_income_statement(
+            self, cur: Any, symbol: str
+        ) -> tuple[float | None, float | None, float | None, float | None]: ...
+
         def _unavailable_marker(
             self,
             symbol: str,
@@ -42,6 +52,10 @@ class IncomeStatementContextMixin:
             total_debt: float | None = None,
             total_cash: float | None = None,
             ebitda: float | None = None,
+            current_price: float | None = None,
+            shares_outstanding: float | None = None,
+            market_cap: float | None = None,
+            pb_ratio: float | None = None,
         ) -> dict[str, Any]: ...
 
         @staticmethod
@@ -79,6 +93,72 @@ class IncomeStatementContextMixin:
         ):
             return "unsupported_currency_no_fx_rate"
         return reason
+
+    @staticmethod
+    def _fetch_ttm_income_statement_row(cur: Any, symbol: str) -> list[tuple[Any, ...]]:
+        """Build a synthetic "annual" row (same 13-column shape
+        _fetch_income_statement_context's own query returns) from the 4 most recent real
+        quarterly_income_statement rows, for symbols with zero annual_income_statement rows
+        (recent IPOs: real 10-Qs filed, no 10-K yet). Returns [] unless all 4 quarters have
+        real revenue, net_income, AND earnings_per_share - never fabricates a partial-year
+        figure from fewer/incomplete quarters (the caller ORs this onto an empty
+        `cur.fetchall()` result, so an empty list here correctly falls through to the existing
+        "no data at all" handling). Other fields (operating_income/pretax_income/D&A/tax/
+        interest_expense/shares_outstanding_basic) are summed where present and left None
+        otherwise - the existing per-field fallbacks in _fetch_income_statement_context already
+        tolerate those being absent.
+        """
+        cur.execute(
+            """
+            SELECT revenue, net_income, earnings_per_share, operating_income, pretax_income,
+                   depreciation_expense, amortization_expense, shares_outstanding_basic,
+                   income_tax_expense, interest_expense, fiscal_year
+            FROM quarterly_income_statement
+            WHERE symbol = %s AND data_unavailable IS NOT TRUE
+            ORDER BY period_end DESC NULLS LAST, fiscal_year DESC, fiscal_quarter DESC
+            LIMIT 4
+            """,
+            (symbol,),
+        )
+        quarters = cur.fetchall()
+        if len(quarters) < 4 or any(q[0] is None or q[1] is None or q[2] is None for q in quarters):
+            return []
+
+        def _sum_col(idx: int) -> float | None:
+            values = [q[idx] for q in quarters if q[idx] is not None]
+            return (
+                sum(safe_float(v, "ttm_income_context_quarter", allow_none=True) or 0.0 for v in values)
+                if values
+                else None
+            )
+
+        cur.execute(
+            "SELECT is_foreign_private_issuer, sic_code FROM company_info_sec WHERE symbol = %s",
+            (symbol,),
+        )
+        cis_row = cur.fetchone()
+        is_foreign_private_issuer = bool(cis_row[0]) if cis_row else False
+        sic_code = cis_row[1] if cis_row else None
+
+        fiscal_year = quarters[0][10]
+        shares_outstanding_basic = quarters[0][7]  # a share count, not additive across quarters
+        return [
+            (
+                fiscal_year,
+                _sum_col(0),  # revenue
+                _sum_col(1),  # net_income
+                _sum_col(2),  # earnings_per_share (TTM EPS = sum of 4 quarterly EPS, standard convention)
+                _sum_col(3),  # operating_income
+                _sum_col(4),  # pretax_income
+                _sum_col(5),  # depreciation_expense
+                _sum_col(6),  # amortization_expense
+                shares_outstanding_basic,
+                _sum_col(8),  # income_tax_expense
+                is_foreign_private_issuer,
+                sic_code,
+                _sum_col(9),  # interest_expense
+            )
+        ]
 
     def _fetch_income_statement_context(self, cur: Any, symbol: str) -> Any:
         """Fetch the latest annual_income_statement row(s) for `symbol` and derive every
@@ -175,7 +255,13 @@ class IncomeStatementContextMixin:
         # _compute_multi_year_eps_cagr below a few more fiscal years of EPS history
         # without a second query - same tier/fiscal_year-DESC ordering as before, so
         # income_rows[0]/[1]'s selection is unchanged.
-        income_rows = cur.fetchall()
+        # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+        # no_income_statement investigation): recent IPOs (real 10-Qs filed, no 10-K yet) have
+        # zero annual_income_statement rows but real quarterly_income_statement data - see
+        # _fetch_ttm_income_statement_row's own docstring for the full rationale. `or` (not a
+        # separate `if`) keeps this a single fallback check, same branch count as before -
+        # falls through to the exact same processing every real annual row goes through below.
+        income_rows = cur.fetchall() or self._fetch_ttm_income_statement_row(cur, symbol)
         if not income_rows:
             # FIXED 2026-09-02 (goal: "get all the data we need" full-coverage audit):
             # total_cash/total_debt are pure balance-sheet facts with no income-
@@ -183,6 +269,13 @@ class IncomeStatementContextMixin:
             # the live-confirmed AADX evidence this was silently losing both to this
             # exact early return.
             total_cash, total_debt = self._get_total_cash_and_debt(cur, symbol)
+            # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same "these
+            # fields don't need X" gap as total_cash/total_debt above - see
+            # _get_market_cap_without_income_statement's own docstring for the 19/22
+            # live-confirmed AADX/DPC/SIND/etc. symbols this recovers.
+            current_price, shares_outstanding, market_cap, pb_ratio = self._get_market_cap_without_income_statement(
+                cur, symbol
+            )
             # FIXED 2026-09-05 (goal session: "implausible values" sweep follow-up): an ETF
             # (stock_symbols.etf = 'true') genuinely has zero annual_income_statement rows -
             # it files N-1A/N-CSR under the Investment Company Act, not a 10-K, so there is no
@@ -196,7 +289,18 @@ class IncomeStatementContextMixin:
             reason = "etf_no_sec_filings" if etf_row and etf_row[0] == "true" else "no_income_statement"
             if reason == "no_income_statement":
                 reason = self._reclassify_fpi_zero_row_currency_gap(cur, symbol, reason)
-            return [self._unavailable_marker(symbol, reason, total_cash=total_cash, total_debt=total_debt)]
+            return [
+                self._unavailable_marker(
+                    symbol,
+                    reason,
+                    total_cash=total_cash,
+                    total_debt=total_debt,
+                    current_price=current_price,
+                    shares_outstanding=shares_outstanding,
+                    market_cap=market_cap,
+                    pb_ratio=pb_ratio,
+                )
+            ]
 
         # len() guard: pre-existing tests mock income_rows as plain 10-element
         # tuples (this method's own pre-2026-08-19 shape) - default to False
@@ -493,7 +597,27 @@ class IncomeStatementContextMixin:
             cur.execute("SELECT etf FROM stock_symbols WHERE symbol = %s", (symbol,))
             etf_row = cur.fetchone()
             reason = (
-                "etf_no_sec_filings" if etf_row and etf_row[0] == "true" else "income_statement_revenue_and_eps_null"
+                "etf_no_sec_filings"
+                if etf_row and etf_row[0] == "true"
+                # FIXED 2026-09-07 (goal: "SEC/XBRL missing data to zero" sweep, follow-up to
+                # sec_xbrl_pen_currency_and_verification_pass_20260906's verification-only
+                # finding): live-reconfirmed via SEC's own companyfacts API today - each of
+                # these symbols' real SEC filing has NO us-gaap/ifrs-full XBRL facts at all,
+                # only `ffd` (fee-disclosure, registration-statement-only) facts (AIIR/WATR/
+                # RPGL/VRXA/PSQL/IMC, 5 ffd facts each and nothing else) or no companyfacts
+                # entry whatsoever (BIOT, 404). This is the exact same "real, permanent,
+                # non-SEC-XBRL-reporting entity" fact "no_xbrl_filings" already exists for
+                # (see its own definition in coverage_category_rules.py) - the generic
+                # "income_statement_revenue_and_eps_null" below wrongly implied a fixable
+                # extraction gap for a filer that structurally has nothing to extract.
+                # Deliberately a static, individually-verified symbol set (not a live
+                # companyfacts-emptiness check per fetch, which would be a network call added
+                # to the hot loader path) - same "individually-verified symbol-level
+                # override" discipline as KNOWN_ETF_MISCLASSIFICATIONS elsewhere in this
+                # codebase, re-verify before adding a new symbol here.
+                else "no_xbrl_filings"
+                if symbol in _NO_REAL_XBRL_FACTS_SYMBOLS
+                else "income_statement_revenue_and_eps_null"
             )
             return [
                 self._unavailable_marker(

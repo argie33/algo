@@ -28,10 +28,20 @@ class TestDebtFallbackConceptMappings:
             "ConvertibleLongTermNotesPayable",
             "LongTermDebtNoncurrent",
             "LongTermDebtAndCapitalLeaseObligations",
+            # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
+            # total_debt_not_itemized investigation): ETS real short-term-loan concept -
+            # see sec_balance_sheet.py's get_balance_sheet() comment on "LoansPayable" for
+            # the live evidence.
+            "LoansPayable",
         ):
             target_key = _to_snake(concept)
             assert _BALANCE_FIELD_MAPPING[target_key] == "long_term_debt"
             assert target_key in _DEBT_FALLBACK_ONLY_FIELDS
+
+    def test_loans_payable_current_maps_to_short_term_debt_fallback(self) -> None:
+        target_key = _to_snake("LoansPayableCurrent")
+        assert _BALANCE_FIELD_MAPPING[target_key] == "short_term_debt"
+        assert target_key in _DEBT_FALLBACK_ONLY_FIELDS
 
     def test_standard_long_term_debt_concept_still_maps_directly(self) -> None:
         assert _BALANCE_FIELD_MAPPING["long_term_debt"] == "long_term_debt"

@@ -15,14 +15,44 @@ It reconstructs a point-in-time annual fundamentals panel directly from
 annual_income_statement/annual_balance_sheet/annual_cash_flow, then merges it onto the monthly
 price grid using an as-of-date join.
 
-POINT-IN-TIME CAVEAT (real limitation, not swept under the rug): none of the three annual
-statement tables carry a filing_date or fiscal-year-end date - only an integer `fiscal_year`.
-This script assumes every fiscal year ends 2026-12-31 style (calendar year-end) and applies a
-flat 90-day reporting lag (a standard 10-K deadline approximation), i.e. fiscal_year Y's
-fundamentals are treated as "known" starting April 1 of year Y+1. Real fiscal-year-end dates
-(a meaningful minority of the universe reports on a non-calendar fiscal year) would shift this
-per-symbol; until fiscal_year_end dates are available, this is a reasonable approximation, not
-an exact one - a genuine lookahead-bias risk for non-calendar-FY symbols, flagged here.
+POINT-IN-TIME CAVEAT (real limitation, partially closed 2026-09-07, not swept under the rug):
+none of the three annual statement tables carry a filing_date or fiscal-year-end date - only an
+integer `fiscal_year`. compute_known_dates() now looks up each symbol's REAL 10-K filing date
+from this machine's local SEC EDGAR disk cache (already populated by ordinary loader runs) where
+available, which correctly reflects non-calendar fiscal year-ends (AAPL/MSFT-style) and each
+company's actual reporting lag rather than an assumed one. Where the local cache has no entry
+for a (symbol, fiscal_year) - a fresh backtest environment, or a symbol never fetched by a
+loader on this machine - this still falls back to the old approximation: fiscal year ends
+2026-12-31 style (calendar year-end) plus a flat 90-day reporting lag (a standard 10-K deadline
+approximation), i.e. fiscal_year Y's fundamentals are treated as "known" starting April 1 of
+year Y+1. That fallback carries the same lookahead-bias risk for non-calendar-FY symbols as
+before - real_10k_filing_dates()'s own docstring has the detail on cache coverage.
+
+RESTATEMENT CAVEAT (investigated and quantified 2026-09-09, deliberately not fixed - see below):
+the above closes the WHEN gap (what date a fiscal year's fundamentals became "known") but not a
+separate WHAT gap - fetch_annual_fundamentals() reads whatever value annual_income_statement/
+annual_balance_sheet/annual_cash_flow currently hold for (symbol, fiscal_year), which is this
+codebase's best-current-estimate figure (utils/external/sec_statements_entry_resolution.py
+deliberately prefers the most-recently-filed comparative citation when the same fiscal year is
+re-reported in a later 10-K - correct behavior for live stock_scores, which should reflect the
+most-accurate number, not whatever was originally filed). For this backtest panel specifically,
+that means a fiscal year's growth-rate inputs can silently use a figure that wasn't actually
+knowable as of known_date - a real look-ahead-bias mechanism, not hypothetical: live-quantified
+against this machine's local SEC EDGAR companyfacts cache (800 companies x 4 concepts sampled)
+by comparing each (symbol, fiscal_year, concept)'s EARLIEST-filed value against its LATEST-filed
+value wherever a fiscal year was genuinely reported in 2+ distinct filings (499 such groups
+found): 79/499 (~16%) show a real value change, but the magnitude is consistently small in the
+sampled cases (~0.3-1.5% drift per fact, e.g. NetIncomeLoss $1.5351B -> $1.5286B). Full
+point-in-time re-derivation would require replicating sec_income_statement.py's/sec_balance_
+sheet.py's/sec_cash_flow.py's elaborate per-concept alias-fallback chains (hundreds of lines of
+filer-specific special-casing) against raw companyfacts JSON inside this research script - a lot
+of complexity to shield growth-rate regressions from a ~1%-scale input perturbation, well below
+the cross-sectional return dispersion these regressions are testing against. Per this repo's
+"best-right fix, weigh payoff vs complexity" standard: NOT fixing this - documenting it plainly
+instead so a future reader doesn't mistake known_date correctness for full point-in-time
+correctness. Revisit only if a specific factor's significance turns out to hinge on a symbol/
+fiscal-year with a known large restatement (e.g. a formal 10-K/A - confirmed near-nonexistent in
+this universe, 0/300 sampled companyfacts caches had any amendment-form fact at all).
 
 Growth-rate convention: YoY/CAGR only computed when both endpoints are positive
 (curr/prior - 1, or (curr/prior)**(1/n) - 1 for n-year CAGR) - a growth rate off a
@@ -34,8 +64,11 @@ Usage:
 """
 
 import argparse
+import json
 import logging
+import tempfile
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -44,6 +77,95 @@ from algo.research.fama_macbeth_price_factors import _fama_macbeth, fetch_month_
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
+
+# Local SEC EDGAR disk caches populated by ordinary loader operation (utils/external/
+# sec_ticker_cache.py / sec_edgar_client.py) - reused here read-only to recover REAL 10-K
+# filing dates for compute_known_dates() below, instead of always guessing calendar-year-end.
+_TICKER_CACHE_FILE = Path(tempfile.gettempdir()) / "sec_ticker_cache.json"
+_COMPANYFACTS_CACHE_DIR = Path(tempfile.gettempdir()) / "algo-sec-edgar-cache" / "companyfacts"
+
+
+def _load_symbol_to_cik() -> dict[str, str]:
+    try:
+        with open(_TICKER_CACHE_FILE) as f:
+            payload = json.load(f)
+        return dict(payload.get("mapping") or {})
+    except (OSError, json.JSONDecodeError, ValueError):
+        # No local ticker cache found on this machine - nothing to process here, callers
+        # (real_10k_filing_dates) already document the resulting empty-mapping fallback.
+        return {}
+
+
+def real_10k_filing_dates(symbols: list[str]) -> dict[tuple[str, int], pd.Timestamp]:
+    """Best-effort real 10-K filing dates per (symbol, fiscal_year), read directly off this
+    machine's local SEC EDGAR disk caches (already populated by ordinary loader runs - see
+    CLAUDE.md's xbrl_concept_coverage_scan.py note on this same cache).
+
+    Bypasses those caches' own freshness TTL deliberately: a 10-K's `filed` date is an
+    immutable historical fact, not something that goes stale the way a live quote would - an
+    old cache snapshot's filing dates are exactly as correct as a freshly-fetched one.
+
+    Fails open/best-effort by design: a symbol with no local cache entry (never fetched by a
+    loader on this machine, or a genuine CIK/ticker miss) is simply absent from the returned
+    dict - callers fall back to the calendar-year-end + REPORTING_LAG_DAYS approximation for
+    those rows via compute_known_dates() below. This is strictly an accuracy improvement where
+    real data is available, not a hard requirement - see module docstring's point-in-time
+    caveat for why the approximation existed in the first place.
+    """
+    symbol_to_cik = _load_symbol_to_cik()
+    out: dict[tuple[str, int], pd.Timestamp] = {}
+    for symbol in symbols:
+        cik = symbol_to_cik.get(symbol)
+        if not cik:
+            continue
+        try:
+            with open(_COMPANYFACTS_CACHE_DIR / f"{cik}.json") as f:
+                facts = json.load(f)["data"]["facts"]
+        except (OSError, json.JSONDecodeError, KeyError, TypeError):
+            continue
+        found_any = False
+        for concept_entry in facts.get("us-gaap", {}).values():
+            for unit_rows in concept_entry.get("units", {}).values():
+                for row in unit_rows:
+                    if row.get("form") != "10-K" or row.get("fp") != "FY":
+                        continue
+                    fy, filed = row.get("fy"), row.get("filed")
+                    if fy is None or not filed:
+                        continue
+                    # Multiple concepts/rows can report the same (symbol, fy) 10-K filing -
+                    # they should all agree on `filed`; keep the first seen.
+                    out.setdefault((symbol, int(fy)), pd.Timestamp(filed))
+                    found_any = True
+            if found_any:
+                # One concept with usable FY/10-K rows is enough per symbol - scanning every
+                # remaining concept for the same info is wasted work.
+                break
+    return out
+
+
+def compute_known_dates(df: pd.DataFrame) -> pd.Series:
+    """Per-row "known as of" date for an annual fundamentals panel with symbol/fiscal_year
+    columns: a REAL 10-K filing date from real_10k_filing_dates() where this machine's local
+    SEC EDGAR cache has one, falling back to the calendar-year-end + REPORTING_LAG_DAYS
+    approximation elsewhere (see module docstring's point-in-time caveat - this closes that
+    gap for whatever fraction of the panel the local cache covers, not all of it, since a
+    fresh backtest environment or an infrequently-loaded symbol may have no cached companyfacts
+    at all). Real dates directly fix the non-calendar-fiscal-year lookahead-bias risk the
+    approximation carries (AAPL/MSFT-style: an actual 10-K filing date reflects that company's
+    real fiscal year-end + real reporting lag, not an assumed Dec 31 + 90 days).
+    """
+    approx = pd.to_datetime(df["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(days=REPORTING_LAG_DAYS)
+    real_dates = real_10k_filing_dates(df["symbol"].unique().tolist())
+    if not real_dates:
+        return approx
+    real_series = pd.to_datetime(
+        pd.Series(
+            [real_dates.get((sym, int(fy))) for sym, fy in zip(df["symbol"], df["fiscal_year"], strict=True)],
+            index=df.index,
+        )
+    )
+    return real_series.combine_first(approx)
+
 
 GROWTH_FACTOR_COLS = [
     "eps_growth_1y",
@@ -129,12 +251,7 @@ def build_growth_panel(fund: pd.DataFrame) -> pd.DataFrame:
     # positive multivariate coefficient here is directly comparable to the other factors.
     out["asset_growth_yoy_flipped"] = -asset_growth_yoy
 
-    # "Known as of" date: calendar fiscal year-end (Dec 31) + a flat 90-day reporting lag
-    # (lands ~end of March / start of April the following year). See module docstring
-    # point-in-time caveat.
-    out["known_date"] = pd.to_datetime(out["fiscal_year"].astype(str) + "-12-31") + pd.Timedelta(
-        days=REPORTING_LAG_DAYS
-    )
+    out["known_date"] = compute_known_dates(out)
     return out.dropna(subset=["known_date"])
 
 

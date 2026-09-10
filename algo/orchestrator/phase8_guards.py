@@ -272,3 +272,47 @@ def _check_price_freshness_guard(run_date: _date, log_phase_result_fn: Callable[
         )
         return result
     return None
+
+
+def _check_drawdown_daily_loss_guard(
+    config: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]
+) -> PhaseResult | None:
+    """Re-check drawdown/daily-loss right before Phase 8 submits any new risk (2026-09-07
+    real-money-readiness audit fix).
+
+    Phase 2's circuit-breaker check ran earlier this cycle, before Phase 3/4 (position
+    monitor/reconciliation, which can write a fresher algo_portfolio_snapshots row) and before
+    this phase's own candidate loop - a real drawdown/daily-loss breach reflected only by
+    Phase 4's reconciliation write would otherwise not be caught until the NEXT cycle's Phase
+    2. Re-runs just the two cheap, pure-DB-read breakers (drawdown/daily_loss - no Alpaca API
+    calls, unlike VIX/market-stage/PDT) once here against whatever this cycle's freshest
+    snapshot is.
+
+    Deliberately NOT re-run per-candidate inside Phase 8's own loop: both checks key off
+    algo_portfolio_snapshots.adjusted_equity, which only updates on the NEXT reconciliation
+    pass (a future cycle's Phase 4, or Phase 9's end-of-day snapshot) - nothing rewrites it
+    mid-Phase-8, so polling it repeatedly inside the loop would add cost with zero incremental
+    signal. Fully closing the "breach occurs from live price movement DURING the Phase 8 loop
+    itself" case would require a live Alpaca equity poll per candidate - a real latency/
+    rate-limit cost, deliberately left as a separate decision, not guessed at here.
+
+    Fails closed (blocks entries) on any error, matching CircuitBreaker.check_all()'s own
+    established convention: if this safety re-check itself cannot be verified, do not proceed.
+    """
+    try:
+        from algo.risk.circuit_breaker import CircuitBreaker
+
+        cb = CircuitBreaker(config)
+        with _p8e.DatabaseContext("read") as cb_cur:  # type: ignore[attr-defined]
+            drawdown_state = cb._checks["drawdown"](run_date, cb_cur)
+            daily_loss_state = cb._checks["daily_loss"](run_date, cb_cur)
+        breached = [s for s in (drawdown_state, daily_loss_state) if s.get("halted")]
+        if not breached:
+            return None
+        reasons = "; ".join(str(s.get("reason", "unknown")) for s in breached)
+        msg = f"[PHASE 8] Fresh drawdown/daily-loss re-check breached ({reasons}) - entries blocked this cycle"
+    except Exception as e:
+        msg = f"[PHASE 8] Drawdown/daily-loss re-check failed - blocking entries this cycle: {e}"
+    logger.critical(msg)
+    log_phase_result_fn(8, "entry_execution", "blocked", msg)
+    return PhaseResult(8, "entry_execution", "blocked", {"entered": 0}, False, msg)

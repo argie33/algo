@@ -24,7 +24,10 @@ import sys
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from loaders.helpers.company_info_sec_reason_cleanup import clear_stale_shares_outstanding_reason
+from loaders.helpers.company_info_sec_reason_cleanup import (
+    clear_stale_shares_outstanding_reason,
+    reclassify_stale_registered_investment_company_reason,
+)
 from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
@@ -94,6 +97,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
     def post_run(self) -> None:
         """Self-heal: see company_info_sec_reason_cleanup.py's docstring."""
         clear_stale_shares_outstanding_reason()
+        reclassify_stale_registered_investment_company_reason()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch company info from SEC EDGAR submissions API.
@@ -130,8 +134,21 @@ class CompanyInfoSECLoader(SecLoaderBase):
             if not entity_name:
                 return self._unavailable_record(symbol, now_et, "entity_name_not_found")
 
-            sic_code = submissions.get("sic")
-            sic_description = submissions.get("sicDescription")
+            # FIXED 2026-09-09 (goal: "SEC/XBRL missing data under 500" sweep): SEC's
+            # submissions API returns "" (empty string), not JSON null, for some entities'
+            # sic field (live-confirmed CIK 0001569650 - the ticker "OZK" currently resolves
+            # to via SEC's own company_tickers.json - returns sic="" and sicDescription="").
+            # The bulk insert's CSV/COPY path already treats "" as NULL for the DB column
+            # (any column type, per bulk_insert_manager.py's own comment on this), so
+            # sic_code ends up NULL in company_info_sec regardless - but the RIC
+            # classification below runs BEFORE that normalization, against this raw
+            # `sic_code is None` check, which "" fails: an empty-SIC entity fell through to
+            # the generic "no_annual_report_filing" ("Missing SEC/XBRL data") instead of the
+            # correctly-bucketed "registered_investment_company_no_annual_report"
+            # ("Legitimate / not applicable"). Normalizing here (once, at the source) keeps
+            # every downstream use consistent with what actually lands in the DB column.
+            sic_code = submissions.get("sic") or None
+            sic_description = submissions.get("sicDescription") or None
             entity_type = submissions.get("entityType")
 
             # FIXED (migration 1193): whether this entity has ever filed a 10-K/10-K-A
@@ -527,6 +544,161 @@ class CompanyInfoSECLoader(SecLoaderBase):
     # "Series {LETTER}" it lines up correctly with the same class-letter matching used for
     # Class-labeled filers.
     _CLASS_LETTER_FROM_SECURITY_NAME_RE = re.compile(r"\b(?:Class|Series)\s+([A-Z])\b")
+    # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, shares_outstanding_not_in_
+    # xbrl_or_filing_text investigation): WLY/WLYB (John Wiley & Sons) both have the IDENTICAL,
+    # generic `stock_symbols.security_name` "John Wiley & Sons, Inc. Common Stock" - live-checked,
+    # neither ticker's recorded name carries "Class A"/"Class B" text at all, unlike every other
+    # dual-class family sampled in this sweep (FOX/FOXA, UA/UAA, NWS/NWSA, RDI/RDIB, LILA/LILAK,
+    # METC/METCB, UONE/UONEK, CENT/CENTA all correctly carry "Class X" in both tickers' names).
+    # This is a vendor/master-data gap in `stock_symbols` (populated by load_market_constituents.py
+    # from an external listing feed), not something this loader can fix at its source - so
+    # `_target_class_letter` has no text to parse for either ticker. Live-confirmed via Wiley's
+    # real current 10-Q (CIK 107140, jwa-20260731.htm): the cover page cleanly tags TWO standard-
+    # dimensioned contexts, `us-gaap:CommonClassAMember`=41,925,511 and
+    # `us-gaap:CommonClassBMember`=8,758,419 - fully resolvable, just missing the security_name
+    # signal this method otherwise relies on. A small, explicit, individually-verified override
+    # (same discipline as DUAL_CLASS_NO_SEPARATOR_ROOTS/CIK_OVERRIDES elsewhere in this codebase)
+    # rather than any ticker-suffix-shape inference, which this method's own docstring already
+    # rejects as unsafe (many bare siblings correctly have no determinable letter at all).
+    # ADDED 2026-09-06 (same sweep, continued): TR (Tootsie Roll Industries) has the identical
+    # vendor/master-data gap as WLY - `stock_symbols.security_name` is the generic "Tootsie Roll
+    # Industries, Inc. Common Stock" with no "Class X" text - but its real current 10-K
+    # (CIK 98677, tr-20251231x10k.htm) cleanly tags TWO standard-dimensioned contexts embedded
+    # directly in the contextRef id string (Workiva-style, same shape as the Liberty Media family
+    # already handled by `_COMMON_CLASS_MEMBER_IN_ID_RE`): `...CommonClassAMember...`=41,820,966
+    # (TR's own class) and `...CommonClassBMember...`=31,165,664 (TROLB's, not currently in this
+    # universe). Live-confirmed against the filing's own XBRL - both fully resolvable, just
+    # missing the security_name signal.
+    # ADDED 2026-09-06 (same sweep, continued): AGM (Federal Agricultural Mortgage Corp/"Farmer
+    # Mac") has THREE classes - Class A (1,030,780, restricted to System agricultural lending
+    # institutions, separately registered as ticker AGM-A / our AGM.A), Class B (500,301,
+    # restricted to other System institutions, no separate ticker), and Class C (9,325,900, the
+    # actual NYSE-traded non-voting common stock, ticker AGM) - live-confirmed via CIK 845877's
+    # real current 10-K (agm-20251231.htm) and Farmer Mac's own publicly-documented capital
+    # structure (Class A/B restricted to System institutions per the Farm Credit Act; Class C is
+    # the freely-tradable public float). `AGM.A` already resolves correctly (dot-suffix ->
+    # target_letter "A" directly), but bare "AGM" has the same security_name vendor gap as
+    # WLY/TR (generic "...Common Stock", no "Class X" text) - and even if it had one, "Common
+    # Stock" alone would say nothing about which of B/C it is, since Class B and Class C are
+    # NOT distinguished by the security_name text but by which one is real-world publicly
+    # traded, only knowable via this ticker's exchange listing itself.
+    # ADDED 2026-09-09 (goal: "Missing SEC/XBRL data" reduction, shares_outstanding_not_in_xbrl_
+    # or_filing_text investigation): UHAL (U-Haul Holding Company/AMERCO) has the identical
+    # vendor/master-data gap as WLY/TR/AGM above - `stock_symbols.security_name` for bare "UHAL"
+    # is the generic "U-Haul Holding Company Common Stock" (no "Class X" text) - but its real
+    # current 10-Q (CIK 4457, uhal-20260630.htm, filed 2026-08-05) cleanly tags TWO standard-
+    # dimensioned StatementClassOfStockAxis contexts on its cover page:
+    # `us-gaap:CommonClassAMember`=19,224,580 (UHAL's own closely-held voting class) and
+    # `us-gaap:NonvotingCommonStockMember`=175,168,915 (UHAL.B's Series N Non-Voting class,
+    # separately handled via `_VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES` below) - matching the
+    # already-documented "UHAL-burn" ground truth in `_context_is_generic_common_class`'s own
+    # docstring, which stopped the wrong cross-assignment but never added the override needed to
+    # complete correct resolution. The dei:EntityCommonStockSharesOutstanding fact in companyfacts
+    # JSON is separately just stale (last tagged 2022-11-09, >730 days, correctly filtered by
+    # `_STALENESS_CUTOFF_DAYS`) - not dropped by SEC's aggregation like PLNT, just genuinely
+    # unmaintained there - so this filing-text path is the only route to a current value.
+    _SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES: dict[str, str] = {
+        "WLY": "A",
+        "WLYB": "B",
+        "TR": "A",
+        "TROLB": "B",
+        "AGM": "C",
+        "UHAL": "A",
+    }
+    # ADDED 2026-09-06 (same sweep, continued): ATRO (Astronics Corporation) has only ONE
+    # registered common ticker ("ATRO"; the CIK's other ticker "ATROB" is its Class B, not
+    # separately scored in this universe) but its real current filings (live-confirmed via
+    # CIK 8063's 10-K atro-20260226 and 10-Q atro-20260812) tag its plain, non-special "common
+    # stock" (the class ATRO actually trades - 31,868,534 shares per the 10-K) under a filer-
+    # custom dimension member `atro:CommonClassUndefinedMember`, not the standard
+    # `us-gaap:CommonStockMember` `_context_is_generic_common_class` requires to trust a
+    # non-lettered candidate as the default class (see that method's own UHAL-burn docstring
+    # for why "no letter" alone is never enough). Live-confirmed via the filing's own prose:
+    # "consisting of 36,107,984 shares of common stock ($.01 par value) and 6,901,080 shares of
+    # Class B common stock" - the Undefined-tagged value genuinely IS the plain default class,
+    # just tagged with an oddly-named filer-specific member instead of the standard one. A
+    # small, explicit, individually-verified allowlist (same discipline as
+    # `_SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES` just above) rather than trusting any
+    # "*Undefined*"/non-standard member name in general, which the method's docstring already
+    # explains is exactly the ambiguity this whole cautious design exists to avoid guessing
+    # through.
+    # ADDED 2026-09-06 (same sweep, continued): MOV (Movado Group) has the identical
+    # non-standard-custom-member shape as ATRO - its real current 10-K (CIK 72573,
+    # mov-20260131.htm) tags its plain "Common Stock" (the class MOV actually trades -
+    # 15,622,386 shares) under `mov:CommonStockClassUndefinedMember` (note: "CommonStockClass",
+    # not ATRO's "CommonClass" - a different filer-specific string, hence its own lowercased
+    # entry here, not reusable across symbols) rather than the standard
+    # `us-gaap:CommonStockMember`. Live-confirmed via the filing's own prose: "The number of
+    # shares outstanding of the registrant's Common Stock and Class A Common Stock ... were
+    # 15,622,386 and 6,455,602" - MOVAA (Class A, not in this universe) is the smaller, separately
+    # dimensioned `us-gaap:CommonClassAMember` value.
+    # ADDED 2026-09-09 (same investigation, continued): CENT (Central Garden & Pet Company) has
+    # the identical non-standard-custom-member shape as ATRO/MOV above, but with THREE classes
+    # instead of two - its real current 10-K (CIK 887733, cent-20250927.htm, filed 2025-11-26)
+    # tags `cent:CommonClassOneMember`=9,650,221, `us-gaap:CommonClassAMember`=51,080,111, and
+    # `us-gaap:CommonClassBMember`=1,602,374. The filing's own cover-page prose independently
+    # confirms which is which: "the number of shares outstanding of the registrant's Common
+    # Stock was 9,650,221 ... Class A Common Stock was 51,080,111 ... [and] outstanding 1,602,374
+    # shares of its Class B Stock" - CENT's own ticker is the plain "Common Stock" (bare,
+    # non-lettered per security_name), i.e. the `CommonClassOneMember`-tagged value, not the much
+    # larger publicly-traded-as-CENTA Class A figure a naive "take the max" would have picked.
+    # us-gaap:CommonStockSharesOutstanding in companyfacts JSON is separately just 12+ years
+    # stale (last tagged 2013, value 12,246,751 - correctly filtered by staleness cutoff), so
+    # this filing-text path is the only route to a current value.
+    _VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS: dict[str, frozenset[str]] = {
+        "ATRO": frozenset({"commonclassundefinedmember"}),
+        "MOV": frozenset({"commonstockclassundefinedmember"}),
+        "CENT": frozenset({"commonclassonemember"}),
+    }
+    # ADDED 2026-09-06 (same sweep, continued): FWONA (Liberty Media's Formula One tracking
+    # stock, Series A) has its OWN target_letter correctly resolved to "A" (security_name says
+    # "...Series A Liberty Formula One Common Stock"), but its real current 10-K (CIK 1560385,
+    # lmca-20251231x10k.htm) tags Series A's own value under
+    # `lmca:LibertyFormulaOneGroupCommonClassMember` - genuinely NO letter at all in the member
+    # name, unlike its siblings' `...CommonClassBMember`/`...CommonClassCMember` - so
+    # `_class_letter_for_context`'s letter-extraction regex can never match it even though
+    # target_letter="A" is already known with confidence. NOT the same bug class as the
+    # REVERTED 2026-09-06 MKC/MKC.V fix just above (that was a general "target letter known +
+    # zero explicit matches + exactly one undimensioned candidate -> assume it's the target's"
+    # heuristic, applied to ANY symbol with that shape - live-caught wrong for MKC/MKC.V, whose
+    # untagged candidate was NOT actually MKC's own value). This is a narrow, individually-
+    # verified exact-string mapping for ONE specific filer-custom member name to its real,
+    # confirmed letter - same discipline as `_VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS` above, not
+    # a heuristic that could misfire on an unrelated filer's differently-shaped ambiguity.
+    # ADDED 2026-09-09 (same investigation, continued): UHAL.B (U-Haul Holding Company's Series N
+    # Non-Voting Common Stock) resolves its OWN target_letter to "B" via the dot-suffix rule
+    # (`_target_class_letter`), but its real filing tags that exact class as
+    # `us-gaap:NonvotingCommonStockMember` - genuinely no letter in the member name at all, same
+    # shape as FWONA below. See `_SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES`'s own UHAL comment
+    # above for the shared live evidence (both classes verified together, same filing).
+    _VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES: dict[str, dict[str, str]] = {
+        "FWONA": {"libertyformulaonegroupcommonclassmember": "A"},
+        "UHAL.B": {"nonvotingcommonstockmember": "B"},
+    }
+    # ADDED 2026-09-06 (same sweep, continued): 5 oil/gas royalty trusts (CRT, MTR, PBT, SBR,
+    # SJT) have ZERO XBRL companyfacts (404, live-confirmed for all 5) AND zero
+    # dei:EntityCommonStockSharesOutstanding inline-XBRL tag anywhere in their real current
+    # 10-Ks - trusts report "units" (of beneficial interest), never "shares", and never tag the
+    # standard corporate cover-page fact at all. Each DOES state its real unit count in plain
+    # cover-page prose, in one of two live-confirmed shapes: "there were N Units ... outstanding"
+    # (CRT/SBR/PBT/SJT, each with slightly different trailing wording -
+    # "units outstanding"/"Units of Beneficial Interest of the Trust outstanding"/"Units of the
+    # registrant outstanding") or "the N units outstanding were held by" (MTR). A single regex
+    # bridges both shapes since they share the same "N units ... outstanding" core - see
+    # `_PLAIN_PROSE_UNITS_OUTSTANDING_RE` below. Deliberately gated to this exact, individually-
+    # verified symbol set rather than applied to any filing: an ungated "N units ... outstanding"
+    # match could false-positive on an unrelated company's restricted-stock-unit disclosure
+    # ("500,000 stock units outstanding under the 2024 Plan").
+    _VERIFIED_PLAIN_PROSE_UNIT_SYMBOLS: frozenset[str] = frozenset({"CRT", "MTR", "PBT", "SBR", "SJT"})
+    _PLAIN_PROSE_UNITS_OUTSTANDING_RE = re.compile(r"([\d][\d,]{4,})\s+[Uu]nits\b[^.]{0,80}?outstanding")
+    # ADDED 2026-09-06 (same sweep, continued): BTGO (BitGo Holdings) has zero XBRL companyfacts
+    # dei fact AND zero inline-XBRL tag for this fact in its real current 10-K - states its real
+    # dual-class counts only in plain prose: "the registrant had 106,611,583 shares of Class A
+    # common stock and 8,855,382 shares of Class B common stock outstanding." BTGO's own ticker
+    # is Class A (security_name: "BitGo Holdings, Inc. Class A Common Stock", live-confirmed).
+    # Same discipline as the units regex above - curated symbol allowlist, not applied blindly.
+    _VERIFIED_PLAIN_PROSE_CLASS_SYMBOLS: dict[str, str] = {"BTGO": "class a"}
+    _PLAIN_PROSE_CLASS_SHARES_RE = re.compile(r"([\d][\d,]{4,})\s+shares of ([A-Za-z]+(?:\s+[A-Za-z])?) common stock")
     # FIXED 2026-09-04 (same sweep): some filers (Liberty Media family, via Workiva-style
     # generators) embed the full dimension/member name directly in the contextRef id string
     # itself (e.g. "As_Of_1_31_2026_us-gaap_StatementClassOfStockAxis_lmca_
@@ -802,7 +974,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
     def _target_class_letter(symbol: str) -> str | None:
         """This symbol's own share class letter, if determinable with confidence.
 
-        Two sources, both conservative (return None rather than guess):
+        Three sources, all conservative (return None rather than guess):
         1. A single-letter dot suffix (BRK.A -> "A", LEN.B -> "B") - the internal symbol
            convention already encodes the class directly, no lookup needed.
         2. For a BARE ticker (no dot) with a dual-class sibling, `stock_symbols.security_name`
@@ -811,12 +983,18 @@ class CompanyInfoSECLoader(SecLoaderBase):
            trusted when that exact "Class {LETTER}" text is present, never inferred from
            context (many bare siblings, e.g. BRK's peers AGM/GTN/HVT/WSO, carry no class text
            in security_name at all and correctly stay unresolved here).
+        3. `_SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES` - a small, explicit, individually-
+           verified allowlist for the rare case where security_name itself is a vendor-data gap
+           (missing "Class X" text a company genuinely has) rather than a true default-class
+           ticker - see that constant's own comment (WLY/WLYB).
         """
         if "." in symbol:
             suffix = symbol.rsplit(".", 1)[-1]
             if len(suffix) == 1 and suffix.isalpha():
                 return suffix.upper()
             return None
+        if symbol in CompanyInfoSECLoader._SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES:
+            return CompanyInfoSECLoader._SECURITY_NAME_MISSING_CLASS_LETTER_OVERRIDES[symbol]
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT security_name FROM stock_symbols WHERE symbol = %s", (symbol,))
@@ -829,10 +1007,14 @@ class CompanyInfoSECLoader(SecLoaderBase):
         match = CompanyInfoSECLoader._CLASS_LETTER_FROM_SECURITY_NAME_RE.search(row[0])
         return match.group(1).upper() if match else None
 
-    def _class_letter_for_context(self, filing_text: str, context_id: str) -> str | None:
+    def _class_letter_for_context(self, filing_text: str, context_id: str, symbol: str | None = None) -> str | None:
         """The us-gaap:StatementClassOfStockAxis class letter for one <xbrli:context>, or
         None if this context has no such dimension (single-class filers, or an unrelated
-        context reused from another fact) or the member name doesn't end in a bare letter.
+        context reused from another fact) or the member name doesn't end in a bare letter -
+        UNLESS `symbol` has an individually-verified entry in
+        `_VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES` mapping this exact member name to a real,
+        confirmed letter (see that constant's own comment - FWONA's
+        `LibertyFormulaOneGroupCommonClassMember`).
         """
         id_match = self._COMMON_CLASS_MEMBER_IN_ID_RE.search(context_id)
         if id_match:
@@ -846,10 +1028,30 @@ class CompanyInfoSECLoader(SecLoaderBase):
         member_match = self._CLASS_OF_STOCK_MEMBER_RE.search(context_match.group(0))
         if not member_match:
             return None
+        member_name = member_match.group(1).rsplit(":", 1)[-1].lower()
+        # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, PGY investigation):
+        # `_CLASS_LETTER_FROM_MEMBER_RE` (r"Class([A-Z])(?:Member)?\b") matches the LETTER
+        # anywhere the "Class{X}[Member]" shape appears in the member name - it doesn't check
+        # what comes BEFORE "Class", so a filer whose preferred stock happens to share a common
+        # class's letter (`PreferredClassAMember` alongside `CommonClassAMember`) makes this
+        # method return "A" for BOTH contexts even though only one is actually common stock.
+        # Live-confirmed via Pagaya Technologies (PGY, CIK 1883085): its real current 10-K tags
+        # `us-gaap:CommonClassAMember`=71,237,859 (PGY's real Class A ordinary shares) AND
+        # `us-gaap:PreferredClassAMember`=2,027,147 (an unrelated preferred series) - both
+        # matched target_letter="A", so the caller's "exactly one dimensional match" check saw
+        # 2 matches and fell through to the ambiguous reject despite the common-class value
+        # being fully, unambiguously resolvable. A member tagging PREFERRED stock is never a
+        # valid answer for dei:EntityCommonStockSharesOutstanding's class - reject before ever
+        # running the letter regex, not just here for PGY but for any filer with this shape.
+        if member_name.startswith("preferred"):
+            return None
         letter_match = self._CLASS_LETTER_FROM_MEMBER_RE.search(member_match.group(1))
-        return letter_match.group(1).upper() if letter_match else None
+        if letter_match:
+            return letter_match.group(1).upper()
+        overrides = self._VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES.get(symbol or "", {})
+        return overrides.get(member_name)
 
-    def _context_is_generic_common_class(self, filing_text: str, context_id: str) -> bool:
+    def _context_is_generic_common_class(self, filing_text: str, context_id: str, symbol: str | None = None) -> bool:
         """True only when this context is safely treated as "the plain default common
         class, no special designation" - i.e. safe to assign to a bare ticker with no
         determinable class letter of its own.
@@ -875,7 +1077,11 @@ class CompanyInfoSECLoader(SecLoaderBase):
         classification that merely doesn't fit the "Class{LETTER}" shape - not proof it's the
         default - and is deliberately NOT trusted here, even though the letter-extraction regex
         also returns None for it. When this returns False for the only non-lettered candidate,
-        the caller correctly falls through to the conservative reject rather than guessing.
+        the caller correctly falls through to the conservative reject rather than guessing -
+        UNLESS `symbol` has an individually-verified entry in
+        `_VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS` confirming that filer's specific non-standard
+        member name really does mean "plain default class" (see that constant's own comment -
+        ATRO's `atro:CommonClassUndefinedMember`, live-verified against the filing's own prose).
         """
         context_re = re.compile(
             self._CONTEXT_BLOCK_RE_TEMPLATE.format(re.escape(context_id)), re.IGNORECASE | re.DOTALL
@@ -886,8 +1092,11 @@ class CompanyInfoSECLoader(SecLoaderBase):
         member_match = self._CLASS_OF_STOCK_MEMBER_RE.search(context_match.group(0))
         if not member_match:
             return True
-        member_name = member_match.group(1).rsplit(":", 1)[-1]
-        return member_name.lower() == "commonstockmember"
+        member_name = member_match.group(1).rsplit(":", 1)[-1].lower()
+        if member_name == "commonstockmember":
+            return True
+        verified_members = self._VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS.get(symbol or "", frozenset())
+        return member_name in verified_members
 
     def _fetch_shares_outstanding_from_filing_text(
         self, symbol: str, cik: str, submissions: dict[str, Any]
@@ -948,8 +1157,55 @@ class CompanyInfoSECLoader(SecLoaderBase):
             logger.debug(f"[{symbol}] Could not fetch filing text for shares_outstanding fallback: {e}")
             return None
 
+        # FIXED 2026-09-09 (goal: "Missing SEC/XBRL data" reduction, shares_outstanding_not_in_
+        # xbrl_or_filing_text investigation): get_filing_plaintext returns the raw, un-rendered
+        # .txt submission - real filing HTML routinely separates a number from the following word
+        # with a literal "&#160;"/"&nbsp;" non-breaking-space ENTITY (6+ raw characters), not an
+        # actual whitespace character, so every `\s+`-based prose regex below (
+        # _PLAIN_PROSE_UNITS_OUTSTANDING_RE, _PLAIN_PROSE_CLASS_SHARES_RE) silently fails to
+        # match even though the real number/text is sitting right there. Live-confirmed via MTR
+        # (Mesa Royalty Trust)'s real, current 10-K (CIK 313364, accession
+        # 0001104659-26-036896): its cover page literally reads "1,863,590&#160;Units of
+        # Beneficial Interest were outstanding" in the raw .txt - zero matches for
+        # _PLAIN_PROSE_UNITS_OUTSTANDING_RE against the untouched text despite MTR being in
+        # _VERIFIED_PLAIN_PROSE_UNIT_SYMBOLS (added by commit be2893394) and its 4 royalty-trust
+        # siblings (CRT/PBT/SBR/SJT) resolving correctly the same run - those filers' specific
+        # cover-page sentences apparently use a real space at that exact spot, MTR's doesn't.
+        # Normalizing both entity spellings to a real space before any regex runs closes this for
+        # MTR and any other filer that hits the same shape in the future - inert for the inline-
+        # XBRL tag regex just below, which never relies on `\s+` between a number and adjacent
+        # text.
+        text = re.sub(r"&#0*160;|&#[xX]0*[aA]0;|&nbsp;", " ", text)
+
         matches = self._INLINE_XBRL_SHARES_OUTSTANDING_RE.findall(text)
         if not matches:
+            # Plain-prose fallback for filers that tag NO inline-XBRL shares-outstanding fact
+            # at all - see _VERIFIED_PLAIN_PROSE_UNIT_SYMBOLS/_VERIFIED_PLAIN_PROSE_CLASS_
+            # SYMBOLS' own comments. Deliberately curated allowlists, checked before any regex
+            # runs, so this can never fire for an unverified symbol.
+            if symbol in self._VERIFIED_PLAIN_PROSE_UNIT_SYMBOLS:
+                unit_match = self._PLAIN_PROSE_UNITS_OUTSTANDING_RE.search(text)
+                if unit_match:
+                    result = int(unit_match.group(1).replace(",", ""))
+                    if result > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING:
+                        logger.info(
+                            f"[{symbol}] Recovered shares_outstanding={result:,.0f} via verified "
+                            f"plain-prose units-outstanding fallback (accession {accession})"
+                        )
+                        return result
+            target_class_label = self._VERIFIED_PLAIN_PROSE_CLASS_SYMBOLS.get(symbol)
+            if target_class_label:
+                for value_str, label in self._PLAIN_PROSE_CLASS_SHARES_RE.findall(text):
+                    if label.strip().lower() == target_class_label:
+                        result = int(value_str.replace(",", ""))
+                        if result > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING:
+                            logger.info(
+                                f"[{symbol}] Recovered shares_outstanding={result:,.0f} for "
+                                f"'{label}' via verified plain-prose class-shares fallback "
+                                f"(accession {accession})"
+                            )
+                            return result
+                        break
             return None
 
         values = []
@@ -1011,7 +1267,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 for v, ctx in values_with_context
                 if v > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING
                 and ctx is not None
-                and self._class_letter_for_context(text, ctx) == target_letter
+                and self._class_letter_for_context(text, ctx, symbol) == target_letter
             ]
             if len(dimensional_matches) == 1:
                 result = int(dimensional_matches[0])
@@ -1055,7 +1311,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 v
                 for v, ctx in values_with_context
                 if v > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING
-                and (ctx is None or self._context_is_generic_common_class(text, ctx))
+                and (ctx is None or self._context_is_generic_common_class(text, ctx, symbol))
             ]
             if len(undimensioned) == 1:
                 result = int(undimensioned[0])

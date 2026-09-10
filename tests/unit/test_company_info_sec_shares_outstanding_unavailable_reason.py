@@ -84,6 +84,27 @@ class TestSharesOutstandingUnavailableReason:
         assert result["shares_outstanding"] is None
         assert result["shares_outstanding_unavailable_reason"] == "registered_investment_company_no_annual_report"
 
+    def test_no_annual_report_filing_gets_ric_reason_when_sic_is_empty_string(self):
+        """FIXED 2026-09-09 (goal: "SEC/XBRL missing data under 500" sweep): SEC's submissions
+        API returns "" (empty string), not JSON null, for some entities' sic field (live-
+        confirmed CIK 0001569650, which ticker "OZK" currently resolves to via SEC's own
+        company_tickers.json) - the RIC classification's `sic_code is None` check missed this,
+        since "" is not None, so an empty-SIC CEF/trust fell through to the generic
+        "no_annual_report_filing" instead of "registered_investment_company_no_annual_report",
+        even though the bulk-insert path normalizes "" to NULL in the DB column regardless -
+        same real symbol, inconsistent in-memory vs. on-disk reason."""
+        loader = _loader()
+        loader.sec_client.symbol_to_cik.return_value = "0001569650"
+        loader.sec_client.get_submissions.return_value = _submissions(["N-CSR", "NPORT-P"], sic="", entity_type="other")
+        loader.sec_client.get_company_facts.return_value = {"facts": {"dei": {}, "us-gaap": {}}}
+        loader.sec_client.get_filing_plaintext.return_value = ""
+
+        result = loader.fetch_incremental("OZK", None)[0]
+
+        assert result["sic_code"] is None
+        assert result["shares_outstanding"] is None
+        assert result["shares_outstanding_unavailable_reason"] == "registered_investment_company_no_annual_report"
+
     def test_no_annual_report_filing_keeps_generic_reason_for_real_operating_company(self):
         """A genuinely new/recently-registered real operating company (has a real SIC code,
         entity_type='operating') that simply hasn't filed a 10-K yet must keep the generic

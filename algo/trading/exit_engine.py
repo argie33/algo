@@ -10,6 +10,7 @@ from datetime import datetime
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any, cast
 
+import pandas as pd
 import psycopg2
 import requests
 from psycopg2.extensions import cursor as PsycopgCursor
@@ -24,6 +25,7 @@ from algo.signals import SignalComputer
 from algo.trading import TradeExecutor
 from algo.trading.exceptions import DatabaseError, ExchangeAPIError
 from algo.trading.exit_position_context import PositionContext as PositionContext
+from loaders.technical_indicators import detect_and_adjust_splits
 from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
 from utils.trading import PositionStatus, TradeStatus
@@ -77,6 +79,41 @@ State tracked on algo_positions:
 """
 
 logger = logging.getLogger(__name__)
+
+# price_daily has no reliable dividend/split-adjusted close (loaders/price_transformer.py's
+# adj_close silently falls back to raw close whenever yfinance omits "Adj Close", which is most
+# responses) - so a stop-loss comparison here has no way to distinguish a genuine intraday
+# decline from an overnight gap caused by a large/special ex-dividend distribution. A real fix
+# needs a proper corporate-actions data feed (not yet integrated - business/vendor decision).
+# Until then, this threshold does NOT suppress or alter the stop (capital preservation must stay
+# unconditional - silently skipping a real stop on a guess is far more dangerous than an
+# occasional false-positive dividend flag), it only annotates the exit reason and logs a warning
+# so a human reviewing the trade/alert knows to check for a corporate action before assuming the
+# stop reflects genuine price deterioration. 7% is well above ordinary single-day volatility for
+# a position that was already near its stop, but within range of an unusual special dividend.
+_GAP_RISK_PCT_THRESHOLD = 0.07
+
+
+def _gap_risk_note(cur_price: Decimal, prev_close: Decimal | float | None) -> str:
+    """Return a diagnostic suffix for a stop-loss reason when the trigger looks gap-driven.
+
+    Does not affect whether the stop fires - see _GAP_RISK_PCT_THRESHOLD comment above.
+    """
+    if prev_close is None:
+        return ""
+    prev_close_dec = Decimal(str(prev_close)) if not isinstance(prev_close, Decimal) else prev_close
+    if prev_close_dec <= 0:
+        return ""
+    pct_drop = (prev_close_dec - cur_price) / prev_close_dec
+    if pct_drop < Decimal(str(_GAP_RISK_PCT_THRESHOLD)):
+        return ""
+    note = (
+        f" [GAP RISK: {float(pct_drop) * 100:.1f}% single-day drop from prev close "
+        f"${float(prev_close_dec):.2f} - verify no ex-dividend/special distribution before "
+        "treating as a genuine technical breakdown; price_daily is not dividend-adjusted]"
+    )
+    logger.warning("[EXIT_ENGINE] Stop triggered with large single-day gap:%s", note)
+    return note
 
 
 def _persist_exit_check_error(
@@ -231,15 +268,35 @@ class ExitEngine:
                     # If we fetch positions without lock, another transaction can modify them in the gap
                     # between this SELECT and the FOR UPDATE recheck at line 625. This causes duplicate
                     # exits or exits on wrong positions under concurrent load. Lock positions here.
+                    # BUG FOUND 2026-09-07 (goal session: pre-live-trading order-execution/
+                    # stop-loss audit, 4th independent copy of the pyramided-position
+                    # entry-price bug class - see the entry_price/entry_qty fixes in
+                    # executor_exit_handler.py, _compute_cumulative_pnl, and
+                    # phase9_reconciliation.py's _record_closed_positions_exits). Two
+                    # problems from joining on `ANY(p.trade_ids_arr)` instead of the
+                    # established "trade_ids_arr[0] is THE trade for this position"
+                    # convention every other consumer uses (phase9_stop_loss_repair.py,
+                    # phase6_exit_execution.py, position_monitor.py): (1) a position with
+                    # 2+ entries in trade_ids_arr would join to MULTIPLE rows here and get
+                    # evaluated for exit/trailing-stop-raise once per leg per cycle instead
+                    # of once, each time anchored to a DIFFERENT leg's own entry_price
+                    # rather than the position's actual blended cost basis; (2) even for a
+                    # single matched row, t.entry_price is that one trade's own entry price,
+                    # not the (COALESCE-guarded, same pattern as the already-fixed P&L bugs)
+                    # blended p.avg_entry_price - so a pyramided position's trailing-stop
+                    # raise/lock-in-gain logic would anchor to the wrong cost basis. Match
+                    # exactly one row per position (the array's first/original trade, same
+                    # as every other consumer) and use the position's blended entry price.
                     cur.execute(
-                        f"""SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
+                        f"""SELECT t.trade_id, t.symbol, COALESCE(p.avg_entry_price, t.entry_price) AS entry_price,
+                                  t.stop_loss_price,
                                   t.target_1_price, t.target_2_price, t.target_3_price,
                                   t.trade_date,
                                   p.position_id, p.quantity, p.target_levels_hit,
                                   p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time,
                                   t.last_partial_exit_date, t.partial_exits_log
                            FROM algo_trades t
-                           JOIN algo_positions p ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
+                           JOIN algo_positions p ON t.trade_id::text = p.trade_ids_arr[1]::text
                            WHERE t.status IN ({status_placeholders}) AND p.status = %s AND p.quantity > 0
                            ORDER BY t.trade_date ASC
                            FOR UPDATE OF p""",
@@ -341,7 +398,10 @@ class ExitEngine:
                             continue
 
                         # Use fresh stop price if available (ensures exit calculation has latest data)
-                        effective_current_stop = fresh_stop_price if fresh_stop_price else current_stop
+                        # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): was `if fresh_stop_price
+                        # else current_stop`, a truthiness check - a legitimate stop price of exactly 0
+                        # would silently fall back to the stale current_stop instead of being used.
+                        effective_current_stop = fresh_stop_price if fresh_stop_price is not None else current_stop
 
                         try:
                             entry_price = Decimal(str(entry_price))
@@ -498,6 +558,15 @@ class ExitEngine:
                                     ),
                                 )
                                 exits_executed += 1
+                                # REAL-MONEY-READINESS FIX (2026-09-06 audit): this dedicated counter
+                                # was declared, logged, and returned but never incremented anywhere -
+                                # always reported 0 regardless of how many positions actually got
+                                # force-closed with an unknown fill price here. That silently defeated
+                                # the operator-visibility signal for exactly the case (force-closed,
+                                # NULL P&L, needs manual reconciliation) that most needs a human to
+                                # notice - phase6_exit_execution.py's run summary and the
+                                # EXIT_CHECK_FAILURES alert payload both surface this value.
+                                forced_closes_no_price += 1
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")
                                 continue
                             else:
@@ -590,27 +659,21 @@ class ExitEngine:
                                 "reason": (
                                     f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(hard_stop_dec):.2f} "
                                     "(hard capital preservation - bypasses min_hold_days)"
+                                    f"{_gap_risk_note(cur_price_dec, prev_close)}"
                                 ),
                                 "exit_price_override": float(exit_price_for_stop),  # Use stop price as fill
                             }
                         else:
-                            # Get min_hold_days from config
-                            # Hard stop-loss above already checked and not triggered
-                            min_hold_val = self.config.get("min_hold_days")
-                            if min_hold_val is None:
-                                raise ValueError(
-                                    "CRITICAL: min_hold_days config missing. Cannot enforce minimum holding period."
-                                )
-                            min_hold_days_check = int(min_hold_val)
-
-                            if days_held < min_hold_days_check:
-                                if self.verbose:
-                                    logger.info(
-                                        f"  {symbol}: hold (minimum hold period not met: {days_held}d held < {min_hold_days_check}d required)"
-                                    )
-                                cur.execute(f"RELEASE SAVEPOINT {_sp}")
-                                continue
-
+                            # BUG FIX: This used to gate the entire ExitStrategyChain (targets,
+                            # trailing/active stop, Minervini/RS breaks, distribution de-risking)
+                            # behind min_hold_days, blocking `_evaluate_position` from ever being
+                            # reached during the hold window. That made _evaluate_position's own
+                            # "SESSION 41" fix (which documents removing exactly this blanket gate
+                            # and delegating min_hold_days enforcement to check_time_exit for
+                            # time-based exits only) dead code - the min_hold_days config is still
+                            # read and enforced, just inside check_time_exit (exit_position_context.py)
+                            # and the active_stop/hard-stop checks at the top of _evaluate_position,
+                            # not here. Hard stop-loss above already checked and not triggered.
                             exit_signal = self._evaluate_position(
                                 cur,
                                 symbol,
@@ -727,13 +790,22 @@ class ExitEngine:
 
                         cur.execute(f"RELEASE SAVEPOINT {_sp}")
 
-                    except (
-                        psycopg2.DatabaseError,
-                        psycopg2.OperationalError,
-                        ValueError,
-                        KeyError,
-                        RuntimeError,
-                    ) as _trade_err:
+                    except Exception as _trade_err:
+                        # REAL-MONEY-READINESS FIX (2026-09-07, pre-live audit): this previously
+                        # caught only (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError,
+                        # KeyError, RuntimeError) - see the comment above at the Decimal-conversion
+                        # block (~line 379) that already documented the gap: any OTHER exception type
+                        # (TypeError, AttributeError, IndexError, decimal.InvalidOperation,
+                        # ZeroDivisionError, etc.) raised anywhere in this per-position block would
+                        # propagate straight out of the per-position try, past this handler, and
+                        # (since this loop runs inside one outer `with DatabaseContext("write")`
+                        # transaction across ALL positions in the cycle) abort/rollback the entire
+                        # batch - silently undoing exit decisions (including hard stop-loss closes)
+                        # already made this cycle for every OTHER position, not just the one that
+                        # errored. Catching Exception broadly here routes any failure through this
+                        # block's existing savepoint-rollback-and-continue recovery instead, isolating
+                        # the failure to the single position that raised it.
+                        #
                         # CRITICAL FIX: Rollback to savepoint may itself fail if transaction is aborted.
                         # Wrap it in try-except to ensure we log the error and continue to the next position,
                         # rather than propagating a "current transaction is aborted" error that would abort
@@ -908,6 +980,7 @@ class ExitEngine:
                 reason = (
                     f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(active_stop_dec):.2f} "
                     "(hard capital preservation - not subject to min_hold_days)"
+                    f"{_gap_risk_note(cur_price_dec, prev_close)}"
                 )
             return {
                 "stage": "stop",
@@ -1201,6 +1274,15 @@ class ExitEngine:
         4. If critical API error (not 404), propagate to caller for halt
 
         For 404 (delisted symbols in paper trading), use database fallback instead.
+
+        Deliberately compares raw (not dividend/split-adjusted) prices against stop/target
+        levels: a heuristic adjustment based on raw-vs-adjusted-close divergence was tried and
+        reverted (real-money-readiness audit, 2026-09-08) because it mutated the price used for
+        every exit decision, including hard stops, based on an unverified guess - any raw/adjusted
+        divergence (data artifacts, split-adjustment glitches, vendor anomalies), not just a real
+        dividend, could inflate current_price enough to suppress a genuine stop trigger. Hard
+        stop-loss must stay unconditional; see _gap_risk_note for the safe, annotation-only way
+        to flag a suspected ex-dividend gap without altering the comparison.
         """
 
         # CRITICAL FIX: `_fetch_alpaca_quote`'s own docstring documents that when the market is
@@ -1403,22 +1485,45 @@ class ExitEngine:
             (symbol, current_date),
         )
 
-        rows = cur.fetchall()
+        raw_rows = cur.fetchall()
 
-        if len(rows) < 3:
+        if len(raw_rows) < 3:
             # FAIL-FAST: Cannot evaluate pullback with insufficient price history
             # Returning False (no pullback) when we cannot verify pullback status masks
             # data quality issues - a position might be extended without confirmation
             # Pullback detection requires 3+ days of price data to be reliable
             raise ValueError(
-                f"[EXIT_ENGINE PULLBACK] {symbol}: Insufficient price history ({len(rows)} days, need 3+). "
+                f"[EXIT_ENGINE PULLBACK] {symbol}: Insufficient price history ({len(raw_rows)} days, need 3+). "
                 f"Cannot evaluate pullback without complete price data. "
                 f"Fail-fast to prevent blind exit decisions on data gaps."
             )
 
+        # FIX (2026-09-09 real-money-readiness audit): same unadjusted-price gap already fixed
+        # for the primary stop inputs in this file (_chandelier_or_ema_stop) - a real split
+        # inside this 6-day window used to read as a fake single-day price collapse, producing
+        # a bogus pullback_pct (recent_high stuck at the pre-split level vs a post-split
+        # cur_close) that could false-trigger this exit signal right after a legitimate split.
+        # raw_rows is DESC by date (most recent first); detect_and_adjust_splits expects
+        # ascending, so reverse before adjusting and reverse back after.
+        adjusted_df = detect_and_adjust_splits(
+            pd.DataFrame(
+                {
+                    "close": [float(r[0]) for r in reversed(raw_rows)],
+                    "high": [float(r[1]) if r[1] is not None else float("nan") for r in reversed(raw_rows)],
+                }
+            )
+        )
+        rows = list(
+            zip(
+                reversed(adjusted_df["close"].tolist()),
+                reversed(adjusted_df["high"].tolist()),
+                strict=True,
+            )
+        )
+
         cur_close = Decimal(str(rows[0][0]))
 
-        valid_highs = [Decimal(str(r[1])) for r in rows[:5] if r[1] is not None]
+        valid_highs = [Decimal(str(r[1])) for r in rows[:5] if r[1] is not None and not math.isnan(r[1])]
         if not valid_highs:
             raise RuntimeError(
                 "Pullback detection failed: no valid high prices in recent 5 days. "
@@ -1452,46 +1557,50 @@ class ExitEngine:
         cur.execute(
             """
 
-            WITH ratio AS (
+            SELECT s.date, s.close, spy.close AS spy_close
 
-                SELECT s.date,
+            FROM price_daily s
 
-                       s.close::numeric / NULLIF(spy.close, 0) AS rs
+            JOIN price_daily spy ON spy.symbol='SPY' AND spy.date=s.date
 
-                FROM price_daily s
+            WHERE s.symbol = %s AND s.date <= %s
 
-                JOIN price_daily spy ON spy.symbol='SPY' AND spy.date=s.date
-
-                WHERE s.symbol = %s AND s.date <= %s
-
-                ORDER BY s.date DESC LIMIT 60
-
-            ),
-
-            ranked AS (
-
-                SELECT rs, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn FROM ratio
-
-            )
-
-            SELECT
-
-                (SELECT rs FROM ranked WHERE rn = 1) AS cur,
-
-                (SELECT AVG(rs) FROM ranked WHERE rn BETWEEN 2 AND 51) AS rs_50dma
+            ORDER BY s.date DESC LIMIT 60
 
             """,
             (symbol, current_date),
         )
 
-        row = cur.fetchone()
+        raw_rows = cur.fetchall()
 
-        if not row or len(row) < 2 or row[0] is None or row[1] is None:
+        # Matches the pre-fix SQL's implicit minimum: needs a current-day ratio (rn=1) plus at
+        # least one comparison day (rn=2) for the "50dma" average to be non-null - the old
+        # AVG(rs) over rn BETWEEN 2 AND 51 tolerated fewer than 50 comparison days (e.g. a
+        # recently-listed symbol) rather than requiring the full window.
+        if len(raw_rows) < 2:
             raise ValueError(f"Insufficient RS data for {symbol} to calculate RS line break")
 
-        cur_rs = Decimal(str(row[0]))
+        # FIX (2026-09-09 real-money-readiness audit): same unadjusted-price gap already fixed
+        # elsewhere in this file - s.close was previously joined/ratioed straight from raw
+        # price_daily with no split adjustment. SPY's own close is unaffected by the traded
+        # symbol's split, so a real split inside this 60-day window used to produce a fake
+        # step in the ratio series, which could false-trigger (or mask) an RS-line-break exit
+        # right after a legitimate split. raw_rows is DESC by date; detect_and_adjust_splits
+        # expects ascending, so reverse before adjusting.
+        adjusted_df = detect_and_adjust_splits(pd.DataFrame({"close": [float(r[1]) for r in reversed(raw_rows)]}))
+        adjusted_closes = list(reversed(adjusted_df["close"].tolist()))
+        spy_closes = [float(r[2]) for r in raw_rows]
 
-        rs_50 = Decimal(str(row[1]))
+        if spy_closes[0] == 0:
+            raise ValueError(f"SPY close is 0 for {symbol}'s RS line calculation - cannot divide")
+        cur_rs = Decimal(str(adjusted_closes[0])) / Decimal(str(spy_closes[0]))
+
+        rs_values = []
+        for i in range(1, min(51, len(raw_rows))):
+            if spy_closes[i] == 0:
+                raise ValueError(f"SPY close is 0 for {symbol}'s RS line calculation - cannot divide")
+            rs_values.append(Decimal(str(adjusted_closes[i])) / Decimal(str(spy_closes[i])))
+        rs_50 = sum(rs_values) / Decimal(len(rs_values))
 
         return cur_rs < rs_50 * Decimal("0.99")
 
@@ -1513,13 +1622,15 @@ class ExitEngine:
         cur.execute(
             """
 
-            SELECT MAX(close) FROM price_daily
+            SELECT close FROM price_daily
 
             WHERE symbol = %s
 
               AND date >= %s::date - MAKE_INTERVAL(days => %s)
 
               AND date <= %s::date - MAKE_INTERVAL(days => %s)
+
+            ORDER BY date ASC
 
             """,
             (
@@ -1531,12 +1642,20 @@ class ExitEngine:
             ),
         )
 
-        row = cur.fetchone()
+        window_rows = cur.fetchall()
 
-        if row is None or len(row) < 1 or row[0] is None:
+        if not window_rows or window_rows[0][0] is None:
             raise ValueError(f"No price data for {symbol} in 8-week window")
 
-        max_close_in_window = Decimal(str(row[0]))
+        # FIX (2026-09-09 real-money-readiness audit): same unadjusted-price gap already fixed
+        # for _chandelier_or_ema_stop/_is_pulling_back in this file - entry_price (compared
+        # against below) is already split-adjusted live for an open position (see
+        # position_corporate_actions.py's _apply_split_adjustment), but this window's raw
+        # closes were not - a real split in the first-3-weeks window this rule inspects would
+        # read as a fake price jump, producing a wrong-scale gain_pct against the
+        # already-adjusted entry_price and could mis-fire (or mis-suppress) the 8-week hold.
+        adjusted_df = detect_and_adjust_splits(pd.DataFrame({"close": [float(r[0]) for r in window_rows]}))
+        max_close_in_window = Decimal(str(adjusted_df["close"].max()))
 
         # BUG FOUND 2026-08-10 (via systematic sweep for the NaN-comparison-guard bug
         # class): `entry_price <= 0` doesn't catch NaN. Same fix already applied to this
@@ -1606,7 +1725,18 @@ class ExitEngine:
                         f"Invalid close price {r[0]!r} in price_daily for {symbol} - cannot calculate 21-EMA stop"
                     )
 
-            closes = [Decimal(str(r[0])) for r in rows]
+            # FIX (2026-09-09 real-money-readiness audit): price_daily stores raw/unadjusted
+            # prices, so a real split inside this 30-row window used to read as a fake ~50%+
+            # single-day move straight into the EMA, potentially triggering a false 21-EMA-
+            # break stop (or masking a real one) on a live open position. The offline
+            # technical_data_daily loader already guards against exactly this via
+            # detect_and_adjust_splits (loaders/technical_indicators.py) - reuse the same
+            # function here rather than inventing a second split-detection method, so this
+            # live path and the offline loader agree on what counts as a split. `rows` is
+            # already ascending by date (rn DESC on a DESC-numbered window = oldest first),
+            # matching what detect_and_adjust_splits expects.
+            adjusted_df = detect_and_adjust_splits(pd.DataFrame({"close": [float(r[0]) for r in rows]}))
+            closes = [Decimal(str(c)) for c in adjusted_df["close"]]
 
             k = Decimal(2) / Decimal(22)
 
@@ -1625,7 +1755,7 @@ class ExitEngine:
 
                 WITH d AS (
 
-                    SELECT pd.high, td.atr,
+                    SELECT pd.date, pd.close, pd.high, td.atr,
 
                            ROW_NUMBER() OVER (ORDER BY pd.date DESC) AS rn
 
@@ -1639,24 +1769,34 @@ class ExitEngine:
 
                 )
 
-                SELECT MAX(high) AS hh,
-
-                       (SELECT atr FROM d WHERE rn = 1) AS cur_atr
-
-                FROM d
+                SELECT close, high, atr, rn FROM d ORDER BY rn DESC
 
                 """,
                 (symbol, current_date, max(days_held, 5)),
             )
 
-            row = cur.fetchone()
+            rows = cur.fetchall()
 
-            if not row or len(row) < 2 or row[0] is None or row[1] is None:
+            if not rows or rows[-1][2] is None or any(r[0] is None or r[1] is None for r in rows):
                 raise ValueError(f"Insufficient data for {symbol} to calculate chandelier stop")
 
-            hh = float(row[0])
+            # FIX (2026-09-09 real-money-readiness audit): pd.high was previously MAX()'d
+            # straight from raw/unadjusted price_daily while cur_atr (technical_data_daily)
+            # was already split-adjusted at the source by the 256b71db7 fix earlier this
+            # session - mixing a raw pre-split highest-high with a split-adjusted ATR produces
+            # a chandelier stop far above the real current price, likely false-triggering an
+            # immediate stop-out right after a split. Apply the same detect_and_adjust_splits
+            # used by the 21-EMA branch above (and the offline loader) to the high/close
+            # series before taking the max, so hh and atr agree on units. rows is ascending
+            # by date (rn DESC on a DESC-numbered window = oldest first), matching what
+            # detect_and_adjust_splits expects.
+            adjusted_df = detect_and_adjust_splits(
+                pd.DataFrame({"close": [float(r[0]) for r in rows], "high": [float(r[1]) for r in rows]})
+            )
 
-            atr = float(row[1])
+            hh = float(adjusted_df["high"].max())
+
+            atr = float(rows[-1][2])
 
             # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): same as the 21-EMA
             # branch above - a NaN highest-high or ATR silently propagates through Decimal

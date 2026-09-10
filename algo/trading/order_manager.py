@@ -89,6 +89,16 @@ def _quantize_price(v: float) -> str:
     return str(v_dec.quantize(places, rounding=ROUND_HALF_UP))
 
 
+def _quantize_qty(v: float) -> str:
+    """Stringify a share quantity for broker submission via str(float) -> Decimal, not a bare
+    float, so binary-float representation drift (e.g. a partial-exit fraction landing on
+    4.870000000000001) never reaches the JSON payload - matches _quantize_price's approach.
+    Exit quantities can be genuinely fractional (partial/scale-out exits of a whole-share
+    position), so this preserves the literal decimal value rather than rounding to an integer.
+    """
+    return str(Decimal(str(v)))
+
+
 class OrderManager(StopLossRepairMixin):
     """Manage order lifecycle via Alpaca API.
 
@@ -97,10 +107,25 @@ class OrderManager(StopLossRepairMixin):
     file-size ratchet on this already-oversized file, see .file-size-baseline.json).
     """
 
-    def __init__(self, alpaca_key: str | None, alpaca_secret: str | None, alpaca_base_url: str) -> None:
+    def __init__(
+        self,
+        alpaca_key: str | None,
+        alpaca_secret: str | None,
+        alpaca_base_url: str,
+        execution_mode: str | None = None,
+    ) -> None:
         self.alpaca_key = alpaca_key
         self.alpaca_secret = alpaca_secret
         self.alpaca_base_url = alpaca_base_url
+        # Optional (2026-09-10 real-money-readiness audit): when a caller supplies it,
+        # send_bracket_order() gates on it directly instead of relying solely on that
+        # caller having already checked execution_mode before calling in. Left as an
+        # opt-in constructor arg (default None => no extra gate) rather than required, so
+        # existing call sites that already guard before construction/call (e.g.
+        # alpaca_sync_manager.py's untracked-stop path, order_manager_stop_repair.py)
+        # don't need to change - only the one real "auto"-mode order-submission caller
+        # (executor.py) needs to actually pass it for the defense-in-depth to matter.
+        self.execution_mode = execution_mode
 
     def _entry_result_from_order_data(self, symbol: str, data: dict[str, Any]) -> dict[str, Any]:
         """Interpret an Alpaca order object into send_bracket_order's result shape.
@@ -186,7 +211,7 @@ class OrderManager(StopLossRepairMixin):
         # compensating for a self-inflicted daily expiry.
         order_data: dict[str, Any] = {
             "symbol": symbol,
-            "qty": shares,
+            "qty": _quantize_qty(shares),
             "side": "buy",
             "type": "limit",
             "time_in_force": "gtc",
@@ -206,6 +231,19 @@ class OrderManager(StopLossRepairMixin):
                 "limit_price": _quantize_price(take_profit_price),
             }
         else:
+            # REAL-MONEY-READINESS FIX (2026-09-06 audit): every other invalid-input case in
+            # this function (bad entry/stop/shares) fails loud with an operator alert - a
+            # caller-supplied take_profit_price that's positive/finite but not > entry_price
+            # used to fail this condition silently and fall through to the 1.5R fallback with
+            # no signal at all, inconsistent with that fail-loud discipline. The fallback is
+            # still a reasonable target, so this only warns rather than raising - but a caller
+            # passing a nonsensical take-profit should not go unnoticed.
+            if take_profit_price is not None:
+                logger.warning(
+                    f"[BRACKET_ORDER] {symbol}: caller-supplied take_profit_price="
+                    f"{take_profit_price} is not above entry_price={entry_price} - ignoring it "
+                    f"and computing the take-profit from the standard 1.5R fallback instead."
+                )
             risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
             if risk_dec > 0:
                 tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)
@@ -254,10 +292,43 @@ class OrderManager(StopLossRepairMixin):
         attempt's outcome. algo_untracked_positions (see GOVERNANCE.md) is a different
         mechanism - it exists for manual/external trades placed outside the algo, not as a
         duplicate-order gate for algo-originated entries.
+
+        NOTE (2026-09-10 real-money-readiness audit, order-execution re-audit): the
+        primary paper/dry/review gate still lives in executor.py's
+        _submit_and_validate_order (checks execution_mode BEFORE calling this). As of the
+        same-day re-audit, this method ALSO gates on execution_mode itself when the
+        caller supplies one via the constructor (see __init__) - executor.py's real
+        OrderManager instance does. This is defense-in-depth, not a replacement for the
+        caller-side check: a caller that constructs OrderManager without passing
+        execution_mode gets no gate here and must keep guarding itself before calling in
+        (existing callers like alpaca_sync_manager.py's untracked-stop path already do).
         """
         if not self.alpaca_key or not self.alpaca_secret:
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
             return {"success": False, "message": "Alpaca credentials not configured"}
+
+        # REAL-MONEY-READINESS FIX (2026-09-10 order-execution re-audit, defense-in-depth):
+        # this method previously had no execution_mode awareness of its own and relied
+        # entirely on the one current caller (executor.py's _submit_and_validate_order)
+        # checking execution_mode before ever calling in - safe today only because grep
+        # confirms a single call site, a fragile invariant for the actual real-order-to-
+        # broker submission path. Mirrors the same execution_mode != "auto" + base_url
+        # pattern already used in alpaca_sync_manager.py's untracked-stop guard. Only
+        # fires when a caller actually supplies execution_mode (see __init__) - existing
+        # callers/tests that don't pass it are unaffected.
+        if self.execution_mode is not None:
+            base_url_is_paper = "paper" in (self.alpaca_base_url or "").lower()
+            if self.execution_mode != "auto" and not base_url_is_paper:
+                error_msg = (
+                    f"[SEND_ORDER CRITICAL] {symbol}: bracket order submission ABORTED - "
+                    f"execution_mode='{self.execution_mode}' but resolved Alpaca base_url "
+                    f"does not look like the paper endpoint ({self.alpaca_base_url}). "
+                    "Refusing to submit a real order in a non-auto mode against what may "
+                    "be a live endpoint."
+                )
+                logger.critical(error_msg)
+                _notify_bracket_validation_failure(symbol, error_msg)
+                return {"success": False, "message": error_msg}
 
         # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): this function - the
         # ACTUAL real-order-to-the-broker submission path - had zero validation on
@@ -690,7 +761,7 @@ class OrderManager(StopLossRepairMixin):
 
         body: dict[str, Any] = {"stop_price": _quantize_price(new_stop_price)}
         if new_qty is not None:
-            body["qty"] = str(new_qty)
+            body["qty"] = _quantize_qty(new_qty)
 
         max_attempts = 3
         last_error = "No attempts made"
@@ -1419,7 +1490,7 @@ class OrderManager(StopLossRepairMixin):
         """
         close_resp = requests.delete(
             f"{self.alpaca_base_url}/v2/positions/{symbol}",
-            params={"qty": str(qty)},
+            params={"qty": _quantize_qty(qty)},
             headers={
                 "APCA-API-KEY-ID": self.alpaca_key,
                 "APCA-API-SECRET-KEY": self.alpaca_secret,
@@ -1681,7 +1752,7 @@ class OrderManager(StopLossRepairMixin):
             try:
                 order_data: dict[str, Any] = {
                     "symbol": symbol,
-                    "qty": shares,
+                    "qty": _quantize_qty(shares),
                     "side": "sell",
                     "type": "limit" if use_limit else "market",
                     "time_in_force": "day",

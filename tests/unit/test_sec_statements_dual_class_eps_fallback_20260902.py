@@ -131,6 +131,53 @@ class TestDualClassEpsFallbackIntegration:
 
         assert client.get_filing_xml_calls == []
 
+    def test_replaces_implausible_bare_diluted_shares_below_resolved_basic(self) -> None:
+        """Regression test for the 2026-09-07 fix: a pre-existing bare (non-dimensional)
+        weighted_average_number_of_diluted_shares_outstanding value must not be trusted as
+        "already resolved" when it's smaller than the class-dimensional shares_basic this
+        fallback just filled - that's a hard accounting impossibility (diluted must be >=
+        basic), proving the bare value belongs to a different class/context. Live-confirmed
+        on CWEN: a bare diluted tag frozen at 35,000,000 for three straight fiscal years
+        while the real, dimensionally-resolved Class C shares_basic varies and is much
+        larger (84,000,000 for FY2025)."""
+        rows = [
+            {
+                "fiscal_year": 2025,
+                "earnings_per_share_basic": None,
+                "earnings_per_share_diluted": None,
+                "weighted_average_number_of_shares_outstanding_basic": None,
+                # Bare/wrong-class value smaller than the class-B fixture's real 2,157,335,139
+                # shares_basic - an accounting impossibility once that basic value is filled.
+                "weighted_average_number_of_diluted_shares_outstanding": 35_000_000.0,
+            }
+        ]
+        client = _FakeClient()
+
+        _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, "BRK.B")
+
+        assert rows[0]["weighted_average_number_of_shares_outstanding_basic"] == 2157335139.0
+        assert rows[0]["weighted_average_number_of_diluted_shares_outstanding"] == 2157335139.0
+
+    def test_plausible_bare_diluted_shares_left_untouched(self) -> None:
+        """A pre-existing bare diluted value that does NOT violate diluted >= basic is left
+        alone - nothing proves it's wrong, so the "never overwrite a real value" guard still
+        applies."""
+        rows = [
+            {
+                "fiscal_year": 2025,
+                "earnings_per_share_basic": None,
+                "earnings_per_share_diluted": None,
+                "weighted_average_number_of_shares_outstanding_basic": None,
+                # Above the fixture's 2,157,335,139 shares_basic - plausible, must survive.
+                "weighted_average_number_of_diluted_shares_outstanding": 2_200_000_000.0,
+            }
+        ]
+        client = _FakeClient()
+
+        _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, "BRK.B")
+
+        assert rows[0]["weighted_average_number_of_diluted_shares_outstanding"] == 2_200_000_000.0
+
     def test_caps_to_three_most_recent_missing_years(self) -> None:
         rows = [{"fiscal_year": year, **dict.fromkeys(_TARGET_FIELDS)} for year in range(2015, 2025)]
         client = _FakeClient()

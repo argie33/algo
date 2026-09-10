@@ -51,11 +51,111 @@ easy to mistake for the loader/data problem you were actually trying to reproduc
 exercise phase logic for a historical date outside real market hours, set
 `ALLOW_OUTSIDE_MARKET_HOURS=true` in the environment first.
 
+**Phase 1 now halts if DataPatrol hasn't run recently (FIXED 2026-09-07).** `algo/orchestrator/
+phase1_data_freshness.py`'s `_check_data_patrol_results` queries `data_patrol_log` for the
+latest DataPatrol run and halts if it's missing, more than 8h stale, or has any CRITICAL/ERROR
+finding (tie-out identity checks, staleness, XBRL concept gaps, statistical anomalies - the
+whole DataPatrol suite). In production this is always fresh (terraform's pipeline DAG runs the
+DataPatrol ECS step immediately before triggering the orchestrator), but
+`scripts/run_local_orchestrator.py` never invokes DataPatrol itself — run
+`python algo/algo_data_patrol.py` first, or set `ALLOW_MISSING_DATA_PATROL=true` (local/dev
+only; forced off in `execution_mode="auto"` regardless, same as `ALLOW_OUTSIDE_MARKET_HOURS`)
+to downgrade a missing/stale patrol run to a warning instead of a halt.
+
 **Troubleshooting data issues:**
 ```bash
 python scripts/monitor_data_staleness.py               # Check freshness
 python scripts/verify_eventbridge_scheduler.py --fix   # Repair scheduler if stuck
 ```
+
+**Finding missing XBRL concepts systematically (not one bug report at a time):**
+```bash
+python scripts/xbrl_concept_coverage_scan.py --exclude-noise --min-companies 100
+```
+Diffs every us-gaap/dei concept real filers actually tag (read from the on-disk SEC EDGAR
+companyfacts cache under `%TEMP%/algo-sec-edgar-cache/companyfacts` — already populated by
+normal loader runs, no extra fetching) against the allowlist our loader source files
+(`utils/external/sec_income_statement.py`, `sec_balance_sheet.py`, `sec_cash_flow.py`,
+`sec_custom_xbrl_concepts.py`, etc.) actually know how to fetch, ranked by how many distinct
+companies tag each missing concept. This is how the `accounts_payable` gap (confirmed missing
+from the whole schema, independently rediscovered by
+`algo/research/quality_asset_turnover_piotroski_candidates.py`) got found — 3,392 filers tag
+`AccountsPayableCurrent` and it was never in the allowlist at all. Re-run this periodically
+(new symbols entering the universe, filers adopting newly-effective taxonomy tags in future
+10-Ks) rather than waiting for the next "implausible value" bug report to point at a gap.
+Review a batch, then record anything genuinely out of scope with `--dismiss "us-gaap:Concept"
+--reason "..."` (persisted in `scripts/xbrl_concept_coverage_dismissed.json`, checked into
+git) so future scans only surface what's actually new instead of re-litigating the same
+already-reviewed footnote/schedule concepts every time.
+
+**Independent second-opinion cross-check against yfinance (not a bug-report-driven thing,
+run it periodically):**
+```bash
+python scripts/xbrl_yfinance_crosscheck.py               # samples 25 symbols, writes findings
+python scripts/xbrl_yfinance_crosscheck.py --limit 50
+python scripts/xbrl_yfinance_crosscheck.py --symbols AAPL,MSFT,KO
+python scripts/xbrl_yfinance_crosscheck.py --dry-run      # print only, don't write to data_patrol_log
+```
+tie_out.py and statistical_anomaly.py both validate our own SEC-XBRL-derived numbers against
+themselves (arithmetic identities, own trailing history) - neither can catch an extraction/
+mapping bug that's internally self-consistent and doesn't stand out against history either.
+This script fetches yfinance's independently-parsed financials (reuses the existing
+`utils/external/yfinance_financials.py` fallback fetch and its currency/circuit-breaker
+handling, never a value source for real tables - same discipline as `sec_valuations_checks.py`'s
+market_cap/shares_outstanding cross-checks) and flags a >2x divergence on revenue/net_income/
+total_assets/stockholders_equity/operating_cash_flow as a WARN finding, which flows into the
+same `data_patrol_review` triage workflow as every other DataPatrol check. Deliberately NOT
+part of every DataPatrol run - it makes live per-symbol yfinance network calls through the
+same shared-IP rate limit every loader depends on, so a full-universe version every run would
+risk the same self-triggered ban `yfinance_validation_calls_self_triggered_ban_during_reload_20260903`
+describes. Run it by hand every so often (or from a low-frequency schedule) on a small
+rotating sample - the daily pseudo-random sample means broad coverage accumulates over many
+runs rather than needing to cover the whole universe in one pass.
+
+**Layers 4/5 now run on their own daily schedule, not just "by hand" (added 2026-09-10,
+corrected weekly->daily same day):** `scripts/xbrl_second_opinion_daily.py` calls
+`xbrl_yfinance_crosscheck.run()` and `xbrl_calculation_linkbase_check.run()` back-to-back
+with their normal periodic-sample defaults (25 / 15 symbols). It's the ECS command for a
+new, fully independent `aws_cloudwatch_event_rule`/`aws_ecs_task_definition` pair in
+`terraform/modules/loaders/main.tf` (`xbrl_second_opinion*`) firing 05:00 UTC every day
+(before the 2:00 AM ET morning pipeline starts) — deliberately its own task, NOT folded
+into the DataPatrol ECS task, because DataPatrol runs twice daily on a hard 600s Step
+Functions timeout gating Phase 1, and these two checks make live outbound SEC EDGAR/
+yfinance calls with unpredictable latency that could turn an optional WARN-only check
+into an accidental trading halt. Daily, not the "e.g. weekly" example in the two
+underlying scripts' own docstrings above: both scripts' `_select_symbols()` rotates its
+sample by `CURRENT_DATE`, engineered for daily coverage accumulation across the ~4,900-
+symbol universe (weekly would take 3.8-6.4 years to cycle through it once; daily takes
+6.5-11 months) — an initial version of this schedule copied the "weekly" example
+literally without checking that. **This terraform is written but NOT applied** — run
+`terraform plan`/`apply` in `terraform/` to actually turn the schedule on; until then
+these two layers are still manual-only in practice, same as before.
+
+**Calculation-linkbase self-consistency check (5th and final layer of the XBRL data-quality
+architecture, added 2026-09-10 - not a bug-report-driven thing, run it periodically):**
+```bash
+python scripts/xbrl_calculation_linkbase_check.py               # samples 15 symbols, writes findings
+python scripts/xbrl_calculation_linkbase_check.py --limit 30
+python scripts/xbrl_calculation_linkbase_check.py --symbols AAPL,MSFT,KO
+python scripts/xbrl_calculation_linkbase_check.py --dry-run      # print only, don't write to data_patrol_log
+```
+Unlike the other four layers (self-consistency of our own derived fields, statistical/peer
+outliers, DQC-style negative-value guards, yfinance second-opinion), this one never touches
+our own tables at all - it parses each sampled symbol's latest 10-K's XBRL calculation
+linkbase (`utils/external/sec_calculation_linkbase.py`, fetched via
+`SecEdgarClient.get_calculation_linkbase_xml`) to get the filer's OWN declared summation-item
+relationships (e.g. `Assets = AssetsCurrent + AssetsNoncurrent`), then checks those against
+the filer's own reported us-gaap fact values (matched by accession number, from the already-
+cached companyfacts payload) for that exact filing. A mismatch means the FILING itself doesn't
+tie, independent of anything our extraction code does. Restricted to primary-statement
+extended link roles only (role name has no "Details"/"Tables" suffix) - SEC's companyfacts API
+collapses all dimensional facts for a concept into one flat list with no axis/member info, so
+note-schedule concepts reused across dimensional breakdowns (lease maturity tables, debt
+schedules, segment detail) produce false "mismatches" that are really just companyfacts
+losing the dimensional context, not a real filing error (live-confirmed on AAPL's FY2025
+10-K before this filter was added: all 3 raw mismatches were note-schedule concepts, 0 were
+face-financial-statement concepts). Same rate-limit posture as the yfinance script - not part
+of every DataPatrol run, small rotating sample only.
 
 `monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use
 **different freshness methodologies** — a table can show FRESH in the monitor and still halt

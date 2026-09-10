@@ -52,8 +52,13 @@ def _transform(
 ) -> list[dict[str, Any]]:
     with (
         patch.object(ConsolidatedFinancialStatementsLoader.__mro__[1], "transform", side_effect=lambda r: r),
+        # NOTE 2026-09-07: _fill_derived_eps moved to loaders/helpers/
+        # financial_statements_share_count_validation.py's
+        # FinancialStatementsShareCountValidationMixin (file-size ratchet split) - patch
+        # DatabaseContext where it's actually imported/called now, not on
+        # load_financial_statements itself.
         patch(
-            "loaders.load_financial_statements.DatabaseContext",
+            "loaders.helpers.financial_statements_share_count_validation.DatabaseContext",
             return_value=_mock_read_context(fetchall=company_info_sec_rows),
         ),
     ):

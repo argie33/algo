@@ -235,7 +235,9 @@ def _extract_ares_style_segment_revenue(  # noqa: C901 -- same discover-then-rec
     return per_segment, max_end, max_duration
 
 
-def _extract_single_segment_revenue(root: ET.Element, symbol: str) -> tuple[str, float, str, int] | None:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
+def _extract_single_segment_revenue(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
+    root: ET.Element, symbol: str, *, require_explicit_count_tag: bool = False
+) -> tuple[str, float, str, int] | None:
     """Fallback for filers that disclose exactly one reportable segment.
 
     A single-segment filer's segment revenue is trivially its consolidated
@@ -304,25 +306,42 @@ def _extract_single_segment_revenue(root: ET.Element, symbol: str) -> tuple[str,
 
     # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): requiring an explicit
     # plain NumberOfReportableSegments/NumberOfOperatingSegments=1 tag before even attempting
-    # to find a consolidated revenue fact was too strict - this function is only ever called
-    # (see extract_segment_revenue_from_xbrl_xml above) after the caller has ALREADY confirmed
-    # zero segment-axis-dimensioned contexts exist anywhere in the entire filing, which is
-    # itself sufficient evidence of a single reportable segment (a real multi-segment filer
-    # MUST tag some dimensional fact for its ASC 280 segment footnote). Many smaller/older
-    # filers simply never tag the redundant count concept at all despite genuinely having one
-    # segment - live-confirmed via SEC's own companyconcept API: Abeona Therapeutics (ABEO,
-    # CIK 0000318306) tags NumberOfReportableSegments=1 in its 10-Qs but NOT in its FY2025
-    # 10-K (the annual filing this loader actually processes), despite that same 10-K having
-    # real, positive revenue ($5.82M) and zero segment-dimensioned contexts - was falling
-    # through to the generic "no_segment_dimension_contexts_in_xbrl_xml" ("Missing SEC/XBRL
-    # data") instead of correctly extracting its trivial single-segment revenue. When the
-    # count concept genuinely IS tagged and says something other than 1, still bail out (a
-    # real signal that this parser missed a genuine multi-segment structure, not a case to
-    # guess through).
+    # to find a consolidated revenue fact was too strict when this function is called after
+    # the caller has ALREADY confirmed zero segment-axis-dimensioned contexts exist anywhere
+    # in the entire filing (extract_segment_revenue_from_xbrl_xml's top-level early-return
+    # path) - that absence is itself sufficient evidence of a single reportable segment (a
+    # real multi-segment filer MUST tag some dimensional fact for its ASC 280 segment
+    # footnote). Many smaller/older filers simply never tag the redundant count concept at
+    # all despite genuinely having one segment - live-confirmed via SEC's own companyconcept
+    # API: Abeona Therapeutics (ABEO, CIK 0000318306) tags NumberOfReportableSegments=1 in
+    # its 10-Qs but NOT in its FY2025 10-K (the annual filing this loader actually
+    # processes), despite that same 10-K having real, positive revenue ($5.82M) and zero
+    # segment-dimensioned contexts - was falling through to the generic
+    # "no_segment_dimension_contexts_in_xbrl_xml" ("Missing SEC/XBRL data") instead of
+    # correctly extracting its trivial single-segment revenue.
+    #
+    # BUG FOUND 2026-09-06 (same-day follow-up, live test failure caught via
+    # tests/test_sec_xbrl_segments.py::TestCrossTabSegmentRevenueFallback::
+    # test_cross_tab_fallback_fails_closed_when_no_candidate_reconciles): this function has
+    # a SECOND caller inside extract_segment_revenue_from_xbrl_xml's deeper fallback chain,
+    # reached when real segment-axis-dimensioned contexts DO exist for this filer but none
+    # of cross-tab/component-sum/alt-asset-manager/Ares-style reconciliation matched them to
+    # a consolidated anchor. At that call site the relaxed rule above is actively wrong: the
+    # filer is proven NOT single-segment (real dimensioned contexts exist), so grabbing an
+    # arbitrary plain (non-dimensioned) revenue fact - typically the whole-company
+    # consolidated total tagged for an unrelated purpose - and mislabeling it as if it were
+    # one specific segment's revenue is a confidently-wrong number, not an honest recovery.
+    # This directly violates this file's own "fail fast, an honest data_unavailable beats a
+    # silently wrong number" governance principle the failing test asserts. Only that second
+    # call site passes `require_explicit_count_tag=True`, restoring the original strict
+    # requirement there while keeping the new relaxed behavior for the legitimate
+    # zero-context-anywhere case.
     if count_by_end:
         max_end = max(count_by_end)
         if count_by_end[max_end] != 1:
             return None
+    elif require_explicit_count_tag:
+        return None
     else:
         max_end = None
 

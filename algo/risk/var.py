@@ -997,8 +997,8 @@ class ValueAtRisk:
             # consistency audit): these three alert thresholds were hardcoded literals
             # (2.0, 30, 2.0) even though the exact same limits are live, config-driven
             # values (max_simulated_var_pct/max_top5_concentration_pct/max_portfolio_beta)
-            # already enforced by pretrade_checks.py and unified_risk_monitor.py/
-            # intraday_risk_monitor.py. If an admin ever tightens or loosens any of these
+            # already enforced by pretrade_checks.py and intraday_risk_monitor.py. If an
+            # admin ever tightens or loosens any of these
             # in algo_config, the pretrade gate and intraday monitor immediately enforce
             # the new value, but this report kept alerting only against the stale
             # hardcoded default - a real drift between what's enforced and what's
@@ -1022,6 +1022,28 @@ class ValueAtRisk:
                     raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
                 if var_pct > max_simulated_var_pct:
                     msg = f"VaR Risk: Portfolio VaR is {var_pct:.2f}% (>{max_simulated_var_pct:.2f}% threshold)"
+                    alerts.append(msg)
+                    logger.warning(msg)
+
+            # Alert if CVaR/Expected Shortfall exceeds the configured max_cvar_pct (2026-09-07
+            # real-money-readiness audit fix - CVaR was computed and persisted every run but
+            # never alerted on anywhere; two portfolios with identical, compliant VaR can have
+            # very different uncaught tail severity, which is exactly what CVaR measures).
+            # Informational only, like the VaR alert above - this report does not gate trading.
+            if cvar_metrics:
+                if "cvar_pct" not in cvar_metrics:
+                    raise RuntimeError(
+                        f"[CVaR CRITICAL] cvar_metrics dict missing 'cvar_pct' key. "
+                        f"Cannot evaluate tail-risk threshold without valid CVaR metric. "
+                        f"Available keys: {list(cvar_metrics.keys())}"
+                    )
+                cvar_pct = float(cvar_metrics["cvar_pct"])
+                try:
+                    max_cvar_pct = float(self.config["max_cvar_pct"])
+                except KeyError as e:
+                    raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+                if cvar_pct > max_cvar_pct:
+                    msg = f"CVaR Risk: Portfolio CVaR (tail loss) is {cvar_pct:.2f}% (>{max_cvar_pct:.2f}% threshold)"
                     alerts.append(msg)
                     logger.warning(msg)
 

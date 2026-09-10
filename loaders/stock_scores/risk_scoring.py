@@ -39,11 +39,24 @@ logger = logging.getLogger("loaders.load_stock_scores")
 # (GROWTH_MIN_FIELDS_AVAILABLE) and the same ~40% ratio as Quality's own established floor - 0.40
 # here since Risk's weights are fractional (sum to 1.0), not Growth's field-count-based floor,
 # since Risk is weighted (45/20/20/15) rather than equal-weighted.
-# Deliberately NOT applied to Value or Momentum: live-swept both the same way (61 and 58
-# thin-coverage symbols respectively) and found ZERO symbols scoring >=90 off <40% weight in
-# either - Value's cross-sectional percentile-rank correction and Momentum's "skip weak
-# momentum" None-handling already prevent the single-field-saturation failure mode structurally,
-# so adding an artificial floor there would only cost real coverage without fixing anything real.
+# Deliberately NOT applied to Value or Momentum (AT THE TIME): live-swept both the same way
+# (61 and 58 thin-coverage symbols respectively) and found ZERO symbols scoring >=90 off <40%
+# weight in either - Value's cross-sectional percentile-rank correction and Momentum's "skip
+# weak momentum" None-handling already prevent the single-field-saturation failure mode
+# structurally, so adding an artificial floor there would only cost real coverage without
+# fixing anything real.
+#
+# VALUE RECONSIDERED 2026-09-07 (/goal session: "dig into the scoring results" sweep) - the
+# check above only looked at saturation at the TOP (>=90); it never checked the bottom. Live
+# resweep found the real failure mode there instead: 71 symbols with <40% of Value's weight
+# available, most commonly just dividend_yield=0.0 (a non-dividend-paying stock, 10% weight)
+# with every multiple missing, landing value_score EXACTLY 0.00 - the same single-field-
+# saturation problem this file's own Risk fix above targets, just at the opposite end.
+# VALUE_MIN_WEIGHT (loaders/stock_scores/value_score.py) now applies the identical 0.40 floor.
+# Momentum's own re-check (same session, same method) found no analogous bottom-end
+# saturation - its thin-coverage cases (410 symbols, RSI/MACD-only at 37% weight) span a real,
+# non-extreme 15.68-84.04 range live - so Momentum's exemption above still stands as originally
+# reasoned, not re-litigated further.
 RISK_MIN_WEIGHT_AVAILABLE = 0.40
 
 # NEAR-ZERO LIQUIDITY PRICE-STAT RELIABILITY GATE (added 2026-09-01, same goal session as the
@@ -75,6 +88,30 @@ RISK_MIN_WEIGHT_AVAILABLE = 0.40
 # exclude" directive; if too little weight remains it correctly falls through to Risk's existing
 # insufficient_risk_inputs_thin_sample marker rather than a fabricated score.
 NEAR_ZERO_LIQUIDITY_THRESHOLD = 2000.0
+
+# INDEPENDENT RE-VERIFICATION 2026-09-09 (real-money-readiness audit: an independent review
+# flagged the -0.158 corr(ln(ADV), volatility_60d) figure two paragraphs up as evidence the
+# frozen-price suppression this gate targets extends broadly across the universe, beyond the
+# narrow <$2,000 cluster it currently catches, and proposed widening the gate into a
+# continuous ADV-scaled malus. Re-checked directly against live stability_metrics/price_daily
+# before changing anything load-bearing: bucketing all 4,958 scored symbols by log10(ADV)
+# shows mean volatility_60d *rising*, not falling, as ADV shrinks (0.45 in the $100M-1B decile
+# vs 0.55-1.14 in every decile under $1M, up to 2.93 in the single sub-$1,000 case) - the
+# opposite direction the suppression theory predicts. Dropping the already-gated <$2,000 rows
+# barely moves the correlation (-0.1616 -> -0.1608, n=4,956), so it isn't the tail dragging the
+# number either. Directly checked the one band adjacent to this gate's own $2,000 cutoff
+# ($2,000-$50,000 ADV, 203 symbols) for a hidden near-zero cluster the aggregate mean could be
+# masking: found exactly one symbol under vol_60d=0.10 (IBAC, 0.0424) against a median of 0.67
+# and a max of 7.09 in that same band - not a systemic measurement-validity problem, a real,
+# well-documented small/thin-cap volatility premium. The -0.158 correlation is genuine
+# economic signal, not a measurement artifact, outside the exact-frozen-price cluster this gate
+# already excludes. Widening the gate or adding a continuous illiquidity malus on top of that
+# real signal would double-penalize genuinely riskier thin names, not fix a bug. This file's
+# original 2026-09-01 author already reasoned this far ("this gate only targets the
+# unambiguous near-zero-trading end of that gradient") and deliberately did not extend
+# further - re-verified with real data rather than re-litigated on the correlation number
+# alone; the existing $2,000 threshold plus Liquidity's own separate 15%-weighted tradability
+# component remain the correct, sufficient design. No code change from this re-verification.
 
 
 class RiskScoringMixin:

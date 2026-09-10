@@ -14,6 +14,15 @@ plausible wrong number with no unavailable_reason to flag it.
 
 Fixed by adding a higher-priority ORDER BY tier that prefers fiscal years where the matched
 annual_income_statement row also has real revenue, ahead of the mere-join-matched tier.
+
+NOTE (2026-09-07): the FCF-availability tiebreak this test used to also assert on
+(`acf.free_cash_flow IS NOT NULL ... THEN 0 ELSE 1`) was itself a separate bug - see
+[[anchor_year_fcf_tiebreak_masked_profit_loss_flips_20260907]] in memory - and has been removed
+entirely, not reordered. It ran BEFORE `abs.fiscal_year DESC` inside the fresh/revenue-present
+tier, so among two fresh years with real revenue, the one with FCF tagged always won the anchor
+row regardless of which was actually more recent (live-confirmed PHOE: a fresher loss year with
+no FCF tagged yet lost anchor selection to an older profitable year that had FCF, masking a real
+profit/loss flip). This test now asserts that tiebreak is GONE, not merely reordered.
 """
 
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
@@ -58,12 +67,17 @@ def test_primary_row_query_prioritizes_real_revenue_over_bare_join_match(monkeyp
 
     revenue_pos = order_by_clause.find("ais.revenue IS NOT NULL")
     usability_pos = order_by_clause.find("ais.symbol IS NOT NULL")
-    fcf_pos = order_by_clause.find("acf.free_cash_flow IS NOT NULL")
 
     assert revenue_pos != -1, "ORDER BY must prefer years where the matched income statement has real revenue"
     assert usability_pos != -1
-    assert fcf_pos != -1
     assert revenue_pos < usability_pos, (
         "a fiscal year with real revenue must outrank a merely-joined (possibly partial) one"
     )
-    assert usability_pos < fcf_pos, "income-statement usability must still outrank the FCF-recency tiebreaker"
+    assert "acf.free_cash_flow IS NOT NULL" not in order_by_clause, (
+        "the FCF-availability tiebreak must NOT be present - it let FCF-tagged-but-older years "
+        "win anchor selection over fresher, FCF-untagged years, masking real profit/loss flips "
+        "(see anchor_year_fcf_tiebreak_masked_profit_loss_flips_20260907 in memory)"
+    )
+    assert "abs.fiscal_year DESC" in order_by_clause, (
+        "fiscal_year recency must remain the final tiebreak within each usability tier"
+    )

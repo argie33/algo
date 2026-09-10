@@ -55,7 +55,20 @@ SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 # etf_symbols again (and stock_symbols.etf reverts to 'N') on the very next loader run,
 # undoing that migration - the loader itself must correct this every run, not a one-off
 # manual DB patch. Add future confirmed upstream misclassifications here.
-KNOWN_ETF_MISCLASSIFICATIONS = {"JHDV", "JVAL"}
+#
+# BAR added 2026-09-07 (goal: "SEC/XBRL missing data to zero" sweep, missing_sec_data
+# generic-bucket follow-up): GraniteShares Gold Trust (a physical-commodity grantor trust,
+# same structural class as GLD/SLV/IAU/AAAU/GLDM - see
+# _get_etf_trust_no_stockholders_equity_symbols()'s docstring) has traded since 2017 (2,251
+# real price_daily rows) and was still absent from etf_symbols after a same-day fresh
+# etf_symbols reload (2026-09-07 01:31 UTC) - not a staleness artifact, a genuine upstream
+# feed misclassification landing it in stock_symbols instead. As a "common stock" it flows
+# through quality/value metrics expecting an income statement/balance sheet/cash-flow
+# statement a commodity trust structurally never files, landing on the generic
+# "missing_sec_data"/"Missing SEC/XBRL data" bucket instead of the correct
+# "etf_trust_no_gaap_financials"/"Legitimate / not applicable" once it's in etf_symbols and
+# the existing RIC/ETF-trust gates (loaders/helpers/vqg_symbol_gates.py) can see it.
+KNOWN_ETF_MISCLASSIFICATIONS = {"JHDV", "JVAL", "BAR"}
 
 # GOVERNANCE 2026-08-18 (goal: "missing SEC data"/loader-failure audit): same class of
 # problem as KNOWN_ETF_MISCLASSIFICATIONS above - the upstream NASDAQ/NYSE symbol
@@ -386,6 +399,43 @@ DEPOSITARY_SHARES_PATTERN = re.compile(r"\bdepositary shares?\b|\bdep shs?\b", r
 # "Global" either.
 AMERICAN_DEPOSITARY_PATTERN = re.compile(r"\b(american|global)\s+depositary\s+(shares?|receipts?)\b", re.IGNORECASE)
 
+# GOVERNANCE 2026-09-07 (goal: stock_scores factor/composite sanity audit - checking BDC/REIT
+# universe coverage): EXCLUSION_PATTERNS' \bfund\b and \bclosed[- ]end\b entries (meant to catch
+# real mutual/closed-end funds) false-positive on business development companies (BDCs) - real,
+# actively-traded operating lending businesses that are nonetheless legally organized as closed-
+# end investment companies under the Investment Company Act of 1940, so NASDAQ's own listing
+# feed literally tags many of them "<Name> - Closed End Fund" (nasdaqlisted.txt) or includes
+# "Fund" directly in the legal name (otherlisted.txt).
+#
+# Found by spot-checking well-known BDCs against stock_symbols: ARCC/FSK/PSEC/HTGC/OBDC/GBDC/
+# TSLX/GSBD/BXSL/TPVG - 4 missing (ARCC/PSEC/GBDC/BXSL). CORRECTION to this comment's first
+# version: an initial check tested should_exclude() against GUESSED plain legal names ("Ares
+# Capital Corporation") for ARCC/PSEC/GBDC and wrongly concluded they weren't should_exclude()
+# false positives - re-checked against the REAL raw nasdaqlisted.txt row text (live-fetched
+# 2026-09-07: "Ares Capital Corporation - Closed End Fund", "Prospect Capital Corporation -
+# Closed End Fund", "Golub Capital BDC, Inc. - Closed End Fund") and should_exclude() returns
+# True for all three via \bclosed[- ]end\b - same false-positive bug class as BXSL, not a
+# separate "missing upstream of should_exclude" mystery. Each of the 4 individually verified as
+# a genuine operating company (not a pooled fund) via SEC's own live submissions API
+# (data.sec.gov/submissions/CIK<n>.json): entityType="operating" (not "investment"/"other" -
+# the exact classification migration 1213's stock_scores cleanup already uses to distinguish
+# real BDCs like MAIN/OZK from genuine garbage-shaped funds/ETNs like ASA/BSTZ/GRN) and real,
+# recent 10-K filings (ARCC CIK 1287750, PSEC CIK 1287032, GBDC CIK 1476765 - each filing
+# annually through 2025/2026).
+#
+# The raw NASDAQ feed's "- Closed End Fund" suffix is NOT unique to BDCs - a live full-feed
+# scan (2026-09-07) found 34 symbols carrying it, a genuine MIX of real BDCs (this override's 4,
+# plus others not individually verified here: BCIC/CGBD/FDUS/GECC/GLAD/MFIC/OCSL/OFS/OXSQ/RAND/
+# SLRC/TCPC/WHF) and real traditional closed-end mutual funds we correctly want excluded
+# (Calamos's CCD/CGO/CHI/CHW/CHY/CPZ/CSQ, Nuveen's QQQX, Thornburg's TBLD, Herzfeld's HERZ,
+# OFS Credit's OCCI) - narrowing \bfund\b/\bclosed[- ]end\b themselves would reopen that larger,
+# correctly-excluded population, so this stays an individually-verified symbol-level override
+# (same convention as KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS/KNOWN_SPAC_MISCLASSIFICATIONS above),
+# not a general BDC-detection pattern. The other 30 "Closed End Fund"-tagged symbols not listed
+# here are UNVERIFIED either way - don't assume they're all safe to add, or all correctly
+# excluded, without individually checking each one's own SEC entityType/filing history first.
+KNOWN_FUND_NAME_MISCLASSIFICATIONS = {"ARCC", "BXSL", "GBDC", "PSEC"}
+
 
 def should_exclude(name: str) -> bool:
     if any(re.search(p, name, flags=re.IGNORECASE) for p in EXCLUSION_PATTERNS):
@@ -398,13 +448,15 @@ def should_exclude(name: str) -> bool:
 
 
 def _is_excluded(symbol: str, name: str) -> bool:
-    """should_exclude() plus the KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS override - the
-    single source of truth for exclusion decisions used by fetch_global's initial
-    write path AND both deactivate/reactivate reconciliation methods, so a symbol-level
-    override applies consistently everywhere `should_exclude` would otherwise be called
-    directly on stored/fetched text alone."""
+    """should_exclude() plus the KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS/
+    KNOWN_FUND_NAME_MISCLASSIFICATIONS overrides - the single source of truth for exclusion
+    decisions used by fetch_global's initial write path AND both deactivate/reactivate
+    reconciliation methods, so a symbol-level override applies consistently everywhere
+    `should_exclude` would otherwise be called directly on stored/fetched text alone."""
     if symbol in KNOWN_SPAC_MISCLASSIFICATIONS:
         return True
+    if symbol in KNOWN_FUND_NAME_MISCLASSIFICATIONS:
+        return False
     return should_exclude(name) and symbol not in KNOWN_WHEN_ISSUED_MISCLASSIFICATIONS
 
 

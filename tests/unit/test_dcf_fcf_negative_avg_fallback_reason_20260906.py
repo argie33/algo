@@ -56,7 +56,10 @@ class TestDcfFcfNegativeAvgFallbackReason:
     def test_none_fcf_base_with_none_avg_fallback_still_reports_missing(self):
         loader = _make_loader()
         with patch("loaders.helpers.sec_valuations_yield_dcf.DatabaseContext") as mock_db_ctx:
-            mock_db_ctx.return_value.__enter__.return_value.fetchone.return_value = (2834,)
+            # (2834,) for the SIC-code lookup (a real, non-REIT/insurance code), then None
+            # for the etf_trust existence check (2026-09-06 addition) - not an etf_symbols
+            # ticker, so this must still fall through to the generic reason.
+            mock_db_ctx.return_value.__enter__.return_value.fetchone.side_effect = [(2834,), None]
             result = loader._compute_yield_and_dcf_fields(
                 "ACTU",
                 current_price=10.0,

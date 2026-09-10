@@ -6,10 +6,16 @@ the book over that exact threshold in the first place.
 
 PreTradeChecks._check_portfolio_beta() (algo/trading/pretrade_checks.py) now blocks a new
 entry that would push the position-value-weighted portfolio beta above max_portfolio_beta
-(default 2.0, reusing var.py's own convention). It fails OPEN (never blocks) when the
-candidate's beta or any open position's beta is unavailable, since stability_metrics.beta
-coverage is still filling in for some symbols (this codebase's own documented data-maturity
-gap).
+(default 2.0, reusing var.py's own convention). It fails OPEN (never blocks) only when the
+CANDIDATE's own beta is unavailable, since stability_metrics.beta coverage is still filling
+in for some symbols (this codebase's own documented data-maturity gap).
+
+UPDATED 2026-09-06 (real-money-readiness audit): an EXISTING open position missing a beta
+reading used to fail this entire check open (skip it, allow the entry) rather than just
+weighting that one position conservatively - a single stale/not-yet-computed beta row
+anywhere in the book disabled this cap for every new entry. Now matches
+intraday_risk_monitor.py's identical fix: a missing-beta existing position is weighted at
+a conservative beta=1.0 (market-average) instead of disabling the check entirely.
 """
 
 from decimal import Decimal
@@ -85,7 +91,9 @@ class TestPortfolioBetaCheck:
         except RuntimeError:
             pass
 
-    def test_missing_beta_for_open_position_fails_open(self):
+    def test_missing_beta_for_open_position_weighted_conservatively_still_passes_when_low(self):
+        """A missing-beta position is weighted at an assumed beta=1.0, not dropped/skipped -
+        this small position's contribution keeps the total well under the cap either way."""
         checks = PreTradeChecks(config=_config())
         cur = _FakeCursor(
             candidate_beta_row=(1.5,),
@@ -95,6 +103,24 @@ class TestPortfolioBetaCheck:
         ok, reason = checks._check_portfolio_beta("NEWSYM", Decimal("1000"), Decimal("100000"), cur)
         assert ok is True
         assert reason is None
+
+    def test_missing_beta_for_open_position_no_longer_disables_the_check(self):
+        """Regression for the 2026-09-06 fix: a missing-beta existing position used to skip
+        this ENTIRE check (return True unconditionally) rather than being weighted at a
+        conservative beta=1.0 - so a large existing position with a genuinely high candidate
+        beta would silently sail through. With beta=1.0 assumed for HELD instead: weighted
+        beta after = (60000*1.0 + 30000*3.0)/100000 = 1.5, which BREACHES a 1.4 cap - blocked,
+        proving the check is actually still being enforced rather than skipped."""
+        checks = PreTradeChecks(config=_config(max_portfolio_beta=1.4))
+        cur = _FakeCursor(
+            candidate_beta_row=(3.0,),
+            open_positions_rows=[("HELD", 600, 100.0)],  # $60,000, beta missing
+            open_betas_rows=[],
+        )
+        ok, reason = checks._check_portfolio_beta("NEWSYM", Decimal("30000"), Decimal("100000"), cur)
+        assert ok is False
+        assert reason is not None
+        assert "1.4" in reason
 
     def test_high_beta_entry_pushing_portfolio_over_cap_blocked(self):
         checks = PreTradeChecks(config=_config(max_portfolio_beta=2.0))

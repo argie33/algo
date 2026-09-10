@@ -231,6 +231,7 @@ class TradeExecutor:
             validate_entry_conditions_fn=self._validate_entry_conditions,
             submit_and_validate_order_fn=self._submit_and_validate_order,
             cancel_bracket_orders_fn=self._cancel_bracket_orders,
+            submit_standalone_protective_stop_fn=self._submit_standalone_protective_stop,
             sync_bracket_stop_loss_fn=self._sync_bracket_stop_loss,
             sync_standalone_stop_fn=self._sync_standalone_stop,
             verify_order_status_fn=self._verify_order_status,
@@ -246,8 +247,12 @@ class TradeExecutor:
         # Initialize exit handler with context (not whole executor)
         self.exit_handler = ExitHandler(handler_context)
 
-        # Initialize order manager specialist for order submission and validation
-        self.order_manager = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
+        # Initialize order manager specialist for order submission and validation.
+        # execution_mode passed through for send_bracket_order's own defense-in-depth
+        # guard (2026-09-10 order-execution re-audit) - see order_manager.py.
+        self.order_manager = OrderManager(
+            self.alpaca_key, self.alpaca_secret, self.alpaca_base_url, execution_mode=self.execution_mode
+        )
 
         self.execution_mode_strategy.validate_and_log_initialization(
             self.alpaca_key, self.alpaca_secret, self.alpaca_base_url
@@ -747,6 +752,18 @@ class TradeExecutor:
 
     def _cancel_bracket_orders(self, alpaca_order_id: str) -> dict[str, Any]:
         return self.order_manager.cancel_bracket_orders(alpaca_order_id)
+
+    def _submit_standalone_protective_stop(
+        self,
+        symbol: str,
+        qty: float,
+        stop_price: float,
+        client_order_id: str | None = None,
+        pos_id: int | None = None,
+    ) -> dict[str, Any]:
+        return self.order_manager.submit_standalone_protective_stop(
+            symbol, qty, stop_price, client_order_id=client_order_id, pos_id=pos_id
+        )
 
     def _sync_bracket_stop_loss(
         self, alpaca_order_id: str | None, new_stop_price: float, new_qty: float | None = None

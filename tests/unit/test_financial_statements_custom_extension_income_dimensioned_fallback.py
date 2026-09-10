@@ -38,12 +38,12 @@ class TestCustomExtensionIncomeDimensionedFallback:
                 ConsolidatedFinancialStatementsLoader.__mro__[1],
                 "fetch_incremental",
                 return_value=[
-                    {"symbol": "DB", "fiscal_year": 2025, "revenue": 30_000_000_000},
-                    {"symbol": "DB", "fiscal_year": 2024, "revenue": 29_000_000_000},
+                    {"symbol": "DB", "fiscal_year": 2025, "fiscal_period": "FY", "revenue": 30_000_000_000},
+                    {"symbol": "DB", "fiscal_year": 2024, "fiscal_period": "FY", "revenue": 29_000_000_000},
                 ],
             ),
             patch(
-                "loaders.load_financial_statements.fetch_custom_income_dimensioned",
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_income_dimensioned",
                 return_value={
                     "custom_extension_net_income": {2025: 6_606_000_000.0, 2024: 4_342_000_000.0},
                     "custom_extension_eps_basic": {2025: 2.97, 2024: 1.89},
@@ -68,7 +68,9 @@ class TestCustomExtensionIncomeDimensionedFallback:
                 "fetch_incremental",
                 return_value=[{"symbol": "AAPL", "fiscal_year": 2025, "revenue": 1}],
             ),
-            patch("loaders.load_financial_statements.fetch_custom_income_dimensioned") as mock_fetch,
+            patch(
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_income_dimensioned"
+            ) as mock_fetch,
         ):
             loader.fetch_incremental("AAPL", since=None)
 
@@ -85,7 +87,9 @@ class TestCustomExtensionIncomeDimensionedFallback:
                 "fetch_incremental",
                 return_value=[{"symbol": "DB", "fiscal_year": 2025, "operating_cash_flow": 1}],
             ),
-            patch("loaders.load_financial_statements.fetch_custom_income_dimensioned") as mock_fetch,
+            patch(
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_income_dimensioned"
+            ) as mock_fetch,
         ):
             loader.fetch_incremental("DB", since=None)
 
@@ -100,7 +104,7 @@ class TestCustomExtensionIncomeDimensionedFallback:
                 return_value=[{"symbol": "DB", "fiscal_year": 2010, "revenue": 1}],
             ),
             patch(
-                "loaders.load_financial_statements.fetch_custom_income_dimensioned",
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_income_dimensioned",
                 return_value={"custom_extension_net_income": {2025: 6_606_000_000.0}},  # No entry for 2010
             ),
         ):

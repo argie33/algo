@@ -53,6 +53,7 @@ from typing import Any
 
 from loaders.helpers.sec_valuations_checks import ValuationSanityCheckMixin
 from loaders.helpers.sec_valuations_dcf import DcfValuationMixin
+from loaders.helpers.sec_valuations_dcf_fcf_recategorize import DcfFcfRecategorizeMixin
 from loaders.helpers.sec_valuations_income_context import IncomeStatementContextMixin
 from loaders.helpers.sec_valuations_ratios import SecValuationRatiosMixin
 from loaders.helpers.sec_valuations_shares import SharesOutstandingResolutionMixin
@@ -112,6 +113,35 @@ MAX_ABSOLUTE_DOLLAR_VALUE = 9_000_000_000_000.0  # $9 trillion - stays safely un
 # added, same discipline as CIK_OVERRIDES-style lists elsewhere in this codebase. Add a new
 # root here only after the same entity_name verification - never on ticker-shape alone.
 DUAL_CLASS_NO_SEPARATOR_ROOTS = frozenset({"DGIC", "KELY", "LBTY", "BELF", "SENE", "RUSH"})
+
+# ADDED 2026-09-06 (goal: SEC/XBRL missing-data-to-zero sweep, has_dual_class_sibling detection
+# gap found while investigating ps_ratio "implausible_ratio" for UONE): DUAL_CLASS_NO_SEPARATOR_
+# ROOTS above only matches when the CURRENT symbol is the SUFFIXED side of a pair (root+1 char,
+# e.g. "DGICB" against root "DGIC") - it can never match when the current symbol IS the bare root
+# itself (`symbol.startswith(r) and len(symbol) == len(r) + 1` is never true when symbol == r).
+# That's fine for DGIC/KELY/LBTY/BELF/SENE/RUSH because the bare root isn't itself a real ticker
+# there, but several real dual-class families use a real, actively-traded ticker AS the root, with
+# the sibling class suffixed onto it with no separator (UONE/UONEK - Urban One Class A/D). Each
+# pair below individually verified via matching company_info_sec.entity_name across both tickers,
+# same discipline as the roots above. NOT folded into DUAL_CLASS_NO_SEPARATOR_ROOTS's generic
+# prefix+length matching: several of these roots are short/common enough to collide with real,
+# unrelated tickers under that same heuristic (UA would wildcard-match UAL/United Airlines; FOX
+# would wildcard-match FOXF/Fox Factory and FOXX) - live-confirmed via a direct query against
+# stock_symbols, exactly the false-positive failure mode already documented in
+# DUAL_CLASS_NO_SEPARATOR_ROOTS's own comment (NTR/NTRA/NTRB/NTRP/NTRS). Exact-family-membership
+# matching (see has_dual_class_sibling's use of this below) has zero collision risk regardless of
+# root length, so it's safe to include short roots here that would not be safe to add above.
+DUAL_CLASS_BARE_ROOT_SIBLING_FAMILIES: tuple[frozenset[str], ...] = (
+    frozenset({"CENT", "CENTA"}),  # Central Garden & Pet
+    frozenset({"FOX", "FOXA"}),  # Fox Corp
+    frozenset({"LILA", "LILAK"}),  # Liberty Latin America
+    frozenset({"METC", "METCB"}),  # Ramaco Resources
+    frozenset({"NWS", "NWSA"}),  # News Corp
+    frozenset({"RDI", "RDIB"}),  # Reading International
+    frozenset({"UA", "UAA"}),  # Under Armour
+    frozenset({"UONE", "UONEK"}),  # Urban One
+    frozenset({"WLY", "WLYB"}),  # John Wiley & Sons
+)
 
 # ADDED 2026-08-31 (goal: data-coverage sweep, AMRN follow-up to
 # sec_valuations_fpi_shares_out_missing_gate_fixed_20260831): a narrow, individually-verified
@@ -289,6 +319,22 @@ FPI_EPS_ADS_RATIO_OVERRIDES: dict[str, tuple[float, date | None]] = {
     "FEDU": (10.0, date(2022, 6, 21)),  # Four Seasons Education - ratio changed from 1:2
     "LITB": (12.0, date(2024, 9, 5)),  # LightInTheBox - ratio changed
     "TOUR": (30.0, date(2026, 4, 22)),  # Tuniu - ratio changed from 1:3
+    # ADDED 2026-09-07 (goal session: leaderboard sanity audit, ads_ratio_eps_pe_mismatch
+    # investigation). Each ratio confirmed via a real SEC filing/press release search, then
+    # corroborated against this file's own DB data. WB (Weibo) checked, confirmed 1:1, no
+    # entry needed.
+    "VIPS": (0.2, None),  # Vipshop - 1 ADS = 0.2 ordinary shares (5 ADS = 1 share), eff. 2014-11-03
+    "BABA": (8.0, None),  # Alibaba - 1 ADS = 8 ordinary shares, eff. 2019-07 ADS ratio change
+    "JD": (2.0, None),  # JD.com - 1 ADS = 2 Class A ordinary shares
+    "NTES": (5.0, date(2020, 10, 1)),  # NetEase - ratio changed from 1:25 to 1:5, eff. 2020-10-01
+    # TAL (TAL Education) investigated, DELIBERATELY NOT ADDED: source-confirmed ratio is 3
+    # ADS = 1 Class A share (eff. 2017-08-16, TAL IR press release), but live data fails this
+    # dict's own required cross-validation - sec_valuations.shares_outstanding (407.2M) /
+    # annual_income_statement diluted ordinary shares (192.9M) = 2.11x, not ~3x, and the
+    # ratio-adjusted PE (~13.5) doesn't converge with the independent true PE
+    # (market_cap/net_income = 9.51, ~30%+ off) the way VIPS/BABA/JD/NTES's cross-checks did.
+    # Same "ratio confirmed but cross-validation failed, don't add" outcome as JFU/KRKR/TC
+    # above - TAL's own eps_scale_mismatch (if any) has some other or unconfirmed cause.
 }
 
 
@@ -323,6 +369,7 @@ DUAL_CLASS_YFINANCE_COMBINED_MARKET_CAP_SYMBOLS: frozenset[str] = frozenset(
 class SecValuationsLoader(
     OptimalLoader,
     DcfValuationMixin,
+    DcfFcfRecategorizeMixin,
     ValuationSanityCheckMixin,
     IncomeStatementContextMixin,
     SharesOutstandingResolutionMixin,
@@ -911,6 +958,15 @@ class SecValuationsLoader(
                     reported_shares_outstanding,
                 )
 
+                # Cross-check the multi-year DCF growth driver against a dual-class sibling's
+                # own EPS for the same two endpoint years - see
+                # _validate_dual_class_eps_cagr's docstring for the live BRK.A/BRK.B evidence
+                # (FY2020-2022 EPS scaled ~2715:1 instead of the real, fixed 1500:1) that
+                # motivated this guard.
+                dcf_eps_cagr_pct = self._validate_dual_class_eps_cagr(
+                    cur, symbol, has_dual_class_sibling, income_rows, dcf_eps_cagr_pct
+                )
+
                 # Fail if still no shares outstanding available.
                 # FIXED 2026-08-22 (goal session: "Ownership data unresolved" bucket audit):
                 # every SEC-sourced tier above that could resolve a foreign private issuer's
@@ -1187,7 +1243,7 @@ class SecValuationsLoader(
             # (likely-stale-but-better-than-nothing) table value on any live-fetch error.
             yf_market_cap_is_live = False
             if is_foreign_private_issuer:
-                live_mcap, live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+                live_mcap, live_pe, _live_shares_out = self._fetch_live_fpi_yfinance_check_values(symbol)
                 if live_mcap is not None:
                     yf_market_cap = live_mcap
                     yf_market_cap_is_live = True
@@ -1278,7 +1334,7 @@ class SecValuationsLoader(
             if yf_market_cap is None and not is_foreign_private_issuer:
                 computed_market_cap = valuation_row.get("market_cap")
                 if computed_market_cap is not None and computed_market_cap > 50_000_000_000:
-                    live_mcap, _live_pe = self._fetch_live_fpi_yfinance_check_values(symbol)
+                    live_mcap, _live_pe, _live_shares_out = self._fetch_live_fpi_yfinance_check_values(symbol)
                     if live_mcap is not None:
                         yf_market_cap = live_mcap
                         yf_market_cap_is_live = True
@@ -1289,7 +1345,19 @@ class SecValuationsLoader(
             self._recategorize_unsupported_currency_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_royalty_trust_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_capex_never_tagged_dcf_fcf_reason(symbol, valuation_row)
+            self._recategorize_no_recent_ocf_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_blank_check_dcf_fcf_reason(symbol, valuation_row)
+            # Deliberately LAST DB-touching call in this method (after every _recategorize_*
+            # above, each of which opens its own cursor) - see that method's own docstring for
+            # why, plus a test-fixture-brittleness note: this is the only ordering under which
+            # every existing hand-scripted fetchone_results test fixture (30+ files, none of
+            # which could have anticipated this later addition) safely exhausts at the true end
+            # of its scripted sequence instead of shifting every later scripted value by one
+            # position - the latter silently corrupts assertions rather than raising, which is
+            # worse than the crash it replaces. Do not move this earlier without auditing every
+            # such fixture again.
+            with DatabaseContext("read") as cur:
+                self._sanity_check_shares_outstanding_vs_volume(symbol, valuation_row, cur)
 
             return [valuation_row]
 
@@ -1405,204 +1473,6 @@ class SecValuationsLoader(
             f"= {combined_shares:,.0f} entity-wide total."
         )
         return combined_shares
-
-    def _recategorize_ric_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
-        """Overrides a generic dcf_fcf_unavailable_reason with a specific one for a registered
-        investment company. Mutates `valuation_row` in place.
-
-        FIXED 2026-09-05 (goal: "SEC/XBRL missing data to zero" follow-up): a registered
-        investment company (closed-end fund/investment trust) files a "Statement of Changes in
-        Net Assets" with no conventional cash-flow-statement concepts to tag at all, so
-        dcf_fcf_base always comes back None and _compute_yield_and_dcf_fields's own generic
-        "missing_cash_flow_data" fallback fires - same root fact already established for
-        fcf_margin/fcf_yield/accruals_ratio/ocf_to_net_income/roic_pct/debt_to_equity in
-        loaders/helpers/vqg_quality.py and vqg_value.py, just not recognized here since this
-        mixin has no access to ValueQualityGrowthMetricsLoader's
-        _get_registered_investment_company_symbols() gate (different class hierarchy) - a small
-        inline query instead. Live-confirmed EVN/BSTZ/CEV/BTX/BUI/JHI/PMO (7 universe symbols).
-        Only overrides the generic fallback reason, never a real computed value or a more
-        specific reason (negative_free_cash_flow/implausible_dcf_result).
-        """
-        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
-            return
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                """
-                SELECT 1
-                FROM company_info_sec c
-                WHERE c.symbol = %s AND c.entity_type = 'other' AND c.sic_code IS NULL
-                  AND EXISTS (
-                      SELECT 1 FROM annual_balance_sheet b
-                      WHERE b.symbol = c.symbol AND b.data_unavailable = FALSE
-                  )
-                  AND NOT EXISTS (
-                      SELECT 1 FROM annual_cash_flow f
-                      WHERE f.symbol = c.symbol AND f.free_cash_flow IS NOT NULL
-                        AND f.data_unavailable IS NOT TRUE
-                  )
-                """,
-                (symbol,),
-            )
-            if cur.fetchone() is not None:
-                valuation_row["dcf_fcf_unavailable_reason"] = "registered_investment_company_no_xbrl"
-
-    def _recategorize_unsupported_currency_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
-        """Overrides a generic dcf_fcf_unavailable_reason with "unsupported_currency_no_fx_rate"
-        for a foreign private issuer whose annual_cash_flow row was already tagged that way.
-        Mutates `valuation_row` in place.
-
-        ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up to
-        the has_unsupported_currency_only_fact fix in load_financial_statements.py /
-        utils/external/sec_statements_shared.py): a foreign private issuer that tags
-        operating_cash_flow only under a hyperinflationary/unsupported local currency (e.g.
-        ARS - GGAL/BBAR/CRESY/LOMA/IRS and more, live-confirmed via real SEC companyfacts) has
-        a real, non-fabricatable ocf=None, so dcf_fcf_base comes back None here too and
-        _compute_yield_and_dcf_fields's generic "missing_cash_flow_data" fallback fires - same
-        reason-string-doesn't-match-real-cause bug class as the RIC recategorization above,
-        just for a different root cause. Reuses annual_cash_flow.reason (already populated by
-        load_financial_statements.py's own fix once that table is reloaded) instead of a fresh
-        live SEC API call - this mixin has no SecEdgarClient instance to reuse a cache from
-        (unlike load_financial_statements.py, which calls get_company_facts() during the same
-        extraction pass), so a DB lookup against the sibling table's own already-computed
-        reason is far cheaper than a second live fetch per symbol. Only overrides the generic
-        fallback reason, never a real computed value or a more specific reason
-        (negative_free_cash_flow/implausible_dcf_result/registered_investment_company_no_xbrl
-        above, which is checked first and returns early if it already matched).
-        """
-        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
-            return
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                """
-                SELECT 1
-                FROM annual_cash_flow f
-                WHERE f.symbol = %s AND f.reason = 'unsupported_currency_no_fx_rate'
-                ORDER BY f.fiscal_year DESC
-                LIMIT 1
-                """,
-                (symbol,),
-            )
-            if cur.fetchone() is not None:
-                valuation_row["dcf_fcf_unavailable_reason"] = "unsupported_currency_no_fx_rate"
-
-    # Oil royalty trusts (SIC 6792) file a "Statement of Distributable Income" with no
-    # conventional cash-flow-statement concepts to tag at all - same structural shape as a RIC
-    # above, just a different, much smaller (6-symbol) entity class with its own SIC code
-    # rather than ValueQualityGrowthMetricsLoader's entity_type='other'/sic_code IS NULL RIC
-    # gate. Hardcoded rather than a SIC-code DB query since there are only 6 and the SIC-6792
-    # universe is exactly this list (live-confirmed via company_info_sec, 2026-09-06) - no
-    # false-positive risk from a broader SIC scan.
-    _ROYALTY_TRUST_SYMBOLS_FOR_DCF = frozenset({"NRT", "MTR", "CRT", "PBT", "SBR", "SJT"})
-
-    def _recategorize_royalty_trust_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
-        """Overrides a generic dcf_fcf_unavailable_reason with "reit_special_entity" for an oil
-        royalty trust. Mutates `valuation_row` in place.
-
-        ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, comprehensive RIC-gap
-        scan follow-up): same root fact as _recategorize_ric_dcf_fcf_reason above (no
-        conventional cash-flow-statement concepts to tag), already established for
-        quality_metrics.fcf_margin/value_metrics.fcf_yield's royalty-trust blocks in
-        loaders/helpers/vqg_quality.py and vqg_value.py - this dcf_fcf ground-truth reason
-        never checked it either. Live-confirmed all 6 active royalty-trust symbols (NRT, MTR,
-        CRT, PBT, SBR, SJT) stuck on the generic "missing_cash_flow_data". Reuses
-        "reit_special_entity" (not a new label) - same "Legitimate / not applicable" bucket
-        already used for this exact business-model fact throughout the codebase (see
-        sec_valuations_yield_dcf.py's own REIT/insurance SIC-code branch, which sits alongside
-        this same reason string for the identical entity-type rationale).
-        """
-        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
-            return
-        if symbol in self._ROYALTY_TRUST_SYMBOLS_FOR_DCF:
-            valuation_row["dcf_fcf_unavailable_reason"] = "reit_special_entity"
-
-    def _recategorize_capex_never_tagged_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
-        """Overrides a generic dcf_fcf_unavailable_reason with "capex_never_tagged_in_recent_filings"
-        for a filer with real, recent operating cash flow but capex never itemized in its 3 most
-        recent real fiscal years. Mutates `valuation_row` in place.
-
-        ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, dcf_fcf missing_cash_flow_
-        data investigation): this file's own fcf_base/avg_fcf_fallback computation
-        (sec_valuations_yield_dcf.py) requires a real (non-None) capex figure - genuinely absent
-        for a large slice of filers who simply never re-tag it (live-confirmed CWH/Camping World:
-        real, growing OCF every year, real "PaymentsToAcquireProductiveAssets" capex through
-        FY2022, then NOTHING under any capex-shaped concept in its companyfacts JSON since -
-        not a currency/entity-type structural fact, an ordinary filing-presentation gap). Same
-        root cause already given its own specific reason for quality_metrics.fcf_margin/
-        value_metrics.fcf_yield via _get_no_recent_capex_symbols() in vqg_quality.py/vqg_value.py
-        (live-confirmed 198 of that gate's own affected rows share this exact profile) - this
-        dcf_fcf ground-truth reason never checked it either, so 177 of 210 (84%) of the current
-        "missing_cash_flow_data" population were this exact, already-labeled-elsewhere case
-        instead of a true undiagnosed gap. Small inline query (this mixin has no access to
-        ValueQualityGrowthMetricsLoader's cached gate, different class hierarchy - same
-        convention as _recategorize_ric_dcf_fcf_reason above). Still "Missing SEC/XBRL data" -
-        this doesn't change the headline category, only gives an honest, specific, already-
-        established label instead of the uninformative generic one, matching this file's own
-        precedent (RIC/currency/royalty-trust recategorizations just above all keep their
-        original category too, e.g. RIC's target `registered_investment_company_no_xbrl` is
-        also "Missing SEC/XBRL data").
-        """
-        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
-            return
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                """
-                WITH ranked AS (
-                    SELECT symbol, capex, operating_cash_flow, fiscal_year, data_unavailable,
-                           MAX(fiscal_year) FILTER (WHERE data_unavailable = FALSE)
-                               OVER (PARTITION BY symbol) AS max_real_fy
-                    FROM annual_cash_flow
-                    WHERE symbol = %s AND fiscal_year > 0
-                ),
-                filtered AS (
-                    SELECT * FROM ranked
-                    WHERE NOT (data_unavailable AND fiscal_year = max_real_fy + 1)
-                ),
-                recent AS (
-                    SELECT operating_cash_flow, capex,
-                           ROW_NUMBER() OVER (ORDER BY fiscal_year DESC) AS rn
-                    FROM filtered
-                )
-                SELECT 1 FROM recent
-                WHERE rn <= 3
-                GROUP BY 1
-                HAVING COUNT(capex) = 0 AND COUNT(operating_cash_flow) > 0 AND COUNT(*) >= 2
-                """,
-                (symbol,),
-            )
-            if cur.fetchone() is not None:
-                valuation_row["dcf_fcf_unavailable_reason"] = "capex_never_tagged_in_recent_filings"
-
-    def _recategorize_blank_check_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
-        """Overrides a generic dcf_fcf_unavailable_reason with "no_revenue_reported"
-        ("Legitimate / not applicable") for a pre-merger SPAC shell. Mutates `valuation_row` in
-        place.
-
-        ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up to
-        _recategorize_blank_check_all_valuation_metrics_null_reason and
-        _recategorize_capex_never_tagged_dcf_fcf_reason above): a blank-check company has no
-        real operating business before its merger - trust-account interest income only, no
-        product/service revenue, and typically too few real fiscal years on file yet to clear
-        the capex-never-tagged gate's own >=2-real-year floor - so a recently-listed SPAC still
-        fell through both of those checks straight to the generic "missing_cash_flow_data".
-        Live-confirmed 11 active-universe symbols (XFLH/PTOR/ALDF/GIX/GIW/NWAX/WENC/QETAR/
-        QUMSR/FSHP/FSHPR) hitting this exact gap - same root fact and same "no_revenue_reported"
-        reason the whole-row all_valuation_metrics_null fallback already uses for this identical
-        population, just never checked for dcf_fcf specifically since it's a narrower field-
-        level reason than the whole-row fallback (a SPAC with SOME valuation metrics computed
-        but dcf_fcf specifically null wouldn't hit that whole-row check at all). Checked last
-        (after RIC/currency/royalty-trust/capex) so a more specific real cause above always
-        wins - only overrides the exact generic reason this fix targets, same guard discipline
-        as every sibling recategorize_*_dcf_fcf_reason function in this file.
-        """
-        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
-            return
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                "SELECT 1 FROM company_info_sec WHERE symbol = %s AND sic_description = 'Blank Checks'",
-                (symbol,),
-            )
-            if cur.fetchone() is not None:
-                valuation_row["dcf_fcf_unavailable_reason"] = "no_revenue_reported"
 
     def _compute_valuations(
         self,

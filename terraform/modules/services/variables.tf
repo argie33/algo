@@ -552,6 +552,43 @@ variable "alert_smtp_from" {
   default     = ""
 }
 
+# PagerDuty/Twilio critical-alert paging (2026-09-06 real-money-readiness fix) - both
+# channels independently optional, default "" leaves paging disabled (AlertManager no-ops
+# per-channel on incomplete config). Stored in Secrets Manager (see algo_paging in main.tf),
+# not passed to the Lambda as raw env vars.
+variable "pagerduty_routing_key" {
+  description = "PagerDuty Events API v2 routing key for critical-alert paging. Empty disables PagerDuty paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_account_sid" {
+  description = "Twilio Account SID for SMS critical-alert paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_auth_token" {
+  description = "Twilio Auth Token for SMS critical-alert paging."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "twilio_from_number" {
+  description = "Twilio phone number (E.164) to send critical-alert SMS from."
+  type        = string
+  default     = ""
+}
+
+variable "alert_sms_to" {
+  description = "Comma-separated E.164 phone numbers to receive critical-alert SMS. Empty disables SMS paging even if Twilio credentials are set."
+  type        = string
+  default     = ""
+}
+
 # ============================================================
 # Logging Configuration
 # ============================================================
@@ -659,6 +696,14 @@ variable "alpaca_paper_trading" {
   default     = false
 }
 
+# See root terraform/variables.tf's algo_live_trading_ack for the full rationale - genuinely
+# independent of alpaca_paper_trading by design, do not derive one from the other.
+variable "algo_live_trading_ack" {
+  description = "Explicit real-money acknowledgment, independent of alpaca_paper_trading (passed from root module)"
+  type        = string
+  default     = ""
+}
+
 variable "jwt_secret" {
   description = "JWT secret for authentication (passed from root module)"
   type        = string
@@ -732,6 +777,19 @@ variable "patrol_task_container_name" {
 
 variable "private_subnet_ids_for_patrol" {
   description = "Private subnet IDs for patrol task networking"
+  type        = list(string)
+  default     = []
+}
+
+# REAL-MONEY-READINESS FIX (2026-09-08 audit): private_subnet_ids_for_patrol above has no NAT
+# gateway egress in this VPC (removed deliberately - see modules/vpc/main.tf's "NAT Gateway -
+# REMOVED" section) and no VPC endpoints for ECR were found either, so a Fargate task placed
+# there cannot even pull its container image. The EOD Step Functions pipeline's own patrol
+# invocation (modules/pipeline/main.tf's network_config local) uses public subnets +
+# AssignPublicIp=ENABLED instead - that's the actually-proven-working pattern, reused here for
+# the new intraday patrol schedules below rather than copying the untested private-subnet one.
+variable "public_subnet_ids" {
+  description = "Public subnet IDs for patrol task networking (no NAT gateway in this VPC)"
   type        = list(string)
   default     = []
 }

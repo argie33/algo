@@ -16,11 +16,14 @@ Exit hierarchy (by priority):
 5. Profit target T1 (1.5R)
 6. Profit target T2 (3R)
 7. Profit target T3 (4R)
-8. Chandelier trail (3xATR from high)
-9. TD Sequential (9-count or 13-count exhaustion)
-10. First red day (after 2.5R+ gain)
-11. Climax exhaustion (30+ days, 5R+ gain)
-12. Distribution (market distribution days exceed limit)
+8. Breakeven stop raise (move_be_at_r, default 1.0R - stop-raise only, added 2026-09-07,
+   see BreakevenStopStrategy/PositionContext.check_move_to_breakeven docstrings; move_be_at_r
+   was previously dead config, required at ExitEngine init but never consulted)
+9. Chandelier trail (3xATR from high)
+10. TD Sequential (9-count or 13-count exhaustion)
+11. First red day (after 2.5R+ gain)
+12. Climax exhaustion (30+ days, 5R+ gain)
+13. Distribution (market distribution days exceed limit)
 """
 
 from __future__ import annotations
@@ -229,7 +232,6 @@ class ProfitTargetStrategy(ExitStrategy):
     """Base class for profit target exits (T1, T2, T3)."""
 
     target_level: int
-    default_fraction: float
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         from algo.trading.exit_engine import ExitEngine
@@ -261,21 +263,25 @@ class T1Strategy(ProfitTargetStrategy):
     """Exit 50% at target 1 (1.5R), raise stop to entry."""
 
     target_level = 1
-    default_fraction = 0.5
 
 
 class T2Strategy(ProfitTargetStrategy):
     """Exit 25% at target 2 (3R), raise stop to T1 area."""
 
     target_level = 2
-    default_fraction = 0.25
 
 
 class T3Strategy(ProfitTargetStrategy):
     """Exit final 25% at target 3 (4R)."""
 
     target_level = 3
-    default_fraction = 0.25
+
+
+class BreakevenStopStrategy(ExitStrategy):
+    """Raise stop to breakeven once price reaches move_be_at_r (stop-raise only, never exits)."""
+
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
+        return self._evaluate_engine_strategy(lambda engine: ctx.check_move_to_breakeven(engine), include_new_stop=True)
 
 
 class ChandelierTrailStrategy(ExitStrategy):
@@ -345,6 +351,7 @@ class ExitStrategyChain:
             T1Strategy(config),
             T2Strategy(config),
             T3Strategy(config),
+            BreakevenStopStrategy(config),
             ChandelierTrailStrategy(config),
             TDSequentialStrategy(config),
             FirstRedDayStrategy(config),
@@ -353,19 +360,45 @@ class ExitStrategyChain:
         ]
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
-        """Evaluate all strategies in priority order; return first triggered signal.
-
-        Args:
-            ctx: PositionContext with all position data
-            cur: Database cursor
+        """Evaluate all strategies in priority order; return first triggered REAL exit signal.
 
         Returns:
-            ExitSignal from first triggered strategy, or hold if none triggered
+            ExitSignal from the first triggered strategy with fraction > 0 (a real share
+            reduction), or hold if none triggered.
+
+        FIX (2026-09-07 pre-live audit): a triggered signal with fraction == 0.0 (a pure
+        stop-tightening, e.g. ChandelierTrailStrategy) used to return immediately like any
+        other trigger, short-circuiting evaluation of every lower-priority strategy for that
+        cycle - including TDSequentialStrategy/FirstRedDayStrategy/ClimaxExhaustionStrategy,
+        whose real partial/full exits are most likely to fire in exactly the strong-uptrend
+        condition that also raises the chandelier trail on the same day. A routine stop
+        tightening could silently starve a genuine exhaustion exit for an entire cycle. Now
+        keeps scanning past a stop-raise-only trigger for a real (fraction > 0) exit among
+        remaining strategies; only falls back to the stop-raise if nothing else fires.
+
+        FIX (2026-09-07, same day BreakevenStopStrategy was added): once two independent
+        stop-raise-only strategies can trigger the same cycle (chandelier trail and breakeven),
+        keeping only the FIRST one seen meant whichever sat earlier in `self.strategies` always
+        won, even on a cycle where the other proposed a strictly higher (better) stop. Each
+        candidate is a floor proposal, not a final decision - the actual write path only ever
+        raises the stored stop, never lowers it (see executor_exit_handler.py's
+        _raise_stop_only) - so comparing new_stop across every triggered stop-raise signal and
+        keeping the highest is strictly more correct than picking whichever fired first.
         """
+        stop_raise_signal: ExitSignal | None = None
         for strategy in self.strategies:
             signal = strategy.evaluate(ctx, cur)
             if signal.triggered:
-                return signal
+                if signal.fraction > 0:
+                    return signal
+                if stop_raise_signal is None or (
+                    signal.new_stop is not None
+                    and (stop_raise_signal.new_stop is None or signal.new_stop > stop_raise_signal.new_stop)
+                ):
+                    stop_raise_signal = signal
+
+        if stop_raise_signal is not None:
+            return stop_raise_signal
 
         return ExitSignal(
             triggered=False,

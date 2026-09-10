@@ -73,11 +73,20 @@ class TestRunBacktestSharpeSortinoCalmarUseCanonicalFormulas:
             idx = trading_dates.index(target_date)
             return {"TEST": prices[idx]}
 
+        def fake_prices_batch_with_range(
+            symbols: list[str], target_date: date
+        ) -> dict[str, tuple[float, float, float]]:
+            return {s: (p, p, p) for s, p in fake_prices_batch(symbols, target_date).items()}
+
         with (
             patch("algo.backtest.run_backtest._get_trading_dates", return_value=trading_dates),
             patch("algo.backtest.run_backtest._get_daily_buy_signals", side_effect=fake_buy_signals),
             patch("algo.backtest.run_backtest._get_daily_sell_signals", return_value=set()),
             patch("algo.backtest.run_backtest._get_prices_batch", side_effect=fake_prices_batch),
+            patch(
+                "algo.backtest.run_backtest._get_prices_batch_with_range",
+                side_effect=fake_prices_batch_with_range,
+            ),
             patch(
                 "algo.backtest.run_backtest._fetch_risk_free_rate_annual",
                 return_value=risk_free_rate_annual,

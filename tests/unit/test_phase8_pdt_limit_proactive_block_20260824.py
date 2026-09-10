@@ -73,3 +73,38 @@ def test_missing_daytrade_count_does_not_block():
 def test_missing_pattern_day_trader_field_raises():
     with pytest.raises(KeyError):
         _check_pdt_limit_breach({"daytrade_count": 4})
+
+
+class TestEquityAwarePdtCheck:
+    """2026-09-06 real-money-readiness fix: FINRA Rule 4210's PDT restriction applies ONLY
+    to accounts under $25,000 equity - an account at or above that threshold cannot be
+    PDT-restricted at all, regardless of daytrade_count. The check previously blocked purely
+    on daytrade_count>=3 with no equity awareness, needlessly halting a well-capitalized
+    account's real trading on a restriction that genuinely cannot apply to it.
+    """
+
+    def test_well_capitalized_account_at_threshold_does_not_block(self):
+        breach, reason = _check_pdt_limit_breach({"pattern_day_trader": False, "daytrade_count": 4, "equity": 25_000.0})
+        assert breach is False
+        assert reason is None
+
+    def test_well_capitalized_account_above_threshold_does_not_block(self):
+        breach, reason = _check_pdt_limit_breach(
+            {"pattern_day_trader": True, "daytrade_count": 10, "equity": 100_000.0}
+        )
+        assert breach is False
+        assert reason is None
+
+    def test_sub_25k_account_still_blocks(self):
+        breach, reason = _check_pdt_limit_breach(
+            {"pattern_day_trader": False, "daytrade_count": 3, "equity": 24_999.99}
+        )
+        assert breach is True
+        assert "PDT" in reason
+
+    def test_missing_equity_falls_back_to_daytrade_count_only(self):
+        """Can't verify equity - not treated as automatically exempt; falls back to the
+        original daytrade_count-only check rather than silently skipping the safety gate."""
+        breach, reason = _check_pdt_limit_breach({"pattern_day_trader": False, "daytrade_count": 3})
+        assert breach is True
+        assert "PDT" in reason

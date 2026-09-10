@@ -94,6 +94,12 @@ VALIDATION_SCHEMA = {
     # historical price returns, what would VaR have been" - and reuses the same var_pct > 2%
     # convention var.py already documents for its report-only historical_var() alert.
     "max_simulated_var_pct": ("float", 0.5, 10.0, False, 2.0),
+    # Informational-only alert threshold (var.py's daily report, not a pretrade gate) for
+    # realized 95%/252d CVaR/Expected Shortfall - CVaR was computed and persisted everywhere
+    # but never alerted on anywhere before 2026-09-07. Default 3.0 = 1.5x max_simulated_var_pct,
+    # a standard fat-tailed-equity ES/VaR multiplier, not independently backtested against this
+    # portfolio's own return distribution - tune once real CVaR history accumulates.
+    "max_cvar_pct": ("float", 0.5, 15.0, False, 3.0),
     "max_total_invested_pct": ("float", 50.0, 100.0, False, 95.0),
     # Market Conditions
     "max_distribution_days": ("int", 0, 30, False, 4),
@@ -151,11 +157,13 @@ VALIDATION_SCHEMA = {
     "volume_decay_gate_enabled": ("bool", None, None, False, None),
     # Exit Rules
     "require_target_pullback": ("bool", None, None, False, None),
+    "use_scale_out_targets": ("bool", None, None, False, True),
     "t1_target_r_multiple": ("float", 0.5, 10.0, False, 1.5),
     "t2_target_r_multiple": ("float", 0.5, 10.0, False, 3.0),
     "t3_target_r_multiple": ("float", 0.5, 10.0, False, 4.0),
     # Imported Position Defaults
     "imported_position_default_stop_loss_pct": ("float", 0.1, 50.0, False, 5.0),
+    "untracked_position_auto_protective_stop_enabled": ("bool", None, None, False, None),
     "imported_position_default_target_1_pct": ("float", 0.1, 50.0, False, 5.0),
     "imported_position_default_target_2_pct": ("float", 0.1, 50.0, False, 10.0),
     "imported_position_default_target_3_pct": ("float", 0.1, 50.0, False, 15.0),
@@ -195,10 +203,22 @@ VALIDATION_SCHEMA = {
     "paper_mode_max_consecutive_losses": ("int", 1, 100, False, 5),  # Paper trading (more lenient)
     "min_win_rate_pct": ("float", 0.0, 100.0, False, 40.0),
     "max_total_risk_pct": ("float", 0.1, 100.0, False, 4.0),
+    # Fat-finger backstop (position_sizer.py): hard per-trade dollar ceiling independent of
+    # portfolio_value, so a corrupted equity read can't make every percentage cap look
+    # "compliant" while authorizing an arbitrarily large real order. Not critical (False) -
+    # the sizer code itself treats this as optional/opt-in, matching that design.
+    "absolute_max_dollars_per_trade": ("float", 100.0, 10_000_000.0, False, 10000.0),
     "min_risk_pct_floor": ("float", 0.01, 10.0, False, 0.10),
     "max_weekly_loss_pct": ("float", 0.1, 100.0, False, 5.0),
     "max_data_staleness_days": ("int", 0, 30, False, 3),
     "daily_profit_cap_pct": ("float", 0.0, 100.0, False, 2.0),
+    "intraday_prior_day_drop_halt_pct": (
+        "float",
+        -100.0,
+        -0.1,
+        True,
+        -2.0,
+    ),  # Must be negative; halts new entries if SPY fell more than this the prior trading day
     "sector_drawdown_halt_pct": (
         "float",
         -100.0,
@@ -230,6 +250,7 @@ VALIDATION_SCHEMA = {
     "require_strong_sector": ("bool", None, None, False, None),
     "min_adv_shares": ("int", 1, 10000000, False, 50000),
     "min_adv_dollars": ("float", 1.0, 100000000.0, False, 500000.0),
+    "max_pct_of_adv_dollars": ("float", 0.1, 50.0, False, 5.0),
     "min_order_size_dollars": ("float", 0.1, 100000.0, False, 100.0),
     "phase1_min_coverage_pct": ("int", 0, 100, False, 75),
     "phase1_min_symbol_count": ("int", 100, 100000, False, 5000),
@@ -395,6 +416,20 @@ VALIDATION_SCHEMA = {
     "max_risk_per_trade_pct": ("float", 0.1, 100.0, False, 2.0),  # Max risk per individual trade
     # Orchestrator Halt Configuration
     "orchestrator_halt_enabled": ("bool", None, None, False, True),  # Enable orchestrator halt on data issues
+    # reconciliation.py's sustained-broker/DB-drift auto-halt. FIX (2026-09-09 real-money-
+    # readiness audit): the fail_closed_value here was True (shadow mode ON, i.e. observe-
+    # only, no halt) - backwards for a value whose documented contract (see this file's own
+    # header comment) is "value to use if admin tries to set an invalid value (PREVENTS
+    # TRADING)". True does the opposite: a corrupted/invalid DB value for this key would
+    # silently fall back to permitting unchecked trading instead of the safe/protective
+    # direction. is_critical is deliberately left False (not True) here: config_defaults_
+    # risk.py's CONFIG_DEFAULTS_RISK already sets the real TIER-3 default to "false" (live
+    # enforcement, flipped ahead of go-live per that file's own 2026-09-07 comment) and no
+    # algo_config DB row currently exists for this key (verified live) - marking it critical
+    # would make AlgoConfig.get() raise RuntimeError the moment this key is read in ANY
+    # environment lacking an explicit DB row, a much bigger behavior change than this fix's
+    # actual scope (correcting an inert-but-backwards fail-closed value).
+    "reconciliation_drift_halt_shadow_mode": ("bool", None, None, False, False),
     # Exposure Constraints (derived from ExposurePolicy, not directly used from AlgoConfig)
     "halt_new_entries": ("bool", None, None, False, False),  # Legacy: use exposure constraints instead
     "max_new_positions_today": ("int", 0, 100, False, 15),  # Legacy: use exposure constraints instead

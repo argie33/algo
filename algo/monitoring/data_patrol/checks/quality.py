@@ -226,37 +226,55 @@ class QualityChecker(BaseCheck):
     def check_ohlc_sanity(self, cur: Any) -> None:
         try:
             cur.execute("""
-                SELECT COUNT(*) FILTER (WHERE high < open OR high < close OR high < low) AS bad_high,
-                       COUNT(*) FILTER (WHERE low > open OR low > close OR low > high) AS bad_low,
-                       COUNT(*) FILTER (WHERE open < 0 OR close < 0 OR high < 0 OR low < 0) AS negative
+                SELECT symbol,
+                       (open < 0 OR close < 0 OR high < 0 OR low < 0) AS negative,
+                       (high < open OR high < close OR high < low) AS bad_high,
+                       (low > open OR low > close OR low > high) AS bad_low
                 FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
+                  AND (open < 0 OR close < 0 OR high < 0 OR low < 0
+                       OR high < open OR high < close OR high < low
+                       OR low > open OR low > close OR low > high)
             """)
-            row = cur.fetchone()
-            if row is None:
-                raise ValueError("OHLC sanity check query returned no results - database state corrupted")
-            bad_high, bad_low, negative = row
-            if bad_high is None or bad_low is None or negative is None:
-                raise ValueError("OHLC COUNT(*) FILTER returned NULL - cannot determine OHLC violations")
-            bad_high = int(bad_high)
-            bad_low = int(bad_low)
-            negative = int(negative)
+            violations = cur.fetchall()
+
+            def _get(r: Any, key: str, idx: int) -> Any:
+                return r.get(key) if isinstance(r, dict) else r[idx]
+
+            negative_symbols = [_get(r, "symbol", 0) for r in violations if _get(r, "negative", 1)]
+            bad_high_symbols = [_get(r, "symbol", 0) for r in violations if _get(r, "bad_high", 2)]
+            bad_low_symbols = [_get(r, "symbol", 0) for r in violations if _get(r, "bad_low", 3)]
+            negative = len(negative_symbols)
+            bad_high = len(bad_high_symbols)
+            bad_low = len(bad_low_symbols)
 
             if negative > 0:
+                # Attributable to specific symbols -> quarantinable instead of a full halt.
+                # See algo/monitoring/data_patrol/quarantine.py and Phase 1's
+                # _check_data_patrol_results for the consumer side.
                 self.log(
                     "ohlc_sanity",
                     CRIT,
                     "price_daily",
                     f"{negative} rows with NEGATIVE prices - data corruption",
-                    {"negative_count": negative},
+                    {
+                        "negative_count": negative,
+                        "flagged_symbols": [{"symbol": s, "reason": "negative OHLC price"} for s in negative_symbols],
+                    },
                 )
             elif bad_high > 0 or bad_low > 0:
+                flagged = dict.fromkeys(bad_high_symbols, "high < open/close/low")
+                flagged.update(dict.fromkeys(bad_low_symbols, "low > open/close/high"))
                 self.log(
                     "ohlc_sanity",
                     ERROR,
                     "price_daily",
                     f"OHLC violation: {bad_high} high<OHLC, {bad_low} low>OHLC",
-                    {"bad_high": bad_high, "bad_low": bad_low},
+                    {
+                        "bad_high": bad_high,
+                        "bad_low": bad_low,
+                        "flagged_symbols": [{"symbol": s, "reason": reason} for s, reason in flagged.items()],
+                    },
                 )
             else:
                 self.log(

@@ -32,7 +32,11 @@ from typing import Any
 
 from algo.orchestrator.phase_data_contract import ExposureConstraints, validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
-from algo.orchestrator.validation_thresholds import LIQUIDITY_CHECK_LIMIT, PHASE7_LIQUIDITY_CHECK_WORKERS
+from algo.orchestrator.validation_thresholds import (
+    LIQUIDITY_CHECK_LIMIT,
+    MAX_LIQUIDITY_CANDIDATES_CONSIDERED,
+    PHASE7_LIQUIDITY_CHECK_WORKERS,
+)
 from utils.db.context import DatabaseContext
 from utils.loaders.timeout_enforcement import cancel_loader_timeout, setup_loader_timeout
 
@@ -609,10 +613,12 @@ def _apply_post_fetch_quality_filters(
     return quality_filtered, None
 
 
-def _run_liquidity_checks(
-    quality_filtered: list[dict[str, Any]], run_date: _date, config: dict[str, Any] | None
+def _check_liquidity_batch(
+    to_check: list[dict[str, Any]], run_date: _date, config: dict[str, Any] | None
 ) -> tuple[list[dict[str, Any]], int]:
-    """Liquidity checks on top candidates - parallelized.
+    """Liquidity-check exactly this batch of candidates, in parallel. Extracted verbatim from
+    _run_liquidity_checks (2026-09-07) so that function can call this once per batch instead of
+    once over a single fixed top-slice - no behavior change to the per-batch check itself.
 
     ISSUE 13 FIX: Improved timeout handling with per-task monitoring.
     """
@@ -620,78 +626,91 @@ def _run_liquidity_checks(
 
     liq_passed: list[dict[str, Any]] = []
     liq_checked = 0
-    to_check = quality_filtered[:LIQUIDITY_CHECK_LIMIT]
 
-    if to_check:
+    if not to_check:
+        return liq_passed, liq_checked
+
+    try:
+        executor = ThreadPoolExecutor(max_workers=PHASE7_LIQUIDITY_CHECK_WORKERS, thread_name_prefix="phase7_liq")
+        pending_symbols = []
+        completed_results = {}
+
         try:
-            executor = ThreadPoolExecutor(max_workers=PHASE7_LIQUIDITY_CHECK_WORKERS, thread_name_prefix="phase7_liq")
-            pending_symbols = []
-            completed_results = {}
+            future_to_symbol = {
+                executor.submit(_check_liquidity_parallel, cand, run_date, config): cand for cand in to_check
+            }
+            executor_timeout = 60  # seconds - overall limit for all futures
 
-            try:
-                # Submit all tasks
-                future_to_symbol = {
-                    executor.submit(_check_liquidity_parallel, cand, run_date, config): cand for cand in to_check
-                }
+            for future in as_completed(future_to_symbol, timeout=executor_timeout):
+                liq_checked += 1
+                candidate = future_to_symbol[future]
+                symbol = candidate.get("symbol", "UNKNOWN")
 
-                # ISSUE 13 FIX: Wait with timeout per completed future
-                executor_timeout = 60  # seconds - overall limit for all futures
+                try:
+                    result = future.result(timeout=2)  # Per-future timeout is shorter
+                    candidate_result, passed = result
+                    completed_results[symbol] = passed
+                    if passed:
+                        liq_passed.append(candidate_result)
+                except FutureTimeoutError:
+                    logger.warning(f"[PHASE 7] Liquidity check timed out for {symbol} (exceeds 2s per-future limit)")
+                    pending_symbols.append(symbol)
+                except Exception as e:
+                    logger.error(f"[PHASE 7] Liquidity check failed for {symbol}: {e}")
+                    pending_symbols.append(symbol)
 
-                for future in as_completed(future_to_symbol, timeout=executor_timeout):
-                    liq_checked += 1
-                    candidate = future_to_symbol[future]
-                    symbol = candidate.get("symbol", "UNKNOWN")
-
-                    try:
-                        result = future.result(timeout=2)  # Per-future timeout is shorter
-                        candidate_result, passed = result
-                        completed_results[symbol] = passed
-                        if passed:
-                            liq_passed.append(candidate_result)
-                    except FutureTimeoutError:
-                        logger.warning(
-                            f"[PHASE 7] Liquidity check timed out for {symbol} (exceeds 2s per-future limit)"
-                        )
-                        pending_symbols.append(symbol)
-                    except Exception as e:
-                        logger.error(f"[PHASE 7] Liquidity check failed for {symbol}: {e}")
-                        pending_symbols.append(symbol)
-
-            except FutureTimeoutError:
-                logger.critical(
-                    f"[PHASE 7] Overall liquidity check timeout - {len(pending_symbols)} symbols still pending "
-                    f"(exceeded {executor_timeout}s overall limit)"
-                )
-            finally:
-                # ISSUE 13 FIX: Kill hanging threads instead of waiting
-                executor.shutdown(wait=False)
-
-            # Log skipped symbols
-            if pending_symbols:
-                logger.warning(
-                    f"[PHASE 7] Skipping {len(pending_symbols)} symbols due to timeout: {pending_symbols[:10]}"
-                )
-
-            # Continue with results we got
-            logger.info(
-                f"[PHASE 7] Liquidity check completed: {len(liq_passed)} passed, "
-                f"{len(pending_symbols)} skipped (timeout)"
-            )
-
-        except Exception as executor_exc:
-            # CRITICAL FIX: Re-raise exceptions instead of silently continuing
-            # If executor setup fails or critical errors occur, halt Phase 7
+        except FutureTimeoutError:
             logger.critical(
-                f"[PHASE 7 CRITICAL] ThreadPoolExecutor failure during liquidity checks: {type(executor_exc).__name__}: {executor_exc}. "
-                f"Cannot verify liquidity for {len(to_check)} candidates. "
-                f"Liquidity checks are critical for trading safety - failing fast instead of proceeding with unverified candidates."
+                f"[PHASE 7] Overall liquidity check timeout - {len(pending_symbols)} symbols still pending "
+                f"(exceeded {executor_timeout}s overall limit)"
             )
-            msg = (
-                f"[PHASE 7] Liquidity check system failure: {type(executor_exc).__name__}. "
-                f"Cannot proceed with signal generation without liquidity validation. "
-                f"Check system resources (thread pool, memory, database connections) and retry."
-            )
-            raise RuntimeError(msg) from executor_exc
+        finally:
+            executor.shutdown(wait=False)
+
+        if pending_symbols:
+            logger.warning(f"[PHASE 7] Skipping {len(pending_symbols)} symbols due to timeout: {pending_symbols[:10]}")
+
+        logger.info(
+            f"[PHASE 7] Liquidity check completed: {len(liq_passed)} passed, {len(pending_symbols)} skipped (timeout)"
+        )
+
+    except Exception as executor_exc:
+        logger.critical(
+            f"[PHASE 7 CRITICAL] ThreadPoolExecutor failure during liquidity checks: {type(executor_exc).__name__}: {executor_exc}. "
+            f"Cannot verify liquidity for {len(to_check)} candidates. "
+            f"Liquidity checks are critical for trading safety - failing fast instead of proceeding with unverified candidates."
+        )
+        msg = (
+            f"[PHASE 7] Liquidity check system failure: {type(executor_exc).__name__}. "
+            f"Cannot proceed with signal generation without liquidity validation. "
+            f"Check system resources (thread pool, memory, database connections) and retry."
+        )
+        raise RuntimeError(msg) from executor_exc
+
+    return liq_passed, liq_checked
+
+
+def _run_liquidity_checks(
+    quality_filtered: list[dict[str, Any]], run_date: _date, config: dict[str, Any] | None
+) -> tuple[list[dict[str, Any]], int]:
+    """Liquidity checks on top candidates - parallelized, backfilling further down the ranked
+    list as needed (2026-09-07 fix - see MAX_LIQUIDITY_CANDIDATES_CONSIDERED's docstring in
+    validation_thresholds.py for the full evidence trail).
+    """
+    liq_passed: list[dict[str, Any]] = []
+    liq_checked = 0
+    offset = 0
+
+    while (
+        len(liq_passed) < LIQUIDITY_CHECK_LIMIT
+        and offset < len(quality_filtered)
+        and offset < MAX_LIQUIDITY_CANDIDATES_CONSIDERED
+    ):
+        batch = quality_filtered[offset : offset + LIQUIDITY_CHECK_LIMIT]
+        offset += len(batch)
+        batch_passed, batch_checked = _check_liquidity_batch(batch, run_date, config)
+        liq_passed.extend(batch_passed)
+        liq_checked += batch_checked
 
     logger.info(
         f"[PHASE 7] Liquidity check: {liq_checked} checked, {len(liq_passed)} passed. "

@@ -91,8 +91,19 @@ def check_structure(filepath: Path, content: str) -> list[str]:
         return issues
 
     # For tested claims: require test method
-    if "tested" in content.lower() or "verified" in content.lower():
-        lowered = content.lower()
+    #
+    # BUG FOUND 2026-09-07: plain substring checks ("tested" in text / "verified" in text)
+    # match inside "untested"/"unverified" too - a memory honestly documenting the ABSENCE
+    # of verification (e.g. "terraform apply status is unverified... could not be confirmed")
+    # got flagged as an unbacked positive claim, the opposite of what it says. Live-reproduced
+    # on stop_loss_guardian_terraform_apply_unverified_20260906.md, which blocked commits
+    # repo-wide (this check runs against the whole memory dir, not just staged files) despite
+    # making no positive tested/verified claim at all. Word-boundary regex naturally excludes
+    # the "un-" prefix (no word-boundary between "un" and "verified"/"tested" internally) -
+    # same false-positive bug class this function has already been fixed for twice before
+    # (2026-08-11 exact-substring test-method check, 2026-09-04 pass-count adjacency check).
+    lowered = content.lower()
+    if re.search(r"\btested\b", lowered) or re.search(r"\bverified\b", lowered):
         # BUG FOUND 2026-08-11: this originally only matched an exact keyword substring
         # ("command:", "verified via", etc). In practice, a real verification writeup rarely
         # uses those literal phrases - it names the actual pytest/script invocation and its
@@ -116,12 +127,21 @@ def check_structure(filepath: Path, content: str) -> list[str]:
                 "test:",
                 "verification:",
                 "verified on:",
-                "verified via",
                 "pytest",
                 "exit 0",
                 "exit code",
             ]
         )
+        # BUG FOUND 2026-09-07: "verified via"/"confirmed via" as an exact adjacent substring
+        # missed real verification writeups that put a few words between the verb and "via"
+        # ("Verified landed via `git show HEAD --stat`", "confirmed via `grep`/`hasattr`") -
+        # both back a concrete git-based verification with a shown command, same evidentiary
+        # bar as the pytest-result-line case below, but got flagged as unverified anyway
+        # because "via" wasn't immediately adjacent. Same false-positive class already fixed
+        # twice before for this function (2026-08-11, 2026-09-04) - allow up to a few words
+        # between the verb and "via".
+        if not has_method:
+            has_method = bool(re.search(r"\b(verified|confirmed)\b[\s\S]{0,20}\bvia\b", lowered))
         if not has_method:
             has_shown_command = bool(re.search(r"`[^`\n]+`", content))
             # BUG FOUND 2026-09-04: the original `\d+\s*(passed|/\d+)` only matched a count
@@ -136,8 +156,17 @@ def check_structure(filepath: Path, content: str) -> list[str]:
             # class on a second real memory file the same day. Widened again to any non-newline
             # character (still capped at 60, still requires has_shown_command as an AND
             # condition above, so this alone can't pass a claim with no shown command at all).
+            #
+            # BUG FOUND 2026-09-08: `pass(ed|ing)?\b` doesn't match the present-tense
+            # third-person form "passes" ("test suite ... passes") - the word boundary check
+            # right after the optional (ed|ing) group fails because "passes" continues with
+            # "es", not a boundary. False-positive-blocked a real memory file
+            # (coverage_13f_other_bucket_data_unavailable_crosscheck_fix_20260908.md, "Full
+            # `scores_coverage` test suite (100 tests) passes") that had both a shown command
+            # (backticked table/module name) and a concrete pass count. Same false-positive
+            # class as 2026-08-11/2026-09-04/2026-09-07 above, just a missed verb form - added.
             has_result_line = bool(re.search(r"\d+\s*(passed|/\d+)", lowered)) or bool(
-                re.search(r"\d+[\s\S]{0,60}\bpass(ed|ing)?\b", lowered)
+                re.search(r"\d+[\s\S]{0,60}\bpass(ed|ing|es)?\b", lowered)
             )
             has_method = has_shown_command and has_result_line
         if not has_method:

@@ -344,6 +344,23 @@ class PreTradeChecks:
 
                 sector, industry = row
 
+                # REAL-MONEY-READINESS FIX (2026-09-07 audit): a company_profile row can
+                # exist with sector/industry = NULL (recent listings, ADRs, SPACs pre-merger,
+                # foreign private issuers, data gaps) - the "not found" check above only
+                # catches a missing ROW, not a present row with NULL columns. Postgres'
+                # `col = NULL` is never true, so the COUNT(*) queries below silently returned
+                # 0 for a NULL sector/industry regardless of how many other NULL-sector
+                # positions were already open - every NULL-sector symbol was its own
+                # uncapped, never-colliding bucket, letting max_positions_per_sector/industry
+                # be bypassed entirely for exactly the symbols most likely to share real risk
+                # (e.g. several pre-merger SPACs). Fail closed the same way as a missing row.
+                if sector is None or industry is None:
+                    raise ValueError(
+                        f"[PRE-TRADE CRITICAL] {symbol}: company_profile has NULL sector/industry "
+                        f"(sector={sector!r}, industry={industry!r}). Cannot evaluate sector/industry "
+                        f"concentration limits (required risk controls) - blocking entry."
+                    )
+
                 try:
                     max_sector_positions = int(self.config["max_positions_per_sector"])
                     max_industry_positions = int(self.config["max_positions_per_industry"])
@@ -486,13 +503,23 @@ class PreTradeChecks:
         names across sectors during a risk-off day), so a book could pass every taxonomy check
         while still holding several near-duplicate return streams.
 
-        Fails OPEN (returns True, treats as "no correlation data available", never raises) when
-        there are no open positions, or when a pair lacks correlation_min_overlap_days of
-        overlapping real price history - unlike the sector/industry check, this is a
-        supplementary control, and this codebase's own documented data-maturity gap
-        (position_sizer.py's get_data_maturity_multiplier: real full-universe price history is
-        still filling in) means blocking entries over a data gap here would be overly
-        aggressive for a non-primary check.
+        Fails open (returns True) only when there are no open positions to correlate against -
+        with nothing in the book, a correlation check is vacuously satisfied, not a data gap.
+
+        REAL-MONEY-READINESS FIX (2026-09-08 audit): the candidate-side "insufficient price
+        history" case used to fail OPEN here too, justified by this codebase's own documented
+        data-maturity gap (position_sizer.py's get_data_maturity_multiplier: real full-universe
+        price history "still filling in"). Independently re-verified against the live DB this
+        session: that framing is now stale. Of 5,139 active universe symbols, 5,073 (98.7%)
+        already have sufficient correlation_min_overlap_days of price history within
+        correlation_lookback_days - only 66 (1.3%) don't. Continuing to fail open for that
+        narrow remainder was an unforced, avoidable gap, not a considered tradeoff proportional
+        to today's actual data coverage: for a diversification risk control, the standard,
+        conservative-by-design posture is to block when correlation cannot be verified, not to
+        assume zero correlation. Fails CLOSED now for a candidate with insufficient overlap
+        history whenever the book is non-empty; still passes cleanly when a specific PEER
+        (not the candidate) lacks overlap data, since other peers are still checked in that
+        case - this only tightens the "we can say nothing at all about this candidate" case.
         """
         cur.execute("SELECT symbol FROM algo_positions WHERE status = %s", ("open",))
         open_symbols = [r[0] for r in cur.fetchall() if r[0] != symbol]
@@ -522,7 +549,13 @@ class PreTradeChecks:
 
         candidate_closes = closes_by_symbol.get(symbol)
         if not candidate_closes or len(candidate_closes) < min_overlap_days + 1:
-            return True, None
+            have = len(candidate_closes) if candidate_closes else 0
+            return False, (
+                f"{symbol} has only {have}d of price history within the {lookback_days}d "
+                f"correlation lookback (needs {min_overlap_days + 1}d) - cannot verify "
+                f"diversification against {len(open_symbols)} open position(s), failing closed "
+                "rather than assuming zero correlation"
+            )
 
         worst_corr: float | None = None
         worst_symbol: str | None = None
@@ -562,15 +595,25 @@ class PreTradeChecks:
         max_portfolio_beta, reusing the same 2.0 convention var.py's beta_exposure() already
         documents for its (previously report-only) WARNING threshold.
 
-        Fails OPEN (never blocks) when the candidate's own beta is unavailable, or when ANY
-        currently open position lacks a beta reading - deliberately does not silently drop
-        unknown-beta positions from a partial weighted average, since that could understate or
-        overstate the true portfolio beta in either direction depending on which positions
-        happen to be missing data. stability_metrics.beta coverage, like the correlation
-        check's price-history requirement, is still filling in for some symbols (this
-        codebase's own documented data-maturity gap - position_sizer.py's
-        get_data_maturity_multiplier).
+        Fails OPEN (never blocks) only when the candidate's own beta is unavailable - a
+        genuinely low-beta candidate whose beta simply hasn't been computed yet shouldn't be
+        assumed risky by this check alone (position_sizer.py's get_data_maturity_multiplier
+        already penalizes sizing for data immaturity independently).
+
+        REAL-MONEY-READINESS FIX (2026-09-06 audit): an existing open position missing a beta
+        reading used to fail this ENTIRE check open (skip it, return True) rather than just
+        excluding that one position - meaning a single stale/not-yet-computed beta row anywhere
+        in the book disabled this cap for every new entry, at exactly the moment (a recently
+        added, not-yet-fully-scored position sitting in the book) this system's own documented
+        data-maturity gap makes it most likely to happen. Matches
+        intraday_risk_monitor.py's identical 2026-09-06 fix: weight a missing-beta existing
+        position at a conservative beta=1.0 (market-average) instead of dropping it from the
+        weighted sum entirely (mathematically equivalent to assuming beta=0.0, understating
+        real exposure) or skipping the whole check (equivalent to assuming the position poses
+        zero risk of tipping the portfolio over the cap - strictly worse than a market-average
+        guess).
         """
+        missing_beta_conservative_assumption = 1.0
         cur.execute("SELECT beta FROM stability_metrics WHERE symbol = %s AND data_unavailable IS NOT TRUE", (symbol,))
         row = cur.fetchone()
         if row is None or row[0] is None:
@@ -601,10 +644,16 @@ class PreTradeChecks:
 
         missing = [p[0] for p in open_positions if p[0] not in beta_by_symbol]
         if missing:
-            return True, None
+            logger.warning(
+                f"[PRETRADE_CHECKS] {len(missing)} open position(s) have no stability_metrics.beta "
+                f"on file, weighted at an assumed beta={missing_beta_conservative_assumption} for this "
+                f"portfolio-beta check: {missing}."
+            )
 
         existing_weighted_beta = sum(
-            Decimal(str(qty)) * Decimal(str(price)) * Decimal(str(beta_by_symbol[pos_symbol]))
+            Decimal(str(qty))
+            * Decimal(str(price))
+            * Decimal(str(beta_by_symbol.get(pos_symbol, missing_beta_conservative_assumption)))
             for pos_symbol, qty, price in open_positions
         )
         # BUG FOUND (2026-09-06 real-money-readiness dig): this used to normalize by
@@ -734,11 +783,24 @@ class PreTradeChecks:
         isn't. Both coexist deliberately: historical_var()/cvar() remain the informational
         realized-P&L report, this is the pretrade gate.
 
-        Fails OPEN (never blocks) when the candidate or ANY currently open position lacks
-        sufficient overlapping price history - same rationale as _check_portfolio_beta: does
-        not silently drop a position from a partial weighted return series, since that could
-        understate or overstate the true simulated VaR in either direction depending on which
-        position happens to be missing data.
+        Fails OPEN (never blocks) only when the CANDIDATE lacks sufficient price history -
+        matching _check_portfolio_beta's identical candidate-side precedent (a genuinely
+        low-risk candidate whose data simply hasn't caught up yet shouldn't be assumed
+        dangerous by this check alone; position_sizer.py's get_data_maturity_multiplier
+        already penalizes sizing for data immaturity independently).
+
+        REAL-MONEY-READINESS FIX (2026-09-08 audit, found alongside the identical
+        _check_correlation_concentration fix): an existing OPEN POSITION lacking sufficient
+        price history used to fail this ENTIRE check open too - the same "single stale/thin
+        reading disables the whole check" bug class already found and fixed for
+        _check_portfolio_beta on 2026-09-06 (see that method's own docstring), never applied
+        here despite this method's docstring explicitly citing that check's rationale. Unlike
+        beta, there is no safe conservative substitute for a missing peer's return series (a
+        synthetic "assumed volatility" series would be fabricated data, not a
+        conservative-but-real number the way beta=1.0 is) - so a peer with insufficient
+        history now fails CLOSED (blocks the candidate) instead of silently skipping the
+        entire portfolio VaR gate at exactly the moment (a recently added, not-yet-fully-
+        scored position sitting in the book) the data-maturity gap makes this most likely.
 
         Performance: recomputes the full weighted return series per candidate rather than
         caching the non-candidate portion across a Phase 8 run - matches
@@ -787,15 +849,45 @@ class PreTradeChecks:
         for row_symbol, row_date, row_close in cur.fetchall():
             closes_by_symbol.setdefault(row_symbol, {})[row_date] = float(row_close)
 
-        # Fails open if ANY position (candidate or existing) lacks price history - see
-        # docstring above for why a partial series isn't an acceptable substitute.
-        missing = [s for s in all_symbols if s not in closes_by_symbol or len(closes_by_symbol[s]) < 2]
-        if missing:
+        # Candidate lacking history fails OPEN (see docstring above); an existing peer lacking
+        # history fails CLOSED - no safe substitute exists to keep the check running, and
+        # silently skipping the whole gate would implicitly assume that peer contributes zero
+        # risk, the wrong direction for a risk-oversight control.
+        if symbol not in closes_by_symbol or len(closes_by_symbol[symbol]) < 2:
+            have = len(closes_by_symbol.get(symbol, {}))
+            logger.warning(
+                f"[PRETRADE_CHECKS] Simulated portfolio VaR check SKIPPED for {symbol}: "
+                f"candidate has only {have}d of price history within {_SIMULATED_VAR_LOOKBACK_DAYS}d lookback."
+            )
             return True, None
+
+        missing_peers = [
+            p[0] for p in open_positions if p[0] not in closes_by_symbol or len(closes_by_symbol[p[0]]) < 2
+        ]
+        if missing_peers:
+            return False, (
+                f"{len(missing_peers)} open position(s) lack sufficient price history to include in "
+                f"the simulated portfolio VaR calculation: {missing_peers} - cannot verify portfolio "
+                "risk with an incomplete book, failing closed rather than assuming zero risk contribution"
+            )
 
         common_dates = sorted(set.intersection(*(set(closes_by_symbol[s].keys()) for s in all_symbols)))
         if len(common_dates) - 1 < _SIMULATED_VAR_MIN_OVERLAP_DAYS:
-            return True, None
+            if not open_positions:
+                # No peers in the book - the shortfall is purely the candidate's own history
+                # depth, same case the candidate-side fail-open above already covers.
+                logger.warning(
+                    f"[PRETRADE_CHECKS] Simulated portfolio VaR check SKIPPED for {symbol}: only "
+                    f"{len(common_dates) - 1} day(s) of candidate history, below the required "
+                    f"{_SIMULATED_VAR_MIN_OVERLAP_DAYS}."
+                )
+                return True, None
+            return False, (
+                f"Only {len(common_dates) - 1} overlapping trading day(s) across all "
+                f"{len(open_positions)} open position(s) and the candidate, below the required "
+                f"{_SIMULATED_VAR_MIN_OVERLAP_DAYS} - cannot verify simulated portfolio VaR with "
+                "insufficient overlap, failing closed rather than assuming zero risk"
+            )
 
         weight_by_symbol = {symbol: position_value / portfolio_value}
         for open_symbol, qty, price in open_positions:

@@ -285,7 +285,21 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         symbols = list(symbols)
         total_symbols = len(symbols)
 
+        # PERF FIX (goal session 20260908, "optimize all loading activity"): same gap and same
+        # fix as load_value_quality_growth_metrics.py's identical PERF FIX comment - this loader
+        # also fully overrides OptimalLoader.run() without calling super().run(), so it also
+        # missed the base class's pooled-connection reuse. Smaller win here than in that DB-only
+        # sibling loader (this one is yfinance-network-bound, not DB-bound), but the ~4
+        # `with DatabaseContext(...)` call sites below still open a fresh physical connection
+        # per symbol for no reason.
+        conn_manager = None
         try:
+            from utils.db.pooled_connection_manager import PooledConnectionManager
+            from utils.db.pooled_context_var import set_pooled_connection
+
+            conn_manager = PooledConnectionManager(self.table_name)
+            set_pooled_connection(conn_manager.acquire())
+
             # Use LoaderStatusManager for centralized status updates (RACE CONDITION FIX)
             for table in ["quality_metrics", "growth_metrics"]:
                 status_mgr = LoaderStatusManager(table)
@@ -429,6 +443,16 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             if worker is not None:
                 worker.shutdown()
                 self._yf_worker = None
+            # Release the pooled connection acquired above (see PERF FIX comment) - must run
+            # on every exit path, mirroring OptimalLoader.run()'s own cleanup.
+            try:
+                from utils.db.pooled_context_var import set_pooled_connection
+
+                set_pooled_connection(None)
+                if conn_manager is not None:
+                    conn_manager.release()
+            except Exception as cleanup_err:
+                logger.warning(f"[ENHANCED] Failed to clean up pooled connection: {cleanup_err}")
 
     def _process_one_symbol(self, symbol: str, since_date: date | None, outcome: list[str]) -> None:
         """Fetch + write metrics for one symbol. Sets outcome[0]='success' on a real write.

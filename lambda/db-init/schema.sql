@@ -773,20 +773,68 @@ CREATE INDEX IF NOT EXISTS idx_algo_positions_with_risk_status ON algo_positions
 -- Phase 1 data freshness check requires this table to exist
 -- Stores results from DataPatrol data quality checks
 
+-- CORRECTED 2026-09-09 (goal session: "is our XBRL/tie-out validation actually working"):
+-- this CREATE TABLE didn't match the live schema (real table: severity values are 'info'/
+-- 'warn'/'error'/'critical' per algo/monitoring/data_patrol/config.py's INFO/WARN/ERROR/CRIT
+-- constants - the old CHECK constraint said 'warning' not 'warn' and would have rejected every
+-- WARN-severity insert on a fresh install; also missing the `status` column entirely, which
+-- exists live (added out-of-band, itself an undocumented-drift instance) and is now written by
+-- PatrolLogger for the open/resolved lifecycle below). CREATE TABLE IF NOT EXISTS is a no-op
+-- against the live table, which already has the right shape - this only matters for a fresh
+-- install, which would otherwise get the wrong schema.
 CREATE TABLE IF NOT EXISTS data_patrol_log (
     id SERIAL PRIMARY KEY,
     patrol_run_id VARCHAR(100) NOT NULL,
     check_name VARCHAR(100) NOT NULL,
-    severity VARCHAR(20) NOT NULL CHECK (severity IN ('info', 'warning', 'error', 'critical')),
+    severity VARCHAR(20) NOT NULL CHECK (severity IN ('info', 'warn', 'error', 'critical')),
     target_table VARCHAR(100),
     message TEXT,
     details JSONB,
+    status VARCHAR(20),
     patrol_date DATE DEFAULT CURRENT_DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_run_id ON data_patrol_log(patrol_run_id);
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_date ON data_patrol_log(patrol_date DESC);
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_severity ON data_patrol_log(severity);
+
+-- Per-symbol quarantine (migration 1277): lets a DataPatrol check that can attribute a
+-- CRIT/ERROR finding to specific symbols (e.g. ohlc_sanity's negative-price/bad-high-low
+-- corruption) have just those symbols excluded from scoring/trading instead of the whole
+-- Phase 1 run halting. Checks that can't attribute symbols still halt the whole run as before.
+-- Named symbol_quarantine (not data_quality_flags) to avoid confusion with the unrelated,
+-- already-removed price_daily.data_quality_flags column from the 2026-08-11 write-side-effect
+-- bug (see tests/unit/test_data_patrol_no_write_side_effect_in_ohlc_check.py).
+CREATE TABLE IF NOT EXISTS symbol_quarantine (
+    id BIGSERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    check_name VARCHAR(100) NOT NULL,
+    severity VARCHAR(20) NOT NULL CHECK (severity IN ('error', 'critical')),
+    reason TEXT NOT NULL,
+    patrol_run_id VARCHAR(100) NOT NULL,
+    detected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX IF NOT EXISTS idx_symbol_quarantine_symbol_open
+    ON symbol_quarantine(symbol) WHERE resolved_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_symbol_quarantine_check_open
+    ON symbol_quarantine(check_name) WHERE resolved_at IS NULL;
+
+-- Triage/ack workflow for data_patrol_log's open backlog (migration 1278): distinguishes
+-- "nobody has reviewed this" from "a human reviewed this and it's an accepted condition"
+-- for a (check_name, target_table) pair. See scripts/data_patrol_backlog_report.py.
+CREATE TABLE IF NOT EXISTS data_patrol_review (
+    id SERIAL PRIMARY KEY,
+    check_name VARCHAR(100) NOT NULL,
+    target_table VARCHAR(100),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('acceptable', 'needs_fix')),
+    note TEXT NOT NULL,
+    reviewed_by VARCHAR(200),
+    reviewed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (check_name, target_table)
+);
+CREATE INDEX IF NOT EXISTS idx_data_patrol_review_check_table
+    ON data_patrol_review(check_name, target_table);
 
 -- ============================================================================
 -- WEIGHT OPTIMIZATION (Dynamic weight management for portfolio components)

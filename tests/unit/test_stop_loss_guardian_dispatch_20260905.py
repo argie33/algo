@@ -1,18 +1,15 @@
 """Regression test for the algo_orchestrator Lambda's risk-monitor dispatch.
 
-UPDATED 2026-09-06: `mode: "stop_loss_guardian"` and `mode: "intraday_risk_monitor"` were
-two separate dispatches (this file originally tested only the former in isolation). Both
-are now consolidated into `algo/risk/unified_risk_monitor.py::check_unified_risk`, run on
-one 5-minute schedule instead of the old separate stop-loss-guardian/intraday-risk-monitor
-cadences (which absorbed 2 further separately-packaged Lambdas - circuit-breaker and
-execution-monitor - not dispatched through this file). `stop_loss_guardian`/
-`intraday_risk_monitor` are now deprecated aliases that forward to the same consolidated
-check, kept for one deploy cycle so an in-flight EventBridge schedule using the old
-payload shape during cutover doesn't hard-fail.
-
-Confirms the dispatch (1) calls the shared consolidated check - not a reimplementation -
-for the canonical mode AND both deprecated aliases, and (2) surfaces an unexpected failure
-as a failed invocation rather than a fake 200.
+REVERTED 2026-09-07 (real-money-readiness pre-live audit): a 2026-09-06 consolidation
+commit made `stop_loss_guardian` and `intraday_risk_monitor` deprecated aliases that
+forwarded to a since-removed consolidated risk check which, unlike either mode's own
+original behavior, could automatically HALT trading and automatically FLATTEN/reduce
+real positions on a confirmed portfolio-variance or beta/concentration breach. That
+forwarding shipped with NO new terraform sign-off: `enable_stop_loss_guardian = true`
+in terraform/prod.tfvars was approved on 2026-09-06 for the OLD, narrow stop-loss
+verify/repair-only behavior (self-healing only, never a halt or a flatten) - months
+before that consolidated check existed. Each mode must run ONLY its own original,
+already-approved, narrower check - never any action-taking consolidated one.
 """
 
 import importlib
@@ -34,8 +31,9 @@ def _load_module():
     return module
 
 
-@pytest.mark.parametrize("mode", ["unified_risk_monitor", "stop_loss_guardian", "intraday_risk_monitor"])
-def test_risk_monitor_modes_call_shared_unified_check_and_return_200(mode):
+def test_stop_loss_guardian_mode_calls_narrow_repair_check_not_unified_risk():
+    """CRITICAL: must never reach an automated halt/flatten ladder - this mode is only
+    ever approved for the self-healing stop-loss verify/repair step."""
     module = _load_module()
     os.environ["APCA_API_KEY_ID"] = "test-key"
     os.environ["APCA_API_SECRET_KEY"] = "test-secret"
@@ -45,16 +43,36 @@ def test_risk_monitor_modes_call_shared_unified_check_and_return_200(mode):
     with (
         patch.object(module, "_load_alpaca_credentials_from_secrets"),
         patch("algo.infrastructure.get_config", return_value=mock_config),
-        patch("algo.risk.unified_risk_monitor.check_unified_risk") as mock_check,
+        patch("algo.orchestrator.phase9_reconciliation._verify_open_position_stop_loss_protection_step") as mock_repair,
     ):
-        result = module.lambda_handler({"mode": mode}, None)
+        result = module.lambda_handler({"mode": "stop_loss_guardian"}, None)
 
-    mock_check.assert_called_once()
-    assert mock_check.call_args.args[0] is mock_config
+    mock_repair.assert_called_once()
+    assert mock_repair.call_args.args[1] is mock_config
     assert result["statusCode"] == 200
 
 
-@pytest.mark.parametrize("mode", ["unified_risk_monitor", "stop_loss_guardian", "intraday_risk_monitor"])
+def test_intraday_risk_monitor_mode_calls_alert_only_check_not_unified_risk():
+    """CRITICAL: must never reach an automated halt/flatten ladder - this mode is only
+    ever approved for the alert-only intraday beta/concentration re-check."""
+    module = _load_module()
+    os.environ["APCA_API_KEY_ID"] = "test-key"
+    os.environ["APCA_API_SECRET_KEY"] = "test-secret"
+
+    mock_config = MagicMock()
+
+    with (
+        patch.object(module, "_load_alpaca_credentials_from_secrets"),
+        patch("algo.infrastructure.get_config", return_value=mock_config),
+        patch("algo.risk.intraday_risk_monitor.check_intraday_risk") as mock_intraday,
+    ):
+        result = module.lambda_handler({"mode": "intraday_risk_monitor"}, None)
+
+    mock_intraday.assert_called_once_with(mock_config)
+    assert result["statusCode"] == 200
+
+
+@pytest.mark.parametrize("mode", ["stop_loss_guardian", "intraday_risk_monitor"])
 def test_risk_monitor_modes_do_not_run_full_orchestrator(mode):
     module = _load_module()
     os.environ["APCA_API_KEY_ID"] = "test-key"
@@ -63,7 +81,8 @@ def test_risk_monitor_modes_do_not_run_full_orchestrator(mode):
     with (
         patch.object(module, "_load_alpaca_credentials_from_secrets"),
         patch("algo.infrastructure.get_config", return_value=MagicMock()),
-        patch("algo.risk.unified_risk_monitor.check_unified_risk"),
+        patch("algo.orchestrator.phase9_reconciliation._verify_open_position_stop_loss_protection_step"),
+        patch("algo.risk.intraday_risk_monitor.check_intraday_risk"),
         patch("algo.orchestration.Orchestrator") as mock_orchestrator_cls,
     ):
         module.lambda_handler({"mode": mode}, None)
@@ -71,7 +90,7 @@ def test_risk_monitor_modes_do_not_run_full_orchestrator(mode):
     mock_orchestrator_cls.assert_not_called()
 
 
-@pytest.mark.parametrize("mode", ["unified_risk_monitor", "stop_loss_guardian", "intraday_risk_monitor"])
+@pytest.mark.parametrize("mode", ["stop_loss_guardian", "intraday_risk_monitor"])
 def test_risk_monitor_modes_surface_unexpected_failure_as_500(mode):
     module = _load_module()
     os.environ["APCA_API_KEY_ID"] = "test-key"

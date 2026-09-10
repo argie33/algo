@@ -38,7 +38,6 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "operating_income_not_itemized",
             "no_dividend_xbrl_concepts",
             "no_us_gaap_facts",
-            "no_xbrl_filings",
             "cik_not_found",
             "depreciation_amortization_not_loaded",
             "ebitda_not_extracted",
@@ -204,6 +203,14 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # same outcome. Still live-firing today (17 rows, most recent within the last
             # day), not stale debris - was falling through to "Other (errors / excluded)".
             "Form345_download_timeout",
+            # ADDED 2026-09-08 (/goal score-sanity sweep): same
+            # sec_form345_transaction_velocity_cached.py CachedForm345Aggregator.get_velocity_
+            # metrics call site as Form345_download_timeout directly above, but the branch hit
+            # while the shared background Form 3/4/5 bulk download is still actively in
+            # progress (not yet timed out) - same "the SEC bulk feed isn't ready yet" fact,
+            # just the in-flight case instead of the gave-up-waiting case. Was unmapped,
+            # falling through to "Other (errors / excluded)".
+            "Form345_download_in_progress",
             # filing_date_unavailable/segment_data_unavailable: load_sec_segment_info.py/
             # load_sec_segment_metrics.py's own "SEC segment XBRL data isn't there" facts,
             # same class as the other segment-data reasons already above. These two tables
@@ -544,6 +551,18 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # the same "computed but rejected as implausible" class as implausible_dcf_result
             # above, not a genuine SEC/XBRL data gap. See that reason's own write-site comment.
             "dcf_fcf_nulled_by_net_borrowing_distortion",
+            # ADDED 2026-09-07 (real-money-readiness /goal audit): loaders/helpers/vqg_value.py's
+            # pe_ratio_reason cascade resolves to these two strings when sec_valuations_ratios.py's
+            # _pe_earnings_too_volatile/_pe_earnings_tax_benefit_inflated guards deliberately null a
+            # real, positive, anchor-year-EPS-backed pe_ratio as an earnings-quality distortion (a
+            # loss-then-profit-year swing or a one-off tax-benefit-inflated net income) rather than
+            # a genuine bargain. Same "computed but deliberately rejected" class as implausible_
+            # ratio/implausible_dcf_result above - live-confirmed BA/RILY (too_volatile) and AES/
+            # AXON/RIGL (tax_benefit_inflated), all real S&P/mid-cap names with complete SEC
+            # financials, not data gaps. Was unmapped and would have fallen through to
+            # "Other (errors / excluded)".
+            "pe_earnings_too_volatile",
+            "pe_earnings_tax_benefit_inflated",
         },
     ),
     (
@@ -561,6 +580,20 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "missing_price_data",
             "excluded_by_naming_pattern",
             "no_recent_price",
+            # ADDED 2026-09-08 (/goal score-sanity sweep): utils/loaders/exception_handler.py's
+            # generic exception-classification handlers, called by handle_exception() from
+            # load_sec_valuations.py, load_sec_segment_metrics.py, load_earnings_calendar_sec.py,
+            # load_company_info_sec.py, and loaders/helpers/sec_base.py on real TimeoutError/
+            # ConnectionError/HTTPError(429,503)/KeyError/ValueError/no-results outcomes - the
+            # same operational-error class as fetch_error:ValueError/unable to fetch after
+            # retries already in this bucket. Was unmapped, falling through to this bucket
+            # anyway via the default but silently.
+            "timeout_retryable",
+            "connection_error",
+            "rate_limit_or_service_unavailable",
+            "api_schema_mismatch",
+            "data_invalid",
+            "no_data_found",
             # ADDED 2026-09-02 (SEC/XBRL missing-data sweep, live audit_unavailable_reasons.py
             # cross-check): loaders/load_risk_metrics_daily.py writes this literal (see the
             # STALE_PRICE FIX 2026-09-01 comment at its write site, ~line 411) onto
@@ -606,6 +639,11 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # exposure aggregation failure reasons for when the composite weighting couldn't
             # be computed from individual pillar scores (rare, all-or-nothing result).
             "exposure_no_result",
+            # RESTORED 2026-09-07 (regression: landed in 97c7a2590, silently dropped by a bad
+            # merge in 0cbce77c0 - real-money-readiness audit re-verified write-site still emits
+            # this exact string). load_value_quality_growth_metrics.py's _get_positioning_data
+            # writes this on a real DB/fetch exception, an operational error, not a data gap.
+            "positioning_metrics_unavailable",
         },
     ),
     (
@@ -675,6 +713,24 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # real business-model fact as reit_special_entity just above, not an extraction
             # gap. Live-confirmed SPY/QQQ/IWM (the universe's only active etf='true' symbols).
             "etf_no_sec_filings",
+            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, dividend_data
+            # no_xbrl_filings investigation): load_dividend_data.py's own except FileNotFoundError
+            # handler that WRITES this reason already calls it "permanent and legitimate (mutual
+            # funds, shells), not a loader failure" in its own comment - it was just never moved
+            # to match that comment's own conclusion. Live-sampled the full active-scored
+            # population (496 rows, ~90 distinct symbols): dominated by closed-end funds/trusts
+            # that file N-CSR/N-PORT, never a 10-K (Gabelli GAB/GDV/GUT/GLU/GNT, BlackRock
+            # BCX/BDJ/BGR/BGY/BHK/BOE/BSTZ/BTX/BTZ, Franklin FT/PIM/PPT, Royce RGT/RMT/RVT, abrdn
+            # HQH/HQL, DWS KTF, BNY LEO, Barings MCI/MPV, Central Securities CET), oil/gas/mineral
+            # royalty trusts (SBR/CRT/SJT/PBT/MTR - no operating XBRL by design), ETFs (SPY/QQQ -
+            # same etf_no_sec_filings class just above), OZK (see
+            # bank_ozk_fdic_designee_no_10k_structural_genuine_20260903 in memory - FDIC Section
+            # 12(i) designee, no SEC 10-K ever), and foreign banks filing 20-F/6-K with no XBRL
+            # companyfacts at all (IBN/ICICI Bank - live-confirmed CIK 1103838's companyfacts
+            # endpoint 404s). Every sampled case is a real, permanent, non-SEC-XBRL-reporting
+            # entity, not an extraction gap - was inflating "Missing SEC/XBRL data" for a
+            # population this pipeline can never close regardless of extraction-code quality.
+            "no_xbrl_filings",
             # ADDED 2026-09-05 (SEC/XBRL missing-data sweep, "implausible values" follow-up):
             # a real, reported $0.00 total_assets/stockholders_equity (a blank-check/shell
             # company pre-merger, e.g. OBX) - a known business fact, not an extraction gap.
@@ -693,6 +749,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             "negative_free_cash_flow",
             "negative_book_value",
             "negative_earnings_growth",
+            # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): peg_ratio's own
+            # reason function (vqg_shared.py's peg_ratio_reason_from_eps_history) now mirrors
+            # _compute_peg_ratio()'s low-base-year rejection (a real, positive prior_year_eps
+            # that's a one-off litigation/impairment trough relative to the filer's own EPS
+            # history - same GILD/AA-shaped bug the value side already fixed, see
+            # peg_ratio_low_base_effect in memory) - the data IS real, the ratio is just not
+            # meaningful off that anchor year, same "not applicable" class as
+            # negative_earnings_growth just above.
+            "peg_ratio_low_base_effect",
             "negative_invested_capital",
             "growth_undefined_sign_change",
             # MOVED 2026-09-06 (goal: "SEC/XBRL missing data to zero" audit): the six
@@ -806,6 +871,16 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # rows, >50%), silently making the "which loaders need fixing" report itself look
             # far noisier than the real gap.
             "no_8k_filings_in_recent_submissions",
+            # RESTORED 2026-09-07 (regression: landed in 97c7a2590, silently dropped by a bad
+            # merge in 0cbce77c0 - real-money-readiness audit re-verified both write-sites in
+            # load_market_constituents.py still emit these exact strings). Both are permanent,
+            # confirmed business facts: blank_check_shell_sic_6770_no_revenue fires only after
+            # confirming SEC SIC 6770 + zero revenue ever; delisted_or_removed_from_exchange_feed
+            # fires only after vanishing from the NASDAQ/otherlisted feed AND going stale in
+            # price_daily (second orthogonal signal, added 2026-09-01 after a live EQR false
+            # positive) - neither is a loader gap.
+            "blank_check_shell_sic_6770_no_revenue",
+            "delisted_or_removed_from_exchange_feed",
             # ADDED 2026-09-06 (goal session: "SEC/XBRL missing data to zero" sweep): symbol is
             # structurally unable to file traditional 10-K/10-Q filings due to entity type
             # (CEF/BDC/ETF/post-2024 banks), so it has no annual financial statements data -

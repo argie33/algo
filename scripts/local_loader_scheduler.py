@@ -72,8 +72,42 @@ os.environ["ENVIRONMENT"] = "development"
 # self-triggered the yfinance shared-IP circuit breaker from a single local machine, causing
 # 84%+ false-failure rates on analyst loaders (same fix applied to scripts/run_loader.py).
 # Default to 1 to match the value actually verified safe.
-if "LOADER_PARALLELISM" not in os.environ:
+#
+# _LOADER_PARALLELISM_AUTO_DEFAULTED (goal session 20260908, "optimize all loading
+# activity"): tracks whether THIS block is what set LOADER_PARALLELISM=1, as opposed to an
+# operator explicitly exporting it themselves before running this script. Needed below:
+# utils/loaders/config.py's LOADER_CONSTRAINTS already designs company_info_sec/
+# earnings_calendar_sec for parallelism up to 2 ("SEC EDGAR allows ~10 requests/second
+# globally... Parallelism=1-2 keeps us well under limit" - these loaders share nothing with
+# the yfinance concern this default exists for; SecEdgarClient's RateLimiter is thread-safe
+# and shared across OptimalLoader's _run_parallel worker threads, so 2 concurrent SEC
+# fetches is exactly what that constraint was designed to allow). But get_parallelism()
+# checks the LOADER_PARALLELISM env var BEFORE per-loader LOADER_CONSTRAINTS, so this
+# blanket "1" - meant only to protect yfinance - was also silently halving these SEC-only
+# loaders' designed throughput on every local run. Deliberately excludes financial_statements
+# despite LOADER_CONSTRAINTS listing income_statements/balance_sheets/cash_flow_statements at
+# the same (1,2): local runs always set LOADER_STATEMENT_TYPE=all (below), which routes
+# through load_all_statements() - that function's own args.parallelism branch logs
+# "--parallelism ignored (serial symbol-major pass)" and always runs serially by design (one
+# companyfacts fetch covers all 6 statement/period combos per symbol; parallelizing would
+# multiply SEC calls, not just speed things up), so a LOADER_PARALLELISM override would be a
+# silent no-op there - worse than doing nothing, since it would look like a fix without
+# being one. Only override per-loader below when this script is the one that chose "1" -
+# never override an operator's own explicit choice.
+_LOADER_PARALLELISM_AUTO_DEFAULTED = "LOADER_PARALLELISM" not in os.environ
+if _LOADER_PARALLELISM_AUTO_DEFAULTED:
     os.environ["LOADER_PARALLELISM"] = "1"
+
+# SEC-only loaders (no yfinance involvement at all) that utils/loaders/config.py's
+# LOADER_CONSTRAINTS already designs for parallelism up to 2 - see
+# _LOADER_PARALLELISM_AUTO_DEFAULTED's comment above for the full rationale, including why
+# financial_statements is deliberately NOT in this set.
+# Scheduler shorthand names (loaders/loader_registry.py), NOT their table_name/filename -
+# "company_info" -> load_company_info_sec.py (table_name "company_info_sec"), "earnings_sec"
+# -> load_earnings_calendar_sec.py (table_name "earnings_calendar_sec"). The `loader` value
+# checked against this set below is always the raw PIPELINES shorthand, pre-normalization.
+_SEC_ONLY_HIGHER_PARALLELISM_LOADERS = frozenset({"company_info", "earnings_sec"})
+
 
 # LIVE BUG FOUND 2026-08-17: insider_transaction_velocity killed at exactly the generic
 # formula's 900s floor ("0% stall for >900s") while genuinely mid-download, not hung. Unlike
@@ -99,6 +133,19 @@ if "LOADER_PARALLELISM" not in os.environ:
 # reproduced the same 900s-floor kill this fix was meant to prevent (killed at 931s, not
 # 1500s) via that invocation path today. Match that established pattern instead of introducing
 # a normalization step this dict didn't have before.
+def _is_sec_rate_limit_error(error_msg: str) -> bool:
+    """True when error_msg indicates a genuine SEC EDGAR rate-limit/throttling failure.
+
+    FIXED 2026-09-07: originally matched the bare substring "rate limit", which
+    false-matched company_info_sec's own BACKFILL_DAYS config-validation error - a static
+    warning baked into that ValueError's message text, unrelated to any real SEC EDGAR
+    throttling. Genuine SEC 429s are always logged as "rate limited (429)" - past tense,
+    singular - which the config warning's "rate limits." (plural/present) never matches.
+    """
+    msg = error_msg.lower()
+    return "rate limited" in msg or "sec edgar" in msg or "429" in msg
+
+
 STALL_TIMEOUT_FLOOR_OVERRIDES = {
     "insider_transaction_velocity": 1500,  # 1080s download budget + 420s margin
     "insider_velocity": 1500,  # Alias for insider_transaction_velocity - see above
@@ -278,10 +325,13 @@ def _monitor_loader_progress(
                     stall_duration = now - last_pct_time
                     row_stall_duration = now - last_row_count_time
                     updated_at_stall_duration = now - last_max_updated_time
+                    # completion_pct carries over nonzero from the loader's prior successful
+                    # run and is never reset - requiring last_pct<=0.0 here permanently blocked
+                    # a real stall from ever being detected once a loader had run successfully
+                    # once (2026-09-07, analyst_sentiment_analysis wedged 58min undetected).
                     is_stalled = (
                         stall_duration > max_stall_sec
                         and row_stall_duration > max_stall_sec
-                        and (last_pct is None or last_pct <= 0.0)
                         and (not has_updated_at or updated_at_stall_duration > max_stall_sec)
                     )
                     if is_stalled:
@@ -537,7 +587,13 @@ LOADER_DEPENDENCIES = {
     "profile": ["company_info"],
     # SESSION 88 FIX: valuations depends on company_info for symbol and metadata lookups
     # (if company_info fails, valuations should be skipped rather than cascading failure)
-    "valuations": ["company_info"],
+    # FIXED 2026-09-07 (goal: XBRL data confidence): financial_statements was missing here -
+    # sec_valuations reads annual_income_statement/annual_balance_sheet directly (see
+    # loaders/helpers/sec_valuations_income_context.py). A same-day financial_statements
+    # reload racing an unguarded valuations run hit annual_income_statement mid-DELETE/INSERT
+    # for ~2,248 symbols (44% of universe), permanently writing data_unavailable=True/
+    # reason="no_income_statement" for symbols with real, complete SEC data present.
+    "valuations": ["company_info", "financial_statements"],
     # earnings_sec requires company_info for CIK lookups (SESSION 89 FIX - missing dependency)
     "earnings_sec": ["company_info"],
     # SESSION 92 FIX: positioning_metrics reads company_info_sec shares_outstanding
@@ -816,11 +872,7 @@ def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> i
                 if isinstance(failures, (int, float)):
                     failures_int = int(failures)
                     error_msg = error_msg or "(no error message)"
-                    is_sec_issue = (
-                        "rate limit" in error_msg.lower()
-                        or "sec edgar" in error_msg.lower()
-                        or "429" in error_msg.lower()
-                    )
+                    is_sec_issue = _is_sec_rate_limit_error(error_msg)
                     # ROOT-CAUSE FIX 2026-08-16: reap_stale_running_loaders() marks an abandoned
                     # (no owning process alive) loader FAILED with an "[REAPED]" error_message,
                     # incrementing consecutive_failures exactly like a real repeated failure would.
@@ -903,6 +955,11 @@ def run_pipeline(pipeline_name: str, loader_filter: set[str] | None = None) -> i
             # Convert shorthand name to filename (e.g., "prices" → "load_prices.py")
             loader_filename = normalize_loader_name(loader)
             env = os.environ.copy()
+            # PERF FIX (goal session 20260908): see _SEC_ONLY_HIGHER_PARALLELISM_LOADERS'
+            # definition above for the full rationale - only overrides this script's own
+            # auto-chosen "1" default, never an operator's explicit LOADER_PARALLELISM.
+            if _LOADER_PARALLELISM_AUTO_DEFAULTED and loader in _SEC_ONLY_HIGHER_PARALLELISM_LOADERS:
+                env["LOADER_PARALLELISM"] = "2"
             # FIX 2026-08-25: on Windows, a redirected (non-console) child stdout defaults to
             # the ANSI codepage (cp1252 here) rather than UTF-8. sla_monitor.py/logging/sla.py/
             # db/pool_monitor.py all log status emoji (🔴🟡🟢🟠) - under cp1252 those silently
@@ -1667,6 +1724,49 @@ def _lock_paths_for_pipeline(pipeline_name: str) -> list[Path]:
     return [shared_lock]
 
 
+def _run_data_patrol_and_report() -> int:
+    """Run the full DataPatrol suite (tie-out identities, staleness, XBRL new-concept
+    detection, statistical anomalies, ...) against whatever just loaded and print a summary.
+
+    Returns 0 if no CRITICAL/ERROR findings, 1 otherwise (mirrors algo/algo_data_patrol.py's
+    own CLI exit code) - a local reload should end with the same pass/fail signal a production
+    pipeline run would get from Phase 1's DataPatrol gate.
+    """
+    print("[LOCAL_SCHEDULER] Running DataPatrol (tie-out, staleness, XBRL, statistical checks)...")
+    try:
+        from algo.monitoring.data_patrol import DataPatrol
+        from algo.monitoring.data_patrol.config import PatrolConfig
+
+        summary = DataPatrol(config=PatrolConfig()).run()
+    except Exception as e:
+        print(f"[LOCAL_SCHEDULER] DataPatrol itself failed to run: {e}", file=sys.stderr)
+        return 1
+
+    errors = summary.get("errors", 0)
+    warnings = summary.get("warnings", 0)
+    ready = summary.get("ready", False)
+    if ready:
+        print(f"[LOCAL_SCHEDULER] DataPatrol: OK (0 CRITICAL/ERROR, {warnings} warning(s)).")
+        return 0
+
+    print(
+        f"[LOCAL_SCHEDULER] DataPatrol: {errors} CRITICAL/ERROR finding(s), {warnings} warning(s). "
+        "A production run would HALT on this - see the findings below "
+        "(or query data_patrol_log / check the dashboard for the full list):",
+        file=sys.stderr,
+    )
+    blocking = [f for f in summary.get("findings", []) if f.get("severity") in ("error", "critical")]
+    for finding in blocking[:10]:
+        print(
+            f"  [{finding.get('severity', '?').upper()}] {finding.get('check', '?')} "
+            f"({finding.get('target', '?')}): {finding.get('message', '?')}",
+            file=sys.stderr,
+        )
+    if len(blocking) > 10:
+        print(f"  ... and {len(blocking) - 10} more", file=sys.stderr)
+    return 1
+
+
 def main() -> int:
     # FIXED 2026-08-16: this process's own top-level output (pipeline start, lock
     # rejections, pre-mark errors) was bare print()/stderr with zero persistent capture -
@@ -1770,6 +1870,26 @@ def main() -> int:
                     "remaining pipelines in --now=all so one failure doesn't block the rest",
                     file=sys.stderr,
                 )
+
+        # AUTO-RUN DATA PATROL (2026-09-07, goal: XBRL data-confidence audit): "metrics" is
+        # where financial_statements (SEC/XBRL) and everything derived from it (valuations,
+        # value_quality_growth) loads - the exact class of bug this whole goal session was
+        # about (see the valuations/financial_statements dependency fix landed the same
+        # session). Production always runs DataPatrol automatically right after loaders finish
+        # (terraform's pipeline DAG) and Phase 1 now halts trading on what it finds (see
+        # algo/orchestrator/phase1_data_freshness.py's _check_data_patrol_results) - but this
+        # script, confirmed via grep, never invoked DataPatrol at all, so a local reload gave
+        # no equivalent signal short of manually remembering to run
+        # `python algo/algo_data_patrol.py` afterward. Runs automatically here instead, so a
+        # local `--now metrics`/`--now all` surfaces the same tie-out/staleness/XBRL-concept/
+        # statistical-anomaly findings the production gate would halt on, without an extra
+        # manual step. Best-effort: a patrol failure must never mask whether the loaders
+        # themselves succeeded (exit_code already reflects that above).
+        if "metrics" in pipelines_to_run:
+            patrol_exit = _run_data_patrol_and_report()
+            if patrol_exit != 0 and exit_code == 0:
+                exit_code = patrol_exit
+
         return exit_code
     finally:
         # Always clean up locks on exit (success or failure)

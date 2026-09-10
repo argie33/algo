@@ -42,6 +42,13 @@ class _FakeCursor:
         return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -51,6 +58,7 @@ class _FakeCursor:
 # test_sec_valuations_ebitda_pretax_fallback_interest_addback_20260905.py, plus one more slot at
 # the end for this fix's new RIC-check query.
 _BASE_DOWNSTREAM_FETCHONE = [
+    None,  # entity_type exemption gate check (138006446) - not exempt
     (30_000_000.0,),
     (20_000_000.0, 5_000_000.0, None, None),
     None,
@@ -136,6 +144,7 @@ def _run(
 
     with (
         patch("loaders.load_sec_valuations.DatabaseContext", return_value=fake_ctx),
+        patch("loaders.helpers.sec_valuations_dcf_fcf_recategorize.DatabaseContext", return_value=fake_ctx),
         patch.object(SecValuationsLoader, "_compute_yield_and_dcf_fields", return_value=forced_yield_dcf_result),
     ):
         return loader.fetch_incremental("RICCO", None)

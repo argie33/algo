@@ -119,6 +119,16 @@ resource "aws_sns_topic_subscription" "loader_alerts_email" {
   endpoint  = var.alert_email_to
 }
 
+# REAL-MONEY-READINESS FIX (2026-09-07 audit): see services/main.tf's algo_alerts_sms - a
+# silent/dead loader pipeline (this topic's own alarms) is exactly the kind of "nothing is
+# running to page anyone" failure that must not depend on email alone.
+resource "aws_sns_topic_subscription" "loader_alerts_sms" {
+  for_each  = var.ecs_log_group_name != "" ? toset([for n in split(",", var.alert_sms_to) : trimspace(n) if trimspace(n) != ""]) : []
+  topic_arn = aws_sns_topic.loader_alerts[0].arn
+  protocol  = "sms"
+  endpoint  = each.value
+}
+
 # ============================================================
 # 5. CloudWatch Dashboard - Loader Status Heatmap
 # ============================================================

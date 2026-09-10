@@ -121,6 +121,10 @@ class PositionTracker:
 
             if full_exit or effective_new_qty <= 0:
                 actual_exit_reason = exit_reason if exit_reason is not None else "position_tracker_full_exit"
+                # algo_positions.exit_reason is VARCHAR(255) (migration 1275) - truncate
+                # defensively so an unexpectedly long caller-supplied reason can't crash this
+                # UPDATE the way the untruncated 2026-09-08 phase9_reconciliation.py write did.
+                actual_exit_reason = actual_exit_reason[:255]
                 # CRITICAL: DO NOT modify quantity when closing position. Quantity should remain as the historical shares held.
                 # Previous bug: Set quantity = 0 on close, destroying historical record. Position data becomes meaningless.
                 # Correct approach: Use status='closed' to indicate position is no longer open. Keep quantity unchanged.

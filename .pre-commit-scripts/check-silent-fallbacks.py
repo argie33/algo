@@ -474,8 +474,16 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
             # filing_text` (already documented `-> int | None`) grew to 254 lines between its
             # `def` and its conservative-reject `return None` after adding a new dual-class
             # elimination branch, again just outside the prior window.
+            # UNBOUNDED (2026-09-09, "SEC/XBRL missing data under 500" sweep): that same function
+            # grew again (261 lines, one commit later) and tripped this exact whack-a-mole a
+            # fourth time, blocking every commit repo-wide (this check runs unconditionally on
+            # the whole tree, not just the staged diff - see CHECK_PATHS above). A magic line-
+            # count cap on "how far a function can legitimately be from its own `def`" has no
+            # principled value in a codebase with loaders this large - searching to the top of
+            # the file is cheap (this script already reads every checked file's full contents)
+            # and structurally can't reintroduce this bug again.
             func_def_line = None
-            for search_line in range(line_num - 1, max(0, line_num - 260), -1):
+            for search_line in range(line_num - 1, -1, -1):
                 if lines[search_line].strip().startswith("def "):
                     func_def_line = search_line
                     break

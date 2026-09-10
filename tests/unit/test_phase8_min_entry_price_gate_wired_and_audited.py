@@ -35,10 +35,12 @@ def test_run_imports_min_entry_price_from_validation_thresholds() -> None:
     # for a name this module only imports rather than defines).
     module_source = inspect.getsource(p8)
     assert "from algo.orchestrator.validation_thresholds import" in module_source
-    import_line = [
-        line for line in module_source.splitlines() if "from algo.orchestrator.validation_thresholds import" in line
-    ][0]
-    assert "MIN_ENTRY_PRICE" in import_line
+    # The import may be wrapped across multiple lines (ruff-format wraps once the name
+    # list exceeds the line-length limit) - join from the "import" keyword through the
+    # statement's closing paren/newline so the check isn't tied to a single-line layout.
+    import_start = module_source.index("from algo.orchestrator.validation_thresholds import")
+    import_stmt = module_source[import_start : import_start + 300].split(")")[0]
+    assert "MIN_ENTRY_PRICE" in import_stmt
 
 
 def test_below_min_entry_price_is_skipped_not_raised_and_is_audited() -> None:

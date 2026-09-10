@@ -13,6 +13,10 @@ from typing import Any
 import psycopg2
 
 from algo.orchestrator.config_validator import validate_phase_config
+from algo.orchestrator.phase9_position_bookkeeping import (
+    _audit_exit_prices_step,
+    _populate_missing_trade_ids_arr,
+)
 from algo.orchestrator.phase9_reporting import (
     _compute_performance_metrics,
     _compute_risk_metrics,
@@ -169,9 +173,15 @@ def _validate_pnl_step(
                     "Reconciliation succeeded but missing portfolio_value (required for P&L validation). "
                     f"Available keys: {list(result.keys())}"
                 )
-            local_equity = result["portfolio_value"]
+            # NAMING FIX (2026-09-07, real-money-readiness audit): this is Alpaca's own
+            # portfolio_value (reconciliation.py's sync_positions always uses Alpaca's live
+            # value here, never a DB-computed one - see validate_pnl's docstring), not a
+            # locally/DB-computed equity. validate_pnl cross-checks two Alpaca-reported
+            # fields against each other; it is NOT the broker-vs-DB drift detector (that's
+            # reconciliation.py's _track_and_maybe_halt_on_sustained_drift).
+            broker_portfolio_value = result["portfolio_value"]
 
-            pnl_check = recon.validate_pnl(broker_equity, local_equity)
+            pnl_check = recon.validate_pnl(broker_equity, broker_portfolio_value)
             pnl_validation_status = pnl_check["status"]
             pnl_validation_summary = pnl_check["message"]
 
@@ -181,11 +191,12 @@ def _validate_pnl_step(
                 logger.warning(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
             else:  # critical
                 logger.critical(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
-                # GOVERNANCE: a critical P&L divergence is, per validate_pnl()'s own
-                # docstring, real data corruption between broker and local state. Every
-                # other critical branch in this file surfaces via notify(); this one only
-                # logged, so a >1% divergence could go unnoticed unless someone was
-                # watching logs at the moment it happened.
+                # GOVERNANCE: a critical divergence between Alpaca's own `equity` and
+                # `portfolio_value` fields (see validate_pnl()'s docstring - this is NOT a
+                # broker-vs-DB check) is still worth surfacing. Every other critical branch
+                # in this file surfaces via notify(); this one only logged, so a >1%
+                # divergence could go unnoticed unless someone was watching logs at the
+                # moment it happened.
                 try:
                     from algo.reporting import notify
 
@@ -193,7 +204,7 @@ def _validate_pnl_step(
                         severity="critical",
                         title="Phase 9 P&L Divergence",
                         message=pnl_check["message"],
-                        details={"broker_equity": broker_equity, "local_equity": local_equity},
+                        details={"broker_equity": broker_equity, "broker_portfolio_value": broker_portfolio_value},
                     )
                 except (ValueError, TypeError, RuntimeError) as notify_err:
                     logger.error(f"Failed to send P&L divergence notification: {notify_err}")
@@ -210,103 +221,6 @@ def _validate_pnl_step(
     finally:
         log_phase_result_fn(9, "pnl_validation", pnl_validation_status, pnl_validation_summary)
     return pnl_validation_status, pnl_validation_summary
-
-
-def _audit_exit_prices_step(
-    recon: Any,
-    log_phase_result_fn: Callable[..., Any],
-) -> None:
-    """Audit stale estimated exit prices."""
-    try:
-        with DatabaseContext("read") as audit_cur:
-            stale_audit = recon.audit_stale_estimated_prices(audit_cur)
-            status = stale_audit.get("status")
-            if status is None:
-                raise ValueError(f"Exit price audit result missing 'status' field. Keys: {list(stale_audit.keys())}")
-
-            if status != "OK":
-                msg = stale_audit.get("message")
-                if msg is None:
-                    raise ValueError(
-                        f"Exit price audit status '{status}' but message missing. Keys: {list(stale_audit.keys())}"
-                    )
-                if status == "CRITICAL":
-                    logger.critical(f"[PHASE 9 AUDIT] Stale estimated prices detected: {msg}")
-                else:
-                    logger.warning(f"[PHASE 9 AUDIT] Stale estimated prices detected: {msg}")
-                log_phase_result_fn(9, "exit_reconciliation_audit", "warn", msg)
-            else:
-                logger.info("[PHASE 9 AUDIT] All exit prices reconciled properly")
-    except (psycopg2.DatabaseError, psycopg2.OperationalError, KeyError, ValueError) as e:
-        error_msg = (
-            f"[PHASE 9 CRITICAL] Exit price audit failed: {e}. "
-            f"Cannot proceed when exit prices cannot be verified. "
-            f"Check database connectivity and reconciliation state."
-        )
-        logger.critical(error_msg)
-        raise RuntimeError(error_msg) from e
-
-
-def _populate_missing_trade_ids_arr(log_phase_result_fn: Callable[..., Any]) -> None:
-    """Populate trade_ids_arr for positions that have no trade_ids set.
-
-    CRITICAL FIX (Session 19): Architecture issue - position_sync runs in Phase 1 before
-    Phase 8 creates entry trades. Positions created by Phase 8 never get their trade_ids_arr
-    populated, causing circuit breaker to fail with "orphaned trade_ids_arr" errors.
-
-    This function runs in Phase 9 (after Phase 8 has created trades) to populate missing
-    trade_ids_arr by joining positions to their corresponding trades.
-    """
-    try:
-        with DatabaseContext("write") as cur:
-            # Find positions with missing/NULL trade_ids_arr
-            cur.execute("""
-                SELECT COUNT(*) FROM algo_positions
-                WHERE status = 'open'
-                AND (trade_ids_arr IS NULL OR array_length(trade_ids_arr, 1) IS NULL)
-            """)
-            missing_count = cur.fetchone()[0]
-
-            if missing_count > 0:
-                logger.info(f"[PHASE 9] Found {missing_count} positions with missing trade_ids_arr - populating...")
-
-                # Update positions with their trade_ids from corresponding trades.
-                # Session 81: status filter broadened from ('open', 'filled') to
-                # TradeStatus.all_open() - a trade sitting in 'partially_filled'/
-                # 'paper_pending'/'pending'/'active' at repair time previously fell out of
-                # the ARRAY_AGG, so this repair silently failed to fix exactly the
-                # positions it exists to fix. Matches position_sync.py's LINKED_TRADE_STATUSES fix.
-                linked_statuses = TradeStatus.all_open()
-                status_placeholders = ",".join(["%s"] * len(linked_statuses))
-                cur.execute(
-                    f"""
-                    UPDATE algo_positions ap SET
-                        trade_ids_arr = t_agg.trade_ids,
-                        updated_at = NOW()
-                    FROM (
-                        SELECT position_id, ARRAY_AGG(DISTINCT trade_id::text) as trade_ids
-                        FROM algo_trades
-                        WHERE status IN ({status_placeholders})
-                        GROUP BY position_id
-                    ) t_agg
-                    WHERE ap.position_id = t_agg.position_id
-                    AND (ap.trade_ids_arr IS NULL OR array_length(ap.trade_ids_arr, 1) IS NULL)
-                    """,
-                    linked_statuses,
-                )
-
-                updated_count = cur.rowcount
-                logger.info(f"[PHASE 9] Populated trade_ids_arr for {updated_count} positions")
-                log_phase_result_fn(9, "populate_trade_ids_arr", "success", f"populated {updated_count} positions")
-            else:
-                logger.debug("[PHASE 9] All positions have trade_ids_arr populated")
-                log_phase_result_fn(9, "populate_trade_ids_arr", "success", "no missing trade_ids_arr")
-
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        error_msg = f"[PHASE 9 CRITICAL] Failed to populate trade_ids_arr: {e}"
-        logger.critical(error_msg)
-        log_phase_result_fn(9, "populate_trade_ids_arr", "error", str(e)[:100])
-        raise RuntimeError(error_msg) from e
 
 
 def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> None:
@@ -753,6 +667,18 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
 
         if closed_positions:
             exits_recorded = 0
+            # BUG FOUND 2026-09-07 (real-money-readiness audit): the CROSS JOIN LATERAL
+            # UNNEST(ap.trade_ids_arr) query above yields one row per still-untouched leg of a
+            # pyramided position (2+ algo_trades rows sharing one algo_positions row). The
+            # prior_partial_pnl lookup a few hundred lines below is scoped only by
+            # symbol+action_date, not by trade_id/position - so every leg of the SAME position
+            # processed in this same batch re-queries and re-adds the identical prior partial
+            # P&L into that leg's OWN profit_loss_dollars. Summing profit_loss_dollars across a
+            # position's algo_trades rows (the natural way to get total realized P&L) then
+            # double/triple-counts the prior partial exactly N times for an N-leg position.
+            # Track which position_ids have already been credited with their prior partial P&L
+            # in this batch and zero it out for every subsequent leg of the same position.
+            positions_credited_partial_pnl: set[Any] = set()
             with DatabaseContext("write") as write_cursor:
                 acquire_advisory_lock(write_cursor, ALGO_TRADES_LOCK_ID, "algo_trades")
                 acquire_advisory_lock(write_cursor, ALGO_POSITIONS_LOCK_ID, "algo_positions")
@@ -811,6 +737,15 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                             )
                             logger.critical(error_msg)
                             raise RuntimeError(error_msg)
+                        if entry_qty is None or entry_qty <= 0:
+                            error_msg = (
+                                f"[PHASE 9 CRITICAL] Trade {symbol} (trade_id={trade_id}) has invalid "
+                                f"entry_quantity ({entry_qty}) on algo_trades. Cannot calculate this leg's "
+                                f"P&L without its own share count. Halting Phase 9 to prevent audit trail "
+                                f"corruption."
+                            )
+                            logger.critical(error_msg)
+                            raise RuntimeError(error_msg)
                         if stop_loss_price is None:
                             error_msg = (
                                 f"[PHASE 9 CRITICAL] Trade {symbol} (trade_id={trade_id}) has NULL "
@@ -850,7 +785,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                         # Third priority: position's current_price (fallback for intraday closes before EOD price_daily loads)
                         if exit_price is None and current_price is not None and current_price > 0:
                             exit_price = float(current_price)
-                            price_source = "position current_price (price_daily not yet loaded for today)"
+                            price_source = "position current_price (EOD pending)"
                             logger.info(
                                 f"[PHASE 9] {symbol}: Using position current_price ${exit_price:.2f} "
                                 f"(price_daily EOD not available for {run_date})"
@@ -884,9 +819,21 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                 f"Cannot calculate R-multiple with corrupted stop price."
                             )
 
-                        # P&L on this leg's quantity (position may have been reduced by partial exits)
+                        # P&L on THIS TRADE LEG's own share count (entry_qty), not the position's
+                        # aggregate quantity. BUG FOUND 2026-09-06 (real-money-readiness audit): a
+                        # pyramided position (built from 2+ entries, one algo_trades row per entry,
+                        # all sharing algo_positions.trade_ids_arr) unnests to one row per trade_id
+                        # here, and every row shares the SAME ap.quantity (the position's full
+                        # aggregate size). Using position_qty as the per-leg multiplier wrote the
+                        # full aggregate P&L into EACH leg's algo_trades row instead of that leg's
+                        # own slice of it, overstating total recorded realized P&L roughly Nx for
+                        # this catch-up path (fires when the normal exit-recording flow was bypassed
+                        # by a broker-side close). entry_qty is correct here specifically because
+                        # this branch is scoped to `at.exit_date IS NULL` - a leg that already had a
+                        # partial exit recorded through the normal path would have exit_date set and
+                        # be excluded, so an untouched leg's full entry_quantity is still open.
                         pnl_per_share_dec = Decimal(str(exit_price)) - Decimal(str(entry_price))
-                        pnl_dollars_dec = (pnl_per_share_dec * Decimal(str(position_qty))).quantize(
+                        pnl_dollars_dec = (pnl_per_share_dec * Decimal(str(entry_qty))).quantize(
                             Decimal("0.01"), ROUND_HALF_UP
                         )
                         pnl_pct_dec = (pnl_per_share_dec / Decimal(str(entry_price)) * Decimal(100)).quantize(
@@ -896,35 +843,68 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                             Decimal("0.01"), ROUND_HALF_UP
                         )
 
-                        # Check for any prior partial exits to compute cumulative P&L (same fix as executor_exit_handler)
-                        write_cursor.execute(
-                            """
-                            SELECT COALESCE(SUM((details->>'pnl_dollars')::numeric), 0)
-                            FROM algo_audit_log
-                            WHERE action_type LIKE 'exit_%%'
-                              AND symbol = %s
-                              AND action_date::date = %s
-                              AND (details->>'full_exit')::boolean = false
-                            """,
-                            (symbol, run_date),
-                        )
-                        prior_partial = write_cursor.fetchone()
-                        if prior_partial and len(prior_partial) > 0 and prior_partial[0] is not None:
-                            prior_partial_pnl = Decimal(str(prior_partial[0]))
-                        else:
+                        # Check for any prior partial exits to compute cumulative P&L (same fix as executor_exit_handler).
+                        # Only credit this once per position (see positions_credited_partial_pnl comment
+                        # above the loop) - every subsequent leg of the same pyramided position gets 0
+                        # here so the prior partial isn't re-added into every leg's own P&L row.
+                        if position_id is not None and position_id in positions_credited_partial_pnl:
                             prior_partial_pnl = Decimal(0)
+                        else:
+                            write_cursor.execute(
+                                """
+                                SELECT COALESCE(SUM((details->>'pnl_dollars')::numeric), 0)
+                                FROM algo_audit_log
+                                WHERE action_type LIKE 'exit_%%'
+                                  AND symbol = %s
+                                  AND action_date::date = %s
+                                  AND (details->>'full_exit')::boolean = false
+                                """,
+                                (symbol, run_date),
+                            )
+                            prior_partial = write_cursor.fetchone()
+                            if prior_partial and len(prior_partial) > 0 and prior_partial[0] is not None:
+                                prior_partial_pnl = Decimal(str(prior_partial[0]))
+                            else:
+                                prior_partial_pnl = Decimal(0)
+                            if position_id is not None:
+                                positions_credited_partial_pnl.add(position_id)
 
                         # Cumulative P&L across all legs
                         cumulative_pnl_dollars = float(
                             (prior_partial_pnl + pnl_dollars_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)
                         )
+                        # FIXED 2026-09-07 (same bug class/fix as executor_exit_handler.py's
+                        # _compute_cumulative_pnl - see 8e0c0ccec/4735a8bc4 - THIRD independent
+                        # copy of this logic found by grepping for "cumulative_pnl" repo-wide):
+                        # entry_qty here is this ONE leg's own entry_quantity (correct for
+                        # pnl_dollars_dec above, since this branch is scoped to untouched legs -
+                        # see the comment above pnl_per_share_dec) but understates the true cost
+                        # basis/risk denominator when prior_partial_pnl != 0 - i.e. this position
+                        # is BOTH pyramided (2+ legs) AND was exited via multiple partial legs.
+                        # Sum entry_quantity across every leg on the position instead of trusting
+                        # this one row's own quantity, same trade_ids_arr sum as the other two
+                        # fixes.
+                        total_entry_qty = entry_qty
+                        if prior_partial_pnl != 0 and position_id is not None:
+                            write_cursor.execute(
+                                """
+                                SELECT SUM(t2.entry_quantity)
+                                FROM algo_trades t2
+                                JOIN algo_positions p2 ON t2.trade_id::text = ANY(p2.trade_ids_arr::text[])
+                                WHERE p2.position_id = %s
+                                """,
+                                (position_id,),
+                            )
+                            total_entry_qty_row = write_cursor.fetchone()
+                            if total_entry_qty_row and total_entry_qty_row[0] is not None:
+                                total_entry_qty = total_entry_qty_row[0]
                         cumulative_pnl_pct = (
                             float(pnl_pct_dec)
                             if prior_partial_pnl == 0
                             else float(
                                 (
                                     Decimal(str(cumulative_pnl_dollars))
-                                    / (Decimal(str(entry_price)) * Decimal(str(entry_qty)))
+                                    / (Decimal(str(entry_price)) * Decimal(str(total_entry_qty)))
                                     * Decimal(100)
                                 ).quantize(Decimal("0.01"), ROUND_HALF_UP)
                             )
@@ -935,7 +915,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                             else float(
                                 (
                                     Decimal(str(cumulative_pnl_dollars))
-                                    / (Decimal(str(risk_per_share)) * Decimal(str(entry_qty)))
+                                    / (Decimal(str(risk_per_share)) * Decimal(str(total_entry_qty)))
                                 ).quantize(Decimal("0.01"), ROUND_HALF_UP)
                             )
                         )
@@ -984,7 +964,18 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                     cumulative_pnl_dollars,
                                     cumulative_pnl_pct,
                                     cumulative_r_multiple,
-                                    f"Closed position recorded during reconciliation (exit price source: {price_source})",
+                                    # BUG FOUND (2026-09-08, live orchestrator dry-run against paper
+                                    # trading): exit_reason is VARCHAR(100) but this template with the
+                                    # current_price-fallback price_source was 129 chars, crashing Phase 9
+                                    # with StringDataRightTruncation on a live position (ING) and halting
+                                    # the whole run. Shortened the variable suffix (kept the
+                                    # "Closed position recorded during reconciliation" prefix intact -
+                                    # _repair_missing_exit_prices() ILIKE-matches on that exact substring
+                                    # to find trades needing exit-price recovery) plus a defensive [:100]
+                                    # slice (same convention as this file's log_phase_result_fn(9, ...)
+                                    # truncation elsewhere) so this bug class can't recur even if
+                                    # price_source grows again later.
+                                    f"Closed position recorded during reconciliation (src: {price_source})"[:100],
                                     run_date,
                                     f"Recorded from {price_source} on {run_date} (P&L: ${cumulative_pnl_dollars:.2f}, {cumulative_pnl_pct:+.2f}%, {cumulative_r_multiple:+.2f}R)",
                                     trade_id,
@@ -1045,7 +1036,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                         exit_price,
                                         cumulative_pnl_dollars,
                                         cumulative_pnl_pct,
-                                        f"Closed position recorded during reconciliation (from {price_source})",
+                                        f"Closed position recorded during reconciliation (src: {price_source})"[:100],
                                         position_id,
                                     ),
                                 )
@@ -1066,7 +1057,7 @@ def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity deb
                                         exit_price,
                                         cumulative_pnl_dollars,
                                         cumulative_pnl_pct,
-                                        f"Closed position recorded during reconciliation (from {price_source})",
+                                        f"Closed position recorded during reconciliation (src: {price_source})"[:100],
                                         symbol,
                                     ),
                                 )
@@ -1269,6 +1260,35 @@ def _verify_open_position_stop_loss_protection_step(
             log_phase_result_fn(9, "stop_loss_protection_check", "info", "skipped - no Alpaca credentials")
             return
 
+        # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): unlike every entry/exit
+        # call site in executor.py/executor_entry_handler.py/executor_exit_handler.py,
+        # this repair path had NO explicit execution_mode check anywhere - it only gated
+        # on credential presence, then handed sync_mgr.alpaca_base_url straight to
+        # OrderManager. Today that URL happens to land on the paper endpoint for every
+        # non-"auto" mode purely because AlpacaSyncManager.__init__ resolves it via the
+        # same create_execution_mode_strategy(...) factory executor.py uses - but that
+        # means this repair path's only protection against submitting a real order in
+        # "review" mode (documented as "validated but not executed... before automatic
+        # execution is enabled") is an implicit URL-resolution side effect, not an
+        # explicit gate at THIS call site. One refactor of that shared resolution logic
+        # could silently start submitting real repair orders here with nothing catching
+        # it. Fail closed instead of trusting the implicit coupling: verify explicitly
+        # that a non-"auto" execution_mode actually resolved to the paper endpoint before
+        # letting this repair path touch the broker at all.
+        execution_mode = str(config.get("execution_mode") or "").lower()
+        base_url_is_paper = "paper" in sync_mgr.alpaca_base_url.lower()
+        if execution_mode != "auto" and not base_url_is_paper:
+            logger.critical(
+                f"[PHASE 9 CRITICAL] Stop-loss protection check ABORTED - execution_mode="
+                f"'{execution_mode}' but resolved Alpaca base_url does not look like the "
+                f"paper endpoint ({sync_mgr.alpaca_base_url}). Refusing to submit repair "
+                f"orders in a non-auto mode against what may be a live endpoint."
+            )
+            log_phase_result_fn(
+                9, "stop_loss_protection_check", "error", "aborted - non-auto mode resolved to non-paper endpoint"
+            )
+            return
+
         order_mgr = OrderManager(sync_mgr.alpaca_key, sync_mgr.alpaca_secret, sync_mgr.alpaca_base_url)
 
         # GUARDIAN-MODE FIX (2026-09-06): the normal Phase 9 call path only reaches here
@@ -1457,6 +1477,87 @@ def _verify_open_position_stop_loss_protection_step(
             pass
 
 
+def _reconcile_open_orders_step(log_phase_result_fn: Callable[..., Any], config: Any) -> None:
+    """Detect Alpaca open (resting/unfilled) orders with no matching algo_trades row -
+    alert-only, since auto-cancelling a real resting order we can't currently explain is
+    itself a real-money action that should not happen without a human looking at it first.
+
+    REAL-MONEY-READINESS FINDING (2026-09-10, order-execution re-audit): see
+    AlpacaSyncManager.find_orphaned_open_orders's docstring for the crash-window this
+    closes - a resting order orphaned by a process crash between the broker accepting it
+    and the DB transaction committing was previously invisible to every existing
+    reconciliation check (sync_alpaca_positions only catches FILLED orphans).
+    """
+    try:
+        from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
+
+        sync_mgr = AlpacaSyncManager(config)
+        if not sync_mgr.alpaca_key or not sync_mgr.alpaca_secret:
+            logger.info("[PHASE 9] Open-order reconciliation skipped - no Alpaca credentials (paper mode, DB-only).")
+            log_phase_result_fn(9, "open_order_reconciliation", "info", "skipped - no Alpaca credentials")
+            return
+
+        with DatabaseContext("read") as cur:
+            orphans = sync_mgr.find_orphaned_open_orders(cur)
+
+        if not orphans:
+            log_phase_result_fn(9, "open_order_reconciliation", "success", "no orphaned open orders found")
+            return
+
+        orphan_desc = [
+            f"{o.get('symbol')} (order {o.get('id')}, {o.get('qty')}sh {o.get('side')}, "
+            f"submitted {o.get('submitted_at')})"
+            for o in orphans
+        ]
+        logger.critical(
+            f"[PHASE 9 CRITICAL] {len(orphans)} open Alpaca order(s) have no matching algo_trades "
+            f"row and are older than the reconciliation grace window - likely orphaned by a process "
+            f"crash between broker acceptance and DB commit: {orphan_desc}"
+        )
+        try:
+            from algo.reporting.notifications import notify
+
+            notify(
+                "critical",
+                title="Orphaned open Alpaca order(s) found - no matching trade record",
+                message=(
+                    f"{len(orphans)} order(s) resting at the broker have no matching algo_trades "
+                    f"row and are old enough to rule out a normal in-flight submission: "
+                    f"{orphan_desc}. Investigate whether these are legitimate (e.g. manually placed) "
+                    "or a crash-orphaned entry that needs to be reconciled/cancelled by hand."
+                ),
+                strict=True,
+            )
+        except Exception as notify_err:
+            logger.critical(f"[PHASE 9 CRITICAL] Failed to alert on orphaned open orders: {notify_err}")
+
+        log_phase_result_fn(
+            9,
+            "open_order_reconciliation",
+            "critical",
+            f"{len(orphans)} orphaned open order(s) found: {orphan_desc}",
+        )
+    except Exception as e:
+        logger.error(f"[PHASE 9] Open-order reconciliation step failed unexpectedly: {e}", exc_info=True)
+        try:
+            from algo.reporting.notifications import notify
+
+            notify(
+                "critical",
+                title="Open-Order Reconciliation Step Failed",
+                message=(
+                    "Phase 9's per-cycle check for orphaned resting broker orders failed to run "
+                    f"entirely: {type(e).__name__}: {e}. No orphan check ran this cycle."
+                ),
+            )
+        except Exception as notify_err:
+            logger.critical(f"[PHASE 9 CRITICAL] Failed to alert on open-order reconciliation failure: {notify_err}")
+        try:
+            log_phase_result_fn(9, "open_order_reconciliation", "warn", f"check failed: {str(e)[:500]}")
+        except Exception:
+            pass
+
+
 def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
     config: Any,
     run_date: _date,
@@ -1475,6 +1576,14 @@ def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this c
         (fail-closed, per GOVERNANCE) on any critical step failure rather than returning a
         degraded PhaseResult. All critical reconciliation steps fail-fast to halt trading
         if broker state cannot be verified.
+
+    DELIBERATE DESIGN (confirmed 2026-09-10, orchestration re-audit): unlike Phase 6/7/8,
+    this function never calls check_halt_flag. That is intentional, not an oversight - every
+    step here (P&L/exit-price auditing, stop-loss-protection repair, orphaned-order
+    detection) either reconciles EXISTING broker/DB state or re-protects an EXISTING
+    position; none of it opens a new position or increases risk. A halt is meant to stop new
+    risk-taking, not stop the system from repairing/verifying protection on risk it already
+    has - so Phase 9 stays always_run and halt-flag-blind by design.
     """
     validate_phase_config(config, "phase_9_reconciliation")
 
@@ -1538,10 +1647,46 @@ def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this c
         try:
             _verify_open_position_stop_loss_protection_step(log_phase_result_fn, config)
         except Exception as protection_err:
-            logger.warning(
+            logger.critical(
                 f"[PHASE 9] Stop-loss protection check encountered unexpected error: {protection_err}", exc_info=True
             )
-            # Don't halt Phase 9 for this check's own failures - proceed with reconciliation
+            # Don't halt Phase 9 for this check's own failures - proceed with reconciliation.
+            # But this check is the system's sole dedicated defense against a live position
+            # with no broker-side stop, so its own failure must reach a human, not just a log
+            # line - matching the notify()-on-critical convention used elsewhere in this file
+            # (see _validate_pnl_step/_audit_exit_prices_step error paths).
+            try:
+                from algo.reporting.notifications import notify
+
+                notify(
+                    "critical",
+                    title="Phase 9 stop-loss protection check failed",
+                    message=(
+                        f"The naked-position (missing broker-side stop-loss) verification step "
+                        f"raised an unexpected error and was skipped this cycle: {protection_err}. "
+                        f"No positions were checked for stop-loss protection this run - "
+                        f"investigate immediately."
+                    ),
+                    strict=True,
+                )
+            except Exception as notify_err:
+                logger.critical(
+                    f"[PHASE 9] CRITICAL: Failed to send stop-loss-protection-check-failed alert: "
+                    f"{notify_err}. Operator was NOT notified that this cycle's naked-position "
+                    f"check was skipped."
+                )
+
+        # SAFETY: Detect Alpaca open orders with no matching algo_trades row (crash-orphaned
+        # entries - see _reconcile_open_orders_step's docstring). Independent of the
+        # stop-loss-protection check above (that covers FILLED positions; this covers
+        # resting, unfilled orders), so it runs regardless of that check's own outcome.
+        try:
+            _reconcile_open_orders_step(log_phase_result_fn, config)
+        except Exception as order_recon_err:
+            logger.critical(
+                f"[PHASE 9] Open-order reconciliation step encountered unexpected error: {order_recon_err}",
+                exc_info=True,
+            )
 
         # CRITICAL: Validate that local P&L matches Broker P&L
         # Skip if reconciliation failed (recon object may be incomplete or paper mode)

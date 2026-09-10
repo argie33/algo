@@ -29,8 +29,10 @@ from .coverage_sources import (
     _coverage_order_col,
     _fetch_table_source_breakdown,
     _fetch_table_source_tracking,
+    _never_available_clause,
     _resolve_factor_sources,
     _resolve_factor_value_col,
+    _value_missing_clause,
 )
 
 logger = logging.getLogger(__name__)
@@ -226,7 +228,9 @@ def _get_scores_coverage(cur: cursor, group_filter: str | None = None, meta_only
             # estimate_momentum_60d/90d), so this generalizes cleanly. Falls back to the old
             # reason-only behavior when no matching value column exists (the bare_reason_tables
             # case, where "reason" describes the whole row rather than one specific field).
-            factor_name_candidate, value_col = _resolve_factor_value_col(cur, table, column, table_all_cols_cache)
+            factor_name_candidate, value_col, unavailable_col = _resolve_factor_value_col(
+                cur, table, column, table_all_cols_cache
+            )
 
             # FIXED 2026-08-19 (goal: "no SEC data"/missing factor inputs audit): every
             # query below used to scan {table} directly with no active-universe filter, so
@@ -357,8 +361,8 @@ def _get_scores_coverage(cur: cursor, group_filter: str | None = None, meta_only
                     # column is ALSO null, not just the reason column - otherwise a factor like
                     # dividend_yield (real 0.0 kept alongside its reason "for transparency")
                     # gets double-counted as missing on top of its genuinely-null rows.
-                    value_is_null = f" AND {table}.{value_col} IS NULL" if value_col else ""
-                    never_exists_clause = f"t2.{value_col} IS NOT NULL" if value_col else f"t2.{column} IS NULL"
+                    value_is_null = _value_missing_clause(table, value_col, unavailable_col)
+                    never_exists_clause = _never_available_clause(table, column, value_col, unavailable_col)
                     query = f"""
                         WITH candidates AS (
                             SELECT DISTINCT {table}.symbol FROM {table}{active_join}
@@ -384,8 +388,8 @@ def _get_scores_coverage(cur: cursor, group_filter: str | None = None, meta_only
                     # Same active-universe scoping as the has_symbol branch above, for the
                     # rarer has_symbol-but-no-order_col case (a market-wide/no-symbol table
                     # skips the join entirely since active_join is "" when not has_symbol).
-                    # Same value_col cross-check as the branch above.
-                    value_is_null = f" AND {table}.{value_col} IS NULL" if value_col else ""
+                    # Same value_col/unavailable_col cross-check as the branch above.
+                    value_is_null = _value_missing_clause(table, value_col, unavailable_col)
                     query = f"""
                         SELECT {table}.{column} AS reason_val, COUNT(*)
                         FROM {table}{active_join}

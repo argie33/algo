@@ -22,25 +22,45 @@ def _make_monitor() -> PositionMonitor:
     return PositionMonitor(config={})
 
 
+def _patch_broker_reconcile_success():
+    """The 2026-09-06 fix added a broker-order-cancel step (_reconcile_broker_orders_after_split)
+    after every split adjustment - tests of the DB-side rescale logic itself should mock this
+    out deterministically rather than exercising real credential resolution/network code."""
+    return patch(
+        "algo.trading.order_manager.OrderManager",
+        return_value=MagicMock(
+            cancel_all_open_orders_for_symbol=MagicMock(
+                return_value={"success": True, "cancelled_order_ids": ["ord-1"], "message": "ok"}
+            )
+        ),
+    )
+
+
+def _stub_creds(monitor: PositionMonitor) -> None:
+    monitor._get_alpaca_creds = MagicMock(return_value=("https://paper-api.alpaca.markets", "key", "secret"))  # type: ignore[method-assign]
+
+
 class TestSplitAdjustmentRescalesTradePrices:
     def test_algo_trades_price_columns_rescaled_for_all_trade_ids(self) -> None:
         """A 2:1 split (100 -> 200 shares) must rescale algo_trades entry/stop/target
         prices for every trade_id in the position's trade_ids_arr, not just the
         position-level current_stop_price."""
         monitor = _make_monitor()
+        _stub_creds(monitor)
         cur = MagicMock()
         adjustments: list = []
 
-        monitor._apply_split_adjustment(
-            cur,
-            pos_id=42,
-            symbol="TEST",
-            db_qty=100,
-            db_stop=90.0,
-            alpaca_qty=200,
-            trade_ids_arr=[501, 502],
-            adjustments=adjustments,
-        )
+        with _patch_broker_reconcile_success():
+            monitor._apply_split_adjustment(
+                cur,
+                pos_id=42,
+                symbol="TEST",
+                db_qty=100,
+                db_stop=90.0,
+                alpaca_qty=200,
+                trade_ids_arr=[501, 502],
+                adjustments=adjustments,
+            )
 
         trades_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]]
         assert len(trades_calls) == 1, "must issue exactly one algo_trades UPDATE for the split"
@@ -62,21 +82,30 @@ class TestSplitAdjustmentRescalesTradePrices:
         stop_loss_price/current_stop_price/target_N_price/initial_risk_per_share, not just
         quantity/current_stop_price (the pre-fix behavior)."""
         monitor = _make_monitor()
+        _stub_creds(monitor)
         cur = MagicMock()
         adjustments: list = []
 
-        monitor._apply_split_adjustment(
-            cur,
-            pos_id=42,
-            symbol="TEST",
-            db_qty=100,
-            db_stop=90.0,
-            alpaca_qty=200,
-            trade_ids_arr=[501],
-            adjustments=adjustments,
-        )
+        with _patch_broker_reconcile_success():
+            monitor._apply_split_adjustment(
+                cur,
+                pos_id=42,
+                symbol="TEST",
+                db_qty=100,
+                db_stop=90.0,
+                alpaca_qty=200,
+                trade_ids_arr=[501],
+                adjustments=adjustments,
+            )
 
-        positions_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_positions" in c.args[0]]
+        # The 2026-09-06 fix added a second, distinct algo_positions UPDATE (nulling
+        # standalone_stop_order_id as part of forcing a broker-side re-verification) -
+        # isolate the price-rescale UPDATE specifically by its quantity assignment.
+        positions_calls = [
+            c
+            for c in cur.execute.call_args_list
+            if "UPDATE algo_positions" in c.args[0] and "quantity = %s" in c.args[0]
+        ]
         assert len(positions_calls) == 1
         sql, params = positions_calls[0].args
         for col in (
@@ -100,21 +129,27 @@ class TestSplitAdjustmentRescalesTradePrices:
         never validates SQL syntax, so this must be checked structurally: every column name
         immediately followed by `=` in the SET clause must appear exactly once."""
         monitor = _make_monitor()
+        _stub_creds(monitor)
         cur = MagicMock()
         adjustments: list = []
 
-        monitor._apply_split_adjustment(
-            cur,
-            pos_id=42,
-            symbol="TEST",
-            db_qty=100,
-            db_stop=90.0,
-            alpaca_qty=200,
-            trade_ids_arr=[501],
-            adjustments=adjustments,
-        )
+        with _patch_broker_reconcile_success():
+            monitor._apply_split_adjustment(
+                cur,
+                pos_id=42,
+                symbol="TEST",
+                db_qty=100,
+                db_stop=90.0,
+                alpaca_qty=200,
+                trade_ids_arr=[501],
+                adjustments=adjustments,
+            )
 
-        positions_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_positions" in c.args[0]]
+        positions_calls = [
+            c
+            for c in cur.execute.call_args_list
+            if "UPDATE algo_positions" in c.args[0] and "quantity = %s" in c.args[0]
+        ]
         sql = positions_calls[0].args[0]
         set_clause = sql.split(" SET ", 1)[1].split(" WHERE ", 1)[0]
         # Each assignment is formatted one-per-line (`col = ...,`), so match column names at
@@ -131,10 +166,11 @@ class TestSplitAdjustmentRescalesTradePrices:
         trade_ids_arr in this codebase, which all treat it as a real halt-worthy
         condition) and a CRITICAL algo_audit_log severity, not WARN."""
         monitor = _make_monitor()
+        _stub_creds(monitor)
         cur = MagicMock()
         adjustments: list = []
 
-        with patch("algo.reporting.notify") as mock_notify:
+        with _patch_broker_reconcile_success(), patch("algo.reporting.notify") as mock_notify:
             monitor._apply_split_adjustment(
                 cur,
                 pos_id=42,
@@ -149,10 +185,19 @@ class TestSplitAdjustmentRescalesTradePrices:
         trades_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]]
         assert len(trades_calls) == 0
 
+        # Only the orphaned-trade_ids_arr alert fires here - the broker-reconcile step is
+        # mocked to succeed, so it does not raise its own separate CRITICAL alert.
         mock_notify.assert_called_once()
         assert mock_notify.call_args.args[0] == "CRITICAL"
 
-        audit_calls = [c for c in cur.execute.call_args_list if "INSERT INTO algo_audit_log" in c.args[0]]
+        # Filter to the split-adjustment's own audit entry specifically - a second,
+        # distinct CORPORATE_ACTION_SPLIT_BROKER_RECONCILE audit row is also inserted by
+        # the broker-reconcile step added 2026-09-06 (covered by its own test below).
+        audit_calls = [
+            c
+            for c in cur.execute.call_args_list
+            if "INSERT INTO algo_audit_log" in c.args[0] and c.args[1][0] == "CORPORATE_ACTION_SPLIT"
+        ]
         assert len(audit_calls) == 1
         audit_params = audit_calls[0].args[1]
         assert audit_params[-1] == "CRITICAL"
@@ -162,10 +207,11 @@ class TestSplitAdjustmentRescalesTradePrices:
         no CRITICAL alert - escalation is specifically for the empty/NULL trade_ids_arr
         case, not every split."""
         monitor = _make_monitor()
+        _stub_creds(monitor)
         cur = MagicMock()
         adjustments: list = []
 
-        with patch("algo.reporting.notify") as mock_notify:
+        with _patch_broker_reconcile_success(), patch("algo.reporting.notify") as mock_notify:
             monitor._apply_split_adjustment(
                 cur,
                 pos_id=42,
@@ -178,7 +224,74 @@ class TestSplitAdjustmentRescalesTradePrices:
             )
 
         mock_notify.assert_not_called()
-        audit_calls = [c for c in cur.execute.call_args_list if "INSERT INTO algo_audit_log" in c.args[0]]
+        audit_calls = [
+            c
+            for c in cur.execute.call_args_list
+            if "INSERT INTO algo_audit_log" in c.args[0] and c.args[1][0] == "CORPORATE_ACTION_SPLIT"
+        ]
         assert len(audit_calls) == 1
         audit_params = audit_calls[0].args[1]
         assert audit_params[-1] == "WARN"
+
+
+class TestSplitBrokerReconcile:
+    """2026-09-06 real-money-readiness fix: a split used to rescale DB prices only, never
+    touching the live broker-side stop order - leaving it at the stale pre-split price
+    indefinitely, since phase9_stop_loss_repair.py's check only verifies leg presence/qty,
+    never price. _reconcile_broker_orders_after_split must cancel the stale order(s) and
+    clear standalone_stop_order_id so the next repair cycle resubmits at the correct price.
+    """
+
+    def test_success_cancels_orders_clears_standalone_id_no_alert(self) -> None:
+        monitor = _make_monitor()
+        _stub_creds(monitor)
+        cur = MagicMock()
+
+        with _patch_broker_reconcile_success(), patch("algo.reporting.notify") as mock_notify:
+            monitor._reconcile_broker_orders_after_split(cur, pos_id=42, symbol="TEST", new_stop=45.0)
+
+        mock_notify.assert_not_called()
+
+        null_calls = [
+            c
+            for c in cur.execute.call_args_list
+            if "standalone_stop_order_id = NULL" in c.args[0] and c.args[1] == (42,)
+        ]
+        assert len(null_calls) == 1, "must clear standalone_stop_order_id so phase9 re-verifies at the broker"
+
+        audit_calls = [
+            c
+            for c in cur.execute.call_args_list
+            if "INSERT INTO algo_audit_log" in c.args[0] and c.args[1][0] == "CORPORATE_ACTION_SPLIT_BROKER_RECONCILE"
+        ]
+        assert len(audit_calls) == 1
+        assert audit_calls[0].args[1][-1] == "WARN"
+
+    def test_cancel_failure_escalates_to_critical_alert(self) -> None:
+        monitor = _make_monitor()
+        _stub_creds(monitor)
+        cur = MagicMock()
+
+        with (
+            patch(
+                "algo.trading.order_manager.OrderManager",
+                return_value=MagicMock(
+                    cancel_all_open_orders_for_symbol=MagicMock(
+                        return_value={"success": False, "cancelled_order_ids": [], "message": "broker unreachable"}
+                    )
+                ),
+            ),
+            patch("algo.reporting.notify") as mock_notify,
+        ):
+            monitor._reconcile_broker_orders_after_split(cur, pos_id=42, symbol="TEST", new_stop=45.0)
+
+        mock_notify.assert_called_once()
+        assert mock_notify.call_args.args[0] == "CRITICAL"
+
+        audit_calls = [
+            c
+            for c in cur.execute.call_args_list
+            if "INSERT INTO algo_audit_log" in c.args[0] and c.args[1][0] == "CORPORATE_ACTION_SPLIT_BROKER_RECONCILE"
+        ]
+        assert len(audit_calls) == 1
+        assert audit_calls[0].args[1][-1] == "CRITICAL"

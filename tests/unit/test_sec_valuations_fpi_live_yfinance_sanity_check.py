@@ -61,6 +61,13 @@ class _FakeCursor:
         return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        # 2026-09-06: _sanity_check_shares_outstanding_vs_volume added one more fetchone() call
+        # to the pipeline (see that method's own docstring) - same graceful-degradation
+        # precedent as this class's own fetchall() (added 2026-09-05 for an identical reason):
+        # return None (a real "no matching row") rather than IndexError once the scripted
+        # sequence is exhausted, since these fixtures don't script that query's result.
+        if self._fetchone_idx >= len(self._fetchone_results):
+            return None
         result = self._fetchone_results[self._fetchone_idx]
         self._fetchone_idx += 1
         return result
@@ -90,6 +97,7 @@ _FPI_WITH_RESOLVED_SHARES_INCOME_ROWS = [
 class TestFpiLiveYfinanceSanityCheck:
     def test_fpi_uses_live_fetch_not_stale_table(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),  # cash_and_equivalents
             (1_000_000.0, None, None, None),  # debt_row
             (376.86,),  # price_daily.close
@@ -109,7 +117,7 @@ class TestFpiLiveYfinanceSanityCheck:
             patch.object(
                 SecValuationsLoader,
                 "_fetch_live_fpi_yfinance_check_values",
-                return_value=(30_990_489_600.0, None),  # live, fresh, real ~10x-mismatched value
+                return_value=(30_990_489_600.0, None, None),  # live, fresh, real ~10x-mismatched value
             ) as mock_live_fetch,
         ):
             result = _run_fetch_incremental("FPICO", _FPI_WITH_RESOLVED_SHARES_INCOME_ROWS, fetchone_results)
@@ -123,6 +131,7 @@ class TestFpiLiveYfinanceSanityCheck:
 
     def test_fpi_live_fetch_failure_falls_back_to_stale_table_without_crashing(self) -> None:
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             (376.86,),
@@ -142,7 +151,7 @@ class TestFpiLiveYfinanceSanityCheck:
             patch.object(
                 SecValuationsLoader,
                 "_fetch_live_fpi_yfinance_check_values",
-                return_value=(None, None),
+                return_value=(None, None, None),
             ),
         ):
             result = _run_fetch_incremental("FPICO2", _FPI_WITH_RESOLVED_SHARES_INCOME_ROWS, fetchone_results)
@@ -156,6 +165,7 @@ class TestFpiLiveYfinanceSanityCheck:
             (2024, 1_500_000_000.0, 227_000_000.0, 2.7, None, None, None, None, 1_417_803_727.0, None, False),
         ]
         fetchone_results = [
+            None,  # entity_type exemption gate check (138006446) - not exempt
             (5_000_000.0,),
             (1_000_000.0, None, None, None),
             None,  # has_dual_class_sibling check (2026-08-21) - no matching row

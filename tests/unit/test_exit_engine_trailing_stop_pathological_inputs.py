@@ -43,8 +43,11 @@ def _mock_cursor_ema(closes):
 
 
 def _mock_cursor_chandelier(hh, atr):
+    """Single-row window: close/high both equal to hh (no split to detect), atr on the
+    lone (most recent) row - matches the post-2026-09-09-fix fetchall-based row shape
+    (close, high, atr, rn)."""
     cur = MagicMock()
-    cur.fetchone.return_value = (hh, atr)
+    cur.fetchall.return_value = [(hh, hh, atr, 1)]
     return cur
 
 
