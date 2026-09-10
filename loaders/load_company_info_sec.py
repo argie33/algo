@@ -130,8 +130,21 @@ class CompanyInfoSECLoader(SecLoaderBase):
             if not entity_name:
                 return self._unavailable_record(symbol, now_et, "entity_name_not_found")
 
-            sic_code = submissions.get("sic")
-            sic_description = submissions.get("sicDescription")
+            # FIXED 2026-09-09 (goal: "SEC/XBRL missing data under 500" sweep): SEC's
+            # submissions API returns "" (empty string), not JSON null, for some entities'
+            # sic field (live-confirmed CIK 0001569650 - the ticker "OZK" currently resolves
+            # to via SEC's own company_tickers.json - returns sic="" and sicDescription="").
+            # The bulk insert's CSV/COPY path already treats "" as NULL for the DB column
+            # (any column type, per bulk_insert_manager.py's own comment on this), so
+            # sic_code ends up NULL in company_info_sec regardless - but the RIC
+            # classification below runs BEFORE that normalization, against this raw
+            # `sic_code is None` check, which "" fails: an empty-SIC entity fell through to
+            # the generic "no_annual_report_filing" ("Missing SEC/XBRL data") instead of the
+            # correctly-bucketed "registered_investment_company_no_annual_report"
+            # ("Legitimate / not applicable"). Normalizing here (once, at the source) keeps
+            # every downstream use consistent with what actually lands in the DB column.
+            sic_code = submissions.get("sic") or None
+            sic_description = submissions.get("sicDescription") or None
             entity_type = submissions.get("entityType")
 
             # FIXED (migration 1193): whether this entity has ever filed a 10-K/10-K-A
