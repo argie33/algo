@@ -10,6 +10,11 @@ from loaders.helpers.financial_statements_config_shared import _MARKER_FIELDS, _
 _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
     {
         "notes_payable_related_parties_noncurrent",
+        # ADDED 2026-09-10 (goal session: SEC/XBRL missing-data count under 500,
+        # total_debt_not_itemized investigation): GNPX real current-portion related-party
+        # notes payable - see sec_balance_sheet.py's get_balance_sheet() comment on
+        # "NotesPayableRelatedPartiesClassifiedCurrent" for the live evidence.
+        "notes_payable_related_parties_classified_current",
         "long_term_notes_payable",
         "convertible_notes_payable",
         # FIXED 2026-08-18 (roic_pct "missing_sec_data" follow-up, goal: "no SEC data"
@@ -280,6 +285,9 @@ _BALANCE_FIELD_MAPPING = {
     # FIXED 2026-08-17 (loader-review goal continuation): fallback-only, see
     # _DEBT_FALLBACK_ONLY_FIELDS comment above.
     "notes_payable_related_parties_noncurrent": "long_term_debt",
+    # ADDED 2026-09-10: current-portion sibling - see sec_balance_sheet.py's
+    # NotesPayableRelatedPartiesClassifiedCurrent comment for the live evidence (GNPX).
+    "notes_payable_related_parties_classified_current": "short_term_debt",
     "long_term_notes_payable": "long_term_debt",
     "convertible_notes_payable": "long_term_debt",
     # FIXED 2026-08-18 (roic_pct "missing_sec_data" follow-up): see

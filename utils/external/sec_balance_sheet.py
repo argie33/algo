@@ -513,6 +513,17 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # LongTermDebt concept always keeps that value - these only fill the gap when
         # LongTermDebt is absent for that fiscal year, never overwrite it.
         "NotesPayableRelatedPartiesNoncurrent",
+        # ADDED 2026-09-10 (goal session: SEC/XBRL missing-data count under 500,
+        # total_debt_not_itemized investigation): GNPX (Genprex) real current-portion
+        # related-party notes payable - live-confirmed via real SEC companyfacts JSON
+        # tagging "NotesPayableRelatedPartiesClassifiedCurrent" (a real, current-year
+        # short-term related-party loan) while never tagging plain NotesPayableCurrent/
+        # ShortTermBorrowings/any other short_term_debt concept above. Current-portion
+        # sibling of NotesPayableRelatedPartiesNoncurrent immediately above (same either/or
+        # convention, this one targets short_term_debt via _BALANCE_FIELD_MAPPING).
+        # Fallback-only (see _DEBT_FALLBACK_ONLY_FIELDS) - generic enough a name that a
+        # filer reporting a more specific standard concept must keep that value.
+        "NotesPayableRelatedPartiesClassifiedCurrent",
         "LongTermNotesPayable",
         "ConvertibleNotesPayable",
         # FIXED 2026-08-18 (goal: "no SEC data" loader audit, roic_pct missing_sec_data
