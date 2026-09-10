@@ -83,6 +83,19 @@ class QualityRecategorizeMixin:
                 "current_ratio",
                 "quick_ratio",
                 "gross_margin",
+                # FIXED 2026-09-10 (goal: "under 300" missing-XBRL push): "roe" and
+                # "sustainable_growth_rate" both derive from the same stockholders_equity
+                # concept as roa/debt_to_equity/roic_pct above, and both fall through to
+                # "stockholders_equity_not_reported" (already in _trust_source_reasons
+                # below) via the identical None-stockholders_equity gate in vqg_quality.py -
+                # live-confirmed NRT (the only one of the 6 royalty trusts with a genuinely
+                # never-tagged StockholdersEquity concept; CRT/MTR/SBR/SJT all report real
+                # positive equity and compute real roe/sgr values, PBT's is a real value
+                # rejected as implausible_ratio, neither of which this loop should touch)
+                # was the one member of _trust_recategorize_fields missing these two despite
+                # every sibling equity-derived field already being covered.
+                "roe",
+                "sustainable_growth_rate",
             )
             # FIXED 2026-09-10 (goal: "under 500" missing-XBRL push, same bug found in the
             # sibling RIC/ETF-trust/blank-check loops below - each already includes
