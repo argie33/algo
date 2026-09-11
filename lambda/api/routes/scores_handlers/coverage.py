@@ -56,6 +56,7 @@ _NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE = """
     (
         ({symbols_alias}.etf IS NULL OR {symbols_alias}.etf != 'true')
         AND {symbols_alias}.security_name !~* '\\y(Warrant|Unit|Contingent Value|ETNs?|Exchange[- ]Traded Notes?|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Crypto|Debenture|Subordinated|Preferred|Perpetual)\\y'
+        AND {symbols_alias}.security_name !~* '(?<!the )\\yRights?\\y'
         AND NOT (
               COALESCE({company_info_alias}.sic_code, 0) = 0
               AND COALESCE({company_info_alias}.entity_type, 'operating') IN ('other', 'investment')

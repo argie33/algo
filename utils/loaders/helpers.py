@@ -98,6 +98,7 @@ NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE = (
     AND {symbols_alias}.data_unavailable IS NOT TRUE
     AND ({symbols_alias}.etf IS NULL OR {symbols_alias}.etf != 'true')
     AND {symbols_alias}.security_name !~* '\\y(Warrant|Unit|Contingent Value|ETNs?|Exchange[- ]Traded Notes?|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Crypto|Debenture|Subordinated|Preferred|Perpetual)\\y'
+    AND {symbols_alias}.security_name !~* '(?<!the )\\yRights?\\y'
     AND NOT (
           COALESCE({company_info_alias}.sic_code, 0) = 0
           AND COALESCE({company_info_alias}.entity_type, 'operating') IN ('other', 'investment')
@@ -364,6 +365,7 @@ def get_active_symbols(
                               AND s.data_unavailable IS NOT TRUE
                               AND (s.etf IS NULL OR s.etf != 'true')
                               AND s.security_name !~* '\\y(Warrant|Unit|Contingent Value|ETNs?|Exchange[- ]Traded Notes?|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Crypto|Debenture|Subordinated|Preferred|Perpetual)\\y'
+                              AND s.security_name !~* '(?<!the )\\yRights?\\y'
                               AND NOT (
                                     COALESCE(c.sic_code, 0) = 0
                                     AND COALESCE(c.entity_type, 'operating') IN ('other', 'investment')
