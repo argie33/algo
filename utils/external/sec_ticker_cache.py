@@ -13,6 +13,7 @@ import re
 import socket
 import tempfile
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import cast
 
@@ -542,6 +543,105 @@ class TickerCache:
             return cik
         return None
 
+    def _lookup_via_full_text_search(self, symbol: str) -> str | None:
+        """Last-last-resort CIK resolution via SEC's EDGAR full-text search API
+        (efts.sec.gov), tried only after both the bulk ticker file AND browse-edgar miss.
+
+        ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push - "resources we
+        should be tapping into" ask). efts.sec.gov indexes the actual text of every filing
+        since 2001, so it can resolve a ticker mention (e.g. "(NASDAQ: XYZ)" in a filer's
+        own recent filings) that neither the bulk ticker file nor browse-edgar's legacy
+        CIK=<ticker> company-search endpoint ever finds - live-confirmed this session
+        against NBN (Northeast Bank): browse-edgar returns "No matching Ticker Symbol" for
+        CIK=NBN, but full-text search surfaces real filer mentions of "NASDAQ: NBN".
+
+        DELIBERATELY STRICTER than _verify_ticker_matches_cik's fail-open policy used
+        elsewhere in this file. Live-confirmed same session why: full-text search's top hit
+        for "NASDAQ: NBN" was CIK 811831 ("NORTHEAST BANCORP /ME/"), whose OWN
+        submissions.json has an EMPTY tickers array (not "NBN", not anything) AND whose most
+        recent filing is a 2019-05-21 Form 15-12B (a formal SEC deregistration) - a dead,
+        delisted entity that happened to trade under the same ticker seven years ago, not
+        today's actual Northeast Bank. _verify_ticker_matches_cik's fail-open-on-empty-
+        tickers-array behavior exists as a safety net against browse-edgar's fuzzy name
+        search occasionally returning a real, currently-filing company with a temporarily
+        stale tickers field (DMC/SHOE/GRSD-shaped cases, see CIK_OVERRIDES) - applying that
+        same leniency here would have silently mis-resolved NBN to a 7-year-dead entity.
+        Full-text search matches free-form filing PROSE (could be a competitor's filing
+        mentioning another company, an old ticker before a company's own rename, etc.), a
+        much weaker signal than browse-edgar's CIK=<ticker> company-index lookup - so this
+        method requires an EXPLICIT, current match: the candidate CIK's own submissions.json
+        tickers array must literally contain `symbol` (never fails open) AND its most recent
+        filing must be within the last ~3 years (excludes deregistered/dormant entities like
+        the NBN Bancorp case above). A miss on either check returns None, same as a genuine
+        "not found" - never fabricates a CIK.
+
+        Live-verified same session: FRBA/HIFS/NBN/RCBC/SSBI/TOWN (confirmed genuine FDIC
+        Section 12(i) designees, see KNOWN_NON_SEC_FILER_BANK_TICKERS) all correctly return
+        None here too - full-text search surfaces old/stale/unrelated hits for these, none
+        pass the strict verification.
+        """
+        try:
+            if self._rate_limiter:
+                cast(object, self._rate_limiter).wait()  # type: ignore
+            resp = self._session.get(
+                "https://efts.sec.gov/LATEST/search-index",
+                params={"q": f'"NASDAQ: {symbol}" OR "NYSE: {symbol}"'},
+                timeout=max(self._timeout, 15.0),
+            )
+        except (requests.ConnectionError, requests.Timeout) as e:
+            logger.warning(f"full-text-search CIK fallback network error for {symbol}: {e}")
+            return None
+        if resp.status_code != 200:
+            return None
+
+        try:
+            hits = resp.json().get("hits", {}).get("hits", [])
+        except ValueError:
+            return None
+
+        seen_ciks: set[str] = set()
+        for hit in hits:
+            for display_name in hit.get("_source", {}).get("display_names", []):
+                cik_match = re.search(r"CIK (\d{10})", display_name)
+                if not cik_match:
+                    continue
+                cik = cik_match.group(1)
+                if cik in seen_ciks:
+                    continue
+                seen_ciks.add(cik)
+                if self._verify_current_filer_ticker_match(symbol, cik):
+                    return cik
+        return None
+
+    def _verify_current_filer_ticker_match(self, symbol: str, cik: str) -> bool:
+        """Strict (never fail-open) check for _lookup_via_full_text_search: `symbol` must
+        be explicitly listed in `cik`'s own submissions.json tickers array, and `cik` must
+        have filed something within roughly the last 3 years (excludes a deregistered/
+        dormant entity that happened to share the ticker in the past).
+
+        See _lookup_via_full_text_search's own docstring for why this is deliberately
+        stricter than _verify_ticker_matches_cik.
+        """
+        try:
+            resp = self._session.get(
+                f"https://data.sec.gov/submissions/CIK{cik}.json",
+                timeout=self._timeout,
+            )
+            if resp.status_code != 200:
+                return False
+            data = resp.json()
+            tickers = {t.upper() for t in (data.get("tickers") or [])}
+            if symbol.upper() not in tickers:
+                return False
+            recent_dates = data.get("filings", {}).get("recent", {}).get("filingDate") or []
+            if not recent_dates:
+                return False
+            most_recent = str(max(recent_dates))
+            cutoff = (datetime.now(UTC) - timedelta(days=3 * 365)).date().isoformat()
+            return most_recent >= cutoff
+        except (requests.ConnectionError, requests.Timeout, ValueError, KeyError):
+            return False
+
     def _verify_ticker_matches_cik(self, symbol: str, cik: str) -> bool:
         """Return True unless SEC's own submissions record for `cik` positively contradicts
         `symbol` - i.e. it lists at least one ticker and `symbol` isn't among them.
@@ -607,6 +707,16 @@ class TickerCache:
             # persistent file cache so repeated lookups (this process and others sharing the
             # file) don't re-hit the slow legacy endpoint every time.
             cik = self._lookup_via_browse_edgar(symbol)
+            if cik:
+                self._ticker_cache[symbol.upper()] = cik
+                self._save_ticker_cache_to_file()
+        if not cik:
+            # ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push): see
+            # _lookup_via_full_text_search's own docstring for why this tier exists (a real
+            # ticker mention neither the bulk file nor browse-edgar's company-index search
+            # finds) and why its verification is deliberately stricter (fail-closed, not
+            # fail-open) than _verify_ticker_matches_cik above.
+            cik = self._lookup_via_full_text_search(symbol)
             if cik:
                 self._ticker_cache[symbol.upper()] = cik
                 self._save_ticker_cache_to_file()

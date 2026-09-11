@@ -40,6 +40,9 @@ class TestDualClassDotDashFallback:
         # network-dependent and covered separately - stub it here so this test stays a fast,
         # deterministic check of the dot/dash logic alone, not an integration test.
         cache._lookup_via_browse_edgar = lambda symbol: None
+        # See _lookup_via_full_text_search's docstring (added 2026-09-11) - same
+        # network-dependent-fallback stubbing as browse-edgar above, for the same reason.
+        cache._lookup_via_full_text_search = lambda symbol: None
         try:
             cache.symbol_to_cik("XFLH.R")
             raised = False

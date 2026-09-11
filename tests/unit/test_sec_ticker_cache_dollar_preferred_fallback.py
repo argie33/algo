@@ -31,6 +31,9 @@ class TestDollarPreferredFallback:
     def test_no_dash_p_variant_raises_same_as_before(self):
         cache = _cache_with({"AAPL": "0000320193"})
         cache._lookup_via_browse_edgar = lambda symbol: None
+        # See _lookup_via_full_text_search's docstring (added 2026-09-11) - same
+        # network-dependent-fallback stubbing as browse-edgar above, for the same reason.
+        cache._lookup_via_full_text_search = lambda symbol: None
         try:
             cache.symbol_to_cik("ZZZZ$Q")
             raised = False
