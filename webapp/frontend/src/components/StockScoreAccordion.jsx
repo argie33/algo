@@ -209,12 +209,15 @@ const FACTORS = [
 // tests/unit/test_scores_frontend_weight_badges_match_backend.py verifies this. Positioning
 // and Size are retired composite pillars (informational-only tabs below, not part of
 // composite_score) and have no entry here.
+// UNIFORM EQUAL-WEIGHT 2026-09-11 (see BASE_PILLAR_WEIGHTS' own comment in
+// loaders/stock_scores/pillar_weights.py for the full rationale): flat 20% each, replacing the
+// prior backtest-tuned 20/24/27/19/10 split.
 const PILLAR_COMPOSITE_WEIGHTS = {
   quality: 0.2,
-  growth: 0.24,
-  value: 0.27,
-  risk: 0.19,
-  momentum: 0.1,
+  growth: 0.2,
+  value: 0.2,
+  risk: 0.2,
+  momentum: 0.2,
 };
 
 // ─── Empty state ────────────────────────────────────────────────────────────
@@ -981,62 +984,64 @@ export { QUALITY_SCHEMA, RISK_SCHEMA, PILLAR_COMPOSITE_WEIGHTS };
 // across all sectors - Asset Turnover's "~7%" badge below is accurate for the universal case
 // but does not apply to Financial Services/Real Estate symbols specifically. Not worth a
 // dynamic per-sector schema for one row; flagged here so it isn't mistaken for an oversight.
+// UNIFORM EQUAL-WEIGHT 2026-09-11 (see PILLAR_COMPOSITE_WEIGHTS' own comment for the full
+// rationale): flat 12.5% each, replacing the prior t-stat-tuned 11/17/17/14/17/7/7/7 split.
 const QUALITY_SCHEMA = [
   {
     key: "return_on_equity_pct",
     label: "ROE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~11%",
+    weight: "12.5%",
   },
   {
     key: "return_on_assets_pct",
     label: "ROA",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~17%",
+    weight: "12.5%",
   },
   {
     key: "return_on_capital_employed_pct",
     label: "ROCE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~17%",
+    weight: "12.5%",
   },
   {
     key: "fcf_margin_pct",
     label: "FCF Margin",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~14%",
+    weight: "12.5%",
   },
   {
     key: "debt_to_equity",
     label: "Debt to Equity",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~17%",
+    weight: "12.5%",
   },
   {
     key: "margin_volatility",
     label: "Margin Volatility (3Y)",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~7%",
+    weight: "12.5%",
   },
   {
     key: "asset_turnover_pct",
     label: "Asset Turnover",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "~7%",
+    weight: "12.5%",
   },
   {
     key: "gross_profitability_pct",
     label: "Gross Profitability",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "~7%",
+    weight: "12.5%",
   },
   // Every other Quality field this pipeline computes (ROIC, Operating Profitability, Accruals
   // Ratio, Gross/Operating/Net/EBITDA Margin, FCF-NI, OCF-NI, Current/Quick Ratio, Interest
@@ -1079,48 +1084,51 @@ const QUALITY_SCHEMA = [
 // (RESOLVED note) for the full evidence - this shows the actual number the score now
 // uses (35% weight = the exact combined 6m(20%)+12m(15%) it replaced), not a stale
 // predecessor value.
+// UNIFORM EQUAL-WEIGHT 2026-09-11 (see PILLAR_COMPOSITE_WEIGHTS' own comment for the full
+// rationale): flat 25% each of the 4 slots (momentum_3m, mom_12_1, RSI/MACD avg, SMA avg),
+// replacing the prior tuned 20/35/37/8 split.
 const MOMENTUM_SCHEMA = [
   {
     key: "momentum_3m",
     label: "Momentum (3M)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "20%",
+    weight: "25%",
   },
   {
     key: "momentum_12_1",
     label: "Momentum (12-1, skip-month)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "35%",
+    weight: "25%",
   },
   {
     key: "rsi",
     label: "RSI (14)",
     fmt: (v) => num(v, 1),
     used: true,
-    weight: "37% avg",
+    weight: "25% avg",
   },
   {
     key: "macd",
     label: "MACD Line",
     fmt: (v) => num(v, 3),
     used: true,
-    weight: "37% avg",
+    weight: "25% avg",
   },
   {
     key: "price_vs_sma_50",
     label: "Price vs 50-SMA",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "8% avg",
+    weight: "25% avg",
   },
   {
     key: "price_vs_sma_200",
     label: "Price vs 200-SMA",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "8% avg",
+    weight: "25% avg",
   },
   // TRIMMED BACK 2026-08-28 (user directive: this tab should show ONLY what's actually in
   // the scoring formula, not every computed field - reversing the same-day earlier
@@ -1234,29 +1242,31 @@ const MOMENTUM_SCHEMA = [
 // they're now a CROSS-SECTIONAL PERCENTILE RANK against the current run's universe (the same
 // "rank against peers, not a fixed cutoff" convention this pillar's own PEG/margin-of-safety
 // don't use, but IBD's every SmartSelect rating and MSCI's factor construction both do).
-// Weights themselves (12%/30%/27%) are unchanged - only how a given raw ratio maps to a 0-100
-// sub-score changed.
+// UNIFORM EQUAL-WEIGHT 2026-09-11 (see PILLAR_COMPOSITE_WEIGHTS' own comment for the full
+// rationale): all 5 components now flat 20% each, replacing the prior 27/27/27/9/10 split -
+// no more smaller "satellite" weights for Forward P/E/Dividend Yield. Only how a given raw
+// ratio maps to a 0-100 sub-score (percentile rank vs. fixed curve) is otherwise unchanged.
 const VALUE_SCHEMA = [
   {
     key: "stock_pe",
     label: "P/E",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "27%",
+    weight: "20%",
   },
   {
     key: "stock_pb",
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "27%",
+    weight: "20%",
   },
   {
     key: "stock_ps",
     label: "P/S",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "27%",
+    weight: "20%",
   },
   // Forward P/E PROMOTED to a scored input 2026-08-28 (user directive - MSCI's Value index
   // uses 12-month forward Earnings/Price as one of its three core descriptors; explicitly a
@@ -1267,18 +1277,18 @@ const VALUE_SCHEMA = [
     label: "Forward P/E",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "9%",
+    weight: "20%",
   },
   // "Net Payout Yield (Div + Buybacks)" (net_payout_yield) REVERTED 2026-08-28 back to plain
   // Dividend Yield on explicit user directive ("we want the dividend yield instead of that
   // payout shit") - see loaders/load_stock_scores.py's _score_value docstring for the full
-  // history. Weight 11% (2026-08-28, later same day: +3 from PEG's removal below).
+  // history.
   {
     key: "stock_dividend_yield",
     label: "Dividend Yield",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "10%",
+    weight: "20%",
   },
   // market_cap moved to the Size pillar 2026-08-26, since retired entirely (see comment above).
   // amihud_illiquidity NOT added below - value_inputs (lambda/api/routes/scores.py) doesn't
@@ -1584,41 +1594,44 @@ const POSITIONING_SCHEMA = [
 // Drawdown 1Y 15%->10% (45+15+15+10+15=100). Precedent for not leaving a real scored input
 // off this tab: momentum_1m was once a real 16%-weighted Momentum input with no display row
 // at all (see this file's own module docstring above) - same omission class, avoided here.
+// UNIFORM EQUAL-WEIGHT 2026-09-11 (see PILLAR_COMPOSITE_WEIGHTS' own comment for the full
+// rationale): all 5 components now flat 20% each, replacing the prior tuned 45/15/15/10/15
+// split.
 const RISK_SCHEMA = [
   {
     key: "volatility_60d",
     label: "Volatility (60D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "45%",
+    weight: "20%",
   },
   {
     key: "volatility_12m",
     label: "Volatility (252D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "15%",
+    weight: "20%",
   },
   {
     key: "beta",
     label: "Beta vs Market",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "15%",
+    weight: "20%",
   },
   {
     key: "max_drawdown_1y",
     label: "Max Drawdown (1Y)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "10%",
+    weight: "20%",
   },
   {
     key: "avg_dollar_volume_20d",
     label: "Avg Dollar Volume (20D)",
     fmt: (v) => (v == null ? null : `$${Math.round(v).toLocaleString()}`),
     used: true,
-    weight: "15%",
+    weight: "20%",
   },
   // Volatility 30D and downside volatility (252d/60d/30d) are NOT part of the current
   // 5-input formula - still fetched/persisted for reference. Debt-to-Assets is scored under

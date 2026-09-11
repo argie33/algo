@@ -1251,21 +1251,17 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   // (Size retired entirely, its freed 0.08 split evenly between Growth (0.20->0.24) and Value
   // (0.23->0.27), the two pillars ROBUST in both regimes per that same re-run - see that
   // file's own docstring for the full evidence trail).
-  // Value/Safety(risk) weights shown here are the BASE/MIDPOINT values (a risk_score of
-  // exactly 50). ADDED 2026-08-28 (goal: cross-pillar interaction sweep found value_proxy x
-  // stability_proxy is the one era-robust interaction of 15 tested - see
-  // value_stability_interaction_found_robust_20260828 in memory): loaders/load_stock_scores.py
-  // now shifts weight between Value and Safety per-symbol based on that symbol's own
-  // risk_score (more Value weight for riskier names, less for safer ones, always summing back
-  // to 0.27+0.19=0.46 combined) - this radar chart shows the nominal average, not each
-  // symbol's exact live split, same "avg" convention already used for Momentum's RSI/MACD and
-  // SMA-50/200 slots.
+  // UNIFORM EQUAL-WEIGHT 2026-09-11 (see loaders/stock_scores/pillar_weights.py's
+  // BASE_PILLAR_WEIGHTS comment for the full rationale): flat 20% each, replacing the prior
+  // backtest-tuned 20/24/27/19/10 split. The Value x Safety(risk) per-symbol interaction shift
+  // described above is retired along with it - Value and Safety are now both fixed at 0.20 for
+  // every symbol, no more risk_score-conditioned shift.
   const FACTOR_WEIGHTS = [
     ["Quality", "quality_score", 0.2],
-    ["Growth", "growth_score", 0.24],
-    ["Value", "value_score", 0.27],
-    ["Safety", "risk_score", 0.19],
-    ["Momentum", "momentum_score", 0.1],
+    ["Growth", "growth_score", 0.2],
+    ["Value", "value_score", 0.2],
+    ["Safety", "risk_score", 0.2],
+    ["Momentum", "momentum_score", 0.2],
   ];
   const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
     const score = scoreRow?.[key];

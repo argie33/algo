@@ -272,7 +272,9 @@ def _build_sp500_table(top_sp500: list[Any], limit: int = 10) -> Table | None:
     """Small S&P 500-only sub-leaderboard, same unmodified composite_score as the main
     table - just restricted to recognizable large-cap names (2026-09-07, see
     _get_dashboard_scores's inline comment for why this exists as a second lens rather than
-    a change to the score itself: Value's 27% weight structurally penalizes famous companies
+    a change to the score itself: Value's 20% weight (equal-weighted across all 5 pillars as of
+    2026-09-11 - see loaders/stock_scores/pillar_weights.py's BASE_PILLAR_WEIGHTS) structurally
+    penalizes famous companies
     whose quality is already priced in, so a universe-wide cheapness screen can never put
     megacaps at the top no matter how good their business is - this view answers "how do the
     companies I actually recognize rank against each other" instead).

@@ -518,24 +518,26 @@ class QualityScoreMixin:
         # batch pass (or if it's ever skipped), not because Pass 1's curve math is the final
         # word.
         #
-        # Weights are set from both full-sample t-stat magnitude and a half-split
-        # time-stability check - a component whose t-stat holds up identically across both
-        # eras is weighted higher relative to its raw t-stat than one whose apparent
-        # strength was concentrated in a short/recent window. debt_to_equity/roa/roce/
-        # fcf_margin/roe (the "core five", 80% of the composite) have either the strongest
-        # full-sample evidence or the best demonstrated time-stability. current_ratio was
-        # tested and deliberately excluded (sign-flips across the half-split).
-        # min_quality_weight_pct below is calibrated to ~40% of the composite's nominal
-        # weight sum - above any thin-sample case found so far.
+        # UNIFORM EQUAL-WEIGHT (2026-09-11, user directive - see pillar_weights.py's
+        # BASE_PILLAR_WEIGHTS comment for the full rationale): the t-stat/half-split-derived
+        # weights previously here traced to the same contaminated-data family as the top-level
+        # composite's FM work. Replaced with flat 1/8 (12.5) each - the component LIST itself
+        # (still literature-grounded: Novy-Marx/Fama-French RMW/Sloan/QMJ, see this method's own
+        # docstring) is unchanged, only the combination weights are. Mirrors Piotroski (1996)'s
+        # own convention of unweighted equally-combined signals. current_ratio stays excluded
+        # (a genuine no-signal finding, not a weighting decision). Pass-2's sector-neutral
+        # overwrite (vqg_quality_batch.py) mirrors this exact same 8x12.5 scheme - keep both in
+        # sync if either changes. min_quality_weight_pct below is unchanged at ~40% of the
+        # composite's nominal weight sum.
         quality_components = [
-            (roe_score, 11.0),
-            (roa_score, 18.0),
-            (roce_score, 18.0),
-            (fcf_margin_score, 15.0),
-            (debt_to_equity_score, 18.0),
-            (margin_volatility_score, 7.0),
-            (asset_turnover_score, 7.0),
-            (gross_profitability_score, 7.0),
+            (roe_score, 12.5),
+            (roa_score, 12.5),
+            (roce_score, 12.5),
+            (fcf_margin_score, 12.5),
+            (debt_to_equity_score, 12.5),
+            (margin_volatility_score, 12.5),
+            (asset_turnover_score, 12.5),
+            (gross_profitability_score, 12.5),
         ]
         # COMPLETENESS FLOOR: without it, renormalizing over 1-3 available components lets
         # a single extreme raw ratio (e.g. an oil/gas royalty trust's ROA of 700%+) drive

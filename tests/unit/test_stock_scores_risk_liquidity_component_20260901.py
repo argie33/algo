@@ -20,10 +20,14 @@ import pytest
 
 from loaders.load_stock_scores import StockScoresLoader
 
-# Fixed filler: volatility_60d=0.20 is 45% of nominal weight, clearing RISK_MIN_WEIGHT_AVAILABLE
-# on its own so each test below isolates liquidity's contribution without also exercising the
-# floor - same convention as test_stock_scores_risk_negative_beta_not_clipped_20260828.py.
-_VOL_FILLER = {"volatility_60d": 0.20}
+# UNIFORM EQUAL-WEIGHT 2026-09-11 (see loaders/stock_scores/pillar_weights.py's
+# BASE_PILLAR_WEIGHTS comment): volatility_60d alone is now only 20% of nominal weight, below
+# RISK_MIN_WEIGHT_AVAILABLE (0.40) - a single-field filler can no longer clear the floor on its
+# own. Filler now supplies two components; since both use the identical curve on the identical
+# input value, their weighted average equals that same single-value score regardless of weight
+# (same convention test_stock_scores_risk_negative_beta_not_clipped_20260828.py already uses),
+# so every original 83.33-based assertion below stays exactly true.
+_VOL_FILLER = {"volatility_60d": 0.20, "volatility_252d": 0.20}
 
 
 class TestLiquidityCurveScore:
@@ -61,7 +65,7 @@ class TestLiquidityCurveScore:
 
 class TestLiquidityScoredIntoRiskScore:
     def test_liquidity_alone_below_floor_withholds_score(self):
-        """15% weight alone is below RISK_MIN_WEIGHT_AVAILABLE (0.40) - same thin-sample
+        """20% weight alone is below RISK_MIN_WEIGHT_AVAILABLE (0.40) - same thin-sample
         floor every other individual Risk input is already held to."""
         loader = StockScoresLoader()
         result = loader._score_risk({"avg_dollar_volume_20d": 50_000_000}, "LIQ_ONLY")
@@ -101,6 +105,7 @@ class TestLiquidityScoredIntoRiskScore:
         without_field = loader._score_risk(dict(_VOL_FILLER), "NO_FIELD")
         assert isinstance(with_zero, dict)
         assert with_zero.get("data_unavailable") is True
+        assert isinstance(without_field, float)
         assert without_field == pytest.approx(83.33, abs=0.1)
 
     def test_missing_liquidity_field_falls_back_to_other_inputs(self):
@@ -124,14 +129,17 @@ class TestNearZeroLiquidityPriceStatGate:
     with sub-$1,000 ADV and a literally frozen price_daily history)."""
 
     def test_near_zero_liquidity_disqualifies_volatility_and_beta(self):
+        """volatility_60d/beta are gated out by the near-zero-liquidity check, but Liquidity
+        itself is scored off the raw (near-zero) ADV regardless of that gate - under equal
+        weighting (2026-09-11), Liquidity (20%) + max_drawdown_1y (20%) = 40%, exactly clearing
+        RISK_MIN_WEIGHT_AVAILABLE (0.40) (previously 15%+10%=25%, below the floor, under the old
+        45/15/15/10/15 split) - a real (low) score is returned now instead of a thin-sample
+        marker."""
         loader = StockScoresLoader()
         result = loader._score_risk(
             {"avg_dollar_volume_20d": 500, "volatility_60d": 0.0, "beta": 0.05, "max_drawdown_1y": -1.0}, "GHOST"
         )
-        # max_drawdown_1y alone is 10% weight - below RISK_MIN_WEIGHT_AVAILABLE (0.40).
-        assert isinstance(result, dict)
-        assert result.get("data_unavailable") is True
-        assert result.get("reason") == "insufficient_risk_inputs_thin_sample"
+        assert isinstance(result, float)
 
     def test_liquidity_just_above_threshold_is_not_gated(self):
         """$2,000+ (e.g. QNBC's real $454,701/day) scores volatility/beta normally - this
@@ -148,5 +156,5 @@ class TestNearZeroLiquidityPriceStatGate:
         test_missing_liquidity_field_falls_back_to_other_inputs above."""
         loader = StockScoresLoader()
         result = loader._score_risk(dict(_VOL_FILLER), "UNKNOWN_LIQ")
-        assert isinstance(result, float)
+        assert isinstance(result, float), f"expected a real score, got {result!r}"
         assert result == pytest.approx(83.33, abs=0.1)

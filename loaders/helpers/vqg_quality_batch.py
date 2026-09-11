@@ -263,33 +263,36 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
 
                 components: list[tuple[float, float]] = []
 
+                # UNIFORM EQUAL-WEIGHT (2026-09-11): mirrors vqg_quality_score.py Pass-1's own
+                # 2026-09-11 move to flat 1/8 (12.5) each - see that file's comment for the full
+                # rationale. Keep both passes' weights in sync if either changes.
                 if roe is not None and roa is not None:  # roa<0 = sign-flip distress artifact; missing roa omits it
                     roe_component = 0.0 if float(roe) < 0.0 or float(roa) < 0.0 else roe_pct[symbol]
-                    components.append((roe_component, 11.0))
+                    components.append((roe_component, 12.5))
                 if roa is not None:
                     roa_component = 0.0 if float(roa) < 0.0 else roa_pct[symbol]
-                    components.append((roa_component, 18.0))
+                    components.append((roa_component, 12.5))
                 if roce_pct_val is not None:
                     roce_component = 0.0 if float(roce_pct_val) < 0.0 else roce_pct[symbol]
-                    components.append((roce_component, 18.0))
+                    components.append((roce_component, 12.5))
                 if fcf_margin is not None and industries.get(symbol) not in _fcf_excluded_industries:
                     fcf_component = 0.0 if float(fcf_margin) < 0.0 else fcf_margin_pct[symbol]
-                    components.append((fcf_component, 15.0))
+                    components.append((fcf_component, 12.5))
                 if d2e is not None:
                     # Negative D/E (negative book equity) is real distress, not a scale
                     # issue - floored to 0.0 the same as every other metric's negative case,
                     # never inverted into a spuriously high score.
                     d2e_component = 0.0 if float(d2e) < 0.0 else d2e_pct[symbol]
-                    components.append((d2e_component, 18.0))
+                    components.append((d2e_component, 12.5))
                 if margin_vol is not None:
                     # Volatility can't be genuinely negative - no floor case, just z-scored.
-                    components.append((margin_vol_pct[symbol], 7.0))
+                    components.append((margin_vol_pct[symbol], 12.5))
                 if asset_turnover is not None:
                     at_component = 0.0 if float(asset_turnover) < 0.0 else asset_turnover_pct[symbol]
-                    components.append((at_component, 7.0))
+                    components.append((at_component, 12.5))
                 if gross_prof is not None:
                     gp_component = 0.0 if float(gross_prof) < 0.0 else gross_prof_pct[symbol]
-                    components.append((gp_component, 7.0))
+                    components.append((gp_component, 12.5))
 
                 # COMPLETENESS FLOOR (2026-09-10 real-money-readiness re-audit): mirrors
                 # vqg_quality_score.py's Pass-1 `min_quality_weight_pct=40.0` floor on the

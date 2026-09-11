@@ -337,8 +337,16 @@ class MomentumScoringMixin:
         # dropping the most-recent-month return as its own scored input. momentum_1m is still
         # read below (see mom_12_1 derivation) - as an input to the 12-1 construction Jegadeesh
         # 1990 actually specifies, not as a standalone score.
+        # UNIFORM EQUAL-WEIGHT (2026-09-11, user directive - see pillar_weights.py's
+        # BASE_PILLAR_WEIGHTS comment for the full rationale): the 20/35/37/8 magnitude-tuned
+        # split below traced to the same isolated-backtest/contaminated-FM-data family that
+        # forced Growth and Value off similar weighting. All 4 slots (momentum_3m, mom_12_1,
+        # averaged RSI/MACD, averaged SMA50/200) are now flat 25% each - the RSI+MACD and
+        # SMA50+SMA200 averaging (a redundancy/multicollinearity fix, not a weighting choice)
+        # and the mom_12_1 Jegadeesh construction are unchanged. Historical reasoning below is
+        # kept as audit trail, not as justification for today's live weights.
         weights = {
-            "momentum_3m": 0.20,
+            "momentum_3m": 0.25,
         }
 
         weighted_sum = 0.0
@@ -367,8 +375,8 @@ class MomentumScoringMixin:
                 if math.isfinite(mom_12_1):
                     mom_12_1_score = self._pct_to_score(mom_12_1)
                     if mom_12_1_score is not None:  # Skip weak momentum (score=None)
-                        weighted_sum += mom_12_1_score * 0.35
-                        total_weight += 0.35
+                        weighted_sum += mom_12_1_score * 0.25
+                        total_weight += 0.25
 
         # RSI(14) + MACD sign, CONSOLIDATED (see CONSOLIDATED 2026-08-28 docstring note):
         # averaged into one "technical trend confirmation" slot, combined weight 0.37
@@ -403,8 +411,8 @@ class MomentumScoringMixin:
         if macd is not None:
             tech_trend_scores.append(70.0 if macd > 0 else 30.0 if macd < 0 else 50.0)
         if tech_trend_scores:
-            weighted_sum += (sum(tech_trend_scores) / len(tech_trend_scores)) * 0.37
-            total_weight += 0.37
+            weighted_sum += (sum(tech_trend_scores) / len(tech_trend_scores)) * 0.25
+            total_weight += 0.25
 
         # ROC (Rate of Change) composite REMOVED 2026-08-25 (goal: full scoring-architecture
         # audit): roc_20d/60d/120d/252d are literally the same computation as
@@ -429,8 +437,8 @@ class MomentumScoringMixin:
                 sma_score = 50 + (sma_val / 0.2) * 50  # ±20% range maps to 0-100
                 sma_scores.append(min(100, max(0, sma_score)))
         if sma_scores:
-            weighted_sum += (sum(sma_scores) / len(sma_scores)) * 0.08
-            total_weight += 0.08
+            weighted_sum += (sum(sma_scores) / len(sma_scores)) * 0.25
+            total_weight += 0.25
 
         if total_weight >= MOMENTUM_MIN_WEIGHT:
             return weighted_sum / total_weight

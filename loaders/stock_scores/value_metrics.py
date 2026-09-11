@@ -639,26 +639,24 @@ class ValueMetricsMixin:
                 # whether anything changed, never as an input to the new value. See "BUG FOUND
                 # + FIXED 2026-08-31" docstring note above for why this replaced the prior
                 # additive-delta-on-a-mutable-column design.
-                # EQUAL-WEIGHTED 2026-09-01 (see _score_value's own matching note - "lets get
-                # the weightings more normal... is that what the industry players set these at
-                # too?"). PE/PB/PS now equal at 27% each (was 12/41/35, data-driven skew toward
-                # PB/PS) - matches AQR/practitioner convention of averaging core value ratios
-                # roughly equally rather than in-sample-optimized weights. Forward P/E raised
-                # 4%->9%, Dividend Yield raised 8%->10% (both stay smaller satellite weights,
-                # not equal to the 3 core multiples).
+                # UNIFORM EQUAL-WEIGHT (2026-09-11, user directive - see pillar_weights.py's
+                # BASE_PILLAR_WEIGHTS comment for the full rationale, and _score_value's own
+                # matching note). All 5 components (PE/PB/PS/Forward PE/Dividend Yield) are now
+                # flat 20% each - mirrors _score_value's Pass-1 weights exactly. Keep both passes
+                # in sync if either changes.
                 components: list[tuple[float, float]] = []
                 if pe is not None and float(pe) > 0:
-                    components.append((pe_pct[symbol], 0.27))
+                    components.append((pe_pct[symbol], 0.20))
                 elif pe_reason == "unprofitable_stock":
-                    components.append((0.0, 0.27))
+                    components.append((0.0, 0.20))
                 if pb is not None and float(pb) > 0:
-                    components.append((pb_pct[symbol], 0.27))
+                    components.append((pb_pct[symbol], 0.20))
                 if ps is not None and float(ps) > 0:
-                    components.append((ps_pct[symbol], 0.27))
+                    components.append((ps_pct[symbol], 0.20))
                 if fwd_pe is not None and float(fwd_pe) > 0:
-                    components.append((fwd_pe_pct[symbol], 0.09))
+                    components.append((fwd_pe_pct[symbol], 0.20))
                 elif fwd_pe_reason == "negative_forward_eps":
-                    components.append((0.0, 0.09))
+                    components.append((0.0, 0.20))
                 # FIXED 2026-08-31 (same fix, same reasoning as _score_value's own dividend
                 # block above - value_metrics.dividend_yield is a real, already-computed 0.0
                 # for non-payers, never NULL, so a `> 0` gate wrongly reweighted this term away
@@ -676,7 +674,7 @@ class ValueMetricsMixin:
                     # yield funded by negative FCF) got its full ungated score written to the
                     # real stock_scores/composite_score row that trading reads.
                     div_score *= _dividend_sustainability_factor(float(dividend_yield), fcf_yield)
-                    components.append((div_score, 0.10))
+                    components.append((div_score, 0.20))
 
                 total_weight = sum(w for _, w in components)
                 if total_weight <= 0:
