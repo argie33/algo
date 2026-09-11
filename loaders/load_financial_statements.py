@@ -1646,6 +1646,7 @@ class ConsolidatedFinancialStatementsLoader(
             self._reject_stale_gross_profit_without_fresh_concept(transformed)
             self._reject_partial_segment_gross_profit_for_managed_care_insurers(transformed)
             self._reject_partial_cost_of_revenue(transformed)
+            self._fill_operating_income_from_revenue_cost_and_opex(transformed)
 
         # Get REQUIRED metrics for current statement type (see module-level
         # _REQUIRED_STATEMENT_FIELDS docstring - shared with post_run()'s flag sync).

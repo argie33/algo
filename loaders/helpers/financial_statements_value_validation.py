@@ -566,3 +566,46 @@ class FinancialStatementsValueValidationMixin:
                 )
                 row["revenue"] = None
                 self._record_explicit_null_rejection(row, "revenue", "revenue_scale_mismatch_vs_cogs_plus_gp")
+
+    def _fill_operating_income_from_revenue_cost_and_opex(self, transformed: list[dict[str, Any]]) -> None:
+        """Fallback-only: operating_income = revenue - cost_of_revenue - operating_expenses,
+        for filers whose final, fully-mapped row has all three real values but no
+        OperatingIncomeLoss/CostsAndExpenses concept anywhere in their filing history.
+
+        ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 300" push, operating_income_
+        not_itemized re-investigation continuation). utils/external/sec_income_statement_
+        fallbacks.py already covers two narrower shapes at the raw-concept-name stage (before
+        _INCOME_FIELD_MAPPING consolidates a filer's specific tagged concepts into the
+        canonical "revenue"/"cost_of_revenue"/"operating_expenses" columns): the CASY-style
+        D&A-split COGS pair, and the KRC/BEEP no-COGS-at-all case. Live-confirmed via CPT
+        (Camden Property Trust, apartment REIT) and CRVL (CorVel Corp): both tag a real
+        single, unsplit COGS-family concept under a filer-specific raw key that only becomes
+        "cost_of_revenue" after this pipeline's later field-mapping stage - by the time either
+        raw-stage fallback above runs, the row doesn't have a plain "revenue"/"cost_of_revenue"/
+        "operating_expenses" key to match on at all (CPT's real revenue sits under
+        "operating_lease_lease_income" pre-mapping, a REIT-exclusive field; an earlier attempt
+        to add this derivation inside get_income_statement() itself was live-tested against
+        real SEC data and found to be dead code for exactly this reason). Running here
+        instead, after super().transform() has already resolved every filer's own concept
+        naming into the three canonical columns, means one general check covers any filer
+        shape rather than needing a new raw-concept-name fallback per taxonomy variant. CPT
+        FY2025: revenue=$1,573,544,000 - cost_of_revenue=$566,710,000 -
+        operating_expenses=$79,344,000 = $927,490,000 (59% margin before depreciation,
+        plausible for a REIT).
+
+        Runs after _reject_scale_mismatched_revenue/_reject_partial_cost_of_revenue above so
+        a since-nulled implausible revenue/cost_of_revenue can never feed a derived value.
+        Deliberately requires all three real values - same "no partial, systematically-wrong
+        value" discipline as every sibling fallback in this pipeline. Never overwrites a real
+        operating_income already on the row (from a directly-tagged OperatingIncomeLoss
+        concept, or an earlier fallback in sec_income_statement_fallbacks.py).
+        """
+        for row in transformed:
+            if row.get("operating_income") is not None:
+                continue
+            revenue = row.get("revenue")
+            cost_of_revenue = row.get("cost_of_revenue")
+            operating_expenses = row.get("operating_expenses")
+            if revenue is None or cost_of_revenue is None or operating_expenses is None:
+                continue
+            row["operating_income"] = float(revenue) - float(cost_of_revenue) - float(operating_expenses)
