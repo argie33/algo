@@ -179,6 +179,19 @@ _BALANCE_IFRS_ALIASES = [
     ("TradeReceivables", "accounts_receivable_net_current"),
     ("Inventories", "inventory_net"),
     ("PropertyPlantAndEquipment", "property_plant_and_equipment_net"),
+    # ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 300" push, dcf_fcf capex_never_
+    # tagged investigation): live-confirmed via FSM (Fortuna Silver Mines, CIK 0001341335,
+    # 40-F filer) real companyfacts JSON - FSM tagged plain "PropertyPlantAndEquipment"
+    # through FY2022 (period end 2022-12-31, $1,567,622,000), then switched to this
+    # right-of-use-inclusive variant starting FY2023 (period end 2023-12-31,
+    # $1,574,212,000 - a plausible, similar-magnitude successor figure, not a scope blowup)
+    # and has tagged nothing under the bare concept since. Left ppe_net NULL for 3 straight
+    # real fiscal years, silently blocking annual_cash_flow's PPE-delta capex derivation
+    # (sec_base.py's `derived_capex = (curr_ppe - prior_ppe) + depreciation`) even though
+    # FSM's real depreciation_expense was extracted fine every year. Listed LAST (same
+    # target key) so a filer that still tags the bare concept keeps winning it for any
+    # fiscal year both are present - this variant only fills years the bare concept lacks.
+    ("PropertyPlantAndEquipmentIncludingRightofuseAssets", "property_plant_and_equipment_net"),
     ("Goodwill", "goodwill"),
     # FIXED 2026-08-04: "NoncurrentLiabilities" (total non-current liabilities, a
     # different line item) was never a real long-term-debt concept - live-checked
