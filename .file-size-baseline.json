@@ -585,7 +585,7 @@
   "loaders/market_health_fetchers.py": 841,
   "loaders/price_fetcher.py": 777,
   "loaders/price_transformer.py": 532,
-  "loaders/runner.py": 507,
+  "loaders/runner.py": 540,
   "loaders/schema_definitions.py": 52,
   "loaders/signal_quality_scorer.py": 333,
   "loaders/stock_scores/__init__.py": 0,
