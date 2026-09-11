@@ -28,6 +28,7 @@ from loaders.helpers.vqg_shared import (
     get_loader_timestamp,
 )
 from loaders.helpers.vqg_symbol_gates import SymbolGateMixin
+from utils.external.sec_ticker_cache import is_known_non_sec_filer_bank
 from utils.type_conversion import safe_float
 
 
@@ -1902,6 +1903,28 @@ class QualityMetricsMixin(
             )
 
             self._apply_quality_recategorize_reasons_pre(metrics, symbol)
+            # FIXED 2026-09-11 (goal: "under 300" push, total_debt_not_itemized re-investigation):
+            # a confirmed FDIC-designee bank (RCBC et al. - see is_known_non_sec_filer_bank's
+            # module comment) has no SEC CIK at all, so its upstream annual/quarterly_balance_sheet
+            # row is already correctly marked data_unavailable_reason='fdic_designee_no_sec_cik'
+            # (load_financial_statements.py) - but that specific, already-correct reason never
+            # reached quality_metrics: _apply_structural_entity_type_exemption_reasons below only
+            # recognizes the ETF/CEF/BDC entity_type/sic_code shape, not this bank population (real
+            # operating banks, not sic_code=0), so total_debt/roce_pct/debt_to_equity/etc for RCBC
+            # fell through to the generic "total_debt_not_itemized" ("Missing SEC/XBRL data")
+            # instead of the same "Legitimate / not applicable" bucket company_info_sec/
+            # dividend_data/current_reports_8k already use for this exact population. Applied
+            # BEFORE the entity-type gate below (same "narrower reason wins" ordering as that
+            # method's own docstring) since a confirmed no-SEC-CIK bank is a more specific fact
+            # than the generic entity-type exemption.
+            if is_known_non_sec_filer_bank(symbol):
+                for field in self._STRUCTURAL_ENTITY_EXEMPT_FIELDS:
+                    reason_key = f"{field}_unavailable_reason"
+                    if (
+                        metrics.get(field) is None
+                        and metrics.get(reason_key) in self._STRUCTURAL_ENTITY_EXEMPT_SOURCE_REASONS
+                    ):
+                        metrics[reason_key] = "fdic_designee_no_sec_cik"
             self._apply_structural_entity_type_exemption_reasons(symbol, metrics)
             self._apply_quality_recategorize_reasons_post(metrics, symbol)
 
