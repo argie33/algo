@@ -334,15 +334,53 @@ class OrchestratorPhasesMixin(_Base):
     def phase_5_exposure_policy(self) -> bool:
         """Thin delegation to phase5_exposure_policy module."""
         self.log_phase_start(5, "EXPOSURE POLICY ACTIONS")
-        result = _owner().run_phase5(
-            self.config,
-            self.run_date,
-            self.dry_run,
-            self.alerts,
-            self.verbose,
-            self.log_phase_result,
-        )
+        try:
+            result = _owner().run_phase5(
+                self.config,
+                self.run_date,
+                self.dry_run,
+                self.alerts,
+                self.verbose,
+                self.log_phase_result,
+            )
+        except Exception as e:
+            # REAL-MONEY-READINESS FIX (2026-09-10, adversarial re-audit): same bug class as
+            # Phase 1/2/3/4/6/9's identical fixes this session - an unhandled exception here
+            # used to propagate to phase_executor.py's generic handler (halted=False) instead
+            # of reaching either branch below that calls set_halt_flag(). _executor_phase_7
+            # does treat a None/not-ok Phase 5 result as a conservative "halt_new_entries=True"
+            # fallback (mitigating the live entry-safety risk), but the shared halt_manager
+            # flag itself - which other consumers (dashboard, next-run governance checks) read
+            # directly - would incorrectly still say "not halted". Halt for real, don't rely
+            # only on Phase 7's downstream defensive branch.
+            halt_reason = f"Phase 5 crashed: {type(e).__name__}: {e}"
+            logger.error(f"[PHASE 5] {halt_reason}", exc_info=True)
+            halt_set_result = self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase5_exposure_policy")
+            if not halt_set_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set after Phase 5 crashed. "
+                    "This is a critical safety failure - exposure/regime constraints are "
+                    "unverified but we can't stop trading. Orchestrator MUST fail. Check "
+                    "database connectivity (RDS and DynamoDB) and AWS credentials."
+                ) from e
+            raise
         self._phase5_result = result
+        if result.halted:
+            # Same set_halt_flag-on-halted pattern as Phase 1/2/3/4/9 - phase5_exposure_policy.py
+            # can itself return a "halted" PhaseResult (e.g. MarketDataUnavailableError), and
+            # Phase 8 only ever consults self.halt_manager's shared flag, not Phase 5's own
+            # result object.
+            halt_reason = f"Phase 5 halted: {result.error}"
+            logger.critical(f"[PHASE 5] Setting halt flag due to halted status: {halt_reason}")
+            halt_set_result = self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase5_exposure_policy")
+            if not halt_set_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set despite Phase 5 "
+                    "(exposure policy) halted status. This is a critical safety failure - "
+                    "exposure/regime constraints are unverified but we can't stop trading. "
+                    "Orchestrator MUST fail. Check database connectivity (RDS and DynamoDB) "
+                    "and AWS credentials."
+                )
         if not result.ok:
             return False
         # GOVERNANCE: Fail-fast on data contract violations. Phase 5 MUST provide actions.
@@ -543,14 +581,42 @@ class OrchestratorPhasesMixin(_Base):
 
     def _executor_phase_4(self, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 4: Reconciliation."""
-        result = _owner().run_phase4(
-            self.config,
-            self.run_date,
-            self.dry_run,
-            self.alerts,
-            self.verbose,
-            self.log_phase_result,
-        )
+        try:
+            result = _owner().run_phase4(
+                self.config,
+                self.run_date,
+                self.dry_run,
+                self.alerts,
+                self.verbose,
+                self.log_phase_result,
+            )
+        except Exception as e:
+            # REAL-MONEY-READINESS FIX (2026-09-10, adversarial re-audit): an unhandled
+            # exception here (e.g. validate_phase_config() raising ConfigValidationError
+            # before run_phase4()'s own internal try/except even starts - config_validator.py
+            # raises on config=None or a missing execution_mode key, a realistic failure, not
+            # hypothetical) used to propagate straight to phase_executor.py's generic
+            # Exception handler, which produces PhaseResult(status="error", halted=False) -
+            # never reaching the `if result.halted:` branch below that is the only place this
+            # method calls set_halt_flag(). Since Phase 4 is always_run=True and Phase 8 only
+            # ever consults self.halt_manager's shared flag (not Phase 4's own result - no
+            # caller anywhere reads a stored Phase 4 result), a Phase 4 crash left the global
+            # halt flag untouched and Phase 8 could submit real entry orders in the same run
+            # despite broker-vs-DB reconciliation never having actually run. Same bug class,
+            # same fix pattern already applied to Phases 1/2/3/6/9 this session - a crash is
+            # at least as dangerous as an explicit "halted" verdict and must halt at least as
+            # hard, not silently skip the safety mechanism entirely.
+            halt_reason = f"Phase 4 crashed: {type(e).__name__}: {e}"
+            logger.error(f"[PHASE 4] {halt_reason}", exc_info=True)
+            halt_set_result = self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase4_reconciliation")
+            if not halt_set_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set after Phase 4 crashed. "
+                    "This is a critical safety failure - broker-vs-DB position state is "
+                    "unverified but we can't stop trading. Orchestrator MUST fail. Check "
+                    "database connectivity (RDS and DynamoDB) and AWS credentials."
+                ) from e
+            raise
         if result.halted:
             # REAL-MONEY-READINESS FINDING (2026-09-10, orchestration re-audit): Phase 4
             # (DB-vs-broker reconciliation) setting result.halted=True never reached the
