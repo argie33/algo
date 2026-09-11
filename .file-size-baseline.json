@@ -540,7 +540,7 @@
   "loaders/helpers/vqg_quality_reasons_valuation.py": 598,
   "loaders/helpers/vqg_quality_recategorize.py": 488,
   "loaders/helpers/vqg_quality_score.py": 557,
-  "loaders/helpers/vqg_shared.py": 477,
+  "loaders/helpers/vqg_shared.py": 485,
   "loaders/helpers/vqg_symbol_gates.py": 2011,
   "loaders/helpers/vqg_value.py": 1255,
   "loaders/load_aaii_sentiment.py": 373,
