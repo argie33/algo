@@ -1460,7 +1460,36 @@ class QualityMetricsMixin(
                     # payer deserves a real attempt before falling back to the generic label"
                     # reasoning.
                     _sgr_ttm_attempted = False
+                    # ADDED 2026-09-11 (goal: "under 300" push): live-confirmed CVKD (Cadrenal
+                    # Therapeutics) has two disagreeing shares_outstanding values across tables -
+                    # company_info_sec says 3,567,592, sec_valuations says 1,993,757 - and
+                    # sec_valuations.reason is already "shares_outstanding_scale_mismatch" for
+                    # it (a real detected inconsistency, e.g. a stale pre-split/reorg figure in
+                    # one table). Multiplying a suspect per-share TTM dividend sum by an
+                    # untrustworthy shares_outstanding produces a dollar dividends_paid figure
+                    # with no reliable magnitude - CVKD's own case (TTM $33/share x 3.57M shares
+                    # = $117.7M dividends_paid against a $1.8M equity base) only avoided
+                    # corrupting the SGR value by accident, via the unrelated
+                    # MAX_PLAUSIBLE_GROWTH_PCT implausible-ratio bound catching the resulting
+                    # outlier - not a real defense. Skip the TTM attempt entirely when
+                    # sec_valuations has already flagged this exact symbol's shares_outstanding
+                    # as scale-mismatched, same as dividend_yield/pb_ratio/ps_ratio/fcf_yield
+                    # already do via _sanity_check_market_cap's field-nulling (sec_valuations_
+                    # checks.py) - reuses the same reason string for consistency.
+                    _sgr_shares_scale_mismatch = False
                     if shares_outstanding is not None and shares_outstanding > 0:
+                        with _owner().DatabaseContext("read") as cur:
+                            cur.execute(
+                                "SELECT reason FROM sec_valuations WHERE symbol = %s",
+                                (symbol,),
+                            )
+                            _sgr_sv_row = cur.fetchone()
+                            _sgr_shares_scale_mismatch = (
+                                _sgr_sv_row is not None and _sgr_sv_row[0] == "shares_outstanding_scale_mismatch"
+                            )
+                    if _sgr_shares_scale_mismatch:
+                        sgr_reason = "shares_outstanding_scale_mismatch"
+                    elif shares_outstanding is not None and shares_outstanding > 0:
                         _sgr_ttm_attempted = True
                         with _owner().DatabaseContext("read") as cur:
                             cur.execute(
@@ -1485,6 +1514,11 @@ class QualityMetricsMixin(
                         # real fact, not a missing SEC concept, same "Legitimate / not
                         # applicable" class as a confirmed non-payer.
                         sgr_reason = "dividend_lapsed_beyond_ttm_window"
+                    elif sgr_dividends_paid is None and _sgr_shares_scale_mismatch:
+                        # Already labeled above - the TTM attempt was deliberately skipped, not
+                        # failed, so don't let the generic missing_sec_data fallback below
+                        # clobber the more precise reason already set.
+                        pass
                     elif sgr_dividends_paid is None:
                         # FIXED 2026-09-09 (goal session: "missing SEC/XBRL data under 500"
                         # sweep): the TTM attempt above never even ran when shares_outstanding
