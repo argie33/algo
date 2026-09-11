@@ -438,6 +438,55 @@ def _fill_operating_income_from_revenue_minus_operating_expenses_only(rows: list
         row.pop("operating_expenses", None)
 
 
+def _fill_operating_income_from_revenue_minus_single_cogs_and_opex(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: operating_income = Revenues - (single, unsplit cost-of-revenue) -
+    OperatingExpenses, for filers that tag ONE plain COGS concept (not CASY's D&A-split pair)
+    plus a real OperatingExpenses total that excludes it, but tag no OperatingIncomeLoss/
+    CostsAndExpenses concept anywhere in their filing history.
+
+    ADDED 2026-09-11 (goal: "missing SEC/XBRL data under 300" push, operating_income_
+    not_itemized re-investigation). Live-confirmed via AMPL (Amplitude Inc, CIK 0001878971): real
+    "RevenueFromContractWithCustomerExcludingAssessedTax" ($343,214,000 FY2025), real
+    "CostOfGoodsAndServicesSold" ($89,286,000, a single unsplit concept - AMPL has never tagged
+    a D&A-split COGS pair), and real "OperatingExpenses" ($349,933,000 - AMPL tagged its R&D/
+    Selling&Marketing/G&A lines individually only through FY2019, switching to this one combined
+    non-COGS total from FY2020 on) but zero OperatingIncomeLoss/CostsAndExpenses tagged in any
+    10-K. Revenue - CostOfGoodsAndServicesSold - OperatingExpenses = -$96,005,000 for FY2025,
+    matching yfinance's independently-parsed Operating Income for the exact same fiscal year
+    to the dollar (-96,005,000) - a live cross-check against a second, independent data source,
+    not a guess, confirming OperatingExpenses here genuinely excludes COGS (the CASY-shaped
+    semantic) rather than being a KRC/BEEP-style all-in total that would double-count if COGS
+    were subtracted too.
+
+    Must run AFTER _fill_operating_income_from_revenue_minus_operating_expenses_only (which
+    needs an untouched "operating_expenses" key to test its whole-history COGS-family gate)
+    and BEFORE _fill_operating_income_from_revenue_minus_cogs_and_opex (which unconditionally
+    pops "operating_expenses" whether or not it fires) - only pops it here once this fallback's
+    own "single, unsplit COGS, no D&A split" shape is confirmed for THIS row, leaving a
+    CASY-shaped row (a D&A-split COGS pair present) untouched for that sibling fallback to
+    consume normally. Never overwrites a real operating_income_loss value. Mutates rows in
+    place, popping "operating_expenses" only on the rows it actually fires for.
+    """
+    for row in rows:
+        if row.get("operating_income_loss") is not None:
+            continue
+        if row.get("cost_of_goods_and_services_sold_depreciation_and_amortization") is not None:
+            continue
+        cost_of_revenue = row.get("cost_of_revenue")
+        if cost_of_revenue is None:
+            cost_of_revenue = row.get("cost_of_goods_and_services_sold")
+        if cost_of_revenue is None:
+            continue
+        operating_expenses = row.get("operating_expenses")
+        if operating_expenses is None:
+            continue
+        revenue = row.get("revenues")
+        if revenue is None:
+            continue
+        row["operating_income_loss"] = revenue - cost_of_revenue - operating_expenses
+        row.pop("operating_expenses", None)
+
+
 def _fill_operating_income_from_bank_net_interest_and_noninterest(rows: list[dict[str, Any]]) -> None:
     """Fallback-only: operating_income = InterestIncomeExpenseNet + NoninterestIncome -
     NoninterestExpense, for banks/custodians that never tag OperatingIncomeLoss/

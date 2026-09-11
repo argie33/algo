@@ -20,6 +20,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_operating_income_from_revenue_minus_cogs_and_opex,
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
     _fill_operating_income_from_revenue_minus_operating_expenses_only,
+    _fill_operating_income_from_revenue_minus_single_cogs_and_opex,
     _fill_pretax_income_from_domestic_foreign_split,
     _fill_pretax_income_from_results_of_operations_when_validated,
     _fill_sga_from_general_and_administrative_when_no_selling_component,
@@ -1171,6 +1172,7 @@ def get_income_statement(
     _fill_pretax_income_from_results_of_operations_when_validated(rows)
     _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
     _fill_operating_income_from_revenue_minus_operating_expenses_only(rows)
+    _fill_operating_income_from_revenue_minus_single_cogs_and_opex(rows)
     _fill_operating_income_from_revenue_minus_cogs_and_opex(rows)
     _fill_operating_income_from_bank_net_interest_and_noninterest(rows)
     _fill_sga_from_general_and_administrative_when_no_selling_component(rows)
