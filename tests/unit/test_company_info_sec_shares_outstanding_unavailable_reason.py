@@ -15,7 +15,7 @@ structural EDGAR limitation as the dual-class primary-ticker gap, not a new bug.
 migration 1201's own comment for the full evidence.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from loaders.load_company_info_sec import CompanyInfoSECLoader
 
@@ -177,3 +177,49 @@ class TestSharesOutstandingUnavailableReason:
 
         assert result["shares_outstanding"] == 14_594_180_000
         assert result["shares_outstanding_unavailable_reason"] is None
+
+    def test_non_common_equity_security_gets_preferred_or_debt_reason(self):
+        """CCZ-shaped case (2026-09-10, missing-SEC/XBRL-under-300 push): "Comcast Holdings
+        ZONES" is a Zero-premium Exchangeable Note, not common equity - CIK resolution
+        correctly finds the real parent (Comcast) CIK, but there genuinely is no
+        dei:EntityCommonStockSharesOutstanding fact for a debt-like instrument. Must be
+        attributed to this permanent exemption, not the generic filing-text-fallback
+        reason a real common-stock gap would get."""
+        loader = _loader()
+        loader.sec_client.symbol_to_cik.return_value = "0001166691"
+        loader.sec_client.get_submissions.return_value = _submissions(["10-K"])
+        loader.sec_client.get_company_facts.return_value = {"facts": {"dei": {}, "us-gaap": {}}}
+        loader.sec_client.get_filing_plaintext.return_value = ""
+
+        mock_cur = MagicMock()
+        mock_cur.fetchone.side_effect = [None, ("Comcast Holdings ZONES",)]
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__ = MagicMock(return_value=mock_cur)
+        mock_ctx.__exit__ = MagicMock(return_value=False)
+        with patch("loaders.load_company_info_sec.DatabaseContext", return_value=mock_ctx):
+            result = loader.fetch_incremental("CCZ", None)[0]
+
+        assert result["shares_outstanding"] is None
+        assert result["shares_outstanding_unavailable_reason"] == "preferred_or_debt_security_no_shares_outstanding"
+
+    def test_american_depositary_share_common_stock_is_not_treated_as_non_common_equity(self):
+        """Guards the false-positive this codebase already fixed once for the sibling
+        vqg_symbol_gates.py gate (2026-09-10, BABA/NIO/JD/VLRS): an ordinary "American
+        Depositary Shares" common-stock ADR must NOT match the "Depositary Share" pattern -
+        stays on the generic fallback reason, same as any other real common-stock gap."""
+        loader = _loader()
+        loader.sec_client.symbol_to_cik.return_value = "0001067983"
+        loader.sec_client.get_submissions.return_value = _submissions(["10-K"])
+        loader.sec_client.get_company_facts.return_value = {"facts": {"dei": {}, "us-gaap": {}}}
+        loader.sec_client.get_filing_plaintext.return_value = ""
+
+        mock_cur = MagicMock()
+        mock_cur.fetchone.side_effect = [None, ("Some Corp American Depositary Shares",)]
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__ = MagicMock(return_value=mock_cur)
+        mock_ctx.__exit__ = MagicMock(return_value=False)
+        with patch("loaders.load_company_info_sec.DatabaseContext", return_value=mock_ctx):
+            result = loader.fetch_incremental("ADRTEST", None)[0]
+
+        assert result["shares_outstanding"] is None
+        assert result["shares_outstanding_unavailable_reason"] == "shares_outstanding_not_in_xbrl_or_filing_text"

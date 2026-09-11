@@ -872,6 +872,15 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # as etf_trust_no_gaap_financials above, just for this loader. See
             # load_current_reports_8k.py's fetch_incremental for the etf_symbols check.
             "etf_no_8k_filings",
+            # ADDED 2026-09-10 (same push): load_company_info_sec.py writes this when a
+            # ticker's own security is a debt-like structured note or preferred share (e.g.
+            # CCZ - "Comcast Holdings ZONES", a Zero-premium Exchangeable Note) rather than
+            # common equity - there genuinely is no dei:EntityCommonStockSharesOutstanding
+            # cover-page fact for a security that isn't common stock. Same permanent-
+            # exemption class as vqg_symbol_gates.py's preferred/debt-security gate
+            # ("preferred_or_debt_security_no_common_equity_ratio", handled elsewhere), just
+            # for this loader's own reason string.
+            "preferred_or_debt_security_no_shares_outstanding",
             # ADDED 2026-08-21 (goal session: missing-data root-cause audit, "Other" bucket
             # sweep): load_current_reports_8k.py writes this when a symbol's SEC submissions
             # feed genuinely contains zero 8-Ks (8-Ks are event-driven - executive changes,
