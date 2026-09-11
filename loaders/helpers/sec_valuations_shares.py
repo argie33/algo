@@ -524,17 +524,33 @@ class SharesOutstandingResolutionMixin:
         # dual-class exception - never silently blended into "sec_audited".
         shares_out_from_fpi_yfinance = False
         if not shares_out and is_foreign_private_issuer:
-            fpi_shares = self._fetch_live_fpi_shares_outstanding_yfinance(symbol)
-            if (
-                fpi_shares
-                and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING < fpi_shares < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
-            ):
-                shares_out = fpi_shares
+            # FIXED 2026-09-11: see FPI_YFINANCE_STALE_SHARES_TRUST_SEC_DEI_SYMBOLS' own
+            # module-level comment in load_sec_valuations.py (AIXI) - an individually-confirmed
+            # override for a symbol whose live yfinance sharesOutstanding is stale/wrong (not a
+            # unit-scale question the plausibility floor below can catch), checked before the
+            # live yfinance fetch so it never even runs for a symbol already known-bad.
+            import loaders.load_sec_valuations as _lsv
+
+            if symbol in _lsv.FPI_YFINANCE_STALE_SHARES_TRUST_SEC_DEI_SYMBOLS:
+                shares_out = float(_lsv.FPI_YFINANCE_STALE_SHARES_TRUST_SEC_DEI_SYMBOLS[symbol])
                 shares_out_from_fpi_yfinance = True
                 logger.debug(
-                    f"[{symbol}] Using yfinance shares_outstanding (foreign private "
-                    f"issuer, no usable SEC-tagged share count): {shares_out:,.0f}"
+                    f"[{symbol}] Using SEC dei:EntityCommonStockSharesOutstanding "
+                    f"({shares_out:,.0f}) instead of stale live yfinance shares_outstanding "
+                    f"(see FPI_YFINANCE_STALE_SHARES_TRUST_SEC_DEI_SYMBOLS)"
                 )
+            else:
+                fpi_shares = self._fetch_live_fpi_shares_outstanding_yfinance(symbol)
+                if (
+                    fpi_shares
+                    and self.MIN_PLAUSIBLE_SHARES_OUTSTANDING < fpi_shares < self.MAX_PLAUSIBLE_SHARES_OUTSTANDING
+                ):
+                    shares_out = fpi_shares
+                    shares_out_from_fpi_yfinance = True
+                    logger.debug(
+                        f"[{symbol}] Using yfinance shares_outstanding (foreign private "
+                        f"issuer, no usable SEC-tagged share count): {shares_out:,.0f}"
+                    )
 
         return (
             shares_out,
