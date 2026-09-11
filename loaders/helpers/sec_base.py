@@ -29,6 +29,7 @@ from typing import Any, cast
 
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
+from utils.external.sec_ticker_cache import cik_not_found_reason
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -1173,10 +1174,22 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # as a hard failure here, which at scale (dozens of preferred-share symbols
             # in one run) pushed the loader's failure rate past its 15% abort threshold.
             logger.debug(f"[{self.statement_type.upper()}] {symbol}: CIK not found in SEC ticker cache.")
-            return self._try_yfinance_fallback(symbol, since, "cik_not_found")
+            # FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push): this is the
+            # single shared call site for ALL statement loaders (income/balance/cashflow,
+            # annual/quarterly) - cik_not_found_reason() distinguishes a confirmed FDIC/OCC/
+            # Fed-supervised bank with no SEC CIK ever (see its own docstring in
+            # sec_ticker_cache.py for the live FDIC BankFind + SEC full-text-search
+            # verification trail) from the generic, still-potentially-fixable "cik_not_found"
+            # the coverage dashboard treats as an actionable "Missing SEC/XBRL data" gap.
+            # Wired into load_company_info_sec.py/load_current_reports_8k.py/
+            # load_dividend_data.py already - this closes the same gap for the much larger
+            # financial_statements surface (quality_metrics/value_metrics/sec_valuations all
+            # derive from annual_income_statement etc., so RCBC alone was stale in 3+
+            # downstream "total_debt_not_itemized"-class buckets before this fix).
+            return self._try_yfinance_fallback(symbol, since, cik_not_found_reason(symbol))
 
         if not cik:
-            return self._try_yfinance_fallback(symbol, since, "cik_not_found")
+            return self._try_yfinance_fallback(symbol, since, cik_not_found_reason(symbol))
 
         logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
 
