@@ -170,16 +170,16 @@ class ValueQualityGrowthMetricsLoader(
     watermark_field = "updated_at"
     max_fail_rate = 20.0  # CRITICAL: Fail-fast if >20% of liquid stocks lack SEC data (data source issue). Foreign/OTC/microcaps expected to fail.
     exclude_etfs_from_symbols = True
+    expect_high_fail_rate: bool = False  # set by runner.py from --expect-high-fail-rate; see its argparse help
 
     def run(  # noqa: C901
         self, symbols: list[str], parallelism: int | None = None, backfill_days: int | None = None
     ) -> dict[str, Any]:
         """Override run() to write to 3 tables instead of 1.
 
-        backfill_days: accepted for interface parity with runner.py's generic --backfill-days/
-        BACKFILL_DAYS CLI/env path (loaders/runner.py calls loader.run(symbols, parallelism=...,
-        backfill_days=...) whenever either is set) - unused here since fetch_incremental() always
-        recomputes from the latest SEC/sec_valuations rows rather than filtering by date.
+        backfill_days: accepted for interface parity with runner.py's --backfill-days/BACKFILL_DAYS
+        CLI/env path - unused here since fetch_incremental() always recomputes from the latest
+        SEC/sec_valuations rows rather than filtering by date.
         """
         from utils.loaders.config import get_default_parallelism
 
@@ -378,7 +378,7 @@ class ValueQualityGrowthMetricsLoader(
                 "quality_metrics": (quality_succeeded, quality_failed),
                 "growth_metrics": (growth_succeeded, growth_failed),
             }
-            min_completion_pct = max(0.0, 100.0 - self.max_fail_rate)
+            min_completion_pct = 0.0 if self.expect_high_fail_rate else max(0.0, 100.0 - self.max_fail_rate)
             for table, (table_succeeded, table_failed) in per_table_counts.items():
                 table_completion_pct = (table_succeeded / len(symbols) * 100.0) if symbols else 100.0
                 manager = managers.get(table) or LoaderStatusManager(table)

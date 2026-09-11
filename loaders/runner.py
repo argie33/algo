@@ -209,6 +209,14 @@ def run_loader(  # noqa: C901 -- pre-existing complexity debt, not introduced by
     if not global_mode:
         parser.add_argument("--symbols", help="Comma-separated symbols. Default: all active symbols.")
         parser.add_argument(
+            "--expect-high-fail-rate",
+            action="store_true",
+            help="Opt in to skipping the max_fail_rate FAILED-status gate for this run. Use only "
+            "when --symbols names a deliberately curated hard bucket (SPACs, foreign private "
+            "issuers, structurally-exempt filers) where a high data_unavailable rate is expected "
+            "and correct - never to silence a run against normal symbols that unexpectedly failed.",
+        )
+        parser.add_argument(
             "--parallelism",
             type=int,
             default=get_default_parallelism(loader_class.table_name),
@@ -321,12 +329,14 @@ def run_loader(  # noqa: C901 -- pre-existing complexity debt, not introduced by
                     offset = date.today().toordinal() % len(symbols)
                     symbols = symbols[offset:] + symbols[:offset]
 
+            # Only loaders that declare the expect_high_fail_rate class attribute (currently just
+            # ValueQualityGrowthMetricsLoader, same pattern as OptimalLoader's own
+            # sparse_symbol_population) opt in to reading it - setting it on any other loader
+            # instance is harmless since nothing reads it back.
+            if hasattr(loader, "expect_high_fail_rate"):
+                loader.expect_high_fail_rate = args.expect_high_fail_rate
             if args.backfill_days:
-                stats = loader.run(
-                    symbols,
-                    parallelism=args.parallelism,
-                    backfill_days=args.backfill_days,
-                )
+                stats = loader.run(symbols, parallelism=args.parallelism, backfill_days=args.backfill_days)
             else:
                 stats = loader.run(symbols, parallelism=args.parallelism)
 
@@ -385,7 +395,25 @@ def run_loader(  # noqa: C901 -- pre-existing complexity debt, not introduced by
                 f"result={'FAIL' if fail_rate > max_fail_rate else 'PASS'}"
             )
 
-            if fail_rate > max_fail_rate:
+            if fail_rate > max_fail_rate and args.expect_high_fail_rate:
+                # Opt-in only (--expect-high-fail-rate), never inferred from --symbols alone:
+                # a plain --symbols run (e.g. 2 liquid tickers that both genuinely failed from
+                # an outage) must still fail-fast - see
+                # test_runner_marks_secondary_tables_failed.py's 100%-fail regression test. This
+                # flag is for a caller who KNOWS the requested symbols are a curated hard bucket
+                # (SPACs, foreign private issuers, structurally-exempt filers - e.g. a targeted
+                # rerun of the residual Missing-XBRL buckets) and deliberately expects a high
+                # data_unavailable rate. Without this exemption such a run marks the table
+                # FAILED, polluting consecutive_failures and triggering Phase 1 failsafe's
+                # automatic retry (algo/orchestrator/phase1_failsafe_retry.py scans
+                # `status IN ('FAILED', ...)`) for what is actually expected, correct behavior.
+                # Live-reproduced 2026-09-11 via load_value_quality_growth_metrics.py.
+                logger.warning(
+                    f"[LOADER {loader_name}] {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%) "
+                    f"failed under --expect-high-fail-rate - not demoting to FAILED (see each "
+                    f"table's own data_unavailable/reason columns for why)."
+                )
+            elif fail_rate > max_fail_rate:
                 logger.error(f"Too many failures: {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%)")
                 # Still mark in status so operators see partial failures
                 from utils.loaders.status_manager import LoaderStatusManager
@@ -456,7 +484,12 @@ def run_loader(  # noqa: C901 -- pre-existing complexity debt, not introduced by
             # then flip it straight back to FAILED using the wrong, stricter threshold - directly
             # contradicting the PASS verdict this same function just computed. Passing the loader's own
             # threshold keeps this call consistent with the gate above instead of second-guessing it.
-            min_completion_pct = max(0.0, 100.0 - max_fail_rate_pct)
+            #
+            # Same --expect-high-fail-rate opt-in as the fail_rate gate above: an unrelaxed
+            # min_completion_pct here would let LoaderStatusManager.mark_completed()'s own
+            # internal safety check (utils/loaders/status_manager.py) silently re-demote a
+            # deliberately-scoped run back to FAILED even after the gate above chose not to.
+            min_completion_pct = 0.0 if args.expect_high_fail_rate else max(0.0, 100.0 - max_fail_rate_pct)
             from utils.loaders.status_manager import LoaderStatusManager
 
             status_mgr = LoaderStatusManager(loader.table_name)
