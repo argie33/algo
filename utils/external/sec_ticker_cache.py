@@ -173,6 +173,34 @@ DEFAULT_USER_AGENT = os.getenv("SEC_USER_AGENT", "algo-trading argeropolos@gmail
 # data_source='yfinance' rows for OZK). NOT added to CIK_OVERRIDES; documented here only so
 # a future session doesn't re-investigate this from scratch assuming it's an unresolved gap.
 #
+# NUTR/AXIA/QMMM/GRAF: found 2026-09-10 (goal: "SEC/XBRL missing data under 300" push,
+# current_reports_8k's "symbol_not_found" bucket investigation - same root cause class as
+# EMPG/GIXI above, different downstream symptom). Each live-verified against
+# submissions.json:
+# - NUTR (NUSATRIP Inc, Nasdaq): CIK 0002006468's tickers=['NUTR'] self-confirms cleanly.
+#   Real, active 8-K filer through 2026-08-17.
+# - QMMM (QMMM Holdings Ltd, Nasdaq): CIK 0001971542's tickers=[] (too new to have SEC's
+#   own ticker link yet, same shape as EMPG) - but a real 20-F was just filed 2026-09-09
+#   (yesterday relative to this session) plus 6-Ks through 2026-06-23, and the entity name
+#   is an exact match to our stock_symbols.security_name.
+# - GRAF (Graf Global Corp., NYSE): CIK 0001897463's tickers are still ['TONT', 'TONT-UN',
+#   'TONT-WT'] - the pre-de-SPAC-merger ticker family, not yet updated to GRAF - but `name`
+#   is already "Graf Global Corp." (exact match) with a real, current 10-Q (2026-08-14) and
+#   13G/A filings through 2026-09-08. Same "rename SEC's ticker field hasn't caught up"
+#   shape as HOS/SGRX above. A second, unrelated CIK (0002027349, "Graf Global Sponsor LLC")
+#   also name-matches partially but is the SPAC sponsor entity, not the public company -
+#   confirmed wrong via its own near-empty filing history (2 Form 3/4s only, no 10-Q/10-K
+#   ever) and excluded.
+# - AXIA (AXIA Energia S.A., ADS): CIK 0001439124's tickers are ['AXIAY', 'AXICY'] (ADS-class
+#   sub-tickers), not bare "AXIA" - but `name`="AXIA Energia S.A." matches our tracked
+#   security_name exactly, formerNames shows this is the same continuously-filing entity
+#   renamed from "BRAZILIAN ELECTRIC POWER CO" effective 2026-04-16, and it's actively
+#   filing (Form 4s, F-6 POS through 2026-09-04) - same renamed-ticker-not-yet-caught-up
+#   shape as HOS/SGRX/GRAF, just via ADS sub-ticker naming instead of a plain rename.
+# All 4 were landing as generic "symbol_not_found"/"cik_not_found" - fixing CIK resolution
+# is a prerequisite for these symbols' SEC-derived data generally, not just current_reports_8k.
+# Same self-healing caveat: safe to remove once SEC's own ticker snapshot catches up.
+#
 # Same self-healing caveat as the entries above: safe to remove once SEC's own ticker
 # snapshot catches up with each rename/uplisting.
 CIK_OVERRIDES: dict[str, str] = {
@@ -186,6 +214,10 @@ CIK_OVERRIDES: dict[str, str] = {
     "SGRX": "0001735556",  # SANGRIX INC. (formerly BIT ORIGIN Ltd) - see GV/FTRK/SGRX comment above
     "GIXI": "0001782265",  # Gix Internet Ltd. (Nasdaq) - see GIXI/EMPG comment above
     "EMPG": "0002005569",  # Empro Group Inc. (Nasdaq) - see GIXI/EMPG comment above
+    "NUTR": "0002006468",  # NUSATRIP Inc (Nasdaq) - see NUTR/AXIA/QMMM/GRAF comment above
+    "AXIA": "0001439124",  # AXIA Energia S.A. (ADS) - see NUTR/AXIA/QMMM/GRAF comment above
+    "QMMM": "0001971542",  # QMMM Holdings Ltd (Nasdaq) - see NUTR/AXIA/QMMM/GRAF comment above
+    "GRAF": "0001897463",  # Graf Global Corp. (NYSE) - see NUTR/AXIA/QMMM/GRAF comment above
 }
 
 # Ensure socket timeout is configured globally
