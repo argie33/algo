@@ -89,6 +89,30 @@ def test_cik_not_found_for_never_covered_symbol_still_gets_the_marker() -> None:
     assert result[0]["data_unavailable_reason"] == "cik_not_found"
 
 
+def test_confirmed_fdic_designee_bank_gets_distinct_reason_not_cik_not_found() -> None:
+    """2026-09-11 fix (goal: "SEC/XBRL missing data under 300" push): same
+    cik_not_found_reason() distinction as load_company_info_sec.py/
+    load_current_reports_8k.py - a symbol on KNOWN_NON_SEC_FILER_BANK_TICKERS
+    (sec_ticker_cache.py, live-verified via FDIC BankFind as a real FDIC/OCC/Fed-supervised
+    bank with no SEC CIK ever) must get "fdic_designee_no_sec_cik" here too, not the
+    generic "cik_not_found" the coverage dashboard treats as an actionable gap."""
+    loader = _make_loader()
+    cur = MagicMock()
+    cur.fetchone.return_value = None  # has_real_history query finds nothing
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=cur)
+    ctx.__exit__ = MagicMock(return_value=False)
+
+    with (
+        patch.object(loader, "_fetch_sec_data_with_timeout", side_effect=ValueError("not found")),
+        patch("utils.db.DatabaseContext", return_value=ctx),
+    ):
+        result = loader.fetch_incremental("HIFS", since=None)
+
+    assert len(result) == 1
+    assert result[0]["data_unavailable_reason"] == "fdic_designee_no_sec_cik"
+
+
 def test_distinct_dividend_records_are_not_collapsed() -> None:
     loader = _make_loader()
 

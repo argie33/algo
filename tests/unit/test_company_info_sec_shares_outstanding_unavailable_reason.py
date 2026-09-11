@@ -145,16 +145,37 @@ class TestSharesOutstandingUnavailableReason:
         PAAI/QMMM/RCBC/SSBI/TOWN/YFOR all sitting with shares_outstanding NULL and
         shares_outstanding_unavailable_reason ALSO NULL (invisible to the coverage
         dashboard's per-field breakdown) despite data_unavailable=True making the gap
-        obvious at the row level."""
+        obvious at the row level.
+
+        Uses "ZZZZQ" rather than one of the FRBA/HIFS/... tickers above - those are now
+        confirmed FDIC-designee banks (2026-09-11 fix, see
+        is_known_non_sec_filer_bank/cik_not_found_reason in sec_ticker_cache.py) and get a
+        distinct "fdic_designee_no_sec_cik" reason instead; this test exercises the
+        still-generic "cik_not_found" path for a symbol not on that curated list."""
         loader = _loader()
         loader.sec_client.symbol_to_cik.side_effect = ValueError("not in ticker cache")
 
-        result = loader.fetch_incremental("FRBA", None)[0]
+        result = loader.fetch_incremental("ZZZZQ", None)[0]
 
         assert result["data_unavailable"] is True
         assert result["reason"] == "cik_not_found"
         assert result["shares_outstanding"] is None
         assert result["shares_outstanding_unavailable_reason"] == "cik_not_found"
+
+    def test_confirmed_fdic_designee_bank_gets_distinct_reason(self):
+        """2026-09-11 fix: a symbol on KNOWN_NON_SEC_FILER_BANK_TICKERS (live-verified via
+        FDIC BankFind + SEC full-text search to be a real, active FDIC/OCC/Fed-supervised
+        bank with no SEC CIK ever - Exchange Act Section 12(i)) must get the distinct,
+        permanently-correct "fdic_designee_no_sec_cik" reason instead of the generic
+        "cik_not_found" the coverage dashboard treats as an actionable extraction gap."""
+        loader = _loader()
+        loader.sec_client.symbol_to_cik.side_effect = ValueError("not in ticker cache")
+
+        result = loader.fetch_incremental("HIFS", None)[0]
+
+        assert result["data_unavailable"] is True
+        assert result["reason"] == "fdic_designee_no_sec_cik"
+        assert result["shares_outstanding_unavailable_reason"] == "fdic_designee_no_sec_cik"
 
     def test_reason_is_none_when_shares_outstanding_resolved(self):
         """Companion case: a real domestic 10-K filer whose dei fact resolves normally must

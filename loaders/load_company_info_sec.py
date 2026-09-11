@@ -33,6 +33,7 @@ from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.db.context import DatabaseContext
 from utils.external.sec_edgar import SecEdgarClient
+from utils.external.sec_ticker_cache import cik_not_found_reason
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.exception_handler import (
     handle_exception,
@@ -117,7 +118,12 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 cik = self.sec_client.symbol_to_cik(symbol)
             except ValueError:
                 logger.warning(f"[{symbol}] CIK not found in SEC ticker cache")
-                return self._unavailable_record(symbol, now_et, "cik_not_found")
+                # FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push): see
+                # cik_not_found_reason's docstring (sec_ticker_cache.py) for the live FDIC
+                # BankFind + SEC full-text-search verification trail distinguishing a
+                # confirmed FDIC/OCC/Fed-supervised bank (no SEC CIK ever) from the generic,
+                # still-potentially-fixable "cik_not_found".
+                return self._unavailable_record(symbol, now_et, cik_not_found_reason(symbol))
 
             # Fetch submissions which has company master data
             try:

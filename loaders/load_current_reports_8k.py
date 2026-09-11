@@ -32,6 +32,7 @@ from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.db.context import DatabaseContext
 from utils.external.sec_edgar import SecEdgarClient
+from utils.external.sec_ticker_cache import cik_not_found_reason
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.retry_helper import retry_with_backoff
 
@@ -196,6 +197,16 @@ class CurrentReports8KLoader(SecLoaderBase):
                 # "etf_no_8k_filings" entry.
                 if self._is_known_etf_symbol(symbol):
                     return self._unavailable_record(symbol, now_et, "etf_no_8k_filings")
+                # FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push): same
+                # confirmed-FDIC-designee-bank distinction as load_dividend_data.py/
+                # load_company_info_sec.py - see cik_not_found_reason's docstring
+                # (sec_ticker_cache.py) for the live FDIC BankFind + SEC full-text-search
+                # verification trail. A generic "symbol_not_found" here is the 8-K-specific
+                # spelling of the same "we don't even know who this filer is" fact -
+                # coverage_category_rules.py maps "fdic_designee_no_sec_cik" to
+                # "Legitimate / not applicable" regardless of which loader writes it.
+                if cik_not_found_reason(symbol) == "fdic_designee_no_sec_cik":
+                    return self._unavailable_record(symbol, now_et, "fdic_designee_no_sec_cik")
                 return self._unavailable_record(symbol, now_et, "symbol_not_found")
 
             # Get submissions (SEC API returns columnar format: dict of arrays)

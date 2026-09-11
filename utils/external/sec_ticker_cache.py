@@ -252,6 +252,59 @@ CIK_OVERRIDES: dict[str, str] = {
     "KRSA": "0001755237",  # Korsana Biosciences, Inc. (formerly Cyclerion Therapeutics, ticker CYCN) - see comment above
 }
 
+# FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push, dividend_data/
+# company_info_sec cik_not_found bucket re-verification): these 6 tickers have been
+# repeatedly rediscovered as "cik_not_found" across multiple sessions (see this module's
+# own SEC_USER_AGENT fix comment above, which already named FRBA/HIFS/NBN/RCBC/SSBI/TOWN
+# as live-confirmed 403 victims of the missing-UA bug) - but even with that fix live and a
+# fresh --symbols targeted rerun today, all 6 still resolve to nothing via both the bulk
+# company_tickers.json file AND the browse-edgar fallback (verified live, not from old
+# memory: bare `CIK=<ticker>` browse-edgar lookups for each return "No matching Ticker
+# Symbol", and SEC's own full-text search for "NASDAQ: <ticker>"/company-name search finds
+# no CURRENT 10-K filer under any of these names - only stale/deregistered/unrelated hits).
+# Cross-checked against the FDIC's own BankFind Suite API
+# (banks.data.fdic.gov/api/institutions) instead of assuming: every one of these is a real,
+# ACTIVE=1 FDIC-supervised bank (River City Bank CERT 18983 CA, Northeast Bank CERT 19690
+# ME, Hingham Institution for Savings CERT 90211 MA, Summit State Bank CERT 32203 CA,
+# TowneBank CERT 35095 VA, First Bank CERT 58481 NJ) - these report financials to their
+# primary federal banking regulator (FDIC/OCC/Federal Reserve) under Exchange Act Section
+# 12(i) instead of registering with the SEC, so they have no SEC CIK at all, ever. This is
+# a genuine, permanent business-model fact (same class as the OZK FDIC-designee precedent
+# already carved out in coverage.py's _NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE and
+# load_dividend_data.py's own ValueError-handler comment for HIFS specifically) - not an
+# extraction/lookup bug this loader can ever close. The coverage dashboard was still
+# counting it as "Missing SEC/XBRL data" (actionable) because the generic "cik_not_found"
+# reason string doesn't distinguish "genuinely no SEC CIK exists" from "lookup failed but a
+# CIK is out there" (e.g. the CIK_OVERRIDES renamed-ticker cases above, which ARE
+# fixable). See is_known_non_sec_filer_bank()'s call sites (load_dividend_data.py,
+# load_company_info_sec.py) for how this reclassifies to a distinct, correctly-categorized
+# reason instead of silently dropping the symbol or leaving it miscategorized.
+KNOWN_NON_SEC_FILER_BANK_TICKERS: frozenset[str] = frozenset({"FRBA", "HIFS", "NBN", "RCBC", "SSBI", "TOWN"})
+
+
+def is_known_non_sec_filer_bank(symbol: str) -> bool:
+    """True if `symbol` is a confirmed FDIC/OCC/Fed-supervised bank with no SEC CIK.
+
+    See KNOWN_NON_SEC_FILER_BANK_TICKERS's module-level comment for the live-verification
+    trail (FDIC BankFind + SEC full-text search, not just old memory/assumption).
+    """
+    return symbol.upper() in KNOWN_NON_SEC_FILER_BANK_TICKERS
+
+
+def cik_not_found_reason(symbol: str) -> str:
+    """The `*_unavailable_reason` value to write when `symbol_to_cik` raises ValueError.
+
+    Single call site for the distinction between "genuinely no SEC CIK, ever" (a confirmed
+    FDIC-designee bank) and the generic, still-potentially-fixable "cik_not_found" - kept
+    here (not inlined as an if/else at each loader call site) so callers add one function
+    call instead of a branch, matching this file's own KNOWN_NON_SEC_FILER_BANK_TICKERS
+    comment for the reasoning.
+    """
+    if is_known_non_sec_filer_bank(symbol):
+        return "fdic_designee_no_sec_cik"
+    return "cik_not_found"
+
+
 # Ensure socket timeout is configured globally
 socket.setdefaulttimeout(30)
 

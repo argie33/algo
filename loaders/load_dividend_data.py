@@ -31,6 +31,7 @@ from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.fx_rates import MAJOR_CURRENCIES, FxRateCache
 from utils.external.sec_edgar import SecEdgarClient
+from utils.external.sec_ticker_cache import cik_not_found_reason
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.transient_errors import TransientAPIError
 
@@ -646,6 +647,57 @@ class DividendDataLoader(SecLoaderBase):
             # programming bug. Same TransientAPIError treatment as the timeout case above.
             raise TransientAPIError(f"[{symbol}] SEC API error: {type(e).__name__}: {e}") from e
 
+    def _classify_no_gaap_or_ifrs_facts(self, symbol: str, facts: dict[str, Any], now_et: date) -> dict[str, Any]:
+        """Unavailable-record reason for a filer with empty us-gaap AND ifrs-full facts.
+
+        FIXED 2026-08-19 (goal: "no SEC data" audit continuation - industry-specific
+        nuance pass): registered investment companies (closed-end funds like the
+        BlackRock BBN/BCAT/BGT/BIT/BKT-class trusts) don't file a standard 10-K at
+        all - live-confirmed via SEC's own companyfacts API: BBN's `facts` dict has
+        ONLY "cef" (20 concepts) and "ffd" (5 concepts) taxonomies, no "us-gaap" or
+        "ifrs-full" whatsoever. Inspected every "cef"/"ffd" concept name live: none
+        is a dividend/distribution amount - the "cef" taxonomy is N-2 prospectus fee-
+        table data (ManagementFeesPercent, ExpenseExampleYears1to10, ...), not
+        periodic financial-statement facts. This is a genuine, permanent structural
+        absence (SEC simply has no machine-readable distribution data for these
+        filers), same class as reit_special_entity elsewhere in this codebase - not
+        a loader gap our own extraction could ever close by trying harder concepts.
+        Distinguishing it from the generic "no_us_gaap_facts" (which reads as an SEC
+        extraction failure) so it doesn't keep showing up as a "loader is broken"
+        signal on the coverage dashboard.
+
+        FIX 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push): some
+        closed-end funds don't even have a "cef"/"ffd" taxonomy on file - SEC's
+        companyfacts API returns a totally empty `facts: {}` for them, not just an
+        empty us-gaap/ifrs-full. Live-confirmed via SEC's OWN submissions API
+        (not companyfacts) for BKT/BME/ETO/EVN/VMO: entity names are literally
+        "...Trust"/"...Fund"/"...Corp", and their real filing history is 100%
+        Investment Company Act forms (40-17G, 486BPOS, 497, N-2-class) - zero 10-K
+        ever filed. Same structural class as the cef/ffd-tagged funds above, just
+        with even less machine-readable data on file - not a loader gap. Reusing
+        company_info_sec's entity_type='other'+sic_code IS NULL fingerprint (the
+        same signal vqg_symbol_gates.py's _get_registered_investment_company_symbols
+        already relies on for this fund class elsewhere) since it's already in the
+        DB (no extra SEC call) and, live-checked, this exact 88-symbol population is
+        ALL well-established BlackRock/Eaton Vance/Invesco-class trusts (none are
+        genuinely-too-new operating-company IPOs, which get a real SIC code from
+        their registration statement long before their first 10-K).
+        """
+        if isinstance(facts.get("cef"), dict) or isinstance(facts.get("ffd"), dict):
+            return self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")
+
+        from utils.db import DatabaseContext
+
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT entity_type, sic_code FROM company_info_sec WHERE symbol = %s",
+                (symbol,),
+            )
+            cis_row = cur.fetchone()
+        if cis_row and cis_row[0] == "other" and cis_row[1] is None:
+            return self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")
+        return self._unavailable_record(symbol, now_et, "no_us_gaap_facts")
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch dividend data for symbol from SEC XBRL companyfacts.
 
@@ -683,50 +735,11 @@ class DividendDataLoader(SecLoaderBase):
             # (no us-gaap facts at all) from ever reaching the ifrs-full extraction added
             # below, even though such a filer might genuinely tag real dividend data there.
             if not us_gaap and not ifrs_full:
-                # FIXED 2026-08-19 (goal: "no SEC data" audit continuation - industry-specific
-                # nuance pass): registered investment companies (closed-end funds like the
-                # BlackRock BBN/BCAT/BGT/BIT/BKT-class trusts) don't file a standard 10-K at
-                # all - live-confirmed via SEC's own companyfacts API: BBN's `facts` dict has
-                # ONLY "cef" (20 concepts) and "ffd" (5 concepts) taxonomies, no "us-gaap" or
-                # "ifrs-full" whatsoever. Inspected every "cef"/"ffd" concept name live: none
-                # is a dividend/distribution amount - the "cef" taxonomy is N-2 prospectus fee-
-                # table data (ManagementFeesPercent, ExpenseExampleYears1to10, ...), not
-                # periodic financial-statement facts. This is a genuine, permanent structural
-                # absence (SEC simply has no machine-readable distribution data for these
-                # filers), same class as reit_special_entity elsewhere in this codebase - not
-                # a loader gap our own extraction could ever close by trying harder concepts.
-                # Distinguishing it from the generic "no_us_gaap_facts" (which reads as an SEC
-                # extraction failure) so it doesn't keep showing up as a "loader is broken"
-                # signal on the coverage dashboard.
-                if isinstance(facts.get("cef"), dict) or isinstance(facts.get("ffd"), dict):
-                    return [self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")]
-                # FIX 2026-09-10 (goal: "Missing SEC/XBRL data" under-500 push): some
-                # closed-end funds don't even have a "cef"/"ffd" taxonomy on file - SEC's
-                # companyfacts API returns a totally empty `facts: {}` for them, not just an
-                # empty us-gaap/ifrs-full. Live-confirmed via SEC's OWN submissions API
-                # (not companyfacts) for BKT/BME/ETO/EVN/VMO: entity names are literally
-                # "...Trust"/"...Fund"/"...Corp", and their real filing history is 100%
-                # Investment Company Act forms (40-17G, 486BPOS, 497, N-2-class) - zero 10-K
-                # ever filed. Same structural class as the cef/ffd-tagged funds above, just
-                # with even less machine-readable data on file - not a loader gap. Reusing
-                # company_info_sec's entity_type='other'+sic_code IS NULL fingerprint (the
-                # same signal vqg_symbol_gates.py's _get_registered_investment_company_symbols
-                # already relies on for this fund class elsewhere) since it's already in the
-                # DB (no extra SEC call) and, live-checked, this exact 88-symbol population is
-                # ALL well-established BlackRock/Eaton Vance/Invesco-class trusts (none are
-                # genuinely-too-new operating-company IPOs, which get a real SIC code from
-                # their registration statement long before their first 10-K).
-                from utils.db import DatabaseContext
-
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        "SELECT entity_type, sic_code FROM company_info_sec WHERE symbol = %s",
-                        (symbol,),
-                    )
-                    cis_row = cur.fetchone()
-                if cis_row and cis_row[0] == "other" and cis_row[1] is None:
-                    return [self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")]
-                return [self._unavailable_record(symbol, now_et, "no_us_gaap_facts")]
+                # See _classify_no_gaap_or_ifrs_facts's docstring: registered-investment-
+                # company detection (cef/ffd taxonomy, or company_info_sec's
+                # entity_type='other'+sic_code IS NULL fingerprint) extracted out of this
+                # function to keep fetch_incremental's own branching complexity down.
+                return [self._classify_no_gaap_or_ifrs_facts(symbol, facts, now_et)]
 
             results = []
 
@@ -877,7 +890,13 @@ class DividendDataLoader(SecLoaderBase):
             if self._has_real_dividend_history(symbol):
                 self._retract_stale_marker(symbol)
                 return []
-            return [self._unavailable_record(symbol, now_et, "cik_not_found")]
+            # FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push):
+            # cik_not_found_reason distinguishes a confirmed FDIC/OCC/Fed-supervised bank
+            # with no SEC CIK ever (see its own docstring for the live FDIC BankFind + SEC
+            # full-text-search verification trail) from the generic, still-potentially-
+            # fixable "cik_not_found" the coverage dashboard treats as an actionable
+            # "Missing SEC/XBRL data" gap.
+            return [self._unavailable_record(symbol, now_et, cik_not_found_reason(symbol))]
         except Exception as e:
             elapsed = time.time() - start_time
             # ALWAYS log at WARNING level - this is an operator-visible issue

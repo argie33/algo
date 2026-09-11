@@ -362,3 +362,21 @@ def test_unknown_symbol_not_in_etf_symbols_still_gets_symbol_not_found(monkeypat
         records = loader.fetch_incremental("NOPE", since=None)
 
     assert records[0]["data_unavailable_reason"] == "symbol_not_found"
+
+
+def test_confirmed_fdic_designee_bank_gets_distinct_reason_not_symbol_not_found(monkeypatch) -> None:
+    """2026-09-11 fix (goal: "SEC/XBRL missing data under 300" push): a symbol on
+    KNOWN_NON_SEC_FILER_BANK_TICKERS (sec_ticker_cache.py - live-verified via FDIC
+    BankFind + SEC full-text search to be a real, active FDIC/OCC/Fed-supervised bank with
+    no SEC CIK ever) must get "fdic_designee_no_sec_cik" here too, same as
+    load_dividend_data.py/load_company_info_sec.py - the generic "symbol_not_found" the
+    coverage dashboard treats as an actionable "Missing SEC/XBRL data" gap is wrong for
+    this permanent, structural population."""
+    monkeypatch.setattr("utils.loaders.retry_helper.time.sleep", lambda *_: None)
+    loader = _make_loader()
+    loader.sec_client.symbol_to_cik.side_effect = ValueError("not found")
+
+    with patch.object(loader, "_is_known_etf_symbol", return_value=False):
+        records = loader.fetch_incremental("HIFS", since=None)
+
+    assert records[0]["data_unavailable_reason"] == "fdic_designee_no_sec_cik"

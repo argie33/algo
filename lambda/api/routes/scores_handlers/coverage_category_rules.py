@@ -649,6 +649,16 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
     (
         "Legitimate / not applicable",
         {
+            # ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push): a confirmed
+            # FDIC/OCC/Fed-supervised bank that reports under Exchange Act Section 12(i)
+            # instead of registering with the SEC - no SEC CIK exists, ever, for these (see
+            # is_known_non_sec_filer_bank's module-level comment in
+            # utils/external/sec_ticker_cache.py for the live FDIC BankFind + SEC
+            # full-text-search verification trail). Distinct from generic "cik_not_found"
+            # just below - that bucket still legitimately belongs in "Missing SEC/XBRL
+            # data" since most of its population (renamed tickers SEC's bulk file hasn't
+            # caught up with, etc. - see CIK_OVERRIDES) IS a fixable lookup gap.
+            "fdic_designee_no_sec_cik",
             "non_dividend_paying_stock",
             # ADDED 2026-09-05 (SEC/XBRL missing-data sweep, dividend_yield TTM-fallback
             # follow-up): a real, confirmed dividend payment inside the 2-year non-payer
