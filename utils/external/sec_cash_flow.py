@@ -599,6 +599,22 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # standard/reliable PaymentsOf* tag stays authoritative on the rare filer that
         # reports both - live-confirmed no overlap exists for ACGL/FRT/VSH, but there's no
         # reason to risk it for filers not yet characterized.
+        # ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 300" push, payout_ratio
+        # missing_sec_data investigation): TPG (TPG Inc., the alternative-asset manager,
+        # CIK 1880661) tags neither "PaymentsOfDividends" nor any DividendsCommonStock*/
+        # DividendsPreferredStock*/PaymentsOfCapitalDistribution variant - live-confirmed
+        # via real companyfacts JSON its only dividend-shaped concept at all is the bare
+        # standard us-gaap:Dividends tag, reported every fiscal year with real, growing
+        # duration facts ($656.8M FY2023, $833.4M FY2024, quarterly figures summing
+        # consistently), matching TPG's actual public quarterly distribution program.
+        # Least-preferred position (even more fallback than PaymentsOfCapitalDistribution
+        # below) and marked fallback-only in load_financial_statements.py's field_mapping
+        # (_SBC_BUYBACK_FALLBACK_ONLY_FIELDS) since a bare "Dividends" tag is ambiguous
+        # enough (could mean dividends declared rather than paid, or dividend income
+        # received for an investment-company-shaped filer) that it must never win over any
+        # more specific real concept - only fills the gap when nothing else is tagged at
+        # all, same standard as this file's other single-source fallbacks.
+        "Dividends",
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, UBS/SPG/
         # PSA/HUBB/RS "real historical dividends_paid, stopped tagging any known concept"
         # audit): PSA (Public Storage, CIK 1393311) stopped tagging "DividendsCommonStock"/

@@ -78,6 +78,12 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # Fallback-only so it never overwrites a real PaymentsToAcquirePropertyPlantAndEquipment
         # (or sibling PP&E-family) value for a filer that reports both.
         "payments_to_acquire_software",
+        # ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 300" push, payout_ratio
+        # missing_sec_data investigation): TPG's bare "Dividends" concept - see
+        # sec_cash_flow.py's get_cash_flow() comment for the live evidence. Fallback-only so
+        # it never overwrites a real DividendsCommonStock*/PaymentsOfDividends*/
+        # PaymentsOfCapitalDistribution value for a filer that reports any of those.
+        "dividends",
     }
 )
 
@@ -228,6 +234,13 @@ _CASHFLOW_FIELD_MAPPING = {
     # live-confirmed. Least-preferred/first in the concept list so last-listed-wins
     # ordering still lets a real DividendsCommonStock*/PaymentsOfDividends* value win.
     "payments_of_capital_distribution": "dividends_paid",
+    # ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 300" push): TPG's bare
+    # "Dividends" concept - see sec_cash_flow.py's get_cash_flow() comment for the live
+    # evidence. Fallback-only (added to _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below) since this
+    # bare tag name is ambiguous enough (dividends declared vs. paid, or dividend income
+    # received for an investment-company-shaped filer) that it must never overwrite a real
+    # standard-concept value.
+    "dividends": "dividends_paid",
     # FIXED 2026-09-05: see sec_statements.py's get_cash_flow() comment on this concept -
     # BDC-specific (TRIN live-confirmed as the only concept it tags at all). Fallback-only
     # (added to _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below): MAIN tags this AND a real,
