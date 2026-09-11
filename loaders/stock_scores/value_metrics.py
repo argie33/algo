@@ -358,6 +358,22 @@ class ValueMetricsMixin:
         design this method used until the rewrite below - see "BUG FOUND + FIXED 2026-08-31"
         below.
 
+        BUG FOUND + FIXED 2026-09-11 (goal: "value score rankings look wrong" investigation):
+        this batch pass never selected/used `vm.pb_ratio_unavailable_reason`, so the
+        negative-book-value P/B floor `_score_value` applies in Pass 1 (see
+        test_stock_scores_pb_negative_book_value_floor_20260905.py) was silently undone every
+        time this pass ran - since this pass unconditionally overwrites value_score for the
+        whole universe on every post_run(), the floor never actually survived to the real
+        stock_scores row. A distressed/negative-stockholders'-equity company's P/B component
+        was dropped entirely instead of floored at 0.0, renormalizing its value_score over
+        PE/PS/Forward-PE/Dividend only - inflating value_score for exactly the companies the
+        floor exists to penalize. Same bug class as the PE `unprofitable_stock` / Forward P/E
+        `negative_forward_eps` floors, which WERE already wired into this pass correctly - this
+        one field was just missed when the negative-book-value floor was added 2026-09-05
+        (after this pass's own PE/Forward-P/E floor wiring already existed). Fixed by selecting
+        `vm.pb_ratio_unavailable_reason` and flooring `pb_pct[symbol] = 0.0` / appending
+        `(0.0, 0.27)` to `components`, mirroring the PE/Forward-P/E treatment exactly.
+
         EXTENDED TO FORWARD P/E 2026-08-28 (see _score_value's "FORWARD P/E - ADDED 2026-08-28"
         docstring note): when Forward P/E was added to Value, it joined this percentile mechanism
         on the same logic that already applies to the other three multiples below, rather than
@@ -545,6 +561,7 @@ class ValueMetricsMixin:
                            vm.pe_ratio, vm.pb_ratio, vm.ps_ratio, vm.forward_pe,
                            vm.dividend_yield, vm.fcf_yield,
                            vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason,
+                           vm.pb_ratio_unavailable_reason,
                            ss.components, cp.sector, ss.data_completeness, ss.data_unavailable,
                            ss.unavailable_metrics
                     FROM stock_scores ss
@@ -577,11 +594,12 @@ class ValueMetricsMixin:
             # (not exclusion) is the theoretically correct treatment here.
             unprofitable_symbols: set[str] = set()
             negative_fwd_symbols: set[str] = set()
+            negative_book_value_symbols: set[str] = set()
             sector_map: dict[str, str] = {}
             for row in rows:
                 symbol, pe, pb, ps, fwd_pe = row[0], row[7], row[8], row[9], row[10]
-                pe_reason, fwd_pe_reason = row[13], row[14]
-                sector = row[16]
+                pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
+                sector = row[17]
                 if sector is not None:
                     sector_map[symbol] = sector
                 if pe is not None and float(pe) > 0:
@@ -590,6 +608,8 @@ class ValueMetricsMixin:
                     unprofitable_symbols.add(symbol)
                 if pb is not None and float(pb) > 0:
                     pb_raw[symbol] = float(pb)
+                elif pb_reason == "negative_book_value":
+                    negative_book_value_symbols.add(symbol)
                 if ps is not None and float(ps) > 0:
                     ps_raw[symbol] = float(ps)
                 if fwd_pe is not None and float(fwd_pe) > 0:
@@ -605,11 +625,14 @@ class ValueMetricsMixin:
                 pe_pct[symbol] = 0.0
             for symbol in negative_fwd_symbols:
                 fwd_pe_pct[symbol] = 0.0
+            for symbol in negative_book_value_symbols:
+                pb_pct[symbol] = 0.0
             logger.info(
                 f"[STOCK_SCORES] Value multiples percentile universe (sector-relative, "
                 f"{len(sector_map)}/{len(rows)} symbols mapped to a GICS sector): "
                 f"P/E {len(pe_pct)} ({len(unprofitable_symbols)} floored unprofitable), "
-                f"P/B {len(pb_pct)}, P/S {len(ps_pct)}, "
+                f"P/B {len(pb_pct)} ({len(negative_book_value_symbols)} floored negative-book-value), "
+                f"P/S {len(ps_pct)}, "
                 f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast) symbols"
             )
 
@@ -625,11 +648,11 @@ class ValueMetricsMixin:
                 quality_score, growth_score, momentum_score = row[4], row[5], row[6]
                 pe, pb, ps, fwd_pe, dividend_yield = row[7], row[8], row[9], row[10], row[11]
                 fcf_yield = safe_float(row[12], f"{symbol}.fcf_yield") if row[12] is not None else None
-                pe_reason, fwd_pe_reason = row[13], row[14]
-                components_old = row[15]
-                data_completeness_old = float(row[17]) if row[17] is not None else None
-                data_unavailable_old = bool(row[18]) if row[18] is not None else False
-                unavailable_metrics_old: dict[str, str] = dict(row[19]) if row[19] else {}
+                pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
+                components_old = row[16]
+                data_completeness_old = float(row[18]) if row[18] is not None else None
+                data_unavailable_old = bool(row[19]) if row[19] is not None else False
+                unavailable_metrics_old: dict[str, str] = dict(row[20]) if row[20] else {}
                 value_score_old = float(value_score_old)
                 composite_score_old = float(composite_score_old)
 
@@ -653,6 +676,8 @@ class ValueMetricsMixin:
                     components.append((0.0, 0.27))
                 if pb is not None and float(pb) > 0:
                     components.append((pb_pct[symbol], 0.27))
+                elif pb_reason == "negative_book_value":
+                    components.append((0.0, 0.27))
                 if ps is not None and float(ps) > 0:
                     components.append((ps_pct[symbol], 0.27))
                 if fwd_pe is not None and float(fwd_pe) > 0:

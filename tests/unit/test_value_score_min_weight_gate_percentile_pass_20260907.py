@@ -64,6 +64,7 @@ class TestValueMinWeightGateInPercentilePass:
                 None,  # fcf_yield
                 None,  # pe_ratio_unavailable_reason
                 None,  # forward_pe_unavailable_reason
+                None,  # pb_ratio_unavailable_reason (added 2026-09-11)
                 {"value": 97.61},  # components
                 "Financial Services",  # sector
                 80.0,  # data_completeness
@@ -123,6 +124,7 @@ class TestValueMinWeightGateInPercentilePass:
                 None,  # fcf_yield
                 None,  # pe_ratio_unavailable_reason
                 None,  # forward_pe_unavailable_reason
+                None,  # pb_ratio_unavailable_reason (added 2026-09-11)
                 {"value": 55.0},
                 "Technology",
                 90.0,  # data_completeness

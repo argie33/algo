@@ -65,6 +65,7 @@ def _cato_like_row(dividend_yield: float, fcf_yield: float | None) -> tuple[Any,
         fcf_yield,
         None,  # pe_ratio_unavailable_reason
         None,  # forward_pe_unavailable_reason
+        None,  # pb_ratio_unavailable_reason (added 2026-09-11)
         {"value": 50.0},  # components
         "Consumer Discretionary",  # sector
         99.0,  # data_completeness

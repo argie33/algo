@@ -425,6 +425,13 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
     Rows now carry all 15 columns: symbol, value_score, composite_score, risk_score,
     quality_score, growth_score, momentum_score, pe_ratio, pb_ratio, ps_ratio, forward_pe,
     dividend_yield, pe_ratio_unavailable_reason, forward_pe_unavailable_reason, components.
+
+    UPDATED AGAIN 2026-09-11 (BUG FOUND + FIXED - see update_value_multiples_percentiles()'s
+    own "BUG FOUND + FIXED 2026-09-11" docstring note): the SELECT grew one more column,
+    vm.pb_ratio_unavailable_reason, inserted right after forward_pe_unavailable_reason - needed
+    to floor negative-book-value P/B at 0.0 in this pass the same way it was already floored
+    for unprofitable_stock/negative_forward_eps, instead of silently undoing _score_value's
+    Pass-1 floor on every post_run().
     """
 
     @staticmethod
@@ -435,10 +442,12 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
 
     def test_real_row_shape_does_not_raise_indexerror(self) -> None:
         # One profitable symbol, one unprofitable (floored) symbol, one negative-forecast
-        # Forward P/E symbol - exercises every branch of the real row-unpacking code with the
-        # REAL 16-column shape the live SELECT actually returns (sector added 2026-09-04 for
-        # sector-relative Value percentile ranking - see update_value_multiples_percentiles'
-        # own "SECTOR-RELATIVE RANKING ADOPTED 2026-09-04" docstring note).
+        # Forward P/E symbol, one negative-book-value (floored) symbol - exercises every branch
+        # of the real row-unpacking code with the REAL 21-column shape the live SELECT actually
+        # returns (sector added 2026-09-04 for sector-relative Value percentile ranking - see
+        # update_value_multiples_percentiles' own "SECTOR-RELATIVE RANKING ADOPTED 2026-09-04"
+        # docstring note; pb_ratio_unavailable_reason added 2026-09-11 - see that method's own
+        # "BUG FOUND + FIXED 2026-09-11" docstring note).
         rows = [
             (
                 "AAPL",
@@ -453,6 +462,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 4.0,
                 18.0,
                 0.005,
+                None,
                 None,
                 None,
                 None,
@@ -480,6 +490,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 "no_analyst_estimates",
                 None,
                 None,
+                None,
                 99.99,  # data_completeness
                 False,  # data_unavailable
                 {},  # unavailable_metrics
@@ -500,8 +511,32 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 None,
                 None,
                 "negative_forward_eps",
+                None,
                 "{}",
                 "Financial Services",
+                99.99,  # data_completeness
+                False,  # data_unavailable
+                {},  # unavailable_metrics
+            ),
+            (
+                "NEGBOOK",
+                35.0,
+                40.0,
+                55.0,
+                50.0,
+                45.0,
+                35.0,
+                10.0,
+                None,
+                2.0,
+                None,
+                None,
+                None,
+                None,
+                "no_analyst_estimates",
+                "negative_book_value",
+                None,
+                "Consumer Defensive",
                 99.99,  # data_completeness
                 False,  # data_unavailable
                 {},  # unavailable_metrics
@@ -538,4 +573,68 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
         assert max_index_used < column_count, (
             f"row[{max_index_used}] is used but the SELECT only returns {column_count} columns - "
             f"this is the exact IndexError bug class caught live 2026-08-28"
+        )
+
+
+class TestNegativeBookValueFloorSurvivesPercentilePass:
+    """Regression test for the 2026-09-11 fix (see update_value_multiples_percentiles()'s own
+    "BUG FOUND + FIXED 2026-09-11" docstring note): this batch pass previously never selected
+    vm.pb_ratio_unavailable_reason, so a negative-book-value symbol's P/B component - correctly
+    floored to 0.0 by _score_value's Pass 1 - was silently DROPPED (not floored) here instead,
+    since this pass unconditionally overwrites value_score on every post_run(). Two symbols,
+    identical PE/PS, one with a real positive pb_ratio and one with pb_ratio=None/reason=
+    "negative_book_value" - the negative-book-value symbol must come out with a STRICTLY LOWER
+    recomputed value_score, proving its P/B term was floored (0.27 weight at score 0.0), not
+    excluded (renormalized over PE+PS only, which would score it identically or higher)."""
+
+    @staticmethod
+    def _row(symbol: str, pb: float | None, pb_reason: str | None) -> tuple[Any, ...]:
+        return (
+            symbol,
+            50.0,  # value_score (Pass-1 placeholder, overwritten)
+            50.0,  # composite_score
+            50.0,  # risk_score
+            60.0,  # quality_score
+            55.0,  # growth_score
+            45.0,  # momentum_score
+            15.0,  # pe_ratio
+            pb,  # pb_ratio
+            4.0,  # ps_ratio
+            None,  # forward_pe
+            None,  # dividend_yield
+            None,  # fcf_yield
+            None,  # pe_ratio_unavailable_reason
+            "no_analyst_estimates",  # forward_pe_unavailable_reason
+            pb_reason,  # pb_ratio_unavailable_reason
+            None,  # components
+            "Consumer Defensive",  # sector - large residual pool, plain universe-wide ranking
+            99.99,  # data_completeness
+            False,  # data_unavailable
+            {},  # unavailable_metrics
+        )
+
+    def test_negative_book_value_scores_lower_than_positive_peer(self) -> None:
+        rows = [
+            self._row("POSBOOK", 2.0, None),
+            self._row("NEGBOOK", None, "negative_book_value"),
+        ]
+        cur = MagicMock()
+        cur.fetchall.return_value = rows
+        mock_db_context = MagicMock()
+        mock_db_context.__enter__ = MagicMock(return_value=cur)
+        mock_db_context.__exit__ = MagicMock(return_value=False)
+
+        loader = StockScoresLoader.__new__(StockScoresLoader)
+        with (
+            patch("loaders.load_stock_scores.DatabaseContext", return_value=mock_db_context),
+            patch("loaders.load_stock_scores.execute_values") as mock_execute_values,
+        ):
+            loader.update_value_multiples_percentiles()
+
+        assert mock_execute_values.called, "both symbols' PE/PS are identical but PB differs - value_score must change"
+        updates = mock_execute_values.call_args.args[2]
+        by_symbol = {u[0]: u[1] for u in updates}  # symbol -> value_score
+        assert by_symbol["NEGBOOK"] < by_symbol["POSBOOK"], (
+            "negative-book-value symbol's P/B term must be FLOORED (0.0 at 0.27 weight), not "
+            "dropped/renormalized - a dropped term would score it >= the positive-P/B peer"
         )

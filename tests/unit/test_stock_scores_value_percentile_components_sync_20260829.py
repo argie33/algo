@@ -77,6 +77,7 @@ class TestValuePercentileComponentsSync:
             None,  # fcf_yield
             None,
             None,  # pe_reason, fwd_pe_reason
+            None,  # pb_ratio_unavailable_reason (added 2026-09-11)
             components_old,
             None,  # sector (added 2026-09-04, sector-relative Value percentile ranking)
             90.0,  # data_completeness (added 2026-09-07, VALUE_MIN_WEIGHT gate completeness sync)
