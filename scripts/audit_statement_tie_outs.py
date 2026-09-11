@@ -61,9 +61,10 @@ def _table_has_columns(cur: Any, table: str, columns: set[str]) -> bool:
 
 
 def audit_balance_sheet_identity(cur: Any, min_relative_error: float, limit: int) -> list[tuple[Any, ...]]:
-    """total_assets == total_liabilities + stockholders_equity + noncontrolling_interest.
+    """total_assets == total_liabilities + stockholders_equity + noncontrolling_interest
+    + temporary_equity.
 
-    Kept in sync with algo/monitoring/data_patrol/checks/tie_out.py's
+    Kept in sync with algo/monitoring/data_patrol/checks/tie_out_identity_annual.py's
     check_balance_sheet_identity (the production check this script's docstring says it
     mirrors) - that check added the noncontrolling_interest term (migration 1265,
     2026-09-07) after finding it was the dominant source of "violations" here (large,
@@ -71,9 +72,20 @@ def audit_balance_sheet_identity(cur: Any, min_relative_error: float, limit: int
     see that check's own docstring for the XOM evidence). Also restricted to each
     symbol's latest real fiscal year (DISTINCT ON), same as that check, so a stale
     superseded old-year XBRL extraction quirk doesn't re-flag forever - see that check's
-    module docstring for the full rationale. Falling behind these two fixes previously
-    made this standalone script flag ~1,000%+ "violations" that were pure NCI-column/
-    stale-year noise, not real extraction bugs.
+    module docstring for the full rationale.
+
+    FIXED 2026-09-11 (goal: XBRL tie-out audit): this script had fallen out of sync
+    again - migration 1274 (2026-09-09) added a `temporary_equity` term to the
+    production check (mezzanine equity for PROK/ATTO/FAC/LTGO/SCTX-style filers, from
+    the directly-tagged TemporaryEquityCarryingAmountAttributableToParent XBRL concept)
+    but this standalone diagnostic was never updated to match, so it kept flagging
+    OBAI/LTGO/SCTX (90-450% "violations") as if they were still-broken extraction bugs
+    when the real production check already resolves them via the temporary_equity
+    column. Live-confirmed: OBAI FY2025 residual $11,389,000 == temporary_equity
+    $11,389,000 exactly; LTGO FY2026 $288,582,000 == $288,582,000 exactly. Same
+    `_table_has_columns`/COALESCE(..., 0) degrade-when-missing discipline as
+    noncontrolling_interest, so this script still runs against a schema from before
+    migration 1274 without erroring.
     """
     if not _table_has_columns(
         cur,
@@ -84,10 +96,13 @@ def audit_balance_sheet_identity(cur: Any, min_relative_error: float, limit: int
         return []
     has_nci = _table_has_columns(cur, "annual_balance_sheet", {"noncontrolling_interest"})
     nci_col = "b.noncontrolling_interest" if has_nci else "NULL"
+    has_temp_equity = _table_has_columns(cur, "annual_balance_sheet", {"temporary_equity"})
+    temp_equity_col = "b.temporary_equity" if has_temp_equity else "NULL"
     cur.execute(
         f"""
         SELECT DISTINCT ON (b.symbol)
-            b.symbol, b.fiscal_year, b.total_assets, b.total_liabilities, b.stockholders_equity, {nci_col}
+            b.symbol, b.fiscal_year, b.total_assets, b.total_liabilities, b.stockholders_equity,
+            {nci_col}, {temp_equity_col}
         FROM annual_balance_sheet b
         JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
         WHERE b.data_unavailable = FALSE
@@ -99,13 +114,14 @@ def audit_balance_sheet_identity(cur: Any, min_relative_error: float, limit: int
         """
     )
     flagged = []
-    for symbol, fiscal_year, assets, liabilities, equity, nci in cur.fetchall():
+    for symbol, fiscal_year, assets, liabilities, equity, nci, temp_equity in cur.fetchall():
         assets_f, liabilities_f, equity_f = float(assets), float(liabilities), float(equity)
         nci_f = float(nci) if nci is not None else 0.0
+        temp_equity_f = float(temp_equity) if temp_equity is not None else 0.0
         # Rows where total_liabilities was derived as assets-equity tie out exactly (0
         # residual) by construction - harmless, just uninformative, not a false pass of a
         # real check that was never actually performed for them.
-        residual = assets_f - (liabilities_f + equity_f + nci_f)
+        residual = assets_f - (liabilities_f + equity_f + nci_f + temp_equity_f)
         relative_error = abs(residual) / abs(assets_f)
         if relative_error > min_relative_error:
             flagged.append((symbol, fiscal_year, assets_f, liabilities_f, equity_f, residual, relative_error))
