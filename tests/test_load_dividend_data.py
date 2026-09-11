@@ -308,9 +308,11 @@ def test_ifrs_major_currency_per_share_is_converted_to_usd(monkeypatch) -> None:
 
 
 def test_ifrs_non_major_currency_per_share_is_rejected(monkeypatch) -> None:
-    """MXN/BRL (emerging-market currencies) are deliberately excluded from fx_rates.py's
-    MAJOR_CURRENCIES whitelist - must fail closed (no record), never store the raw
-    local-currency value as if it were USD."""
+    """TRY (Turkish lira, still excluded on volatility grounds) must fail closed (no
+    record), never store the raw local-currency value as if it were USD. (This test
+    used MXN/BRL as its example currency until each moved onto fx_rates.py's
+    MAJOR_CURRENCIES whitelist - MXN 2026-09-11, BRL earlier - see that module's
+    docstring; TRY substituted to keep exercising the actual rejection path.)"""
     import loaders.load_dividend_data as mod
 
     def _fail_if_called(currency: str, date_str: str) -> float | None:
@@ -322,7 +324,7 @@ def test_ifrs_non_major_currency_per_share_is_rejected(monkeypatch) -> None:
             "us-gaap": {},
             "ifrs-full": {
                 "DividendsPaidOrdinarySharesPerShare": {
-                    "units": {"MXN/shares": [{"val": 5.0, "filed": "2023-01-30", "end": "2022-12-31"}]}
+                    "units": {"TRY/shares": [{"val": 5.0, "filed": "2023-01-30", "end": "2022-12-31"}]}
                 }
             },
         }

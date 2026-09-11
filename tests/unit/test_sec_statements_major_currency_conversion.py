@@ -64,14 +64,14 @@ class TestFxRateCache:
         assert session.calls == 1
 
     def test_non_major_currency_never_calls_network(self):
-        # ARS: still deliberately excluded (real currency volatility fails the volatility bar
-        # on its own merits regardless of data source - see fx_rates.py's 2026-09-06 docstring
-        # entry re-checking ARS against yfinance and rejecting it again). CLP moved onto the
-        # yfinance-only major-currency set 2026-09-06 - see
-        # test_clp_is_a_major_currency_and_converts_via_yfinance below.
-        session = _FakeSession(rate=1234.5)  # would be a plausible ARS-style rate
+        # TRY: deliberately excluded on volatility grounds (39.6%/80.7%/39.2%/57.9%
+        # real YoY moves 2018/2021/2022/2023, live-checked against Frankfurter, far
+        # past every approved currency's threshold - see fx_rates.py's docstring; ARS
+        # moved onto MAJOR_CURRENCIES 2026-09-11 via BCRA, see
+        # test_ars_is_a_major_currency_and_converts_via_bcra above).
+        session = _FakeSession(rate=35.36)  # would be a plausible TRY-style rate
         cache = _isolated_cache(session)
-        assert cache.get_usd_rate("ARS", "2025-12-31") is None
+        assert cache.get_usd_rate("TRY", "2025-12-31") is None
         assert session.calls == 0
 
     def test_krw_is_a_major_currency_and_converts_via_historical_rate(self):
@@ -165,20 +165,46 @@ class TestFxRateCache:
         assert rate == 3.6466
         assert session.calls == 1
 
-    def test_ars_stays_excluded_no_frankfurter_coverage(self):
-        # ARS was evaluated alongside BRL in the same 2026-09-04 session and stays
-        # excluded: unlike BRL, this was a structural source-availability gap, not a
-        # volatility judgment - Frankfurter returns {"message": "not found"} for ARS
-        # (live-confirmed `GET /2024-12-31?from=USD&to=ARS`), same as COP/TWD (CLP/KZT
-        # were the same Frankfurter gap but moved onto MAJOR_CURRENCIES 2026-09-06 via a
-        # yfinance fallback - see test_clp_is_a_major_currency_and_converts_via_yfinance
-        # below; ARS itself was separately re-checked against yfinance that same day and
-        # rejected again on volatility grounds instead - see fx_rates.py's docstring).
-        # No Frankfurter policy decision can fix a data source that doesn't exist.
-        session = _FakeSession(rate=1000.0)
+    def test_ars_is_a_major_currency_and_converts_via_bcra(self):
+        # FIX 2026-09-11: ARS moved onto MAJOR_CURRENCIES via Argentina's own central
+        # bank (BCRA) API, not Frankfurter (which still has no ARS listing at all) or
+        # yfinance - see fx_rates.py's `_BCRA_ONLY_CURRENCIES` docstring for why this
+        # isn't the same volatility judgment BRL/MXN/TRY were rejected on: ARS filers
+        # report IAS29-restated (end-of-period purchasing power) figures, and IAS 21
+        # itself requires closing-rate translation for those, live-verified via GGAL's
+        # real FY2024 ifrs-full:ProfitLoss against BCRA's real 2024-12-31 official close.
+        class _FakeBcraSession:
+            def __init__(self, rate: float):
+                self._rate = rate
+                self.calls = 0
+
+            def get(self, url, params=None, timeout=None):
+                self.calls += 1
+                return _FakeResponse(
+                    200,
+                    {
+                        "results": [
+                            {
+                                "fecha": params["fechahasta"],
+                                "detalle": [{"codigoMoneda": "USD", "tipoCotizacion": self._rate}],
+                            }
+                        ]
+                    },
+                )
+
+        session = _FakeBcraSession(rate=1032.0)
         cache = _isolated_cache(session)
+        rate = cache.get_usd_rate("ARS", "2024-12-31")
+        assert rate == 1032.0
+        assert session.calls == 1
+
+    def test_ars_bcra_fetch_fails_closed_on_no_results(self):
+        class _FakeEmptyBcraSession:
+            def get(self, url, params=None, timeout=None):
+                return _FakeResponse(200, {"results": []})
+
+        cache = _isolated_cache(_FakeEmptyBcraSession())
         assert cache.get_usd_rate("ARS", "2024-12-31") is None
-        assert session.calls == 0
 
     def test_clp_is_a_major_currency_and_converts_via_yfinance(self, monkeypatch):
         # FIX 2026-09-06: CLP added via yfinance (Frankfurter has no CLP listing at all,

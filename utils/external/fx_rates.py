@@ -342,6 +342,30 @@ FRANKFURTER_URL = "https://api.frankfurter.app"
 # without a second live probe per call.
 _YFINANCE_ONLY_CURRENCIES = frozenset({"KZT", "CLP", "PEN", "COP"})
 
+# ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push, unsupported_currency_
+# no_fx_rate re-investigation): ARS was previously left on the "deliberately not
+# extended" list above alongside BRL/MXN/TRY/TWD/VND on a general EM-volatility
+# judgment - but unlike those, Frankfurter doesn't publish ARS AT ALL (confirmed 404 on
+# `GET /v1/currencies`), so there was never a real "is it too volatile" decision made
+# for ARS specifically, just "no source anyway". Argentina's own central bank (BCRA)
+# publishes a free, official, historical, no-API-key USD/ARS rate
+# (api.bcra.gob.ar/estadisticascambiarias) - a real primary source, not a market-implied
+# proxy like yfinance. Crucially, this isn't the same volatility question as TRY/BRL/
+# MXN: every SEC filer in this population reports its ARS figures IAS29-restated to
+# END-OF-PERIOD purchasing power (Argentina is IAS29-hyperinflationary), and IAS 21
+# itself requires a hyperinflationary-economy entity's IAS29-restated statements be
+# translated using the CLOSING rate on the period-end date for every line (balance
+# sheet AND income statement) - not an average, and not a judgment call this module is
+# making on its own; it's the textbook-correct translation method for exactly this
+# accounting treatment. Live-verified via GGAL (Grupo Financiero Galicia, Argentina's
+# largest private bank): FY2024 ifrs-full:ProfitLoss = ARS 1,624,609,562,000 (IAS29-
+# restated); BCRA's own published official close on 2024-12-31 was 1,032.00 ARS/USD ->
+# ~$1.57B net income, a plausible order of magnitude for Argentina's largest bank
+# holding company in a high-real-rate carry-trade year. Kept as its own routing set
+# (like _YFINANCE_ONLY_CURRENCIES) so `_fetch_rate` knows which provider to use without
+# a second live probe per call.
+_BCRA_ONLY_CURRENCIES = frozenset({"ARS"})
+
 # Liquid, developed-market currencies only - see module docstring for why this list is
 # deliberately narrow. Do not add emerging-market/volatile currencies here without the
 # same live-verification discipline as the currencies already on this list.
@@ -367,6 +391,7 @@ MAJOR_CURRENCIES = frozenset(
         "MXN",
     }
     | _YFINANCE_ONLY_CURRENCIES
+    | _BCRA_ONLY_CURRENCIES
 )
 
 
@@ -427,6 +452,8 @@ class FxRateCache:
     def _fetch_rate(self, currency: str, date_str: str) -> float | None:
         if currency in _YFINANCE_ONLY_CURRENCIES:
             return self._fetch_rate_yfinance(currency, date_str)
+        if currency in _BCRA_ONLY_CURRENCIES:
+            return self._fetch_rate_bcra(date_str)
         max_retries = 2
         for attempt in range(max_retries):
             try:
@@ -500,3 +527,54 @@ class FxRateCache:
             return None
         rate = float(on_or_before.iloc[-1])
         return rate if rate > 0 else None
+
+    _BCRA_BASE_URL = "https://api.bcra.gob.ar/estadisticascambiarias/v1.0/Cotizaciones/USD"
+
+    def _fetch_rate_bcra(self, date_str: str) -> float | None:
+        """Real historical official USD/ARS rate via Argentina's central bank (BCRA)'s
+        own free, no-API-key exchange-rate API - see `_BCRA_ONLY_CURRENCIES`'s module-
+        level docstring for why ARS uses this primary-source rate (and why the closing
+        rate is the textbook-correct IAS 21 translation for Argentina's IAS29-restated
+        filers) rather than Frankfurter (doesn't publish ARS at all) or a yfinance
+        market-implied proxy.
+
+        Requests a trailing window (BCRA has no weekends/holidays, same "closest prior
+        business day" need as the Frankfurter/yfinance paths) and takes the latest
+        result on or before `date_str` - never a future date, never a guess.
+        """
+        try:
+            target = date.fromisoformat(date_str)
+        except ValueError:
+            return None
+        window_start = (target - timedelta(days=10)).isoformat()
+        try:
+            resp = self._session.get(
+                self._BCRA_BASE_URL,
+                params={"fechadesde": window_start, "fechahasta": date_str},
+                timeout=self._timeout,
+            )
+        except (requests.ConnectionError, requests.Timeout) as e:
+            logger.warning(f"BCRA FX rate fetch network error for ARS/{date_str}: {e}")
+            return None
+        if resp.status_code != 200:
+            return None
+        try:
+            results = resp.json().get("results") or []
+        except ValueError as e:
+            logger.warning(f"BCRA FX rate response parse failure for ARS/{date_str}: {e}")
+            return None
+        candidates: list[tuple[str, float]] = []
+        for row in results:
+            fecha = row.get("fecha")
+            if not fecha or fecha > date_str:
+                continue
+            for detalle in row.get("detalle") or []:
+                if detalle.get("codigoMoneda") != "USD":
+                    continue
+                rate = detalle.get("tipoCotizacion")
+                if rate:
+                    candidates.append((fecha, float(rate)))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda pair: pair[0])
+        return candidates[-1][1]

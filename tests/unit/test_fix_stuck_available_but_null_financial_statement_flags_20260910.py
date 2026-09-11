@@ -85,25 +85,28 @@ class TestClassifyStuckSymbol:
         assert reason == "no_annual_report_filing"
 
     def test_fpi_with_only_rejected_currency_fact_gets_unsupported_currency_reason(self) -> None:
-        # CEPU/CRESY/IRS/LOMA/BBAR/BMA-shaped: real Argentine FPI tagging Assets only under ARS.
+        # HEPS/TKC-shaped: real Turkish FPI tagging Assets only under TRY (CEPU/CRESY/IRS/
+        # LOMA/BBAR/BMA's own ARS moved onto MAJOR_CURRENCIES 2026-09-11 via BCRA - see
+        # fx_rates.py's docstring - so they no longer hit this reason; TRY stays rejected
+        # on volatility grounds).
         client = _client(
             facts={
                 "facts": {
                     "ifrs-full": {
-                        "Assets": {"units": {"ARS": [{"val": 500, "fy": 2024}]}},
+                        "Assets": {"units": {"TRY": [{"val": 500, "fy": 2024}]}},
                     }
                 }
             }
         )
         company_info = {
-            "CEPU": {
+            "TKC": {
                 "is_foreign_private_issuer": True,
                 "entity_type": "other",
                 "sic_code": 4911,
                 "has_annual_report_filing": True,
             }
         }
-        reason = classify_stuck_symbol("CEPU", "balance", client, company_info)
+        reason = classify_stuck_symbol("TKC", "balance", client, company_info)
         assert reason == "unsupported_currency_no_fx_rate"
 
     def test_fpi_with_real_usd_fact_falls_to_generic_reason(self) -> None:

@@ -28,6 +28,10 @@ Fixtures switched to ARS (still unsupported) to keep testing the actual "rejecte
 currency" scenario this file is about; BWMX's real bug (a raw local-currency magnitude
 duplicated under a "USD" unitRef) is unchanged, just demonstrated with a currency still on the
 rejected list.
+
+UPDATED 2026-09-11 (same push): ARS itself moved onto MAJOR_CURRENCIES this session (see
+fx_rates.py's `_BCRA_ONLY_CURRENCIES` docstring) - fixtures switched again, to TRY (still
+rejected on volatility grounds), for the same reason MXN was swapped out above.
 """
 
 from typing import Any
@@ -65,7 +69,7 @@ class TestSpuriousUsdDuplicateOfLocalCurrencyFactRejected:
             "ifrs-full": {
                 "RevenueFromContractsWithCustomers": {
                     "units": {
-                        "ARS": [_entry(2023, 10_067_683_000.0, "2024-04-01")],
+                        "TRY": [_entry(2023, 10_067_683_000.0, "2024-04-01")],
                         "USD": [_entry(2023, 10_067_683_000.0, "2024-04-01")],
                     }
                 },
@@ -85,7 +89,7 @@ class TestSpuriousUsdDuplicateOfLocalCurrencyFactRejected:
             "ifrs-full": {
                 "RevenueFromContractsWithCustomers": {
                     "units": {
-                        "ARS": [_entry(2022, 7_237_628_000.0, "2023-04-01")],
+                        "TRY": [_entry(2022, 7_237_628_000.0, "2023-04-01")],
                         "USD": [_entry(2023, 500_000_000.0, "2024-04-01")],
                     }
                 },

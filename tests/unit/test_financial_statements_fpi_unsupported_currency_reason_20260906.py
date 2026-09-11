@@ -1,7 +1,8 @@
 """Regression test (2026-09-06, goal: "SEC/XBRL missing data to zero" sweep): a foreign
 private issuer that tags its required statement concepts only under an unsupported
-(non-major, non-USD) currency - e.g. GGAL/BBAR/BSAC/SUPV/TEO/TKC/TGS/TV, real Argentine/
-regional banks/telecoms/utilities filing ifrs-full "Assets" only under unit="ARS" - was
+(non-major, non-USD) currency - e.g. BSAC/HEPS/TKC, real regional banks/telecoms/utilities
+filing ifrs-full "Assets" only under unit="TRY" (GGAL/BBAR/SUPV/TEO/TGS/CRESY/LOMA/CEPU/IRS's
+own ARS moved onto MAJOR_CURRENCIES 2026-09-11 via BCRA - see fx_rates.py's docstring) - was
 falling to the generic "incomplete_sec_filing_{type}" reason instead of the specific
 "unsupported_currency_no_fx_rate" reason (both are "Missing SEC/XBRL data" in
 coverage_category_rules.py, same as this reason's post_run()-path sibling
@@ -53,7 +54,7 @@ class TestFpiUnsupportedCurrencyReason:
         loader = _make_loader("balance")
         rows: list[dict[str, Any]] = [
             {
-                "symbol": "GGAL",
+                "symbol": "TKC",
                 "fiscal_year": 2025,
                 "total_assets": None,
                 "stockholders_equity": None,
@@ -64,7 +65,7 @@ class TestFpiUnsupportedCurrencyReason:
         fake_facts = {
             "facts": {
                 "ifrs-full": {
-                    "Assets": {"units": {"ARS": [{"val": 32517979372000, "fy": 2025}]}},
+                    "Assets": {"units": {"TRY": [{"val": 32517979372000, "fy": 2025}]}},
                 },
             }
         }
@@ -76,7 +77,7 @@ class TestFpiUnsupportedCurrencyReason:
             patch.object(ConsolidatedFinancialStatementsLoader.__mro__[1], "transform", side_effect=lambda r: r),
             patch(
                 "loaders.load_financial_statements.DatabaseContext",
-                return_value=_mock_db_context([("GGAL",)]),
+                return_value=_mock_db_context([("TKC",)]),
             ),
         ):
             loader._sec_client = fake_client

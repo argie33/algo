@@ -71,13 +71,16 @@ class TestSegmentRevenueFxNormalization:
         assert revenue_by_name["Brazil Operation"] < 2_000_000_000
 
     def test_non_major_currency_rejected_not_stored_raw(self):
-        xml_content = _build_xml("ars", "iso4217:ARS")
+        # TRY, not ARS: ARS moved onto MAJOR_CURRENCIES 2026-09-11 via BCRA (see
+        # fx_rates.py's `_BCRA_ONLY_CURRENCIES` docstring), so it no longer exercises
+        # this rejection path - TRY stays rejected on volatility grounds.
+        xml_content = _build_xml("try", "iso4217:TRY")
 
         with patch("utils.external.sec_xbrl_segments._fx_rate_cache.get_usd_rate") as mock_rate:
-            result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TESTARS")
+            result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TESTTRY")
 
         mock_rate.assert_not_called()
-        # Both candidate facts get rejected (ARS isn't a MAJOR_CURRENCIES member - too
+        # Both candidate facts get rejected (TRY isn't a MAJOR_CURRENCIES member - too
         # volatile, per fx_rates.py's own deliberate exclusion) - falls through to no
         # usable segment revenue rather than storing a wildly-wrong converted value.
         assert result["data_available"] is False

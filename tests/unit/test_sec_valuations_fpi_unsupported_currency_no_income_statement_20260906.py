@@ -6,7 +6,10 @@ _aggregate_concepts never created any annual_income_statement row for them at al
 currency-skipped concept never touches `rows.setdefault`, unlike the all-NULL-but-present-row
 case those two prior commits cover).
 
-Live-confirmed GGAL/BSAC/TKC/EDN/SUPV/TGS/TEO hitting this exact shape.
+Live-confirmed GGAL/BSAC/TKC/EDN/SUPV/TGS/TEO hitting this exact shape (GGAL/EDN/SUPV/
+TGS/TEO's own ARS moved onto MAJOR_CURRENCIES 2026-09-11 via BCRA, BSAC's CLP moved on
+2026-09-06 via yfinance - both real conversions now, see fx_rates.py's docstring; TKC's
+TRY stays rejected on volatility grounds, used below).
 """
 
 from unittest.mock import MagicMock, patch
@@ -48,7 +51,7 @@ class TestSecValuationsFpiUnsupportedCurrencyNoIncomeStatement:
         fake_facts = {
             "facts": {
                 "ifrs-full": {
-                    "Revenue": {"units": {"ARS": [{"val": 100_000_000_000, "fy": 2025}]}},
+                    "Revenue": {"units": {"TRY": [{"val": 100_000_000_000, "fy": 2025}]}},
                 },
             }
         }
@@ -56,7 +59,7 @@ class TestSecValuationsFpiUnsupportedCurrencyNoIncomeStatement:
         fake_client.get_company_facts.return_value = fake_facts
 
         with patch("utils.external.sec_edgar_client.SecEdgarClient", return_value=fake_client):
-            result = loader._fetch_income_statement_context(_FakeCursor(is_fpi=True), "GGAL")
+            result = loader._fetch_income_statement_context(_FakeCursor(is_fpi=True), "TKC")
 
         assert result[0]["reason"] == "unsupported_currency_no_fx_rate"
         assert result[0]["data_unavailable"] is True

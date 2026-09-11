@@ -255,12 +255,16 @@ class TestFetchFinancialStatementCurrencyConversion:
         assert rows[0]["weighted_average_number_of_shares_outstanding_basic"] == 500.0
 
     def test_non_major_currency_rejected_entirely(self, _patch_circuit_breaker):
-        """ARS (Argentine peso, the real GGAL case) isn't in MAJOR_CURRENCIES - fail
-        closed and reject the whole fetch rather than store raw ARS as if it were USD."""
+        """TRY (Turkish lira) isn't in MAJOR_CURRENCIES - fail closed and reject the
+        whole fetch rather than store raw TRY as if it were USD. (ARS, the original
+        GGAL case this test used to cover, moved onto MAJOR_CURRENCIES 2026-09-11 via
+        BCRA - see fx_rates.py's `_BCRA_ONLY_CURRENCIES` docstring - so GGAL/ARS no
+        longer exercises this rejection path; TRY stays rejected on volatility grounds.)
+        """
         df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 1_000_000_000.0}})
-        worker = _mock_worker_with_df_and_currency("income_stmt", df, "ARS")
+        worker = _mock_worker_with_df_and_currency("income_stmt", df, "TRY")
         with patch(_WORKER_PATCH_TARGET, return_value=worker):
-            rows = fetch_financial_statement("GGAL", "income", "annual")
+            rows = fetch_financial_statement("TCELL", "income", "annual")
 
         assert rows is None
 

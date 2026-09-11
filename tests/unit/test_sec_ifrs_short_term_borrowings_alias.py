@@ -58,20 +58,21 @@ class TestIfrsShortTermBorrowingsAlias:
         assert by_year[2021]["short_term_borrowings"] == 4_142_800_000.0
 
     def test_non_usd_shortterm_borrowings_rejected_by_currency_guard(self) -> None:
-        # ASR reports this concept only in ARS (still unsupported - MXN was added to
-        # MAJOR_CURRENCIES 2026-09-11, see fx_rates.py - so MXN no longer exercises this
-        # guard, it now converts via a real FX rate instead), with no USD fact - must not
-        # fabricate a USD figure from the raw local-currency magnitude (same guard as the
-        # lease-liability and generic non-USD tests).
+        # A Turkish filer reporting this concept only in TRY (still unsupported on
+        # volatility grounds - MXN was added to MAJOR_CURRENCIES 2026-09-11 and ARS was
+        # added the same day via BCRA, see fx_rates.py - so neither exercises this guard
+        # any more, both now convert via a real FX rate instead), with no USD fact -
+        # must not fabricate a USD figure from the raw local-currency magnitude (same
+        # guard as the lease-liability and generic non-USD tests).
         facts = {
             "us-gaap": {},
             "ifrs-full": {
-                "ShorttermBorrowings": {"units": {"ARS": [_entry(2024, 500_000_000.0, "2025-04-01")]}},
+                "ShorttermBorrowings": {"units": {"TRY": [_entry(2024, 500_000_000.0, "2025-04-01")]}},
             },
         }
         client = _FakeClient(facts)
 
-        rows = get_balance_sheet(client, "ASR", period="annual")
+        rows = get_balance_sheet(client, "TCELL", period="annual")
         by_year = {r["fiscal_year"]: r for r in rows}
 
         assert 2024 not in by_year or "short_term_borrowings" not in by_year[2024]
