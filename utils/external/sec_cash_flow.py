@@ -1,13 +1,23 @@
 """Cash-flow-statement extraction for utils/external/sec_statements.py, extracted from that
 file (2026-09-05, file-size ratchet: it's a Tier-2 bloater flagged for decomposition). Body is
 verbatim, no logic changed - only moved file. get_cash_flow() aggregates key cash-flow concepts
-via sec_statements_aggregate.py's _aggregate_concepts - no post-processing fallback passes are
-needed here, unlike get_balance_sheet/get_income_statement.
+via sec_statements_aggregate.py's _aggregate_concepts.
+
+ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push, "resources we should be
+tapping into" ask): one post-processing fallback pass now runs here too -
+_fill_operating_cash_flow_from_legal_entity_dimensioned_instance_document() below, for a
+combined-filer (UPREIT-style REIT + operating-partnership) population no companyfacts-
+based concept fetch can ever reach - see that function's own docstring and
+utils/external/sec_xbrl_instance_document.py's module docstring for the mechanism.
 """
 
 from typing import Any
 
 from utils.external.sec_statements_aggregate import _aggregate_concepts
+from utils.external.sec_xbrl_instance_document import (
+    fiscal_year_for_end_date,
+    resolve_legal_entity_dimensioned_annual_facts,
+)
 
 _CASHFLOW_IFRS_ALIASES = [
     ("CashFlowsFromUsedInOperatingActivities", "net_cash_provided_by_used_in_operating_activities"),
@@ -217,6 +227,74 @@ _CASHFLOW_IFRS_ALIASES = [
     ("AdjustmentsForSharebasedPayments", "share_based_compensation"),
     ("PurchaseOfTreasuryShares", "payments_for_repurchase_of_common_stock"),
 ]
+
+
+def _fill_operating_cash_flow_from_legal_entity_dimensioned_instance_document(
+    rows: list[dict[str, Any]], client: Any, symbol: str
+) -> None:
+    """Last-resort fallback: recover operating_cash_flow for a filer whose SEC
+    companyfacts API has ZERO facts for every operating-cash-flow concept this module
+    fetches, because the filer tags every period exclusively under a
+    dei:LegalEntityAxis dimensional context (a combined REIT + operating-partnership
+    "UPREIT" filing, e.g. Tanger Inc./SKT, CIK 899715 - live-confirmed FY2023-2025
+    NetCashProvidedByUsedInOperatingActivities real values recovered this way:
+    $229.6M/$260.7M/$295.4M, matching the registrant's own "TangerIncMember" segment
+    of its combined 10-K) that companyfacts silently drops entirely (see
+    utils/external/sec_xbrl_instance_document.py's module docstring for the mechanism
+    and CLAUDE.md's calculation-linkbase section for the general "companyfacts
+    collapses dimensional facts" limitation this works around).
+
+    Deliberately gated to only run when there's real missing data to chase (at least
+    one row still lacking operating_cash_flow after every concept/alias above already
+    tried) - this makes one extra network call (fetch + parse the filer's ~1-5MB raw
+    XBRL instance document) per affected symbol, so it must never fire for the
+    ~5,000-symbol common case where the ordinary companyfacts-based fetch already
+    succeeded. Only ever fills a row that is still None - never overwrites a real
+    value from an earlier concept/fallback.
+    """
+    missing_years = {
+        row["fiscal_year"]
+        for row in rows
+        if row.get("net_cash_provided_by_used_in_operating_activities") is None and row.get("fiscal_year")
+    }
+    if not missing_years:
+        return
+    try:
+        cik = client.symbol_to_cik(symbol)
+        submissions = client.get_submissions(cik)
+    except Exception:
+        # Deliberately broad: this is a best-effort, last-resort pass that must never
+        # break the ordinary companyfacts-based extraction it runs after - a live
+        # SecEdgarClient can raise ValueError/FileNotFoundError/RuntimeError for a real
+        # lookup failure, and a test double or future client variant may not implement
+        # get_submissions/get_filing_xml at all (AttributeError), same defensive
+        # discipline as this file's own sibling fallback modules (see
+        # sec_income_statement_fallbacks.py's precedent).
+        return
+    registrant_name = submissions.get("name") or ""
+    recent = (submissions.get("filings") or {}).get("recent") or {}
+    forms = recent.get("form") or []
+    accessions = recent.get("accessionNumber") or []
+    idx = next((i for i, f in enumerate(forms) if f in ("10-K", "10-K/A")), None)
+    if idx is None or idx >= len(accessions):
+        return
+    try:
+        xml_text = client.get_filing_xml(cik, accessions[idx], "10-K")
+    except Exception:
+        return
+    try:
+        recovered = resolve_legal_entity_dimensioned_annual_facts(
+            xml_text, "NetCashProvidedByUsedInOperatingActivities", registrant_name
+        )
+    except Exception:
+        return
+    if not recovered:
+        return
+    by_year = {fiscal_year_for_end_date(end): value for end, value in recovered.items()}
+    for row in rows:
+        fy = row.get("fiscal_year")
+        if fy in missing_years and fy in by_year:
+            row["net_cash_provided_by_used_in_operating_activities"] = by_year[fy]
 
 
 def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
@@ -791,4 +869,7 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
     # sourced from get_income_statement()'s own "DepreciationExpense" concept (see the fix
     # to _INCOME_FIELD_MAPPING's "depreciation"/"depreciation_expense" keys, same session) -
     # this was redundant, not a second real source.
-    return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_CASHFLOW_IFRS_ALIASES)
+    rows = _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_CASHFLOW_IFRS_ALIASES)
+    if period == "annual":
+        _fill_operating_cash_flow_from_legal_entity_dimensioned_instance_document(rows, client, symbol)
+    return rows
