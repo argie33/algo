@@ -11,6 +11,11 @@ pretax-income promotion, and derived operating income).
 import logging
 from typing import Any
 
+from utils.external.sec_xbrl_instance_document import (
+    fiscal_year_for_end_date,
+    resolve_legal_entity_dimensioned_annual_facts,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -666,3 +671,78 @@ def _fill_sga_from_general_and_administrative_when_no_selling_component(rows: li
         if general_and_administrative is None or has_selling_component:
             continue
         row["selling_general_and_administrative_expense"] = general_and_administrative
+
+
+def _fill_net_income_eps_from_legal_entity_dimensioned_instance_document(
+    rows: list[dict[str, Any]], client: Any, symbol: str
+) -> None:
+    """Last-resort fallback: recover net_income/EPS for a filer whose SEC companyfacts API
+    has no ANNUAL-duration fact for these concepts because it tags every fiscal-year period
+    exclusively under a dei:LegalEntityAxis dimensional context (a combined REIT + operating-
+    partnership "UPREIT" filing) - same population and mechanism as
+    utils/external/sec_cash_flow.py's `_fill_operating_cash_flow_from_legal_entity_dimensioned_
+    instance_document`, which this mirrors, extended from cash flow to the income statement.
+
+    Live-confirmed via SKT (Tanger Inc, CIK 899715): companyfacts has real NetIncomeLoss/
+    EarningsPerShareDiluted/EarningsPerShareBasic facts, but only quarterly/YTD durations -
+    zero full-fiscal-year entries for any of the three, despite 10-Ks being filed every year -
+    while the raw FY2025 10-K instance document has real annual values under all three
+    ("TangerIncMember"): NetIncomeLoss $114.776M/$98.595M/$99.151M and EarningsPerShareDiluted
+    $0.99/$0.88/$0.92 for FY2025/2024/2023, plausible against Tanger's real, publicly reported
+    net income and outlet-mall REIT scale (not fabricated - see
+    utils/external/sec_xbrl_instance_document.py's module docstring for the mechanism).
+
+    Deliberately gated to only run when there's real missing data to chase (at least one row
+    still lacking net_income_loss after every concept/alias above already tried) - one extra
+    network call (fetch + parse the filer's raw XBRL instance document) per affected symbol,
+    same cost/gating discipline as the cash-flow sibling this mirrors. Only ever fills a row
+    that is still None - never overwrites a real value from an earlier concept/fallback.
+    """
+    missing_years = {
+        row["fiscal_year"]
+        for row in rows
+        if row.get("fiscal_year")
+        and (
+            row.get("net_income_loss") is None
+            or row.get("earnings_per_share_diluted") is None
+            or row.get("earnings_per_share_basic") is None
+        )
+    }
+    if not missing_years:
+        return
+    try:
+        cik = client.symbol_to_cik(symbol)
+        submissions = client.get_submissions(cik)
+    except Exception:
+        # Deliberately broad: best-effort last-resort pass that must never break the ordinary
+        # companyfacts-based extraction it runs after - same discipline as every other sibling
+        # fallback in this file and in sec_cash_flow.py's own instance-document fallback.
+        return
+    registrant_name = submissions.get("name") or ""
+    recent = (submissions.get("filings") or {}).get("recent") or {}
+    forms = recent.get("form") or []
+    accessions = recent.get("accessionNumber") or []
+    idx = next((i for i, f in enumerate(forms) if f in ("10-K", "10-K/A")), None)
+    if idx is None or idx >= len(accessions):
+        return
+    try:
+        xml_text = client.get_filing_xml(cik, accessions[idx], "10-K")
+    except Exception:
+        return
+    for concept, target_key in (
+        ("NetIncomeLoss", "net_income_loss"),
+        ("ProfitLoss", "net_income_loss"),
+        ("EarningsPerShareDiluted", "earnings_per_share_diluted"),
+        ("EarningsPerShareBasic", "earnings_per_share_basic"),
+    ):
+        try:
+            recovered = resolve_legal_entity_dimensioned_annual_facts(xml_text, concept, registrant_name)
+        except Exception:
+            continue
+        if not recovered:
+            continue
+        by_year = {fiscal_year_for_end_date(end): value for end, value in recovered.items()}
+        for row in rows:
+            fy = row.get("fiscal_year")
+            if fy in missing_years and row.get(target_key) is None and fy in by_year:
+                row[target_key] = by_year[fy]

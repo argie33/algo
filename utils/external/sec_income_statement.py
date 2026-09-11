@@ -16,6 +16,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_earnings_per_share_from_continuing_discontinued_split,
     _fill_eps_shares_from_dual_class_dimensional_facts,
     _fill_income_tax_expense_from_current_deferred_split,
+    _fill_net_income_eps_from_legal_entity_dimensioned_instance_document,
     _fill_operating_income_from_bank_net_interest_and_noninterest,
     _fill_operating_income_from_revenue_minus_cogs_and_opex,
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
@@ -1178,4 +1179,5 @@ def get_income_statement(
     _fill_sga_from_general_and_administrative_when_no_selling_component(rows)
     if period == "annual":
         _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol, security_name)
+        _fill_net_income_eps_from_legal_entity_dimensioned_instance_document(rows, client, symbol)
     return rows
