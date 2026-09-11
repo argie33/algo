@@ -229,6 +229,18 @@ CIK_OVERRIDES: dict[str, str] = {
     # ticker CCCT, CIK 0002056263 "...Corp. I" no ticker at all) were checked and correctly
     # excluded - neither self-confirms "CMII".
     "CMII": "0002088805",  # Columbus Circle Capital Corp II (renamed Inflection Point Acquisition Corp. VII) - see comment above
+    # TOI: found 2026-09-10 (goal: "SEC/XBRL missing data under 300" push, pe_ratio/sec_valuations
+    # no_income_statement bucket - the browse-edgar fallback DID find this CIK earlier in this
+    # session but correctly rejected it under the ticker-self-match safety check, since this
+    # CIK's CURRENT tickers are ['STLN','DFPH','STLNW'], no bare "TOI"). Live-confirmed via SEC
+    # full text search + submissions.json: CIK 0001799191's formerNames shows "Oncology
+    # Institute, Inc." (exact match to our tracked "The Oncology Institute, Inc.") from
+    # 2021-08-30 through 2026-08-03, renamed to "Starling Oncology, Inc." (ticker STLN) just
+    # ~5 weeks before this session - same rename-not-caught-up shape as HOS/SGRX/GRAF/AXIA/CMII
+    # above, not a deregistration/delisting (unlike the GAMB/PSTV/QVCG/IPCX/IPCXR universe-
+    # hygiene findings this session also surfaced). Real, current activity (10-Q 2026-08-06,
+    # 8-Ks through 2026-09-02) confirms this is a live, actively-reporting entity, not defunct.
+    "TOI": "0001799191",  # The Oncology Institute, Inc. (renamed Starling Oncology, Inc.) - see comment above
 }
 
 # Ensure socket timeout is configured globally
