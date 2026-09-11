@@ -238,7 +238,15 @@ def compute_quality_row_level_reason(
 
 _BS_CURRENCY_TOTAL_ASSETS_FIELDS = ("roa", "asset_turnover", "debt_to_assets", "gross_profitability")
 _BS_CURRENCY_TOTAL_ASSETS_SOURCE_REASONS = frozenset({"no_recent_total_assets_reported", "missing_sec_data"})
-_BS_CURRENCY_EQUITY_FIELDS = ("roe", "debt_to_equity", "sustainable_growth_rate")
+# ADDED 2026-09-11 (goal: "under 300" push, same re-audit that found total_debt/roce_pct
+# above): operating_profitability's own reason chain (vqg_quality_reasons_profitability.py)
+# sets "stockholders_equity_not_reported" whenever stockholders_equity is None for a symbol
+# in _get_no_recent_stockholders_equity_symbols()/_get_never_tagged_stockholders_equity_
+# symbols() - the exact same source reason roe/debt_to_equity already get recategorized from,
+# just never added to this tuple. Live-confirmed CEPU/IRS/LOMA (Argentine 40-F filers): roe/
+# debt_to_equity on the same row already correctly show "unsupported_currency_no_fx_rate"
+# while operating_profitability stayed on the generic reason.
+_BS_CURRENCY_EQUITY_FIELDS = ("roe", "debt_to_equity", "sustainable_growth_rate", "operating_profitability")
 _BS_CURRENCY_EQUITY_SOURCE_REASONS = frozenset({"stockholders_equity_not_reported", "missing_sec_data"})
 # ADDED 2026-09-11 (goal: "under 300" push, total_debt_not_itemized re-investigation): debt_to_
 # equity above was already covered (it needs stockholders_equity), but the standalone total_debt
