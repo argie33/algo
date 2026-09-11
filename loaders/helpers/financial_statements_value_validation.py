@@ -140,6 +140,24 @@ class FinancialStatementsValueValidationMixin:
                         self._record_explicit_null_rejection(row, field, "implausible_eps_filer_tagging_error")
                         continue
                     reported_shares = row.get(eps_shares_field[field])
+                    if reported_shares is None and field == "diluted_eps":
+                        # FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push,
+                        # tie-out accuracy audit): a filer that reports no dilutive
+                        # securities often tags only WeightedAverageNumberOfShares
+                        # OutstandingBasic, never a separate diluted variant - live-
+                        # confirmed via ATHE (Alterity Therapeutics): shares_outstanding_
+                        # diluted is NULL on every row, so this cross-check silently never
+                        # ran for diluted_eps and let the exact same NRC-shaped 100x-scale-
+                        # mismatched value (ifrs-full BasicEarningsLossPerShare ==
+                        # DilutedEarningsLossPerShare here) sail into diluted_eps even
+                        # though the sibling earnings_per_share check correctly rejected
+                        # it against shares_outstanding_basic. Basic and diluted share
+                        # counts are always very close (diluted >= basic by definition),
+                        # so basic is a safe proxy denominator when diluted was never
+                        # separately tagged - same "resolves to the basic figure when no
+                        # entity-wide one exists" fallback discipline as
+                        # entity_shares_out_for_fcf elsewhere in this codebase.
+                        reported_shares = row.get("shares_outstanding_basic")
                     if reported_shares is not None and float(reported_shares) > 0:
                         shares_ratio = max(implied_shares, float(reported_shares)) / min(
                             implied_shares, float(reported_shares)
