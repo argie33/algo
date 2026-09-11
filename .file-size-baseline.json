@@ -651,6 +651,7 @@
   "scripts/xbrl_calculation_linkbase_check.py": 320,
   "scripts/xbrl_concept_continuity_scan.py": 116,
   "scripts/xbrl_concept_coverage_scan.py": 166,
+  "scripts/xbrl_dera_bulk_scan.py": 196,
   "scripts/xbrl_frames_check.py": 99,
   "scripts/xbrl_second_opinion_daily.py": 113,
   "scripts/xbrl_yfinance_crosscheck.py": 263,
