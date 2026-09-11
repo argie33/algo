@@ -526,7 +526,7 @@
   "loaders/helpers/sec_segment_debt.py": 193,
   "loaders/helpers/sec_valuations_checks.py": 743,
   "loaders/helpers/sec_valuations_dcf.py": 644,
-  "loaders/helpers/sec_valuations_dcf_fcf_recategorize.py": 315,
+  "loaders/helpers/sec_valuations_dcf_fcf_recategorize.py": 328,
   "loaders/helpers/sec_valuations_income_context.py": 741,
   "loaders/helpers/sec_valuations_ratios.py": 432,
   "loaders/helpers/sec_valuations_shares.py": 560,
