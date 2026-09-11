@@ -240,6 +240,19 @@ _BS_CURRENCY_TOTAL_ASSETS_FIELDS = ("roa", "asset_turnover", "debt_to_assets", "
 _BS_CURRENCY_TOTAL_ASSETS_SOURCE_REASONS = frozenset({"no_recent_total_assets_reported", "missing_sec_data"})
 _BS_CURRENCY_EQUITY_FIELDS = ("roe", "debt_to_equity", "sustainable_growth_rate")
 _BS_CURRENCY_EQUITY_SOURCE_REASONS = frozenset({"stockholders_equity_not_reported", "missing_sec_data"})
+# ADDED 2026-09-11 (goal: "under 300" push, total_debt_not_itemized re-investigation): debt_to_
+# equity above was already covered (it needs stockholders_equity), but the standalone total_debt
+# field itself - and roce_pct, which fails the same way whenever its own total_debt lookup is
+# what's missing - were never added, so a confirmed unsupported-currency-balance-sheet symbol
+# (live-confirmed CEPU/CRESY/IRS/LOMA/BMA, all ARS 20-F/40-F filers already recognized by
+# _get_unsupported_currency_balance_sheet_symbols()) still got the generic "total_debt_not_
+# itemized" for these two fields specifically instead of the real "unsupported_currency_no_fx_
+# rate" cause every sibling equity/total-assets-derived field on the same row already carries.
+# Same "Missing SEC/XBRL data" category either way (doesn't move the coverage headline) - this
+# is a reason-accuracy fix, not a category recategorization like the royalty-trust/royalty-
+# streaming checks.
+_BS_CURRENCY_DEBT_FIELDS = ("total_debt", "roce_pct")
+_BS_CURRENCY_DEBT_SOURCE_REASONS = frozenset({"total_debt_not_itemized", "missing_sec_data"})
 
 
 def recategorize_balance_sheet_currency_fields(metrics: dict[str, Any]) -> None:
@@ -270,6 +283,11 @@ def recategorize_balance_sheet_currency_fields(metrics: dict[str, Any]) -> None:
     for field in _BS_CURRENCY_EQUITY_FIELDS:
         reason_key = f"{field}_unavailable_reason"
         if metrics.get(field) is None and metrics.get(reason_key) in _BS_CURRENCY_EQUITY_SOURCE_REASONS:
+            metrics[reason_key] = "unsupported_currency_no_fx_rate"
+
+    for field in _BS_CURRENCY_DEBT_FIELDS:
+        reason_key = f"{field}_unavailable_reason"
+        if metrics.get(field) is None and metrics.get(reason_key) in _BS_CURRENCY_DEBT_SOURCE_REASONS:
             metrics[reason_key] = "unsupported_currency_no_fx_rate"
 
 
