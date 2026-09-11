@@ -707,26 +707,21 @@ class SymbolGateMixin:
         facts get attached to both the common ticker and every preferred/debt ticker trading
         under that filer).
 
-        FIX 2026-09-04 (goal: "under 6k the right way" sweep, pe_ratio/pb_ratio/ps_ratio
-        missing_sec_data follow-up): live-confirmed AFGB/DTB/DUKB/BHFAL/KMPB/DCBG/MNSBP and
-        siblings have zero sec_valuations row at all (no market-equity computation was ever
-        attempted for them) yet a real, positive, non-NULL annual EPS on file - e.g. DUKB
-        (Duke Energy's 5.625% Junior Subordinated Debentures) shows FY2025 net_income=$4.968B,
-        earnings_per_share=$6.31, both belonging to Duke Energy's COMMON stock, not this
-        fixed-income instrument - so pe_ratio_reason's `eps_row is not None` branch landed on
-        the generic "missing_sec_data" as if this were a recoverable gap. A P/E, P/B, or P/S
-        ratio computed from a preferred/debenture's own market price against its parent's
-        common-equity EPS/book-value/revenue-per-share would be actively wrong, not just
-        missing - the correct outcome is "not applicable", the same class as
-        unprofitable_stock/reit_special_entity elsewhere in this file, not a fixable gap.
-        Deliberately does NOT touch dividend_yield: a preferred/debenture's fixed coupon
-        divided by its own market price IS a real, meaningful yield figure.
+        FIX 2026-09-04: live-confirmed AFGB/DTB/DUKB/BHFAL/KMPB/DCBG/MNSBP and siblings have
+        zero sec_valuations row (no market-equity computation attempted) yet a real annual EPS
+        on file - e.g. DUKB (Duke Energy's 5.625% Junior Subordinated Debentures) shows FY2025
+        net_income=$4.968B/EPS=$6.31, both belonging to Duke Energy's COMMON stock - so
+        pe_ratio_reason landed on generic "missing_sec_data" instead of "not applicable" (same
+        class as unprofitable_stock/reit_special_entity). Deliberately does NOT touch
+        dividend_yield: a fixed coupon over market price IS a real yield. Identified via
+        stock_symbols.security_name text (SEC's own listing title), not SIC/price level.
+        Cached for the life of this loader instance.
 
-        Identified via stock_symbols.security_name text (SEC's own official title for the
-        listing), not SIC code or price level - a preferred/debenture always states its own
-        instrument type there (e.g. "American Financial Group, Inc. 5.875% Subordinated
-        Debentures due 2059"), unlike a REIT/trust whose entity-level SIC code doesn't
-        distinguish common from preferred. Cached for the life of this loader instance.
+        FIXED 2026-09-10: '%Depositary Share%' alone also matched ordinary "American/Global
+        Depositary Shares" COMMON-stock ADRs (BABA, NIO, JD, VLRS, ~270 of 290 total matches)
+        - real preferred depositary shares here (ATH$A-E, RNR$F/G, USB$A/H, MET$E, TFC$I)
+        never say "American"/"Global" before "Depositary". Was wrongly suppressing NIO's
+        pe_ratio/VLRS's ps_ratio as "preferred_or_debt_security_no_common_equity_ratio".
         """
         with _database_context()("read") as cur:
             cur.execute(
@@ -735,9 +730,13 @@ class SymbolGateMixin:
                 WHERE security_name ILIKE '%%Subordinated Debenture%%'
                    OR security_name ILIKE '%%Subordinated Note%%'
                    OR security_name ILIKE '%%Junior Subordinated%%'
-                   OR security_name ILIKE '%%Depositary Share%%'
                    OR security_name ILIKE '%%Preferred Stock%%'
                    OR security_name ILIKE '%%Preferred Share%%'
+                   OR (
+                       security_name ILIKE '%%Depositary Share%%'
+                       AND security_name NOT ILIKE '%%American Depositary%%'
+                       AND security_name NOT ILIKE '%%Global Depositary%%'
+                   )
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
