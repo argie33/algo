@@ -952,37 +952,73 @@ class EntryHandler:
             f"attempting to cancel. Recording as a real fill, not discarding it."
         )
 
+        # REAL-MONEY-READINESS FIX (2026-09-10, order-execution audit): a naked position from
+        # a lost bracket leg used to get exactly one submission attempt - a transient
+        # network/broker error here left real shares unprotected for however long until the
+        # next Phase 9 reconciliation pass (hours, per the orchestrator's schedule). One
+        # immediate retry recovers from a transient failure without waiting on that schedule,
+        # and a failure that survives the retry now fires a real operator-facing critical
+        # alert (not just a log line) so a human can intervene immediately instead of only
+        # finding out from a log review.
         stop_result: dict[str, Any] = {}
-        try:
-            stop_client_order_id = f"race-stop-{alpaca_order_id}"
-            stop_result = self.context._submit_standalone_protective_stop(
-                symbol,
-                qty=float(raced_filled_qty),
-                stop_price=float(stop_loss_price),
-                client_order_id=stop_client_order_id,
-                pos_id=None,
+        stop_client_order_id = f"race-stop-{alpaca_order_id}"
+        last_error: Exception | None = None
+        for attempt in (1, 2):
+            try:
+                stop_result = self.context._submit_standalone_protective_stop(
+                    symbol,
+                    qty=float(raced_filled_qty),
+                    stop_price=float(stop_loss_price),
+                    client_order_id=f"{stop_client_order_id}-r{attempt}" if attempt > 1 else stop_client_order_id,
+                    pos_id=None,
+                )
+                last_error = None
+            except Exception as e:
+                last_error = e
+                stop_result = {}
+                logger.warning(
+                    f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: standalone-stop submission "
+                    f"attempt {attempt}/2 raised {type(e).__name__}: {e}."
+                )
+                continue
+            if stop_result.get("success"):
+                break
+            logger.warning(
+                f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: standalone-stop submission "
+                f"attempt {attempt}/2 failed: {stop_result.get('message')}."
             )
-        except Exception as e:
+
+        if last_error is not None or not stop_result.get("success"):
+            failure_detail = (
+                f"raised {type(last_error).__name__}: {last_error}" if last_error else stop_result.get("message")
+            )
             logger.critical(
                 f"[ENTRY_HANDLER CRITICAL] {symbol} {alpaca_order_id}: fill-vs-cancel race left "
-                f"{raced_filled_qty} shares live with NO protective stop, and the immediate "
-                f"standalone-stop submission itself raised {type(e).__name__}: {e}. Position is "
-                f"naked until Phase 9 reconciliation runs."
+                f"{raced_filled_qty} shares live with NO protective stop after 2 submission "
+                f"attempts - {failure_detail}. Position is naked until Phase 9 reconciliation runs."
             )
+            try:
+                config_dict = self.config.to_dict() if hasattr(self.config, "to_dict") else self.config
+                TradeNotificationService(config_dict)._send_notification(
+                    subject=f"NAKED POSITION: {symbol}",
+                    message=(
+                        f"{raced_filled_qty} sh {symbol} filled during a bracket cancel race with NO "
+                        f"protective stop after 2 attempts - {failure_detail}. Naked until Phase 9 "
+                        f"reconciliation runs unless manually stopped out now."
+                    ),
+                    kind="naked_position",
+                    severity="critical",
+                    symbol=symbol,
+                    details={"qty": float(raced_filled_qty), "intended_stop_price": float(stop_loss_price)},
+                )
+            except Exception as notify_err:
+                logger.critical(f"[ENTRY_HANDLER] {symbol}: naked-position alert itself failed: {notify_err}")
         else:
-            if not stop_result.get("success"):
-                logger.critical(
-                    f"[ENTRY_HANDLER CRITICAL] {symbol} {alpaca_order_id}: fill-vs-cancel race left "
-                    f"{raced_filled_qty} shares live with NO protective stop - immediate standalone-stop "
-                    f"submission failed: {stop_result.get('message')}. Position is naked until Phase 9 "
-                    f"reconciliation runs."
-                )
-            else:
-                logger.warning(
-                    f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: immediate standalone protective stop "
-                    f"placed @ ${stop_loss_price} (order id {stop_result.get('order_id')}) for the "
-                    f"race-recovered fill - not left naked until Phase 9."
-                )
+            logger.warning(
+                f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: immediate standalone protective stop "
+                f"placed @ ${stop_loss_price} (order id {stop_result.get('order_id')}) for the "
+                f"race-recovered fill - not left naked until Phase 9."
+            )
 
         try:
             notify(

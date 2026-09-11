@@ -184,3 +184,84 @@ class TestMissingLegFillRaceRecovered:
         assert order_status == "filled"
         assert executed_price == Decimal("50.10")
         mock_notify.assert_called_once()
+
+    def test_standalone_stop_retries_once_and_succeeds_on_second_attempt(self):
+        """BUG FOUND 2026-09-10 (order-execution audit): the standalone-stop submission used to
+        get exactly one attempt - a transient broker/network error left the position naked
+        until the next Phase 9 reconciliation cycle (hours away). Must retry once before
+        giving up."""
+        handler, handler_context = _make_handler({"legs": [{"order_type": "limit"}], "order_class": "bracket"})
+        handler_context._cancel_bracket_orders.return_value = {
+            "success": False,
+            "message": "already terminal",
+            "filled_qty": 10.0,
+            "filled_avg_price": 50.10,
+        }
+        handler_context._submit_standalone_protective_stop.side_effect = [
+            RuntimeError("transient broker timeout"),
+            {"success": True, "order_id": "standalone-stop-retry-ok", "message": "placed"},
+        ]
+
+        with patch("algo.trading.executor_entry_handler.notify"):
+            result = handler._submit_entry_phase(
+                cur=MagicMock(),
+                symbol="LEGRACE5",
+                trade_id="trade-legrace-5",
+                shares=Decimal("10"),
+                entry_price=Decimal("50.00"),
+                stop_loss_price=Decimal("47.50"),
+                target_1_price=Decimal("55.00"),
+                execution_mode="auto",
+                idempotency_key="2" * 64,
+            )
+
+        order_ok, _, order_status, _, executed_price, _, _ = result
+        assert order_ok is True
+        assert order_status == "filled"
+        assert executed_price == Decimal("50.10")
+        assert handler_context._submit_standalone_protective_stop.call_count == 2
+
+    def test_standalone_stop_failure_after_both_attempts_sends_critical_alert(self):
+        """Fixed 2026-09-10: a standalone-stop failure that survives the retry must fire a
+        real operator-facing critical notification, not just a log line, so a human can
+        intervene immediately instead of waiting for Phase 9 reconciliation."""
+        handler, handler_context = _make_handler({"legs": [{"order_type": "limit"}], "order_class": "bracket"})
+        handler_context._cancel_bracket_orders.return_value = {
+            "success": False,
+            "message": "already terminal",
+            "filled_qty": 10.0,
+            "filled_avg_price": 50.10,
+        }
+        handler_context._submit_standalone_protective_stop.return_value = {
+            "success": False,
+            "message": "broker rejected stop order",
+        }
+        handler.config = {}
+
+        with (
+            patch("algo.trading.executor_entry_handler.notify"),
+            patch("algo.trading.executor_entry_handler.TradeNotificationService") as mock_service_cls,
+        ):
+            mock_service = MagicMock()
+            mock_service_cls.return_value = mock_service
+
+            result = handler._submit_entry_phase(
+                cur=MagicMock(),
+                symbol="LEGRACE6",
+                trade_id="trade-legrace-6",
+                shares=Decimal("10"),
+                entry_price=Decimal("50.00"),
+                stop_loss_price=Decimal("47.50"),
+                target_1_price=Decimal("55.00"),
+                execution_mode="auto",
+                idempotency_key="3" * 64,
+            )
+
+        order_ok, _, order_status, _, _, _, _ = result
+        assert order_ok is True, "the recorded fill must survive even though the stop-repair fully failed"
+        assert order_status == "filled"
+        assert handler_context._submit_standalone_protective_stop.call_count == 2
+        mock_service._send_notification.assert_called_once()
+        _, kwargs = mock_service._send_notification.call_args
+        assert kwargs["severity"] == "critical"
+        assert kwargs["kind"] == "naked_position"
