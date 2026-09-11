@@ -480,7 +480,25 @@ def _fill_operating_income_from_revenue_minus_single_cogs_and_opex(rows: list[di
         operating_expenses = row.get("operating_expenses")
         if operating_expenses is None:
             continue
-        revenue = row.get("revenues")
+        # FIXED 2026-09-11 (live-verified against algo-71's report that this fallback never
+        # fires for AMPL in production despite the docstring's own AMPL live-check): this
+        # function runs inside get_income_statement()'s fallback chain, BEFORE
+        # load_financial_statements.py's field_mapping renames a filer's raw revenue concept
+        # key to "revenues" - a filer whose revenue is tagged under
+        # "RevenueFromContractWithCustomer{Excluding,Including}AssessedTax" (AMPL's actual
+        # shape per this function's own docstring) still has that raw concept-keyed name at
+        # this point, not "revenues", so the original `row.get("revenues")`-only check always
+        # returned None for exactly the filer this fallback was written for. Same 3-key
+        # fallback order _fill_cost_of_revenue_from_other_operating_cost already uses below.
+        revenue = None
+        for revenue_key in (
+            "revenues",
+            "revenue_from_contract_with_customer_excluding_assessed_tax",
+            "revenue_from_contract_with_customer_including_assessed_tax",
+        ):
+            if row.get(revenue_key) is not None:
+                revenue = row[revenue_key]
+                break
         if revenue is None:
             continue
         row["operating_income_loss"] = revenue - cost_of_revenue - operating_expenses

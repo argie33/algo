@@ -44,6 +44,29 @@ class TestAmplOperatingIncomeFromSingleCogsAndOpex:
 
         assert rows[0]["operating_income_loss"] == -107_383_000.0
 
+    def test_fires_when_revenue_is_still_the_raw_concept_keyed_name(self) -> None:
+        """FIXED 2026-09-11: this fallback runs BEFORE load_financial_statements.py's
+        field_mapping renames a filer's raw revenue concept key to "revenues" - AMPL's real
+        production row (per SecEdgarClient.get_income_statement) still has revenue under
+        "revenue_from_contract_with_customer_excluding_assessed_tax" at this point, not
+        "revenues", so the original `row.get("revenues")`-only check silently never fired for
+        the exact filer this fallback was written for. Live-verified against real AMPL data
+        via SecEdgarClient.get_income_statement('AMPL') after this fix.
+        """
+        rows = [
+            {
+                "symbol": "AMPL",
+                "fiscal_year": 2025,
+                "revenue_from_contract_with_customer_excluding_assessed_tax": 343_214_000.0,
+                "cost_of_revenue": 89_286_000.0,
+                "operating_expenses": 349_933_000.0,
+            }
+        ]
+
+        _fill_operating_income_from_revenue_minus_single_cogs_and_opex(rows)
+
+        assert rows[0]["operating_income_loss"] == -96_005_000.0
+
     def test_never_fires_for_a_casy_shaped_dda_split_cogs_row(self) -> None:
         rows = [
             {
