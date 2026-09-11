@@ -151,6 +151,21 @@ _CASHFLOW_IFRS_ALIASES = [
         "PurchaseOfOtherLongtermAssetsClassifiedAsInvestingActivities",
         "payments_to_acquire_property_plant_and_equipment",
     ),
+    # ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push - found via
+    # scripts/xbrl_concept_coverage_scan.py, IFRS sibling of us-gaap:PaymentsToAcquire
+    # MiningAssets added the same session, see that entry's comment in this file's
+    # us-gaap concepts list below). Real, standard IFRS taxonomy concept for mining-asset
+    # acquisition capex - 15 distinct filers tag it per the coverage scan. Live-confirmed
+    # via Fortuna Silver Mines' (FSM, CIK 1341335, 40-F) real companyfacts JSON: real,
+    # continuous, plausible-scale annual values every fiscal year - $251.236M FY2022/
+    # $217.314M FY2023/$203.778M FY2024/$178.004M FY2025 - a major, active silver/gold
+    # miner's genuine capex, not noise. Listed last (lowest priority, same convention as
+    # the entry immediately above) since it's a sector-specific concept unlikely to
+    # collide with the generic PP&E-purchase concepts above for the same filer/year.
+    (
+        "PurchaseOfMiningAssets",
+        "payments_to_acquire_property_plant_and_equipment",
+    ),
     # FIXED 2026-08-03: no IFRS dividend concept was mapped at all, so every dividend-paying
     # IFRS filer (live-confirmed: WPM/Wheaton Precious Metals, real ifrs-full:DividendsPaid
     # data present back to FY2015, $296M for FY2025) got payout_ratio/dividend_yield
@@ -485,6 +500,19 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # taxonomy element, so this should recover other mining/oil-and-gas filers beyond
         # the ones checked live this session, not just TMQ.
         "PaymentsToAcquireMineralRights",
+        # ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push - found via
+        # scripts/xbrl_concept_coverage_scan.py, the dedicated tool for exactly this kind
+        # of systematic gap-finding rather than one bug report at a time): a real, standard
+        # (not filer-specific) us-gaap concept for mining-asset acquisition capex, distinct
+        # from PaymentsToAcquireMineralRights above (rights/interests specifically, not the
+        # physical mining assets/infrastructure) - never fetched at all despite 27 distinct
+        # filers tagging it per the coverage scan. Live-confirmed via real companyfacts
+        # JSON: CleanSpark $382,285,000 (FY2025 Q3 10-Q, crypto-mining rig capex), McEwen
+        # Inc $39,849,000 (FY2026 Q2 10-Q), Idaho Strategic Resources $3,613,831 (FY2026 Q2
+        # 10-Q), Materion Corporation $1,661,000 (FY2026 Q2 10-Q) - all real, current,
+        # plausible-scale figures across multiple distinct mining/mining-adjacent filers,
+        # not a single-filer quirk or noise.
+        "PaymentsToAcquireMiningAssets",
         # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurers (SIC
         # 6311/6321/6331/6351/6361/6399) hold investment real estate as part of their
         # portfolio, tagged under these two insurer-specific concepts rather than any

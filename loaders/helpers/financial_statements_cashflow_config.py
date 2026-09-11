@@ -184,6 +184,12 @@ _CASHFLOW_FIELD_MAPPING = {
     # the live Freeport-McMoRan/Royal Gold/Diamondback Energy/Coeur Mining/TMQ evidence: a
     # standard us-gaap mineral-rights-acquisition capex concept, never fetched at all.
     "payments_to_acquire_mineral_rights": "capex",
+    # ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push) - see
+    # sec_cash_flow.py's get_cash_flow() comment for the live CleanSpark/McEwen Inc/Idaho
+    # Strategic Resources/Materion Corporation evidence: a standard us-gaap mining-asset
+    # acquisition capex concept, distinct from payments_to_acquire_mineral_rights above
+    # (rights/interests, not the physical mining assets), never fetched at all.
+    "payments_to_acquire_mining_assets": "capex",
     # FIXED 2026-08-24 (same audit, insurance-sector continuation): insurer investment-
     # real-estate capex concepts - see sec_statements.py's get_cash_flow() comment for the
     # live MET/RGA/BHF/PFG/TRV/WRB evidence.
