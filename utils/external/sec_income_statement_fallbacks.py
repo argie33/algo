@@ -418,7 +418,6 @@ def _fill_operating_income_from_revenue_minus_operating_expenses_only(rows: list
         "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization",
         "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization",
         "cost_of_goods_sold",
-        "cost_of_goods_and_services_sold_depreciation_and_amortization",
         "other_cost_of_operating_revenue",
         "direct_operating_costs",
         "utilities_operating_expense_maintenance_and_operations",
@@ -427,6 +426,25 @@ def _fill_operating_income_from_revenue_minus_operating_expenses_only(rows: list
     )
     if any(row.get(key) is not None for row in rows for key in _cogs_family_keys):
         return
+    # ADDED 2026-09-11 (goal: "missing SEC/XBRL data under 300" push, operating_income_
+    # not_itemized re-investigation): "cost_of_goods_and_services_sold_depreciation_and_
+    # amortization" (CASY's D&A-split COGS half, see get_income_statement()'s own comment
+    # on that concept) is deliberately NOT in the tuple above - it only signals a genuine
+    # CASY-shaped split pair when its ex-D&A sibling ("cost_of_goods_and_services_sold",
+    # already covered above) is ALSO tagged somewhere in the filer's history. Live-confirmed
+    # PECO (Phillips Edison REIT, CIK 0001476204) tags ONLY this D&A concept every fiscal
+    # year (FY2025 $264,834,000) with NO ex-D&A COGS sibling ever - a REIT using it as a
+    # generic real-estate-depreciation line (matches SECScheduleIIIRealEstateAccumulated
+    # DepreciationDepreciationExpense in the same filing), not a real COGS signal. Including
+    # it in the flat gate above incorrectly blocked this fallback for PECO even though its
+    # real OperatingExpenses total ($527,748,000 FY2025) already includes that depreciation -
+    # cross-checked against yfinance's independently-parsed FY2025 Operating Income
+    # ($197,539,000) vs. this fallback's derived $198,846,000, a near-exact match confirming
+    # OperatingExpenses is genuinely the complete cost total here, not a COGS-excluding
+    # remainder. By this point in the function neither branch of the real split pair is
+    # present (the tuple check above already returned if the ex-D&A sibling existed), so no
+    # additional check is needed here - a filer reaching this line with only the D&A concept
+    # tagged is PECO-shaped, not CASY-shaped.
     for row in rows:
         if row.get("operating_income_loss") is not None:
             continue
