@@ -218,6 +218,17 @@ CIK_OVERRIDES: dict[str, str] = {
     "AXIA": "0001439124",  # AXIA Energia S.A. (ADS) - see NUTR/AXIA/QMMM/GRAF comment above
     "QMMM": "0001971542",  # QMMM Holdings Ltd (Nasdaq) - see NUTR/AXIA/QMMM/GRAF comment above
     "GRAF": "0001897463",  # Graf Global Corp. (NYSE) - see NUTR/AXIA/QMMM/GRAF comment above
+    # CMII: found 2026-09-10 (goal: "SEC/XBRL missing data under 300" push, shares_outstanding
+    # cik_not_found bucket). CIK 0002088805's own submissions.json tickers array is
+    # ['IPXG', 'CMII', 'CMIIU', 'CMIIW', 'IPXGU', 'IPXGW'] - CMII directly self-confirms,
+    # formerNames shows "Columbus Circle Capital Corp II" (our tracked entity name) through
+    # 2026-08-26, renamed to "Inflection Point Acquisition Corp. VII" days before this
+    # session - same rename-not-caught-up shape as HOS/SGRX/GRAF/AXIA above. Real, current
+    # activity (10-Q 2026-08-19, 8-K 2026-08-26, multiple 425s through 2026-09-03). Two other
+    # "Columbus Circle Capital" name-search candidates (CIK 0002123471 "...Corp III"
+    # ticker CCCT, CIK 0002056263 "...Corp. I" no ticker at all) were checked and correctly
+    # excluded - neither self-confirms "CMII".
+    "CMII": "0002088805",  # Columbus Circle Capital Corp II (renamed Inflection Point Acquisition Corp. VII) - see comment above
 }
 
 # Ensure socket timeout is configured globally
