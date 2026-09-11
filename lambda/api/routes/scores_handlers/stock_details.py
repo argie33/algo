@@ -429,9 +429,23 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
         def _build_factor_inputs(data: dict[str, Any]) -> None:
             """Build factor input objects from flat response fields."""
             # Quality Inputs
+            # DISTRESS-ARTIFACT FLAG (2026-09-11, /goal session): roe_pct itself is deliberately
+            # NOT nulled for a negative-equity sign-flip case (net_income and stockholders_equity
+            # both negative can compute a spuriously positive "ROE", e.g. OSTX/ARMP/AEON - see
+            # test_quality_roe_negative_equity_score_floor_20260905.py, which pins keeping the
+            # raw ratio) - the scoring layer already floors this exact shape to 0 rather than
+            # rewarding it (update_quality_sector_neutral_scores() in
+            # loaders/helpers/vqg_quality_batch.py, condition `roe<0 OR roa<0`), but nothing
+            # told an API/dashboard consumer the displayed percentage isn't real profitability.
+            # Reuses that identical condition against already-stored roe/roa (same row, same
+            # values the score used - no new column, no risk of a mismatched fiscal-year join).
+            _roe_v, _roa_v = data.get("roe_pct"), data.get("roa_val")
             data["quality_inputs"] = {
                 "return_on_equity_pct": data.get("roe_pct"),
                 "return_on_equity_pct_unavailable_reason": data.get("roe_unavailable_reason"),
+                "return_on_equity_pct_distress_artifact": (
+                    _roe_v is not None and _roa_v is not None and (float(_roe_v) < 0 or float(_roa_v) < 0)
+                ),
                 "return_on_assets_pct": data.get("roa_val"),
                 "return_on_assets_pct_unavailable_reason": data.get("roa_unavailable_reason"),
                 "return_on_invested_capital_pct": data.get("roic_pct"),

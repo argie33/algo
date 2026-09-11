@@ -71,6 +71,15 @@ def handle(  # noqa: C901
                     qm.debt_to_equity,
                     qm.roe AS return_on_equity,
                     qm.roa AS return_on_assets,
+                    -- DISTRESS-ARTIFACT FLAG (2026-09-11): identical condition to
+                    -- update_quality_sector_neutral_scores()'s own roe_score floor
+                    -- (loaders/helpers/vqg_quality_batch.py) - a negative-equity sign-flip can
+                    -- make return_on_equity look like a real positive percentage even though the
+                    -- scoring layer already treats it as worthless. See stock_details.py's
+                    -- return_on_equity_pct_distress_artifact for the same flag on the other
+                    -- financials surface.
+                    (qm.roe IS NOT NULL AND qm.roa IS NOT NULL AND (qm.roe < 0 OR qm.roa < 0))
+                        AS return_on_equity_distress_artifact,
                     qm.net_margin AS profit_margin,
                     qm.current_ratio,
                     qm.quick_ratio,
