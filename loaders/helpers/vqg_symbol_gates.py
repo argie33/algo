@@ -29,10 +29,10 @@ def _database_context() -> Any:
     return _owner.DatabaseContext  # type: ignore[attr-defined]
 
 
-# Shared by the two _get_unsupported_currency_*_symbols gates below - "unsupported_currency_no_fx_rate" (live guard) and "raw_unconverted_currency_stale_value_20260829" (migration 1250's remediation for the same pre-guard, unconvertible-currency rows) mean the same thing.
+# Shared by the two _get_unsupported_currency_*_symbols gates below - "unsupported_currency_no_fx_rate" (live guard) and "raw_unconverted_currency_stale_value_20260829" (migration 1250's remediation for the same pre-guard, unconvertible-currency rows) mean the same thing. FIXED 2026-09-11 ("under 300" push): added the NOT EXISTS real-row check below - a bare reason match kept a symbol here forever even after a later row recovered it (live-confirmed BLIV/PAC/TBBB/TV/BAK/SIM/BWMX).
 _UNSUPPORTED_CURRENCY_REASON_SQL = (
-    "SELECT DISTINCT symbol FROM %s WHERE reason IN "
-    "('unsupported_currency_no_fx_rate', 'raw_unconverted_currency_stale_value_20260829')"
+    "SELECT DISTINCT t1.symbol FROM %s t1 WHERE t1.reason IN ('unsupported_currency_no_fx_rate', "
+    "'raw_unconverted_currency_stale_value_20260829') AND NOT EXISTS (SELECT 1 FROM %s t2 WHERE t2.symbol = t1.symbol AND t2.data_unavailable IS NOT TRUE)"
 )
 
 
@@ -1388,7 +1388,7 @@ class SymbolGateMixin:
         once per pipeline run, not once per symbol (see _UNSUPPORTED_CURRENCY_REASON_SQL above for the 2026-09-09 fix matching migration 1250 too).
         """
         with _database_context()("read") as cur:
-            cur.execute(_UNSUPPORTED_CURRENCY_REASON_SQL % "annual_cash_flow")
+            cur.execute(_UNSUPPORTED_CURRENCY_REASON_SQL % ("annual_cash_flow", "annual_cash_flow"))
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
@@ -1412,7 +1412,7 @@ class SymbolGateMixin:
         instance; this query runs once per pipeline run, not once per symbol (see _UNSUPPORTED_CURRENCY_REASON_SQL above for the 2026-09-09 fix matching migration 1250 too).
         """
         with _database_context()("read") as cur:
-            cur.execute(_UNSUPPORTED_CURRENCY_REASON_SQL % "annual_balance_sheet")
+            cur.execute(_UNSUPPORTED_CURRENCY_REASON_SQL % ("annual_balance_sheet", "annual_balance_sheet"))
             return frozenset(row[0] for row in cur.fetchall())
 
     @_cached_symbols
