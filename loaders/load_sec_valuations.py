@@ -1926,6 +1926,21 @@ class SecValuationsLoader(
         genuinely negative, already-USD-scale SEC net_income figure) or symbols where
         market_cap failed for an unrelated reason (shares_outstanding_scale_mismatch already
         has its own, earlier-running recategorization above _sanity_check_market_cap).
+
+        FIXED 2026-09-11 (same push, follow-up): both subqueries below were missing the
+        `data_unavailable IS NOT TRUE` filter every other "most recent usable fiscal year"
+        query in this codebase applies (see sec_valuations_income_context.py's own repeated
+        use of the identical filter) - "most recent non-NULL" silently preferred a stale,
+        not-yet-reconfirmed row over an older but real, confirmed one. Live-confirmed CDT
+        (CDT Equity Inc.): the unfiltered query picked FY2026's stockholders_equity=
+        +$105.45M (reason='stale_fiscal_year_not_confirmed_by_full_sec_refetch') over
+        FY2025's real, confirmed -$7.17M, so a genuinely negative-book-value distressed
+        filer (net_income=-$39.2M, real, confirmed) fell through to the generic
+        "all_valuation_metrics_null" bucket instead of this reclassification - the exact
+        "stale row masks a real, confirmed one" bug class already fixed elsewhere in this
+        file. AQB/BTAI happened to still classify correctly before this fix (their stale
+        and confirmed years are both negative), but were silently keying off the wrong
+        fiscal year's number either way.
         """
         if result.get("reason") != "all_valuation_metrics_null":
             return
@@ -1942,11 +1957,13 @@ class SecValuationsLoader(
                     FROM (
                         SELECT net_income FROM annual_income_statement
                         WHERE symbol = %(symbol)s AND net_income IS NOT NULL
+                          AND data_unavailable IS NOT TRUE
                         ORDER BY fiscal_year DESC LIMIT 1
                     ) ais
                     FULL OUTER JOIN (
                         SELECT stockholders_equity FROM annual_balance_sheet
                         WHERE symbol = %(symbol)s AND stockholders_equity IS NOT NULL
+                          AND data_unavailable IS NOT TRUE
                         ORDER BY fiscal_year DESC LIMIT 1
                     ) abs ON true
                     """,
