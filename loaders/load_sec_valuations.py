@@ -365,6 +365,31 @@ DUAL_CLASS_YFINANCE_COMBINED_MARKET_CAP_SYMBOLS: frozenset[str] = frozenset(
     }
 )
 
+# FIXED 2026-09-10 (goal: "SEC/XBRL missing data under 300" push, shares_outstanding_scale_
+# mismatch bucket): _sanity_check_market_cap already re-fetches yfinance live before rejecting
+# (see its own docstring for the AMRN frozen-snapshot precedent), but a live fetch can still be
+# stale FOR AN ILLIQUID MICROCAP specifically when yfinance hasn't refreshed sharesOutstanding
+# since the filer's most recent dilutive offering - the shares_ratio<=3 rescue at that call site
+# (added for PIII) doesn't help here because yfinance's sharesOutstanding itself, not just its
+# marketCap, is the stale field. Live-confirmed BIAF (BioAffinity Technologies) via SEC's own
+# dei:EntityCommonStockSharesOutstanding history: 4,498,675 (10-K, FY2025) -> 4,534,906 (10-Q
+# 2026-03-13) -> 8,101,725 (10-Q, filed 2026-08-03, MOST RECENT) - a real, filed-on-cover-page
+# ~79% share count increase from a capital raise between the two most recent quarters. Live
+# yfinance (2026-09-10) reports sharesOutstanding=600,736 - neither today's SEC count nor
+# either of the two prior real quarters, and no filed corporate-action (reverse split) explains
+# a further ~13x drop from the confirmed-current 8.1M - yfinance's field is simply lagging this
+# filer's real dilution, same failure mode as AMRN's frozen-snapshot case but hitting the live
+# API's own field instead. Restricted to symbols individually confirmed via this exact
+# most-recent-filing-date cross-check - do NOT add a symbol here off the ratio alone (see
+# DOMESTIC_FILER_ADS_RATIO_OVERRIDES/RECENT_REVERSE_SPLITS_SHARES_OUT's own "never guess"
+# discipline, same principle applied here for the opposite direction: trusting SEC over
+# yfinance, not the reverse).
+YFINANCE_STALE_SHARES_TRUST_SEC_SYMBOLS: frozenset[str] = frozenset(
+    {
+        "BIAF",  # BioAffinity Technologies - yfinance sharesOutstanding lags a real 2026 Q2 dilutive raise
+    }
+)
+
 
 class SecValuationsLoader(
     OptimalLoader,
