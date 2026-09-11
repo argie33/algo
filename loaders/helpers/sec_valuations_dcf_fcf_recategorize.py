@@ -27,6 +27,21 @@ class SecValuationDcfFcfRecategorizeMixin:
     # false-positive risk from a broader SIC scan.
     _ROYALTY_TRUST_SYMBOLS_FOR_DCF = frozenset({"NRT", "MTR", "CRT", "PBT", "SBR", "SJT"})
 
+    # Mining royalty/streaming companies (SIC 1040, gold/silver): a genuinely different entity
+    # class from _ROYALTY_TRUST_SYMBOLS_FOR_DCF above (those file no conventional cash-flow
+    # statement at all) - these DO file a full IFRS cash-flow statement with real, growing
+    # operating_cash_flow, they just structurally never report ANY PP&E-purchase-shaped concept
+    # (confirmed via live companyfacts JSON: zero ifrs-full:PropertyPlantAndEquipment fact of
+    # any kind for all 5) because their business model is buying royalty/streaming interests in
+    # other companies' mines, not operating mines themselves - there is no capex to tag, not an
+    # extraction gap. Hardcoded by symbol (not SIC 1040 alone, which also contains real
+    # operating miners with genuine capex, e.g. Newmont/Barrick) same convention as
+    # _ROYALTY_TRUST_SYMBOLS_FOR_DCF. Live-confirmed GROY (Gold Royalty Corp)/MTA (Metalla
+    # Royalty & Streaming)/OR (OR Royalties)/VMET (Versamet Royalties, real OCF $621K FY2023/
+    # $7.40M FY2024/$16.95M FY2025, capex NULL all 3 years)/VOXR (Vox Royalty) - all 5 currently
+    # stuck on the generic "missing_cash_flow_data"/"capex_never_tagged_in_recent_filings".
+    _ROYALTY_STREAMING_SYMBOLS_FOR_DCF = frozenset({"GROY", "MTA", "OR", "VMET", "VOXR"})
+
     def _recategorize_ric_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
         """Overrides a generic dcf_fcf_unavailable_reason with a specific one for a registered
         investment company. Mutates `valuation_row` in place.
@@ -126,6 +141,39 @@ class SecValuationDcfFcfRecategorizeMixin:
             return
         if symbol in self._ROYALTY_TRUST_SYMBOLS_FOR_DCF:
             valuation_row["dcf_fcf_unavailable_reason"] = "reit_special_entity"
+            return
+        # Chained here (not a separate load_sec_valuations.py call site) because that file
+        # sits at the 2000-line hard ceiling (.file-size-baseline.json/check_file_size_
+        # ratchet.py - zero growth tolerance past the ceiling, must extract a module first)
+        # - this mixin has plenty of headroom under its own baseline instead. Same guard-then-
+        # symbol-check shape as every sibling call in this chain, just invoked from here rather
+        # than from load_sec_valuations.py's fixed call sequence.
+        self._recategorize_royalty_streaming_dcf_fcf_reason(symbol, valuation_row)
+
+    def _recategorize_royalty_streaming_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
+        """Overrides a generic dcf_fcf_unavailable_reason with "royalty_streaming_no_capex" for
+        a mining royalty/streaming company. Mutates `valuation_row` in place.
+
+        ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push): distinct from
+        _recategorize_royalty_trust_dcf_fcf_reason just above (oil royalty trusts file no
+        conventional cash-flow statement at all) - GROY/MTA/OR/VMET/VOXR file a full IFRS
+        cash-flow statement with real, growing operating_cash_flow (live-confirmed via
+        company_info_sec/annual_cash_flow) but structurally never report ANY PP&E-purchase-
+        shaped concept, because their business is buying royalty/streaming interests in other
+        companies' mines rather than operating mines themselves - live-confirmed via real
+        companyfacts JSON: zero ifrs-full:PropertyPlantAndEquipment fact of any kind for all 5,
+        so there is genuinely no capex figure on file to extract, not a filer tagging gap this
+        loader's concept list could ever close. Called from the royalty-trust check just above
+        (both would otherwise match this population; this earlier, more specific check wins and
+        moves it out of "Missing SEC/XBRL data" into "Legitimate / not applicable", same
+        "Legitimate" outcome as the royalty-trust check, deliberately a distinct reason string
+        since these ARE real conventional filers, just with no capex concept applicable to
+        their asset-light business model).
+        """
+        if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
+            return
+        if symbol in self._ROYALTY_STREAMING_SYMBOLS_FOR_DCF:
+            valuation_row["dcf_fcf_unavailable_reason"] = "royalty_streaming_no_capex"
 
     def _recategorize_capex_never_tagged_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
         """Overrides a generic dcf_fcf_unavailable_reason with "capex_never_tagged_in_recent_filings"
