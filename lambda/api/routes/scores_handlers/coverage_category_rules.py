@@ -860,6 +860,18 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # rather than CEFs. See vqg_symbol_gates.py's
             # _get_etf_trust_no_stockholders_equity_symbols().
             "etf_trust_no_gaap_financials",
+            # ADDED 2026-09-10 (missing-SEC/XBRL-under-300 push): AGG/IWM (iShares ETFs,
+            # confirmed present in `etf_symbols`) were falling to load_current_reports_8k.py's
+            # generic "symbol_not_found" (Missing SEC/XBRL data) because ETF share classes are
+            # registered under their issuing Trust's own CIK/ticker and don't appear at all in
+            # SEC's company_tickers.json or browse-edgar under the traded ETF ticker itself -
+            # live-confirmed both symbols return zero CIK matches from either source. This is
+            # not a resolvable "we can't find the CIK" gap (Missing SEC/XBRL data): ETFs are
+            # investment companies that file N-1A/485BPOS under the Investment Company Act, not
+            # Form 8-K under the Exchange Act at all - the same permanent structural exemption
+            # as etf_trust_no_gaap_financials above, just for this loader. See
+            # load_current_reports_8k.py's fetch_incremental for the etf_symbols check.
+            "etf_no_8k_filings",
             # ADDED 2026-08-21 (goal session: missing-data root-cause audit, "Other" bucket
             # sweep): load_current_reports_8k.py writes this when a symbol's SEC submissions
             # feed genuinely contains zero 8-Ks (8-Ks are event-driven - executive changes,

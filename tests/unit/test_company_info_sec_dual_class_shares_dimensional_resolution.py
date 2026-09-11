@@ -770,3 +770,61 @@ class TestCentVerifiedCustomDefaultClassMember:
             )
 
         assert result is None
+
+
+class TestMkcVerifiedClassMemberOverride:
+    """2026-09-10 (missing-SEC/XBRL-under-300 push): McCormick's real current 10-K (CIK
+    63754, mkc-20251130.htm) tags TWO EntityCommonStockSharesOutstanding facts - context
+    c-6 (us-gaap:CommonStockMember, labeled plain "Common Stock") = 14,851,729, and context
+    c-7 (us-gaap:NonvotingCommonStockMember, labeled "Common Stock Non-Voting") =
+    253,586,510. The bare, actively-traded-as-"MKC" ticker is the NONVOTING class (backwards
+    from the usual "bare ticker = generic CommonStockMember" assumption
+    _context_is_generic_common_class relies on) - exactly why the 2026-08-22 elimination
+    heuristic was reverted 2026-09-06 rather than trusted here. _VERIFIED_SYMBOL_TO_CLASS_
+    MEMBER_OVERRIDES resolves this via an exact, individually-verified member-name match
+    instead."""
+
+    _MKC_FILING_TEXT = (
+        '<ix:nonFraction contextRef="c-6" name="dei:EntityCommonStockSharesOutstanding">'
+        "14,851,729</ix:nonFraction>"
+        '<ix:nonFraction contextRef="c-7" name="dei:EntityCommonStockSharesOutstanding">'
+        "253,586,510</ix:nonFraction>"
+        '<xbrli:context id="c-6"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonStockMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+        '<xbrli:context id="c-7"><xbrli:segment><xbrldi:explicitMember '
+        'dimension="us-gaap:StatementClassOfStockAxis">us-gaap:NonvotingCommonStockMember'
+        "</xbrldi:explicitMember></xbrli:segment></xbrli:context>"
+    )
+
+    def test_mkc_resolves_to_the_nonvoting_class_it_actually_trades_as(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._MKC_FILING_TEXT
+
+        result = loader._fetch_shares_outstanding_from_filing_text(
+            "MKC", "63754", _submissions_with_10k(tickers=["MKC", "MKC-V"])
+        )
+
+        assert result == 253_586_510
+
+    def test_mkc_v_resolves_to_its_own_much_smaller_voting_class_value(self):
+        loader = CompanyInfoSECLoader.__new__(CompanyInfoSECLoader)
+        loader.sec_client = MagicMock()
+        loader.sec_client.get_filing_plaintext.return_value = self._MKC_FILING_TEXT
+
+        result = loader._fetch_shares_outstanding_from_filing_text(
+            "MKC.V", "63754", _submissions_with_10k(tickers=["MKC", "MKC-V"])
+        )
+
+        assert result == 14_851_729
+
+    def test_override_map_is_keyed_by_exact_symbol_not_by_shape(self):
+        """The override is an exact-symbol allowlist, not a general heuristic - an unrelated
+        symbol is simply absent from _VERIFIED_SYMBOL_TO_CLASS_MEMBER_OVERRIDES and so never
+        reaches this branch at all, regardless of what its own filing text looks like."""
+        from loaders.load_company_info_sec import CompanyInfoSECLoader as Loader
+
+        assert "ZZZZ" not in Loader._VERIFIED_SYMBOL_TO_CLASS_MEMBER_OVERRIDES
+        assert Loader._VERIFIED_SYMBOL_TO_CLASS_MEMBER_OVERRIDES["MKC"] == "nonvotingcommonstockmember"
+        assert Loader._VERIFIED_SYMBOL_TO_CLASS_MEMBER_OVERRIDES["MKC.V"] == "commonstockmember"
