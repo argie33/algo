@@ -444,6 +444,17 @@ class CompanyInfoSECLoader(SecLoaderBase):
                         if entity_type in ("other", "investment") and sic_code is None
                         else "no_annual_report_filing"
                     )
+                elif self._is_non_common_equity_security(symbol):
+                    # ADDED 2026-09-10 (missing-SEC/XBRL-under-300 push): a ticker whose own
+                    # security is a structured note/exchangeable note (e.g. CCZ - "Comcast
+                    # Holdings ZONES", a Zero-premium Exchangeable Note - live-confirmed CIK
+                    # resolves correctly to the real Comcast CIK 1166691, but Comcast's cover
+                    # page has no common-share count filed under this security at all) is not
+                    # a resolvable gap - there genuinely is no dei:EntityCommonStockSharesOutstanding
+                    # fact for a debt-like instrument. Same permanent-exemption class as
+                    # vqg_symbol_gates.py's _get_preferred_or_debt_security_symbols(), which
+                    # this loader doesn't otherwise use.
+                    shares_outstanding_unavailable_reason = "preferred_or_debt_security_no_shares_outstanding"
                 else:
                     shares_outstanding_unavailable_reason = "shares_outstanding_not_in_xbrl_or_filing_text"
 
@@ -1030,6 +1041,36 @@ class CompanyInfoSECLoader(SecLoaderBase):
             return None
         match = CompanyInfoSECLoader._CLASS_LETTER_FROM_SECURITY_NAME_RE.search(row[0])
         return match.group(1).upper() if match else None
+
+    _NON_COMMON_EQUITY_SECURITY_NAME_RE = re.compile(
+        r"\bZONES\b|Exchangeable Note|Subordinated Note|Junior Subordinated|"
+        r"Preferred Stock|Preferred Share|Depositary Share",
+        re.IGNORECASE,
+    )
+
+    @staticmethod
+    def _is_non_common_equity_security(symbol: str) -> bool:
+        """True if this ticker's own security is a debt-like/structured note or preferred
+        share rather than common equity - see the "preferred_or_debt_security_no_shares_
+        outstanding" call site's own comment (CCZ/"Comcast Holdings ZONES"). Text-based,
+        same discipline as vqg_symbol_gates.py's _get_preferred_or_debt_security_symbols()
+        (which this loader doesn't otherwise use) - not trusted for a plain "American/Global
+        Depositary Share" common-stock ADR, same false-positive this codebase already fixed
+        once for that gate (2026-09-10, BABA/NIO/JD/VLRS).
+        """
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT security_name FROM stock_symbols WHERE symbol = %s", (symbol,))
+                row = cur.fetchone()
+        except Exception as e:
+            logger.debug(f"[{symbol}] Could not look up security_name for non-common-equity check: {e}")
+            return False
+        if not row or not row[0]:
+            return False
+        name = row[0]
+        if "Depositary Share" in name and ("American Depositary" in name or "Global Depositary" in name):
+            return False
+        return bool(CompanyInfoSECLoader._NON_COMMON_EQUITY_SECURITY_NAME_RE.search(name))
 
     def _class_letter_for_context(self, filing_text: str, context_id: str, symbol: str | None = None) -> str | None:
         """The us-gaap:StatementClassOfStockAxis class letter for one <xbrli:context>, or
