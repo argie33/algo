@@ -53,12 +53,24 @@ ALPACA_EQUITY_MAX_RATIO_VS_LAST_SNAPSHOT = Decimal("10")
 
 
 class PositionSizer:
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any], run_date: _date | None = None) -> None:
         if config is None:
             raise ValueError("PositionSizer config cannot be None")
         if not isinstance(config, dict):
             raise TypeError(f"PositionSizer config must be a dict, got {type(config).__name__}")
         self.config = config
+        # REAL-MONEY-READINESS FIX (2026-09-10, orchestration re-audit): Phase 5/7 correctly
+        # bind market-regime evaluation to `run_date` (read_market_regime(eval_date) in
+        # market_exposure.py), but get_market_exposure_multiplier() below used to query
+        # unconditionally by "latest row"/real wall-clock "now" regardless of what date this
+        # sizer was actually running for. Any historical/backfill run (--date mode, an
+        # explicitly supported local-dev workflow per CLAUDE.md) would then qualify candidates
+        # under the historical date's regime in Phase 5/7 while Phase 8 silently sized them
+        # using TODAY's real regime - a genuine regime mismatch between phases in the same
+        # run, with no cross-check. Defaults to None (live behavior unchanged: real wall-clock
+        # "now", exactly as before) - only a caller that explicitly passes run_date changes
+        # behavior.
+        self.run_date = run_date
 
         required_config_keys = [
             "base_risk_pct",
@@ -597,9 +609,19 @@ class PositionSizer:
         def fetch_exposure(cur: PsycopgCursor[Any]) -> Decimal:
             # GOVERNANCE: Must check data_unavailable flag before using exposure data
             # Position size depends critically on accurate market exposure assessment
-            cur.execute(
-                "SELECT exposure_pct, date, data_unavailable, reason FROM market_exposure_daily ORDER BY date DESC LIMIT 1"
-            )
+            # See __init__'s run_date docstring: bound "latest" by self.run_date when set so a
+            # historical/backfill run reads the regime as of that date, matching Phase 5/7,
+            # instead of always picking up whatever is most recent in real wall-clock time.
+            if self.run_date is not None:
+                cur.execute(
+                    "SELECT exposure_pct, date, data_unavailable, reason FROM market_exposure_daily "
+                    "WHERE date <= %s ORDER BY date DESC LIMIT 1",
+                    (self.run_date,),
+                )
+            else:
+                cur.execute(
+                    "SELECT exposure_pct, date, data_unavailable, reason FROM market_exposure_daily ORDER BY date DESC LIMIT 1"
+                )
             row = cur.fetchone()
             if not row or row[0] is None:
                 raise ValueError("Market exposure data unavailable. Phase must run daily to maintain this.")
@@ -627,7 +649,10 @@ class PositionSizer:
                 )
             # FIXED (Session 281): Use trading day logic instead of calendar days
             # Eastern Time, not system-local date.today() - see get_portfolio_value() above.
-            today_et = _datetime.now(EASTERN_TZ).date()
+            # self.run_date (when set) replaces real wall-clock "now" here too - staleness for
+            # a historical/backfill run must be judged against the date being simulated, not
+            # today, or a --date run for an older date would always spuriously fail this check.
+            today_et = self.run_date if self.run_date is not None else _datetime.now(EASTERN_TZ).date()
             calendar_age = (today_et - data_date).days
             trading_age = self._calculate_trading_days_elapsed(data_date, today_et)
             if trading_age > 1:

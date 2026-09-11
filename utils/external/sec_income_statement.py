@@ -19,6 +19,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_operating_income_from_bank_net_interest_and_noninterest,
     _fill_operating_income_from_revenue_minus_cogs_and_opex,
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
+    _fill_operating_income_from_revenue_minus_operating_expenses_only,
     _fill_pretax_income_from_domestic_foreign_split,
     _fill_pretax_income_from_results_of_operations_when_validated,
     _fill_sga_from_general_and_administrative_when_no_selling_component,
@@ -704,6 +705,19 @@ def get_income_statement(
         # narrower-measure reason as DirectOperatingCosts above - excludes D&A/interest/taxes
         # that a full cost-of-revenue figure might otherwise include.
         "UtilitiesOperatingExpenseMaintenanceAndOperations",
+        # ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 300" push,
+        # _fill_operating_income_from_revenue_minus_operating_expenses_only safety guard):
+        # fetch-only, never field-mapped anywhere - insurers (ITIC/NODK/OXBR live-confirmed)
+        # tag a real "Revenues" and a real "OperatingExpenses" total like KRC/BEEP, but
+        # OperatingExpenses for an insurer EXCLUDES this claims/benefits-incurred line
+        # (a COGS-equivalent for insurance underwriting, not a COGS-family concept name so
+        # the existing _cogs_family_keys gate above never caught it) - naively subtracting
+        # OperatingExpenses alone from revenue for an insurer would overstate operating
+        # income by the entire claims-paid figure, the same CASY-shaped danger that gate
+        # exists to prevent. Fetched purely so its raw key can extend that gate list, not to
+        # populate any destination column.
+        "BenefitsLossesAndExpenses",
+        "PolicyholderBenefitsAndClaimsIncurredNet",
         # REMOVED 2026-07-28, RE-ADDED 2026-09-05: "CostsAndExpenses"/"OperatingExpenses" used
         # to be fetched here as would-be operating_income fallbacks, but neither had a
         # field_mapping entry or destination column, and live-checking real filers missing
@@ -1156,6 +1170,7 @@ def get_income_statement(
     _fill_pretax_income_from_domestic_foreign_split(rows)
     _fill_pretax_income_from_results_of_operations_when_validated(rows)
     _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
+    _fill_operating_income_from_revenue_minus_operating_expenses_only(rows)
     _fill_operating_income_from_revenue_minus_cogs_and_opex(rows)
     _fill_operating_income_from_bank_net_interest_and_noninterest(rows)
     _fill_sga_from_general_and_administrative_when_no_selling_component(rows)

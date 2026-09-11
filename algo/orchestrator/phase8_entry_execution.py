@@ -1436,7 +1436,7 @@ def run(
 
         logger.info(f"[PHASE 8] Position sizer: max_concentration_pct={tier_max_conc:.0f}% (from tier)")
 
-    sizer = PositionSizer(config=sizer_config)
+    sizer = PositionSizer(config=sizer_config, run_date=run_date)
 
     liquidity = LiquidityChecks(config=config)
 

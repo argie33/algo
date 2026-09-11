@@ -370,6 +370,74 @@ def _fill_operating_income_from_revenue_minus_cogs_and_opex(rows: list[dict[str,
         row["operating_income_loss"] = row["revenues"] - cogs_ex_dda - cogs_dda - operating_expenses
 
 
+def _fill_operating_income_from_revenue_minus_operating_expenses_only(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: operating_income = Revenues - OperatingExpenses, for filers with NO
+    cost-of-goods-sold-family concept anywhere in their income-statement history, where
+    OperatingExpenses is their sole, all-in cost line - NOT merely a narrower non-COGS
+    opex bucket the way it is for CASY (see the sibling
+    _fill_operating_income_from_revenue_minus_cogs_and_opex's own docstring for why
+    OperatingExpenses alone is dangerous to subtract for a filer that separately itemizes
+    COGS - CASY's real operating margin is 5.9%, not the implausible ~84% naive
+    Revenue-OperatingExpenses subtraction would produce).
+
+    ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 300" push, operating_income_
+    not_itemized investigation): live-confirmed via real companyfacts JSON - KRC (Kilroy
+    Realty, $5B+ office REIT, CIK 0001025996) and BEEP (Mobile Infrastructure Corp, a
+    parking-garage REIT, CIK 0001839980) both report real "Revenues" and real
+    "OperatingExpenses" totals every fiscal year but tag ZERO cost-of-goods/cost-of-revenue-
+    family concepts anywhere (real estate operators don't sell goods, so there's no COGS
+    line to itemize separately - OperatingExpenses IS their complete cost total, a
+    structurally different shape from CASY's non-COGS-only opex bucket). KRC FY2025:
+    Revenues=$1,112,667,000 - OperatingExpenses=$801,652,000 = $311,015,000 (28% operating
+    margin, plausible for an office REIT). Both stopped tagging OperatingIncomeLoss
+    directly in recent 10-Ks despite continuing to file real, current annual reports every
+    year - real data existed on file, just never subtracted.
+
+    Gated on the WHOLE symbol's row history (not just the current fiscal year) never once
+    tagging any COGS-family concept - a filer that tags COGS in even one year is treated as
+    CASY-shaped (OperatingExpenses excludes COGS) for every year, not just years this
+    fallback's own current-row data happens to lack it, since a filer's income-statement
+    format doesn't usually change fiscal-year to fiscal-year and a single COGS-tagging year
+    is strong evidence this filer's OperatingExpenses figure is narrower than total costs
+    even in years it happens to go COGS-untagged. Same gate extended to
+    "benefits_losses_and_expenses"/"policyholder_benefits_and_claims_incurred_net" - live-
+    confirmed via ITIC/NODK/OXBR (insurers) tagging real Revenues+OperatingExpenses just
+    like KRC/BEEP, but OperatingExpenses for an insurer excludes its claims-incurred line
+    (insurance's COGS-equivalent), the same overstatement risk under a different concept
+    name.
+
+    Must run BEFORE _fill_operating_income_from_revenue_minus_cogs_and_opex (which
+    unconditionally pops "operating_expenses" whether or not it fires) - only pops
+    "operating_expenses" itself when this fallback actually uses it, so a CASY-shaped
+    filer's raw key survives untouched for that sibling fallback to consume normally.
+    Never overwrites a real operating_income_loss value.
+    """
+    _cogs_family_keys = (
+        "cost_of_revenue",
+        "cost_of_goods_and_services_sold",
+        "cost_of_goods_and_service_excluding_depreciation_depletion_and_amortization",
+        "cost_of_goods_sold_excluding_depreciation_depletion_and_amortization",
+        "cost_of_goods_sold",
+        "cost_of_goods_and_services_sold_depreciation_and_amortization",
+        "other_cost_of_operating_revenue",
+        "direct_operating_costs",
+        "utilities_operating_expense_maintenance_and_operations",
+        "benefits_losses_and_expenses",
+        "policyholder_benefits_and_claims_incurred_net",
+    )
+    if any(row.get(key) is not None for row in rows for key in _cogs_family_keys):
+        return
+    for row in rows:
+        if row.get("operating_income_loss") is not None:
+            continue
+        revenue = row.get("revenues")
+        operating_expenses = row.get("operating_expenses")
+        if revenue is None or operating_expenses is None:
+            continue
+        row["operating_income_loss"] = revenue - operating_expenses
+        row.pop("operating_expenses", None)
+
+
 def _fill_operating_income_from_bank_net_interest_and_noninterest(rows: list[dict[str, Any]]) -> None:
     """Fallback-only: operating_income = InterestIncomeExpenseNet + NoninterestIncome -
     NoninterestExpense, for banks/custodians that never tag OperatingIncomeLoss/

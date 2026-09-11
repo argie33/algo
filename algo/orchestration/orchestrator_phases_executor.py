@@ -755,17 +755,41 @@ class OrchestratorPhasesMixin(_Base):
             )
             exposure_constraints = None
 
-        result = _owner().run_phase8(
-            self.config,
-            self.run_date,
-            self.dry_run,
-            self.verbose,
-            self.log_phase_result,
-            check_halt_flag=self.halt_manager.check_halt_flag,
-            executor=executor,
-            exposure_constraints=exposure_constraints,
-            alerts=self.alerts,
-        )
+        # REAL-MONEY-READINESS FINDING (2026-09-10, orchestration re-audit): unlike Phase 6/9,
+        # this wrapper had no try/except at all. Phase 8 is real order submission - a mid-loop
+        # exception that isn't one of run_phase8()'s own narrowly-caught types (e.g. an
+        # unexpected AttributeError/KeyError from a malformed signal) propagates straight to
+        # OrchestratorPhaseExecutor.execute_phase()'s generic Exception handler, which marks
+        # this run's Phase 8 status="error" but never sets the shared halt_manager flag -
+        # only an explicit PhaseResult(halted=True) does that, and there is none here because
+        # no PhaseResult was ever returned. Some symbols may have already been entered before
+        # the crash; the NEXT scheduled run would have no signal that entry execution failed
+        # catastrophically mid-run and would proceed as if nothing happened. Set the halt flag
+        # on any exception here, same as Phase 6/9's halted-result handling, then re-raise so
+        # phase_executor's own error/crash behavior is unchanged.
+        try:
+            result = _owner().run_phase8(
+                self.config,
+                self.run_date,
+                self.dry_run,
+                self.verbose,
+                self.log_phase_result,
+                check_halt_flag=self.halt_manager.check_halt_flag,
+                executor=executor,
+                exposure_constraints=exposure_constraints,
+                alerts=self.alerts,
+            )
+        except Exception as e:
+            halt_reason = f"Phase 8 (entry execution) raised an unhandled exception: {e}"
+            logger.critical(f"[PHASE 8] Setting halt flag due to unhandled exception: {halt_reason}")
+            halt_set_result = self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase8_entry_execution")
+            if not halt_set_result:
+                logger.critical(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set despite Phase 8 (entry "
+                    "execution) raising an unhandled exception. Check database connectivity "
+                    "(RDS and DynamoDB) and AWS credentials."
+                )
+            raise
         return result
 
     def _executor_phase_9(self, **kwargs: Any) -> Any:

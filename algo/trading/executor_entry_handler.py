@@ -952,37 +952,73 @@ class EntryHandler:
             f"attempting to cancel. Recording as a real fill, not discarding it."
         )
 
+        # REAL-MONEY-READINESS FIX (2026-09-10, order-execution audit): a naked position from
+        # a lost bracket leg used to get exactly one submission attempt - a transient
+        # network/broker error here left real shares unprotected for however long until the
+        # next Phase 9 reconciliation pass (hours, per the orchestrator's schedule). One
+        # immediate retry recovers from a transient failure without waiting on that schedule,
+        # and a failure that survives the retry now fires a real operator-facing critical
+        # alert (not just a log line) so a human can intervene immediately instead of only
+        # finding out from a log review.
         stop_result: dict[str, Any] = {}
-        try:
-            stop_client_order_id = f"race-stop-{alpaca_order_id}"
-            stop_result = self.context._submit_standalone_protective_stop(
-                symbol,
-                qty=float(raced_filled_qty),
-                stop_price=float(stop_loss_price),
-                client_order_id=stop_client_order_id,
-                pos_id=None,
+        stop_client_order_id = f"race-stop-{alpaca_order_id}"
+        last_error: Exception | None = None
+        for attempt in (1, 2):
+            try:
+                stop_result = self.context._submit_standalone_protective_stop(
+                    symbol,
+                    qty=float(raced_filled_qty),
+                    stop_price=float(stop_loss_price),
+                    client_order_id=f"{stop_client_order_id}-r{attempt}" if attempt > 1 else stop_client_order_id,
+                    pos_id=None,
+                )
+                last_error = None
+            except Exception as e:
+                last_error = e
+                stop_result = {}
+                logger.warning(
+                    f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: standalone-stop submission "
+                    f"attempt {attempt}/2 raised {type(e).__name__}: {e}."
+                )
+                continue
+            if stop_result.get("success"):
+                break
+            logger.warning(
+                f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: standalone-stop submission "
+                f"attempt {attempt}/2 failed: {stop_result.get('message')}."
             )
-        except Exception as e:
+
+        if last_error is not None or not stop_result.get("success"):
+            failure_detail = (
+                f"raised {type(last_error).__name__}: {last_error}" if last_error else stop_result.get("message")
+            )
             logger.critical(
                 f"[ENTRY_HANDLER CRITICAL] {symbol} {alpaca_order_id}: fill-vs-cancel race left "
-                f"{raced_filled_qty} shares live with NO protective stop, and the immediate "
-                f"standalone-stop submission itself raised {type(e).__name__}: {e}. Position is "
-                f"naked until Phase 9 reconciliation runs."
+                f"{raced_filled_qty} shares live with NO protective stop after 2 submission "
+                f"attempts - {failure_detail}. Position is naked until Phase 9 reconciliation runs."
             )
+            try:
+                config_dict = self.config.to_dict() if hasattr(self.config, "to_dict") else self.config
+                TradeNotificationService(config_dict)._send_notification(
+                    subject=f"NAKED POSITION: {symbol}",
+                    message=(
+                        f"{raced_filled_qty} sh {symbol} filled during a bracket cancel race with NO "
+                        f"protective stop after 2 attempts - {failure_detail}. Naked until Phase 9 "
+                        f"reconciliation runs unless manually stopped out now."
+                    ),
+                    kind="naked_position",
+                    severity="critical",
+                    symbol=symbol,
+                    details={"qty": float(raced_filled_qty), "intended_stop_price": float(stop_loss_price)},
+                )
+            except Exception as notify_err:
+                logger.critical(f"[ENTRY_HANDLER] {symbol}: naked-position alert itself failed: {notify_err}")
         else:
-            if not stop_result.get("success"):
-                logger.critical(
-                    f"[ENTRY_HANDLER CRITICAL] {symbol} {alpaca_order_id}: fill-vs-cancel race left "
-                    f"{raced_filled_qty} shares live with NO protective stop - immediate standalone-stop "
-                    f"submission failed: {stop_result.get('message')}. Position is naked until Phase 9 "
-                    f"reconciliation runs."
-                )
-            else:
-                logger.warning(
-                    f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: immediate standalone protective stop "
-                    f"placed @ ${stop_loss_price} (order id {stop_result.get('order_id')}) for the "
-                    f"race-recovered fill - not left naked until Phase 9."
-                )
+            logger.warning(
+                f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: immediate standalone protective stop "
+                f"placed @ ${stop_loss_price} (order id {stop_result.get('order_id')}) for the "
+                f"race-recovered fill - not left naked until Phase 9."
+            )
 
         try:
             notify(
@@ -1562,7 +1598,8 @@ class EntryHandler:
             if existing_position:
                 # Position exists - fetch current status to determine if reopening or adding
                 cur.execute(
-                    "SELECT trade_ids_arr, status, quantity, avg_entry_price FROM algo_positions WHERE position_id = %s",
+                    "SELECT trade_ids_arr, status, quantity, avg_entry_price, stop_loss_price "
+                    "FROM algo_positions WHERE position_id = %s",
                     (position_id,),
                 )
                 fetch_result = cur.fetchone()
@@ -1570,6 +1607,7 @@ class EntryHandler:
                 existing_status = fetch_result[1] if fetch_result and len(fetch_result) > 1 else None
                 existing_quantity = fetch_result[2] if fetch_result and len(fetch_result) > 2 else None
                 existing_avg_entry_price = fetch_result[3] if fetch_result and len(fetch_result) > 3 else None
+                existing_stop_loss_price = fetch_result[4] if fetch_result and len(fetch_result) > 4 else None
 
                 is_reopening_closed_position = existing_status == "closed"
                 if is_reopening_closed_position:
@@ -1659,17 +1697,14 @@ class EntryHandler:
                     # audit): this branch used to set quantity=actual_shares and
                     # avg_entry_price/entry_price=executed_price directly - i.e. this trade's
                     # OWN fill quantity/price, not blended with whatever the position already
-                    # held. Reachability check: trade_validator.py's check_duplicate_position()
-                    # (called earlier in this same entry flow, always given a real entry_date
-                    # from Phase 8's own run_date) blocks any new entry into a symbol that
-                    # already has is_open=true for that entry_date - so this specific branch
-                    # (existing position found AND its status isn't 'closed', i.e. genuinely
-                    # still open) should be unreachable in the current call graph, same as
-                    # get_phase_size_multiplier()'s phase_climax branch in position_sizer.py.
-                    # Hardening anyway, defense-in-depth: if that upstream guard is ever
-                    # weakened/bypassed (e.g. a future entry_date=None call path), this must
-                    # not silently corrupt the position's cost basis by discarding the prior
-                    # entry's contribution - quantity is summed and avg_entry_price/entry_price
+                    # held. NOTE 2026-09-10 (real-money-readiness risk audit): the comment here
+                    # used to claim this branch was unreachable because
+                    # trade_validator.check_duplicate_position() blocks re-entry into a symbol
+                    # with an open position - that's false. That guard only checks
+                    # `entry_date = %s AND is_open = true` (same-day duplicate), so a pyramid
+                    # add on a LATER trading day into a position opened earlier sails straight
+                    # through it and hits this branch for real, every time a winning position
+                    # gets scaled into. Quantity is summed and avg_entry_price/entry_price
                     # become the quantity-weighted average across old + new shares, matching
                     # how a real broker computes cost basis on an add.
                     prior_qty = Decimal(str(existing_quantity)) if existing_quantity else Decimal(0)
@@ -1685,6 +1720,25 @@ class EntryHandler:
                     else:
                         blended_avg_price = Decimal(str(executed_price))
                     blended_position_value = total_quantity * Decimal(str(executed_price))
+
+                    # Preserve the position's frozen risk basis (stop_loss_price) instead of
+                    # overwriting it with the new lot's own stop. stop_loss_price is the
+                    # entry-time anchor R-multiple/exit-gating math is computed against
+                    # (T1/T2/T3 target_r_multiple, "N.NR+" exhaustion-exit thresholds) - if a
+                    # pyramid add overwrote it with the new lot's (typically tighter,
+                    # higher-priced) stop, the position's recorded risk-per-share would shrink
+                    # retroactively and corrupt every downstream R-multiple computed against the
+                    # now-blended average entry price. Recompute risk_pct/r_multiple against the
+                    # preserved stop and the new blended_avg_price so those two fields stay
+                    # internally consistent with what's actually stored.
+                    if existing_stop_loss_price is not None:
+                        stop_loss_price = Decimal(str(existing_stop_loss_price))
+                        risk_pct = None
+                        if blended_avg_price > 0:
+                            risk_pct = float(
+                                ((float(blended_avg_price) - float(stop_loss_price)) / float(blended_avg_price)) * 100.0
+                            )
+                        r_multiple = 0.0 if blended_avg_price > stop_loss_price else None
 
                     cur.execute(
                         """
