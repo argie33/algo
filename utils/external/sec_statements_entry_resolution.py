@@ -18,6 +18,27 @@ from utils.external.sec_statements_shared import (
 logger = logging.getLogger(__name__)
 
 
+def _is_power_of_ten_scale_outlier(existing_val: Any, entry_val: Any) -> bool:
+    """True if `entry_val` differs from `existing_val` by a ratio suspiciously close to a
+    clean power of 10 (100x/1000x/10000x, within 1%) - the same "filer decimals-tag error,
+    not a real business change" signal already trusted for the instant-fact frame-preference
+    case above (see this function's callers' docstrings for the IPAR/PMT precedent this
+    mirrors). Real restatements essentially never move a balance or income-statement total by
+    an exact round factor of 10.
+    """
+    if not (
+        isinstance(existing_val, int | float)
+        and isinstance(entry_val, int | float)
+        and existing_val != 0
+        and entry_val != 0
+    ):
+        return False
+    ratio = abs(entry_val) / abs(existing_val)
+    if ratio < 1:
+        ratio = 1 / ratio
+    return any(abs(ratio - power) / power < 0.01 for power in (100, 1000, 10000))
+
+
 def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-existing complexity debt extracted from _aggregate_concepts, not new logic
     entry: Any,
     source: str,
@@ -721,6 +742,29 @@ def _aggregate_concepts_should_replace_entry(
             row_has_frame = bool(row.get(f"_frame_{col}"))
             if entry_has_frame != row_has_frame:
                 should_replace = entry_has_frame
+                # FIXED 2026-09-10 (goal: "under 300" push, UPC live-confirmed): the frame-
+                # preference branch above never got the same magnitude-scale guard the
+                # instant-fact case did (see the frame_magnitude_scale_guard comment above) -
+                # a frame-tagged duration fact can be JUST as vulnerable to a filer-side
+                # decimals-tag error on a re-cited comparative period as an instant one.
+                # Live-confirmed via UPC (Universe Pharmaceuticals) Revenues,
+                # start=2022-10-01/end=2023-09-30: two independent prior 20-Fs (accn
+                # ...-24-007745 filed 2024-01-30, ...-25-036798 filed 2025-04-29) agree on
+                # $32,308,735 with no frame; UPC's FY2025 20-F (accn ...-26-009000) re-cites
+                # the SAME period as $32,308,735,000 - exactly 1000x - now WITH frame=
+                # "CY2023", so the un-guarded frame-preference rule confidently replaced the
+                # two-filing consensus with the 1000x outlier. Same narrow, high-confidence
+                # shape as the instant-fact guard: only overrides frame-preference when the
+                # new value is a suspiciously-exact power-of-10 multiple of unanimous prior
+                # agreement.
+                if entry_has_frame and col in row and _is_power_of_ten_scale_outlier(row.get(col), entry.get("val")):
+                    logger.warning(
+                        f"[frame_magnitude_scale_guard] Rejecting frame-tagged duration-fact "
+                        f"replacement for {col} (accn {entry.get('accn')}): {entry.get('val')} "
+                        f"is a magnitude-scale outlier vs the already-agreed {row.get(col)} - "
+                        f"likely a filer decimals-tag error, not a real restatement."
+                    )
+                    should_replace = False
             else:
                 should_replace = row_filed is None or entry_filed > row_filed
 
