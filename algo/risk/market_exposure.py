@@ -442,33 +442,61 @@ class MarketExposure(
             logger.debug(f"  Pillar 2 (Independent Risk Layers): {pillar_risk_score:.1f}/100 -> {risk_pts:.1f} pts")
 
             # ============= PILLAR 3: BREADTH & SENTIMENT (25pt) =============
-            # Participation sub-score (50% of pillar): breadth + new_highs_lows + ad_line,
-            # all required/critical, equal-weighted (matches Pillar 2's simple-combination
-            # treatment - Rapach/Strauss/Zhou).
-            b50 = self.calculator._pct_above_ma(eval_date, ma_days=50, cur=cur)
-            b200 = self.calculator._pct_above_ma(eval_date, ma_days=200, cur=cur)
-            breadth = {
-                "score": round(0.625 * b200["score"] + 0.375 * b50["score"], 1),
-                "pct_above_50": b50["value"],
-                "pct_above_200": b200["value"],
-            }
-            nhnl = self.calculator.new_highs_lows(eval_date, cur)  # required, raises
-            ad = self._ad_line(eval_date, cur)  # required, raises
-            participation_score = self._blend_scores(
-                [(breadth["score"], 1.0), (nhnl["score"], 1.0), (ad["score"], 1.0)]
-            )
+            # FIXED 2026-09-11: breadth/new_highs_lows/ad_line/aaii used to be "required,
+            # raises" (a leftover from the pre-2026-08-24 design where this pillar carried
+            # real scoring weight). Since PASS 2026-08-24 zero-weighted this pillar
+            # (W_PILLAR_CONFIRM=0.0, see module docstring's "PILLAR 3 VETO SCOPE" - none of
+            # these four feed a veto either), a stale/missing input here could still halt
+            # the ENTIRE exposure computation (blocking Phase 1 / the dashboard) over a
+            # signal that mathematically cannot move the score by a single point. Live-hit
+            # 2026-09-11: a stale aaii_sentiment loader 503'd the dashboard's /api/algo/markets
+            # for this reason alone. Now degrades to a data_unavailable placeholder per input
+            # (matching the market_technicals/put_call_ratio pattern above) instead of raising.
+            def _pillar3_optional(compute_fn: Any, label: str) -> dict[str, Any]:
+                try:
+                    result: dict[str, Any] = compute_fn()
+                    return result
+                except (RuntimeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    logger.warning(f"[{label}] Unavailable, zero-weight Pillar 3 - non-fatal: {e}")
+                    return {"data_unavailable": True, "reason": str(e)}
 
-            # Sentiment sub-score (50% of pillar): aaii required, put_call_ratio optional.
-            aaii = self.calculator.aaii(eval_date, cur)  # required, raises
-            pc = self.calculator.put_call_ratio(eval_date, cur)  # optional
-            sentiment_parts = [(aaii["score"], 1.0)]
-            if not pc.get("data_unavailable"):
-                sentiment_parts.append((pc["score"], 1.0))
+            b50 = _pillar3_optional(lambda: self.calculator._pct_above_ma(eval_date, ma_days=50, cur=cur), "BREADTH_50")
+            b200 = _pillar3_optional(
+                lambda: self.calculator._pct_above_ma(eval_date, ma_days=200, cur=cur), "BREADTH_200"
+            )
+            if not b50.get("data_unavailable") and not b200.get("data_unavailable"):
+                breadth: dict[str, Any] = {
+                    "score": round(0.625 * b200["score"] + 0.375 * b50["score"], 1),
+                    "pct_above_50": b50["value"],
+                    "pct_above_200": b200["value"],
+                }
             else:
-                logger.info(
-                    f"[PUT_CALL_RATIO] Unavailable, Sentiment sub-score falls back to AAII alone: {pc.get('reason')}"
-                )
-            sentiment_score = self._blend_scores(sentiment_parts)
+                breadth = {"data_unavailable": True, "reason": "50/200-day breadth MA unavailable"}
+
+            nhnl = _pillar3_optional(lambda: self.calculator.new_highs_lows(eval_date, cur), "NEW_HIGHS_LOWS")
+            ad = _pillar3_optional(lambda: self._ad_line(eval_date, cur), "AD_LINE")
+            participation_parts = [
+                (part["score"], 1.0) for part in (breadth, nhnl, ad) if not part.get("data_unavailable")
+            ]
+            if participation_parts:
+                participation_score = self._blend_scores(participation_parts)
+            else:
+                logger.info("[PARTICIPATION] All inputs unavailable, defaulting to neutral (zero-weight pillar)")
+                participation_score = 50.0
+
+            # Sentiment sub-score (50% of pillar): aaii + put_call_ratio, both optional now.
+            aaii = _pillar3_optional(lambda: self.calculator.aaii(eval_date, cur), "AAII")
+            pc = self.calculator.put_call_ratio(eval_date, cur)  # optional
+            sentiment_parts = [(part["score"], 1.0) for part in (aaii, pc) if not part.get("data_unavailable")]
+            if not sentiment_parts:
+                logger.info("[SENTIMENT] All inputs unavailable, defaulting to neutral (zero-weight pillar)")
+                sentiment_score = 50.0
+            else:
+                if pc.get("data_unavailable"):
+                    logger.info(
+                        f"[PUT_CALL_RATIO] Unavailable, Sentiment sub-score falls back to AAII alone: {pc.get('reason')}"
+                    )
+                sentiment_score = self._blend_scores(sentiment_parts)
 
             pillar_confirm_score = self._blend_scores(
                 [(participation_score, self.SUBW_PARTICIPATION), (sentiment_score, self.SUBW_SENTIMENT)]
