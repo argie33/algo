@@ -443,11 +443,28 @@ class RiskScoringMixin:
         # stock can have low day-to-day volatility yet still suffer one deep sustained
         # drawdown). Scored as a loss-severity characterization, not a return-prediction bet -
         # see this method's docstring for why (not stably predictive either direction).
-        if metrics.get("max_drawdown_1y") is not None:
-            drawdown_pct = abs(min(0.0, metrics["max_drawdown_1y"]))
-            dd_score = self._max_drawdown_curve_score(drawdown_pct)
-            weighted_sum += dd_score * 0.10
-            total_weight += 0.10
+        raw_max_drawdown = metrics.get("max_drawdown_1y")
+        if raw_max_drawdown is not None:
+            # REAL-MONEY-READINESS FIX (2026-09-10, financial-calc integrity audit):
+            # `abs(min(0.0, raw_max_drawdown))` silently treated a positive/corrupted value
+            # (e.g. a future writer storing an unsigned magnitude instead of this column's
+            # documented negative-percentage convention) as a real 0.0 drawdown - the best
+            # possible score, with no warning. load_risk_metrics_daily.py's own
+            # _calculate_max_drawdown() can only ever return strictly negative or None today,
+            # so this hasn't fired in practice, but this pillar must not silently reward what
+            # would actually be a data-integrity violation if that producer ever changed.
+            if raw_max_drawdown > 0:
+                logger.critical(
+                    f"[RISK SCORING] {symbol}: max_drawdown_1y={raw_max_drawdown} is positive - "
+                    f"this column's convention is a negative percentage (peak-to-trough decline). "
+                    f"Treating as a data-integrity violation, excluding from Risk score rather than "
+                    f"scoring as a favorable (zero) drawdown."
+                )
+            else:
+                drawdown_pct = abs(raw_max_drawdown)
+                dd_score = self._max_drawdown_curve_score(drawdown_pct)
+                weighted_sum += dd_score * 0.10
+                total_weight += 0.10
 
         # Liquidity (20-trading-day average dollar volume), ADDED 2026-09-01 (goal session -
         # user directive after live-observing untradeable micro-cap banks topping Risk's
