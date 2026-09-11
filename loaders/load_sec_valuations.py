@@ -1493,9 +1493,9 @@ class SecValuationsLoader(
             self._recategorize_ric_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_unsupported_currency_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_royalty_trust_dcf_fcf_reason(symbol, valuation_row)
+            self._recategorize_blank_check_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_capex_never_tagged_dcf_fcf_reason(symbol, valuation_row)
             self._recategorize_no_recent_ocf_dcf_fcf_reason(symbol, valuation_row)
-            self._recategorize_blank_check_dcf_fcf_reason(symbol, valuation_row)
             # Deliberately LAST DB-touching call in this method (after every _recategorize_*
             # above, each of which opens its own cursor) - see that method's own docstring for
             # why, plus a test-fixture-brittleness note: this is the only ordering under which

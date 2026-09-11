@@ -299,10 +299,23 @@ class SecValuationDcfFcfRecategorizeMixin:
         reason the whole-row all_valuation_metrics_null fallback already uses for this identical
         population, just never checked for dcf_fcf specifically since it's a narrower field-
         level reason than the whole-row fallback (a SPAC with SOME valuation metrics computed
-        but dcf_fcf specifically null wouldn't hit that whole-row check at all). Checked last
-        (after RIC/currency/royalty-trust/capex) so a more specific real cause above always
-        wins - only overrides the exact generic reason this fix targets, same guard discipline
-        as every sibling recategorize_*_dcf_fcf_reason function in this file.
+        but dcf_fcf specifically null wouldn't hit that whole-row check at all).
+
+        REORDERED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push): originally called
+        LAST (after RIC/currency/royalty-trust/capex/OCF) on the assumption that a more specific
+        real cause above always wins - but for a pre-merger SPAC shell with >=2 real fiscal
+        years of some OCF on file (trust interest, admin costs) and obviously no capex,
+        _recategorize_capex_never_tagged_dcf_fcf_reason's own guard fired FIRST and overwrote
+        the reason away from "missing_cash_flow_data", so this check's guard below then always
+        failed and this fix was dead code for that population. Live-confirmed 14 SIC-6770
+        symbols (AFJK/ALDF/CAES/CEPO/FSHP/FSHPR/GIW/GTEN/LEGO/MTNE/PGACR/QETAR/QUMSR/XFLH) stuck
+        on "capex_never_tagged_in_recent_filings" despite this fix existing since 2026-09-06.
+        Now called BEFORE capex/OCF-never-tagged in load_sec_valuations.py - only overrides the
+        exact generic reason this fix targets, same guard discipline as every sibling
+        recategorize_*_dcf_fcf_reason function in this file, so moving it earlier can't
+        incorrectly steal a genuinely-different cause from RIC/currency/royalty-trust (all of
+        which already ran and, if matched, already moved the reason off "missing_cash_flow_data"
+        before this point).
         """
         if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
             return
