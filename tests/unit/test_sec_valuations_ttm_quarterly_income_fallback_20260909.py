@@ -38,6 +38,13 @@ class _FakeCursor:
         return []
 
     def fetchone(self):
+        # UPDATED 2026-09-11 (sibling blank-check-zero-row fix): a second, distinct
+        # company_info_sec query (sic_description = 'Blank Checks') runs before the one this
+        # fixture originally modeled - distinguish by column referenced, not the bare
+        # "company_info_sec" substring both queries share, so this fixture doesn't answer the
+        # new query as if it were the old one (none of this file's symbols are blank checks).
+        if "sic_description" in self._last_query:
+            return None
         if "company_info_sec" in self._last_query:
             return (False, "7372")
         return None

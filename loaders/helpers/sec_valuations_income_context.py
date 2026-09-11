@@ -62,6 +62,29 @@ class IncomeStatementContextMixin:
         def _compute_multi_year_eps_cagr(income_rows: list[tuple[Any, ...]]) -> float | None: ...
 
     @staticmethod
+    def _reclassify_blank_check_zero_row(cur: Any, symbol: str, reason: str) -> str:
+        """FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push, same-day sibling to
+        the dcf_fcf blank-check call-ordering fix): a pre-merger SPAC shell (SIC "Blank Checks")
+        with zero annual_income_statement rows has no real operating business at all - the
+        identical structural fact `_recategorize_blank_check_all_valuation_metrics_null_reason`
+        already relabels to "no_revenue_reported" ("Legitimate / not applicable") for the
+        "all key metrics NULL" whole-row case, but this earlier, more extreme "zero income-
+        statement rows exist at all" early-return never got the same check - only the ETF/FPI-
+        currency siblings just above it did. Live-confirmed 13 active symbols (APMC/CCCT/CGCF/
+        EWAV/FTRA/GCGR/GHXI/IPVV/LTGR/RACD/SHOT/WLCO/YICC) stuck on "no_income_statement"
+        ("Missing SEC/XBRL data") instead of "no_revenue_reported". Checked BEFORE the FPI-
+        currency reclassify: a blank check is never a real FPI reporting real revenue under a
+        rejected currency, so this can't incorrectly steal that cause.
+        """
+        cur.execute(
+            "SELECT 1 FROM company_info_sec WHERE symbol = %s AND sic_description = 'Blank Checks'",
+            (symbol,),
+        )
+        if cur.fetchone() is not None:
+            return "no_revenue_reported"
+        return reason
+
+    @staticmethod
     def _reclassify_fpi_zero_row_currency_gap(cur: Any, symbol: str, reason: str) -> str:
         """ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, sibling to
         9e26b3d02/6111c0b4f's has_unsupported_currency_only_fact fix): annual_income_statement
@@ -93,6 +116,20 @@ class IncomeStatementContextMixin:
         ):
             return "unsupported_currency_no_fx_rate"
         return reason
+
+    def _reclassify_zero_row_reason(self, cur: Any, symbol: str, reason: str) -> str:
+        """Chains the blank-check and FPI-currency reclassifications for the zero-income-
+        statement-rows early return - pulled out to a single call site (2026-09-11) to keep
+        the caller's own branching count under the ruff C901 threshold, no behavior change.
+        Blank-check is checked first: it can never incorrectly steal the FPI-currency cause
+        (a blank check is never a real FPI reporting real revenue under a rejected currency).
+        """
+        if reason != "no_income_statement":
+            return reason
+        reason = self._reclassify_blank_check_zero_row(cur, symbol, reason)
+        if reason != "no_income_statement":
+            return reason
+        return self._reclassify_fpi_zero_row_currency_gap(cur, symbol, reason)
 
     @staticmethod
     def _fetch_ttm_income_statement_row(cur: Any, symbol: str) -> list[tuple[Any, ...]]:
@@ -316,8 +353,7 @@ class IncomeStatementContextMixin:
             cur.execute("SELECT etf FROM stock_symbols WHERE symbol = %s", (symbol,))
             etf_row = cur.fetchone()
             reason = "etf_no_sec_filings" if etf_row and etf_row[0] == "true" else "no_income_statement"
-            if reason == "no_income_statement":
-                reason = self._reclassify_fpi_zero_row_currency_gap(cur, symbol, reason)
+            reason = self._reclassify_zero_row_reason(cur, symbol, reason)
             return [
                 self._unavailable_marker(
                     symbol,

@@ -25,7 +25,13 @@ class _FakeCursor:
     """Sequential fetchall/fetchone stand-in, same shape as the ETF sibling test's own
     _FakeCursor: first fetchall() is the income-statement query (always empty here), then
     _get_total_cash_and_debt's two fetchone() calls, then the ETF-status query, then (only
-    when is_fpi=True) this fix's new is_foreign_private_issuer query."""
+    when is_fpi=True) this fix's new is_foreign_private_issuer query.
+
+    UPDATED 2026-09-11 (sibling blank-check-zero-row fix, same "no_income_statement" early
+    return): a second, distinct company_info_sec query (sic_description = 'Blank Checks') was
+    added between the ETF check and this FPI-currency check - distinguish by the actual column
+    referenced rather than the bare "company_info_sec" substring both queries share, so this
+    fixture doesn't answer the new query as if it were the FPI one."""
 
     def __init__(self, is_fpi: bool):
         self._is_fpi = is_fpi
@@ -40,7 +46,9 @@ class _FakeCursor:
     def fetchone(self):
         if "stock_symbols" in self._last_query:
             return ("N",)  # not an ETF
-        if "company_info_sec" in self._last_query:
+        if "sic_description" in self._last_query:
+            return None  # never a blank check in this test's population
+        if "is_foreign_private_issuer" in self._last_query:
             return (self._is_fpi,)
         return None  # _get_total_cash_and_debt's cash/debt queries: no balance-sheet data
 
