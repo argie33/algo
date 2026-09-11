@@ -121,3 +121,59 @@ def test_full_exposure_returns_one_multiplier() -> None:
     row = (100.0, _today_et(), False, None)
     result = _run_with_row(row)
     assert result == Decimal("1")
+
+
+class TestRunDateBoundLookup:
+    """Regression tests for the 2026-09-10 orchestration re-audit finding: without a run_date,
+    this method always queried "latest row"/real wall-clock "now" regardless of what date the
+    sizer was actually running for - a historical/backfill run (--date mode) would then be
+    sized using TODAY's real regime while Phase 5/7 qualified candidates under the historical
+    date's regime, a genuine cross-phase regime mismatch within the same run."""
+
+    def test_default_run_date_none_preserves_live_wall_clock_behavior(self) -> None:
+        sizer = PositionSizer(config=dict(CONFIG))
+        assert sizer.run_date is None
+        cur = MagicMock()
+        cur.fetchone.return_value = (65.0, _today_et(), False, None)
+        with patch.object(sizer, "_with_cursor", side_effect=lambda op: op(cur)):
+            sizer.get_market_exposure_multiplier()
+        query = cur.execute.call_args.args[0]
+        assert "WHERE date <= %s" not in query, "live (run_date=None) must not add a date bound"
+
+    def test_run_date_bounds_the_query_to_that_date(self) -> None:
+        as_of = _date(2026, 6, 1)
+        sizer = PositionSizer(config=dict(CONFIG), run_date=as_of)
+        cur = MagicMock()
+        cur.fetchone.return_value = (40.0, as_of, False, None)
+        with patch.object(sizer, "_with_cursor", side_effect=lambda op: op(cur)):
+            result = sizer.get_market_exposure_multiplier()
+        query, params = cur.execute.call_args.args
+        assert "WHERE date <= %s" in query
+        assert params == (as_of,)
+        assert result == Decimal("40") / Decimal(100)
+
+    def test_staleness_is_judged_against_run_date_not_real_today(self) -> None:
+        """A historical run_date far in the past must not spuriously fail staleness just
+        because real wall-clock 'today' is much later - the same-vintage market_exposure_daily
+        row for that historical date must be treated as fresh."""
+        as_of = _date(2026, 6, 1)
+        sizer = PositionSizer(config=dict(CONFIG), run_date=as_of)
+        cur = MagicMock()
+        # Row is dated exactly as_of - "fresh" relative to run_date, wildly stale relative to
+        # real today.
+        cur.fetchone.return_value = (50.0, as_of, False, None)
+        with patch.object(sizer, "_with_cursor", side_effect=lambda op: op(cur)):
+            result = sizer.get_market_exposure_multiplier()
+        assert result == Decimal("50") / Decimal(100)
+
+    def test_run_date_far_past_still_raises_if_row_itself_is_stale_relative_to_run_date(
+        self,
+    ) -> None:
+        as_of = _date(2026, 6, 10)
+        stale_row_date = as_of - timedelta(days=10)
+        sizer = PositionSizer(config=dict(CONFIG), run_date=as_of)
+        cur = MagicMock()
+        cur.fetchone.return_value = (50.0, stale_row_date, False, None)
+        with patch.object(sizer, "_with_cursor", side_effect=lambda op: op(cur)):
+            with pytest.raises(ValueError, match="too stale"):
+                sizer.get_market_exposure_multiplier()
