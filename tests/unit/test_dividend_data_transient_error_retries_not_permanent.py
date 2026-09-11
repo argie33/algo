@@ -65,16 +65,21 @@ def test_404_no_filings_gets_honest_label_not_generic_fetch_error() -> None:
 
 def test_cik_not_found_gets_honest_label_and_is_not_treated_as_transient() -> None:
     """FIXED 2026-08-18: symbol_to_cik() raises ValueError when a ticker isn't resolvable to a
-    CIK via any lookup method - a PERMANENT condition (e.g. HIFS - Hingham Institution for
-    Savings - reports to the FDIC under Exchange Act Section 12(i), never has an SEC CIK at
-    all). This used to fall into the generic `except Exception` branch, get wrapped as
-    TransientAPIError, and waste 3 OptimalLoader retries redoing a lookup that can never
-    succeed before finally surfacing as an opaque "fetch_error:RuntimeError". Must resolve
-    immediately to a real "cik_not_found" record, no retry."""
-    loader = _make_loader()
-    loader.sec_client.symbol_to_cik.side_effect = ValueError("Symbol HIFS not found in SEC ticker cache")
+    CIK via any lookup method - a PERMANENT condition. This used to fall into the generic
+    `except Exception` branch, get wrapped as TransientAPIError, and waste 3 OptimalLoader
+    retries redoing a lookup that can never succeed before finally surfacing as an opaque
+    "fetch_error:RuntimeError". Must resolve immediately to a real "cik_not_found" record, no
+    retry.
 
-    records = loader.fetch_incremental("HIFS", since=None)
+    Uses "ZZZZQ" rather than the original HIFS example - HIFS is now a confirmed FDIC-designee
+    bank (2026-09-11 fix, see is_known_non_sec_filer_bank/cik_not_found_reason in
+    sec_ticker_cache.py) and gets the distinct "fdic_designee_no_sec_cik" reason instead; this
+    test exercises the still-generic "cik_not_found" path for a symbol not on that curated
+    list."""
+    loader = _make_loader()
+    loader.sec_client.symbol_to_cik.side_effect = ValueError("Symbol ZZZZQ not found in SEC ticker cache")
+
+    records = loader.fetch_incremental("ZZZZQ", since=None)
 
     assert len(records) == 1
     assert records[0]["data_unavailable_reason"] == "cik_not_found"
