@@ -283,6 +283,25 @@ produces ~$30.3B, consistent with Ecopetrol's known real, public annual revenue 
 magnitude red flag. Before this fix EC's entire income-statement row was blocked by the
 blanket currency guard despite a complete, extractable 20-F on file every year.
 
+FIXED 2026-09-11 (goal: "missing SEC/XBRL data under 300" push): MXN (Mexican Peso) added,
+reversing the earlier exclusion recorded above ("MXN's real year-over-year move was live-
+checked at up to 22.4%... stays excluded pending its own dedicated review") - that rejection
+predates the 2026-09-04 BRL policy reversal (28-29% accepted) and the COP/CLP additions
+(19-20%/19.8% accepted) and, like the SEK case fixed 2026-09-06, was never revisited against
+the looser bar those decisions established. Live-reconfirmed MXN's own year-end year-over-year
+moves 2019-2025 (Frankfurter, fresh): -3.8%, +5.3%, +2.7%, -4.3%, -13.4%, +22.4%, -9.1% - the
+same 22.4% high-water mark as before, but now decisively inside BRL's accepted 28-29% ceiling
+and comparable to COP/CLP's already-accepted ~20% band. Found via ASR (Grupo Aeroportuario del
+Sureste, CIK 0001123452) and PAC/TBBB/TV (Grupo Aeroportuario del Pacifico/Fibra clients/Grupo
+Televisa) - all real, current 20-F filers tagging ifrs-full:Revenue/ProfitLoss/Assets exclusively
+under unit="MXN", zero USD-tagged alternative, so the blanket guard was zeroing their entire
+quality_metrics/growth_metrics/value_metrics/sec_valuations rows despite complete, extractable
+filings on file every year. Frankfurter serves MXN (live-confirmed: `GET /2024-12-31?from=USD&to=MXN`
+returns a real rate). Converting ASR's real FY2024 ifrs-full:Revenue (MXN 31,332,787,000) at that
+fiscal year-end's real rate (20.743) produces ~$1.51B, consistent with Grupo Aeroportuario del
+Sureste's known real public revenue scale - no magnitude red flag. 4 symbols directly affected in
+this universe (ASR/PAC/TBBB/TV), each blocked across multiple factor tables.
+
 FIXED 2026-09-10 (goal: "missing SEC/XBRL data under 500" push, dcf_fcf_unavailable_reason=
 'missing_cash_flow_data' investigation): SGD (Singapore Dollar) added. Found via BLIV (BeLive
 Holdings, CIK 0001982448, recently-listed 20-F filer) - live-confirmed real companyfacts JSON
@@ -345,6 +364,7 @@ MAJOR_CURRENCIES = frozenset(
         "ILS",
         "SEK",
         "SGD",
+        "MXN",
     }
     | _YFINANCE_ONLY_CURRENCIES
 )
