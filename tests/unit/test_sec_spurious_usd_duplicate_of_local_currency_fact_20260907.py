@@ -20,6 +20,14 @@ Fix: a "USD" fact is now cross-checked against every rejected (non-major, non-US
 unit for the SAME concept; an exact (start, end, val) match marks it as a spurious duplicate
 tag rather than a real independent USD fact, and it is dropped the same way the foreign-
 currency original already was.
+
+UPDATED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push): MXN was added to
+MAJOR_CURRENCIES this same session (see fx_rates.py) - a "MXN"-tagged fact is now converted via
+a real FX rate instead of being rejected outright, so it no longer exercises this guard at all.
+Fixtures switched to ARS (still unsupported) to keep testing the actual "rejected foreign
+currency" scenario this file is about; BWMX's real bug (a raw local-currency magnitude
+duplicated under a "USD" unitRef) is unchanged, just demonstrated with a currency still on the
+rejected list.
 """
 
 from typing import Any
@@ -57,7 +65,7 @@ class TestSpuriousUsdDuplicateOfLocalCurrencyFactRejected:
             "ifrs-full": {
                 "RevenueFromContractsWithCustomers": {
                     "units": {
-                        "MXN": [_entry(2023, 10_067_683_000.0, "2024-04-01")],
+                        "ARS": [_entry(2023, 10_067_683_000.0, "2024-04-01")],
                         "USD": [_entry(2023, 10_067_683_000.0, "2024-04-01")],
                     }
                 },
@@ -77,7 +85,7 @@ class TestSpuriousUsdDuplicateOfLocalCurrencyFactRejected:
             "ifrs-full": {
                 "RevenueFromContractsWithCustomers": {
                     "units": {
-                        "MXN": [_entry(2022, 7_237_628_000.0, "2023-04-01")],
+                        "ARS": [_entry(2022, 7_237_628_000.0, "2023-04-01")],
                         "USD": [_entry(2023, 500_000_000.0, "2024-04-01")],
                     }
                 },
