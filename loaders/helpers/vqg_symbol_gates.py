@@ -391,6 +391,15 @@ class SymbolGateMixin:
         _get_unclassified_balance_sheet_symbols above): sanitize each field to NULL when its
         row is `data_unavailable` so a leftover stray value can't count as "reported".
         Live-verified 10 additional symbols recovered, zero lost.
+
+        FIXED 2026-09-11 (goal: "under 300" push): was COUNT(...)=0, which wrongly excluded a
+        symbol that explicitly reports a confirmed real zero (e.g. CMG's long_term_debt=0
+        every year since FY2019 - COUNT counts non-null rows regardless of value, so a real 0
+        counted the same as a real balance). Switched to COALESCE(MAX(...), 0)=0 - "never
+        reported" and "always exactly zero" both mean "no debt"; a symbol with any real
+        nonzero value in any year (e.g. DNUT) still correctly stays excluded. Live-confirmed
+        via CMG's real annual_balance_sheet history + companyfacts JSON (no InterestExpense*
+        concept anywhere - Chipotle carries no borrowed debt, only lease liabilities).
         """
         with _database_context()("read") as cur:
             cur.execute(
@@ -399,10 +408,10 @@ class SymbolGateMixin:
                 WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
-                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE long_term_debt END) = 0
-                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE short_term_debt END) = 0
-                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE operating_lease_liability END) = 0
-                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE finance_lease_liability END) = 0
+                   AND COALESCE(MAX(CASE WHEN data_unavailable THEN NULL ELSE long_term_debt END), 0) = 0
+                   AND COALESCE(MAX(CASE WHEN data_unavailable THEN NULL ELSE short_term_debt END), 0) = 0
+                   AND COALESCE(MAX(CASE WHEN data_unavailable THEN NULL ELSE operating_lease_liability END), 0) = 0
+                   AND COALESCE(MAX(CASE WHEN data_unavailable THEN NULL ELSE finance_lease_liability END), 0) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())
@@ -430,6 +439,9 @@ class SymbolGateMixin:
         interest_coverage's own reason below - the broader all-four-components gate stays as
         the bar for total_debt/debt_to_equity/roce_pct/roic_pct, where a real lease liability
         legitimately does contribute to those metrics' math.
+
+        FIXED 2026-09-11 (goal: "under 300" push): same COUNT->MAX fix as the sibling gate
+        above - a confirmed real zero is still "no borrowed debt", not "data present".
         """
         with _database_context()("read") as cur:
             cur.execute(
@@ -438,8 +450,8 @@ class SymbolGateMixin:
                 WHERE fiscal_year > 0
                 GROUP BY symbol
                 HAVING COUNT(*) >= 1
-                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE long_term_debt END) = 0
-                   AND COUNT(CASE WHEN data_unavailable THEN NULL ELSE short_term_debt END) = 0
+                   AND COALESCE(MAX(CASE WHEN data_unavailable THEN NULL ELSE long_term_debt END), 0) = 0
+                   AND COALESCE(MAX(CASE WHEN data_unavailable THEN NULL ELSE short_term_debt END), 0) = 0
                 """
             )
             return frozenset(row[0] for row in cur.fetchall())

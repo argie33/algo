@@ -541,7 +541,7 @@
   "loaders/helpers/vqg_quality_recategorize.py": 488,
   "loaders/helpers/vqg_quality_score.py": 557,
   "loaders/helpers/vqg_shared.py": 459,
-  "loaders/helpers/vqg_symbol_gates.py": 2012,
+  "loaders/helpers/vqg_symbol_gates.py": 2011,
   "loaders/helpers/vqg_value.py": 1255,
   "loaders/load_aaii_sentiment.py": 373,
   "loaders/load_algo_metrics_daily.py": 173,
