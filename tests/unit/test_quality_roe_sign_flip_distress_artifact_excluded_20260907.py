@@ -47,15 +47,16 @@ class TestRoeSignFlipDistressArtifactExcluded:
         """ROC-shaped case: roe=915.88 (positive) but roa=-38.43 (a real loss) - the ROE
         term must contribute 0, the same as a directly-negative ROE, not win a high
         percentile off the sign-flip artifact. Standalone row (no peer) with every other
-        component filled in (weight 11+18+18+15+18+7+7+7=101, well clear of the
-        2026-09-10 40%-of-101 completeness floor) so an update actually fires - alone, each
-        of those other components pools with itself and z-scores to neutral percentile 50.0."""
+        component filled in (8 x 12.5 = 100 under equal weighting - 2026-09-11, see
+        pillar_weights.py's BASE_PILLAR_WEIGHTS comment - well clear of the 40.0
+        completeness floor) so an update actually fires - alone, each of those other
+        components pools with itself and z-scores to neutral percentile 50.0."""
         row = ("ROC_SHAPED", "Technology", None, 915.88, -38.43, 20.0, 12.0, 0.2, 3.0, 90.0, 35.0, 999.0)
         updates = dict(_run_with_mocked_rows([row]))
         assert "ROC_SHAPED" in updates
         # roe/roa both floor to 0 (sign-flip guard / negative roa); the other 6 components
-        # (weight 18+15+18+7+7+7=72) are each solo in their pool -> neutral 50.0.
-        expected = round((50.0 * 72) / 101.0, 2)
+        # (weight 12.5 each = 75) are each solo in their pool -> neutral 50.0.
+        expected = round((50.0 * 75) / 100.0, 2)
         assert updates["ROC_SHAPED"] == expected
 
     def test_positive_roe_with_positive_roa_still_ranks_normally(self) -> None:
@@ -88,14 +89,13 @@ class TestRoeSignFlipDistressArtifactExcluded:
         updates = dict(_run_with_mocked_rows(rows))
         assert "NOROA" not in updates
 
-    def test_roe_positive_roa_missing_other_components_present_not_penalized(self) -> None:
+    def test_roe_positive_roa_missing_other_components_below_new_equal_weight_floor(self) -> None:
         """Same missing-roa shape as above, but with other real components present
-        (fcf_margin/roce/debt_to_equity, weight 15+18+18=51 - clears the 2026-09-10
-        40%-of-101 completeness floor) so the row does produce a score - that score must
-        reflect ONLY the real components, never a floored-to-0 ROE term dragging it down for
-        the unrelated roa gap. Each present component is alone in its sector-neutral z-score
-        pool (no peer) -> neutral z=0.0 -> percentile 50.0, so the composite equals 50.0
-        regardless of weights."""
+        (fcf_margin/roce/debt_to_equity). Under equal weighting (2026-09-11), that's 3 x 12.5
+        = 37.5 of the 100 nominal total - BELOW the 40.0 completeness floor (this exact
+        combination cleared it under the old 15+18+18=51 magnitude-tuned weights) - so this
+        pass now correctly declines to update the row at all, rather than extrapolating from
+        3 of 8 equally-weighted inputs (never a floored-to-0 ROE term dragging it down for the
+        unrelated roa gap either way - it's simply not enough data now)."""
         rows = [("NOROA_WITH_FCF", "Technology", None, 30.0, None, 15.0, 20.0, 0.5, None, None, None, 999.0)]
-        updates = dict(_run_with_mocked_rows(rows))
-        assert updates["NOROA_WITH_FCF"] == 50.0
+        assert _run_with_mocked_rows(rows) == []
