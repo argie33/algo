@@ -241,6 +241,15 @@ CIK_OVERRIDES: dict[str, str] = {
     # hygiene findings this session also surfaced). Real, current activity (10-Q 2026-08-06,
     # 8-Ks through 2026-09-02) confirms this is a live, actively-reporting entity, not defunct.
     "TOI": "0001799191",  # The Oncology Institute, Inc. (renamed Starling Oncology, Inc.) - see comment above
+    # KRSA: found 2026-09-11 (goal: "SEC/XBRL missing data under 300" push, current_reports_8k
+    # symbol_not_found bucket - surfaced by a live monitor catching the daily loader run touch
+    # this table fresh). CIK 0001755237's formerNames shows "Cyclerion Therapeutics, Inc."
+    # (ticker CYCN) through 2026-08-27, renamed to "Korsana Biosciences, Inc." - an exact match
+    # to our tracked security_name - just ~2 weeks before this session. Current tickers field
+    # still shows only "CYCN" (not yet caught up), same rename-not-caught-up shape as
+    # HOS/SGRX/GRAF/AXIA/CMII/TOI above. Real, very recent activity (multiple Form 3/4 filings
+    # dated the same day as this fix) confirms a live, actively-reporting entity.
+    "KRSA": "0001755237",  # Korsana Biosciences, Inc. (formerly Cyclerion Therapeutics, ticker CYCN) - see comment above
 }
 
 # Ensure socket timeout is configured globally
