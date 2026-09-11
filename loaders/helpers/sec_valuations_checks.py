@@ -259,6 +259,12 @@ class ValuationSanityCheckMixin:
 
         if symbol in _lsv.DUAL_CLASS_YFINANCE_COMBINED_MARKET_CAP_SYMBOLS:
             return
+        # See YFINANCE_STALE_SHARES_TRUST_SEC_SYMBOLS' own module-level comment (BIAF): a
+        # confirmed case where yfinance's own sharesOutstanding field, not just marketCap,
+        # lags the filer's most recent real dilutive filing - the shares_ratio<=3 rescue below
+        # can't catch this since yfinance's live shares figure is itself the stale number.
+        if symbol in _lsv.YFINANCE_STALE_SHARES_TRUST_SEC_SYMBOLS:
+            return
         ratio = max(market_cap, yf_market_cap) / min(market_cap, yf_market_cap)
         if ratio <= 10:
             return
