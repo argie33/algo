@@ -4,7 +4,10 @@ likely to silently misbehave (a wrong quarter means "not found" for a real filer
 misread as "this filer genuinely lacks the concept").
 """
 
-from scripts.xbrl_dera_bulk_scan import _next_quarter, _quarter_for_date
+import urllib.error
+from unittest.mock import patch
+
+from scripts.xbrl_dera_bulk_scan import _next_quarter, _quarter_for_date, download_quarter
 
 
 class TestQuarterForDate:
@@ -23,3 +26,30 @@ class TestNextQuarter:
 
     def test_rolls_over_year_boundary(self):
         assert _next_quarter("2026q4") == "2027q1"
+
+
+class TestDownloadQuarterNotYetPublished:
+    def test_returns_none_on_404_instead_of_raising(self, tmp_path):
+        with (
+            patch("scripts.xbrl_dera_bulk_scan._DERA_CACHE_DIR", tmp_path),
+            patch(
+                "scripts.xbrl_dera_bulk_scan.urllib.request.urlopen",
+                side_effect=urllib.error.HTTPError("url", 404, "Not Found", {}, None),
+            ),
+        ):
+            assert download_quarter("2099q1") is None
+
+    def test_reraises_non_404_http_errors(self, tmp_path):
+        with (
+            patch("scripts.xbrl_dera_bulk_scan._DERA_CACHE_DIR", tmp_path),
+            patch(
+                "scripts.xbrl_dera_bulk_scan.urllib.request.urlopen",
+                side_effect=urllib.error.HTTPError("url", 500, "Server Error", {}, None),
+            ),
+        ):
+            try:
+                download_quarter("2026q3")
+            except urllib.error.HTTPError as e:
+                assert e.code == 500
+            else:
+                raise AssertionError("expected HTTPError to propagate")

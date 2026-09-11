@@ -36,6 +36,7 @@ import csv
 import io
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -54,8 +55,11 @@ def _quarter_zip_path(quarter: str) -> Path:
     return _DERA_CACHE_DIR / f"{quarter}.zip"
 
 
-def download_quarter(quarter: str) -> Path:
-    """Downloads (if not already cached) the DERA bulk zip for one quarter, e.g. "2026q2"."""
+def download_quarter(quarter: str) -> Path | None:
+    """Downloads (if not already cached) the DERA bulk zip for one quarter, e.g. "2026q2".
+    Returns None (not an error) for a quarter SEC hasn't published yet - _next_quarter's
+    "current quarter + 1" heuristic can land on a not-yet-published quarter near the
+    boundary, which should just be skipped, not crash the whole batch."""
     path = _quarter_zip_path(quarter)
     if path.exists():
         return path
@@ -63,8 +67,14 @@ def download_quarter(quarter: str) -> Path:
     url = f"{_DERA_BASE_URL}/{quarter}.zip"
     req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     print(f"Downloading {url} ...", file=sys.stderr)
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        data = resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = resp.read()
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            print(f"  {quarter}: not yet published by SEC (404) - skipping", file=sys.stderr)
+            return None
+        raise
     path.write_bytes(data)
     return path
 
@@ -165,7 +175,7 @@ def main() -> None:
 
     adsh_to_symbol = {accn: sym for sym, (_cik, accn, _quarters) in resolved.items()}
     needed_quarters = args.quarters or sorted({q for *_rest, quarters in resolved.values() for q in quarters})
-    quarter_paths = [download_quarter(q) for q in needed_quarters]
+    quarter_paths = [p for p in (download_quarter(q) for q in needed_quarters) if p is not None]
 
     print(f"Scanning {len(quarter_paths)} quarter file(s) for {len(adsh_to_symbol)} target accession(s)...")
     found = scan_quarters_for_accessions(quarter_paths, adsh_to_symbol)
