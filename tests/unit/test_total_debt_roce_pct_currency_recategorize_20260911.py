@@ -83,3 +83,30 @@ class TestTotalDebtRocePctCurrencyRecategorize:
 
         assert metrics["roa_unavailable_reason"] == "unsupported_currency_no_fx_rate"
         assert metrics["roe_unavailable_reason"] == "unsupported_currency_no_fx_rate"
+
+    def test_operating_profitability_gets_currency_reason(self) -> None:
+        # Same-day follow-up: operating_profitability_unavailable_reason
+        # (vqg_quality_reasons_profitability.py) sets "stockholders_equity_not_reported" for
+        # the exact same root cause as roe/debt_to_equity, but was never added to
+        # _BS_CURRENCY_EQUITY_FIELDS. Live-confirmed CEPU/IRS/LOMA: roe/debt_to_equity on the
+        # same row already showed the currency reason while operating_profitability didn't.
+        metrics: dict[str, Any] = {
+            "operating_profitability": None,
+            "operating_profitability_unavailable_reason": "stockholders_equity_not_reported",
+        }
+
+        recategorize_balance_sheet_currency_fields(metrics)
+
+        assert metrics["operating_profitability_unavailable_reason"] == "unsupported_currency_no_fx_rate"
+
+    def test_operating_profitability_own_more_specific_reason_untouched(self) -> None:
+        # operating_profitability can independently fail for negative_book_value (a real,
+        # non-currency cause) - must not be swept into the currency reason.
+        metrics: dict[str, Any] = {
+            "operating_profitability": None,
+            "operating_profitability_unavailable_reason": "negative_book_value",
+        }
+
+        recategorize_balance_sheet_currency_fields(metrics)
+
+        assert metrics["operating_profitability_unavailable_reason"] == "negative_book_value"
