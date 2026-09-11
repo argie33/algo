@@ -283,6 +283,34 @@ CUSTOM_CAPEX_CONCEPTS: dict[str, list[tuple[str, str]]] = {
         ("hto", "PaymentsToAcquireWaterSystemsUsingCompanyFunds"),
         ("hto", "PaymentsToAcquireWaterSystemsUsingContributionsInAidOfConstruction"),
     ],
+    # Canadian Natural Resources (CIK 0001017413, IFRS 40-F filer) - verified live
+    # 2026-09-11 (goal: "missing SEC/XBRL data under 200" push, capex_never_tagged_in_
+    # recent_filings investigation) against the real filed FY2025 40-F raw XBRL instance
+    # document (accession 0001017413-26-000018, cnq-20251231_htm.xml). Companyfacts only
+    # carries the standard ifrs-full concept
+    # PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities through FY2018
+    # (CNQ stopped tagging it after that year); from FY2019 on, CNQ's real consolidated
+    # cash-flow-statement capex line is tagged under this filer-specific extension
+    # concept instead: cnq:CashFlowsFromUsedInPropertyPlantandEquipmentClassifiedAsInvesting
+    # Activities = -6,676,000,000 CAD (FY2025) / -5,291,000,000 (FY2024) /
+    # -4,865,000,000 (FY2023), all plain non-dimensioned annual contexts (no
+    # SegmentsAxis/SegmentConsolidationItemsAxis member - the true consolidated total,
+    # not a segment slice; segment-dimensioned siblings under the same local name,
+    # e.g. NetExpendituresProceedsPropertyPlantandEquipment, were seen and deliberately
+    # excluded here as double-counting risk, same governance as PSX/NEE above).
+    # UNLIKE every other entry in this registry, CNQ's concept is a signed net "cash
+    # flows from/used in" line (IFRS convention), not a plain "Purchase/Payments"
+    # magnitude - reports as NEGATIVE for a real cash outflow, confirmed via the sign
+    # matching CNQ's own known real capex scale (~$4.9-6.7B CAD/year, consistent with
+    # its FY2015-2018 companyfacts-sourced history of $4.15-5.12B). Relies on the
+    # generic cashflow "capex is always a magnitude" abs() normalization in
+    # load_financial_statements.py (same mechanism as dividends_paid/
+    # stock_based_compensation/common_stock_repurchased) rather than a per-concept sign
+    # flip here, since that normalization is a documented no-op for every other,
+    # already-positive concept in this registry.
+    "CNQ": [
+        ("cnq", "CashFlowsFromUsedInPropertyPlantandEquipmentClassifiedAsInvestingActivities"),
+    ],
 }
 
 

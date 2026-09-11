@@ -103,6 +103,47 @@ class TestCustomExtensionCapexFallback:
 
         assert "custom_extension_vessel_capex" not in rows[0]
 
+    def test_signed_ifrs_concept_is_normalized_to_a_positive_magnitude(self):
+        """CNQ's registered concept (see CUSTOM_CAPEX_CONCEPTS) is a signed IFRS "cash
+        flows from/used in" line - the filer reports it negative for a real outflow,
+        unlike every other symbol in the registry, which already reports a positive
+        magnitude. capex must always land as a positive magnitude regardless of the
+        source concept's own sign convention."""
+        loader = _make_cashflow_loader()
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[{"symbol": "CNQ", "fiscal_year": 2025, "fiscal_period": "FY", "operating_cash_flow": 1}],
+            ),
+            patch(
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_capex",
+                return_value={2025: -6_676_000_000.0},
+            ),
+        ):
+            rows = loader.fetch_incremental("CNQ", since=None)
+
+        assert rows[0]["custom_extension_vessel_capex"] == 6_676_000_000.0
+
+    def test_already_positive_value_is_unaffected_by_the_sign_normalization(self):
+        """The abs() normalization must be a no-op for every existing registry entry,
+        which already reports capex as a positive magnitude (e.g. DHT)."""
+        loader = _make_cashflow_loader()
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[{"symbol": "DHT", "fiscal_year": 2025, "fiscal_period": "FY", "operating_cash_flow": 1}],
+            ),
+            patch(
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_capex",
+                return_value={2025: 309_636_000.0},
+            ),
+        ):
+            rows = loader.fetch_incremental("DHT", since=None)
+
+        assert rows[0]["custom_extension_vessel_capex"] == 309_636_000.0
+
 
 class TestCustomExtensionCapexFieldMappingFallbackOnly:
     def test_custom_extension_capex_field_maps_to_capex_column(self):

@@ -89,7 +89,14 @@ def apply_custom_cashflow_extensions(symbol: str, rows: list[dict[str, Any]], se
         for row in _annual_rows(rows):
             fiscal_year = row.get("fiscal_year")
             if fiscal_year in custom_capex_by_year:
-                row["custom_extension_vessel_capex"] = custom_capex_by_year[fiscal_year]
+                # FIXED 2026-09-11 (CNQ investigation): capex is always a magnitude (cash
+                # outflow) once it lands in the "capex" column, but CNQ's registered
+                # concept (see CUSTOM_CAPEX_CONCEPTS's own comment) is a signed IFRS
+                # "cash flows from/used in" line - negative for a real outflow, unlike
+                # every "Purchase*"/"Payments*"-named concept already in this registry,
+                # which filers report as a positive magnitude. abs() here is a no-op for
+                # every existing (already-positive) entry.
+                row["custom_extension_vessel_capex"] = abs(custom_capex_by_year[fiscal_year])
 
     if symbol in CUSTOM_CAPEX_DIMENSIONED_CONCEPTS:
         dimensioned_capex_by_year = fetch_custom_capex_dimensioned_sum(symbol, sec_client)
