@@ -85,14 +85,34 @@ class TestIsPrimaryStatementRole:
 
 
 class TestGroupByParent:
-    def test_dedups_identical_child_weight_pairs_across_roles(self) -> None:
+    def test_identical_child_set_reused_across_roles_collapses_to_one_tree(self) -> None:
         arcs = [
             CalcArc("us-gaap:Assets", "us-gaap:AssetsCurrent", 1.0, 1.0, "role1"),
-            CalcArc("us-gaap:Assets", "us-gaap:AssetsCurrent", 1.0, 1.0, "role2"),  # duplicate elsewhere
             CalcArc("us-gaap:Assets", "us-gaap:AssetsNoncurrent", 1.0, 2.0, "role1"),
+            CalcArc("us-gaap:Assets", "us-gaap:AssetsCurrent", 1.0, 1.0, "role2"),  # same tree, another role
+            CalcArc("us-gaap:Assets", "us-gaap:AssetsNoncurrent", 1.0, 2.0, "role2"),
         ]
         grouped = group_by_parent(arcs)
-        assert len(grouped["us-gaap:Assets"]) == 2
+        assert len(grouped["us-gaap:Assets"]) == 1
+        assert len(grouped["us-gaap:Assets"][0]) == 2
+
+    def test_genuinely_different_child_sets_across_roles_stay_separate_trees(self) -> None:
+        # Regression for the UNTY false-positive (2026-09-11): a parent can have two
+        # independently-valid breakdowns in different roles (e.g. OCI by component vs
+        # by before-tax/tax) - each must be checked on its own, never flattened into
+        # one combined sum, or every value gets double-counted.
+        arcs = [
+            CalcArc("us-gaap:OCI", "us-gaap:AfsAdjustment", 1.0, 1.0, "role1"),
+            CalcArc("us-gaap:OCI", "us-gaap:CashFlowHedge", 1.0, 2.0, "role1"),
+            CalcArc("us-gaap:OCI", "us-gaap:BeforeTax", 1.0, 1.0, "role2"),
+            CalcArc("us-gaap:OCI", "us-gaap:Tax", -1.0, 2.0, "role2"),
+        ]
+        grouped = group_by_parent(arcs)
+        trees = grouped["us-gaap:OCI"]
+        assert len(trees) == 2
+        child_sets = [{(a.child_concept, a.weight) for a in tree} for tree in trees]
+        assert {("us-gaap:AfsAdjustment", 1.0), ("us-gaap:CashFlowHedge", 1.0)} in child_sets
+        assert {("us-gaap:BeforeTax", 1.0), ("us-gaap:Tax", -1.0)} in child_sets
 
 
 class TestFactsByConceptForAccession:
@@ -212,6 +232,49 @@ class TestCheckSymbol:
 
         result = _check_symbol(client, MagicMock(), "AAA")
         assert result is None
+
+    def test_two_independently_tying_trees_do_not_flag_a_double_counted_mismatch(self) -> None:
+        # Regression for the UNTY false-positive: OCI has two roles, each declaring a
+        # DIFFERENT, independently-tying breakdown. Neither alone is a mismatch; the
+        # old flatten-everything behavior summed both and falsely flagged one.
+        accession = "0001234567-25-000001"
+        role2 = "http://www.example.com/role/StatementOfComprehensiveIncomeBeforeTax"
+        xml = f"""<?xml version="1.0"?>
+<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <link:calculationLink xlink:type="extended" xlink:role="{_STATEMENT_ROLE}">
+    <link:loc xlink:type="locator" xlink:href="foo.xsd#us-gaap_OtherComprehensiveIncomeLossNetOfTax" xlink:label="p"/>
+    <link:loc xlink:type="locator" xlink:href="foo.xsd#us-gaap_AfsAdjustment" xlink:label="c1"/>
+    <link:loc xlink:type="locator" xlink:href="foo.xsd#us-gaap_CashFlowHedge" xlink:label="c2"/>
+    <link:calculationArc xlink:type="arc" xlink:from="p" xlink:to="c1" xlink:arcrole="http://www.xbrl.org/2003/arcrole/summation-item" order="1" weight="1.0"/>
+    <link:calculationArc xlink:type="arc" xlink:from="p" xlink:to="c2" xlink:arcrole="http://www.xbrl.org/2003/arcrole/summation-item" order="2" weight="1.0"/>
+  </link:calculationLink>
+  <link:calculationLink xlink:type="extended" xlink:role="{role2}">
+    <link:loc xlink:type="locator" xlink:href="foo.xsd#us-gaap_OtherComprehensiveIncomeLossNetOfTax" xlink:label="p"/>
+    <link:loc xlink:type="locator" xlink:href="foo.xsd#us-gaap_BeforeTax" xlink:label="c3"/>
+    <link:loc xlink:type="locator" xlink:href="foo.xsd#us-gaap_Tax" xlink:label="c4"/>
+    <link:calculationArc xlink:type="arc" xlink:from="p" xlink:to="c3" xlink:arcrole="http://www.xbrl.org/2003/arcrole/summation-item" order="1" weight="1.0"/>
+    <link:calculationArc xlink:type="arc" xlink:from="p" xlink:to="c4" xlink:arcrole="http://www.xbrl.org/2003/arcrole/summation-item" order="2" weight="-1.0"/>
+  </link:calculationLink>
+</link:linkbase>"""
+        client = MagicMock()
+        client.symbol_to_cik.return_value = "0000000001"
+        client.get_submissions.return_value = _fake_submissions(accession)
+        client.get_calculation_linkbase_xml.return_value = xml
+        client.get_company_facts.return_value = _fake_company_facts(
+            {
+                "OtherComprehensiveIncomeLossNetOfTax": 1_012_000.0,
+                "AfsAdjustment": 1_438_000.0,
+                "CashFlowHedge": -426_000.0,  # 1,438,000 + -426,000 = 1,012,000 - ties
+                "BeforeTax": 1_314_000.0,
+                "Tax": 302_000.0,  # 1,314,000 - 302,000 = 1,012,000 - also ties
+            },
+            accession,
+        )
+
+        result = _check_symbol(client, MagicMock(), "AAA")
+        assert result is not None
+        assert result["parents_checked"] == 1
+        assert result["mismatches"] == []
 
     def test_no_10k_in_submissions_returns_none(self) -> None:
         client = MagicMock()

@@ -129,6 +129,44 @@ def _facts_by_concept_for_accession(
     return float(matches[-1]["val"])
 
 
+def _resolve_tree_children(
+    child_arcs: list[Any], company_facts: dict[str, Any], accession_number: str
+) -> list[tuple[str, float, float]] | None:
+    """Resolve one calculation tree's child arcs to (concept, weight, value) triples,
+    or None if any child isn't a us-gaap concept resolvable to a fact on this filing."""
+    if len({a.child_concept for a in child_arcs}) < _MIN_CHILDREN:
+        return None
+    child_values: list[tuple[str, float, float]] = []
+    for arc in child_arcs:
+        child_taxonomy, _, child_concept_name = arc.child_concept.partition(":")
+        if child_taxonomy != "us-gaap" or not child_concept_name:
+            return None
+        child_value = _facts_by_concept_for_accession(company_facts, "us-gaap", child_concept_name, accession_number)
+        if child_value is None:
+            return None
+        child_values.append((child_concept_name, arc.weight, child_value))
+    return child_values
+
+
+def _best_tying_tree(
+    trees: list[list[Any]], parent_value: float, company_facts: dict[str, Any], accession_number: str
+) -> tuple[float, float, list[tuple[str, float, float]]] | None:
+    """Evaluate every independent calculation tree for one parent concept (see
+    group_by_parent's docstring for why there can be more than one) and return the
+    closest-tying one as (diff, expected, child_values), or None if no tree had every
+    child concept resolvable to a us-gaap fact on this filing."""
+    best: tuple[float, float, list[tuple[str, float, float]]] | None = None
+    for child_arcs in trees:
+        child_values = _resolve_tree_children(child_arcs, company_facts, accession_number)
+        if child_values is None:
+            continue
+        expected = sum(weight * value for _, weight, value in child_values)
+        diff = abs(expected - parent_value)
+        if best is None or diff < best[0]:
+            best = (diff, expected, child_values)
+    return best
+
+
 def _check_symbol(client: Any, cur: Any, symbol: str) -> dict[str, Any] | None:
     from utils.external.sec_calculation_linkbase import (
         group_by_parent,
@@ -171,39 +209,26 @@ def _check_symbol(client: Any, cur: Any, symbol: str) -> dict[str, Any] | None:
 
     checked = 0
     mismatches: list[dict[str, Any]] = []
-    for parent_concept, child_arcs in grouped.items():
+    for parent_concept, trees in grouped.items():
         if checked >= _MAX_PARENTS_CHECKED_PER_FILING:
             break
         taxonomy, _, concept = parent_concept.partition(":")
         if taxonomy != "us-gaap" or not concept:
             continue  # Only the standard taxonomy is guaranteed comparable across filers
-        if len({a.child_concept for a in child_arcs}) < _MIN_CHILDREN:
-            continue
 
         parent_value = _facts_by_concept_for_accession(company_facts, "us-gaap", concept, accession_number)
         if parent_value is None:
             continue
 
-        child_values: list[tuple[str, float, float]] = []  # (concept, weight, value)
-        all_resolved = True
-        for arc in child_arcs:
-            child_taxonomy, _, child_concept_name = arc.child_concept.partition(":")
-            if child_taxonomy != "us-gaap" or not child_concept_name:
-                all_resolved = False
-                break
-            child_value = _facts_by_concept_for_accession(
-                company_facts, "us-gaap", child_concept_name, accession_number
-            )
-            if child_value is None:
-                all_resolved = False
-                break
-            child_values.append((child_concept_name, arc.weight, child_value))
-        if not all_resolved:
+        # A parent can have more than one independently-valid calculation tree (see
+        # group_by_parent's docstring) - evaluate each separately and only flag a
+        # mismatch if NONE of them tie; report the closest-tying tree either way.
+        best = _best_tying_tree(trees, parent_value, company_facts, accession_number)
+        if best is None:
             continue
 
         checked += 1
-        expected = sum(weight * value for _, weight, value in child_values)
-        diff = abs(expected - parent_value)
+        diff, expected, child_values = best
         tolerance = max(_ABSOLUTE_FLOOR, _RELATIVE_TOLERANCE * max(abs(parent_value), abs(expected)))
         if diff <= tolerance:
             continue

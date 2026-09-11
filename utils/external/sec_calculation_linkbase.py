@@ -134,23 +134,38 @@ def is_primary_statement_role(role: str) -> bool:
     return not any(marker in lowered for marker in _NOTE_SCHEDULE_ROLE_MARKERS)
 
 
-def group_by_parent(arcs: list[CalcArc]) -> dict[str, list[CalcArc]]:
-    """Combine arcs from every extended link role into one parent -> children map.
+def group_by_parent(arcs: list[CalcArc]) -> dict[str, list[list[CalcArc]]]:
+    """Group arcs into one or more independent calculation TREES per parent concept.
 
-    A parent concept can legitimately appear in more than one extended link role (e.g.
-    a subtotal reused across the balance sheet and a supporting note) with the SAME
-    child set both times - deduplicated here by (child_concept, weight) so those don't
-    double-count when summed.
+    A parent concept can legitimately appear in more than one extended link role with
+    either the SAME child set both times (e.g. a subtotal reused across the balance
+    sheet and a supporting note - deduplicated here into a single tree) or a
+    GENUINELY DIFFERENT child set (e.g. OtherComprehensiveIncomeLossNetOfTax broken
+    down by component - AFS securities / cash-flow hedge - in one role and by
+    before-tax/tax in another). The two cases must be told apart: flattening every
+    role's arcs into one combined sum (as an earlier version of this function did)
+    double-counts the second case, since each distinct breakdown independently ties
+    to the same parent value on its own - live-confirmed on UNTY's FY2025 10-K, which
+    produced 3 false "mismatches" from this exact collapse before this fix. Returns,
+    per parent concept, a list of distinct child-arc sets; callers must check the
+    parent against EACH tree and only flag a real mismatch if none of them tie.
 
     Callers should pre-filter arcs with is_primary_statement_role first (see its
     docstring for why) - this function groups whatever it's given.
     """
-    grouped: dict[str, list[CalcArc]] = {}
-    seen: dict[str, set[tuple[str, float]]] = {}
+    by_role_parent: dict[tuple[str, str], list[CalcArc]] = {}
     for arc in arcs:
-        key = (arc.child_concept, arc.weight)
-        if key in seen.setdefault(arc.parent_concept, set()):
+        role_parent_arcs = by_role_parent.setdefault((arc.role, arc.parent_concept), [])
+        pair = (arc.child_concept, arc.weight)
+        if any((a.child_concept, a.weight) == pair for a in role_parent_arcs):
             continue
-        seen[arc.parent_concept].add(key)
-        grouped.setdefault(arc.parent_concept, []).append(arc)
+        role_parent_arcs.append(arc)
+
+    grouped: dict[str, list[list[CalcArc]]] = {}
+    for (_role, parent), child_arcs in by_role_parent.items():
+        trees = grouped.setdefault(parent, [])
+        child_set = {(a.child_concept, a.weight) for a in child_arcs}
+        if any({(a.child_concept, a.weight) for a in tree} == child_set for tree in trees):
+            continue  # identical child set already recorded from another role
+        trees.append(child_arcs)
     return grouped
