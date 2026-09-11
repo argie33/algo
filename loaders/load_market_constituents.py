@@ -940,6 +940,79 @@ class MarketConstituentsLoader(OptimalLoader):
         except (ValueError, TypeError, RuntimeError) as notify_err:
             logger.error(f"[MARKET_CONSTITUENTS] Failed to send orphaned-purge alert: {notify_err}")
 
+    def _purge_downstream_rows_for_inactive_symbols(self) -> None:
+        """Purge downstream score-table rows for symbols that are `active=false` RIGHT NOW,
+        regardless of when or how they were deactivated.
+
+        FOUND 2026-09-11 (/goal session: scoring-quality audit): `_purge_stale_downstream_score_
+        rows` only ever fires at the moment a method in THIS class personally flips a symbol
+        active=true -> false, and `_purge_orphaned_downstream_score_rows` only catches symbols
+        with ZERO row left in stock_symbols. Neither catches a symbol that is (and may have been
+        for a while) `active=false` but still picks up a fresh stock_scores row anyway - which
+        happens routinely: `runner.py`'s `--symbols` CLI override (used by every manual backfill/
+        gap-filler rerun documented in memory) bypasses `get_active_symbols()`'s `WHERE
+        active=true` filter entirely, so passing an inactive symbol (deliberately or via a stale
+        symbol list) rescores it same as any active one. Live-confirmed on the local dev DB: 44
+        stock_scores rows for `active=false` symbols, several dated the SAME day their
+        stock_symbols row was deactivated (e.g. CXII, GIX, BDCI, NOEM - SPAC "Ordinary Shares"
+        shells) - both the "newly deactivated" and "orphaned" sweeps miss these since the symbol
+        was never newly-deactivated by this run and still has a live stock_symbols row. This
+        sweep is unconditional on cause - it just asks "is this symbol active right now" - so it
+        also self-heals any future variant of the same class of bug, not just this one.
+
+        Same safety posture as `_purge_orphaned_downstream_score_rows`: capped and logged/
+        notified, never a silent mass-delete.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT ss.symbol
+                FROM stock_scores ss
+                JOIN stock_symbols s ON s.symbol = ss.symbol
+                WHERE s.active = false
+                """
+            )
+            inactive_scored = sorted(row[0] for row in cur.fetchall())
+        if not inactive_scored:
+            return
+
+        max_auto_purge = 200
+        if len(inactive_scored) > max_auto_purge:
+            logger.critical(
+                f"[MARKET_CONSTITUENTS] {len(inactive_scored)} stock_scores symbol(s) are "
+                f"active=false - exceeds the {max_auto_purge} safety cap, which more likely "
+                "means an upstream data problem (e.g. a bad mass-deactivation) than routine "
+                f"drift. Skipping automatic purge this run. Sample: {inactive_scored[:10]}"
+            )
+            return
+
+        logger.warning(
+            f"[MARKET_CONSTITUENTS] Purging {len(inactive_scored)} downstream score row(s) for "
+            f"symbol(s) that are active=false (rescored despite exclusion, e.g. via an explicit "
+            f"--symbols backfill): {inactive_scored[:10]}"
+            + (f" ...and {len(inactive_scored) - 10} more" if len(inactive_scored) > 10 else "")
+        )
+        self._purge_stale_downstream_score_rows(inactive_scored)
+
+        try:
+            from algo.reporting import notify
+
+            notify(
+                severity="warning",
+                title="Downstream Score Rows Purged For Inactive Symbols",
+                message=(
+                    f"{len(inactive_scored)} symbol(s) purged from stock_scores/value_metrics/"
+                    "quality_metrics/growth_metrics/momentum_metrics/stability_metrics - active="
+                    "false in stock_symbols but still had a scored row (likely rescored via an "
+                    "explicit --symbols backfill that bypasses the active-symbols filter): "
+                    + ", ".join(inactive_scored[:10])
+                    + (f" ...and {len(inactive_scored) - 10} more" if len(inactive_scored) > 10 else "")
+                ),
+                details={"symbols": inactive_scored},
+            )
+        except (ValueError, TypeError, RuntimeError) as notify_err:
+            logger.error(f"[MARKET_CONSTITUENTS] Failed to send inactive-purge alert: {notify_err}")
+
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Fetch all symbols and mark index membership.
 
@@ -959,6 +1032,7 @@ class MarketConstituentsLoader(OptimalLoader):
             self._reactivate_no_longer_excluded_symbols()
             self._deactivate_blank_check_shells_by_sic_and_revenue()
             self._purge_orphaned_downstream_score_rows()
+            self._purge_downstream_rows_for_inactive_symbols()
 
             # STEP 1: Fetch NASDAQ/NYSE symbols
             logger.info("STEP 1/3: Fetching NASDAQ/NYSE tradable symbols")

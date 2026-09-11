@@ -576,3 +576,85 @@ class TestPurgeOrphanedDownstreamScoreRows:
 
             # Must not raise despite notify() failing internally.
             loader._purge_orphaned_downstream_score_rows()
+
+
+class TestPurgeDownstreamRowsForInactiveSymbols:
+    """Regression test (2026-09-11, /goal session: scoring-quality audit): a symbol can be
+    `active=false` in stock_symbols and STILL carry a fresh stock_scores row - e.g. via
+    runner.py's `--symbols` CLI override, which bypasses get_active_symbols()'s `WHERE
+    active=true` filter entirely. Neither `_purge_stale_downstream_score_rows` (only fires for
+    symbols THIS run personally deactivates) nor `_purge_orphaned_downstream_score_rows` (only
+    catches zero-row-in-stock_symbols) catches this class. This sweep asks "is this symbol
+    active right now" directly, independent of cause or timing.
+    """
+
+    def _make_loader(self):
+        return MarketConstituentsLoader.__new__(MarketConstituentsLoader)
+
+    def test_inactive_scored_symbol_gets_purged(self):
+        loader = self._make_loader()
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = [("CXII",)]
+            mock_purge_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_purge_cur]
+
+            loader._purge_downstream_rows_for_inactive_symbols()
+
+            sql = mock_read_cur.execute.call_args[0][0]
+            assert "active = false" in sql
+            assert "stock_scores" in sql
+
+            assert mock_purge_cur.execute.call_count == 6
+            for call in mock_purge_cur.execute.call_args_list:
+                _, params = call[0]
+                assert params == (["CXII"],)
+
+        mock_notify.assert_called_once()
+        _, kwargs = mock_notify.call_args
+        assert kwargs["severity"] == "warning"
+        assert "CXII" in kwargs["message"]
+        assert kwargs["details"]["symbols"] == ["CXII"]
+
+    def test_no_inactive_scored_symbols_skips_purge_entirely(self):
+        loader = self._make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = []
+            mock_db_ctx.return_value.__enter__.return_value = mock_read_cur
+
+            loader._purge_downstream_rows_for_inactive_symbols()
+
+            # Only the read call happened - no purge DatabaseContext("write") entered.
+            assert mock_db_ctx.call_args_list == [(("read",), {})]
+
+    def test_mass_inactive_scored_exceeds_safety_cap_skips_purge(self):
+        """More than the safety cap implies an upstream data problem (e.g. a bad mass-
+        deactivation), not routine --symbols-backfill drift - must not mass-delete."""
+        loader = self._make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = [(f"INACTIVE{i}",) for i in range(201)]
+            mock_db_ctx.return_value.__enter__.return_value = mock_read_cur
+
+            loader._purge_downstream_rows_for_inactive_symbols()
+
+            # Only the read call happened - no purge DatabaseContext("write") entered.
+            assert mock_db_ctx.call_args_list == [(("read",), {})]
+
+    def test_notify_failure_does_not_crash_the_loader(self):
+        loader = self._make_loader()
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify", side_effect=RuntimeError("smtp down")),
+        ):
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = [("CXII",)]
+            mock_purge_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur, mock_purge_cur]
+
+            # Must not raise despite notify() failing internally.
+            loader._purge_downstream_rows_for_inactive_symbols()
