@@ -59,12 +59,28 @@ cognito_advanced_security_mode = "ENFORCED" # SECURITY: Fraud detection in produ
 # single day - noisy and wasteful, though the other still succeeds so trading isn't blocked.
 # Disabling this schedule entirely now matches the documented intent below exactly, rather
 # than guessing at an unstated "real" evening time.
-algo_schedule_enabled         = false
-algo_schedule_expression      = "cron(30 9 ? * MON-FRI *)" # unused while disabled above
-algo_schedule_timezone        = "America/New_York"
-enable_morning_orchestrator   = true  # Primary: 9:30 AM market open
-enable_afternoon_orchestrator = false # Disabled: reduce complexity
-enable_preclose_orchestrator  = false # Disabled: insufficient execution time
+algo_schedule_enabled       = false
+algo_schedule_expression    = "cron(30 9 ? * MON-FRI *)" # unused while disabled above
+algo_schedule_timezone      = "America/New_York"
+enable_morning_orchestrator = true # Primary: 9:30 AM market open
+# REAL-MONEY-READINESS FIX (2026-09-10, order-execution audit, user-directed "increase run
+# frequency"): with only the 9:30 AM morning run enabled, trailing-stop RAISES (breakeven
+# move, chandelier/21-EMA trail - Phase 6's exit logic) only got recomputed once per trading
+# day. enable_stop_loss_guardian above only re-verifies/repairs a MISSING or wrong-sized stop
+# leg at whatever level algo_positions.current_stop_price already holds - it does NOT
+# recompute that level from price movement, so it could not close this gap on its own. A
+# position moving sharply favorable shortly after the 9:30 AM run kept its original, looser
+# stop level for the entire rest of the trading day. Enabling the already-built and
+# already-tested afternoon (1:00 PM) and pre-close (3:00 PM) schedules (2x-daily-
+# orchestrator.tf; both have their own pre-warm schedules for the pre-close SLA) cuts
+# worst-case trailing-stop staleness from ~24h down to ~2h, using infrastructure this repo
+# already runs elsewhere (terraform.tfvars has all three enabled). Requires `terraform apply`
+# to take effect. The two intraday DataPatrol schedules that keep these runs within Phase 1's
+# 8h freshness window (algo_data_patrol_premarket/_midday in 2x-daily-orchestrator.tf) are
+# wired automatically from module.loaders.data_patrol_task_definition_arn (main.tf) - no
+# separate tfvars entry needed, they provision alongside this change.
+enable_afternoon_orchestrator = true  # 1:00 PM ET - mid-day trailing-stop re-evaluation
+enable_preclose_orchestrator  = true  # 3:00 PM ET - pre-close trailing-stop re-evaluation
 enable_premarket_orchestrator = false # Disabled: no market hours
 
 # High-frequency stop-loss-only guardian (modules/services/stop-loss-guardian.tf, checks
@@ -95,8 +111,10 @@ enable_intraday_risk_monitor = false
 # deploying.
 enable_trade_update_listener = false
 
-# Evening orchestrator disabled in favor of morning-only in production
-# Rationale: Paper trading doesn't need evening prep. Real trading: evaluate daily at 9:30 AM only.
+# Evening orchestrator (algo_schedule_enabled above) stays disabled - see that variable's own
+# comment (lock-race with the morning schedule). UPDATED 2026-09-10: production now evaluates
+# 3x daily (morning/afternoon/preclose above, see enable_afternoon_orchestrator's comment),
+# not "9:30 AM only" as this note previously said.
 
 # ============================================================
 # DATABASE CONFIGURATION (PRODUCTION)
