@@ -128,6 +128,51 @@ DEFAULT_USER_AGENT = os.getenv("SEC_USER_AGENT", "algo-trading argeropolos@gmail
 #   Ltd" ending 2026-08-26 - i.e. this is the exact same "renamed very recently, SEC's
 #   ticker field hasn't caught up" shape as HOS above. Latest 10-K 2025-10-31, most
 #   recent filing (6-K) 2026-09-03 - clearly live.
+# GIXI/EMPG: found 2026-09-10 (goal: "SEC/XBRL missing data under 300" push, net_income_
+# not_reported/missing_sec_data bucket investigation) - same GV/FTRK/SGRX-shaped gap: a
+# real, currently-active foreign private issuer missing from SEC's bulk company_tickers.json
+# snapshot, AND browse-edgar's CIK=<ticker> fallback (which exists specifically to cover
+# that gap) also came back empty for both - live-verified each individually against
+# submissions.json (the same authoritative source _verify_ticker_matches_cik already trusts),
+# not just a name match:
+# - GIXI (Gix Internet Ltd., Nasdaq): CIK 0001782265's own submissions.json tickers array
+#   is directly ['GIXI'] - self-confirmed, no ambiguity. Recently completed a 20FR12B
+#   foreign-private-issuer registration (filed 2026-06-18, effective 2026-07-28) and is
+#   actively filing 6-Ks through 2026-09-10 - a brand-new-to-Nasdaq listing SEC's bulk
+#   snapshot hasn't picked up yet, not a dead/wrong entity.
+# - EMPG (Empro Group Inc., Nasdaq): CIK 0002005569's submissions.json `tickers` field is
+#   empty ([]) - too new to have a ticker linked in SEC's own system at all - but
+#   `name`="Empro Group Inc." is an exact, unambiguous match to our stock_symbols.security_name
+#   ("Empro Group Inc. - Ordinary shares"), with real recent activity (Form 3 initial
+#   ownership filings 2026-04-28, 6-Ks through 2026-07-22) confirming it's the correct,
+#   live registrant for this ticker, not a stale/unrelated shell.
+# Before this fix, both symbols' CIK lookup failed entirely ("cik_not_found"), which
+# root-caused ~46 quality_metrics + ~16 growth_metrics factors per symbol landing in the
+# generic "missing_sec_data" bucket (live-confirmed via direct DB query) - not two isolated
+# gaps, the shared CIK-resolution failure behind nearly every SEC-derived factor for both
+# symbols. Same self-healing caveat as DMC/SHOE/GRSD/GV/FTRK/SGRX above: safe to remove once
+# SEC's own ticker snapshot catches up.
+#
+# OZK: a DIFFERENT category from every entry above - not a missing-from-snapshot gap, a
+# genuine wrong-CIK-in-SEC's-own-source-data case like XOM. SEC's company_tickers.json (and
+# browse-edgar's CIK=OZK lookup, which agrees) maps ticker "OZK" to CIK 0001569650, entity
+# name "Bank OZK" - but that CIK's ENTIRE filing history (87 filings, live-confirmed via
+# submissions.json, no paginated overflow) is 13F-HR/13G/N-PX ownership filings only, zero
+# 10-K/10-Q ever. This is Bank OZK's institutional-ownership-reporting CIK (its wealth/trust
+# arm files 13F under this identity), not the operating bank. The real 10-K-filing entity
+# used to be CIK 0001038205 ("BANK OF THE OZARKS INC", SIC 6022) - but that one filed a
+# Form 15-12G/15-15D (deregistration) in 2017-07-06/07 and its XBRL facts stop at FY2016,
+# confirming it is NOT where OZK's current financials live either. Cross-checked against
+# FDIC BankFind (cert #110, active, $41.7B assets) - Bank OZK is a state-chartered
+# FDIC-supervised bank that discloses its financials directly to the FDIC under Exchange
+# Act Section 12(i) instead of filing 10-Ks with the SEC at all (the same "fdic_banks_no_
+# sec_edgar" structural class as FRBA/HIFS/KRSA/NBN/NXAT/RCBC/SSBI/TOWN - just a much
+# larger bank than that cluster). No SEC CIK override can fix this (there is no SEC-filed
+# 10-K to point at) - loaders/helpers/sec_base.py's existing yfinance fallback already
+# recovers what it can (annual_income_statement/annual_balance_sheet both show real
+# data_source='yfinance' rows for OZK). NOT added to CIK_OVERRIDES; documented here only so
+# a future session doesn't re-investigate this from scratch assuming it's an unresolved gap.
+#
 # Same self-healing caveat as the entries above: safe to remove once SEC's own ticker
 # snapshot catches up with each rename/uplisting.
 CIK_OVERRIDES: dict[str, str] = {
@@ -139,6 +184,8 @@ CIK_OVERRIDES: dict[str, str] = {
     "GV": "0001892274",  # Visionary Holdings Inc. (Nasdaq) - see GV/FTRK/SGRX comment above
     "FTRK": "0002027262",  # Fast Track Group (Nasdaq) - see GV/FTRK/SGRX comment above
     "SGRX": "0001735556",  # SANGRIX INC. (formerly BIT ORIGIN Ltd) - see GV/FTRK/SGRX comment above
+    "GIXI": "0001782265",  # Gix Internet Ltd. (Nasdaq) - see GIXI/EMPG comment above
+    "EMPG": "0002005569",  # Empro Group Inc. (Nasdaq) - see GIXI/EMPG comment above
 }
 
 # Ensure socket timeout is configured globally
