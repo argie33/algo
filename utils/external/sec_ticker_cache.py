@@ -633,7 +633,9 @@ class TickerCache:
             tickers = {t.upper() for t in (data.get("tickers") or [])}
             if symbol.upper() not in tickers:
                 return False
-            recent_dates = data.get("filings", {}).get("recent", {}).get("filingDate") or []
+            filings = data.get("filings")
+            recent = filings.get("recent") if isinstance(filings, dict) else None
+            recent_dates = recent.get("filingDate") if isinstance(recent, dict) else None
             if not recent_dates:
                 return False
             most_recent = str(max(recent_dates))
