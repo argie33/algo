@@ -32,9 +32,9 @@ def _db_context_mock(fetchall_side_effect: list, fetchone_return: tuple = (70.0,
 
 
 def _run_prepare(now: datetime, technical_rows: list) -> StockScoresLoader:
-    # Empty-list stand-ins for quality/growth/value/stability/liquidity/momentum (queried,
-    # in order, before the technical_cache query this test actually cares about).
-    fetchall_side_effect = [[], [], [], [], [], [], technical_rows]
+    # Empty-list stand-ins for quality/growth/value/stability/liquidity/quarantine/momentum
+    # (queried, in order, before the technical_cache query this test actually cares about).
+    fetchall_side_effect = [[], [], [], [], [], [], [], technical_rows]
     loader = StockScoresLoader()
     with (
         patch("loaders.load_stock_scores.DatabaseContext", return_value=_db_context_mock(fetchall_side_effect)),

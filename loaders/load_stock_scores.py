@@ -530,6 +530,23 @@ class StockScoresLoader(
                 for row in cur.fetchall()
             }
 
+            # REAL-MONEY-READINESS FIX (2026-09-10, orchestration/risk audit): DataPatrol's
+            # CRITICAL/ERROR-finding halt is downgraded to a warning specifically because
+            # quarantine.py's apply_symbol_quarantine() sets stock_scores.data_unavailable=TRUE
+            # for the flagged symbols (see phase1_data_freshness.py's _check_data_patrol_results
+            # docstring) - the whole rationale for not halting the pipeline rests on those
+            # symbols actually being excluded from scoring/trading. But this loader's
+            # data_unavailable write below was previously derived ONLY from
+            # `not score_available` (the 70% completeness gate) - a quarantined symbol whose
+            # metric completeness happens to look fine got data_unavailable reset to FALSE on
+            # its very next re-score, silently un-quarantining a symbol DataPatrol flagged as
+            # having corrupted data (e.g. negative/bad OHLC), with no code anywhere else ever
+            # consulting symbol_quarantine again. Load the still-open quarantine set once per
+            # run so _compute_stock_score can force data_unavailable=TRUE for these symbols
+            # regardless of completeness.
+            cur.execute("SELECT DISTINCT symbol, reason FROM symbol_quarantine WHERE resolved_at IS NULL")
+            self._quarantined_symbols: dict[str, str] = {row[0]: row[1] for row in cur.fetchall()}
+
             # CRITICAL FIX 2026-07-18: Read momentum from momentum_metrics table instead of computing from scratch
             # momentum_metrics is populated by load_risk_metrics_daily.py with precomputed momentum values
             cur.execute(
@@ -980,6 +997,15 @@ class StockScoresLoader(
                 reason_text = f"Completeness {data_completeness:.2f}% < {min_completeness_threshold}% threshold (missing metrics: {', '.join(unavailable_metrics.keys())})"
             else:
                 reason_text = None
+
+            # See _prepare_batch_context's symbol-quarantine docstring: an open
+            # symbol_quarantine row must win over the completeness gate, not just get
+            # overwritten by it. A quarantined symbol is unavailable-for-trading regardless
+            # of how complete its (possibly itself-corrupted) metrics look.
+            quarantine_reason = getattr(self, "_quarantined_symbols", {}).get(symbol)
+            if quarantine_reason is not None:
+                score_available = False
+                reason_text = f"quarantined: {quarantine_reason}"
 
             # Build components breakdown for dashboard display
             components = {
