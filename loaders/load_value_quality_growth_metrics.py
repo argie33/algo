@@ -1615,15 +1615,12 @@ class ValueQualityGrowthMetricsLoader(
         ratio = latest_f / previous_f
         return float(((ratio ** (1.0 / years)) - 1) * 100)
 
-    # SEC 10-Ks only restate the comparative fiscal years shown in that filing (typically 2
-    # prior years) - a fiscal year older than that keeps its ORIGINAL pre-split EPS forever
-    # unless a later filing happens to restate it too, so a raw multi-year EPS comparison can
-    # silently straddle a stock-split boundary and produce a CAGR off by the split factor.
-    # Guarded by requiring a single-year share-count jump near a standard split multiple
-    # (not a flat endpoint-to-endpoint ratio, which false-positived on ordinary multi-year
-    # organic dilution/buybacks) - see _compute_period_growth's guard for the full mechanism.
-    # Standard stock-split/reverse-split multiples a real single-year share-count jump should
-    # land near.
+    # SEC 10-Ks only restate the comparative fiscal years shown in a filing (typically 2 prior
+    # years) - an older fiscal year keeps its ORIGINAL pre-split EPS forever unless later
+    # restated too, so a raw multi-year EPS comparison can silently straddle a split boundary.
+    # Guarded by requiring a single-year share-count jump near a standard split multiple (not a
+    # flat endpoint-to-endpoint ratio, which false-positived on ordinary multi-year dilution/
+    # buybacks) - see _compute_period_growth's guard for the full mechanism.
     EPS_SPLIT_GUARD_CLEAN_MULTIPLES: tuple[float, ...] = (
         1.5,
         2,
@@ -1640,7 +1637,10 @@ class ValueQualityGrowthMetricsLoader(
         50,
         100,
     )
-    EPS_SPLIT_GUARD_CLEAN_TOLERANCE = 0.06
+    # TIGHTENED 0.06->0.015 (2026-09-11): 6% let real M&A/issuance false-positive as a split
+    # (COF's 2025 Discover deal, 1.411x, 5.9% off 1.5x). Live histogram: flat noise 0-6%, real
+    # splits spike only in 0.0-0.1% - 1.5% keeps margin over NVDA's real 10:1 split (1.10% off).
+    EPS_SPLIT_GUARD_CLEAN_TOLERANCE = 0.015
 
     def _compute_period_growth(
         self,
