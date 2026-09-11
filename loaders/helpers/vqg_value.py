@@ -50,6 +50,23 @@ def _owner() -> Any:
 
 logger = logging.getLogger("loaders.load_value_quality_growth_metrics")
 
+# FOUND 2026-09-11 (goal: "missing SEC/XBRL data under 200" push): SCE$L ("SCE TRUST VI",
+# Southern California Edison's trust-preferred financing vehicle) evades every
+# security_name-text pattern SymbolGateMixin._get_preferred_or_debt_security_symbols()
+# matches (none of "Subordinated"/"Preferred"/"Depositary" appear in its SEC-listed
+# security_name, just "SCE TRUST VI") - landing pe_ratio on "eps_never_tagged_in_filings"
+# (implies an extraction gap) instead of the correct "preferred_or_debt_security_no_common_
+# equity_ratio" (SCE$L's own annual_income_statement rows are genuinely NULL - it never had
+# common EPS to tag). Adding a general "TRUST <roman numeral>" pattern belongs in that
+# gate's own query, but loaders/helpers/vqg_symbol_gates.py is already past the file-size
+# ratchet's 2000-line hard ceiling (no growth accepted without first extracting a module -
+# out of proportion for a single verified symbol). Live-scanned the whole active universe
+# for this exact "<Company> TRUST <roman numeral>" naming convention: SCE$L is the only
+# match, so an explicit, hand-verified whitelist here - not a generalized pattern - is the
+# right-sized fix, same "explicit, verified, not guessed" discipline as
+# utils/external/sec_custom_xbrl_concepts.py's per-symbol registries.
+_TRUST_PREFERRED_SYMBOL_OVERRIDE: frozenset[str] = frozenset({"SCE$L"})
+
 
 class ValueMetricsMixin(SymbolGateMixin):
     """See module docstring.
@@ -71,6 +88,12 @@ class ValueMetricsMixin(SymbolGateMixin):
         def _fetch_positioning_metrics(self, symbol: str) -> tuple[float | None, str | None]: ...
 
         def _nan_to_none(self, value: float | None) -> float | None: ...
+
+    def _is_preferred_or_debt_security(self, symbol: str) -> bool:
+        """SymbolGateMixin._get_preferred_or_debt_security_symbols() plus the small,
+        explicit _TRUST_PREFERRED_SYMBOL_OVERRIDE whitelist above (see that constant's
+        own comment) - every call site below should use this instead of the bare gate."""
+        return symbol in self._get_preferred_or_debt_security_symbols() or symbol in _TRUST_PREFERRED_SYMBOL_OVERRIDE
 
     def _fetch_ttm_eps_from_quarterly(self, symbol: str) -> float | None:
         """Trailing-twelve-month earnings_per_share summed from quarterly_income_statement -
@@ -361,7 +384,7 @@ class ValueMetricsMixin(SymbolGateMixin):
             # coupon / its own market price is a real, meaningful yield - see that gate's own
             # docstring) and every other field (market_cap/EV/intrinsic_value etc. haven't been
             # vetted the same way) - only overriding the four ratios that gate already covers.
-            if symbol in self._get_preferred_or_debt_security_symbols():
+            if self._is_preferred_or_debt_security(symbol):
                 for field in ("pe_ratio", "pb_ratio", "ps_ratio", "peg_ratio"):
                     if marker.get(f"{field}_unavailable_reason") is not None:
                         marker[f"{field}_unavailable_reason"] = "preferred_or_debt_security_no_common_equity_ratio"
@@ -386,7 +409,7 @@ class ValueMetricsMixin(SymbolGateMixin):
             # "preferred_or_debt_security_no_common_equity_ratio" - a real business fact,
             # not a missing value, so it must not be clobbered by a real number here even
             # if sec_valuations happened to compute one).
-            if row_dict.get("pb_ratio") is not None and symbol not in self._get_preferred_or_debt_security_symbols():
+            if row_dict.get("pb_ratio") is not None and not self._is_preferred_or_debt_security(symbol):
                 marker["pb_ratio"] = row_dict["pb_ratio"]
                 marker["pb_ratio_unavailable_reason"] = None
             # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day
@@ -730,7 +753,7 @@ class ValueMetricsMixin(SymbolGateMixin):
         # complete year) but this query would pick up, wrongly concluding "not unprofitable,
         # must be a data gap" instead of matching the real computation's actual answer.
         pe_ratio_reason = None
-        if pe is None and symbol in self._get_preferred_or_debt_security_symbols():
+        if pe is None and self._is_preferred_or_debt_security(symbol):
             # See _get_preferred_or_debt_security_symbols()'s docstring: this ticker's real
             # EPS on file belongs to its parent's common stock, not to itself - a P/E computed
             # from it would be wrong, not just missing.
@@ -942,7 +965,7 @@ class ValueMetricsMixin(SymbolGateMixin):
         # load_sec_valuations.py only computes pb_ratio when stockholders_equity > 0; a real
         # negative book value (buybacks/accumulated deficit) is "not applicable", not missing.
         pb_ratio_reason = None
-        if pb is None and symbol in self._get_preferred_or_debt_security_symbols():
+        if pb is None and self._is_preferred_or_debt_security(symbol):
             # See _get_preferred_or_debt_security_symbols()'s docstring - same "wrong, not
             # missing" reasoning as pe_ratio_reason above, for book value per share.
             pb_ratio_reason = "preferred_or_debt_security_no_common_equity_ratio"
@@ -1135,7 +1158,7 @@ class ValueMetricsMixin(SymbolGateMixin):
                     # not missing" reasoning as pe_ratio_reason/pb_ratio_reason above, for
                     # revenue per share.
                     "preferred_or_debt_security_no_common_equity_ratio"
-                    if symbol in self._get_preferred_or_debt_security_symbols()
+                    if self._is_preferred_or_debt_security(symbol)
                     else "no_revenue_reported"
                     if symbol in self._get_no_recent_revenue_symbols()
                     or symbol in self._get_never_tagged_revenue_symbols()
