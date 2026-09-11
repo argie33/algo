@@ -58,13 +58,15 @@ class TestIfrsShortTermBorrowingsAlias:
         assert by_year[2021]["short_term_borrowings"] == 4_142_800_000.0
 
     def test_non_usd_shortterm_borrowings_rejected_by_currency_guard(self) -> None:
-        # ASR reports this concept only in MXN, with no USD fact - must not fabricate a
-        # USD figure from the raw MXN magnitude (same guard as the lease-liability and
-        # generic non-USD tests).
+        # ASR reports this concept only in ARS (still unsupported - MXN was added to
+        # MAJOR_CURRENCIES 2026-09-11, see fx_rates.py - so MXN no longer exercises this
+        # guard, it now converts via a real FX rate instead), with no USD fact - must not
+        # fabricate a USD figure from the raw local-currency magnitude (same guard as the
+        # lease-liability and generic non-USD tests).
         facts = {
             "us-gaap": {},
             "ifrs-full": {
-                "ShorttermBorrowings": {"units": {"MXN": [_entry(2024, 500_000_000.0, "2025-04-01")]}},
+                "ShorttermBorrowings": {"units": {"ARS": [_entry(2024, 500_000_000.0, "2025-04-01")]}},
             },
         }
         client = _FakeClient(facts)

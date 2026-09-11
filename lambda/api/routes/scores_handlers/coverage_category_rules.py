@@ -717,6 +717,14 @@ _COVERAGE_CATEGORY_RULES: list[tuple[str, set[str]]] = [
             # 1,560 rows, including real large-caps like MRNA/RBLX/RIVN/RKLB/WBD/BNTX).
             "negative_forward_eps",
             "reit_special_entity",
+            # ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push):
+            # sec_valuations_dcf_fcf_recategorize.py's _recategorize_royalty_streaming_dcf_fcf_
+            # reason - a mining royalty/streaming company (GROY/MTA/OR/VMET/VOXR) has real,
+            # growing operating cash flow but structurally never reports any PP&E-purchase
+            # concept (it buys royalty/streaming interests, not mines) - same "Legitimate / not
+            # applicable" class as reit_special_entity just above, distinct reason string since
+            # these are real conventional IFRS filers, not a no-cash-flow-statement entity type.
+            "royalty_streaming_no_capex",
             # ADDED 2026-09-05 (SEC/XBRL missing-data sweep, "implausible values" follow-up):
             # an ETF (stock_symbols.etf = 'true') files N-1A/N-CSR under the Investment
             # Company Act, not a 10-K, so it has zero annual_income_statement rows - the same
