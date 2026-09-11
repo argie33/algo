@@ -22,6 +22,7 @@ from routes.utils import (
     success_response,
 )
 
+from algo.risk.governance_risk_watchlist import is_known_hfcaa_risk_adr
 from shared_contracts.response_validator import ResponseValidator
 
 logger = logging.getLogger(__name__)
@@ -103,8 +104,16 @@ def handle(  # noqa: C901
                     f"Financial metrics not available for {sym}. "
                     f"value_metrics loader may not have run or data is stale. {freshness}",
                 )
+            serialized_rows = [safe_json_serialize(dict(r)) for r in rows]
+            # GOVERNANCE-RISK WATCHLIST FLAG (2026-09-11, /goal session): informational only,
+            # same precedent as return_on_equity_distress_artifact above - see
+            # algo/risk/governance_risk_watchlist.py for scope/verification trail. Does not
+            # alter any score or exclude the symbol from trading.
+            governance_risk_flag = is_known_hfcaa_risk_adr(sym)
+            for serialized_row in serialized_rows:
+                serialized_row["governance_risk_flag"] = governance_risk_flag
             result = list_response(
-                [safe_json_serialize(dict(r)) for r in rows],
+                serialized_rows,
                 data_freshness=freshness,
             )
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/key-metrics", result)

@@ -21,6 +21,7 @@ from routes.utils import (
 )
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
+from algo.risk.governance_risk_watchlist import is_known_hfcaa_risk_adr
 
 from .stock_details_history import _derive_mom_12_1
 
@@ -755,6 +756,12 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
             }
 
         _build_factor_inputs(d)
+
+        # GOVERNANCE-RISK WATCHLIST FLAG (2026-09-11, /goal session): informational only, same
+        # non-invasive precedent as the ROE distress-artifact flag above - see
+        # algo/risk/governance_risk_watchlist.py for scope/verification trail. Does not alter
+        # any score or exclude the symbol from trading.
+        d["governance_risk_flag"] = is_known_hfcaa_risk_adr(symbol)
 
         # Check data freshness
         freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=7)
