@@ -100,10 +100,24 @@ _REASON_COLUMNS: list[tuple[str, str]] = [
 
 
 def _find_stuck_symbols(cur: Any, reasons: set[str]) -> dict[str, set[str]]:
-    """symbol -> set of reasons it's currently stuck on, across every _REASON_COLUMNS entry."""
+    """symbol -> set of reasons it's currently stuck on, across every _REASON_COLUMNS entry.
+
+    Joined against stock_symbols.active=true (same pattern as audit_statement_tie_outs.py,
+    audit_unavailable_reasons.py, monitor_data_staleness.py, xbrl_calculation_linkbase_check.py,
+    xbrl_yfinance_crosscheck.py) so an already-inactive/delisted symbol's stale reason row
+    doesn't waste a CIK-resolution/DERA-scan cycle on a symbol that no longer counts toward the
+    live scored headline - flagged 2026-09-11 by algo-14 (cross-session, live sample: most
+    buckets were already 90%+ active, e.g. total_debt_not_itemized 24/26, so this doesn't change
+    prior runs' 0-real-candidates conclusion, just tightens scope).
+    """
     stuck: dict[str, set[str]] = defaultdict(set)
     for table, column in _REASON_COLUMNS:
-        cur.execute(f"SELECT symbol, {column} FROM {table} WHERE {column} = ANY(%s)", (list(reasons),))
+        cur.execute(
+            f"SELECT t.symbol, t.{column} FROM {table} t "
+            f"JOIN stock_symbols s ON s.symbol = t.symbol AND s.active = true "
+            f"WHERE t.{column} = ANY(%s)",
+            (list(reasons),),
+        )
         for symbol, reason in cur.fetchall():
             stuck[symbol].add(reason)
     return stuck
