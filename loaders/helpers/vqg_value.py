@@ -909,6 +909,18 @@ class ValueMetricsMixin(SymbolGateMixin):
                 # priority pattern as fcf_yield and other value_metrics fields.
                 else "registered_investment_company_no_xbrl"
                 if symbol in self._get_registered_investment_company_symbols()
+                # ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push): blank-check
+                # SPACs (pre-merger shells, SIC 6770) have no operating business and no real
+                # earnings-per-share concept - same structural fact already handled for
+                # fcf_yield/ev_ebitda (this file, "no_revenue_reported"/gate above) and flagged
+                # as a parallel case in the RIC fix's own comment just above, but never actually
+                # wired into this specific cascade. Live-confirmed BPAC (Bullpen Parlay
+                # Acquisition Corp): real net_income on file, zero revenue, no EPS ever tagged,
+                # pe_ratio fell through every branch above to the generic "missing_sec_data"
+                # catch-all instead of the correct "Legitimate / not applicable" bucket. Checked
+                # BEFORE generic fallback, same priority pattern as the RIC check just above.
+                else "no_revenue_reported"
+                if symbol in self._get_blank_check_symbols()
                 else "missing_sec_data"
             )
 
