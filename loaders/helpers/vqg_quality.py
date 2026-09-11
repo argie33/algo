@@ -1460,36 +1460,7 @@ class QualityMetricsMixin(
                     # payer deserves a real attempt before falling back to the generic label"
                     # reasoning.
                     _sgr_ttm_attempted = False
-                    # ADDED 2026-09-11 (goal: "under 300" push): live-confirmed CVKD (Cadrenal
-                    # Therapeutics) has two disagreeing shares_outstanding values across tables -
-                    # company_info_sec says 3,567,592, sec_valuations says 1,993,757 - and
-                    # sec_valuations.reason is already "shares_outstanding_scale_mismatch" for
-                    # it (a real detected inconsistency, e.g. a stale pre-split/reorg figure in
-                    # one table). Multiplying a suspect per-share TTM dividend sum by an
-                    # untrustworthy shares_outstanding produces a dollar dividends_paid figure
-                    # with no reliable magnitude - CVKD's own case (TTM $33/share x 3.57M shares
-                    # = $117.7M dividends_paid against a $1.8M equity base) only avoided
-                    # corrupting the SGR value by accident, via the unrelated
-                    # MAX_PLAUSIBLE_GROWTH_PCT implausible-ratio bound catching the resulting
-                    # outlier - not a real defense. Skip the TTM attempt entirely when
-                    # sec_valuations has already flagged this exact symbol's shares_outstanding
-                    # as scale-mismatched, same as dividend_yield/pb_ratio/ps_ratio/fcf_yield
-                    # already do via _sanity_check_market_cap's field-nulling (sec_valuations_
-                    # checks.py) - reuses the same reason string for consistency.
-                    _sgr_shares_scale_mismatch = False
                     if shares_outstanding is not None and shares_outstanding > 0:
-                        with _owner().DatabaseContext("read") as cur:
-                            cur.execute(
-                                "SELECT reason FROM sec_valuations WHERE symbol = %s",
-                                (symbol,),
-                            )
-                            _sgr_sv_row = cur.fetchone()
-                            _sgr_shares_scale_mismatch = (
-                                _sgr_sv_row is not None and _sgr_sv_row[0] == "shares_outstanding_scale_mismatch"
-                            )
-                    if _sgr_shares_scale_mismatch:
-                        sgr_reason = "shares_outstanding_scale_mismatch"
-                    elif shares_outstanding is not None and shares_outstanding > 0:
                         _sgr_ttm_attempted = True
                         with _owner().DatabaseContext("read") as cur:
                             cur.execute(
@@ -1514,11 +1485,6 @@ class QualityMetricsMixin(
                         # real fact, not a missing SEC concept, same "Legitimate / not
                         # applicable" class as a confirmed non-payer.
                         sgr_reason = "dividend_lapsed_beyond_ttm_window"
-                    elif sgr_dividends_paid is None and _sgr_shares_scale_mismatch:
-                        # Already labeled above - the TTM attempt was deliberately skipped, not
-                        # failed, so don't let the generic missing_sec_data fallback below
-                        # clobber the more precise reason already set.
-                        pass
                     elif sgr_dividends_paid is None:
                         # FIXED 2026-09-09 (goal session: "missing SEC/XBRL data under 500"
                         # sweep): the TTM attempt above never even ran when shares_outstanding
@@ -1539,6 +1505,24 @@ class QualityMetricsMixin(
                         # bug. Falls back to the pre-existing "missing_sec_data" label for every
                         # other real "shares_outstanding is genuinely unknown" case (e.g.
                         # cik_not_found), which this was never meant to touch.
+                        #
+                        # EXTENDED 2026-09-11 (goal: "under 300" push): live-confirmed CVKD
+                        # (Cadrenal Therapeutics)/HCWB (HCW Biologics) reach this exact branch -
+                        # real dividend history, real net_income/stockholders_equity - but
+                        # shares_outstanding is None here NOT because it was never tagged, but
+                        # because load_value_quality_growth_metrics.py's own query already
+                        # excludes it (`WHERE reason IS NULL OR reason !=
+                        # 'shares_outstanding_scale_mismatch'`, added for the PMI/SELX/AGH/AKTX/
+                        # UHAL sustainable_growth_rate corruption bug) whenever sec_valuations
+                        # has flagged this exact symbol's shares_outstanding as scale-mismatched
+                        # (CVKD: company_info_sec says 3,567,592 vs sec_valuations says
+                        # 1,993,757). That upstream exclusion is correct and load-bearing - don't
+                        # touch it - but it left this function unable to tell "shares_outstanding
+                        # was never tagged" apart from "shares_outstanding exists but is
+                        # untrustworthy", so both fell through to the same generic
+                        # "missing_sec_data" label. Check sec_valuations directly (not just
+                        # company_info_sec) so a known-inconsistent share count gets the correct,
+                        # already-established "shares_outstanding_scale_mismatch" reason instead.
                         _sgr_shares_reason: str | None = None
                         with _owner().DatabaseContext("read") as cur:
                             cur.execute(
@@ -1547,11 +1531,20 @@ class QualityMetricsMixin(
                             )
                             _sgr_shares_row = cur.fetchone()
                             _sgr_shares_reason = _sgr_shares_row[0] if _sgr_shares_row else None
-                        sgr_reason = (
-                            _sgr_shares_reason
-                            if _sgr_shares_reason == "fpi_shares_excluded_domestic_only"
-                            else "missing_sec_data"
-                        )
+                        if _sgr_shares_reason == "fpi_shares_excluded_domestic_only":
+                            sgr_reason = _sgr_shares_reason
+                        else:
+                            with _owner().DatabaseContext("read") as cur:
+                                cur.execute(
+                                    "SELECT reason FROM sec_valuations WHERE symbol = %s",
+                                    (symbol,),
+                                )
+                                _sgr_sv_row = cur.fetchone()
+                            sgr_reason = (
+                                "shares_outstanding_scale_mismatch"
+                                if _sgr_sv_row is not None and _sgr_sv_row[0] == "shares_outstanding_scale_mismatch"
+                                else "missing_sec_data"
+                            )
                 else:
                     sgr_dividends_paid = 0.0
 

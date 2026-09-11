@@ -1,17 +1,16 @@
-"""Regression: sustainable_growth_rate's dividend_data TTM recovery must not multiply a
-per-share dividend sum by a shares_outstanding value sec_valuations has already flagged as
-scale-mismatched.
+"""Regression: sustainable_growth_rate's "shares_outstanding is unavailable" fallback reason
+must distinguish a known scale-mismatched share count from a genuinely never-tagged one,
+instead of collapsing both into the generic "missing_sec_data" label.
 
-Bug (confirmed live 2026-09-11): CVKD (Cadrenal Therapeutics) has two disagreeing
-shares_outstanding values across tables - company_info_sec says 3,567,592, sec_valuations
-says 1,993,757 (sec_valuations.reason = "shares_outstanding_scale_mismatch"). The TTM
-dividend recovery added 2026-09-05 (test_sustainable_growth_rate_dividend_reason.py's
-TestSustainableGrowthRateDividendDataRecovery) blindly multiplies dividend_data's per-share
-sum by shares_outstanding with no check against this known inconsistency - CVKD's real TTM
-$33/share x 3.57M shares = $117.7M dividends_paid against a $1.8M equity base, which only
-avoided corrupting the SGR value by accident (via the unrelated MAX_PLAUSIBLE_GROWTH_PCT
-implausible-ratio bound). A symbol with smaller magnitudes could silently produce a wrong-but-
-plausible SGR from the same untrustworthy shares_outstanding.
+Bug (confirmed live 2026-09-11): CVKD (Cadrenal Therapeutics)/HCWB (HCW Biologics) have real
+dividend history, real net_income/stockholders_equity, but shares_outstanding reads None inside
+_compute_quality_metrics - NOT because SEC never tagged it, but because
+load_value_quality_growth_metrics.py's own quality_row query already excludes sec_valuations
+rows flagged `reason = 'shares_outstanding_scale_mismatch'` (a fix added for the PMI/SELX/AGH/
+AKTX/UHAL sustainable_growth_rate corruption bug - CVKD has two disagreeing share counts across
+tables: company_info_sec=3,567,592 vs sec_valuations=1,993,757). That upstream exclusion is
+correct and load-bearing - the bug is only that the missing_sec_data fallback here couldn't
+tell "never tagged" apart from "excluded as untrustworthy", so both got the same generic label.
 """
 
 from unittest.mock import patch
@@ -34,11 +33,13 @@ def _quality_row(stockholders_equity=1000.0, net_income=100.0, dividends_paid=No
     return row
 
 
-class _ScaleMismatchCursor:
-    """Mock cursor: dividend_data has real recent history, sec_valuations.reason is
-    "shares_outstanding_scale_mismatch" for this symbol."""
+class _RoutingCursor:
+    """Mock cursor: dividend_data has real recent history (shares_outstanding is None so the
+    TTM attempt never fires), company_info_sec has no fpi-exclusion reason, sec_valuations.reason
+    is configurable."""
 
-    def __init__(self):
+    def __init__(self, sec_valuations_reason):
+        self._sec_valuations_reason = sec_valuations_reason
         self._last_query = ""
 
     def execute(self, query, params=None):
@@ -46,10 +47,9 @@ class _ScaleMismatchCursor:
 
     def fetchone(self):
         if "sec_valuations" in self._last_query:
-            return ("shares_outstanding_scale_mismatch",)
-        if "SUM(dividend_per_share)" in self._last_query:
-            # Would recover a real-looking TTM figure if not gated - must never be reached.
-            return (33.0,)
+            return (self._sec_valuations_reason,) if self._sec_valuations_reason is not None else None
+        if "company_info_sec" in self._last_query:
+            return (None,)
         if "dividend_data" in self._last_query:
             return (1,)
         return None
@@ -59,42 +59,45 @@ class _ScaleMismatchCursor:
 
 
 class TestSustainableGrowthRateSharesOutstandingScaleMismatch:
-    def test_scale_mismatched_shares_outstanding_skips_ttm_recovery(self):
+    def test_scale_mismatched_shares_outstanding_gets_precise_reason(self):
         loader = _make_loader()
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
-            mock_db_ctx.return_value.__enter__.return_value = _ScaleMismatchCursor()
+            mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(
+                sec_valuations_reason="shares_outstanding_scale_mismatch"
+            )
             metrics = loader._compute_quality_metrics(
                 "CVKD",
                 _quality_row(
-                    stockholders_equity=1000.0, net_income=-100.0, dividends_paid=None, shares_outstanding=3567592.0
+                    stockholders_equity=1000.0, net_income=-100.0, dividends_paid=None, shares_outstanding=None
                 ),
             )
         assert metrics["sustainable_growth_rate"] is None
         assert metrics["sustainable_growth_rate_unavailable_reason"] == "shares_outstanding_scale_mismatch"
 
-    def test_non_mismatched_shares_outstanding_unaffected(self):
-        # sec_valuations.reason is something else (or no row) - TTM recovery proceeds as before.
+    def test_genuinely_never_tagged_shares_outstanding_keeps_missing_sec_data(self):
         loader = _make_loader()
-
-        class _CleanCursor(_ScaleMismatchCursor):
-            def fetchone(self):
-                if "sec_valuations" in self._last_query:
-                    return ("no_income_statement",)
-                if "SUM(dividend_per_share)" in self._last_query:
-                    return (2.0,)
-                if "dividend_data" in self._last_query:
-                    return (1,)
-                return None
-
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
-            mock_db_ctx.return_value.__enter__.return_value = _CleanCursor()
+            mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(
+                sec_valuations_reason="no_income_statement"
+            )
             metrics = loader._compute_quality_metrics(
-                "REALPAY",
+                "REALPAY_NOSHARES",
                 _quality_row(
-                    stockholders_equity=1000.0, net_income=100.0, dividends_paid=None, shares_outstanding=10.0
+                    stockholders_equity=1000.0, net_income=100.0, dividends_paid=None, shares_outstanding=None
                 ),
             )
-        # Recovered dividends_paid = 2.0/share * 10.0 shares = 20.0.
-        # ROE = 100/1000 = 10%, retention_ratio = 1 - 20/100 = 0.8 -> SGR = 8.0
-        assert metrics["sustainable_growth_rate"] == 8.0
-        assert metrics.get("sustainable_growth_rate_unavailable_reason") is None
+        assert metrics["sustainable_growth_rate"] is None
+        assert metrics["sustainable_growth_rate_unavailable_reason"] == "missing_sec_data"
+
+    def test_no_sec_valuations_row_keeps_missing_sec_data(self):
+        loader = _make_loader()
+        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(sec_valuations_reason=None)
+            metrics = loader._compute_quality_metrics(
+                "NOROW",
+                _quality_row(
+                    stockholders_equity=1000.0, net_income=100.0, dividends_paid=None, shares_outstanding=None
+                ),
+            )
+        assert metrics["sustainable_growth_rate"] is None
+        assert metrics["sustainable_growth_rate_unavailable_reason"] == "missing_sec_data"
