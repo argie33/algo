@@ -35,11 +35,9 @@ python scripts/local_loader_scheduler.py --now metrics   # Load data locally (se
 ```bash
 python scripts/run_local_orchestrator.py [--morning|--afternoon|--preclose|--evening] [--date YYYY-MM-DD] [--force]
 ```
-This loads `.env.local` — `DB_NAME` there must be `stocks` (the real local dev DB with actual
-config/scores/trades). `algo_trading` is a different, near-empty DB reserved for the pytest
-suite (`tests/conftest.py` hardcodes `DB_NAME=algo_trading`) — if `.env.local` ever points there
-instead, local orchestrator runs will silently execute against a barren DB and any "verified
-locally" claim from that session is worthless. This exact drift happened and was fixed 2026-08-09.
+This loads `.env.local` — `DB_NAME` there must be `stocks` (the real local dev DB), not
+`algo_trading` (a separate near-empty DB `tests/conftest.py` reserves for pytest only) — that
+drift happened once (2026-08-09) and silently made a session's "verified locally" claim worthless.
 
 **`--date YYYY-MM-DD` does not bypass the market-hours guard.** `algo/orchestration/orchestrator.py`
 checks the *real* current wall-clock ET time against real market hours on every run, regardless
