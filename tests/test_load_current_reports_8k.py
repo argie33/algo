@@ -332,3 +332,33 @@ def test_cik_lookup_gives_up_as_not_found_after_retry_exhausted(monkeypatch) -> 
 
     assert loader.sec_client.symbol_to_cik.call_count == 2
     assert records[0]["data_unavailable_reason"] == "symbol_not_found"
+
+
+def test_known_etf_symbol_gets_etf_reason_not_symbol_not_found(monkeypatch) -> None:
+    """AGG/IWM-shaped case (2026-09-10, missing-SEC/XBRL-under-300 push): an ETF share
+    class is registered under its issuing Trust's own CIK, so CIK resolution genuinely
+    always fails here - but that's a permanent Investment-Company-Act exemption (ETFs
+    file N-1A/485BPOS, never Form 8-K), not a "Missing SEC/XBRL data" gap. A symbol
+    present in `etf_symbols` must get "etf_no_8k_filings" instead of the generic
+    "symbol_not_found"."""
+    monkeypatch.setattr("utils.loaders.retry_helper.time.sleep", lambda *_: None)
+    loader = _make_loader()
+    loader.sec_client.symbol_to_cik.side_effect = ValueError("not found")
+
+    with patch.object(loader, "_is_known_etf_symbol", return_value=True):
+        records = loader.fetch_incremental("AGG", since=None)
+
+    assert records[0]["data_unavailable_reason"] == "etf_no_8k_filings"
+
+
+def test_unknown_symbol_not_in_etf_symbols_still_gets_symbol_not_found(monkeypatch) -> None:
+    """A genuinely unresolvable non-ETF symbol keeps the original, unchanged behavior -
+    the ETF check only redirects symbols actually present in `etf_symbols`."""
+    monkeypatch.setattr("utils.loaders.retry_helper.time.sleep", lambda *_: None)
+    loader = _make_loader()
+    loader.sec_client.symbol_to_cik.side_effect = ValueError("not found")
+
+    with patch.object(loader, "_is_known_etf_symbol", return_value=False):
+        records = loader.fetch_incremental("NOPE", since=None)
+
+    assert records[0]["data_unavailable_reason"] == "symbol_not_found"

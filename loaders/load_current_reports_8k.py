@@ -186,6 +186,16 @@ class CurrentReports8KLoader(SecLoaderBase):
                             (symbol,),
                         )
                     return []
+                # ADDED 2026-09-10 (missing-SEC/XBRL-under-300 push): an ETF share class
+                # (registered in `etf_symbols` - AGG/IWM live-confirmed) is registered under
+                # its issuing Trust's own CIK, not the traded ticker itself, so this lookup
+                # genuinely can never resolve a CIK here - but that's not a "we couldn't find
+                # it" gap, it's the same permanent Investment-Company-Act-vs-Exchange-Act
+                # exemption etf_trust_no_gaap_financials already recognizes elsewhere (ETFs
+                # file N-1A/485BPOS, never Form 8-K). See coverage_category_rules.py's
+                # "etf_no_8k_filings" entry.
+                if self._is_known_etf_symbol(symbol):
+                    return self._unavailable_record(symbol, now_et, "etf_no_8k_filings")
                 return self._unavailable_record(symbol, now_et, "symbol_not_found")
 
             # Get submissions (SEC API returns columnar format: dict of arrays)
@@ -369,6 +379,14 @@ class CurrentReports8KLoader(SecLoaderBase):
                 "SELECT 1 FROM current_reports_8k WHERE symbol = %s AND data_unavailable = false LIMIT 1",
                 (symbol,),
             )
+            return cur.fetchone() is not None
+
+    @staticmethod
+    def _is_known_etf_symbol(symbol: str) -> bool:
+        """True if this symbol is a registered ETF (`etf_symbols`) - see fetch_incremental's
+        "etf_no_8k_filings" call site comment."""
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT 1 FROM etf_symbols WHERE symbol = %s", (symbol,))
             return cur.fetchone() is not None
 
     @staticmethod

@@ -675,6 +675,30 @@ class CompanyInfoSECLoader(SecLoaderBase):
         "FWONA": {"libertyformulaonegroupcommonclassmember": "A"},
         "UHAL.B": {"nonvotingcommonstockmember": "B"},
     }
+    # ADDED 2026-09-10 (missing-SEC/XBRL-under-300 push, shares_outstanding_not_in_xbrl_
+    # or_filing_text bucket): resolves the exact ambiguity the 2026-09-06 MKC/MKC.V revert
+    # above deliberately left unresolved (fail-closed, not fixed). Live-confirmed via
+    # McCormick's real current 10-K (CIK 63754, mkc-20251130.htm, filed 2026-01-22): its
+    # cover page tags TWO separate dei:EntityCommonStockSharesOutstanding facts, each on its
+    # own context with an explicit us-gaap:StatementClassOfStockAxis member - context c-6
+    # (`us-gaap:CommonStockMember`) = 14,851,729, labeled plain "Common Stock" in the
+    # surrounding table cell, and context c-7 (`us-gaap:NonvotingCommonStockMember`) =
+    # 253,586,510, labeled "Common Stock Non-Voting". Cross-checked against SEC's own
+    # company_tickers.json, which lists BOTH "MKC" and "MKC-V" under this same CIK as two
+    # separately-traded classes - i.e. this is not the usual "bare ticker = the untagged
+    # default class" shape the generic CommonStockMember heuristic assumes (see
+    # _context_is_generic_common_class's own docstring): here the bare, actively-traded-as-
+    # "MKC" class is the one with the SPECIAL (Nonvoting) member, and the closely-held,
+    # dot-suffixed "MKC.V" class is the one with the generic member name - backwards from
+    # every other symbol this file's heuristics were built against, which is exactly why the
+    # 2026-09-06 revert correctly refused to guess through it. A small, explicit,
+    # individually-verified symbol->member mapping (same discipline as
+    # _VERIFIED_DEFAULT_CLASS_CUSTOM_MEMBERS/_VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES
+    # above) rather than a new general heuristic that could misfire on an unrelated filer.
+    _VERIFIED_SYMBOL_TO_CLASS_MEMBER_OVERRIDES: dict[str, str] = {
+        "MKC": "nonvotingcommonstockmember",
+        "MKC.V": "commonstockmember",
+    }
     # ADDED 2026-09-06 (same sweep, continued): 5 oil/gas royalty trusts (CRT, MTR, PBT, SBR,
     # SJT) have ZERO XBRL companyfacts (404, live-confirmed for all 5) AND zero
     # dei:EntityCommonStockSharesOutstanding inline-XBRL tag anywhere in their real current
@@ -1051,6 +1075,25 @@ class CompanyInfoSECLoader(SecLoaderBase):
         overrides = self._VERIFIED_LETTERLESS_CLASS_MEMBER_OVERRIDES.get(symbol or "", {})
         return overrides.get(member_name)
 
+    def _class_member_name_for_context(self, filing_text: str, context_id: str) -> str | None:
+        """The raw, lowercased us-gaap:StatementClassOfStockAxis member name for one
+        <xbrli:context> (e.g. "nonvotingcommonstockmember"), with no letter-shape
+        assumptions - unlike `_class_letter_for_context`, which only returns a value when
+        the member name fits the "Class{LETTER}" pattern. Used by
+        `_VERIFIED_SYMBOL_TO_CLASS_MEMBER_OVERRIDES` to match an exact, individually-
+        verified member name regardless of its shape.
+        """
+        context_re = re.compile(
+            self._CONTEXT_BLOCK_RE_TEMPLATE.format(re.escape(context_id)), re.IGNORECASE | re.DOTALL
+        )
+        context_match = context_re.search(filing_text)
+        if not context_match:
+            return None
+        member_match = self._CLASS_OF_STOCK_MEMBER_RE.search(context_match.group(0))
+        if not member_match:
+            return None
+        return member_match.group(1).rsplit(":", 1)[-1].lower()
+
     def _context_is_generic_common_class(self, filing_text: str, context_id: str, symbol: str | None = None) -> bool:
         """True only when this context is safely treated as "the plain default common
         class, no special designation" - i.e. safe to assign to a bare ticker with no
@@ -1253,6 +1296,26 @@ class CompanyInfoSECLoader(SecLoaderBase):
         plausible = [v for v in values if v > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING]
         if not plausible:
             return None
+
+        # ADDED 2026-09-10 (missing-SEC/XBRL-under-300 push): individually-verified exact
+        # member-name override takes priority over every heuristic below - see
+        # _VERIFIED_SYMBOL_TO_CLASS_MEMBER_OVERRIDES's own comment (MKC/MKC.V).
+        required_member = self._VERIFIED_SYMBOL_TO_CLASS_MEMBER_OVERRIDES.get(symbol)
+        if required_member:
+            override_matches = [
+                v
+                for v, ctx in values_with_context
+                if v > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING
+                and ctx is not None
+                and self._class_member_name_for_context(text, ctx) == required_member
+            ]
+            if len(override_matches) == 1:
+                result = int(override_matches[0])
+                logger.info(
+                    f"[{symbol}] Recovered shares_outstanding={result:,.0f} via verified "
+                    f"exact class-member override '{required_member}' (accession {accession})"
+                )
+                return result
 
         # ADDED 2026-08-22: before falling back to the ambiguous-reject behavior below, try
         # to resolve THIS symbol's own class via the standard us-gaap:StatementClassOfStockAxis
