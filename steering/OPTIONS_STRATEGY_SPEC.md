@@ -227,3 +227,64 @@ refinements for a v2 once a real-data backtest justifies further investment.
 - `terraform/modules/loaders/main.tf`'s `options_data_loader` schedule is written but not
   applied (carried over from phase 1) — needs `terraform apply` before the sleeve can depend
   on same-day data freshness for real trading, independent of everything else in this spec.
+
+## Phase 4 status: risk/collateral infrastructure built (2026-09-12)
+
+Built exactly the go/no-go item 2 infrastructure described in §7 — no execution code, no
+order submission, nothing wired into any live orchestrator phase (there is nothing yet for
+it to gate):
+
+- **`migrations/versions/1285_create_algo_options_positions.sql`**: new `algo_options_positions`
+  table tracking the full lifecycle from §5 — `id`, `symbol`, `sector`, `option_type`,
+  `strategy_leg` ('csp'/'covered_call'), `strike`, `expiration_date`, `contracts`,
+  `entry_date`, `entry_premium`, `collateral_amount` (cash collateral for an open CSP; 0/NULL
+  for a covered call, which is share-collateralized), `status` ('open'/'assigned'/'closed'/
+  'rolled'/'expired', CHECK-constrained), `cost_basis` (set on CSP assignment),
+  `assigned_shares`, a self-referential `rolled_from_id` for roll chains, `closed_date`,
+  `exit_price`, `realized_pnl`. Indexed on `(symbol, status)` and `(status)` since collateral
+  accounting filters `WHERE status = 'open'` constantly. Guarded with `IF NOT EXISTS`
+  throughout (same phantom-migration discipline this session's CLAUDE.md documents for
+  `options_chains`/`iv_history`), with a regression test
+  (`tests/unit/test_migration_1285_options_positions_fresh_db_safe.py`) proving it applies
+  cleanly to a genuinely fresh database.
+- **`algo/risk/options_collateral.py`**: pure accounting — `compute_committed_collateral()`
+  is the single source of truth (sums `collateral_amount` over `status = 'open'` rows only,
+  so assigned/closed/rolled/expired positions can never be double-counted alongside their
+  replacement rows), `available_sleeve_capital()` (5% of equity minus committed, floored at
+  0), `underlying_exposure_pct()`/`sector_exposure_pct()` (open-CSP collateral + assigned
+  cost-basis exposure, as a % of the sleeve's total 5% capital), and `has_equity_overlap()`.
+- **`algo/risk/circuit_breaker_options.py`**: `check_options_pretrade()`, returning the same
+  `{"halted", "halt_reasons", "checks"}` shape `CircuitBreaker.check_all()` already uses.
+  Covers sleeve-cap, per-underlying-cap (20%), sector-cap (40%), no-equity-overlap, and
+  cash-collateral-actually-available (no margin assumption). The one condition serious
+  enough to trip a real trading halt — committed collateral negative, or already exceeding
+  the sleeve cap on its own, both signs the accounting itself is broken rather than "this
+  candidate doesn't fit" — routes through `algo.orchestration.halt_flag_manager.
+  HaltFlagManager.set_halt_flag(triggered_by="circuit_breaker_options")`, the same halt
+  propagation the equity strategy already uses, not a parallel mechanism. **Not called from
+  anywhere live** — it is what phase 5's future order-submission code is expected to call
+  before submitting any CSP/covered-call order.
+- **DTE filter fix** (the phase-4 item flagged in phase 3's "Open items" above):
+  `scripts/options_data_loader.py` previously fetched the nearest `MAX_EXPIRATIONS` (2)
+  listed expirations with no DTE filter at all. Now computes DTE for every listed
+  expiration first, keeps only those inside a 27–48-day band (a small pad around the spec's
+  30–45-day target to absorb weekly-vs-monthly expiration-date jitter), and takes the
+  nearest `MAX_EXPIRATIONS` of those — so a name whose two nearest listed expirations are
+  both outside the target band now correctly yields zero captured expirations that day
+  rather than silently capturing off-band contracts.
+
+**Still open, unchanged from phase 3:**
+- No execution/order-submission code exists (phase 5 not started).
+- Alpaca options-approval level is still unknown — `scripts/check_options_approval_status.py`
+  still needs to be run with real credentials somewhere `AlpacaSyncManager` can resolve them.
+- `terraform/modules/loaders/main.tf`'s `options_data_loader` schedule is still written but
+  not applied.
+
+**New documented gap from this phase:** the equity-overlap rule (§6) is enforced only in the
+sleeve-entering-checks-equity direction (`has_equity_overlap()`, called from
+`check_options_pretrade`'s `no_equity_overlap` check). The other direction — the equity
+strategy checking for open sleeve exposure before IT enters a new position — is NOT
+implemented anywhere; that requires a change to the equity strategy's own entry path
+(`algo/trading/position_sizer.py` / wherever its pretrade gate lives), which is out of scope
+for phase 4. Tracked as an open item for whichever phase wires the equity side of this check
+in (likely phase 5, since that's when a live sleeve first creates real overlap risk).

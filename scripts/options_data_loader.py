@@ -90,6 +90,20 @@ RATE_LIMIT_SLEEP_SEC = 0.5
 DEFAULT_RISK_FREE_RATE = 0.045
 IV_HISTORY_LOOKBACK_DAYS = 252
 
+# Phase-4 fix (tracked in steering/OPTIONS_STRATEGY_SPEC.md's phase 3 "Open items" section):
+# spec section 3 targets 30-45 DTE for both CSP and covered-call entries, but this loader
+# previously fetched the nearest MAX_EXPIRATIONS expirations with no DTE filter at all -
+# whatever the two nearest expirations happened to be (often well outside the target band,
+# especially right after a monthly expiration rolls off). MIN/MAX_TARGET_DTE bound which
+# contracts actually get written to options_chains; a modest +/-3 day pad around the strict
+# 30-45 band absorbs weekly-vs-monthly expiration-date jitter (a name with only Friday
+# weeklies can land on day 29 or 46 while still being "the 30-45 DTE contract" in spirit)
+# without meaningfully violating the spec's intent - a real strategy entry still re-checks
+# the exact DTE at candidate-selection time (spec section 3), this is a data-capture filter,
+# not the strategy's own entry gate.
+MIN_TARGET_DTE = 27
+MAX_TARGET_DTE = 48
+
 
 def _select_symbols(cur: Any, limit: int) -> list[str]:
     """Daily-rotating pseudo-random sample of liquid, optionable symbols.
@@ -160,11 +174,21 @@ def _load_symbol(cur: Any, breaker: Any, symbol: str, risk_free_rate: float, dry
         chain_rows: list[dict[str, Any]] = []
         iv_samples: list[float] = []
 
-        for exp_str in expirations[:MAX_EXPIRATIONS]:
+        # DTE filter (phase-4 fix, see MIN/MAX_TARGET_DTE's comment above): compute every
+        # listed expiration's DTE first, keep only those inside the spec's 30-45-DTE target
+        # band (with a small pad), then take the MAX_EXPIRATIONS nearest ones from THAT
+        # filtered set - not blindly the two nearest expirations on the ticker's own list,
+        # which previously ignored DTE entirely and could land well outside the target band
+        # (e.g. a 7-day-out weekly and a 14-day-out weekly, neither remotely close to 30-45).
+        candidate_expirations = []
+        for exp_str in expirations:
             exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
             days_to_exp = (exp_date - quote_date).days
-            if days_to_exp <= 0:
-                continue
+            if MIN_TARGET_DTE <= days_to_exp <= MAX_TARGET_DTE:
+                candidate_expirations.append((exp_str, exp_date, days_to_exp))
+        candidate_expirations.sort(key=lambda item: item[2])
+
+        for exp_str, exp_date, days_to_exp in candidate_expirations[:MAX_EXPIRATIONS]:
             t_years = days_to_exp / 365.0
 
             chain = ticker.option_chain(exp_str)
