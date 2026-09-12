@@ -570,6 +570,92 @@ class DividendDataLoader(SecLoaderBase):
 
         return results
 
+    # Fiscal-year-end (month, day) for symbols registered in CUSTOM_DIVIDEND_CONCEPTS whose
+    # fiscal year doesn't end on Dec 31 - see _extract_custom_extension_dividends. Only
+    # needed for computing a plausible declaration/ex-dividend date estimate (fetch_custom_
+    # dividends returns {fiscal_year: total_amount}, not the underlying period end date);
+    # defaults to Dec 31 when a symbol isn't listed here.
+    _CUSTOM_DIVIDEND_FISCAL_YEAR_END: dict[str, tuple[int, int]] = {
+        # PayPay Corp (CIK 0002080845) - real fiscal year runs April 1 - March 31, live-
+        # confirmed against its FY2026 20-F (period 2025-04-01/2026-03-31).
+        "PAYP": (3, 31),
+    }
+
+    # Custom-extension dividend concepts for filers whose companyfacts is genuinely empty -
+    # see _extract_custom_extension_dividends. Deliberately NOT CUSTOM_DIVIDEND_CONCEPTS
+    # from sec_custom_xbrl_concepts.py (that registry's own extractor,
+    # extract_custom_dividends_from_xbrl_xml, has no currency/unitRef handling at all - fine
+    # for its existing USD-only entries, but PAYP tags this concept in JPY, not USD;
+    # live-confirmed against the real FY2026 20-F, unitRef="U_JPY". Reusing that registry's
+    # PAYP entry as-is here would silently misinterpret JPY179,000,000 as USD179,000,000, a
+    # ~150x overstatement - same currency-scale bug class this session already found and
+    # fixed for SU/NCTY's capex concepts via sec_custom_xbrl_currency_duration.py, whose
+    # currency-aware extractor this reuses below).
+    _CUSTOM_DIVIDEND_CONCEPTS_CURRENCY_AWARE: dict[str, list[tuple[str, str]]] = {
+        "PAYP": [("ifrs-full", "DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities")],
+    }
+
+    def _extract_custom_extension_dividends(self, symbol: str, now_et: date) -> list[dict[str, Any]]:
+        """Last-resort dividend fallback for a filer whose companyfacts genuinely returns
+        empty us-gaap/ifrs-full facts (see fetch_incremental's `if not us_gaap and not
+        ifrs_full` branch) but has real dividend data tagged under a custom filer-extension
+        XBRL concept in its raw filing.
+
+        Returns [] (never a data_unavailable marker) for an unregistered symbol or when the
+        raw-filing fetch itself comes back empty - callers should fall through to the
+        existing no_us_gaap_facts/registered_investment_company classification exactly as
+        before, not treat this as a different kind of failure.
+        """
+        from utils.external.sec_custom_xbrl_concepts import _fetch_custom_concept
+        from utils.external.sec_custom_xbrl_currency_duration import (
+            _extract_duration_values_for_concepts_with_currency,
+        )
+
+        if symbol not in self._CUSTOM_DIVIDEND_CONCEPTS_CURRENCY_AWARE:
+            return []
+
+        def _extractor(xml_content: str, sym: str) -> dict[int, float]:
+            return _extract_duration_values_for_concepts_with_currency(
+                xml_content, self._CUSTOM_DIVIDEND_CONCEPTS_CURRENCY_AWARE.get(sym)
+            )
+
+        dividends_by_year = _fetch_custom_concept(
+            symbol, self.sec_client, self._CUSTOM_DIVIDEND_CONCEPTS_CURRENCY_AWARE, _extractor
+        )
+        if not dividends_by_year:
+            return []
+
+        month, day = self._CUSTOM_DIVIDEND_FISCAL_YEAR_END.get(symbol, (12, 31))
+        results: list[dict[str, Any]] = []
+        for fiscal_year, value in dividends_by_year.items():
+            if value is None or value == 0:
+                continue
+            try:
+                period_end = date(fiscal_year, month, day)
+            except ValueError:
+                continue
+            # Same period_end + 45d ex-date anchoring convention as
+            # _extract_total_dividends_from_xbrl_concept above.
+            ex_dividend_date = period_end + timedelta(days=45)
+            results.append(
+                {
+                    "symbol": symbol,
+                    "declaration_date": period_end,
+                    "ex_dividend_date": ex_dividend_date,
+                    "record_date": None,
+                    "payment_date": None,
+                    "dividend_per_share": None,
+                    "dividend_yield_pct": None,
+                    "total_dividend_amount": Decimal(str(value)),
+                    "dividend_type": "regular",
+                    "currency": "USD",
+                    "data_unavailable": False,
+                    "data_unavailable_reason": None,
+                    "source": _bounded_source("SEC_XBRL_CUSTOM_EXTENSION"),
+                }
+            )
+        return results
+
     def _fetch_sec_data_with_timeout(self, symbol: str, timeout_sec: float = 20.0) -> dict[str, Any]:
         """Fetch SEC company facts with hard timeout enforcement.
 
@@ -735,6 +821,22 @@ class DividendDataLoader(SecLoaderBase):
             # (no us-gaap facts at all) from ever reaching the ifrs-full extraction added
             # below, even though such a filer might genuinely tag real dividend data there.
             if not us_gaap and not ifrs_full:
+                # FIXED 2026-09-12 (verifying the 2026-09-11 PAYP fix actually took effect -
+                # live-caught it did NOT): the earlier fix added PAYP to sec_custom_xbrl_
+                # concepts.py's CUSTOM_DIVIDEND_CONCEPTS, but that registry is only ever
+                # consumed by fetch_custom_dividends() via financial_statements_custom_
+                # extension_fallbacks.py's apply_custom_cashflow_extensions - wired into
+                # ConsolidatedFinancialStatementsLoader (annual_cash_flow.dividends_paid),
+                # never into THIS loader (dividend_data table). This loader never imported
+                # CUSTOM_DIVIDEND_CONCEPTS/fetch_custom_dividends at all, so PAYP kept
+                # returning "no_us_gaap_facts" here regardless of that fix - live-reconfirmed
+                # via a targeted `--symbols PAYP` rerun after the fix had already landed.
+                # Wired in here too, exactly for the companyfacts-genuinely-empty case
+                # CUSTOM_DIVIDEND_CONCEPTS exists to cover (bypasses companyfacts entirely,
+                # fetching the raw filing XML directly).
+                custom_records = self._extract_custom_extension_dividends(symbol, now_et)
+                if custom_records:
+                    return custom_records
                 # See _classify_no_gaap_or_ifrs_facts's docstring: registered-investment-
                 # company detection (cef/ffd taxonomy, or company_info_sec's
                 # entity_type='other'+sic_code IS NULL fingerprint) extracted out of this

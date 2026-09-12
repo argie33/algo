@@ -76,6 +76,9 @@ def _extract_duration_values_for_concepts_with_currency(
     # {fiscal_year: {currency: value}} - a real USD fact always wins over a same-year
     # local-currency duplicate, same governance as the income-dimensioned case.
     candidates_by_year: dict[int, dict[str, float]] = {}
+    # {fiscal_year: real period end date string} - see the FX lookup below for why this
+    # must be the ACTUAL end date, not a synthesized "{fiscal_year}-12-31".
+    period_end_by_year: dict[int, str] = {}
     seen_context_concepts: set[tuple[str, str, str | None]] = set()
     for el in root.iter():
         local_name = _local_name(el.tag)
@@ -126,6 +129,7 @@ def _extract_duration_values_for_concepts_with_currency(
         # non-USD registry entry exists.
         by_currency = candidates_by_year.setdefault(fiscal_year, {})
         by_currency[currency] = by_currency.get(currency, 0.0) + value
+        period_end_by_year[fiscal_year] = end_str
 
     values_by_year: dict[int, float] = {}
     for fiscal_year, by_currency in candidates_by_year.items():
@@ -135,7 +139,18 @@ def _extract_duration_values_for_concepts_with_currency(
         for currency, value in by_currency.items():
             if currency not in MAJOR_CURRENCIES:
                 continue
-            fx_rate = _shared_fx_rate_cache.get_usd_rate(currency, f"{fiscal_year}-12-31")
+            # FIXED 2026-09-12 (live-caught via PAYP, fiscal year ending March 31): this
+            # used to synthesize "{fiscal_year}-12-31" as the FX lookup date, assuming
+            # every filer's fiscal year ends on a calendar-year boundary - true for SU/
+            # NCTY/JF/SQNS (this module's other registry entries, all Dec 31 FYE) but
+            # WRONG in general. For a March-FYE filer, fiscal_year (= end_date.year) is
+            # 2026 while the real period end is 2026-03-31 - looking up a rate for
+            # 2026-12-31 asks for a genuinely FUTURE date relative to "today" during this
+            # goal session (2026-09-11/12), which Frankfurter can never have published,
+            # so the whole fiscal year's dividend silently vanished (fail-closed on a
+            # lookup date that was never real in the first place, not a genuine "no rate
+            # available"). Uses the real period end date now.
+            fx_rate = _shared_fx_rate_cache.get_usd_rate(currency, period_end_by_year[fiscal_year])
             if fx_rate is None or fx_rate == 0:
                 continue  # No real rate available - fail closed.
             values_by_year[fiscal_year] = value / fx_rate
