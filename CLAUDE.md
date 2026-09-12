@@ -110,24 +110,29 @@ describes. Run it by hand every so often (or from a low-frequency schedule) on a
 rotating sample - the daily pseudo-random sample means broad coverage accumulates over many
 runs rather than needing to cover the whole universe in one pass.
 
-**Layers 4/5 now run on their own daily schedule, not just "by hand" (added 2026-09-10,
-corrected weekly->daily same day):** `scripts/xbrl_second_opinion_daily.py` calls
-`xbrl_yfinance_crosscheck.run()` and `xbrl_calculation_linkbase_check.run()` back-to-back
-with their normal periodic-sample defaults (25 / 15 symbols). It's the ECS command for a
-new, fully independent `aws_cloudwatch_event_rule`/`aws_ecs_task_definition` pair in
-`terraform/modules/loaders/main.tf` (`xbrl_second_opinion*`) firing 05:00 UTC every day
-(before the 2:00 AM ET morning pipeline starts) — deliberately its own task, NOT folded
-into the DataPatrol ECS task, because DataPatrol runs twice daily on a hard 600s Step
-Functions timeout gating Phase 1, and these two checks make live outbound SEC EDGAR/
-yfinance calls with unpredictable latency that could turn an optional WARN-only check
-into an accidental trading halt. Daily, not the "e.g. weekly" example in the two
-underlying scripts' own docstrings above: both scripts' `_select_symbols()` rotates its
-sample by `CURRENT_DATE`, engineered for daily coverage accumulation across the ~4,900-
-symbol universe (weekly would take 3.8-6.4 years to cycle through it once; daily takes
-6.5-11 months) — an initial version of this schedule copied the "weekly" example
-literally without checking that. **This terraform is written but NOT applied** — run
-`terraform plan`/`apply` in `terraform/` to actually turn the schedule on; until then
-these two layers are still manual-only in practice, same as before.
+**Layers 4/5/6 now run on their own daily schedule LOCALLY, not just "by hand" (added
+2026-09-10, layer 6 folded in + local wiring added 2026-09-12):**
+`scripts/xbrl_second_opinion_daily.py` calls `xbrl_yfinance_crosscheck.run()`,
+`xbrl_calculation_linkbase_check.run()`, and `xbrl_dqc_arelle_check.run()` back-to-back
+with their normal periodic-sample defaults (25 / 15 / 10 symbols) — any one layer failing
+(including the DQC layer's optional Arelle/dqc_us_rules dependency not being installed)
+doesn't block the others; the whole run still exits nonzero on any failure. Two automation
+paths exist for it, and **the local one is the one that actually runs on this dev
+machine**: `scripts/setup_windows_schedule.ps1` registers a `\algo\xbrl-second-opinion`
+Windows Task Scheduler task (MON-FRI, 11:50 PM ET, same S4U/battery-safe/retry settings as
+every other task it registers — see that script's own comments) that runs it with zero AWS
+dependency, needing only local Postgres + outbound network access.
+`scripts/verify_windows_schedule.ps1` checks it for the same LogonType/battery-setting
+drift it checks every other task for. Separately, an `aws_cloudwatch_event_rule`/
+`aws_ecs_task_definition` pair in `terraform/modules/loaders/main.tf` (`xbrl_second_opinion*`,
+05:00 UTC daily) exists for the eventual cloud deployment — **that terraform is written
+but NOT applied**, and applying or not applying it has no effect on the local Task
+Scheduler path above; they're independent. Daily, not the "e.g. weekly" example in the
+underlying scripts' own docstrings above: all three scripts' sample-selection rotates by
+`CURRENT_DATE`, engineered for daily coverage accumulation across the ~4,900-symbol
+universe (weekly would take 3.8-6.4 years to cycle through it once; daily takes 6.5-11
+months) — an initial version of this schedule copied the "weekly" example literally
+without checking that.
 
 **Calculation-linkbase self-consistency check (5th layer of the XBRL data-quality
 architecture, added 2026-09-10 - not a bug-report-driven thing, run it periodically):**
@@ -188,6 +193,10 @@ surviving finding is still a review-queue candidate, not an automatic "real fili
 check implausible volumes the same way this was caught (a well-scrutinized mega-cap filer
 "failing" at high volume means suspect the tool first). Same rate-limit/subprocess-latency
 posture as the two layers above — not part of every DataPatrol run, small rotating sample only.
+**Now runs automatically as part of the local `xbrl-second-opinion` Task Scheduler task
+described above (added 2026-09-12)** — no longer manual-only; the dev machine that task
+runs on already has Arelle/dqc_us_rules installed (verified live), so it runs for real
+every weekday rather than raising and being silently skipped.
 
 **Segment-sum-to-consolidated-revenue reconciliation (7th layer, added 2026-09-12 - not a
 bug-report-driven thing, run it periodically):**
@@ -209,8 +218,12 @@ facts only), dedupes to one value per (accession, period, dimhash) — `num.tsv`
 level, so the same disclosed number can appear more than once if a filer's own HTML rendering
 repeats it across tables, and skipping the dedupe produced a wave of suspiciously-exact
 ratio=2.0 false positives on first test — then sums per filing and compares to that filing's own
-non-dimensional consolidated revenue total, logging >10% divergences as WARN. Not yet wired
-into any schedule; run it roughly matching the dataset's own monthly publish cadence.
+non-dimensional consolidated revenue total, logging >10% divergences as WARN.
+**Now wired into a local monthly Windows Task Scheduler task (added 2026-09-12):**
+`scripts/setup_windows_schedule.ps1` registers `\algo\xbrl-segment-sum-monthly`
+(2nd of each month, 06:00 ET — a one-day buffer after SEC's typical monthly publish,
+deliberately not folded into the daily `xbrl-second-opinion` task since this dataset only
+updates monthly and a daily run would just re-check the same snapshot).
 
 `monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use
 **different freshness methodologies** — a table can show FRESH in the monitor and still halt

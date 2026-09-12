@@ -26,6 +26,8 @@ $expectedTasks = @(
     @{ Path = "\algo\"; Name = "afternoon-pipeline" }
     @{ Path = "\algo\"; Name = "evening-pipeline" }
     @{ Path = "\algo\"; Name = "reference-pipeline" }
+    @{ Path = "\algo\"; Name = "xbrl-second-opinion" }
+    @{ Path = "\algo\"; Name = "xbrl-segment-sum-monthly" }
     @{ Path = "\AlgoTrading\"; Name = "AlgoTrading_Orchestrator_930AM" }
     @{ Path = "\AlgoTrading\"; Name = "AlgoTrading_Orchestrator_1PM" }
     @{ Path = "\AlgoTrading\"; Name = "AlgoTrading_Orchestrator_3PM" }

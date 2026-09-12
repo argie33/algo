@@ -293,6 +293,118 @@ Register-ScheduledTask `
 
 Write-Host "[OK] Reference task scheduled for 11:30 PM ET (MON-FRI)"
 
+# Task 5: XBRL second-opinion layers 4/5/6 (11:50 PM ET, MON-FRI)
+Write-Host ""
+Write-Host "Task 5: XBRL Second-Opinion (11:50 PM ET, MON-FRI)"
+Write-Host "  - yfinance cross-check, calculation-linkbase self-consistency, DQC/Arelle rule validation"
+
+# ADDED 2026-09-12 (goal: "get the XBRL/Arelle stack working locally, not AWS"):
+# scripts/xbrl_second_opinion_daily.py (layers 4/5/6 of the XBRL data-quality architecture -
+# see its own module docstring) previously had ONLY an AWS-side terraform schedule
+# (terraform/modules/loaders/main.tf's xbrl_second_opinion task), which is written but not
+# applied - useless for a local dev machine with no AWS account. These three layers are
+# deliberately excluded from every DataPatrol run (rate-limit/subprocess-latency reasons,
+# see the wrapper's own docstring) and were otherwise 100% dependent on a human remembering
+# to run `python scripts/xbrl_second_opinion_daily.py` by hand - exactly the failure mode
+# every other task in this file already exists to close. Scheduled 20 minutes after
+# reference-pipeline (11:30 PM ET) so it never competes with it for the scheduler lock
+# (this script needs no algo-scheduler.lock at all - it only reads price/financial data
+# already in the DB, same as DataPatrol) and well before morning-pipeline (2:00 AM ET).
+$xbrlSecondOpinionLocalTime = Convert-EasternTimeToLocal -Hour 23 -Minute 50
+Write-Host "[INFO] ET 23:50 -> local $xbrlSecondOpinionLocalTime"
+
+$xbrlSecondOpinionAction = New-ScheduledTaskAction `
+    -Execute $pythonExe `
+    -Argument "scripts/xbrl_second_opinion_daily.py" `
+    -WorkingDirectory $algoPath
+
+$xbrlSecondOpinionTrigger = New-ScheduledTaskTrigger `
+    -Weekly `
+    -At $xbrlSecondOpinionLocalTime `
+    -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
+
+$xbrlSecondOpinionSettings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries:$true `
+    -DontStopIfGoingOnBatteries `
+    -Compatibility Win8 `
+    -MultipleInstances IgnoreNew `
+    -WakeToRun `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 20)
+
+if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "xbrl-second-opinion" -ErrorAction SilentlyContinue) {
+    Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "xbrl-second-opinion" -Confirm:$false
+    Write-Host "[OK] Replaced existing xbrl-second-opinion task"
+} else {
+    Write-Host "[INFO] No existing xbrl-second-opinion task found"
+}
+
+Register-ScheduledTask `
+    -TaskName "xbrl-second-opinion" `
+    -TaskPath $taskFolder `
+    -Action $xbrlSecondOpinionAction `
+    -Trigger $xbrlSecondOpinionTrigger `
+    -Settings $xbrlSecondOpinionSettings `
+    -Principal $taskPrincipal `
+    -Description "XBRL data-quality layers 4/5/6: yfinance cross-check, calculation-linkbase self-consistency, DQC/Arelle rule validation (small daily rotating sample)" `
+    -ErrorAction Stop | Out-Null
+
+Write-Host "[OK] xbrl-second-opinion task scheduled for 11:50 PM ET (MON-FRI)"
+
+# Task 6: XBRL segment-sum reconciliation (layer 7) - monthly, not daily
+Write-Host ""
+Write-Host "Task 6: XBRL Segment-Sum Reconciliation (2nd of month, 06:00 ET)"
+Write-Host "  - segment-sum-vs-consolidated-revenue check against SEC's monthly bulk Notes dataset"
+
+# ADDED 2026-09-12: scripts/xbrl_segment_sum_reconciliation.py (layer 7) is the one layer
+# on a genuinely different cadence than the other three - its own data source (SEC's
+# "Financial Statement and Notes Data Sets") only publishes once a month, so running it
+# daily would just re-check the same snapshot repeatedly for no benefit. Scheduled for the
+# 2nd of the month to give SEC's own monthly publish (typically early in the month) a
+# one-day buffer, well outside the MON-FRI evening loader window this script doesn't
+# depend on anyway (it queries price/financial-statement data already in the DB, same as
+# every other layer here - no algo-scheduler.lock needed).
+$xbrlSegmentSumLocalTime = Convert-EasternTimeToLocal -Hour 6 -Minute 0
+Write-Host "[INFO] ET 06:00 -> local $xbrlSegmentSumLocalTime"
+
+$xbrlSegmentSumAction = New-ScheduledTaskAction `
+    -Execute $pythonExe `
+    -Argument "scripts/xbrl_segment_sum_reconciliation.py" `
+    -WorkingDirectory $algoPath
+
+$xbrlSegmentSumTrigger = New-ScheduledTaskTrigger `
+    -Monthly `
+    -At $xbrlSegmentSumLocalTime `
+    -DaysOfMonth 2
+
+$xbrlSegmentSumSettings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries:$true `
+    -DontStopIfGoingOnBatteries `
+    -Compatibility Win8 `
+    -MultipleInstances IgnoreNew `
+    -WakeToRun `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 20)
+
+if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "xbrl-segment-sum-monthly" -ErrorAction SilentlyContinue) {
+    Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "xbrl-segment-sum-monthly" -Confirm:$false
+    Write-Host "[OK] Replaced existing xbrl-segment-sum-monthly task"
+} else {
+    Write-Host "[INFO] No existing xbrl-segment-sum-monthly task found"
+}
+
+Register-ScheduledTask `
+    -TaskName "xbrl-segment-sum-monthly" `
+    -TaskPath $taskFolder `
+    -Action $xbrlSegmentSumAction `
+    -Trigger $xbrlSegmentSumTrigger `
+    -Settings $xbrlSegmentSumSettings `
+    -Principal $taskPrincipal `
+    -Description "XBRL data-quality layer 7: segment-sum-vs-consolidated-revenue reconciliation against SEC's monthly bulk Notes dataset" `
+    -ErrorAction Stop | Out-Null
+
+Write-Host "[OK] xbrl-segment-sum-monthly task scheduled for the 2nd of each month, 06:00 ET"
+
 # BUG FIX (2026-08-17): the actual trading orchestrator's own scheduled tasks
 # (AlgoTrading_Orchestrator_930AM/1PM/3PM, under \AlgoTrading\ - registered separately from
 # this script, no repo script ever managed them) were live-confirmed to have the exact same
@@ -384,6 +496,7 @@ Get-ScheduledTask -TaskPath "$orchestratorTaskFolder\" | Select-Object -Property
 Write-Host ""
 Write-Host "[SUCCESS] Task Scheduler setup complete!"
 Write-Host "The loaders will run automatically on MON-FRI at 2:00 AM, 4:05 PM, 7:00 PM, and 11:30 PM ET"
+Write-Host "XBRL data-quality layers 4/5/6 (second-opinion) run MON-FRI at 11:50 PM ET; layer 7 (segment-sum) runs monthly on the 2nd at 6:00 AM ET"
 Write-Host "The trading orchestrator will run automatically on MON-FRI at 9:30 AM, 1:00 PM, 3:00 PM (all real orders), and 5:30 PM ET (monitor-only)"
 Write-Host ""
 Write-Host "To view/manage tasks, open Task Scheduler (Win+R > taskschd.msc)"
