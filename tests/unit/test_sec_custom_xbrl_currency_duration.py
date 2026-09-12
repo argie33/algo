@@ -43,6 +43,23 @@ _SU_XML = """<?xml version="1.0" encoding="utf-8"?>
 </xbrl>
 """
 
+# Mirrors NCTY's real structure: the SAME concept, SAME context, dual-tagged in BOTH a
+# local currency (CNY) and USD - live-confirmed shape (same as BIDU elsewhere in this
+# codebase). The USD fact must win, not get discarded as a "duplicate" of the CNY one.
+_NCTY_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:ncty="http://the9.com/20251231">
+  <unit id="U_CNY"><measure>iso4217:CNY</measure></unit>
+  <unit id="U_USD"><measure>iso4217:USD</measure></unit>
+  <context id="c2025">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0001296774</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <ncty:PaymentsToAcquirePropertyEquipmentAndSoftware contextRef="c2025" unitRef="U_CNY" decimals="-3">1446000</ncty:PaymentsToAcquirePropertyEquipmentAndSoftware>
+  <ncty:PaymentsToAcquirePropertyEquipmentAndSoftware contextRef="c2025" unitRef="U_USD" decimals="-3">207000</ncty:PaymentsToAcquirePropertyEquipmentAndSoftware>
+</xbrl>
+"""
+
 
 class TestExtractCustomCapexCurrencyAwareFromXbrlXml:
     def test_converts_cad_to_usd_via_the_fx_rate_cache(self):
@@ -84,6 +101,22 @@ class TestExtractCustomCapexCurrencyAwareFromXbrlXml:
         ):
             result = extract_custom_capex_currency_aware_from_xbrl_xml(_SU_XML, "SU")
         assert result == {}
+
+
+class TestExtractCustomCapexCurrencyAwareDualTaggedSameContext:
+    """NCTY (The9 Limited) dual-tags the same concept+context in both CNY and USD -
+    live-caught bug: keying the duplicate-fact dedup on (contextRef, concept) alone
+    treated the second (USD) occurrence as a duplicate of the first (CNY) and silently
+    discarded the real USD fact. Unit must be part of the dedup key.
+    """
+
+    def test_real_usd_fact_wins_over_same_context_local_currency_fact(self):
+        with patch(
+            "utils.external.sec_custom_xbrl_currency_duration._shared_fx_rate_cache.get_usd_rate",
+            return_value=1.0,  # Would be wrong if CNY were (mis)selected - proves USD won
+        ):
+            result = extract_custom_capex_currency_aware_from_xbrl_xml(_NCTY_XML, "NCTY")
+        assert result[2025] == 207_000.0
 
 
 class TestFetchCustomCapexCurrencyAware:
