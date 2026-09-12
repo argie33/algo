@@ -31,21 +31,24 @@ whether the FILER's own XBRL tagging follows the industry rulebook - treat any s
 as a review-queue candidate, not an automatic "real filing bug," until spot-checked the way the
 AAPL/AIT cases above were.
 
-STILL-INCOMPLETE 2026-09-12 (do not re-claim this layer is "clean" without spot-checking): the
-same taxonomy-misclassification shape survived the fix above on MSFT (180/427 findings) and KO
-(236/477) - both fixed further by adding `_KNOWN_STANDARD_AXIS_MEMBER_LABELS`, a hand-maintained
-table of known-standard member labels for the small set of axes DQC.US.0001 actually targets
-(reduced MSFT to 0, KO to 54). KO's remaining 54 are a DIFFERENT residual gap in the same bug
-class, not yet fixed: some standard members' dqc_us_rules-rendered "member" label (e.g. "Segment
-Reporting, Reconciling Item, Corporate Nonsegment [Member]") has no lexical resemblance at all to
-its actual qname local name (`us-gaap:CorporateNonSegmentMember`), so neither the dimensions-text
-match nor the hardcoded label table can recognize it as standard by text comparison alone - a
-structurally different problem from truncation, not fixable by extending either heuristic
-further. The real fix needs an actual taxonomy/label lookup (e.g. loading the instance via
-Arelle's Python API in-process instead of parsing arelleCmdLine's log XML) rather than another
-lexical heuristic; until that's built, a filer showing more than a handful of "genuine" findings
-concentrated on segment-reporting/consolidation axes is still more likely a tool gap than a real
-filing defect - spot-check before trusting the count.
+RESOLVED 2026-09-12 (was "STILL-INCOMPLETE" earlier the same day - kept below for the full trail):
+the taxonomy-misclassification shape survived the first fix on MSFT (180/427 findings) and KO
+(236/477) - patched further with `_KNOWN_STANDARD_AXIS_MEMBER_LABELS` (a hand-maintained label
+table, reduced MSFT to 0/KO to 54) and then with the actual root-cause fix,
+`_load_standard_member_labels`: instead of guessing whether a flagged member's displayed label
+"looks like" a standard concept's qname, load the SAME filing via Arelle's Python API (in a
+subprocess, same isolation posture as `_run_dqc`) and read every standard-namespace concept's
+REAL resolved label straight from its label linkbase. KO's remaining 54 turned out not to be a
+"different, structurally unfixable" gap after all - `us-gaap:CorporateNonSegmentMember`'s real
+label IS "Segment Reporting, Reconciling Item, Corporate Nonsegment [Member]", an exact match for
+the finding's displayed text; the earlier "no lexical resemblance" diagnosis was comparing against
+the qname's local name, which was simply the wrong ground truth to compare against. Full re-test
+across every symbol this bug was ever found on (AAPL, MSFT, KO, AIT, SCM, DKS) came back
+completely clean. The hand-maintained label table and dimensions-text matching are kept as cheap
+fallbacks (in case the label-loading subprocess fails for a given filing), but the real-label
+lookup is what actually closes this bug class - trust a "genuine violation" count from this layer
+now, but a sudden reappearance of a high count on a well-known filer is still worth spot-checking
+once (e.g. `_load_standard_member_labels` silently failing and falling back).
 
 Requires `pip install -r requirements-xbrl-dqc.txt` (arelle-release==2.45.0, dqc_us_rules==3.6.0,
 pinned and verified to install cleanly). Deliberately its own separate requirements file, same
@@ -72,6 +75,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import re
 import shutil
@@ -129,6 +133,74 @@ def _find_dqc_plugin_path() -> str:
     except ImportError as e:
         raise RuntimeError("dqc_us_rules not installed. Install with: pip install dqc_us_rules") from e
     return str(Path(dqc_us_rules.__file__).resolve().parent)
+
+
+# Real, resolved concept LABELS (via Arelle's own label linkbase) for every concept whose
+# namespace is one of these genuinely-standard taxonomies, keyed by normalized label text. Built
+# once per filing by `_load_standard_member_labels` and used to close the residual DQC.US.0001.x
+# false-positive gap that neither the truncated-attribute fix nor `_KNOWN_STANDARD_AXIS_MEMBER_
+# LABELS` could: some standard concepts' real preferred label (e.g. us-gaap:CorporateNonSegmentMember's
+# "Segment Reporting, Reconciling Item, Corporate Nonsegment [Member]") has zero lexical resemblance
+# to the concept's own qname local name - live-confirmed on KO by loading the same instance via
+# Arelle's Python API and reading `concept.label()` directly instead of guessing from the qname.
+_STANDARD_NAMESPACE_RE = re.compile(
+    r"^https?://(fasb\.org/(us-gaap|srt)|xbrl\.sec\.gov/(dei|country|currency|cyd|ecd|exch|invest|naics|sic|stpr)"
+    r"|xbrl\.ifrs\.org/taxonomy)/"
+)
+
+_LOAD_STANDARD_LABELS_SNIPPET = """
+import json, re, sys
+from arelle import Cntlr
+
+NS_RE = re.compile(r'''__NS_PATTERN__''')
+
+
+def norm(text):
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+cntlr = Cntlr.Cntlr()
+cntlr.startLogging(logFileName="logToPrint")
+model_xbrl = cntlr.modelManager.load(sys.argv[1])
+labels = set()
+for qname, concept in model_xbrl.qnameConcepts.items():
+    if not NS_RE.match(qname.namespaceURI):
+        continue
+    try:
+        label = concept.label(lang="en-US")
+    except Exception:
+        label = None
+    if label:
+        labels.add(norm(label))
+print(json.dumps(sorted(labels)))
+""".replace("__NS_PATTERN__", _STANDARD_NAMESPACE_RE.pattern)
+
+
+def _load_standard_member_labels(instance_url: str) -> set[str]:
+    """Loads `instance_url` via Arelle's Python API IN A SUBPROCESS (not in-process - same
+    crash-isolation reasoning as `_run_dqc` shelling out to arelleCmdLine rather than importing
+    Arelle's Cntlr directly into this script's own process) and returns the normalized real
+    labels of every concept in a standard taxonomy namespace. Best-effort: returns an empty set
+    (not an exception) on any failure, since this is a supplementary false-positive filter, not
+    the primary validation - a failure here should degrade to the existing dimensions-text/
+    hardcoded-table checks, not abort the whole DQC run for that symbol.
+    """
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", _LOAD_STANDARD_LABELS_SNIPPET, instance_url],
+            capture_output=True,
+            text=True,
+            timeout=90,
+            check=False,
+        )
+        if proc.returncode != 0:
+            logger.debug(f"[DQC_CHECK] standard-label lookup failed for {instance_url}: {proc.stderr[-300:]!r}")
+            return set()
+        last_line = proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ""
+        return set(json.loads(last_line)) if last_line else set()
+    except (subprocess.TimeoutExpired, ValueError, OSError) as e:
+        logger.debug(f"[DQC_CHECK] standard-label lookup errored for {instance_url}: {e}")
+        return set()
 
 
 def _resolve_instance_url(client: Any, symbol: str) -> tuple[str, str] | None:
@@ -265,7 +337,9 @@ _KNOWN_STANDARD_AXIS_MEMBER_LABELS: dict[str, set[str]] = {
 }
 
 
-def _is_taxonomy_resolution_false_positive(code: str, message_el: ET.Element) -> bool:
+def _is_taxonomy_resolution_false_positive(
+    code: str, message_el: ET.Element, standard_member_labels: set[str] | None = None
+) -> bool:
     """True if this DQC.US.0001.x finding's flagged "extension member" actually resolves to a
     standard-namespace concept in the fact's own rendered dimensions - i.e. it cannot possibly
     be a real filer extension, regardless of which axis it's on.
@@ -309,8 +383,19 @@ def _is_taxonomy_resolution_false_positive(code: str, message_el: ET.Element) ->
     label ("segmentreportingreconcilingitemcorporatenonsegmentmember" vs
     "corporatenonsegmentmember") - a genuine label-vs-qname wording mismatch, structurally
     different from anything a truncation fix (this one) or a hardcoded label table
-    (`_KNOWN_STANDARD_AXIS_MEMBER_LABELS`) can close. See the module docstring's
-    "STILL-INCOMPLETE" note - that gap remains open, this change does not resolve it.
+    (`_KNOWN_STANDARD_AXIS_MEMBER_LABELS`) can close.
+
+    EXTENDED 2026-09-12 (third pass) with `standard_member_labels` - the actual fix for the KO
+    gap the second pass's docstring called "structurally different, not fixable by a lexical
+    heuristic." Live-tested: `us-gaap:CorporateNonSegmentMember`'s REAL resolved label (via
+    Arelle's Python API's `concept.label()`, i.e. its actual label linkbase, not a guess from its
+    qname local name) is "Segment Reporting, Reconciling Item, Corporate Nonsegment [Member]" -
+    an EXACT match for what the DQC finding displays. The earlier "lexical mismatch" diagnosis was
+    comparing the member label against the qname's *local name*, which was simply the wrong
+    comparison basis - the concept's real label was never actually different from the finding's
+    displayed label, it just isn't derivable by guessing from the qname text. `_load_standard_
+    member_labels` (see its own docstring) loads the filing's real DTS and returns every standard
+    concept's genuine resolved label, sidestepping the guessing problem entirely.
     """
     if not code.startswith("DQC.US.0001."):
         return False
@@ -318,6 +403,8 @@ def _is_taxonomy_resolution_false_positive(code: str, message_el: ET.Element) ->
     target = _normalize_xbrl_label(member_label)
     if not target:
         return False
+    if standard_member_labels and target in standard_member_labels:
+        return True
     axis_key = _normalize_xbrl_label(message_el.get("axis", ""))
     if target in _KNOWN_STANDARD_AXIS_MEMBER_LABELS.get(axis_key, ()):
         return True
@@ -341,7 +428,9 @@ def _is_taxonomy_resolution_false_positive(code: str, message_el: ET.Element) ->
     return False
 
 
-def _parse_dqc_findings(log_path: Path, proc: subprocess.CompletedProcess[bytes]) -> list[dict[str, str]]:
+def _parse_dqc_findings(
+    log_path: Path, proc: subprocess.CompletedProcess[bytes], standard_member_labels: set[str] | None = None
+) -> list[dict[str, str]]:
     if not log_path.exists():
         raise DqcRunError(f"arelleCmdLine produced no log file (exit code {proc.returncode}): {proc.stderr[-500:]!r}")
     tree = ET.parse(log_path)
@@ -361,7 +450,7 @@ def _parse_dqc_findings(log_path: Path, proc: subprocess.CompletedProcess[bytes]
         message_el = entry.find("message")
         if message_el is None:
             continue
-        if _is_taxonomy_resolution_false_positive(code, message_el):
+        if _is_taxonomy_resolution_false_positive(code, message_el, standard_member_labels):
             suspected_false_positives += 1
             continue
         text = (message_el.text or "").strip().split("\n")[0]
@@ -398,9 +487,10 @@ def run(symbols: list[str], dry_run: bool) -> dict[str, Any]:
                 continue
             _cik, instance_url = resolved
             log_path = Path(tmpdir) / f"{symbol}_dqc.xml"
+            standard_member_labels = _load_standard_member_labels(instance_url)
             try:
                 proc = _run_dqc(arelle_exe, plugin_path, instance_url, log_path)
-                findings = _parse_dqc_findings(log_path, proc)
+                findings = _parse_dqc_findings(log_path, proc, standard_member_labels)
             except subprocess.TimeoutExpired:
                 logger.warning(f"[DQC_CHECK] {symbol}: arelleCmdLine timed out, skipping")
                 failed.append(symbol)
