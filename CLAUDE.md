@@ -175,9 +175,19 @@ pass. Resolves each symbol's latest filing instance URL from SEC EDGAR's `submis
 shells out to `arelleCmdLine` with the `dqc_us_rules` plugin (passed as a filesystem path, not
 a bare name — `--plugins dqc_us_rules` alone fails to resolve), and parses `DQC.*` entries out
 of Arelle's log XML. Findings are about the FILING itself (e.g. extension members used on axes
-where the taxonomy only allows standard members) — a genuine filing-quality defect independent
-of anything our own extraction pipeline does. Same rate-limit/subprocess-latency posture as the
-two layers above — not part of every DataPatrol run, small rotating sample only.
+where the taxonomy only allows standard members) — potentially a genuine filing-quality defect
+independent of anything our own extraction pipeline does, but verify before trusting one:
+**`_parse_dqc_findings` filters out a specific known false-positive shape (FIXED 2026-09-12)** —
+if the local Arelle taxonomy package cache doesn't recognize the filing's dated us-gaap
+namespace (e.g. `http://fasb.org/us-gaap/2025`) as "standard", every concept in that namespace
+misclassifies as a filer "extension", and DQC.US.0001.x fires on entirely standard tagging
+(live-reproduced: 257/257 "violations" on AAPL's real FY2025 10-K, all flagging standard members
+like `FairValueInputsLevel2Member`). `_is_taxonomy_resolution_false_positive()` catches ~96% of
+this shape by cross-checking the flagged member against the fact's own rendered dimensions; a
+surviving finding is still a review-queue candidate, not an automatic "real filing bug" — spot-
+check implausible volumes the same way this was caught (a well-scrutinized mega-cap filer
+"failing" at high volume means suspect the tool first). Same rate-limit/subprocess-latency
+posture as the two layers above — not part of every DataPatrol run, small rotating sample only.
 
 **Segment-sum-to-consolidated-revenue reconciliation (7th layer, added 2026-09-12 - not a
 bug-report-driven thing, run it periodically):**
