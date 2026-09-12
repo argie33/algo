@@ -291,6 +291,66 @@ was already symmetric (checks both `algo_positions` and `algo_options_positions`
 missing caller was the gap. Both directions of §6 are now enforced in code, ahead of phase 5
 rather than during it.
 
+## Phase 5 design (planned, NOT authorized to build - blocked on §7's own gate)
+
+Writing this now so "what phase 5 needs to do" is fully figured out ahead of time, without
+crossing the go/no-go gate itself - no order-submission code exists, and none should until
+both remaining blockers below clear. This section is the answer to "what does phase 5 build",
+not permission to build it.
+
+**Integration points** (per the phase-1 design decision: branches inside existing orchestrator
+phases, not a new phase 10+):
+- **Phase 1** (`phase1_data_freshness.py`): add an options-chain freshness check alongside the
+  existing DataPatrol check - `options_chains`/`iv_history` must be fresh for any symbol the
+  sleeve is about to act on, same "halt if stale" posture as every other Phase 1 table check.
+- **Phase 3** (`phase3_position_monitor.py`): sync open `algo_options_positions` rows against
+  the broker the same way `position_sync.py` reconciles `algo_positions` today - detect
+  assignment (a CSP's underlying shares appear in the broker's equity holdings with no
+  corresponding `algo_trades` entry), detect early assignment/exercise, detect expired
+  contracts. This is where `status='open' -> 'assigned'`/`'expired'` transitions actually get
+  written.
+- **Phase 6** (`phase6_exit_execution.py`): the roll/close-at-50%-profit/hard-stop rules from
+  spec §5 as new exit branches, gated by `strategy_leg`/`status`, parallel to how equity exits
+  already branch on stop-loss/target/regime-exit reasons.
+- **Phase 7** (`phase7_signal_generation.py`/`phase7_run_steps.py`): candidate generation -
+  query eligible underlyings (spec §2), pull the current options chain, filter to the
+  delta/DTE/IV-rank band (spec §3), rank candidates. This is a NEW candidate stream, not a
+  reuse of the equity `buy_sell_daily` signal path - options entry criteria are chain-level
+  (strike/expiration/greeks), not price-pattern-level.
+- **Phase 8** (`phase8_entry_execution.py`/`phase8_guards.py`): the actual order submission -
+  `check_options_pretrade()` (already built, phase 4) called immediately before submission,
+  same position as `PreTradeChecks.run_all()`/`LiquidityChecks.run_all()` in the existing
+  equity path. Order submission itself follows the same raw-`requests`-to-Alpaca-REST
+  convention `algo/trading/executor.py`'s `_submit_and_validate_order` already uses for
+  equities - NOT the `BrokerAdapter` Protocol (that's read-side account/position sync only,
+  see `algo/infrastructure/broker_adapter.py`) - with the options-specific endpoint/payload
+  shape (multi-leg not needed for CSP/covered-call, both are single-leg).
+- **Phase 9** (`phase9_reconciliation.py`/`phase9_position_bookkeeping.py`): end-of-day
+  `algo_options_positions` reconciliation against the broker's actual option positions/orders,
+  mirroring equity reconciliation's fill-price/quantity/status cross-check.
+
+**Idempotency**: reuse the exact pattern `executor.py`'s `_submit_and_validate_order` already
+uses for equities - a deterministic `client_order_id` (hash of symbol/strike/expiration/
+strategy_leg/signal_date, not a random UUID) passed to Alpaca, so a retried Phase 8 run after a
+crash/timeout cannot double-submit the same CSP. `PreTradeChecks.check_idempotent_duplicate`'s
+existing convention extends naturally - the options table's own `(symbol, strike,
+expiration_date, entry_date)` gives an equally strong duplicate key.
+
+**Error handling / partial-fill posture**: match equity's existing conventions rather than
+invent new ones - fail-closed on any check_options_pretrade halt (never submit), treat a
+broker-side rejection the same as `execute_trade`'s existing rejection path (log, mark
+`algo_options_positions.status`, do not retry same-run), and options contracts fill all-or-
+nothing per contract count (no partial-fill-then-retry-remainder logic needed, unlike equity
+share orders - options don't get partial fills at the per-contract level in practice for the
+liquid, high-open-interest names spec §2 already restricts the sleeve to).
+
+**What phase 5 explicitly does NOT need to build**: multi-leg order support (CSP and covered
+call are both single-leg), margin-account handling (spec §4's strict cash-only posture), or
+early-assignment prediction (assignment is detected reactively in Phase 3's sync, not
+predicted/prevented - American-style early assignment risk on ITM covered calls near ex-
+dividend dates is a real but small, spec-§5-accepted risk of the "assignment is an expected
+outcome, not a failure" framing, not something phase 5 needs new logic for).
+
 ## Phase 5 status: still blocked, not started (as of 2026-09-12)
 
 Per §7's go/no-go gate, phase 5 (real order-submission code) remains explicitly not started.
