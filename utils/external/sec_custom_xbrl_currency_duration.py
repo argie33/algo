@@ -76,7 +76,7 @@ def _extract_duration_values_for_concepts_with_currency(
     # {fiscal_year: {currency: value}} - a real USD fact always wins over a same-year
     # local-currency duplicate, same governance as the income-dimensioned case.
     candidates_by_year: dict[int, dict[str, float]] = {}
-    seen_context_concepts: set[tuple[str, str]] = set()
+    seen_context_concepts: set[tuple[str, str, str | None]] = set()
     for el in root.iter():
         local_name = _local_name(el.tag)
         if local_name not in wanted_local_names:
@@ -84,14 +84,20 @@ def _extract_duration_values_for_concepts_with_currency(
         ctx_ref = el.get("contextRef")
         if ctx_ref not in context_periods:
             continue
-        # LIVE-CONFIRMED 2026-09-12 (SU/Suncor): the identical (contextRef, concept) fact
-        # can appear MORE THAN ONCE in a real filing's raw instance document with the
+        unit_ref = el.get("unitRef")
+        # LIVE-CONFIRMED 2026-09-12 (SU/Suncor): the identical (contextRef, concept, unit)
+        # fact can appear MORE THAN ONCE in a real filing's raw instance document with the
         # exact same value (once inline in the primary cash-flow statement, once again in
         # a footnote/reconciliation table reusing the same context) - summing every
         # occurrence silently doubled SU's real figure before this dedup was added, same
         # governance as _extract_instant_values_for_concepts's own dedup-by-(contextRef,
-        # concept) set.
-        dedup_key = (ctx_ref, local_name)
+        # concept) set. Unit MUST be part of the key, not just (contextRef, concept) -
+        # live-caught via NCTY, which dual-tags the SAME concept+context in BOTH CNY and
+        # USD (see this registry's own comment) - keying on (contextRef, concept) alone
+        # treated the second (USD) occurrence as a duplicate of the first (CNY) and
+        # silently discarded the real USD fact, same currency-preference bug this whole
+        # module exists to avoid.
+        dedup_key = (ctx_ref, local_name, unit_ref)
         if dedup_key in seen_context_concepts:
             continue
         seen_context_concepts.add(dedup_key)
@@ -110,7 +116,6 @@ def _extract_duration_values_for_concepts_with_currency(
             value = float(el.text.strip())
         except ValueError:
             continue
-        unit_ref = el.get("unitRef")
         currency = unit_currencies.get(unit_ref) if unit_ref else None
         if currency is None:
             continue  # Unresolvable unit - never guess a currency.
@@ -140,8 +145,24 @@ def _extract_duration_values_for_concepts_with_currency(
 
 
 # SU (Suncor Energy Inc, CIK 0000311337) - see module docstring for the live evidence.
+#
+# JF (J and Friends Holdings Limited, CIK 0001716338) - live-verified against its real
+# filed FY2025 20-F (accession 0001104659-26-048056): jf:PaymentsToAcquirePropertyEquipment
+# AndSoftware = USD 5,000 FY2025, plain non-dimensioned context, already tagged in USD
+# (Unit_Standard_USD) - registered here (not the plain CUSTOM_CAPEX_CONCEPTS registry)
+# purely so one extractor/registry pair covers every symbol this DERA-scan sweep found,
+# not because JF itself needs FX conversion.
+#
+# NCTY (The9 Limited, CIK 0001296774) - live-verified against its real filed FY2025 20-F
+# (accession 0001104659-26-043910): ncty:PaymentsToAcquirePropertyEquipmentAndSoftware
+# tagged in BOTH CNY and USD for FY2025 (CNY 1,446,000 / USD 207,000, identical context) -
+# same dual-tagging shape already documented for BIDU elsewhere in this codebase - and
+# CNY-only for FY2023 (CNY 2,112,000, no USD sibling that year). This extractor's
+# prefer-real-USD-else-convert logic handles both cases without any special-casing.
 CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE: dict[str, list[tuple[str, str]]] = {
     "SU": [("su", "CashFlowsUsedForCapitalExpenditures")],
+    "JF": [("jf", "PaymentsToAcquirePropertyEquipmentAndSoftware")],
+    "NCTY": [("ncty", "PaymentsToAcquirePropertyEquipmentAndSoftware")],
 }
 
 
