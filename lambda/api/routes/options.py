@@ -12,6 +12,7 @@ stage, not a bug.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import psycopg2
@@ -27,6 +28,18 @@ from routes.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _options_sleeve_enabled() -> bool:
+    """OPTIONS_SLEEVE_ENABLED (default off): the options screener is a POC with no live
+    execution path yet (see steering/OPTIONS_STRATEGY_SPEC.md's phase status) - off by
+    default so it doesn't show up in the dashboard/API until there's confidence in it.
+    Does not gate algo/orchestrator/phase8_guards.py's check_options_sleeve_overlap - that
+    guard is a cheap, fail-closed equity/options-overlap safety check and stays always-on
+    regardless of this flag.
+    """
+    return os.environ.get("OPTIONS_SLEEVE_ENABLED", "false").lower() == "true"
+
 
 # 0.15-0.30 delta zone: the commonly-targeted CSP/covered-call strike band (see this
 # session's literature review - not academically validated as optimal, just the
@@ -45,6 +58,12 @@ def handle(
     jwt_claims: dict[str, Any] | None = None,
 ) -> Any:
     """Handle /api/options and /api/options/* endpoints."""
+    if not _options_sleeve_enabled():
+        return error_response(
+            404,
+            "feature_disabled",
+            "Options screener is disabled (set OPTIONS_SLEEVE_ENABLED=true to enable)",
+        )
     try:
         if path in ("/api/options", "/api/options/candidates"):
             return _get_candidates(cur, params)

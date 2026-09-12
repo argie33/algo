@@ -245,6 +245,18 @@ dashboard shows from what the orchestrator is actually doing. Always restart bot
 together after an execution-mode change, and check the `[EXECUTOR] mode=...`/`[STARTUP]` log
 lines to confirm the mode you expect actually took effect.
 
+**The options CSP/covered-call sleeve is off by default — `OPTIONS_SLEEVE_ENABLED=true` turns
+it on.** There is no live options *execution* path yet (`steering/OPTIONS_STRATEGY_SPEC.md`
+phase 5 hasn't been built), so this flag only gates the screener surface: `/api/options`
+(`lambda/api/routes/options.py`) returns a `feature_disabled` 404 and the dashboard's
+`fetch_options` (`dashboard/fetchers_options.py`) short-circuits to a disabled message when
+unset, so the panel/API stay invisible until you're ready to look at it. It does **not** gate
+`algo/orchestrator/phase8_guards.py`'s `check_options_sleeve_overlap` — that's a cheap,
+fail-closed equity/options-overlap capital-safety check and stays always-on regardless, the
+same way `ALLOW_OUTSIDE_MARKET_HOURS`/`ALLOW_MISSING_DATA_PATROL` above never bypass a real
+safety guard. Restart `lambda/api/dev_server.py` after changing this (env vars are read at
+process startup, same caveat as `EXECUTION_MODE` above).
+
 ## Core Rules (Non-Negotiable)
 
 **Data integrity first.** These rules prevent real bugs:

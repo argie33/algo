@@ -5,12 +5,15 @@ split fetchers.py's own docstring describes (fetchers_market.py, fetchers_signal
 """
 
 import logging
+import os
 from typing import Any
 
 from .api_data_layer import api_call
 from .fetchers_common import format_fetcher_error, record_data_quality_issue
 
 logger = logging.getLogger(__name__)
+
+_DISABLED_MESSAGE = "Options screener disabled (set OPTIONS_SLEEVE_ENABLED=true to enable)"
 
 _REQUIRED_ITEM_FIELDS = (
     "symbol",
@@ -34,6 +37,11 @@ def fetch_options(c: None) -> dict[str, Any]:
     this dashboard's no-silent-fallback convention for finance data.
     """
     from dashboard.fetcher_validator import FetcherValidator
+
+    if os.environ.get("OPTIONS_SLEEVE_ENABLED", "false").lower() != "true":
+        # Deliberately off (default) - not a data-quality issue, so no
+        # record_data_quality_issue call here, unlike a real fetch failure below.
+        return FetcherValidator.build_error_response(_DISABLED_MESSAGE)
 
     try:
         data = api_call("/api/options/candidates")
