@@ -311,6 +311,23 @@ CUSTOM_CAPEX_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     "CNQ": [
         ("cnq", "CashFlowsFromUsedInPropertyPlantandEquipmentClassifiedAsInvestingActivities"),
     ],
+    # Jefferson Capital, Inc. (CIK 0002046042, debt-purchasing/collections) - verified
+    # live 2026-09-11 (goal: "missing SEC/XBRL data under 200" push,
+    # capex_never_tagged_in_recent_filings investigation) against the real filed FY2025
+    # 10-K raw XBRL instance document (accession 0001104659-26-027199). Found via
+    # scripts/xbrl_dera_bulk_scan.py - DERA's num.txt `version` field for this tag equals
+    # the filing's OWN accession number (not "us-gaap/2025" like every standard concept
+    # in the same filing), confirming it's a filer-specific extension, invisible to
+    # companyfacts (companyfacts only exposes dei/us-gaap/ffd for this CIK - "ffd" is an
+    # unrelated small set of Form D fee fields, not this concept). Confirmed via the raw
+    # instance document that all three contexts are plain entity+period (no <segment>/
+    # <scenario> element) - the true consolidated total, not a segment slice:
+    # ffd:PurchasesOfOrProceedsFromPropertyAndEquipmentNet = $1,085,000 FY2025 /
+    # $6,211,000 FY2024 / $1,227,000 FY2023, all real, full-year (qtrs=4) durations,
+    # plausible for a company this size with a light physical footprint.
+    "JCAP": [
+        ("ffd", "PurchasesOfOrProceedsFromPropertyAndEquipmentNet"),
+    ],
 }
 
 

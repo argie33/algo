@@ -165,6 +165,38 @@ _CMS_XML = """<?xml version="1.0" encoding="utf-8"?>
 """
 
 
+# Mirrors the real structure confirmed live 2026-09-11 against Jefferson Capital's
+# actual filed FY2025 10-K raw XBRL instance document (accession
+# 0001104659-26-027199): context "c-1" (plain, no segment/scenario dimension) carries
+# the real consolidated FY2025 capex; "c-1-segment" is a segment-dimensioned decoy and
+# "c-q4" a Q4-only (92-day) decoy, neither of which may be counted.
+_JCAP_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:ffd="http://www.jeffersoncapital.com/20251231">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0002046042</identifier></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-1-segment">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0002046042</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="srt:StatementBusinessSegmentsAxis">ffd:UnitedStatesSegmentMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c-q4">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0002046042</identifier></entity>
+    <period><startDate>2025-10-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <ffd:PurchasesOfOrProceedsFromPropertyAndEquipmentNet contextRef="c-1" unitRef="usd" decimals="-3">1085000</ffd:PurchasesOfOrProceedsFromPropertyAndEquipmentNet>
+  <ffd:PurchasesOfOrProceedsFromPropertyAndEquipmentNet contextRef="c-1-segment" unitRef="usd" decimals="-3">700000</ffd:PurchasesOfOrProceedsFromPropertyAndEquipmentNet>
+  <ffd:PurchasesOfOrProceedsFromPropertyAndEquipmentNet contextRef="c-q4" unitRef="usd" decimals="-3">300000</ffd:PurchasesOfOrProceedsFromPropertyAndEquipmentNet>
+</xbrl>
+"""
+
+
 class TestExtractCustomCapexFromXbrlXml:
     def test_dht_sums_both_concepts_for_the_annual_context(self):
         result = extract_custom_capex_from_xbrl_xml(_DHT_XML, "DHT")
@@ -194,6 +226,10 @@ class TestExtractCustomCapexFromXbrlXml:
     def test_malformed_xml_does_not_match_wrong_symbol_data(self):
         # DHT's XML parsed for CMRE's concept name must find nothing (different tag names).
         assert extract_custom_capex_from_xbrl_xml(_DHT_XML, "CMRE") == {}
+
+    def test_jcap_returns_consolidated_value_excluding_segment_and_q4_decoys(self):
+        result = extract_custom_capex_from_xbrl_xml(_JCAP_XML, "JCAP")
+        assert result[2025] == 1_085_000.0
 
 
 class TestFetchCustomCapex:
@@ -281,6 +317,7 @@ def test_custom_capex_concepts_registry_is_well_formed():
     assert "WHD" in CUSTOM_CAPEX_CONCEPTS
     assert "AMBQ" in CUSTOM_CAPEX_CONCEPTS
     assert "HTO" in CUSTOM_CAPEX_CONCEPTS
+    assert "JCAP" in CUSTOM_CAPEX_CONCEPTS
     for symbol, concepts in CUSTOM_CAPEX_CONCEPTS.items():
         assert concepts, f"{symbol} has an empty concept list"
         for prefix, local_name in concepts:
