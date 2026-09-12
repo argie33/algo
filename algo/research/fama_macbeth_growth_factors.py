@@ -80,13 +80,21 @@ from algo.research.fama_macbeth_price_factors import (
     fetch_symbols_for_industries,
     print_survivorship_bias_caveat,
 )
-from loaders.helpers.vqg_shared import DEPOSITORY_BANK_INDUSTRIES
+from loaders.helpers.vqg_shared import (
+    DEPOSITORY_BANK_INDUSTRIES,
+    INSURANCE_UNDERWRITER_INDUSTRIES,
+    REIT_INDUSTRIES,
+)
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
 # See fama_macbeth_quality_factors.py's own INDUSTRY_GROUPS for why this exists.
-INDUSTRY_GROUPS = {"banks": DEPOSITORY_BANK_INDUSTRIES}
+INDUSTRY_GROUPS = {
+    "banks": DEPOSITORY_BANK_INDUSTRIES,
+    "insurers": INSURANCE_UNDERWRITER_INDUSTRIES,
+    "reits": REIT_INDUSTRIES,
+}
 
 # Local SEC EDGAR disk caches populated by ordinary loader operation (utils/external/
 # sec_ticker_cache.py / sec_edgar_client.py) - reused here read-only to recover REAL 10-K

@@ -440,6 +440,24 @@ BROKER_DEALER_INDUSTRIES = frozenset(
     }
 )
 
+# SIC-derived company_profile.industry values covering REITs specifically - narrower than the
+# "Real Estate" GICS sector used elsewhere (webapp charts, sector_relative_scoring_test, etc.),
+# which also includes non-REIT real estate agents/operators/developers (SIC 6500/6510/6512/6513/
+# 6519/6531/6552 per load_company_profile.py's own SIC_TO_GICS comments) that don't share a REIT's
+# FFO/AFFO-driven, debt-heavy capital structure. Added 2026-09-12 for
+# fama_macbeth_*.py's --industries flag (see fetch_symbols_for_industries in
+# fama_macbeth_price_factors.py) to extend the bank-only Momentum-inversion finding
+# ([[bank_industry_filtered_fama_macbeth_built_value_real_quality_weak_20260912]] in memory) to
+# REITs - live-queried company_profile.industry distinct values directly rather than guessing:
+# "REITs" (491) and "Real Estate Investment Trusts" (175) both genuinely REIT-labeled; plain
+# "Real Estate" (33, ambiguous) and the agent/operator variants deliberately excluded.
+REIT_INDUSTRIES = frozenset(
+    {
+        "REITs",
+        "Real Estate Investment Trusts",
+    }
+)
+
 
 class SectorIndustryCacheMixin:
     """Lazy, once-per-run symbol->sector/industry caches shared by the value/quality/growth mixins.

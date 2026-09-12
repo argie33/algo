@@ -39,13 +39,24 @@ from algo.research.fama_macbeth_price_factors import (
     fetch_symbols_for_industries,
     print_survivorship_bias_caveat,
 )
-from loaders.helpers.vqg_shared import DEPOSITORY_BANK_INDUSTRIES
+from loaders.helpers.vqg_shared import (
+    DEPOSITORY_BANK_INDUSTRIES,
+    INSURANCE_UNDERWRITER_INDUSTRIES,
+    REIT_INDUSTRIES,
+)
 from utils.db.context import DatabaseContext
 
-# name -> SIC industry frozenset, for --industries. Only depository banks wired up so far
-# (the concrete case that motivated this filter - see fetch_symbols_for_industries' own
-# docstring) - add more of vqg_shared.py's industry frozensets here as needed.
-INDUSTRY_GROUPS = {"banks": DEPOSITORY_BANK_INDUSTRIES}
+# name -> SIC industry frozenset, for --industries. Depository banks were the original concrete
+# case that motivated this filter (see fetch_symbols_for_industries' own docstring); "insurers"/
+# "reits" added 2026-09-12 to check whether the bank-only Momentum-inversion finding (see
+# bank_industry_filtered_fama_macbeth_built_value_real_quality_weak_20260912 in memory) is
+# bank-specific or a broader industry-conditional pattern. Add more of vqg_shared.py's industry
+# frozensets here as needed.
+INDUSTRY_GROUPS = {
+    "banks": DEPOSITORY_BANK_INDUSTRIES,
+    "insurers": INSURANCE_UNDERWRITER_INDUSTRIES,
+    "reits": REIT_INDUSTRIES,
+}
 
 logger = logging.getLogger(__name__)
 
