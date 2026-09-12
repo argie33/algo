@@ -142,13 +142,12 @@ def has_equity_overlap(cur: Any, symbol: str) -> bool:
     """True if `symbol` currently has ANY open equity-strategy position OR any open/assigned
     sleeve position - the hard equity-overlap rule from spec section 6.
 
-    This implements only the sleeve-entering-checks-equity half of that rule: before the
-    sleeve opens a new CSP on `symbol`, it must see no open equity-strategy position here.
-    The other direction (the equity strategy checking for open sleeve exposure before IT
-    enters a position) is NOT implemented by this function or anywhere else in this phase -
-    that requires a change in the equity strategy's own entry path, which is out of scope for
-    phase 4 (this task). Documented as an open, one-directional gap - see
-    steering/OPTIONS_STRATEGY_SPEC.md's phase 4 status section.
+    Symmetric by construction (checks both tables), so it serves both directions of the rule:
+    `algo/risk/circuit_breaker_options.py`'s `check_options_pretrade()` calls this before the
+    sleeve opens a new CSP; `algo/orchestrator/phase8_entry_execution.py`'s per-candidate
+    pre-filter loop (2026-09-12 fix) calls this before the equity strategy opens a new
+    position, closing what was previously a one-directional gap (see git history / memory
+    `options_strategy_full_plan_and_phase1_20260912` for the phase-4-vs-phase-8-fix split).
     """
     cur.execute("SELECT 1 FROM algo_positions WHERE symbol = %s AND status = 'open' LIMIT 1", (symbol,))
     if cur.fetchone() is not None:

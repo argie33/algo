@@ -280,11 +280,32 @@ it to gate):
 - `terraform/modules/loaders/main.tf`'s `options_data_loader` schedule is still written but
   not applied.
 
-**New documented gap from this phase:** the equity-overlap rule (§6) is enforced only in the
-sleeve-entering-checks-equity direction (`has_equity_overlap()`, called from
-`check_options_pretrade`'s `no_equity_overlap` check). The other direction — the equity
-strategy checking for open sleeve exposure before IT enters a new position — is NOT
-implemented anywhere; that requires a change to the equity strategy's own entry path
-(`algo/trading/position_sizer.py` / wherever its pretrade gate lives), which is out of scope
-for phase 4. Tracked as an open item for whichever phase wires the equity side of this check
-in (likely phase 5, since that's when a live sleeve first creates real overlap risk).
+**Documented gap from this phase, closed same-session (2026-09-12):** the equity-overlap rule
+(§6) was initially enforced only in the sleeve-entering-checks-equity direction
+(`has_equity_overlap()`, called from `check_options_pretrade`'s `no_equity_overlap` check).
+The other direction has since been wired in: `algo/orchestrator/phase8_entry_execution.py`'s
+per-candidate pre-filter loop now calls `has_equity_overlap()` for every candidate symbol
+before it reaches position sizing, skipping (fail-closed on error) any symbol the sleeve
+already has open/assigned exposure to. `has_equity_overlap()` itself needed no change — it
+was already symmetric (checks both `algo_positions` and `algo_options_positions`); only the
+missing caller was the gap. Both directions of §6 are now enforced in code, ahead of phase 5
+rather than during it.
+
+## Phase 5 status: still blocked, not started (as of 2026-09-12)
+
+Per §7's go/no-go gate, phase 5 (real order-submission code) remains explicitly not started.
+Checked again this session — no change to either blocker:
+- **Alpaca options-approval level still unknown.** `scripts/check_options_approval_status.py`
+  re-run from this local session again fails to resolve credentials (no `APCA_API_KEY_ID`/
+  `APCA_API_SECRET_KEY` env vars, no AWS Secrets Manager access here) — same constraint as
+  when this was first flagged in phase 2. Must be run somewhere `AlpacaSyncManager` can reach
+  real credentials before phase 5 can start.
+- **Backtest is still proxy-IV evidence only** (§7 item 1) — no real historical options-quote
+  data exists to replay yet; unblocking this needs either a paid vendor or years of the daily
+  loader accumulating its own history.
+- `terraform/modules/loaders/main.tf`'s `options_data_loader` and `xbrl_second_opinion`
+  schedules are both still written but not applied — independent of the phase 5 gate itself,
+  but real same-day options-chain freshness depends on the loader schedule actually running,
+  not just being defined. Applying real AWS infrastructure changes is intentionally left as a
+  decision for whoever has real AWS access to confirm, not something to run silently from
+  here.
