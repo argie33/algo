@@ -265,6 +265,13 @@ _BALANCE_FIELD_MAPPING = {
     # left unfixed. Not fallback-only - single directly-tagged concept, same convention as
     # minority_interest above.
     "temporary_equity_carrying_amount_attributable_to_parent": "temporary_equity",
+    # ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push): see
+    # sec_balance_sheet.py's get_balance_sheet() comment on
+    # "PartnersCapitalAttributableToNoncontrollingInterest" for the live PS/Pershing Square
+    # Inc. evidence - the partnership-structure equivalent of "MinorityInterest" above, same
+    # target column. Not fallback-only - single directly-tagged concept, same convention as
+    # minority_interest above.
+    "partners_capital_attributable_to_noncontrolling_interest": "noncontrolling_interest",
     # ADDED 2026-09-07 (goal session: check_cashflow_reconciliation restricted-cash gap
     # rootcaused, migration 1267): see sec_balance_sheet.py's _fill_cash_and_restricted_cash_
     # combined() for the live ADP evidence. Identity mapping (raw key already equals the

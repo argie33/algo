@@ -927,6 +927,22 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # tags a sibling concept (RedeemableNoncontrollingInterestEquityOtherCarryingAmount,
         # not this one) so its own gap is NOT expected to fully close from this alone.
         "TemporaryEquityCarryingAmountAttributableToParent",
+        # ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push, PS/Pershing Square
+        # Inc. live-confirmed): partnership/Up-C-structured filers' NCI equivalent of
+        # "MinorityInterest" above - live-confirmed via real SEC companyfacts JSON (CIK
+        # 0002026053): FY2026 Q2 10-Q (period end 2026-06-30) tags plain PartnersCapital=$0
+        # (a real, filed parent-only figure - this entity's equity is almost entirely held by
+        # noncontrolling unitholders) while PartnersCapitalIncludingPortionAttributableTo
+        # NoncontrollingInterest=$1,409,179,576 for the SAME period - exactly matching
+        # Assets($1,812,657,825) - Liabilities($403,478,249). Without this concept, the parent-
+        # only $0 wins the "last-listed-wins" merge (correctly, per that convention) and the
+        # $1.41B NCI portion is simply dropped on the floor, not present in the extracted row
+        # at all - same "narrower parent-only concept, no column for the NCI portion" gap
+        # MinorityInterest/migration 1265 closed for corporate filers, just never mirrored for
+        # the partnership-structure equivalent. Single directly-tagged concept, same
+        # convention as MinorityInterest above - see financial_statements_balance_config.py's
+        # _BALANCE_FIELD_MAPPING for where this routes to the noncontrolling_interest column.
+        "PartnersCapitalAttributableToNoncontrollingInterest",
         # ADDED 2026-09-10 (goal: "under 500" push, total_debt_not_itemized investigation):
         # MWG (a 20-F filer) tags real, continuous us-gaap lease-liability data exclusively
         # under the Current/Noncurrent split - live-confirmed via real SEC companyfacts
