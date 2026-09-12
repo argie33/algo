@@ -724,6 +724,41 @@ class MarketConstituentsLoader(OptimalLoader):
             )
         self._purge_stale_downstream_score_rows(shells)
 
+    def _record_delisting_events(self, symbols: list[str], detection_reason: str) -> None:
+        """Best-effort event log for a genuine delisting detection - see migration 1281's own
+        comment for why this exists (this repo had NO delisting-event tracking at all before
+        2026-09-12, only a plain active=false flag with no date/last-price/cause). `last_price`/
+        `last_price_date` come from whatever this symbol's most recent price_daily row already
+        holds - not a new fetch, and NOT a claim about the actual delisting price (a stock can
+        trade well below its last reported daily close during a final-days collapse or halt).
+        ON CONFLICT DO NOTHING: idempotent against this method being called again for the same
+        (symbol, detection_reason) pair by a later run.
+        """
+        if not symbols:
+            return
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol, date, COALESCE(adj_close, close) AS px
+                FROM price_daily p
+                WHERE symbol = ANY(%s) AND date = (SELECT MAX(date) FROM price_daily WHERE symbol = p.symbol)
+                """,
+                (symbols,),
+            )
+            last_price_by_symbol = {row[0]: (row[1], row[2]) for row in cur.fetchall()}
+
+        with DatabaseContext("write") as cur:
+            for symbol in symbols:
+                last_date, last_price = last_price_by_symbol.get(symbol, (None, None))
+                cur.execute(
+                    """
+                    INSERT INTO delisting_events (symbol, detection_reason, last_price_date, last_price)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (symbol, detection_reason) DO NOTHING
+                    """,
+                    (symbol, detection_reason, last_date, last_price),
+                )
+
     def _deactivate_symbols_delisted_from_exchange_feed(self, current_feed_symbols: set[str]) -> None:
         """Deactivate already-active symbols that have vanished entirely from today's
         NASDAQ/otherlisted feed - i.e. no longer trade under this symbol on any listed exchange.
@@ -831,6 +866,7 @@ class MarketConstituentsLoader(OptimalLoader):
                 (gone,),
             )
         self._purge_stale_downstream_score_rows(gone)
+        self._record_delisting_events(gone, "delisted_or_removed_from_exchange_feed")
 
         # BUG FOUND 2026-09-01 (/goal session, "check the logs" pass, same class as
         # loaders/load_prices.py's _mark_symbol_permanently_unavailable fix): this

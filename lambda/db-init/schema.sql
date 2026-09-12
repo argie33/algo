@@ -820,6 +820,52 @@ CREATE INDEX IF NOT EXISTS idx_symbol_quarantine_symbol_open
 CREATE INDEX IF NOT EXISTS idx_symbol_quarantine_check_open
     ON symbol_quarantine(check_name) WHERE resolved_at IS NULL;
 
+-- Live realized-IC feedback loop for stock_scores (migration 1280): accumulating time series
+-- of rank correlation between a score (composite/pillar) as of score_date and that symbol's
+-- actual forward return over horizon_trading_days, computed from stock_scores_history + price_daily
+-- by scripts/score_realized_ic_monitor.py. Closes the gap where every existing validation was a
+-- one-off offline backtest with no ongoing check that live scores keep predicting anything.
+CREATE TABLE IF NOT EXISTS score_realized_ic_log (
+    id BIGSERIAL PRIMARY KEY,
+    score_date DATE NOT NULL,
+    horizon_trading_days INTEGER NOT NULL,
+    score_name VARCHAR(30) NOT NULL,
+    ic NUMERIC,
+    n_symbols INTEGER NOT NULL,
+    computed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (score_date, horizon_trading_days, score_name)
+);
+CREATE INDEX IF NOT EXISTS idx_score_realized_ic_log_name_date
+    ON score_realized_ic_log(score_name, score_date);
+
+-- Delisting event capture (migration 1281): records the moment a symbol is genuinely detected
+-- as delisted/removed from the exchange feed (last price, last price date, detection reason) -
+-- see loaders/load_market_constituents.py's _deactivate_symbols_delisted_from_exchange_feed.
+-- Does not fix historical survivorship bias (pre-existing gaps were never tracked at all) - closes
+-- the ongoing gap so future real delistings leave an actual record instead of vanishing silently.
+CREATE TABLE IF NOT EXISTS delisting_events (
+    id BIGSERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    detected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    detection_reason VARCHAR(100) NOT NULL,
+    last_price_date DATE,
+    last_price NUMERIC,
+    UNIQUE (symbol, detection_reason)
+);
+CREATE INDEX IF NOT EXISTS idx_delisting_events_symbol ON delisting_events(symbol);
+
+-- Tiingo delisted-price backfill tracking (migration 1282): one row per symbol once
+-- scripts/tiingo_delisted_price_backfill.py has resolved it (data found and loaded, or
+-- confirmed absent at the vendor too) - see that script's docstring for why this exists
+-- (Tiingo free tier is rate-limited to 25 req/day, so progress accumulates across many runs).
+CREATE TABLE IF NOT EXISTS tiingo_backfill_status (
+    symbol VARCHAR(20) PRIMARY KEY,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('backfilled', 'no_data_at_vendor', 'error')),
+    rows_inserted INTEGER NOT NULL DEFAULT 0,
+    last_attempt_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    detail VARCHAR(500)
+);
+
 -- Triage/ack workflow for data_patrol_log's open backlog (migration 1278): distinguishes
 -- "nobody has reviewed this" from "a human reviewed this and it's an accepted condition"
 -- for a (check_name, target_table) pair. See scripts/data_patrol_backlog_report.py.

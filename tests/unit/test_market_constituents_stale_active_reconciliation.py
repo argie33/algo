@@ -215,11 +215,16 @@ class TestDeactivateSymbolsDelistedFromExchangeFeed:
             mock_priced_cur.fetchall.return_value = []  # NSA has no recent price_daily row
             mock_write_cur = MagicMock()
             mock_purge_cur = MagicMock()
+            mock_delisting_read_cur = MagicMock()
+            mock_delisting_read_cur.fetchall.return_value = []  # no price_daily history in this mock
+            mock_delisting_write_cur = MagicMock()
             mock_db_ctx.return_value.__enter__.side_effect = [
                 mock_active_cur,
                 mock_priced_cur,
                 mock_write_cur,
                 mock_purge_cur,
+                mock_delisting_read_cur,
+                mock_delisting_write_cur,
             ]
 
             loader._deactivate_symbols_delisted_from_exchange_feed(feed_symbols)
@@ -284,11 +289,16 @@ class TestDeactivateSymbolsDelistedFromExchangeFeed:
             mock_priced_cur.fetchall.return_value = []
             mock_write_cur = MagicMock()
             mock_purge_cur = MagicMock()
+            mock_delisting_read_cur = MagicMock()
+            mock_delisting_read_cur.fetchall.return_value = []
+            mock_delisting_write_cur = MagicMock()
             mock_db_ctx.return_value.__enter__.side_effect = [
                 mock_active_cur,
                 mock_priced_cur,
                 mock_write_cur,
                 mock_purge_cur,
+                mock_delisting_read_cur,
+                mock_delisting_write_cur,
             ]
 
             # Must not raise despite notify() failing internally.
