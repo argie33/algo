@@ -84,7 +84,7 @@
   "algo/monitoring/data_patrol/checks/tie_out.py": 294,
   "algo/monitoring/data_patrol/checks/tie_out_bounds_annual1.py": 786,
   "algo/monitoring/data_patrol/checks/tie_out_bounds_annual2_quarterly1.py": 763,
-  "algo/monitoring/data_patrol/checks/tie_out_bounds_quarterly2_misc.py": 621,
+  "algo/monitoring/data_patrol/checks/tie_out_bounds_quarterly2_misc.py": 627,
   "algo/monitoring/data_patrol/checks/tie_out_identity_annual.py": 758,
   "algo/monitoring/data_patrol/checks/tie_out_identity_quarterly.py": 697,
   "algo/monitoring/data_patrol/checks/tie_out_nonnegative_magnitudes.py": 298,
