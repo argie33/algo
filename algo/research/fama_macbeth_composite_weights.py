@@ -647,6 +647,20 @@ def build_growth_and_sgr_panel(fund: pd.DataFrame) -> pd.DataFrame:
     return growth_panel.merge(sgr_panel, on=["symbol", "fiscal_year"], how="left")
 
 
+def fetch_sector_map() -> dict[str, str]:
+    """symbol -> GICS sector (company_profile.sector), with the mortgage/commercial-mortgage
+    REIT peer-group override applied - the SAME sector_map production's sector-relative Value
+    and sector-neutral Growth/Quality build from `company_profile` directly. Static, not
+    point-in-time - matches production's own convention.
+    """
+    with DatabaseContext("read") as cur:
+        cur.execute("SELECT symbol, sector FROM company_profile WHERE sector IS NOT NULL")
+        rows = cur.fetchall()
+    return {
+        row[0]: sector for row in rows if (sector := apply_mortgage_reit_sector_override(row[0], row[1])) is not None
+    }
+
+
 def build_pillar_proxy_records(
     start_date: str, end_date: str, min_cross_section: int
 ) -> tuple[
@@ -767,7 +781,9 @@ def build_pillar_proxy_records(
 
         price = px.iloc[i].reindex(v.index)
         pe = pd.Series(np.where(v["eps"] > 0, price / v["eps"], np.nan), index=v.index)
-        pb = pd.Series(np.where(v["book_value_per_share"] > 0, price / v["book_value_per_share"], np.nan), index=v.index)
+        pb = pd.Series(
+            np.where(v["book_value_per_share"] > 0, price / v["book_value_per_share"], np.nan), index=v.index
+        )
         ps = pd.Series(np.where(v["sales_per_share"] > 0, price / v["sales_per_share"], np.nan), index=v.index)
         # CORRECTED 2026-09-12 (same audit): flat universe-wide z-score of -PE/-PB/-PS -
         # production moved to sector-relative cheap-high PERCENTILE RANK 2026-09-04 (real
