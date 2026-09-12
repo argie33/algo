@@ -33,8 +33,10 @@ import numpy as np
 import pandas as pd
 
 from algo.research.fama_macbeth_price_factors import (
+    INDUSTRY_GROUPS,
     _fama_macbeth,
     benjamini_hochberg_fdr,
+    fetch_symbols_for_industries,
     print_survivorship_bias_caveat,
 )
 from utils.db.context import DatabaseContext
@@ -53,18 +55,22 @@ MOMENTUM_FACTOR_COLS = [
 ]
 
 
-def fetch_daily_prices(start_date: str, end_date: str) -> pd.DataFrame:
+def fetch_daily_prices(start_date: str, end_date: str, symbols: set[str] | None = None) -> pd.DataFrame:
     sql = """
         SELECT symbol, date, COALESCE(adj_close, close) AS px
         FROM price_daily
         WHERE date >= %s AND date < %s
           AND COALESCE(adj_close, close) > 0
           AND COALESCE(data_unavailable, false) = false
-        ORDER BY symbol, date
     """
+    params: list[object] = [start_date, end_date]
+    if symbols is not None:
+        sql += " AND symbol = ANY(%s)"
+        params.append(list(symbols))
+    sql += " ORDER BY symbol, date"
     rows: list[tuple[str, object, float]] = []
     with DatabaseContext("read") as cur:
-        cur.execute(sql, (start_date, end_date))
+        cur.execute(sql, params)
         while True:
             batch = cur.fetchmany(50000)
             if not batch:
@@ -169,10 +175,14 @@ def build_records(
     return records
 
 
-def run(start_date: str, end_date: str, min_cross_section: int) -> None:
+def run(start_date: str, end_date: str, min_cross_section: int, industry_group: str | None = None) -> None:
     print_survivorship_bias_caveat()
+    symbols = None
+    if industry_group is not None:
+        symbols = fetch_symbols_for_industries(INDUSTRY_GROUPS[industry_group])
+        logger.info(f"--industries {industry_group}: {len(symbols)} symbols in company_profile")
     logger.info(f"Fetching daily prices {start_date}..{end_date}")
-    daily = fetch_daily_prices(start_date, end_date)
+    daily = fetch_daily_prices(start_date, end_date, symbols)
     logger.info(f"{len(daily)} daily rows")
 
     logger.info("Computing RSI/MACD/SMA indicators")
@@ -208,10 +218,16 @@ def main() -> None:
     parser.add_argument("--start-date", default="2015-06-01")
     parser.add_argument("--end-date", default=datetime.now(tz=None).date().isoformat())
     parser.add_argument("--min-cross-section", type=int, default=100)
+    parser.add_argument(
+        "--industries",
+        choices=sorted(INDUSTRY_GROUPS),
+        default=None,
+        help="Restrict the panel to one industry group (see INDUSTRY_GROUPS in fama_macbeth_price_factors.py).",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    run(args.start_date, args.end_date, args.min_cross_section)
+    run(args.start_date, args.end_date, args.min_cross_section, args.industries)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
+from loaders.helpers.vqg_shared import DEPOSITORY_BANK_INDUSTRIES
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.type_conversion import safe_float
 
@@ -68,6 +69,47 @@ class MomentumScoringMixin:
     if TYPE_CHECKING:
         _technical_cache: dict[str, tuple[Any, ...]]
         _momentum_cache: dict[str, tuple[Any, ...]]
+        _bank_momentum_symbols: frozenset[str]
+
+    def _is_bank_momentum_industry(self, symbol: str) -> bool:
+        """Lazily fetches and caches which symbols are in DEPOSITORY_BANK_INDUSTRIES
+        (SIC-derived company_profile.industry), once per loader run.
+
+        ADDED 2026-09-12 (industry-conditional Momentum fix - see
+        bank_momentum_inversion_confirmed_and_fixed_20260912 in memory for the full evidence
+        chain): a real, FDR-confirmed, non-circular Fama-MacBeth panel
+        (algo/research/fama_macbeth_momentum_factors.py --industries banks) found depository-
+        bank Momentum inverts across EVERY component of this pillar's construction (mom_12_1,
+        mom_3m/6m/12m, RSI(14), MACD sign, price-vs-SMA-50/200 - not just the return windows),
+        all FDR q<=0.10, all negative. Confirmed NOT an artifact of the 2023 regional-bank
+        crisis specifically: same sign, if anything stronger, in a 2016-06..2022-11 sub-period
+        that excludes it entirely (t=-2.50 to -5.27 vs t=-2.12 to -4.29 full-sample), and the
+        same sign (weaker, underpowered at only 26 months) in a 2024-07..2026-08 post-crisis
+        sub-period - never a sign disagreement across any tested window, the same "significant
+        AND same-signed in both regimes" bar this file's BASE_PILLAR_WEIGHTS history already
+        uses elsewhere for this class of decision. Insurers and REITs tested the same way show
+        NO momentum signal at all (neither confirmed nor inverted) - this is bank-specific, not
+        a general "financials" adjustment.
+
+        Fails open (returns False, i.e. the universal formula) if company_profile can't be
+        queried - same fail-open contract as vqg_shared.py's SectorIndustryCacheMixin.
+        """
+        if not hasattr(self, "_bank_momentum_symbols"):
+            self._bank_momentum_symbols = frozenset()
+            try:
+                with _owner().DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT symbol FROM company_profile WHERE industry = ANY(%s)",
+                        (list(DEPOSITORY_BANK_INDUSTRIES),),
+                    )
+                    self._bank_momentum_symbols = frozenset(row[0] for row in cur.fetchall())
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(
+                    f"[STOCK_SCORES] Failed to fetch bank-industry symbol set for the "
+                    f"industry-conditional Momentum formula - falling back to the universal "
+                    f"formula for every symbol this run: {e}"
+                )
+        return symbol in self._bank_momentum_symbols
 
     def _get_momentum_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch momentum/RS metrics for symbol from momentum_metrics table.
@@ -441,7 +483,15 @@ class MomentumScoringMixin:
             total_weight += 0.25
 
         if total_weight >= MOMENTUM_MIN_WEIGHT:
-            return weighted_sum / total_weight
+            score = weighted_sum / total_weight
+            # BANK MOMENTUM MIRROR (added 2026-09-12) - see _is_bank_momentum_industry's own
+            # docstring for the full evidence chain. Mirrors the existing 0-100 curve (doesn't
+            # invent a new magnitude/shape) so a bank scoring in the top momentum decile
+            # (recent strong gains) scores near the bottom of the mirrored range and vice
+            # versa - the direction the live data actually supports for this industry.
+            if self._is_bank_momentum_industry(symbol):
+                score = 100.0 - score
+            return score
         if total_weight > 0:
             logger.debug(
                 f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol}) - "
