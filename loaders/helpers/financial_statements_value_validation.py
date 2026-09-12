@@ -12,6 +12,7 @@ SecValuationRatiosMixin.
 """
 
 import logging
+from decimal import Decimal
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,81 @@ class FinancialStatementsValueValidationMixin:
     period: str
 
     def _record_explicit_null_rejection(self, row: dict[str, Any], field: str, reason: str) -> None: ...
+
+    # KNOWN, MANUALLY-VERIFIED per-filing scale errors that no per-field guard (e.g.
+    # _reject_scale_mismatched_revenue) can catch, because the whole filing is uniformly
+    # scaled - every numeric concept is inflated by the same factor, so cross-field ratios
+    # within that one filing (revenue vs. cost_of_revenue+gross_profit, etc.) come out
+    # looking internally consistent. Only detectable by comparing the SAME concept's value
+    # across two different filings/accessions for the same historical period - see UPC entry
+    # below for the live evidence. {symbol: {fiscal_year}}.
+    #
+    # UPC (Universe Pharmaceuticals Inc, CIK 0001809616): live-confirmed via real SEC
+    # companyfacts JSON that its FY2025 20-F (accession 0001213900-26-009000, period
+    # 2024-10-01 to 2025-09-30) retags EVERY comparative historical period it reports at
+    # exactly 1000x their real, previously-filed values - not just its own new fiscal year:
+    #   Revenues   FY2023 (2022-10-01/2023-09-30): $32,308,735 (FY2023 20-F) -> $32,308,735,000
+    #   Revenues   FY2024 (2023-10-01/2024-09-30): $23,024,458 (FY2024 20-F) -> $23,024,458,000
+    #   Revenues   FY2025 (2024-10-01/2025-09-30): new figure, $17,858,732,000 (presumably
+    #              also 1000x - no earlier filing to cross-check the new year against)
+    #   Cash       @ 2024-09-30: $29,497,693 (FY2024 20-F) -> $29,497,693,000 (FY2025 20-F)
+    #   NetIncomeLoss FY2023: -$6,581,024 -> -$6,581,024,000; FY2024: -$8,727,298 ->
+    #              -$8,727,298,000 (same FY2025 20-F)
+    # Found 2026-09-11 (goal: "SEC/XBRL missing data under 200" push) via
+    # scripts/audit_statement_tie_outs.py's cash-flow reconciliation check flagging UPC's
+    # residual as the single largest in the entire universe (-$29.2B, dwarfing AMZN's -$18.9B
+    # despite UPC being a tiny company) - not a real business event, a genuine filer-side
+    # XBRL scale/decimals tagging error affecting the ENTIRE FY2025 20-F filing across every
+    # concept and every period it reports (revenue, net_income, cash all confirmed
+    # independently at exactly 1000x for at least 2 prior fiscal years each). Same bug class
+    # as the already-documented ATHE/RADX ~100x EPS scale error, just whole-filing instead of
+    # one field, and spanning multiple fiscal years' worth of comparative restatements instead
+    # of one. All 3 affected fiscal years are rejected rather than trying to recover FY2023/
+    # FY2024's real values from their own earlier (correctly-scaled) filings - this pipeline's
+    # concept-aggregation engine has no per-accession preference mechanism to prefer an OLDER
+    # filing's directly-tagged value over a NEWER filing's comparative restatement when the
+    # newer one is wrong (see utils/external/sec_statements_aggregate.py's shared
+    # `_aggregate_concepts` engine - out of scope to modify safely under this fix's own
+    # evidence-gathering pass, since it's the shared engine every symbol's every concept
+    # goes through). Rejecting the entire fiscal year rather than guessing which specific
+    # fields happen to still be correct - none have been independently confirmed correct for
+    # this filing, and a partial reject would leave a self-inconsistent row (e.g. real
+    # revenue against a 1000x-inflated cash figure).
+    KNOWN_BAD_FILING_SCALE_ERRORS: dict[str, frozenset[int]] = {
+        "UPC": frozenset({2023, 2024, 2025}),
+    }
+
+    def _reject_known_bad_filing_scale_errors(self, transformed: list[dict[str, Any]]) -> None:
+        """Null every numeric field on a row matching KNOWN_BAD_FILING_SCALE_ERRORS - a
+        whole-filing scale error that no per-field ratio guard can detect (see that
+        registry's own docstring). Mutates `transformed` in place. Runs first, before any
+        other guard, so a corrupted value never gets a chance to seed a derived/fallback
+        field (e.g. EPS derivation, operating_income-from-revenue) elsewhere in transform().
+        """
+        identifier_fields = {
+            "symbol",
+            "fiscal_year",
+            "fiscal_quarter",
+            "created_at",
+            "updated_at",
+            "data_source",
+            "data_unavailable",
+            "reason",
+        }
+        for row in transformed:
+            symbol = row.get("symbol")
+            fiscal_year = row.get("fiscal_year")
+            if symbol not in self.KNOWN_BAD_FILING_SCALE_ERRORS:
+                continue
+            if fiscal_year not in self.KNOWN_BAD_FILING_SCALE_ERRORS[symbol]:
+                continue
+            for field, value in list(row.items()):
+                if field in identifier_fields or value is None:
+                    continue
+                if not isinstance(value, (int, float, Decimal)) or isinstance(value, bool):
+                    continue
+                row[field] = None
+                self._record_explicit_null_rejection(row, field, "confirmed_filer_scale_error_rejected")
 
     def _reject_implausible_eps(self, transformed: list[dict[str, Any]]) -> None:
         """Reject earnings_per_share/diluted_eps values that are confidently wrong due to

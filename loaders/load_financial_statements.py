@@ -1613,6 +1613,11 @@ class ConsolidatedFinancialStatementsLoader(
         """
         transformed = super().transform(rows)
 
+        # Runs first, before every other guard below - a whole-filing scale error must never
+        # get a chance to seed a derived/fallback field elsewhere in this method. See
+        # KNOWN_BAD_FILING_SCALE_ERRORS's own docstring (financial_statements_value_validation.py).
+        self._reject_known_bad_filing_scale_errors(transformed)
+
         # FIXED 2026-08-21 (goal session - broad shares_outstanding cross-check audit,
         # follow-up to the BRK.A/HEI dual-class fix): SEC's companyfacts REST API does NOT
         # always normalize a filer's inline-XBRL scale= attribute (e.g. scale="3" for
