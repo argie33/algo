@@ -159,10 +159,18 @@ def _extract_duration_values_for_concepts_with_currency(
 # same dual-tagging shape already documented for BIDU elsewhere in this codebase - and
 # CNY-only for FY2023 (CNY 2,112,000, no USD sibling that year). This extractor's
 # prefer-real-USD-else-convert logic handles both cases without any special-casing.
+#
+# SQNS (Sequans Communications S.A., CIK 0001383395) - live-verified against its real
+# filed FY2025 20-F (accession 0001383395-26-000082):
+# sqns:PurchaseOfPropertyPlantAndEquipmentAndIntangibleAssetsClassifiedAsInvestingActivities
+# = USD 2,243,000 FY2025 / 3,316,000 FY2024 / 5,457,000 FY2023, plain non-dimensioned
+# contexts, already tagged in USD - registered here (not CUSTOM_CAPEX_CONCEPTS) for the
+# same one-registry-covers-the-sweep reason as JF above.
 CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE: dict[str, list[tuple[str, str]]] = {
     "SU": [("su", "CashFlowsUsedForCapitalExpenditures")],
     "JF": [("jf", "PaymentsToAcquirePropertyEquipmentAndSoftware")],
     "NCTY": [("ncty", "PaymentsToAcquirePropertyEquipmentAndSoftware")],
+    "SQNS": [("sqns", "PurchaseOfPropertyPlantAndEquipmentAndIntangibleAssetsClassifiedAsInvestingActivities")],
 }
 
 
