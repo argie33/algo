@@ -390,29 +390,20 @@ YFINANCE_STALE_SHARES_TRUST_SEC_SYMBOLS: frozenset[str] = frozenset(
     }
 )
 
-# FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push, all_valuation_metrics_null
-# investigation): same failure class as YFINANCE_STALE_SHARES_TRUST_SEC_SYMBOLS above, but for
+# FIXED 2026-09-11: same failure class as YFINANCE_STALE_SHARES_TRUST_SEC_SYMBOLS above, but for
 # the FPI shares-outstanding tier (_resolve_shares_outstanding's `is_foreign_private_issuer`
-# branch, which calls _fetch_live_fpi_shares_outstanding_yfinance) rather than the dual-class
-# tier - that branch trusts ANY yfinance sharesOutstanding value between
-# MIN_PLAUSIBLE_SHARES_OUTSTANDING (100,000) and MAX_PLAUSIBLE_SHARES_OUTSTANDING with no
-# cross-check at all, since company_info_sec.shares_outstanding is deliberately left NULL for
-# FPIs (fpi_shares_excluded_domestic_only - the domestic-only-tag ADS-unit-mismatch risk this
-# whole tier exists to route around). Live-confirmed AIXI (Xiao-I Corp, Chinese FPI 20-F
-# filer): yfinance sharesOutstanding=131,513 (checked 2026-09-11) matches NONE of SEC's own
-# dei:EntityCommonStockSharesOutstanding cover-page history (31,949,038 FY2024 20-F ->
-# 55,235,284 FY2025 20-F/A, most recent, filed 2026-05-22) - off by ~420x. Not an ADS-ratio
-# conversion case (Xiao-I trades directly as ordinary shares, no ADS ratio applies) - simply
-# yfinance's own field being stale/wrong for this illiquid microcap, same shape as BIAF.
-# 131,513 clears the >100k floor so nothing else in the cascade catches it, silently producing
-# a ~$408K market_cap (real: ~$171M at $3.10/share) that then fails every downstream
-# plausibility check and collapses the whole row to "all_valuation_metrics_null". Maps symbol
-# -> the correct, most-recent SEC dei share count to use instead of trusting the live yfinance
-# fetch - individually confirmed via this exact cross-check, never added off a ratio alone (same
-# "never guess" discipline as YFINANCE_STALE_SHARES_TRUST_SEC_SYMBOLS/
-# DOMESTIC_FILER_ADS_RATIO_OVERRIDES).
+# branch), which trusts ANY yfinance sharesOutstanding between MIN/MAX_PLAUSIBLE_SHARES_OUTSTANDING
+# with no cross-check, since company_info_sec.shares_outstanding is deliberately left NULL for
+# FPIs. Live-confirmed AIXI (Xiao-I Corp): yfinance sharesOutstanding=131,513 vs SEC dei fact
+# 55,235,284 (most recent 20-F/A) - off ~420x, clears the >100k floor so nothing else catches it,
+# silently collapsing the row to "all_valuation_metrics_null". Maps symbol -> the correct SEC dei
+# share count to use instead - individually confirmed per symbol via this exact cross-check,
+# never added off a ratio alone (same "never guess" discipline as the other override dicts here).
 FPI_YFINANCE_STALE_SHARES_TRUST_SEC_DEI_SYMBOLS: dict[str, int] = {
     "AIXI": 55_235_284,  # Xiao-I Corp - yfinance sharesOutstanding stale (131,513); SEC 20-F/A dei fact is current
+    # FIXED 2026-09-11: same failure class, live-confirmed via SEC dei cover-page vs yfinance.
+    "VCIG": 26_310_352,  # yfinance=618,994 vs SEC 20-F dei (FY2025)=26,310,352 - off ~42.5x
+    "BMHL": 25_000_000,  # yfinance=14,014,999 vs SEC 20-F dei (FY2026)=25,000,000 - off ~1.8x
 }
 
 
