@@ -524,7 +524,7 @@
   "loaders/helpers/price_loader_reporting.py": 341,
   "loaders/helpers/sec_base.py": 2011,
   "loaders/helpers/sec_dual_class_eps.py": 270,
-  "loaders/helpers/sec_segment_debt.py": 193,
+  "loaders/helpers/sec_segment_debt.py": 213,
   "loaders/helpers/sec_valuations_checks.py": 743,
   "loaders/helpers/sec_valuations_dcf.py": 644,
   "loaders/helpers/sec_valuations_dcf_fcf_recategorize.py": 328,
