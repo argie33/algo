@@ -76,10 +76,12 @@ symbols) is what actually keeps this within the shared rate-limit budget, not ca
 
 Usage:
     python scripts/xbrl_second_opinion_daily.py
+    python scripts/xbrl_second_opinion_daily.py --dry-run
 """
 
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 import time
@@ -106,9 +108,26 @@ def _run_dqc_layer(*, limit: int, symbols_override: list[str] | None, dry_run: b
     return {"sampled_symbols": result["checked"]}
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     from scripts.xbrl_calculation_linkbase_check import run as run_calc_linkbase
     from scripts.xbrl_yfinance_crosscheck import run as run_yfinance_crosscheck
+
+    # BUG FIX (2026-09-13): this wrapper had NO argument parsing at all - `--dry-run` was
+    # silently ignored (sys.argv untouched) and every layer call below hardcoded
+    # `dry_run=False`, so `python scripts/xbrl_second_opinion_daily.py --dry-run` actually
+    # ran live and wrote real findings to data_patrol_log. Live-caught: a verification run
+    # of this exact wrapper with --dry-run logged 5+1+1 real rows to the DB. The three
+    # underlying scripts (xbrl_yfinance_crosscheck.py etc.) already have correct --dry-run
+    # handling of their own - this wrapper just never threaded it through. `argv` defaults
+    # to None (-> sys.argv[1:]) for real CLI use but lets tests pass an explicit list instead
+    # of parsing the pytest process's own argv.
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run all three layers without writing findings to data_patrol_log.",
+    )
+    args = parser.parse_args(argv)
 
     started = time.monotonic()
     failures = 0
@@ -120,7 +139,7 @@ def main() -> None:
     )
     for label, fn, limit in layers:
         try:
-            summary = fn(limit=limit, symbols_override=None, dry_run=False)
+            summary = fn(limit=limit, symbols_override=None, dry_run=args.dry_run)
             logger.info(f"[SECOND_OPINION_DAILY] {label}: sampled {summary['sampled_symbols']} symbol(s)")
         except Exception as e:
             # Non-fatal by design (see module docstring): a transient SEC/yfinance outage

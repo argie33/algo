@@ -34,13 +34,34 @@ class TestMain:
             from scripts.xbrl_second_opinion_daily import main
 
             with pytest.raises(SystemExit) as exc:
-                main()
+                main([])
 
             assert exc.value.code == 0
             yf_run.assert_called_once_with(limit=25, symbols_override=None, dry_run=False)
             calc_run.assert_called_once_with(limit=15, symbols_override=None, dry_run=False)
             dqc_sample.assert_called_once_with(10)
             dqc_run.assert_called_once_with(symbols=["A"] * 10, dry_run=False)
+
+    def test_dry_run_flag_threads_through_to_every_layer(self) -> None:
+        """BUG FIX 2026-09-13: main() previously had no argument parsing at all, so
+        `--dry-run` was silently ignored and every layer always ran live - this is the
+        regression test for that fix.
+        """
+        with (
+            patch("scripts.xbrl_yfinance_crosscheck.run", return_value=_summary(25)) as yf_run,
+            patch("scripts.xbrl_calculation_linkbase_check.run", return_value=_summary(15)) as calc_run,
+            patch("scripts.xbrl_dqc_arelle_check._select_rotating_sample", return_value=["A"] * 10),
+            patch("scripts.xbrl_dqc_arelle_check.run", return_value=_dqc_summary(10)) as dqc_run,
+        ):
+            from scripts.xbrl_second_opinion_daily import main
+
+            with pytest.raises(SystemExit) as exc:
+                main(["--dry-run"])
+
+            assert exc.value.code == 0
+            yf_run.assert_called_once_with(limit=25, symbols_override=None, dry_run=True)
+            calc_run.assert_called_once_with(limit=15, symbols_override=None, dry_run=True)
+            dqc_run.assert_called_once_with(symbols=["A"] * 10, dry_run=True)
 
     def test_dqc_adapter_uses_rotating_sample_when_no_override_given(self) -> None:
         """_run_dqc_layer itself (not just main()'s wiring) picks a fresh rotating
@@ -69,7 +90,7 @@ class TestMain:
             from scripts.xbrl_second_opinion_daily import main
 
             with pytest.raises(SystemExit) as exc:
-                main()
+                main([])
 
             # Every layer still gets attempted, but a partial failure must still exit
             # nonzero - otherwise it never surfaces (Task Scheduler's LastTaskResult
@@ -97,7 +118,7 @@ class TestMain:
             from scripts.xbrl_second_opinion_daily import main
 
             with pytest.raises(SystemExit) as exc:
-                main()
+                main([])
 
             assert exc.value.code == 1
             yf_run.assert_called_once()
@@ -115,6 +136,6 @@ class TestMain:
             from scripts.xbrl_second_opinion_daily import main
 
             with pytest.raises(SystemExit) as exc:
-                main()
+                main([])
 
             assert exc.value.code == 1

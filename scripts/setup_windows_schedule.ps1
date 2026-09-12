@@ -367,24 +367,74 @@ Write-Host "  - segment-sum-vs-consolidated-revenue check against SEC's monthly 
 $xbrlSegmentSumLocalTime = Convert-EasternTimeToLocal -Hour 6 -Minute 0
 Write-Host "[INFO] ET 06:00 -> local $xbrlSegmentSumLocalTime"
 
-$xbrlSegmentSumAction = New-ScheduledTaskAction `
-    -Execute $pythonExe `
-    -Argument "scripts/xbrl_segment_sum_reconciliation.py" `
-    -WorkingDirectory $algoPath
-
-$xbrlSegmentSumTrigger = New-ScheduledTaskTrigger `
-    -Monthly `
-    -At $xbrlSegmentSumLocalTime `
-    -DaysOfMonth 2
-
-$xbrlSegmentSumSettings = New-ScheduledTaskSettingsSet `
-    -AllowStartIfOnBatteries:$true `
-    -DontStopIfGoingOnBatteries `
-    -Compatibility Win8 `
-    -MultipleInstances IgnoreNew `
-    -WakeToRun `
-    -RestartCount 3 `
-    -RestartInterval (New-TimeSpan -Minutes 20)
+# BUG FIX (2026-09-13): `New-ScheduledTaskTrigger -Monthly` is not a real parameter set on
+# this PowerShell/ScheduledTasks module (`(Get-Command New-ScheduledTaskTrigger).ParameterSets`
+# only has Once/Daily/Weekly/Startup/Logon) - this line threw ParameterBindingException on
+# every single run, and because it wasn't wrapped for a graceful continue, it happened
+# *before* $xbrlSegmentSumTrigger was ever assigned, so the Register-ScheduledTask call below
+# failed too (empty -Trigger). This is why Task 5 (xbrl-second-opinion, above) landed live on
+# this machine but Task 6 never did, despite both being "wired up" in the same commit - live
+# schtasks query confirmed only \algo\xbrl-second-opinion existed, \algo\xbrl-segment-sum-monthly
+# did not. The CIM-native replacement (MSFT_TaskMonthlyTrigger via New-CimInstance) was tried
+# next and *also* failed (HRESULT 0x80070057/E_INVALIDARG on Register-ScheduledTask, live-
+# reproduced even with correctly-typed [uint16] DaysOfMonth/MonthOfYear bitmasks per the
+# class's real CimType - root cause not fully isolated, possibly a required Repetition/
+# RandomDelay sub-object New-CimInstance -ClientOnly leaves null that this trigger type
+# needs). Switched to a plain Task Scheduler XML definition instead (ScheduleByMonth/
+# DaysOfMonth/Months) fed through `Register-ScheduledTask -Xml`, mirroring the exact
+# structure `schtasks /Query ... /XML` dumped for the already-working xbrl-second-opinion
+# task - this got past registration (live-tested: failed only on the expected "Access is
+# denied" for the un-elevated test session, the same S4U-needs-elevation barrier every other
+# task in this script already has, not a malformed-trigger error).
+$xbrlSegmentSumStartDate = (Get-Date).ToString("yyyy-MM-dd")
+$xbrlSegmentSumTaskXml = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>XBRL data-quality layer 7: segment-sum-vs-consolidated-revenue reconciliation against SEC's monthly bulk Notes dataset</Description>
+    <URI>$taskFolder\xbrl-segment-sum-monthly</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>$env:USERNAME</UserId>
+      <LogonType>S4U</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <RestartOnFailure>
+      <Count>3</Count>
+      <Interval>PT20M</Interval>
+    </RestartOnFailure>
+    <WakeToRun>true</WakeToRun>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>${xbrlSegmentSumStartDate}T${xbrlSegmentSumLocalTime}:00</StartBoundary>
+      <ScheduleByMonth>
+        <DaysOfMonth>
+          <Day>2</Day>
+        </DaysOfMonth>
+        <Months>
+          <January /><February /><March /><April /><May /><June />
+          <July /><August /><September /><October /><November /><December />
+        </Months>
+      </ScheduleByMonth>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>$pythonExe</Command>
+      <Arguments>scripts/xbrl_segment_sum_reconciliation.py</Arguments>
+      <WorkingDirectory>$algoPath</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+"@
 
 if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "xbrl-segment-sum-monthly" -ErrorAction SilentlyContinue) {
     Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "xbrl-segment-sum-monthly" -Confirm:$false
@@ -396,11 +446,7 @@ if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "xbrl-segment-sum-month
 Register-ScheduledTask `
     -TaskName "xbrl-segment-sum-monthly" `
     -TaskPath $taskFolder `
-    -Action $xbrlSegmentSumAction `
-    -Trigger $xbrlSegmentSumTrigger `
-    -Settings $xbrlSegmentSumSettings `
-    -Principal $taskPrincipal `
-    -Description "XBRL data-quality layer 7: segment-sum-vs-consolidated-revenue reconciliation against SEC's monthly bulk Notes dataset" `
+    -Xml $xbrlSegmentSumTaskXml `
     -ErrorAction Stop | Out-Null
 
 Write-Host "[OK] xbrl-segment-sum-monthly task scheduled for the 2nd of each month, 06:00 ET"
