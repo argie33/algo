@@ -76,6 +76,58 @@ class FinancialStatementsValueValidationMixin:
         "UPC": frozenset({2023, 2024, 2025}),
     }
 
+    # Single-FIELD sibling of KNOWN_BAD_FILING_SCALE_ERRORS above, for a filing where only
+    # ONE concept is wrong rather than the whole filing - {symbol: {fiscal_year: {field, ...}}}.
+    #
+    # BMHL (Bluemount Holdings Ltd, CIK 0002027815): live-confirmed via real SEC companyfacts
+    # JSON that its FY2023-2025 20-F/A (accession 0001171843-25-005486) tags cost_of_revenue
+    # from BOTH us-gaap:CostOfRevenue (HKD 7,259,000/12,493,000/31,887,000) AND ifrs-full:
+    # CostOfSales (HKD 9,735/15,078/33,834, same accn/filed/period) for the same 3 fiscal
+    # years - a ~750-943x discrepancy. ifrs-full:CostOfSales is the real figure: it ties out
+    # exactly against ifrs-full:Revenue minus ifrs-full:GrossProfit in USD (6,892 - 2,554 =
+    # 4,338, matching CostOfSales' own USD-unit fact exactly), while us-gaap:CostOfRevenue's
+    # values are wildly implausible against ~$6-7K revenue. Root cause is NOT a filer-side
+    # scale error (revenue/gross_profit/net_income are all correctly scaled, so
+    # KNOWN_BAD_FILING_SCALE_ERRORS's whole-row rejection would wrongly null good data) - it's
+    # utils/external/sec_statements_aggregate.py's shared `_aggregate_concepts` engine's
+    # "first-populated-wins for cross-concept collisions" tiebreak
+    # (_aggregate_concepts_should_replace_entry, FIXED 2026-09-07 for a real CVE bug) combined
+    # with `_aggregate_concepts_build_specs` always listing us-gaap concepts before ifrs
+    # aliases: us-gaap:CostOfRevenue structurally always gets processed first, so it always
+    # wins the "first populated" slot over ifrs-full:CostOfSales whenever a filer tags both
+    # for the same period, correct or not. Not fixed at that shared-engine layer (every
+    # symbol's every concept goes through it - same "out of scope to modify safely under this
+    # fix's evidence-gathering pass" reasoning as KNOWN_BAD_FILING_SCALE_ERRORS's own UPC
+    # entry above) - rejecting just this one field, not revenue/gross_profit/net_income which
+    # are independently confirmed correct.
+    KNOWN_BAD_SINGLE_FIELD_CONCEPT_ERRORS: dict[str, dict[int, frozenset[str]]] = {
+        "BMHL": {
+            2023: frozenset({"cost_of_revenue"}),
+            2024: frozenset({"cost_of_revenue"}),
+            2025: frozenset({"cost_of_revenue"}),
+        },
+    }
+
+    def _reject_known_bad_single_field_concept_errors(self, transformed: list[dict[str, Any]]) -> None:
+        """Null specific fields on a row matching KNOWN_BAD_SINGLE_FIELD_CONCEPT_ERRORS - a
+        single wrong-taxonomy concept, not a whole-filing scale error (see that registry's own
+        docstring). Mutates `transformed` in place. Runs alongside
+        _reject_known_bad_filing_scale_errors, before any other guard.
+        """
+        for row in transformed:
+            symbol = row.get("symbol")
+            fiscal_year = row.get("fiscal_year")
+            if symbol not in self.KNOWN_BAD_SINGLE_FIELD_CONCEPT_ERRORS or not isinstance(fiscal_year, int):
+                continue
+            fields = self.KNOWN_BAD_SINGLE_FIELD_CONCEPT_ERRORS[symbol].get(fiscal_year)
+            if not fields:
+                continue
+            for field in fields:
+                if row.get(field) is None:
+                    continue
+                row[field] = None
+                self._record_explicit_null_rejection(row, field, "confirmed_wrong_taxonomy_concept_rejected")
+
     def _reject_known_bad_filing_scale_errors(self, transformed: list[dict[str, Any]]) -> None:
         """Null every numeric field on a row matching KNOWN_BAD_FILING_SCALE_ERRORS - a
         whole-filing scale error that no per-field ratio guard can detect (see that

@@ -1617,6 +1617,8 @@ class ConsolidatedFinancialStatementsLoader(
         # get a chance to seed a derived/fallback field elsewhere in this method. See
         # KNOWN_BAD_FILING_SCALE_ERRORS's own docstring (financial_statements_value_validation.py).
         self._reject_known_bad_filing_scale_errors(transformed)
+        # Single-field sibling - see KNOWN_BAD_SINGLE_FIELD_CONCEPT_ERRORS's own docstring.
+        self._reject_known_bad_single_field_concept_errors(transformed)
 
         # FIXED 2026-08-21 (goal session - broad shares_outstanding cross-check audit,
         # follow-up to the BRK.A/HEI dual-class fix): SEC's companyfacts REST API does NOT
