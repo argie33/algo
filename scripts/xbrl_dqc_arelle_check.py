@@ -11,17 +11,25 @@ processor (Arelle) plus a native-Python Arelle plugin implementing DQC.US.0001/0
 0009/0013/0014/0015/0018/0033-0036/0041 (a real subset of the full current 196-rule set, not
 all of it - the rest is Xule-based and not packaged for pip as of this writing).
 
-Live-verified 2026-09-12 (memory: dqc_arelle_local_validation_proven_20260912): ran against
-AIT's (Applied Industrial Technologies) real FY2026 10-K and found genuine DQC.US.0001.51/.52
-violations (extension members used on FairValueByFairValueHierarchyLevelAxis and
-ReclassificationOutOfAccumulatedOtherComprehensiveIncomeAxis, where only standard taxonomy
-members belong) - a real filing-quality defect in AIT's own filing, independent of anything our
-extraction pipeline does. This is a DIFFERENT bug class from everything checks 1-5 (tie_out.py,
+CORRECTED 2026-09-12: the original "live-verified against AIT, found genuine DQC.US.0001.51/.52
+violations" claim (memory dqc_arelle_local_validation_proven_20260912) is retracted. Re-running
+this script against AAPL's real FY2025 10-K - a company whose own real-world XBRL tagging is
+about as scrutinized as any filer's gets - produced 257 DQC.US.0001.x "violations", all of them
+flagging entirely standard us-gaap taxonomy members (e.g. `FairValueInputsLevel2Member`,
+`DesignatedAsHedgingInstrumentMember`) as if they were the filer's own custom extensions. That is
+not plausible as a real filing defect at that volume on that filer, and the same shape almost
+certainly explains the original AIT "genuine" findings too. Root cause: dqc_us_rules'
+`_is_extension()` check depends on the local Arelle taxonomy package cache recognizing the
+filing's dated us-gaap namespace (e.g. http://fasb.org/us-gaap/2025) as "standard" - when it
+doesn't, every concept in that namespace misclassifies as an extension. `_parse_dqc_findings`
+now filters these out via `_is_taxonomy_resolution_false_positive` (see its docstring) before
+anything is logged as a finding; see memory dqc_arelle_taxonomy_resolution_false_positive_20260912
+for the full trail. This is a DIFFERENT bug class from everything checks 1-5 (tie_out.py,
 statistical_anomaly.py, yfinance crosscheck, calc-linkbase check, concept-coverage scan) catch:
-those validate OUR extracted values; DQC validates whether the FILER's own XBRL tagging follows
-the industry rulebook, which can help explain (not necessarily fix) some of the "127" missing-
-data floor's stranger cases - a filer whose own filing fails DQC rules around an axis/concept
-may be exactly why that concept extracts as implausible or missing in the first place.
+those validate OUR extracted values; DQC (when its own findings are trustworthy) validates
+whether the FILER's own XBRL tagging follows the industry rulebook - treat any surviving finding
+as a review-queue candidate, not an automatic "real filing bug," until spot-checked the way the
+AAPL/AIT cases above were.
 
 Requires `pip install -r requirements-xbrl-dqc.txt` (arelle-release==2.45.0, dqc_us_rules==3.6.0,
 pinned and verified to install cleanly). Deliberately its own separate requirements file, same
@@ -49,6 +57,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import shutil
 import subprocess
 import sys
@@ -165,6 +174,82 @@ class DqcRunError(Exception):
     check_silent_fallbacks_worktree_skip_path_defeats_check_20260911)."""
 
 
+_QNAME_TOKEN_RE = re.compile(r"([\w.-]+):(\w+)")
+_ALNUM_RE = re.compile(r"[^a-z0-9]")
+
+# Standard taxonomy namespace prefixes as they appear in Arelle's rendered fact1.dimensions
+# strings. A member living under one of these can never be a filer's own "extension member" -
+# extensions always live under the filer's own company-specific prefix (e.g. "aapl:", "ait:").
+_STANDARD_TAXONOMY_PREFIXES = {
+    "us-gaap",
+    "dei",
+    "srt",
+    "ifrs-full",
+    "invest",
+    "country",
+    "currency",
+    "exch",
+    "naics",
+    "sic",
+    "stpr",
+}
+
+
+def _normalize_xbrl_label(text: str) -> str:
+    return _ALNUM_RE.sub("", text.lower())
+
+
+def _is_taxonomy_resolution_false_positive(code: str, message_el: ET.Element) -> bool:
+    """True if this DQC.US.0001.x finding's flagged "extension member" actually resolves to a
+    standard-namespace concept in the fact's own rendered dimensions - i.e. it cannot possibly
+    be a real filer extension, regardless of which axis it's on.
+
+    Added 2026-09-12 after live-reproducing a false-positive: AAPL's real FY2025 10-K got 170
+    DQC.US.0001.51 hits all claiming standard members like `us-gaap:FairValueInputsLevel2Member`
+    were "extension members" on the Fair Value Hierarchy axis, plus more of the same shape under
+    DQC.US.0001.66 on the (differently-configured) Hedging Designation axis for
+    `us-gaap:DesignatedAsHedgingInstrumentMember`/`NondesignatedMember`. Root cause: dqc_us_rules'
+    `_is_extension()` classifies a concept as an extension purely by checking
+    `concept.qname.namespaceURI not in val.disclosureSystem.standardTaxonomiesDict`, which
+    depends on Arelle recognizing the filing's dated us-gaap namespace (e.g.
+    http://fasb.org/us-gaap/2025) as "standard" - if the local Arelle taxonomy package cache
+    doesn't have that year registered, EVERY concept in that namespace misclassifies as an
+    extension and every DQC.US.0001.x sub-rule fires on entirely standard tagging, on any axis.
+    An earlier version of this check cross-referenced dqc_us_rules' own bundled per-axis
+    `defined_members` allowlist (DQC_US_0001/dqc_0001.json) instead - that caught the Fair Value
+    axis case (170/170) but missed the Hedging Designation axis case (dqc_0001.json only lists
+    a handful of "well-known axes", not every axis a filer might use with a standard member), so
+    it's replaced with this axis-independent check: match the finding's human-readable "member"
+    label against every qname token actually present in the fact's own rendered dimensions, and
+    treat it as a tool false positive if the matching qname's prefix is a standard taxonomy
+    namespace. Confirmed by reproducing the same shape on the already-logged AIT example (memory
+    dqc_arelle_local_validation_proven_20260912's "genuine" finding) - that claim is retracted;
+    see memory dqc_arelle_taxonomy_resolution_false_positive_20260912.
+    """
+    if not code.startswith("DQC.US.0001."):
+        return False
+    member_label = message_el.get("member", "")
+    target = _normalize_xbrl_label(member_label)
+    if not target:
+        return False
+    # Arelle truncates a long fact1.dimensions string mid-token (e.g. "...us-gaap:Nondesigna...")
+    # on facts with several dimensions, so an exact match on the (possibly cut-off) local name
+    # would miss real matches; a truncated local name is still always a genuine prefix of the
+    # full one, so prefix-match in both directions rather than requiring equality.
+    dimensions_text = message_el.get("fact1.dimensions", "")
+    for prefix, local in _QNAME_TOKEN_RE.findall(dimensions_text):
+        if prefix not in _STANDARD_TAXONOMY_PREFIXES:
+            continue
+        normalized_local = _normalize_xbrl_label(local)
+        if normalized_local == target:
+            return True
+        # Only trust a one-sided prefix match (truncation) once it's long enough that a
+        # coincidental short-prefix collision between unrelated members is implausible.
+        if len(normalized_local) >= 8 and target.startswith(normalized_local):
+            return True
+    return False
+
+
 def _parse_dqc_findings(log_path: Path, proc: subprocess.CompletedProcess[bytes]) -> list[dict[str, str]]:
     if not log_path.exists():
         raise DqcRunError(f"arelleCmdLine produced no log file (exit code {proc.returncode}): {proc.stderr[-500:]!r}")
@@ -177,13 +262,26 @@ def _parse_dqc_findings(log_path: Path, proc: subprocess.CompletedProcess[bytes]
             f"(errors: {error_texts[:3]})"
         )
     findings = []
+    suspected_false_positives = 0
     for entry in entries:
         code = entry.get("code", "")
         if not code.startswith("DQC."):
             continue
         message_el = entry.find("message")
-        text = (message_el.text or "").strip().split("\n")[0] if message_el is not None else ""
+        if message_el is None:
+            continue
+        if _is_taxonomy_resolution_false_positive(code, message_el):
+            suspected_false_positives += 1
+            continue
+        text = (message_el.text or "").strip().split("\n")[0]
         findings.append({"rule": code, "message": text[:300]})
+    if suspected_false_positives:
+        logger.warning(
+            f"[DQC_CHECK] excluded {suspected_false_positives} finding(s) whose flagged member "
+            "resolves to a standard taxonomy namespace in the fact's own dimensions - taxonomy-"
+            "recognition false positive, not a real filing defect (see "
+            "_is_taxonomy_resolution_false_positive docstring)"
+        )
     return findings
 
 
