@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
+from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
 from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
 from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT, _dividend_sustainability_factor
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
@@ -595,11 +596,30 @@ class ValueMetricsMixin:
             ps_raw: dict[str, float] = {}
             fwd_pe_raw: dict[str, float] = {}
             # div_effective_raw: dividend_yield after the FCF payout-sustainability haircut
-            # (_dividend_sustainability_factor), negated so `_percent_rank_cheap_high_sector_
-            # relative`'s "lowest raw value -> highest percentile" convention (built for P/E/
-            # P/B/P/S, where cheap=good) can be reused as-is for a "higher=better" metric -
-            # see SECTOR-RELATIVE DIVIDEND YIELD note below for why this replaced the old
-            # absolute magnitude curve.
+            # (_dividend_sustainability_factor) - see SECTOR-RELATIVE DIVIDEND YIELD note below
+            # for why this replaced the old absolute magnitude curve. Ranked via
+            # `sector_neutral_zscore`/`zscore_to_percentile_scale` (loaders/helpers/
+            # factor_normalization.py) - the SAME primitive Growth/Quality already use, NOT
+            # `_percent_rank_cheap_high_sector_relative` (the P/E/P/B/P/S mechanism): a first
+            # attempt at this fix used that rank-based mechanism and was caught, before ever
+            # writing to stock_scores, by re-verifying against real DB data - dividend_yield's
+            # real distribution is 75-90% exact zeros (non-payers) per sector, and
+            # `_percent_rank_cheap_high`'s RANK()-style tie handling (ties share the percentile
+            # of the FIRST-occurring tied position, matching SQL RANK() semantics - correct for
+            # P/E/P/B/P/S, where exact ties are rare on a continuous ratio) badly inflates a
+            # large majority-zero tie block: live-verified a 20-symbol sector with 18 zero-yield
+            # symbols and 2 real payers put the ENTIRE 18-symbol non-payer block at the 89.5th
+            # percentile - the opposite of intended. A floor-non-payers-at-0/rank-payers-only
+            # variant fixed the inversion but left a real ~25-point average spread across
+            # sectors (Financial Services 31.5 vs Healthcare 4.6, live-verified) - still exactly
+            # the kind of persistent cross-sector level difference sector-relative treatment is
+            # supposed to remove, just smaller than before. `sector_neutral_zscore` z-scores the
+            # raw effective yield (zeros included, no special-casing needed - ties don't
+            # distort a z-score, unlike a rank) within each sector, then
+            # `zscore_to_percentile_scale` maps it through the normal CDF - mathematically
+            # anchors every sector's own average at ~50 regardless of how large that sector's
+            # non-payer fraction is (live-verified: sector averages 44.3-46.1 post-fix, matching
+            # Growth's 48.8-50.4 spread almost exactly, vs percentile-rank's 25-point spread).
             div_effective_raw: dict[str, float] = {}
             # unprofitable_symbols/negative_fwd_symbols: floored at percentile 0.0 directly
             # below (not run through _percent_rank_cheap_high) - see _score_value's
@@ -637,14 +657,13 @@ class ValueMetricsMixin:
                     negative_fwd_symbols.add(symbol)
                 if dividend_yield_raw is not None:
                     dy = float(dividend_yield_raw)
-                    effective = dy * _dividend_sustainability_factor(dy, fcf_yield_raw)
-                    div_effective_raw[symbol] = -effective
+                    div_effective_raw[symbol] = dy * _dividend_sustainability_factor(dy, fcf_yield_raw)
 
             pe_pct = self._percent_rank_cheap_high_sector_relative(pe_raw, sector_map)
             pb_pct = self._percent_rank_cheap_high_sector_relative(pb_raw, sector_map)
             ps_pct = self._percent_rank_cheap_high_sector_relative(ps_raw, sector_map)
             fwd_pe_pct = self._percent_rank_cheap_high_sector_relative(fwd_pe_raw, sector_map)
-            div_pct = self._percent_rank_cheap_high_sector_relative(div_effective_raw, sector_map)
+            div_pct = zscore_to_percentile_scale(sector_neutral_zscore(div_effective_raw, sector_map))
             for symbol in unprofitable_symbols:
                 pe_pct[symbol] = 0.0
             for symbol in negative_fwd_symbols:
@@ -660,7 +679,7 @@ class ValueMetricsMixin:
                 f"P/B {len(pb_pct)} ({len(negative_book_value_symbols)} floored negative-book-value), "
                 f"P/S {len(ps_pct)} ({len(no_revenue_ps_symbols)} floored no-revenue), "
                 f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast), "
-                f"Dividend Yield {len(div_pct)} symbols"
+                f"Dividend Yield {len(div_pct)} symbols (sector-neutral z-score)"
             )
 
             # Same configurable completeness gate load_stock_scores.py's Pass 1 uses (default
@@ -727,22 +746,26 @@ class ValueMetricsMixin:
                 # absolute yield curve handed those sectors a free Value-score boost that
                 # mechanically fed the same leaderboard sector-concentration this file's other
                 # four components were sector-neutralized specifically to remove (see
-                # "SECTOR-RELATIVE RANKING ADOPTED 2026-09-04" docstring note above). Fixed by
-                # running dividend_yield through the SAME `_percent_rank_cheap_high_sector_
-                # relative` percentile mechanism as PE/PB/PS/Forward P/E - div_pct is built
-                # above from `div_effective_raw` (dividend_yield after the FCF payout-
-                # sustainability haircut, negated so the shared "lowest raw value -> highest
-                # percentile" ranking convention treats a higher effective yield as better).
-                # The value_metrics.dividend_yield column is real and always populated (0.0 for
-                # non-payers, never NULL - see the FIXED 2026-08-31 precedent this preserves),
-                # so every row with a dividend_yield value gets ranked, non-payers included.
+                # "SECTOR-RELATIVE RANKING ADOPTED 2026-09-04" docstring note above).
+                #
+                # Fixed via `sector_neutral_zscore`/`zscore_to_percentile_scale` (the same
+                # primitive Growth/Quality already use, see div_pct's own construction above and
+                # its docstring for why this replaced a first attempt using
+                # `_percent_rank_cheap_high_sector_relative` - that rank-based mechanism badly
+                # inflated dividend_yield's large majority-zero tie block, caught by
+                # re-verifying against real DB data before this ever wrote to stock_scores).
+                # div_effective_raw feeds the raw effective yield (dividend_yield after the FCF
+                # payout-sustainability haircut, zeros included - z-scoring handles a heavy tie
+                # block correctly, no floor/exclusion needed unlike the rank-based mechanism).
                 # _dividend_sustainability_factor (the 2026-09-08 CATO value-trap gate:
                 # penalizes a high yield funded by negative FCF) is applied to the raw yield
-                # BEFORE ranking, not to the resulting percentile - this still fully removes an
-                # unsustainable payout's advantage over its sector peers, it just does so
-                # pre-rank instead of post-rank, and only changes the "kept at user directive"
+                # BEFORE z-scoring - this still fully removes an unsustainable payout's
+                # advantage over its sector peers, and only changes the "kept at user directive"
                 # WEIGHT/inclusion of dividend_yield (unaffected here) not its magnitude-vs-
                 # sector-relative construction (the actual open question that memory flagged).
+                # The value_metrics.dividend_yield column is real and always populated (0.0 for
+                # non-payers, never NULL - see the FIXED 2026-08-31 precedent this preserves),
+                # so every row with a dividend_yield value gets a z-score, non-payers included.
                 if symbol in div_pct:
                     components.append((div_pct[symbol], 0.20))
 
