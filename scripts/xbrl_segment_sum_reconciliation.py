@@ -313,10 +313,10 @@ def run(month: str, symbols_override: list[str] | None, dry_run: bool) -> dict[s
                 "xbrl_segment_sum_reconciliation",
                 "warn",
                 "annual_income_statement",
-                f"{len(examples)} symbol/period(s) where business-segment revenue facts "
-                f"(pure single-axis, non-disaggregated) sum outside "
-                f"{_TOLERANCE_RATIO_LOW:.0%}-{_TOLERANCE_RATIO_HIGH:.0%} of the filing's own "
-                "consolidated revenue - review queue, not a confirmed bug: a filer's own "
+                f"{len(examples)} symbol/period(s) (of {checked} accession(s) checked) where "
+                f"business-segment revenue facts (pure single-axis, non-disaggregated) sum "
+                f"outside {_TOLERANCE_RATIO_LOW:.0%}-{_TOLERANCE_RATIO_HIGH:.0%} of the filing's "
+                "own consolidated revenue - review queue, not a confirmed bug: a filer's own "
                 "segment presentation can genuinely exclude corporate/eliminations lines or "
                 "mix in a differently-dimensioned disaggregation this axis filter didn't catch.",
                 {"checked": checked, "flagged": len(examples), "examples": examples[:_MAX_EXAMPLES]},
