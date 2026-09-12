@@ -27,6 +27,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, cast
 
+from loaders.helpers.sec_revenue_total_resolution import resolve_revenue_total_candidate
 from loaders.helpers.sec_statement_field_bookkeeping import is_bookkeeping_key
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
@@ -1452,6 +1453,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # fields specifically need magnitude-based resolution instead of the general
             # first-populated-wins/fallback-only rule this loop uses everywhere else.
             revenue_total_best: dict[str, float] = {}
+            revenue_total_source: dict[str, str] = {}
             for sec_field, value in ordered_fields:
                 if sec_field in ("symbol", "fiscal_year"):
                     continue
@@ -1486,22 +1488,13 @@ class SecEdgarStatementLoader(SecLoaderBase):
 
                 db_field = field_mapping[sec_field]
                 if sec_field in _REVENUE_TOTAL_CANDIDATE_FIELDS and db_field == "revenue":
-                    # Seed from any value a non-magnitude field already wrote (e.g. a
-                    # mortgage REIT's interest_income_operating), so this group only ever
-                    # OVERWRITES with a larger positive candidate - never blind to what's
-                    # already there, and never regresses an existing correct larger value.
-                    if db_field not in revenue_total_best and db_field in row:
-                        existing = row[db_field]
-                        if isinstance(existing, (int, float, Decimal)):
-                            revenue_total_best[db_field] = float(existing)
-                    if isinstance(value, (int, float, Decimal)) and float(value) > 0:
-                        fvalue = float(value)
-                        current_best = revenue_total_best.get(db_field)
-                        if current_best is None or fvalue > current_best:
-                            revenue_total_best[db_field] = fvalue
-                            row[db_field] = value
-                            if db_field == "revenue":
-                                _revenue_source_sec_field = sec_field
+                    # See sec_revenue_total_resolution.py's own docstring for the magnitude/
+                    # priority rules this applies (incl. the 2026-09-13 AMP/SF fix).
+                    resolve_revenue_total_candidate(
+                        sec_field, value, db_field, row, revenue_total_best, revenue_total_source
+                    )
+                    if revenue_total_source.get(db_field) == sec_field:
+                        _revenue_source_sec_field = sec_field
                     continue
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and db_field in row:
                     continue  # A higher-priority concept already populated this field
