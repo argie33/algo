@@ -621,6 +621,7 @@
   "scripts/clear_stale_loaders.py": 61,
   "scripts/comprehensive_diagnostics.py": 482,
   "scripts/data_patrol_backlog_report.py": 207,
+  "scripts/deactivate_renamed_ticker_duplicates.py": 140,
   "scripts/dev_server_health_check.py": 187,
   "scripts/diagnose_missing_concepts.py": 148,
   "scripts/expire_stale_pending_signals.py": 123,
