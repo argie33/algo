@@ -106,11 +106,15 @@ def _latest_10k_accession(submissions: dict[str, Any]) -> tuple[str, str] | None
 
 
 def _facts_by_concept_for_accession(
-    company_facts: dict[str, Any], taxonomy: str, concept: str, accession_number: str
-) -> float | None:
-    """Reported value for one us-gaap concept on this exact filing (matched by accn -
-    ties the value to the SAME document the calculation linkbase came from, not just
-    "the latest value we happen to have" which could be a later restatement).
+    company_facts: dict[str, Any],
+    taxonomy: str,
+    concept: str,
+    accession_number: str,
+    require_period: tuple[str | None, str | None] | None = None,
+) -> tuple[float, str | None, str | None] | None:
+    """Reported (value, start, end) for one us-gaap concept on this exact filing (matched
+    by accn - ties the value to the SAME document the calculation linkbase came from, not
+    just "the latest value we happen to have" which could be a later restatement).
 
     Prefers USD; if multiple facts share (accn, concept) - e.g. both an instant and a
     duration context somehow tag the same concept, or FY vs cumulative quarters - takes
@@ -135,6 +139,27 @@ def _facts_by_concept_for_accession(
     An instant fact (balance-sheet concepts, no `start` key at all) sorts using ""
     for its missing start, which is fine since instant facts never collide with a
     duration fact under the same concept name in practice.
+
+    FIXED 2026-09-12 (goal session: "keep going with XBRL until it's working best and
+    right" - live re-run surfaced MTNB and LPG as new false-positive mismatches, same
+    "period-selection bug, not a real filing inconsistency" shape as the PLOW fix above,
+    just one step further): a 10-K's XBRL instance carries COMPARATIVE-period facts for
+    the SAME concept under the SAME accession number (this year's column AND last year's
+    column both live in one filing). The `accn`-only match above happily returns a prior
+    fiscal year's value for a child concept that simply has NO fact in the CURRENT
+    period - live-confirmed on MTNB (`ProceedsFromIssuanceOfCommonStock` has a real
+    2024-01-01/2024-12-31 fact but none for 2025) and LPG (`ProceedsFromIssuanceOf
+    CommonStock`/`PaymentsOfStockIssuanceCosts` both only have 2024-04-01/2025-03-31
+    facts, filing's current period is 2025-04-01/2026-03-31) - inflating/deflating the
+    calc-tree sum with a number that was never part of this year's statement at all.
+    Excluding those two concepts, MTNB's remaining children sum to exactly its real
+    financing-activities total ($3,391,000); LPG's remaining children sum to exactly
+    its real total (-$105,900,182). `require_period`, when given, restricts matches to
+    facts whose own (start, end) exactly equals the parent's - the only way to guarantee
+    a child fact actually belongs to the same reporting period as the parent it's being
+    summed against, not merely the same filing. `_check_symbol` now looks up the parent
+    first (unconstrained, to discover ITS period) and passes that period down to every
+    child lookup.
     """
     node = company_facts.get("facts", {}).get(taxonomy, {}).get(concept)
     if not node:
@@ -142,6 +167,9 @@ def _facts_by_concept_for_accession(
     units: dict[str, list[dict[str, Any]]] = node.get("units", {})
     entries: list[dict[str, Any]] = units.get("USD") or next(iter(units.values()), [])
     matches = [e for e in entries if e.get("accn") == accession_number and e.get("val") is not None]
+    if require_period is not None:
+        req_start, req_end = require_period
+        matches = [e for e in matches if (e.get("start") or None) == req_start and (e.get("end") or None) == req_end]
     if not matches:
         return None
     # Two stable sorts (not one tuple key): first by start descending, then by end
@@ -150,17 +178,27 @@ def _facts_by_concept_for_accession(
     # BEFORE earlier-start (longer duration) entries in that tied group. matches[-1]
     # then picks the max `end` overall, and within that group, the earliest `start` -
     # the longest, full-year duration - exactly the "longest/most-recent period end"
-    # this function's docstring already promises.
+    # this function's docstring already promises. (With require_period set, at most one
+    # distinct (start, end) can survive the filter above, so this sort is a no-op safety
+    # net, not load-bearing, in that case.)
     matches.sort(key=lambda e: e.get("start") or "", reverse=True)
     matches.sort(key=lambda e: e.get("end") or "")
-    return float(matches[-1]["val"])
+    best = matches[-1]
+    return float(best["val"]), best.get("start"), best.get("end")
 
 
 def _resolve_tree_children(
-    child_arcs: list[Any], company_facts: dict[str, Any], accession_number: str
+    child_arcs: list[Any],
+    company_facts: dict[str, Any],
+    accession_number: str,
+    parent_period: tuple[str | None, str | None],
 ) -> list[tuple[str, float, float]] | None:
-    """Resolve one calculation tree's child arcs to (concept, weight, value) triples,
-    or None if any child isn't a us-gaap concept resolvable to a fact on this filing."""
+    """Resolve one calculation tree's child arcs to (concept, weight, value) triples, or
+    None if any child isn't a us-gaap concept resolvable to a fact in the SAME reporting
+    period as the parent (`parent_period`) on this filing - see
+    `_facts_by_concept_for_accession`'s 2026-09-12 fix note for why a same-accession match
+    alone isn't enough (a comparative prior-period fact for the same concept can otherwise
+    get silently substituted in)."""
     if len({a.child_concept for a in child_arcs}) < _MIN_CHILDREN:
         return None
     child_values: list[tuple[str, float, float]] = []
@@ -168,23 +206,30 @@ def _resolve_tree_children(
         child_taxonomy, _, child_concept_name = arc.child_concept.partition(":")
         if child_taxonomy != "us-gaap" or not child_concept_name:
             return None
-        child_value = _facts_by_concept_for_accession(company_facts, "us-gaap", child_concept_name, accession_number)
-        if child_value is None:
+        resolved = _facts_by_concept_for_accession(
+            company_facts, "us-gaap", child_concept_name, accession_number, require_period=parent_period
+        )
+        if resolved is None:
             return None
-        child_values.append((child_concept_name, arc.weight, child_value))
+        child_values.append((child_concept_name, arc.weight, resolved[0]))
     return child_values
 
 
 def _best_tying_tree(
-    trees: list[list[Any]], parent_value: float, company_facts: dict[str, Any], accession_number: str
+    trees: list[list[Any]],
+    parent_value: float,
+    company_facts: dict[str, Any],
+    accession_number: str,
+    parent_period: tuple[str | None, str | None],
 ) -> tuple[float, float, list[tuple[str, float, float]]] | None:
     """Evaluate every independent calculation tree for one parent concept (see
     group_by_parent's docstring for why there can be more than one) and return the
     closest-tying one as (diff, expected, child_values), or None if no tree had every
-    child concept resolvable to a us-gaap fact on this filing."""
+    child concept resolvable to a us-gaap fact in the parent's own reporting period on
+    this filing."""
     best: tuple[float, float, list[tuple[str, float, float]]] | None = None
     for child_arcs in trees:
-        child_values = _resolve_tree_children(child_arcs, company_facts, accession_number)
+        child_values = _resolve_tree_children(child_arcs, company_facts, accession_number, parent_period)
         if child_values is None:
             continue
         expected = sum(weight * value for _, weight, value in child_values)
@@ -243,14 +288,17 @@ def _check_symbol(client: Any, cur: Any, symbol: str) -> dict[str, Any] | None:
         if taxonomy != "us-gaap" or not concept:
             continue  # Only the standard taxonomy is guaranteed comparable across filers
 
-        parent_value = _facts_by_concept_for_accession(company_facts, "us-gaap", concept, accession_number)
-        if parent_value is None:
+        resolved_parent = _facts_by_concept_for_accession(company_facts, "us-gaap", concept, accession_number)
+        if resolved_parent is None:
             continue
+        parent_value, parent_start, parent_end = resolved_parent
 
         # A parent can have more than one independently-valid calculation tree (see
         # group_by_parent's docstring) - evaluate each separately and only flag a
-        # mismatch if NONE of them tie; report the closest-tying tree either way.
-        best = _best_tying_tree(trees, parent_value, company_facts, accession_number)
+        # mismatch if NONE of them tie; report the closest-tying tree either way. Every
+        # child must resolve to a fact in the PARENT's own (start, end) period - see
+        # _facts_by_concept_for_accession's 2026-09-12 fix note.
+        best = _best_tying_tree(trees, parent_value, company_facts, accession_number, (parent_start, parent_end))
         if best is None:
             continue
 
