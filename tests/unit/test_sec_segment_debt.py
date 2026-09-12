@@ -126,3 +126,46 @@ class TestFind10KForFiscalYear:
         }
         accession, _ = find_10k_for_fiscal_year(submissions, 2025)
         assert accession == "amended"
+
+    def test_matches_20f_for_a_foreign_private_issuer(self) -> None:
+        """Regression for the 2026-09-11 fix (AMTD IDEA Group live-confirmed): a foreign
+        private issuer files 20-F, not 10-K, as its annual report - this must be matched
+        the same way, not silently return None and skip the dimensional fallback entirely."""
+        submissions = {
+            "filings": {
+                "recent": {
+                    "form": ["20-F", "6-K"],
+                    "reportDate": ["2025-12-31", "2026-01-15"],
+                    "accessionNumber": ["0001213900-26-049333", "other"],
+                    "filingDate": ["2026-04-29", "2026-01-20"],
+                }
+            }
+        }
+        assert find_10k_for_fiscal_year(submissions, 2025) == ("0001213900-26-049333", "2025-12-31")
+
+    def test_matches_40f_for_a_canadian_mjds_filer(self) -> None:
+        submissions = {
+            "filings": {
+                "recent": {
+                    "form": ["40-F"],
+                    "reportDate": ["2025-12-31"],
+                    "accessionNumber": ["x"],
+                    "filingDate": ["2026-03-01"],
+                }
+            }
+        }
+        assert find_10k_for_fiscal_year(submissions, 2025) == ("x", "2025-12-31")
+
+    def test_20fa_amendment_wins_over_original_20f(self) -> None:
+        submissions = {
+            "filings": {
+                "recent": {
+                    "form": ["20-F", "20-F/A"],
+                    "reportDate": ["2025-12-31", "2025-12-31"],
+                    "accessionNumber": ["orig", "amended"],
+                    "filingDate": ["2026-04-29", "2026-05-15"],
+                }
+            }
+        }
+        accession, _ = find_10k_for_fiscal_year(submissions, 2025)
+        assert accession == "amended"

@@ -151,8 +151,28 @@ def sum_segment_dimensional_debt(xml_text: str, period_end: str) -> tuple[float,
     return total, len(segments_covered)
 
 
+_ANNUAL_REPORT_FORM_PREFIXES = ("10-K", "20-F", "40-F")
+
+
 def find_10k_for_fiscal_year(submissions: dict[str, Any], fiscal_year: int) -> tuple[str, str] | None:
-    """Most recent 10-K (or 10-K/A) accession + reportDate for a calendar `fiscal_year`.
+    """Most recent annual-report (10-K/10-K-A, or 20-F/20-F-A, 40-F/40-F-A for a foreign
+    private issuer) accession + reportDate for a calendar `fiscal_year`.
+
+    FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push, AMTD IDEA Group
+    live-confirmed): this only ever matched `form.startswith("10-K")`, silently excluding
+    every foreign private issuer that files 20-F (or a Canadian MJDS 40-F) instead - both
+    callers' own dual-class-EPS/segment-debt dimensional fallbacks never even attempted a
+    fetch for such a filer, regardless of whether resolve_class_letter() or the segment-axis
+    lookup would have succeeded. Live-confirmed via AMTD (AMTD IDEA Group, CIK resolves via
+    symbol_to_cik, real 20-F filed 2026-04-29, accession 0001213900-26-049333): real net_income
+    on file for 5 straight fiscal years ($67.251M/$53.578M/$153.383M/$160.466M/$157.180M) but
+    earnings_per_share/diluted_eps NULL every year despite a real, full-year (qtrs=4),
+    StatementClassOfStockAxis-dimensioned EarningsPerShareBasic/Diluted fact on file for at
+    least FY2023-2025 (live-confirmed via DERA bulk num.txt: $0.37/$0.12/$0.08, identical
+    across Class A/Class B, standard `version="us-gaap/2025"` - not a custom extension).
+    `resolve_class_letter("AMTD", security_name)` already correctly resolves "A" from the
+    security_name's own "Class A Ordinary Shares" text - the ONLY thing blocking recovery was
+    this function returning None before ever calling `get_filing_xml`.
 
     Matches by the reportDate's own year, not an exact date string - `get_balance_sheet()`'s
     aggregated rows don't retain the raw period_end (stripped by `_aggregate_concepts` to cut
@@ -180,7 +200,7 @@ def find_10k_for_fiscal_year(submissions: dict[str, Any], fiscal_year: int) -> t
     candidates = [
         (filed_dates[i] if i < len(filed_dates) else "", accessions[i], report_dates[i])
         for i, form in enumerate(forms)
-        if form.startswith("10-K")
+        if form.startswith(_ANNUAL_REPORT_FORM_PREFIXES)
         and i < len(report_dates)
         and report_dates[i][:4].isdigit()
         and int(report_dates[i][:4]) == fiscal_year
