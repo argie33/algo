@@ -31,6 +31,22 @@ whether the FILER's own XBRL tagging follows the industry rulebook - treat any s
 as a review-queue candidate, not an automatic "real filing bug," until spot-checked the way the
 AAPL/AIT cases above were.
 
+STILL-INCOMPLETE 2026-09-12 (do not re-claim this layer is "clean" without spot-checking): the
+same taxonomy-misclassification shape survived the fix above on MSFT (180/427 findings) and KO
+(236/477) - both fixed further by adding `_KNOWN_STANDARD_AXIS_MEMBER_LABELS`, a hand-maintained
+table of known-standard member labels for the small set of axes DQC.US.0001 actually targets
+(reduced MSFT to 0, KO to 54). KO's remaining 54 are a DIFFERENT residual gap in the same bug
+class, not yet fixed: some standard members' dqc_us_rules-rendered "member" label (e.g. "Segment
+Reporting, Reconciling Item, Corporate Nonsegment [Member]") has no lexical resemblance at all to
+its actual qname local name (`us-gaap:CorporateNonSegmentMember`), so neither the dimensions-text
+match nor the hardcoded label table can recognize it as standard by text comparison alone - a
+structurally different problem from truncation, not fixable by extending either heuristic
+further. The real fix needs an actual taxonomy/label lookup (e.g. loading the instance via
+Arelle's Python API in-process instead of parsing arelleCmdLine's log XML) rather than another
+lexical heuristic; until that's built, a filer showing more than a handful of "genuine" findings
+concentrated on segment-reporting/consolidation axes is still more likely a tool gap than a real
+filing defect - spot-check before trusting the count.
+
 Requires `pip install -r requirements-xbrl-dqc.txt` (arelle-release==2.45.0, dqc_us_rules==3.6.0,
 pinned and verified to install cleanly). Deliberately its own separate requirements file, same
 status as requirements-dev.txt - NOT part of requirements.txt (the app runtime deps) and not a
@@ -199,6 +215,56 @@ def _normalize_xbrl_label(text: str) -> str:
     return _ALNUM_RE.sub("", text.lower())
 
 
+# Axis label (as Arelle renders the "axis" attribute, normalized) -> the finite set of FASB
+# extensible-list member labels (normalized) that are standard for that axis. Hand-maintained
+# because DQC.US.0001 only ever fires on a small, well-known set of FASB extensible-list axes
+# (that is the rule family's whole premise - these axes have a closed standard-member vocabulary,
+# which is exactly what makes a real filer extension on them suspicious), and the two other
+# available sources both have real gaps: dqc_us_rules' own bundled `defined_members` allowlist
+# (DQC_US_0001/dqc_0001.json) is missing newer standard members (e.g. the ASU 2015-07 NAV
+# practical-expedient member, `FairValueMeasuredAtNetAssetValuePerShareMember`, live-confirmed
+# absent from the installed dqc_us_rules==3.6.0 package data even though it is a real, standard
+# us-gaap concept) - and the fact1.dimensions text-matching fallback below cannot help either,
+# since Arelle truncates that string to a fixed character budget and a fact with 2+ dimensions
+# routinely gets cut before the flagged member's own qname is rendered at all (live-confirmed on
+# MSFT: `fact1.dimensions='...us-gaap:FairValueBy...'`, cut off mid-axis-name, zero characters of
+# the actual member's local name present to match against). Added 2026-09-12 after this exact
+# gap let 180/427 (MSFT) and 236/477 (KO) DQC.US.0001.x findings survive the fact1.dimensions-only
+# filter below as apparent "genuine" violations on two of the most scrutinized filers in the
+# world - live re-verified as the same taxonomy-misclassification shape as the AAPL/AIT case this
+# filter was originally built for, not real filing defects.
+_KNOWN_STANDARD_AXIS_MEMBER_LABELS: dict[str, set[str]] = {
+    "fairvaluehierarchyandnavaxis": {
+        "fairvalueinputslevel1member",
+        "fairvalueinputslevel2member",
+        "fairvalueinputslevel3member",
+        "fairvaluemeasuredatnetassetvaluepersharemember",
+    },
+    "hedgingdesignationaxis": {
+        "designatedashedginginstrumentmember",
+        "nondesignatedmember",
+        "notdesignatedashedginginstrumentmember",
+    },
+    "consolidationitemsaxis": {
+        "consolidationeliminationsmember",
+        "parentcompanymember",
+    },
+    "statisticalmeasurementaxis": {
+        "maximummember",
+        "minimummember",
+        "weightedaveragemember",
+    },
+    "positionaxis": {
+        "shortmember",
+        "longmember",
+    },
+    "rangeaxis": {
+        "maximummember",
+        "minimummember",
+    },
+}
+
+
 def _is_taxonomy_resolution_false_positive(code: str, message_el: ET.Element) -> bool:
     """True if this DQC.US.0001.x finding's flagged "extension member" actually resolves to a
     standard-namespace concept in the fact's own rendered dimensions - i.e. it cannot possibly
@@ -225,6 +291,11 @@ def _is_taxonomy_resolution_false_positive(code: str, message_el: ET.Element) ->
     namespace. Confirmed by reproducing the same shape on the already-logged AIT example (memory
     dqc_arelle_local_validation_proven_20260912's "genuine" finding) - that claim is retracted;
     see memory dqc_arelle_taxonomy_resolution_false_positive_20260912.
+
+    EXTENDED 2026-09-12 with `_KNOWN_STANDARD_AXIS_MEMBER_LABELS` as a second, independent check
+    (see its own docstring) - the dimensions-text approach below is necessary for axes/members not
+    in that hand-maintained table, but proved insufficient alone once MSFT/KO exposed its
+    truncation blind spot.
     """
     if not code.startswith("DQC.US.0001."):
         return False
@@ -232,6 +303,9 @@ def _is_taxonomy_resolution_false_positive(code: str, message_el: ET.Element) ->
     target = _normalize_xbrl_label(member_label)
     if not target:
         return False
+    axis_key = _normalize_xbrl_label(message_el.get("axis", ""))
+    if target in _KNOWN_STANDARD_AXIS_MEMBER_LABELS.get(axis_key, ()):
+        return True
     # Arelle truncates a long fact1.dimensions string mid-token (e.g. "...us-gaap:Nondesigna...")
     # on facts with several dimensions, so an exact match on the (possibly cut-off) local name
     # would miss real matches; a truncated local name is still always a genuine prefix of the
