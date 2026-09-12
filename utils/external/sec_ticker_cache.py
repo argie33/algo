@@ -251,6 +251,18 @@ CIK_OVERRIDES: dict[str, str] = {
     # HOS/SGRX/GRAF/AXIA/CMII/TOI above. Real, very recent activity (multiple Form 3/4 filings
     # dated the same day as this fix) confirms a live, actively-reporting entity.
     "KRSA": "0001755237",  # Korsana Biosciences, Inc. (formerly Cyclerion Therapeutics, ticker CYCN) - see comment above
+    # NXAT: found 2026-09-11 (goal: "SEC/XBRL missing data under 200" push, cik_not_found/
+    # symbol_not_found buckets - our own stock_symbols row was only created 2026-09-10, so
+    # no prior session had a chance to hit this). CIK 0002000756's own submissions.json
+    # `name` is "Nexus Advanced Technologies Inc." - an exact match to our tracked
+    # security_name - with formerNames showing "K Wave Media Ltd." through 2026-08-20,
+    # same rename-not-caught-up shape as HOS/SGRX/GRAF/AXIA/CMII/TOI/KRSA above: the
+    # tickers field still only shows the pre-rename ['KWM', 'KWMWW'] (our own stock_symbols
+    # separately still tracks KWM as "K Wave Media, Ltd." under its own row - two rows, one
+    # underlying CIK, expected during a live rename). Real, current activity (6-K filed the
+    # same day as this fix, 2026-09-11) confirms a live, actively-reporting entity, not
+    # defunct.
+    "NXAT": "0002000756",  # Nexus Advanced Technologies Inc. (formerly K Wave Media Ltd., ticker KWM) - see comment above
 }
 
 # FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push, dividend_data/
