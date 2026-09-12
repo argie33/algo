@@ -678,6 +678,26 @@ class TickerCache:
         except (requests.ConnectionError, requests.Timeout, ValueError):
             return True
 
+    def get_full_ticker_cik_mapping(self) -> dict[str, str]:
+        """Return a copy of the full ticker->CIK mapping from SEC's bulk company_tickers.json,
+        refreshing first if the cache is missing/stale (same trigger as symbol_to_cik).
+
+        ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push, GLMD/EOCN rename
+        investigation): this file's own bulk fetch already lists each ticker as a separate
+        entry, so a company mid-rename (e.g. Galmed Pharmaceuticals -> Eocene Ltd., GLMD ->
+        EOCN, live-confirmed 2026-09-11) shows up as TWO entries sharing the same CIK - a
+        signal this class never exposed before, only ever consumed one ticker at a time via
+        symbol_to_cik(). Grouping this mapping by CIK value lets a caller detect "two active
+        stock_symbols tickers share a CIK" (a rename in progress, stock_symbols not yet
+        reconciled) using data already fetched once daily for ordinary CIK resolution - no
+        extra network calls beyond the existing refresh. See
+        loaders/load_market_constituents.py's _detect_same_cik_duplicate_active_symbols for
+        the consumer.
+        """
+        if self._ticker_cache is None or time.time() - self._ticker_cache_time > self._cache_ttl:
+            self._refresh_ticker_cache()
+        return dict(self._ticker_cache or {})
+
     def symbol_to_cik(self, symbol: str) -> str:
         """Convert ticker (AAPL) to zero-padded CIK (0000320193).
 

@@ -866,6 +866,119 @@ class MarketConstituentsLoader(OptimalLoader):
         except (ValueError, TypeError, RuntimeError) as notify_err:
             logger.error(f"[MARKET_CONSTITUENTS] Failed to send delisted-deactivation alert: {notify_err}")
 
+    def _detect_same_cik_duplicate_active_symbols(self) -> None:
+        """Detect (never mutate) active `stock_symbols` pairs that resolve to the same SEC
+        CIK - i.e. a corporate rename in progress where the old and new tickers briefly
+        coexist, both `active=true`.
+
+        ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push): live-caught via
+        Galmed Pharmaceuticals -> Eocene Ltd. (GLMD -> EOCN, real 6-K press release dated
+        2026-09-11) - both tickers active=true, both resolve to CIK 0001595353 via SEC's own
+        bulk company_tickers.json, but only GLMD carries the company's real financial history
+        (quality_score=15.26 same day) while EOCN was a same-day-inserted row with zero data,
+        directly inflating the "Missing SEC/XBRL data" coverage count. Same underlying bug
+        class already named and partly handled elsewhere in this file (see
+        _purge_orphaned_downstream_score_rows's BK/FDP/GIG docstring) - that method only
+        fires once the OLD ticker's stock_symbols row is entirely gone; it can't see the
+        narrower "both rows still coexist" window this catches, which is exactly the window
+        where the new ticker's rows are empty and actively hurting the coverage report.
+
+        Deliberately detection-only: a real fix requires migrating historical rows across
+        ~10 downstream tables (price_daily, quality_metrics, value_metrics, growth_metrics,
+        annual_income_statement, annual_balance_sheet, annual_cash_flow, sec_valuations,
+        company_info_sec, stock_scores) from the old ticker's key to the new one before
+        deactivating the old ticker - a hard-to-reverse, cross-table production data
+        migration on a real-money system, not something a background loader should ever do
+        unattended. This surfaces the candidate list via notify() for a human (or a
+        deliberately separate, reviewed migration script) to act on, using data already
+        fetched once daily for ordinary CIK resolution - no extra network calls beyond the
+        existing SecEdgarClient ticker-cache refresh. See
+        utils/external/sec_ticker_cache.py's get_full_ticker_cik_mapping docstring for the
+        resource this reuses.
+
+        Never raises - a failure here (network, cache miss, whatever) must never block the
+        real stock_symbols load this runs alongside.
+        """
+        try:
+            from utils.external.sec_edgar_client import SecEdgarClient
+
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT symbol FROM stock_symbols WHERE active = true")
+                active_symbols = {row[0] for row in cur.fetchall()}
+
+            ticker_to_cik = SecEdgarClient().get_full_ticker_cik_mapping()
+            cik_to_active_tickers: dict[str, list[str]] = {}
+            for ticker, cik in ticker_to_cik.items():
+                if ticker in active_symbols:
+                    cik_to_active_tickers.setdefault(cik, []).append(ticker)
+
+            candidates = {cik: sorted(tickers) for cik, tickers in cik_to_active_tickers.items() if len(tickers) > 1}
+            if not candidates:
+                return
+
+            # Filter out legitimate multi-class share structures (GOOG/GOOGL, DGICA/DGICB,
+            # KELYA/KELYB, ...) - live-confirmed these are the majority of raw candidates
+            # (24 of 31 in this fix's first live run) and would otherwise drown out real
+            # unreconciled renames every day. Distinguishing signal: SEC's per-CIK
+            # submissions.json `tickers` field persistently lists EVERY currently-trading
+            # class for a real multi-class company (GOOG/GOOGL: both always present), but
+            # for a rename in progress it lists only ONE of the two candidate tickers -
+            # live-confirmed submissions.json still showed only "GLMD" for CIK 1595353 two
+            # days after the real Eocene Ltd./EOCN rename (SEC's per-CIK submissions index
+            # updates independently of, and can lag behind, the bulk company_tickers.json
+            # file that already had EOCN) - so this can't reliably say WHICH ticker is now
+            # correct, only THAT the pair isn't a stable multi-class structure. Direction
+            # needs a human (or the company's own press release/formerNames) either way, so
+            # this session's fix doesn't try to guess it.
+            client = SecEdgarClient()
+            duplicates: dict[str, list[str]] = {}
+            for cik, tickers in candidates.items():
+                try:
+                    submitted_tickers = {t.upper() for t in (client.get_submissions(cik).get("tickers") or [])}
+                except Exception as sub_err:
+                    logger.warning(
+                        f"[MARKET_CONSTITUENTS] Could not fetch submissions for CIK {cik} while "
+                        f"filtering duplicate-ticker candidates (keeping as unresolved): {sub_err}"
+                    )
+                    duplicates[cik] = tickers
+                    continue
+                if not set(tickers) <= submitted_tickers:
+                    duplicates[cik] = tickers
+            if not duplicates:
+                return
+
+            # Same safety cap philosophy as the deactivation methods above/below - a mass
+            # hit here means a bad/collapsed CIK mapping (e.g. every ticker resolving to the
+            # same fallback value), not hundreds of real same-day renames.
+            max_reported = 50
+            sample = list(duplicates.items())[:max_reported]
+            logger.warning(
+                f"[MARKET_CONSTITUENTS] {len(duplicates)} CIK(s) have more than one active "
+                f"stock_symbols ticker (likely renames stock_symbols hasn't reconciled yet): "
+                f"{sample}"
+            )
+            try:
+                from algo.reporting import notify
+
+                notify(
+                    severity="warning",
+                    title="Duplicate Active Tickers Sharing a CIK (Likely Unreconciled Rename)",
+                    message=(
+                        f"{len(duplicates)} CIK(s) resolve to more than one active "
+                        f"stock_symbols ticker via SEC's bulk company_tickers.json - each is "
+                        "likely a corporate rename where the old ticker's historical data "
+                        "hasn't been migrated to the new one yet, inflating the coverage "
+                        "report's missing-data count for the new ticker while the old one "
+                        "goes stale. Requires a reviewed data migration, not automatic action: "
+                        f"{dict(sample)}"
+                    ),
+                    details={"duplicates": duplicates},
+                )
+            except (ValueError, TypeError, RuntimeError) as notify_err:
+                logger.error(f"[MARKET_CONSTITUENTS] Failed to send duplicate-CIK alert: {notify_err}")
+        except Exception as e:
+            logger.warning(f"[MARKET_CONSTITUENTS] Same-CIK duplicate-ticker detection skipped (non-fatal): {e}")
+
     def _purge_orphaned_downstream_score_rows(self) -> None:
         """Purge downstream score-table rows for symbols with ZERO row in stock_symbols -
         not merely `active=false`, genuinely absent.
@@ -1049,6 +1162,7 @@ class MarketConstituentsLoader(OptimalLoader):
             self._deactivate_symbols_delisted_from_exchange_feed(
                 {row["symbol"] for row in base_symbols if row.get("symbol")}
             )
+            self._detect_same_cik_duplicate_active_symbols()
 
             # STEP 2: Fetch and index S&P 500 constituents (critical enrichment for signal generation)
             logger.info("STEP 2/3: Fetching S&P 500 constituents")

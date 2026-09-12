@@ -252,6 +252,12 @@ class SecEdgarClient:
         Raises ValueError if symbol not found in SEC cache."""
         return self._ticker_cache_manager.symbol_to_cik(symbol)
 
+    def get_full_ticker_cik_mapping(self) -> dict[str, str]:
+        """Return the full ticker->CIK mapping from SEC's bulk company_tickers.json - see
+        TickerCache.get_full_ticker_cik_mapping's own docstring for why this exists
+        (same-CIK duplicate-active-ticker/rename detection)."""
+        return self._ticker_cache_manager.get_full_ticker_cik_mapping()
+
     # ----- Core API -----
 
     def get_company_facts(self, cik: str) -> dict[str, Any]:
