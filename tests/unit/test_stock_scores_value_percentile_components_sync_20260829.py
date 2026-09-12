@@ -83,6 +83,7 @@ class TestValuePercentileComponentsSync:
             90.0,  # data_completeness (added 2026-09-07, VALUE_MIN_WEIGHT gate completeness sync)
             False,  # data_unavailable
             {},  # unavailable_metrics (added 2026-09-08, unavailable_metrics/reason resync)
+            None,  # ps_ratio_unavailable_reason
         )
 
         select_cursor = MagicMock()
