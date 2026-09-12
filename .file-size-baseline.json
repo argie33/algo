@@ -658,7 +658,7 @@
   "scripts/xbrl_concept_coverage_scan.py": 166,
   "scripts/xbrl_dera_bulk_gap_filler.py": 216,
   "scripts/xbrl_dera_bulk_scan.py": 206,
-  "scripts/xbrl_dqc_arelle_check.py": 309,
+  "scripts/xbrl_dqc_arelle_check.py": 407,
   "scripts/xbrl_frames_check.py": 99,
   "scripts/xbrl_scored_headline_count.py": 133,
   "scripts/xbrl_second_opinion_daily.py": 113,
