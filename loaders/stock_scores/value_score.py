@@ -65,6 +65,23 @@ VALUE_MIN_WEIGHT = 0.40
 FCF_PAYOUT_UNSUSTAINABLE_RATIO = 1.0
 FCF_PAYOUT_ZERO_SCORE_RATIO = 2.0
 
+# DIVIDEND SCORING CURVE RESHAPED 2026-09-12 (see div_score's own inline note below for the
+# full evidence) - real point-in-time IC test found dividend_yield's predictive power is
+# ~entirely extensive-margin (pays vs doesn't, t=3.01/2.83 both eras), not intensive-margin
+# (magnitude among payers, t=1.05/-0.05, fails the bar and flips sign OOS). Any real payer
+# (dividend_yield > 0) gets this base credit immediately - the evidenced part - plus a small,
+# capped bonus for higher yield (conservative acknowledgment that magnitude may carry some real
+# signal this one test couldn't detect, not zeroed out entirely). At the 6%-yield cap (same cap
+# as before), 70 + 6*5 = 100 - a payer can still reach the maximum score. NOTE: this is Pass 1's
+# PROVISIONAL curve only (mid-run placeholder, never NULL) - the value actually persisted to
+# stock_scores comes from Pass 2 (loaders/stock_scores/value_metrics.py's
+# update_value_multiples_percentiles, which fully overwrites this every run) - see that
+# function's DIVIDEND_EXTENSIVE_SATURATION_K for the equivalent real fix at the layer that
+# matters. Kept in sync here so Pass 1's mid-run value isn't misleadingly stale relative to
+# Pass 2's eventual real value.
+DIVIDEND_PAYER_BASE_CREDIT = 70.0
+DIVIDEND_MAGNITUDE_BONUS_PER_PCT = 5.0
+
 
 def _dividend_sustainability_factor(dividend_yield: float, fcf_yield: float | None) -> float:
     """Scale factor (0.0-1.0) to apply to the raw dividend_yield score.
@@ -884,8 +901,11 @@ class ValueScoreMixin:
         # RAISED 8%->10% 2026-09-01 (equal-weight-the-core-multiples reweight above, see
         # PE/PB/PS's own note) - still a smaller satellite weight than the 27% core multiples.
         if metrics.get("dividend_yield") is not None:
-            div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
-            div_score = min(100, div * 16.7)
+            if metrics["dividend_yield"] <= 0:
+                div_score = 0.0
+            else:
+                div_pct = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
+                div_score = min(100.0, DIVIDEND_PAYER_BASE_CREDIT + div_pct * DIVIDEND_MAGNITUDE_BONUS_PER_PCT)
             # PAYOUT-SUSTAINABILITY GATE - see FCF_PAYOUT_UNSUSTAINABLE_RATIO's module-level
             # docstring above. Penalizes (does not just cap) a high yield that isn't covered by
             # free cash flow - the CATO-pattern value trap this pillar previously scored
