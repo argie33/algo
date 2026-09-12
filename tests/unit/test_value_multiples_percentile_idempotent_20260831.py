@@ -48,6 +48,7 @@ def _row(
     data_completeness: float | None = 99.99,
     data_unavailable: bool = False,
     unavailable_metrics: dict | None = None,
+    ps_reason: str | None = None,
 ) -> tuple:
     return (
         symbol,
@@ -71,6 +72,7 @@ def _row(
         data_completeness,
         data_unavailable,
         unavailable_metrics if unavailable_metrics is not None else {},
+        ps_reason,
     )
 
 

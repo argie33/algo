@@ -749,9 +749,18 @@ class ValueScoreMixin:
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
+        # NO-REVENUE FLOOR ADDED (real-money-readiness audit): same bug class as P/E's
+        # unprofitable_stock and P/B's negative_book_value floors above - a company with no
+        # revenue (pre-revenue biotech/blank-check SPAC) makes ps_ratio mathematically
+        # undefined, and this was previously just SKIPPED, renormalizing Value over the
+        # remaining components instead of scoring it at the floor. No revenue is
+        # definitionally worse than any positive P/S on a sales-multiple basis.
         if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
             ps_score = self._ps_curve_score(metrics["ps_ratio"])
             weighted_sum += ps_score * 0.20
+            total_weight += 0.20
+        elif metrics.get("ps_ratio_unavailable_reason") in ("no_revenue_reported", "zero_revenue_reported_this_period"):
+            weighted_sum += 0.0 * 0.20
             total_weight += 0.20
 
         # PEG - REMOVED FROM SCORING 2026-08-28 (goal: "is this value score right per industry

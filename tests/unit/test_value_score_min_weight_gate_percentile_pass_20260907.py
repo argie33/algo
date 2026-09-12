@@ -70,6 +70,7 @@ class TestValueMinWeightGateInPercentilePass:
                 80.0,  # data_completeness
                 False,  # data_unavailable
                 None,  # unavailable_metrics
+                None,  # ps_ratio_unavailable_reason
             )
         ]
         cur = _make_mock_cursor(rows)
@@ -130,6 +131,7 @@ class TestValueMinWeightGateInPercentilePass:
                 90.0,  # data_completeness
                 False,  # data_unavailable
                 None,  # unavailable_metrics
+                None,  # ps_ratio_unavailable_reason
             )
         ]
         cur = _make_mock_cursor(rows)

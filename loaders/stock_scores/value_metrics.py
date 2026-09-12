@@ -67,16 +67,18 @@ class ValueMetricsMixin:
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 16 columns (pe_ratio, pb_ratio, ps_ratio, peg_ratio,
+        - Row length validation: Must have 17 columns (pe_ratio, pb_ratio, ps_ratio, peg_ratio,
           dividend_yield, fcf_yield, forward_pe, ev_ebitda, ev_revenue, margin_of_safety_pct,
           market_cap, net_payout_yield, pe_ratio_unavailable_reason,
-          forward_pe_unavailable_reason, pb_ratio_unavailable_reason, data_unavailable) - the
+          forward_pe_unavailable_reason, pb_ratio_unavailable_reason,
+          ps_ratio_unavailable_reason, data_unavailable) - the
           pe_ratio/forward_pe *_unavailable_reason columns were added 2026-08-28 to distinguish
           "genuinely missing data" from "unprofitable company / negative earnings forecast" for
           P/E and Forward P/E (see _score_value's "UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28"
-          docstring note); pb_ratio_unavailable_reason added 2026-09-05 for the identical
-          negative-book-value case, previously missing here entirely.
-        - Schema mismatch (len(row) < 16) → raises ValueError immediately
+          docstring note); pb_ratio_unavailable_reason added 2026-09-05 and
+          ps_ratio_unavailable_reason added (real-money-readiness audit) for the identical
+          negative-book-value/no-revenue cases, previously missing here entirely.
+        - Schema mismatch (len(row) < 17) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_value_metrics_found"
@@ -94,13 +96,14 @@ class ValueMetricsMixin:
             # (11 + market_cap added 2026-08-25 to close the Size-factor gap, +1 more
             # net_payout_yield added 2026-08-26, +2 more pe_ratio_unavailable_reason/
             # forward_pe_unavailable_reason added 2026-08-28, +1 more pb_ratio_unavailable_reason
-            # added 2026-09-05 - see _score_value's docstring)
-            if len(row) < 16:
+            # added 2026-09-05, +1 more ps_ratio_unavailable_reason added - see _score_value's
+            # docstring)
+            if len(row) < 17:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 16. "
+                    f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 17. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[15]
+            data_unavailable = row[16]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -125,6 +128,7 @@ class ValueMetricsMixin:
                 "pe_ratio_unavailable_reason": row[12],
                 "forward_pe_unavailable_reason": row[13],
                 "pb_ratio_unavailable_reason": row[14],
+                "ps_ratio_unavailable_reason": row[15],
             }
         # No row exists at all
         logger.warning(
@@ -563,7 +567,7 @@ class ValueMetricsMixin:
                            vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason,
                            vm.pb_ratio_unavailable_reason,
                            ss.components, cp.sector, ss.data_completeness, ss.data_unavailable,
-                           ss.unavailable_metrics
+                           ss.unavailable_metrics, vm.ps_ratio_unavailable_reason
                     FROM stock_scores ss
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
@@ -595,10 +599,12 @@ class ValueMetricsMixin:
             unprofitable_symbols: set[str] = set()
             negative_fwd_symbols: set[str] = set()
             negative_book_value_symbols: set[str] = set()
+            no_revenue_ps_symbols: set[str] = set()
             sector_map: dict[str, str] = {}
             for row in rows:
                 symbol, pe, pb, ps, fwd_pe = row[0], row[7], row[8], row[9], row[10]
                 pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
+                ps_reason = row[21]
                 sector = row[17]
                 if sector is not None:
                     sector_map[symbol] = sector
@@ -612,6 +618,8 @@ class ValueMetricsMixin:
                     negative_book_value_symbols.add(symbol)
                 if ps is not None and float(ps) > 0:
                     ps_raw[symbol] = float(ps)
+                elif ps_reason in ("no_revenue_reported", "zero_revenue_reported_this_period"):
+                    no_revenue_ps_symbols.add(symbol)
                 if fwd_pe is not None and float(fwd_pe) > 0:
                     fwd_pe_raw[symbol] = float(fwd_pe)
                 elif fwd_pe_reason == "negative_forward_eps":
@@ -627,12 +635,14 @@ class ValueMetricsMixin:
                 fwd_pe_pct[symbol] = 0.0
             for symbol in negative_book_value_symbols:
                 pb_pct[symbol] = 0.0
+            for symbol in no_revenue_ps_symbols:
+                ps_pct[symbol] = 0.0
             logger.info(
                 f"[STOCK_SCORES] Value multiples percentile universe (sector-relative, "
                 f"{len(sector_map)}/{len(rows)} symbols mapped to a GICS sector): "
                 f"P/E {len(pe_pct)} ({len(unprofitable_symbols)} floored unprofitable), "
                 f"P/B {len(pb_pct)} ({len(negative_book_value_symbols)} floored negative-book-value), "
-                f"P/S {len(ps_pct)}, "
+                f"P/S {len(ps_pct)} ({len(no_revenue_ps_symbols)} floored no-revenue), "
                 f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast) symbols"
             )
 
@@ -649,6 +659,7 @@ class ValueMetricsMixin:
                 pe, pb, ps, fwd_pe, dividend_yield = row[7], row[8], row[9], row[10], row[11]
                 fcf_yield = safe_float(row[12], f"{symbol}.fcf_yield") if row[12] is not None else None
                 pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
+                ps_reason = row[21]
                 components_old = row[16]
                 data_completeness_old = float(row[18]) if row[18] is not None else None
                 data_unavailable_old = bool(row[19]) if row[19] is not None else False
@@ -678,6 +689,8 @@ class ValueMetricsMixin:
                     components.append((0.0, 0.20))
                 if ps is not None and float(ps) > 0:
                     components.append((ps_pct[symbol], 0.20))
+                elif ps_reason in ("no_revenue_reported", "zero_revenue_reported_this_period"):
+                    components.append((0.0, 0.20))
                 if fwd_pe is not None and float(fwd_pe) > 0:
                     components.append((fwd_pe_pct[symbol], 0.20))
                 elif fwd_pe_reason == "negative_forward_eps":
