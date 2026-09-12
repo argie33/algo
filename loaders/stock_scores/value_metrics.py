@@ -436,9 +436,11 @@ class ValueMetricsMixin:
         placeholder so value_score/composite_score are never NULL mid-run. This method runs
         after every symbol in this run has a value_score, computes the true cross-sectional
         percentile per ratio (independently - a symbol missing P/B still gets ranked on P/E and
-        P/S), and FULLY RECOMPUTES value_score from the percentile scores plus dividend_yield's
-        own unchanged curve score (the only Value sub-component this pass doesn't replace),
-        weighted exactly as `_score_value` itself weights them (12/39/34/4/11). composite_score
+        P/S), and FULLY RECOMPUTES value_score from the percentile scores of all five inputs -
+        PE/PB/PS/Forward-P/E/Dividend-Yield are now ALL sector-relative percentile ranks (see
+        "SECTOR-RELATIVE DIVIDEND YIELD" docstring note further down - dividend_yield was the
+        last absolute-curve holdout until 2026-09-11), weighted exactly as `_score_value` itself
+        weights them (20/20/20/20/20, per the UNIFORM EQUAL-WEIGHT note below). composite_score
         is then independently recomputed in full from quality_score/growth_score/risk_score/
         momentum_score (read as-is, untouched by this pass) plus the new value_score, via
         `_value_risk_adjusted_weights` - the same weighting `_score_value`'s own caller uses,
@@ -592,6 +594,13 @@ class ValueMetricsMixin:
             pb_raw: dict[str, float] = {}
             ps_raw: dict[str, float] = {}
             fwd_pe_raw: dict[str, float] = {}
+            # div_effective_raw: dividend_yield after the FCF payout-sustainability haircut
+            # (_dividend_sustainability_factor), negated so `_percent_rank_cheap_high_sector_
+            # relative`'s "lowest raw value -> highest percentile" convention (built for P/E/
+            # P/B/P/S, where cheap=good) can be reused as-is for a "higher=better" metric -
+            # see SECTOR-RELATIVE DIVIDEND YIELD note below for why this replaced the old
+            # absolute magnitude curve.
+            div_effective_raw: dict[str, float] = {}
             # unprofitable_symbols/negative_fwd_symbols: floored at percentile 0.0 directly
             # below (not run through _percent_rank_cheap_high) - see _score_value's
             # "UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28" docstring note for why a floor
@@ -603,6 +612,8 @@ class ValueMetricsMixin:
             sector_map: dict[str, str] = {}
             for row in rows:
                 symbol, pe, pb, ps, fwd_pe = row[0], row[7], row[8], row[9], row[10]
+                dividend_yield_raw = row[11]
+                fcf_yield_raw = safe_float(row[12], f"{symbol}.fcf_yield") if row[12] is not None else None
                 pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
                 ps_reason = row[21]
                 sector = row[17]
@@ -624,11 +635,16 @@ class ValueMetricsMixin:
                     fwd_pe_raw[symbol] = float(fwd_pe)
                 elif fwd_pe_reason == "negative_forward_eps":
                     negative_fwd_symbols.add(symbol)
+                if dividend_yield_raw is not None:
+                    dy = float(dividend_yield_raw)
+                    effective = dy * _dividend_sustainability_factor(dy, fcf_yield_raw)
+                    div_effective_raw[symbol] = -effective
 
             pe_pct = self._percent_rank_cheap_high_sector_relative(pe_raw, sector_map)
             pb_pct = self._percent_rank_cheap_high_sector_relative(pb_raw, sector_map)
             ps_pct = self._percent_rank_cheap_high_sector_relative(ps_raw, sector_map)
             fwd_pe_pct = self._percent_rank_cheap_high_sector_relative(fwd_pe_raw, sector_map)
+            div_pct = self._percent_rank_cheap_high_sector_relative(div_effective_raw, sector_map)
             for symbol in unprofitable_symbols:
                 pe_pct[symbol] = 0.0
             for symbol in negative_fwd_symbols:
@@ -643,7 +659,8 @@ class ValueMetricsMixin:
                 f"P/E {len(pe_pct)} ({len(unprofitable_symbols)} floored unprofitable), "
                 f"P/B {len(pb_pct)} ({len(negative_book_value_symbols)} floored negative-book-value), "
                 f"P/S {len(ps_pct)} ({len(no_revenue_ps_symbols)} floored no-revenue), "
-                f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast) symbols"
+                f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast), "
+                f"Dividend Yield {len(div_pct)} symbols"
             )
 
             # Same configurable completeness gate load_stock_scores.py's Pass 1 uses (default
@@ -656,8 +673,11 @@ class ValueMetricsMixin:
             for row in rows:
                 symbol, value_score_old, composite_score_old, risk_score = row[0], row[1], row[2], row[3]
                 quality_score, growth_score, momentum_score = row[4], row[5], row[6]
-                pe, pb, ps, fwd_pe, dividend_yield = row[7], row[8], row[9], row[10], row[11]
-                fcf_yield = safe_float(row[12], f"{symbol}.fcf_yield") if row[12] is not None else None
+                pe, pb, ps, fwd_pe = row[7], row[8], row[9], row[10]
+                # dividend_yield/fcf_yield are consumed in the earlier loop that builds
+                # div_effective_raw/div_pct (see "SECTOR-RELATIVE DIVIDEND YIELD" note above) -
+                # not needed again here, div_pct[symbol] already carries the sustainability-
+                # gated, sector-ranked result.
                 pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
                 ps_reason = row[21]
                 components_old = row[16]
@@ -668,11 +688,11 @@ class ValueMetricsMixin:
                 composite_score_old = float(composite_score_old)
 
                 # Pure recompute of value_score from the raw stored inputs - percentile rank
-                # for PE/PB/PS/forward_pe, dividend's own unchanged curve score (_score_value's
-                # own formula, see that method) - value_score_old is read above only to detect
-                # whether anything changed, never as an input to the new value. See "BUG FOUND
-                # + FIXED 2026-08-31" docstring note above for why this replaced the prior
-                # additive-delta-on-a-mutable-column design.
+                # for PE/PB/PS/forward_pe/dividend_yield (all five now sector-relative, see
+                # "SECTOR-RELATIVE DIVIDEND YIELD" docstring note above) - value_score_old is
+                # read above only to detect whether anything changed, never as an input to the
+                # new value. See "BUG FOUND + FIXED 2026-08-31" docstring note above for why
+                # this replaced the prior additive-delta-on-a-mutable-column design.
                 # UNIFORM EQUAL-WEIGHT (2026-09-11, user directive - see pillar_weights.py's
                 # BASE_PILLAR_WEIGHTS comment for the full rationale, and _score_value's own
                 # matching note). All 5 components (PE/PB/PS/Forward PE/Dividend Yield) are now
@@ -695,24 +715,36 @@ class ValueMetricsMixin:
                     components.append((fwd_pe_pct[symbol], 0.20))
                 elif fwd_pe_reason == "negative_forward_eps":
                     components.append((0.0, 0.20))
-                # FIXED 2026-08-31 (same fix, same reasoning as _score_value's own dividend
-                # block above - value_metrics.dividend_yield is a real, already-computed 0.0
-                # for non-payers, never NULL, so a `> 0` gate wrongly reweighted this term away
-                # for 56% of the universe instead of scoring the real 0% floor).
-                # TRIMMED 11%->8% 2026-08-31, RAISED 8%->10% 2026-09-01 (equal-weight reweight
-                # above) - weak evidence, kept at user directive, sized as a satellite weight.
-                if dividend_yield is not None:
-                    div = min(float(dividend_yield) * 100, 6)  # decimal -> percent, cap 6%
-                    div_score = min(100, div * 16.7)
-                    # REAL-MONEY-READINESS FIX 2026-09-08: this recompute pass unconditionally
-                    # overwrote _score_value's gated value_score with this magnitude-only
-                    # dividend term, silently undoing the CATO value-trap payout-sustainability
-                    # gate (value_score.py's _dividend_sustainability_factor) on every run of
-                    # this post_run() pass - the exact stock that gate exists to catch (high
-                    # yield funded by negative FCF) got its full ungated score written to the
-                    # real stock_scores/composite_score row that trading reads.
-                    div_score *= _dividend_sustainability_factor(float(dividend_yield), fcf_yield)
-                    components.append((div_score, 0.20))
+                # SECTOR-RELATIVE DIVIDEND YIELD (2026-09-11, "figure out everything not done
+                # right per best practices" audit). Previously scored on an ABSOLUTE
+                # magnitude curve (min(yield%,6)*16.7) while every other Value component
+                # (PE/PB/PS/Forward P/E) is sector-relative - this was the one live gap
+                # documented but never closed in
+                # quality_rewrite_did_not_fix_leaderboard_concentration_20260908 (memory):
+                # REITs/Financial-Services/Utilities/Energy pay structurally higher dividends
+                # for legal/structural reasons (REITs must distribute ~90% of taxable income)
+                # unrelated to whether they're cheap relative to their own sector peers, so an
+                # absolute yield curve handed those sectors a free Value-score boost that
+                # mechanically fed the same leaderboard sector-concentration this file's other
+                # four components were sector-neutralized specifically to remove (see
+                # "SECTOR-RELATIVE RANKING ADOPTED 2026-09-04" docstring note above). Fixed by
+                # running dividend_yield through the SAME `_percent_rank_cheap_high_sector_
+                # relative` percentile mechanism as PE/PB/PS/Forward P/E - div_pct is built
+                # above from `div_effective_raw` (dividend_yield after the FCF payout-
+                # sustainability haircut, negated so the shared "lowest raw value -> highest
+                # percentile" ranking convention treats a higher effective yield as better).
+                # The value_metrics.dividend_yield column is real and always populated (0.0 for
+                # non-payers, never NULL - see the FIXED 2026-08-31 precedent this preserves),
+                # so every row with a dividend_yield value gets ranked, non-payers included.
+                # _dividend_sustainability_factor (the 2026-09-08 CATO value-trap gate:
+                # penalizes a high yield funded by negative FCF) is applied to the raw yield
+                # BEFORE ranking, not to the resulting percentile - this still fully removes an
+                # unsustainable payout's advantage over its sector peers, it just does so
+                # pre-rank instead of post-rank, and only changes the "kept at user directive"
+                # WEIGHT/inclusion of dividend_yield (unaffected here) not its magnitude-vs-
+                # sector-relative construction (the actual open question that memory flagged).
+                if symbol in div_pct:
+                    components.append((div_pct[symbol], 0.20))
 
                 total_weight = sum(w for _, w in components)
                 if total_weight <= 0:

@@ -48,9 +48,9 @@ def _run(rows: list[tuple[Any, ...]]) -> list[Any] | None:
     return captured.get("updates")
 
 
-def _cato_like_row(dividend_yield: float, fcf_yield: float | None) -> tuple[Any, ...]:
+def _cato_like_row(dividend_yield: float, fcf_yield: float | None, symbol: str = "CATOLIKE") -> tuple[Any, ...]:
     return (
-        "CATOLIKE",
+        symbol,
         50.0,  # value_score_old
         50.0,  # composite_score_old
         50.0,  # risk_score
@@ -76,15 +76,19 @@ def _cato_like_row(dividend_yield: float, fcf_yield: float | None) -> tuple[Any,
 
 
 def test_negative_fcf_yield_zeroes_dividend_component_in_persisted_update() -> None:
-    # A high yield funded by negative FCF must contribute 0 to the persisted value_score's
-    # dividend term via update_value_multiples_percentiles, matching Pass 1's gate.
-    unsustainable = _run([_cato_like_row(dividend_yield=0.215, fcf_yield=-0.05)])
-    sustainable = _run([_cato_like_row(dividend_yield=0.215, fcf_yield=0.30)])
+    # A high yield funded by negative FCF must rank BELOW an identical-magnitude but
+    # well-covered payout via update_value_multiples_percentiles, matching Pass 1's gate -
+    # verified against a same-sector peer since dividend_yield is now ranked sector-relative
+    # (a lone symbol always ties at the neutral 50.0 percentile, see value_metrics.py's
+    # "SECTOR-RELATIVE DIVIDEND YIELD" note) rather than scored on absolute magnitude.
+    peer = _cato_like_row(dividend_yield=0.03, fcf_yield=None, symbol="PEER")
+    unsustainable = _run([_cato_like_row(dividend_yield=0.215, fcf_yield=-0.05), peer])
+    sustainable = _run([_cato_like_row(dividend_yield=0.215, fcf_yield=0.30), peer])
 
     assert unsustainable is not None
     assert sustainable is not None
-    value_score_unsustainable = unsustainable[0][1]
-    value_score_sustainable = sustainable[0][1]
+    value_score_unsustainable = next(u for u in unsustainable if u[0] == "CATOLIKE")[1]
+    value_score_sustainable = next(u for u in sustainable if u[0] == "CATOLIKE")[1]
 
     assert value_score_unsustainable is not None
     assert value_score_sustainable is not None
