@@ -64,7 +64,7 @@ from algo.research.fama_macbeth_composite_weights import (
     _zwinsor,
     build_pillar_proxy_records,
 )
-from algo.research.fama_macbeth_price_factors import fetch_month_end_prices
+from algo.research.fama_macbeth_price_factors import fetch_month_end_prices, print_survivorship_bias_caveat
 from algo.research.fama_macbeth_quality_factors import build_quality_panel, fetch_annual_quality_fundamentals
 from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS
 from utils.db.context import DatabaseContext
@@ -231,6 +231,7 @@ def _pct_rank(s: pd.Series) -> pd.Series:
 
 
 def run(start_date: str, end_date: str, min_cross_section: int, min_sector_size: int) -> None:
+    print_survivorship_bias_caveat()
     logger.info("Building base pillar-proxy panel (growth/value/risk/momentum + OLD quality)")
     _rp, _rc, records_raw = build_pillar_proxy_records(start_date, end_date, min_cross_section)
 

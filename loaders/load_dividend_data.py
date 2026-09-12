@@ -623,6 +623,8 @@ class DividendDataLoader(SecLoaderBase):
             symbol, self.sec_client, self._CUSTOM_DIVIDEND_CONCEPTS_CURRENCY_AWARE, _extractor
         )
         if not dividends_by_year:
+            # No candidates in the raw filing - not an error, same fall-through as the
+            # unregistered-symbol branch above.
             return []
 
         month, day = self._CUSTOM_DIVIDEND_FISCAL_YEAR_END.get(symbol, (12, 31))

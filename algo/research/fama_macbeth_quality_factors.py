@@ -32,7 +32,12 @@ import numpy as np
 import pandas as pd
 
 from algo.research.fama_macbeth_growth_factors import compute_known_dates, merge_asof_monthly
-from algo.research.fama_macbeth_price_factors import _fama_macbeth, fetch_month_end_prices
+from algo.research.fama_macbeth_price_factors import (
+    _fama_macbeth,
+    benjamini_hochberg_fdr,
+    fetch_month_end_prices,
+    print_survivorship_bias_caveat,
+)
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -361,6 +366,7 @@ def _build_records(
 
 
 def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: int = 1) -> None:
+    print_survivorship_bias_caveat()
     logger.info("Fetching annual quality fundamentals (point-in-time reconstruction)")
     fund = fetch_annual_quality_fundamentals()
     logger.info(f"{len(fund)} symbol-fiscal-year rows")
@@ -386,11 +392,13 @@ def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: 
         print(f"{name:18s} {mean:10.5f} {t:8.2f} {len(records):9d}")
 
     print("\n=== Univariate Fama-MacBeth (each base component alone) ===")
-    print(f"{'factor':18s} {'mean_coef':>10s} {'t_stat':>8s}")
+    base_mean, base_t = {}, {}
     for c in QUALITY_FACTOR_COLS:
-        uni = _fama_macbeth(records, [c])
-        mean, t = uni[c]
-        print(f"{c:18s} {mean:10.5f} {t:8.2f}")
+        base_mean[c], base_t[c] = _fama_macbeth(records, [c])[c]
+    base_fdr = benjamini_hochberg_fdr(base_t, len(records))
+    print(f"{'factor':18s} {'mean_coef':>10s} {'t_stat':>8s} {'FDR q<=0.10':>12s}")
+    for c in QUALITY_FACTOR_COLS:
+        print(f"{c:18s} {base_mean[c]:10.5f} {base_t[c]:8.2f} {'PASS' if base_fdr[c] else 'fail':>12s}")
 
     # Extended candidates get their own record-building pass (separate dropna scope) so their
     # lower/uneven coverage (cost_of_revenue ~54%, margin_volatility_3y needs 3 consecutive
@@ -405,11 +413,13 @@ def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: 
             f"({ext_records[0][0]} to {ext_records[-1][0]}), median cross-section {int(np.median(ext_sizes))} ==="
         )
         print("\n=== Univariate Fama-MacBeth (each extended candidate alone) ===")
-        print(f"{'factor':22s} {'mean_coef':>10s} {'t_stat':>8s}")
+        ext_mean, ext_t = {}, {}
         for c in EXTENDED_CANDIDATE_COLS:
-            uni = _fama_macbeth(ext_records, [c])
-            mean, t = uni[c]
-            print(f"{c:22s} {mean:10.5f} {t:8.2f}")
+            ext_mean[c], ext_t[c] = _fama_macbeth(ext_records, [c])[c]
+        ext_fdr = benjamini_hochberg_fdr(ext_t, len(ext_records))
+        print(f"{'factor':22s} {'mean_coef':>10s} {'t_stat':>8s} {'FDR q<=0.10':>12s}")
+        for c in EXTENDED_CANDIDATE_COLS:
+            print(f"{c:22s} {ext_mean[c]:10.5f} {ext_t[c]:8.2f} {'PASS' if ext_fdr[c] else 'fail':>12s}")
 
         print("\n=== Multivariate Fama-MacBeth (extended candidates jointly) ===")
         print(f"{'factor':22s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}")
@@ -460,11 +470,13 @@ def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: 
         f"median cross-section {int(np.median(new_sizes))} ==="
     )
     print("\n=== Univariate Fama-MacBeth (each new candidate alone) ===")
-    print(f"{'factor':18s} {'mean_coef':>10s} {'t_stat':>8s}")
+    new_mean, new_t = {}, {}
     for c in NEW_CANDIDATE_COLS:
-        uni = _fama_macbeth(new_records, [c])
-        mean, t = uni[c]
-        print(f"{c:18s} {mean:10.5f} {t:8.2f}")
+        new_mean[c], new_t[c] = _fama_macbeth(new_records, [c])[c]
+    new_fdr = benjamini_hochberg_fdr(new_t, len(new_records))
+    print(f"{'factor':18s} {'mean_coef':>10s} {'t_stat':>8s} {'FDR q<=0.10':>12s}")
+    for c in NEW_CANDIDATE_COLS:
+        print(f"{c:18s} {new_mean[c]:10.5f} {new_t[c]:8.2f} {'PASS' if new_fdr[c] else 'fail':>12s}")
 
     print("\n=== Multivariate Fama-MacBeth (new candidates jointly) ===")
     print(f"{'factor':18s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}")
@@ -497,11 +509,13 @@ def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: 
         f"median cross-section {int(np.median(cq_sizes))} ==="
     )
     print("\n=== Univariate Fama-MacBeth (each cash-quality candidate alone) ===")
-    print(f"{'factor':20s} {'mean_coef':>10s} {'t_stat':>8s}")
+    cq_mean, cq_t = {}, {}
     for c in CASH_QUALITY_CANDIDATE_COLS:
-        uni = _fama_macbeth(cq_records, [c])
-        mean, t = uni[c]
-        print(f"{c:20s} {mean:10.5f} {t:8.2f}")
+        cq_mean[c], cq_t[c] = _fama_macbeth(cq_records, [c])[c]
+    cq_fdr = benjamini_hochberg_fdr(cq_t, len(cq_records))
+    print(f"{'factor':20s} {'mean_coef':>10s} {'t_stat':>8s} {'FDR q<=0.10':>12s}")
+    for c in CASH_QUALITY_CANDIDATE_COLS:
+        print(f"{c:20s} {cq_mean[c]:10.5f} {cq_t[c]:8.2f} {'PASS' if cq_fdr[c] else 'fail':>12s}")
 
     print("\n=== Multivariate Fama-MacBeth (cash-quality candidates jointly) ===")
     print(f"{'factor':20s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}")

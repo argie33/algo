@@ -226,6 +226,26 @@ from loaders.load_stock_scores and must keep working unchanged.
 #      session's own bank ROA calibration check (median bank ROA 1.04% vs. the new curve's
 #      1.0%->75 breakpoint - that's how you'd catch an overly generous or overly harsh curve
 #      BEFORE it ships, not after a leaderboard looks wrong).
+#   5. MULTIPLE-COMPARISONS CORRECTION (added 2026-09-12, see
+#      multiple_hypothesis_testing_no_fdr_correction_20260912 in memory). Rule #2's |t|>=2 bar
+#      is a PER-TEST bar - fine for a single pre-registered hypothesis, but this repo's
+#      fama_macbeth_*.py family has tested ~65 candidate factors total across its history
+#      (Growth 11, Value 8, Quality 22, Quality-trend 5, Momentum 8, Price 8, Positioning 1,
+#      Liquidity 2), each judged individually at |t|>=2 (~p<0.05) with zero correction for how
+#      many were tried. Testing 65 independent candidates at p<0.05 produces ~3 "significant"
+#      hits by chance alone even if none of them are real factors - the volume of testing is
+#      itself a source of false positives, separate from and in addition to the same-session
+#      re-testing this policy already bans in rule #3.
+#      GOING FORWARD: any screen that tests MORE THAN ONE candidate column in the same pass
+#      (a univariate sweep over N columns, a curve/interaction search, an "extended candidate
+#      list" like QUALITY_FACTOR_COLS's extended/altman/roic/new/cash-quality batches) MUST
+#      run algo.research.fama_macbeth_price_factors.benjamini_hochberg_fdr(t_stats, n_months)
+#      across that whole candidate family and report which survive FDR q<=0.10, not just which
+#      individually clear |t|>=2. A candidate that clears |t|>=2 alone but fails the FDR
+#      correction for its batch has NOT cleared this repo's bar - do not promote it to a
+#      pillar/component weight on the strength of the uncorrected number. This does not
+#      retroactively invalidate weights already live (see the file's own history above for
+#      what evidence backed each); it applies to every new candidate screen from here on.
 # ============================================================================================
 # UNIFORM EQUAL-WEIGHT PRINCIPLE (2026-09-11, user directive: the backtest/Fama-MacBeth evidence
 # behind every non-Growth pillar's weights is the same contaminated-data family this module's own

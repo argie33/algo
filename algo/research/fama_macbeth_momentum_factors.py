@@ -32,7 +32,11 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from algo.research.fama_macbeth_price_factors import _fama_macbeth
+from algo.research.fama_macbeth_price_factors import (
+    _fama_macbeth,
+    benjamini_hochberg_fdr,
+    print_survivorship_bias_caveat,
+)
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -166,6 +170,7 @@ def build_records(
 
 
 def run(start_date: str, end_date: str, min_cross_section: int) -> None:
+    print_survivorship_bias_caveat()
     logger.info(f"Fetching daily prices {start_date}..{end_date}")
     daily = fetch_daily_prices(start_date, end_date)
     logger.info(f"{len(daily)} daily rows")
@@ -189,11 +194,13 @@ def run(start_date: str, end_date: str, min_cross_section: int) -> None:
         print(f"{name:18s} {mean:10.5f} {t:8.2f} {len(records):9d}")
 
     print("\n=== Univariate Fama-MacBeth (each factor alone) ===")
-    print(f"{'factor':18s} {'mean_coef':>10s} {'t_stat':>8s}")
+    uni_mean, uni_t = {}, {}
     for c in MOMENTUM_FACTOR_COLS:
-        uni = _fama_macbeth(records, [c])
-        mean, t = uni[c]
-        print(f"{c:18s} {mean:10.5f} {t:8.2f}")
+        uni_mean[c], uni_t[c] = _fama_macbeth(records, [c])[c]
+    fdr = benjamini_hochberg_fdr(uni_t, len(records))
+    print(f"{'factor':18s} {'mean_coef':>10s} {'t_stat':>8s} {'FDR q<=0.10':>12s}")
+    for c in MOMENTUM_FACTOR_COLS:
+        print(f"{c:18s} {uni_mean[c]:10.5f} {uni_t[c]:8.2f} {'PASS' if fdr[c] else 'fail':>12s}")
 
 
 def main() -> None:

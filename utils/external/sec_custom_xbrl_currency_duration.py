@@ -66,7 +66,7 @@ def _extract_duration_values_for_concepts_with_currency(
     always in USD.
     """
     if not concepts:
-        return {}
+        return {}  # No candidates to look up - not an error, nothing to process.
     wanted_local_names = {local_name for _prefix, local_name in concepts}
 
     root = ET.fromstring(xml_content)

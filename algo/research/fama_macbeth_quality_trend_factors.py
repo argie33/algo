@@ -38,7 +38,12 @@ import numpy as np
 import pandas as pd
 
 from algo.research.fama_macbeth_growth_factors import REPORTING_LAG_DAYS, merge_asof_monthly
-from algo.research.fama_macbeth_price_factors import _fama_macbeth, fetch_month_end_prices
+from algo.research.fama_macbeth_price_factors import (
+    _fama_macbeth,
+    benjamini_hochberg_fdr,
+    fetch_month_end_prices,
+    print_survivorship_bias_caveat,
+)
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -109,6 +114,7 @@ def build_trend_panel(fund: pd.DataFrame) -> pd.DataFrame:
 
 
 def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: int = 1) -> None:
+    print_survivorship_bias_caveat()
     logger.info("Fetching annual trend fundamentals (point-in-time reconstruction)")
     fund = fetch_annual_trend_fundamentals()
     logger.info(f"{len(fund)} symbol-fiscal-year rows")
@@ -160,11 +166,13 @@ def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: 
         print(f"{name:28s} {mean:10.5f} {t:8.2f} {len(records):9d}")
 
     print("\n=== Univariate Fama-MacBeth (each factor alone) ===")
-    print(f"{'factor':28s} {'mean_coef':>10s} {'t_stat':>8s}")
+    uni_mean, uni_t = {}, {}
     for c in TREND_FACTOR_COLS:
-        uni = _fama_macbeth(records, [c])
-        mean, t = uni[c]
-        print(f"{c:28s} {mean:10.5f} {t:8.2f}")
+        uni_mean[c], uni_t[c] = _fama_macbeth(records, [c])[c]
+    fdr = benjamini_hochberg_fdr(uni_t, len(records))
+    print(f"{'factor':28s} {'mean_coef':>10s} {'t_stat':>8s} {'FDR q<=0.10':>12s}")
+    for c in TREND_FACTOR_COLS:
+        print(f"{c:28s} {uni_mean[c]:10.5f} {uni_t[c]:8.2f} {'PASS' if fdr[c] else 'fail':>12s}")
 
 
 def main() -> None:

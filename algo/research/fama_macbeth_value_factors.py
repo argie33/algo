@@ -130,7 +130,12 @@ import pandas as pd
 
 from algo.research.fama_macbeth_growth_factors import compute_known_dates, merge_asof_monthly
 from algo.research.fama_macbeth_liquidity_factor import compute_monthly_amihud, fetch_daily_panel
-from algo.research.fama_macbeth_price_factors import _fama_macbeth, fetch_month_end_prices
+from algo.research.fama_macbeth_price_factors import (
+    _fama_macbeth,
+    benjamini_hochberg_fdr,
+    fetch_month_end_prices,
+    print_survivorship_bias_caveat,
+)
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -516,6 +521,7 @@ def run(  # noqa: C901 -- a research/reporting script's linear sequence of print
     min_cross_section: int,
     horizon_months: int = 1,
 ) -> None:
+    print_survivorship_bias_caveat()
     logger.info("Fetching annual value fundamentals (point-in-time reconstruction)")
     fund = fetch_annual_value_fundamentals()
     logger.info(f"{len(fund)} symbol-fiscal-year rows")
@@ -612,11 +618,13 @@ def run(  # noqa: C901 -- a research/reporting script's linear sequence of print
         print(f"{name:16s} {mean:10.5f} {t:8.2f} {len(records):9d}")
 
     print("\n=== Univariate Fama-MacBeth (each input alone) ===")
-    print(f"{'factor':16s} {'mean_coef':>10s} {'t_stat':>8s}")
+    live_mean, live_t = {}, {}
     for c in LIVE_VALUE_FACTOR_COLS:
-        uni = _fama_macbeth(records, [c])
-        mean, t = uni[c]
-        print(f"{c:16s} {mean:10.5f} {t:8.2f}")
+        live_mean[c], live_t[c] = _fama_macbeth(records, [c])[c]
+    live_fdr = benjamini_hochberg_fdr(live_t, len(records))
+    print(f"{'factor':16s} {'mean_coef':>10s} {'t_stat':>8s} {'FDR q<=0.10':>12s}")
+    for c in LIVE_VALUE_FACTOR_COLS:
+        print(f"{c:16s} {live_mean[c]:10.5f} {live_t[c]:8.2f} {'PASS' if live_fdr[c] else 'fail':>12s}")
 
     print("\n=== DIAGNOSTIC: same 8 inputs + size (log market cap) as an added control ===")
     print("(size is NOT a live scored input - see SIZE_CONTROL_COL's docstring note - this is")
@@ -632,11 +640,14 @@ def run(  # noqa: C901 -- a research/reporting script's linear sequence of print
     print("\n=== CANDIDATE CHECK: are we missing a literature-established input? ===")
     print("(ocf_yield, net_payout_yield - see CANDIDATE_COLS docstring note. NOT live inputs -")
     print(" this tests whether they'd earn a place alongside the 8 that already are)")
-    print(f"{'factor':16s} {'mean_coef':>10s} {'t_stat':>8s}")
+    cand_mean, cand_t = {}, {}
     for c in CANDIDATE_COLS:
-        uni = _fama_macbeth(records, [c])
-        mean, t = uni[c]
-        print(f"{c:16s} {mean:10.5f} {t:8.2f}  (univariate)")
+        cand_mean[c], cand_t[c] = _fama_macbeth(records, [c])[c]
+    cand_fdr = benjamini_hochberg_fdr(cand_t, len(records))
+    print(f"{'factor':16s} {'mean_coef':>10s} {'t_stat':>8s} {'FDR q<=0.10':>12s}")
+    for c in CANDIDATE_COLS:
+        verdict = "PASS" if cand_fdr[c] else "fail"
+        print(f"{c:16s} {cand_mean[c]:10.5f} {cand_t[c]:8.2f} {verdict:>12s}  (univariate)")
     live_plus_candidates = [*LIVE_VALUE_FACTOR_COLS, *CANDIDATE_COLS]
     multi_cand = _fama_macbeth(records, live_plus_candidates)
     print(f"{'factor':16s} {'mean_coef':>10s} {'t_stat':>8s} {'n_months':>9s}  (multivariate, jointly with the live 8)")

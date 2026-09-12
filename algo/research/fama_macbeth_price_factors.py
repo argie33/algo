@@ -178,7 +178,63 @@ def _fama_macbeth(records: list[tuple[pd.Timestamp, pd.DataFrame]], cols: list[s
     return results
 
 
+def benjamini_hochberg_fdr(t_stats: dict[str, float], n_months: int, q: float = 0.10) -> dict[str, bool]:
+    """Benjamini-Hochberg FDR correction across a family of candidates tested in the same pass.
+
+    `t_stats` maps candidate name -> Fama-MacBeth t-stat (the second element of each
+    `_fama_macbeth` result tuple). `n_months` is the number of monthly cross-sections each
+    t-stat was computed over (used as the t-distribution's degrees of freedom, n_months - 1)
+    so t-stats from windows of different lengths are put on a common p-value scale before
+    comparison. Returns {name: bool} - True means the candidate survives correction at FDR
+    `q` (the expected fraction of false discoveries among everything declared "significant",
+    not a per-candidate alpha).
+
+    Use this instead of a bare |t|>=2 cutoff whenever more than one candidate is screened in
+    the same pass. Per multiple_hypothesis_testing_no_fdr_correction_20260912 in memory: this
+    repo's fama_macbeth_*.py family has tested ~65 candidate factors total, each historically
+    judged individually against |t|>=2 (~p<0.05) with zero multiple-comparisons correction -
+    testing that many candidates at p<0.05 would produce ~3 "significant" hits by chance alone
+    even if none of them were real factors. This does not retroactively change conclusions
+    already documented in this file's history; apply it to every NEW multi-candidate screen
+    going forward (see the WEIGHT-REVISION GOVERNANCE POLICY in loaders/stock_scores/
+    pillar_weights.py).
+    """
+    from scipy import stats as scipy_stats
+
+    names = list(t_stats.keys())
+    df = max(n_months - 1, 1)
+    pvals = np.array([2 * scipy_stats.t.sf(abs(t_stats[n]), df) if not np.isnan(t_stats[n]) else 1.0 for n in names])
+    m = len(pvals)
+    order = np.argsort(pvals)
+    sorted_p = pvals[order]
+    thresholds = q * (np.arange(1, m + 1) / m)
+    below = np.where(sorted_p <= thresholds)[0]
+    cutoff_p = sorted_p[below.max()] if len(below) else -1.0
+    return {name: bool(cutoff_p >= 0 and pvals[i] <= cutoff_p) for i, name in enumerate(names)}
+
+
+SURVIVORSHIP_BIAS_CAVEAT = (
+    "SURVIVORSHIP BIAS WARNING: this panel excludes every company that failed/delisted for "
+    "cause during the sample window (confirmed 2026-09-12 - zero price_daily rows for Lehman, "
+    "Bear Stearns, Enron, SVB, Signature Bank, First Republic, WorldCom, WAMU under any ticker; "
+    "see survivorship_bias_concretely_reverified_zero_rows_named_failures_20260912 in memory). "
+    "Every t-stat/IC below answers 'does this factor help pick among companies that survived,' "
+    "NEVER 'does this factor protect against picking one that was about to fail.' Do not treat "
+    "a significant result here as evidence a factor manages tail/crisis risk. No fix currently "
+    "applied - real fix is a delisted-symbol price backfill (data vendor decision, not started)."
+)
+
+
+def print_survivorship_bias_caveat() -> None:
+    """Print SURVIVORSHIP_BIAS_CAVEAT as a banner. Call this at the start of every
+    fama_macbeth_*.py `run()` (and any other backtest/factor-test script here) so the
+    limitation is visible in every actual invocation's output, not just in a memory file
+    nobody reads before running the script."""
+    print(f"\n{'=' * 78}\n{SURVIVORSHIP_BIAS_CAVEAT}\n{'=' * 78}\n")
+
+
 def run(start_date: str, end_date: str, min_cross_section: int, beta_window: int, vol_window: int) -> None:
+    print_survivorship_bias_caveat()
     logger.info(f"Pulling month-end price panel {start_date}..{end_date}")
     df = fetch_month_end_prices(start_date, end_date)
     logger.info(f"{len(df)} symbol-month rows fetched")
@@ -201,11 +257,15 @@ def run(start_date: str, end_date: str, min_cross_section: int, beta_window: int
         print(f"{name:14s} {mean:10.5f} {t:8.2f} {len(records):9d}")
 
     print("\n=== Univariate Fama-MacBeth (each factor alone) ===")
-    print(f"{'factor':14s} {'mean_coef':>10s} {'t_stat':>8s}")
+    uni_mean, uni_t = {}, {}
     for c in FACTOR_COLS:
         uni = _fama_macbeth(records, [c])
-        mean, t = uni[c]
-        print(f"{c:14s} {mean:10.5f} {t:8.2f}")
+        uni_mean[c], uni_t[c] = uni[c]
+    fdr = benjamini_hochberg_fdr(uni_t, len(records))
+    print(f"{'factor':14s} {'mean_coef':>10s} {'t_stat':>8s} {'FDR q<=0.10':>12s}")
+    for c in FACTOR_COLS:
+        verdict = "PASS" if fdr[c] else "fail"
+        print(f"{c:14s} {uni_mean[c]:10.5f} {uni_t[c]:8.2f} {verdict:>12s}")
 
 
 def main() -> None:

@@ -144,6 +144,7 @@ from algo.research.fama_macbeth_price_factors import (
     _fama_macbeth,
     _trailing_cumret,
     fetch_month_end_prices,
+    print_survivorship_bias_caveat,
 )
 from algo.research.fama_macbeth_quality_factors import build_quality_panel, fetch_annual_quality_fundamentals
 from algo.research.growth_quarterly_earnings_quality_candidates import (
@@ -858,6 +859,7 @@ def build_pillar_proxy_records(
 
 
 def run(start_date: str, end_date: str, min_cross_section: int) -> None:
+    print_survivorship_bias_caveat()
     run_preflight_checks()
     records_partial, records_complete, _records_raw = build_pillar_proxy_records(
         start_date, end_date, min_cross_section

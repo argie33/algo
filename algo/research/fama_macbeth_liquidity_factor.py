@@ -43,6 +43,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
+from algo.research.fama_macbeth_price_factors import print_survivorship_bias_caveat
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -176,6 +177,7 @@ def _fama_macbeth(records: list[tuple[pd.Period, pd.DataFrame]], cols: list[str]
 
 
 def run(start_date: str, end_date: str, min_cross_section: int, min_days_per_month: int) -> None:
+    print_survivorship_bias_caveat()
     logger.info(f"Pulling daily price/volume panel {start_date}..{end_date}")
     daily = fetch_daily_panel(start_date, end_date)
     logger.info(f"{len(daily)} daily rows fetched, {daily['symbol'].nunique()} symbols")

@@ -28,7 +28,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from algo.research.fama_macbeth_price_factors import _fama_macbeth
+from algo.research.fama_macbeth_price_factors import _fama_macbeth, print_survivorship_bias_caveat
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -87,6 +87,7 @@ def compute_ad_rating_series(daily: pd.DataFrame, window: int = 20) -> pd.Series
 
 
 def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: int = 1) -> None:
+    print_survivorship_bias_caveat()
     logger.info(f"Fetching daily OHLCV {start_date}..{end_date}")
     daily = fetch_daily_ohlcv(start_date, end_date)
     logger.info(f"{len(daily)} daily rows")
