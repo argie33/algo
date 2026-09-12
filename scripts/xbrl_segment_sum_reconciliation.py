@@ -294,6 +294,7 @@ def run(month: str, symbols_override: list[str] | None, dry_run: bool) -> dict[s
     logger.info(f"[SEGMENT_SUM] {len(target_ciks)}/{len(symbols)} symbol(s) resolved to a CIK")
 
     findings_by_adsh, adsh_to_cik = scan_month(month, target_ciks)
+    checked = len(adsh_to_cik)
 
     conn = get_db_connection(max_retries=2, timeout=30)
     cur = conn.cursor(cursor_factory=DictCursor)
@@ -318,7 +319,24 @@ def run(month: str, symbols_override: list[str] | None, dry_run: bool) -> dict[s
                 "consolidated revenue - review queue, not a confirmed bug: a filer's own "
                 "segment presentation can genuinely exclude corporate/eliminations lines or "
                 "mix in a differently-dimensioned disaggregation this axis filter didn't catch.",
-                {"flagged": len(examples), "examples": examples[:_MAX_EXAMPLES]},
+                {"checked": checked, "flagged": len(examples), "examples": examples[:_MAX_EXAMPLES]},
+            )
+        )
+    elif checked == 0:
+        # Distinct from "checked N filings, all tied out clean" - a zero-accession restriction
+        # (e.g. the requested symbols filed nothing in this month's bulk snapshot) means nothing
+        # was actually compared, and reporting it identically to a real clean pass would be the
+        # same silent-success-on-failure shape this repo has fixed elsewhere (see
+        # xbrl_dqc_arelle_check.py's DqcRunError / memory
+        # check_silent_fallbacks_worktree_skip_path_defeats_check_20260911).
+        results.append(
+            CheckResult(
+                "xbrl_segment_sum_reconciliation",
+                "info",
+                "annual_income_statement",
+                f"0 accession(s) matched for {month} - nothing was actually checked this run "
+                "(the requested symbol(s)/universe filed nothing in this month's bulk snapshot), "
+                "not a confirmed-clean result",
             )
         )
     else:
@@ -327,7 +345,8 @@ def run(month: str, symbols_override: list[str] | None, dry_run: bool) -> dict[s
                 "xbrl_segment_sum_reconciliation",
                 "info",
                 "annual_income_statement",
-                f"no segment-sum-vs-consolidated-revenue divergence found for {month}",
+                f"no segment-sum-vs-consolidated-revenue divergence found across {checked} "
+                f"checked accession(s) for {month}",
             )
         )
 
@@ -346,7 +365,7 @@ def run(month: str, symbols_override: list[str] | None, dry_run: bool) -> dict[s
 
     cur.close()
     conn.close()
-    return {"month": month, "flagged": len(examples), "results": [r.to_dict() for r in results]}
+    return {"month": month, "checked": checked, "flagged": len(examples), "results": [r.to_dict() for r in results]}
 
 
 def main() -> None:
@@ -361,7 +380,10 @@ def main() -> None:
     started = time.monotonic()
     summary = run(month=args.month, symbols_override=symbols_override, dry_run=args.dry_run)
     elapsed = time.monotonic() - started
-    logger.info(f"[SEGMENT_SUM] Done in {elapsed:.1f}s - month={summary['month']} flagged={summary['flagged']}")
+    logger.info(
+        f"[SEGMENT_SUM] Done in {elapsed:.1f}s - month={summary['month']} "
+        f"checked={summary['checked']} flagged={summary['flagged']}"
+    )
 
 
 if __name__ == "__main__":
