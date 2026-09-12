@@ -484,6 +484,18 @@ NOISE_SUBSTRINGS = [
     "BillingsInExcessOfCost",  # percentage-of-completion contract-liability detail, sibling of the above
     "OtherRealEstate",  # bank other-real-estate-owned (OREO) schedule detail
     "SupplementalDeferredPurchasePrice",  # securitization deferred-purchase-price disclosure detail
+    # Added 2026-09-12 (goal session: "keep going with XBRL until it's working best and right"
+    # - full triage of the 673 undismissed concepts surviving the NOISE_SUBSTRINGS case-fix
+    # above). Same discipline as every prior addition to this list: only added a substring once
+    # every visible match at min_companies>=50 was individually confirmed to be footnote/
+    # schedule detail, not a candidate simple statement-level aggregate (the AccountsPayable
+    # precedent this whole campaign started from) - narrowly scoped so a real bare total under
+    # the same family (e.g. bare "FederalHomeLoanBankAdvances") is deliberately NOT matched.
+    "MaturitiesSummary",  # e.g. FederalHomeLoanBankAdvancesMaturitiesSummary* - FHLB advance maturity-ladder schedule (due-in-year-N breakdown), not the bare advances balance
+    "UnconditionalPurchaseObligationDueIn",  # Recorded/UnrecordedUnconditionalPurchaseObligationDueIn{Second,Third,Fourth,Fifth}Year/AfterFifthYear/DueInRemainderOfFiscalYear - purchase-commitment maturity ladder, sibling of the already-noise "PaymentsDue"
+    "RealEstateAndAccumulatedDepreciation",  # SEC Schedule III (real estate/REIT) rollforward detail - accumulated depreciation, carrying amount, costs-capitalized-subsequent-to-acquisition breakdowns
+    "DisposalGroupIncludingDiscontinuedOperation",  # discontinued-ops balance-sheet-line breakdown (goodwill/intangibles/AP/deferred revenue/cash/tax, etc. attributable to the disposal group) - balance-sheet-side sibling of the already-noise "IncomeLossFromDiscontinuedOperations"
+    "heldtomaturitysecurities",  # HTM-securities unrealized-gain/loss-position footnote detail (both "HeldToMaturitySecurities" and FASB's newer "HeldtomaturitySecurities" casing collapse to this one lowercase entry now that matching is case-insensitive)
 ]
 
 
