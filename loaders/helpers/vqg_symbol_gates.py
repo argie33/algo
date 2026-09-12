@@ -1993,14 +1993,10 @@ class SymbolGateMixin:
         larger RIC/CEF population (BlackRock B-ticker/Invesco V-ticker closed-end funds, GGN,
         and siblings) has the exact same "no 10-K ever filed" root fact and zero balance-sheet
         rows, yet isn't in that narrower gate - live-confirmed BST/BGY/BUI/GGN all still showed
-        "missing_sec_data" for their entire quality_metrics row after a fresh reload that had
-        already landed _apply_structural_entity_type_exemption_reasons() above: this early
-        return exits before that method (or the sibling RIC/ETF-trust recategorize loops
-        further down _compute_quality_metrics) is ever reached, so none of that code fires for
-        a zero-row symbol regardless of how complete its own gate coverage is. Checks the RIC
-        gate first (a more specific, already-established reason) before the broader
-        entity-type-exemption gate, then the original narrower ETF gate, matching the
-        preference order used by the mid-function recategorize loops.
+        "missing_sec_data" for their entire quality_metrics row after a fresh reload, since
+        this early return exits before any of the sibling recategorize loops further down
+        _compute_quality_metrics are reached. Checks RIC (most specific) before the broader
+        entity-type-exemption/ETF/blank-check-SPAC gates, matching the recategorize loops' order.
         """
         if symbol in self._get_registered_investment_company_symbols():
             return "registered_investment_company_no_xbrl"
@@ -2008,4 +2004,6 @@ class SymbolGateMixin:
             return "entity_type_structurally_exempt_10k_filing"
         if symbol in self._get_etf_symbols():
             return "etf_no_sec_filings"
+        if symbol in self._get_blank_check_symbols():  # pre-merger SPAC, mirrors vqg_value.py
+            return "no_revenue_reported"
         return None

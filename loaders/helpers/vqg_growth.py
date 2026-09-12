@@ -105,7 +105,20 @@ class GrowthMetricsMixin(SymbolGateMixin):
             # generic "missing_sec_data" instead of the permanent business-model fact
             # "etf_no_sec_filings" already used for the identical case elsewhere (see that
             # method's own comment).
-            reason = "etf_no_sec_filings" if symbol in self._get_etf_symbols() else None
+            #
+            # ADDED 2026-09-07 (goal: score/tie-out sanity sweep - vqg_quality.py sibling fix):
+            # a pre-merger blank-check SPAC (SIC 6770) has zero annual_income_statement rows
+            # for the same reason it has zero annual_balance_sheet rows - this early return
+            # was defaulting those symbols to the generic "insufficient_history" instead of
+            # the real, permanent "no_revenue_reported" reason vqg_value.py/vqg_quality.py
+            # already use for this same population.
+            reason = (
+                "etf_no_sec_filings"
+                if symbol in self._get_etf_symbols()
+                else "no_revenue_reported"
+                if symbol in self._get_blank_check_symbols()
+                else None
+            )
             return self._unavailable_marker("growth_metrics", symbol, reason=reason)
 
         metrics: dict[str, Any] = {
