@@ -14,6 +14,7 @@ write-only once the final weighted_score is produced, so it stays inside this me
 
 from typing import TYPE_CHECKING, Any
 
+from loaders.helpers.vqg_shared import BROKER_DEALER_INDUSTRIES
 from utils.type_conversion import safe_float
 
 
@@ -399,11 +400,13 @@ class QualityScoreMixin:
         # grid/generation capex routinely drives FCF margin deeply negative (NEE -42%,
         # XEL -46%, D -44% live-confirmed) even for fundamentally healthy, dividend-growing
         # utilities. See UTILITY_INDUSTRIES's own comment for the full evidence.
+        # FIXED 2026-09-08: broker-dealers (GS/MS) never got this exclusion - see
+        # BROKER_DEALER_INDUSTRIES's own comment in vqg_shared.py.
         fcf_margin_score = (
             self._margin_curve(fcf_margin, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
             if fcf_margin is not None
-            and self._get_symbol_industry(symbol) not in _owner().DEPOSITORY_BANK_INDUSTRIES
-            and self._get_symbol_industry(symbol) not in _owner().UTILITY_INDUSTRIES
+            and self._get_symbol_industry(symbol)
+            not in (_owner().DEPOSITORY_BANK_INDUSTRIES | _owner().UTILITY_INDUSTRIES | BROKER_DEALER_INDUSTRIES)
             else None
         )
         # Asset Turnover (Revenue / Total Assets, x100 - same "ratio-as-percentage" storage

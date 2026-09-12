@@ -424,6 +424,22 @@ UTILITY_INDUSTRIES = frozenset(
     }
 )
 
+# SIC-derived company_profile.industry value for broker-dealers, used to exclude fcf_margin
+# from quality_score (vqg_quality_score.py/vqg_quality_batch.py) - trading-book/margin-lending/
+# repo funding swings distort FCF the same way loan/deposit swings do for depository banks
+# (already excluded via DEPOSITORY_BANK_INDUSTRIES). Added 2026-09-08 after live-confirming
+# GS/MS quality_score scored far below same-sector banks despite better ROIC/ROCE/leverage on
+# every other component - GS's own -81.02% fcf_margin was even cited as the motivating
+# evidence for the original 2026-09-07 depository-bank/utility exclusion fix, but its actual
+# industry was never added to that or any exclusion set. Scoped ONLY to fcf_margin (unlike
+# DEPOSITORY_BANK_INDUSTRIES, a broker-dealer's SEC-tagged debt is a reasonable
+# debt_to_equity proxy already).
+BROKER_DEALER_INDUSTRIES = frozenset(
+    {
+        "Security Brokers, Dealers & Flotation Companies",
+    }
+)
+
 
 class SectorIndustryCacheMixin:
     """Lazy, once-per-run symbol->sector/industry caches shared by the value/quality/growth mixins.

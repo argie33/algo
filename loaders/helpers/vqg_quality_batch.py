@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
 from loaders.helpers.vqg_quality_debt_fallback import DebtComponentsFallbackMixin
+from loaders.helpers.vqg_shared import BROKER_DEALER_INDUSTRIES
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 
 
@@ -191,20 +192,20 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
             }
 
             # fcf_margin exclusion (2026-09-08, absorbed from Pass-1's already-live-confirmed
-            # fix - see vqg_quality.py's fcf_margin_score comment): depository banks, risk-bearing
-            # insurance underwriters, and regulated rate-base utilities have free_cash_flow
-            # (operating_cash_flow - capex) dominated by loan origination/deposit swings or
-            # continuous grid/generation capex unrelated to real operating profitability (JPM
-            # -81%, WFC -22.70%, NEE -42% live-confirmed) - not a distress signal, a structural
-            # artifact of the metric definition for these industries. Excluded from both the
-            # z-score population (so they don't skew the sector's mean/stdev for genuinely
-            # FCF-comparable peers like payment networks/asset managers) and each excluded
-            # symbol's own component list (same "omit, don't floor" treatment as a missing raw
-            # value), mirroring Pass-1's per-industry exclusion instead of re-deriving it.
+            # fix - see vqg_quality_score.py's fcf_margin_score comment): depository banks,
+            # insurance underwriters, regulated utilities, and broker-dealers
+            # (BROKER_DEALER_INDUSTRIES added 2026-09-08, GS/MS live-confirmed) have
+            # free_cash_flow dominated by loan/deposit/capex/repo-funding swings unrelated to
+            # real operating profitability (JPM -81%, GS -81.02%, WFC -22.70%, NEE -42%
+            # live-confirmed) - not distress, a structural artifact excluded from both the
+            # z-score population and each excluded symbol's own component list (same "omit,
+            # don't floor" treatment as missing data). See BROKER_DEALER_INDUSTRIES's own
+            # comment in vqg_shared.py.
             _fcf_excluded_industries = (
                 _owner().DEPOSITORY_BANK_INDUSTRIES
                 | _owner().INSURANCE_UNDERWRITER_INDUSTRIES
                 | _owner().UTILITY_INDUSTRIES
+                | BROKER_DEALER_INDUSTRIES
             )
             # len(row) guard keeps pre-existing unit test fixtures (3-tuple/11-tuple rows, no
             # industry column) passing unchanged - a missing industry fails open to "no
