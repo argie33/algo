@@ -76,12 +76,13 @@ loaders/load_stock_scores.py directly on 2026-08-31:
   -PE/-PB/-PS (lower ratio = better) is this proxy's analogue of that percentile rank, same
   z-score convention this script already uses for every other pillar.
 
-- quality_proxy: ROE 11% + ROA 18% + ROCE 18% + FCF Margin 15% + (-Debt/Equity) 18% +
-  (-Margin Volatility 3Y) 7% + Asset Turnover 7% + Gross Profitability 7% (nominal 101, matches
-  _score_quality's current 8-component live weights exactly, unchanged from the 2026-08-27
-  rebuild - re-verified against the live docstring this pass, still accurate). Altman Z
-  excluded, computed/persisted but deliberately unscored as a discrete distress classifier, not
-  part of the live weighted formula either.
+- quality_proxy: flat 12.5% (1/8) each of ROE/ROA/ROCE/FCF Margin/(-Debt-to-Equity)/
+  (-Margin Volatility 3Y)/Asset Turnover/Gross Profitability, sector-neutral z-scored - the
+  stale 11/18/18/15/18/7/7/7 split here was CORRECTED 2026-09-12 (see quality_proxy's own
+  code comment below); PROXY_QUALITY_NUMERATORS/get_live_quality_weights()'s extraction
+  target were separately fixed 2026-09-13, having drifted independently of the construction
+  itself. Altman Z excluded, computed/persisted but deliberately unscored as a discrete
+  distress classifier, not part of the live weighted formula either.
 
 - stability_proxy (maps to live BASE_PILLAR_WEIGHTS["risk"]): flat 25% each of -vol_60d/
   -vol_252d/-|beta-1|/max_dd_1y - CORRECTED 2026-09-12 from the stale pre-2026-09-11
@@ -314,11 +315,15 @@ def get_live_momentum_weights() -> dict[str, float] | None:
 def get_live_quality_weights() -> dict[str, float] | None:
     from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
 
-    source = inspect.getsource(ValueQualityGrowthMetricsLoader._compute_quality_metrics)
-    # Targets the UNIVERSAL (non-Financial-Services/Real-Estate) branch specifically - the
-    # 8-field flat quality_components list this proxy implements. The sector-conditional
-    # 2-cluster branch (Financial Services/Real Estate, added 2026-08-28) is a deliberate,
-    # disclosed simplification this proxy does NOT model - not treated as drift.
+    # FIXED 2026-09-13 (/goal scoring-accuracy audit): this extraction targeted
+    # `_compute_quality_metrics`, a method name that no longer exists - the file-split
+    # refactor renamed it to `_compute_quality_composite_score` (vqg_quality_score.py's
+    # QualityScoreMixin) without this extractor being updated, so the drift-check below had
+    # been silently returning None (EXTRACTION FAILED) rather than actually validating
+    # anything. quality_proxy's own construction (further below) was independently already
+    # correct - see its own 2026-09-12 CORRECTED comment - only this display/validation path
+    # was broken.
+    source = inspect.getsource(ValueQualityGrowthMetricsLoader._compute_quality_composite_score)
     match = re.search(
         r"quality_components\s*=\s*\[\s*"
         r"\(roe_score,\s*([\d.]+)\),\s*"
@@ -375,15 +380,17 @@ PROXY_VALUE_NUMERATORS = {"pe": 27.0, "pb": 27.0, "ps": 27.0}
 # and all 4 momentum fields are flat 0.20/0.25 respectively - no [DRIFT] now.
 PROXY_RISK_NUMERATORS = {"vol60": 1.0, "vol252": 1.0, "beta": 1.0, "maxdd": 1.0}
 PROXY_MOMENTUM_NUMERATORS = {"mom_3m": 1.0, "mom_12_1": 1.0, "tech_trend": 1.0, "sma": 1.0}
+# FIXED 2026-09-13 (same audit): was still the pre-2026-09-11 11/18/18/15/18/7/7/7 split;
+# live is flat 12.5 each (matches quality_proxy's own already-correct construction above).
 PROXY_QUALITY_NUMERATORS = {
-    "roe": 11.0,
-    "roa": 18.0,
-    "roce": 18.0,
-    "fcf_margin": 15.0,
-    "debt_to_equity": 18.0,
-    "margin_volatility": 7.0,
-    "asset_turnover": 7.0,
-    "gross_profitability": 7.0,
+    "roe": 1.0,
+    "roa": 1.0,
+    "roce": 1.0,
+    "fcf_margin": 1.0,
+    "debt_to_equity": 1.0,
+    "margin_volatility": 1.0,
+    "asset_turnover": 1.0,
+    "gross_profitability": 1.0,
 }
 
 
