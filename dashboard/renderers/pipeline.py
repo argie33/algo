@@ -34,6 +34,7 @@ from dashboard.panels import (
     panel_exposure_expanded,
     panel_header_market,
     panel_market_expanded,
+    panel_options,
     panel_performance_spark,
     panel_portfolio,
     panel_portfolio_perf_expanded,
@@ -380,6 +381,8 @@ def render_expanded_view(  # noqa: C901
                 return _expanded_layout(*_exp_top, error_panel_exp)
             logger.debug("No errors detected in current data")
             return _expanded_layout(*_exp_top, Panel("[green]✓ No errors detected[/]", border_style="green"))
+        case "options":
+            return _expanded_layout(*_exp_top, panel_options(ctx.options))
 
     logger.warning(f"Unmatched expanded view mode: {view_mode}")
     return _expanded_layout(*_exp_top, Panel(f"[red]Unknown view mode: {view_mode}[/]", border_style="red"))

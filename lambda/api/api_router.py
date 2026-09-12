@@ -85,6 +85,7 @@ _OPTIONAL_ROUTE_MODULES = [
     "risk_dashboard",
     "data_coverage",
     "diagnostics",  # Position data sync health check endpoint
+    "options",  # CSP/covered-call candidate screener (goal session 2026-09-12 POC)
 ]
 
 # Track startup state for diagnostics (thread-safe)
@@ -217,6 +218,7 @@ analytics_endpoints = [
     ("/api/prices", _AVAILABLE_ROUTES.get("prices")),
     ("/api/stocks", _AVAILABLE_ROUTES.get("stocks")),
     ("/api/signals", _AVAILABLE_ROUTES.get("signals")),
+    ("/api/options", _AVAILABLE_ROUTES.get("options")),
 ]
 analytics_registered = 0
 for path, handler in analytics_endpoints:
@@ -228,9 +230,9 @@ for path, handler in analytics_endpoints:
         logger.error(f"Optional analytics endpoint {path} unavailable (module {module_name} failed to import)")
 
 if analytics_registered > 0:
-    logger.info(f"[STARTUP] Registered {analytics_registered} analytics endpoints as public (of 6 total)")
+    logger.info(f"[STARTUP] Registered {analytics_registered} analytics endpoints as public (of 7 total)")
 else:
-    logger.warning("[STARTUP] WARNING: No analytics endpoints available (all 6 modules failed to import)")
+    logger.warning("[STARTUP] WARNING: No analytics endpoints available (all 7 modules failed to import)")
 
 # Build authenticated handlers (order matters: /api/algo/risk-dashboard must come before /api/algo)
 # Note: /api/positions and /api/portfolio aliases are now in PUBLIC_HANDLERS

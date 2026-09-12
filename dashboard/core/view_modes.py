@@ -20,6 +20,7 @@ class ViewMode(str, Enum):
     ECONOMIC = "economic"
     PORTFOLIO = "portfolio"
     ERRORS = "errors"
+    OPTIONS = "options"
 
     @classmethod
     def is_valid(cls, mode: str) -> bool:

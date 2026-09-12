@@ -219,7 +219,7 @@ class PanelRegistry:
     def get_panels_for_view_mode(self, view_mode: str) -> list[str]:
         """Get panels to display for a given view mode.
 
-        view_mode can be: 'normal', 'positions', 'signals', 'health', 'sectors'
+        view_mode can be: 'normal', 'positions', 'signals', 'health', 'sectors', 'options'
 
         Returns list of panel names to render.
         """
@@ -243,6 +243,11 @@ class PanelRegistry:
             "scores": ["header", "exposure", "scores"],
             "health": ["header", "exposure", "health"],
             "sectors": ["header", "exposure", "sectors"],
+            # New, dedicated view mode rather than folding into "normal" - this is a
+            # manual/periodic-sample POC data source (goal session 2026-09-12), not yet a
+            # continuously-refreshed loader, so it shouldn't change what the default screen
+            # looks like for everyone until it's proven out.
+            "options": ["header", "exposure", "options"],
         }
         result = view_panels.get(view_mode)
         return result if result is not None else []

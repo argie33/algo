@@ -45,6 +45,9 @@ from .mascot import (
     mascot_compact,
     mascot_pose,
 )
+from .options import (
+    panel_options,
+)
 from .portfolio import (
     _calculate_adjusted_win_rate,
     panel_performance_spark,
@@ -109,6 +112,7 @@ __all__ = [
     # Market panels
     "panel_market_full",
     # Health and orchestration panels
+    "panel_options",
     "panel_orch",
     "panel_performance_spark",
     # Portfolio panels

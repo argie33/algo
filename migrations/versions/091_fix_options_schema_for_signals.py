@@ -68,24 +68,42 @@ def up():
                 RENAME COLUMN data_date TO quote_date;
                 """)
 
-        # Add missing columns
+        # Add missing columns. IF EXISTS guard added 2026-09-12 (goal session options audit):
+        # options_chains has never had a CREATE TABLE anywhere in this repo's history (the
+        # loader this migration shipped alongside, loaders/load_options_chains.py, only ever
+        # INSERTed into it too - see migrations/versions/1284_add_delta_to_options_chains.sql,
+        # which now actually creates the table). Without IF EXISTS here, this ALTER hard-fails
+        # with "relation options_chains does not exist" on any genuinely fresh database, and
+        # since migrations/run.py's apply_all_pending() runs in ascending numeric order and
+        # stops at the first failure, that would block every migration after this one
+        # (numbered 127 through 9999) from ever being applied on a cold start. This only went
+        # unnoticed because every already-provisioned environment had the table created
+        # out-of-band before this migration first ran there.
         cur.execute("""
-            ALTER TABLE options_chains
+            ALTER TABLE IF EXISTS options_chains
             ADD COLUMN IF NOT EXISTS iv DECIMAL(8, 4),
             ADD COLUMN IF NOT EXISTS days_to_expiration DECIMAL(8, 2);
             """)
 
-        # Create index on iv_history for signal lookups
-        cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_iv_history_symbol_date
-            ON iv_history(symbol, date DESC);
-            """)
+        # Create index on iv_history for signal lookups. `CREATE INDEX ... ON <table>` still
+        # hard-fails if the table itself doesn't exist yet even with IF NOT EXISTS (that only
+        # guards the index name, not the table) - both iv_history and options_chains are
+        # created later, by migrations 1283/1284, so guard with to_regclass same as the
+        # ALTER TABLE fix above.
+        cur.execute("SELECT to_regclass('iv_history')")
+        if cur.fetchone()[0] is not None:
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_iv_history_symbol_date
+                ON iv_history(symbol, date DESC);
+                """)
 
         # Create index on options_chains for signal lookups
-        cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_options_chains_symbol_quote_date
-            ON options_chains(symbol, quote_date DESC);
-            """)
+        cur.execute("SELECT to_regclass('options_chains')")
+        if cur.fetchone()[0] is not None:
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_options_chains_symbol_quote_date
+                ON options_chains(symbol, quote_date DESC);
+                """)
 
     conn.commit()
 
