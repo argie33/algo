@@ -1,10 +1,12 @@
 """Route: options - CSP/covered-call candidate screener (goal session 2026-09-12 POC).
 
 Reads scripts/options_data_loader.py's output (options_chains.delta, self-computed via
-Black-Scholes from vendor IV - see utils/options/black_scholes.py). This is a manual/
-periodic-sample data source (not a terraform-scheduled loader yet), so data_freshness on
-this endpoint will often show it as stale relative to other, continuously-refreshed
-dashboard endpoints - that's expected at this stage, not a bug.
+Black-Scholes from vendor IV - see utils/options/black_scholes.py). This is a daily
+rotating-sample data source (terraform/modules/loaders/main.tf's options_data_loader ECS
+task, 05:30 UTC - written 2026-09-12, not yet applied), not a full-universe/intraday feed,
+so data_freshness on this endpoint will often show a given symbol as several days stale
+relative to other, continuously-refreshed dashboard endpoints - that's expected at this
+stage, not a bug.
 """
 
 from __future__ import annotations

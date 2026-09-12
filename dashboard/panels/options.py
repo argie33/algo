@@ -1,8 +1,9 @@
 """Options CSP/covered-call candidate screener panel (goal session 2026-09-12 POC).
 
-Registered optional=True: this is a manual/periodic-sample data source (scripts/
-options_data_loader.py), not a continuously-refreshed loader - missing/stale data here
-must never block the rest of the dashboard from rendering.
+Registered optional=True: this is a daily rotating-sample data source (scripts/
+options_data_loader.py, scheduled via terraform/modules/loaders/main.tf's
+options_data_loader ECS task), not a continuously-refreshed/full-universe loader -
+missing/stale data here must never block the rest of the dashboard from rendering.
 """
 
 import logging

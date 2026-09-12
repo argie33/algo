@@ -32,12 +32,29 @@ production for this exact SPY-options call shape, NOT the process-isolated
 _YfinanceAttrProcessWorker other yfinance call sites in this codebase were hardened onto
 (utils/external/yfinance_analyst_ratings.py / yfinance_financials.py) - that worker only
 supports zero-argument attribute fetches (`getattr(ticker, attr)`), it cannot call
-`option_chain(expiration_str)`, which takes a required argument. This is a manual/
-periodic-sample POC script (like scripts/xbrl_yfinance_crosscheck.py), not a
-terraform-scheduled production loader - it is deliberately NOT wired into
-loaders/runner.py's OptimalLoader base class, LOADER_TABLES, or any ECS schedule. Promoting
-it to that status is a separate, later decision once the strategy logic that consumes this
-data actually exists.
+`option_chain(expiration_str)`, which takes a required argument.
+
+Scheduling (added goal session 2026-09-12, options-strategy planning phase 1): this is a
+daily-rotating-sample periodic script - like scripts/xbrl_yfinance_crosscheck.py, NOT a
+critical/gating production loader - deliberately kept OUT of loaders/runner.py's
+OptimalLoader base class, LOADER_TABLES, and the Step-Functions-gated pipeline
+(terraform/modules/pipeline/main.tf). It shares the exact same rationale as
+scripts/xbrl_second_opinion_daily.py: it makes live outbound yfinance calls with
+unpredictable latency and shared-IP rate-limit exposure
+(yfinance_validation_calls_self_triggered_ban_during_reload_20260903 in MEMORY.md), so it
+gets its own independent EventBridge-triggered ECS task
+(terraform/modules/loaders/main.tf's `options_data_loader` resources), never folded into
+anything Phase 1 gates on. `_select_symbols()`'s `ORDER BY md5(symbol || CURRENT_DATE::text)`
+rotates the sample by calendar date - the same daily-accumulation mechanism as the xbrl
+second-opinion layers - so running it daily (not weekly) is what actually cycles through
+the full market_constituents universe in a reasonable number of months rather than years.
+**Caveat, matching this repo's own honesty elsewhere: writing this terraform is not the
+same as applying it** - run `terraform plan`/`apply` in `terraform/` to actually turn the
+schedule on; until then this script is still manual-only in practice. Promoting it further,
+to a critical/gating loader, is a separate, later decision once real strategy execution
+that depends on same-day freshness exists (a written strategy spec + backtest validation
+must land first - see the phased options-strategy plan, not yet a checked-in doc as of this
+commit) - this phase only fixes "depends on a human remembering to run it."
 
 Risk-free rate: 3-month Treasury (economic_data.DGS3MO) - the right tenor for the
 30-45-day-DTE options this is meant to screen, not the 10-year rate load_sec_valuations.py's
@@ -47,7 +64,7 @@ DCF_DEFAULT_RISK_FREE_RATE.
 
 Usage:
     python scripts/options_data_loader.py --symbols AAPL,MSFT
-    python scripts/options_data_loader.py --limit 10
+    python scripts/options_data_loader.py --limit 50
     python scripts/options_data_loader.py --dry-run
 """
 
@@ -311,7 +328,13 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--limit", type=int, default=10, help="How many symbols to sample this run (default 10)")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=25,
+        help="How many symbols to sample this run (default 25 - matches the xbrl_yfinance_crosscheck.py "
+        "precedent's daily-rotating-sample size for the same shared-rate-limit reasons)",
+    )
     parser.add_argument("--symbols", help="Comma-separated explicit symbol list, overrides --limit sampling")
     parser.add_argument("--dry-run", action="store_true", help="Fetch and print, don't write to the database")
     args = parser.parse_args()
