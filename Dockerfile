@@ -43,6 +43,7 @@ COPY config/ ./config/
 COPY monitoring/ ./monitoring/
 COPY algo/ ./algo/
 COPY migrations/ ./migrations/
+COPY scripts/ ./scripts/
 COPY healthcheck.sh /healthcheck.sh
 
 RUN chmod +x /healthcheck.sh
