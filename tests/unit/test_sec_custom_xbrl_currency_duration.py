@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from utils.external.sec_custom_xbrl_currency_duration import (
     CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE,
+    _extract_duration_values_for_concepts_with_currency,
     extract_custom_capex_currency_aware_from_xbrl_xml,
     fetch_custom_capex_currency_aware,
 )
@@ -57,6 +58,24 @@ _NCTY_XML = """<?xml version="1.0" encoding="utf-8"?>
   </context>
   <ncty:PaymentsToAcquirePropertyEquipmentAndSoftware contextRef="c2025" unitRef="U_CNY" decimals="-3">1446000</ncty:PaymentsToAcquirePropertyEquipmentAndSoftware>
   <ncty:PaymentsToAcquirePropertyEquipmentAndSoftware contextRef="c2025" unitRef="U_USD" decimals="-3">207000</ncty:PaymentsToAcquirePropertyEquipmentAndSoftware>
+</xbrl>
+"""
+
+# Mirrors PAYP's real structure: a March 31 fiscal-year-end filer (period 2025-04-01 to
+# 2026-03-31 is labeled fiscal_year=2026 by this module's own end_date.year convention).
+# Live-caught bug: the FX lookup used to synthesize "{fiscal_year}-12-31" (2026-12-31) as
+# the rate date, which during this goal session (2026-09-11/12) is a genuinely FUTURE
+# date with no published rate - silently dropping the whole fiscal year, not a real
+# "no rate available" case.
+_PAYP_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2025-03-01/ifrs-full">
+  <unit id="U_JPY"><measure>iso4217:JPY</measure></unit>
+  <context id="c-fy2026">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0002080845</identifier></entity>
+    <period><startDate>2025-04-01</startDate><endDate>2026-03-31</endDate></period>
+  </context>
+  <ifrs-full:DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities contextRef="c-fy2026" unitRef="U_JPY" decimals="-6">311000000</ifrs-full:DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities>
 </xbrl>
 """
 
@@ -117,6 +136,26 @@ class TestExtractCustomCapexCurrencyAwareDualTaggedSameContext:
         ):
             result = extract_custom_capex_currency_aware_from_xbrl_xml(_NCTY_XML, "NCTY")
         assert result[2025] == 207_000.0
+
+
+class TestExtractDurationValuesForConceptsWithCurrencyNonCalendarFiscalYear:
+    """PAYP (fiscal year ends March 31, not Dec 31) - live-caught bug: the FX lookup date
+    used to be synthesized as "{fiscal_year}-12-31" (a real end_date.year-based label),
+    which is wrong for any non-calendar-fiscal-year filer - correct lookup date is the
+    real period end date.
+    """
+
+    def test_fx_lookup_uses_the_real_period_end_date_not_a_synthesized_dec_31(self):
+        with patch(
+            "utils.external.sec_custom_xbrl_currency_duration._shared_fx_rate_cache.get_usd_rate",
+            return_value=150.0,
+        ) as mock_get_rate:
+            result = _extract_duration_values_for_concepts_with_currency(
+                _PAYP_XML,
+                [("ifrs-full", "DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities")],
+            )
+        mock_get_rate.assert_called_once_with("JPY", "2026-03-31")
+        assert result[2026] == 311_000_000 / 150.0
 
 
 class TestFetchCustomCapexCurrencyAware:
