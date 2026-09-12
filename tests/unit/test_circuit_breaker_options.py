@@ -56,8 +56,9 @@ def _noop_halt_manager():
 
 
 def test_clean_csp_candidate_passes_every_check():
-    # $50 strike * 100 * 1 contract = $5,000 collateral, within the $10,000 sleeve cap
-    # (5% of $200,000 equity).
+    # $10 strike * 100 * 1 contract = $1,000 collateral: within the $10,000 sleeve cap (5% of
+    # $200,000 equity) AND within the 20%-of-sleeve per-underlying cap ($2,000) on its own,
+    # since the per-underlying/sector checks count this candidate's own pending collateral.
     cur = FakeOptionsCursor()
     halt_mgr = _noop_halt_manager()
     result = check_options_pretrade(
@@ -65,7 +66,7 @@ def test_clean_csp_candidate_passes_every_check():
         symbol="AAPL",
         sector="Technology",
         strategy_leg="csp",
-        strike=Decimal("50"),
+        strike=Decimal("10"),
         contracts=1,
         account_equity=Decimal("200000"),
         halt_manager=halt_mgr,
@@ -189,6 +190,67 @@ def test_per_underlying_cap_breach():
     )
     assert result["checks"]["per_underlying_cap"]["halted"] is True
     assert result["halted"] is True
+
+
+def test_per_underlying_cap_breached_by_this_single_candidate_alone():
+    """No prior sleeve exposure to the symbol (0% existing) - but this ONE candidate's own
+    collateral is large enough to breach the 20% cap by itself. Before this fix,
+    _check_per_underlying_cap only looked at already-committed exposure and would pass this
+    clean, since 0% < 20% - the most common real case (the very first order into a name) was
+    the one the check missed."""
+    cur = FakeOptionsCursor(symbol_exposure=(Decimal("0"), Decimal("0")))
+    # $3,000 strike * 100 * 1 contract = $300,000... use a realistic sleeve: $10,000 cap (5%
+    # of $200,000 equity), 20% cap = $2,000. A $30 strike CSP alone = $3,000 collateral > $2,000.
+    result = check_options_pretrade(
+        cur,
+        symbol="AAPL",
+        sector="Technology",
+        strategy_leg="csp",
+        strike=Decimal("30"),
+        contracts=1,
+        account_equity=Decimal("200000"),
+        halt_manager=_noop_halt_manager(),
+    )
+    assert result["checks"]["per_underlying_cap"]["halted"] is True
+    assert result["halted"] is True
+
+
+def test_sector_cap_breached_by_this_single_candidate_alone():
+    """Same scenario as the per-underlying case above, for the 40% sector cap: no prior sleeve
+    exposure to the sector, but this candidate's own collateral alone breaches it."""
+    cur = FakeOptionsCursor(sector_exposure=(Decimal("0"), Decimal("0")))
+    # 40% cap on $10,000 sleeve = $4,000. A $50 strike CSP alone = $5,000 collateral > $4,000.
+    result = check_options_pretrade(
+        cur,
+        symbol="AAPL",
+        sector="Technology",
+        strategy_leg="csp",
+        strike=Decimal("50"),
+        contracts=1,
+        account_equity=Decimal("200000"),
+        halt_manager=_noop_halt_manager(),
+    )
+    assert result["checks"]["sector_cap"]["halted"] is True
+    assert result["halted"] is True
+
+
+def test_covered_call_adds_no_pending_exposure_to_cap_checks():
+    """A covered call's own strike/contracts must NOT be added as pending exposure - the
+    shares it's written against are already counted via the assigned-cost-basis exposure
+    _symbol_committed_exposure sums, so double-adding here would over-reject covered calls."""
+    cur = FakeOptionsCursor(symbol_exposure=(Decimal("0"), Decimal("0")), sector_exposure=(Decimal("0"), Decimal("0")))
+    result = check_options_pretrade(
+        cur,
+        symbol="AAPL",
+        sector="Technology",
+        strategy_leg="covered_call",
+        strike=Decimal("1000"),  # would be a huge breach if wrongly treated as pending CSP collateral
+        contracts=1,
+        account_equity=Decimal("200000"),
+        halt_manager=_noop_halt_manager(),
+    )
+    assert result["checks"]["per_underlying_cap"]["halted"] is False
+    assert result["checks"]["sector_cap"]["halted"] is False
 
 
 def test_sector_cap_breach():

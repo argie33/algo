@@ -120,8 +120,10 @@ def _check_sleeve_cap(
     }
 
 
-def _check_per_underlying_cap(cur: Any, symbol: str, sleeve_capital: Decimal) -> dict[str, Any]:
-    pct = underlying_exposure_pct(cur, symbol, sleeve_capital)
+def _check_per_underlying_cap(
+    cur: Any, symbol: str, sleeve_capital: Decimal, pending_exposure: Decimal
+) -> dict[str, Any]:
+    pct = underlying_exposure_pct(cur, symbol, sleeve_capital, pending_exposure)
     breached = pct > PER_UNDERLYING_CAP_PCT
     return {
         "halted": breached,
@@ -135,13 +137,15 @@ def _check_per_underlying_cap(cur: Any, symbol: str, sleeve_capital: Decimal) ->
     }
 
 
-def _check_sector_cap(cur: Any, sector: str | None, sleeve_capital: Decimal) -> dict[str, Any]:
+def _check_sector_cap(
+    cur: Any, sector: str | None, sleeve_capital: Decimal, pending_exposure: Decimal
+) -> dict[str, Any]:
     if not sector:
         # Fail closed on missing sector data, same convention as
         # CircuitBreakerTradeSectorMixin._check_sector_concentration's NULL-sector handling -
         # a real risk check must not silently treat "we don't know the sector" as "no risk".
         return {"halted": True, "reason": "Sector is missing/unknown - cannot verify sector cap"}
-    pct = sector_exposure_pct(cur, sector, sleeve_capital)
+    pct = sector_exposure_pct(cur, sector, sleeve_capital, pending_exposure)
     breached = pct > SECTOR_CAP_PCT
     return {
         "halted": breached,
@@ -223,12 +227,19 @@ def check_options_pretrade(
     strike = Decimal(str(strike))
     halt_manager = _get_halt_manager(halt_manager)
     sleeve_capital = account_equity * SLEEVE_CAP_PCT
+    # A covered call adds no NEW exposure to the underlying - the shares it's written against
+    # are already counted via the assigned-cost-basis row _symbol_committed_exposure sums.
+    # A CSP's own collateral IS new exposure that doesn't exist in algo_options_positions yet
+    # (this candidate hasn't been persisted), so it must be added explicitly - see
+    # underlying_exposure_pct's docstring for why the cap checks would otherwise miss a single
+    # oversized order.
+    pending_exposure = strike * Decimal(100) * Decimal(contracts) if strategy_leg == "csp" else Decimal("0")
 
     checks: dict[str, Any] = {}
     checks["collateral_accounting_sane"] = _check_collateral_accounting_sane(cur, account_equity, halt_manager)
     checks["sleeve_cap"] = _check_sleeve_cap(cur, account_equity, strike, contracts, strategy_leg)
-    checks["per_underlying_cap"] = _check_per_underlying_cap(cur, symbol, sleeve_capital)
-    checks["sector_cap"] = _check_sector_cap(cur, sector, sleeve_capital)
+    checks["per_underlying_cap"] = _check_per_underlying_cap(cur, symbol, sleeve_capital, pending_exposure)
+    checks["sector_cap"] = _check_sector_cap(cur, sector, sleeve_capital, pending_exposure)
     checks["no_equity_overlap"] = _check_no_equity_overlap(cur, symbol)
     checks["cash_collateral_available"] = _check_cash_collateral_available(
         cur, account_equity, strike, contracts, strategy_leg

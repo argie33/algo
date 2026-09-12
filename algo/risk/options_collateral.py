@@ -124,17 +124,35 @@ def _exposure_pct(exposure: Decimal, sleeve_capital: Decimal) -> Decimal:
     return (exposure / sleeve_capital) * Decimal("100")
 
 
-def underlying_exposure_pct(cur: Any, symbol: str, sleeve_capital: Decimal) -> Decimal:
-    """Current sleeve exposure to `symbol` as a percentage of the sleeve's total capital -
-    feeds the 20%-per-underlying cap check (spec section 4)."""
-    exposure = _symbol_committed_exposure(cur, symbol)
+def underlying_exposure_pct(
+    cur: Any, symbol: str, sleeve_capital: Decimal, pending_exposure: Decimal = Decimal("0")
+) -> Decimal:
+    """Sleeve exposure to `symbol` as a percentage of the sleeve's total capital, AFTER adding
+    `pending_exposure` (the candidate order under evaluation, not yet persisted to
+    `algo_options_positions`) to the already-committed exposure - feeds the 20%-per-underlying
+    cap check (spec section 4).
+
+    `pending_exposure` defaults to 0 (a pure "what's already committed" read) rather than being
+    required, so existing display/reporting callers that only want the current committed
+    number don't have to thread a meaningless 0 through - but a pretrade cap CHECK must always
+    pass the candidate's own exposure here (see circuit_breaker_options.py's
+    `_check_per_underlying_cap`), otherwise a single new order large enough to breach the cap
+    entirely on its own - the most common real case, not an edge case - passes clean because
+    the OLD (pre-this-trade) exposure alone is compared against the cap.
+    """
+    exposure = _symbol_committed_exposure(cur, symbol) + _as_decimal(pending_exposure)
     return _exposure_pct(exposure, _as_decimal(sleeve_capital))
 
 
-def sector_exposure_pct(cur: Any, sector: str, sleeve_capital: Decimal) -> Decimal:
-    """Current sleeve exposure to `sector` as a percentage of the sleeve's total capital -
-    feeds the 40%-sector cap check (spec section 4)."""
-    exposure = _sector_committed_exposure(cur, sector)
+def sector_exposure_pct(
+    cur: Any, sector: str, sleeve_capital: Decimal, pending_exposure: Decimal = Decimal("0")
+) -> Decimal:
+    """Sleeve exposure to `sector` as a percentage of the sleeve's total capital, AFTER adding
+    `pending_exposure` (the candidate order under evaluation) - feeds the 40%-sector cap check
+    (spec section 4). See `underlying_exposure_pct`'s docstring for why `pending_exposure`
+    matters for a pretrade check specifically.
+    """
+    exposure = _sector_committed_exposure(cur, sector) + _as_decimal(pending_exposure)
     return _exposure_pct(exposure, _as_decimal(sleeve_capital))
 
 
