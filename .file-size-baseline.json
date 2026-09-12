@@ -618,6 +618,7 @@
   "scripts/backtest_regime_reconstruction.py": 453,
   "scripts/block_seed_prices.py": 107,
   "scripts/check_loader_status_schema.py": 26,
+  "scripts/check_options_approval_status.py": 110,
   "scripts/check_pdt_field_status.py": 123,
   "scripts/check_synthetic_price_data.py": 254,
   "scripts/check_unsafe_comparisons.py": 115,
