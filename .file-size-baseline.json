@@ -602,7 +602,7 @@
   "loaders/stock_scores/momentum_scoring.py": 663,
   "loaders/stock_scores/pillar_weights.py": 328,
   "loaders/stock_scores/quality_scoring.py": 192,
-  "loaders/stock_scores/risk_scoring.py": 575,
+  "loaders/stock_scores/risk_scoring.py": 574,
   "loaders/stock_scores/value_metrics.py": 924,
   "loaders/stock_scores/value_score.py": 993,
   "loaders/technical_indicators.py": 329,
