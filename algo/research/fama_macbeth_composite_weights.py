@@ -153,7 +153,10 @@ from algo.research.growth_quarterly_earnings_quality_candidates import (
 from algo.research.growth_quarterly_earnings_quality_candidates import (
     fetch_quarterly_panel,
 )
+from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
+from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
 from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
+from loaders.stock_scores.value_metrics import ValueMetricsMixin
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -498,6 +501,33 @@ def _zwinsor(s: pd.Series) -> pd.Series:
     return (s - s.mean()) / std if std and std > 0 else s * 0.0
 
 
+def _sector_neutral_zscore_pct(s: pd.Series, sector_map: dict[str, str], min_sector_size: int = 15) -> pd.Series:
+    """pandas-Series wrapper around production's `sector_neutral_zscore`/`zscore_to_percentile_scale`
+    (loaders/helpers/factor_normalization.py) - exact same transform Growth/Quality use live,
+    just adapted to this script's Series-indexed-by-symbol convention. NaN inputs are dropped
+    before the sector transform and re-inserted as NaN in the result.
+    """
+    present = s.dropna()
+    if present.empty:
+        return pd.Series(np.nan, index=s.index)
+    values = {str(sym): float(val) for sym, val in present.items()}
+    pct = zscore_to_percentile_scale(sector_neutral_zscore(values, sector_map, min_sector_size=min_sector_size))
+    return pd.Series(pct, index=s.index)
+
+
+def _sector_relative_cheap_high_pct(s: pd.Series, sector_map: dict[str, str]) -> pd.Series:
+    """pandas-Series wrapper around production's exact sector-relative Value rank
+    (`ValueMetricsMixin._percent_rank_cheap_high_sector_relative`) - calls the real classmethod
+    directly rather than reimplementing its winsorize/rank/residual-pool logic a second time.
+    """
+    present = s.dropna()
+    if present.empty:
+        return pd.Series(np.nan, index=s.index)
+    values = {str(sym): float(val) for sym, val in present.items()}
+    pct = ValueMetricsMixin._percent_rank_cheap_high_sector_relative(values, sector_map)
+    return pd.Series(pct, index=s.index)
+
+
 def build_value_panel_raw() -> pd.DataFrame:
     fund = fetch_annual_value_fundamentals()
     shares = fund["shares_diluted"]
@@ -636,6 +666,7 @@ def build_pillar_proxy_records(
     exactly what records_complete/records_partial do next.
     """
     logger.info("Building fundamentals panels (growth/value/quality)")
+    sector_map = fetch_sector_map()
     growth_fund = fetch_growth_and_sgr_fundamentals()
     growth_panel = build_growth_and_sgr_panel(growth_fund)
     quarterly_fund = fetch_quarterly_panel()
@@ -729,37 +760,41 @@ def build_pillar_proxy_records(
             else g.assign(quarterly_growth_momentum=np.nan, earnings_growth_4q_avg=np.nan)
         )
 
-        growth_cols_z = [_zwinsor(g[c]) for c in GROWTH_PROXY_COLS]
-        growth_proxy = sum(growth_cols_z) / len(growth_cols_z)
+        # CORRECTED 2026-09-12 (goal-mode "bad data/bad tests" audit): flat universe-wide
+        # z-score with no sector grouping - production sector-neutralized Growth 2026-09-08.
+        growth_cols_pct = [_sector_neutral_zscore_pct(g[c], sector_map) for c in GROWTH_PROXY_COLS]
+        growth_proxy = sum(growth_cols_pct) / len(growth_cols_pct)
 
         price = px.iloc[i].reindex(v.index)
-        pe = np.where(v["eps"] > 0, price / v["eps"], np.nan)
-        pb = np.where(v["book_value_per_share"] > 0, price / v["book_value_per_share"], np.nan)
-        ps = np.where(v["sales_per_share"] > 0, price / v["sales_per_share"], np.nan)
-        # value_proxy: PE27/PB27/PS27 (equal-weighted, live-verified 2026-09-01 - see module
-        # docstring's CORRECTED note) renormalized over 81 (live's remaining 19 - ForwardPE9/
-        # DividendYield10 - excluded). CORRECTED 2026-09-01: this was PE12/PB39/PS34/85 (stale
-        # since before the 2026-09-01 equal-weight reweight - see
-        # value_equal_weight_and_pe_reason_bug_fixed_20260901 in memory).
+        pe = pd.Series(np.where(v["eps"] > 0, price / v["eps"], np.nan), index=v.index)
+        pb = pd.Series(np.where(v["book_value_per_share"] > 0, price / v["book_value_per_share"], np.nan), index=v.index)
+        ps = pd.Series(np.where(v["sales_per_share"] > 0, price / v["sales_per_share"], np.nan), index=v.index)
+        # CORRECTED 2026-09-12 (same audit): flat universe-wide z-score of -PE/-PB/-PS -
+        # production moved to sector-relative cheap-high PERCENTILE RANK 2026-09-04 (real
+        # FM-validated: beat universe-wide in every era tested). Calls production's REAL
+        # classmethod directly (_sector_relative_cheap_high_pct) so this can't drift again.
         value_proxy = (
-            (27.0 / 81.0) * _zwinsor(-pd.Series(pe, index=v.index))
-            + (27.0 / 81.0) * _zwinsor(-pd.Series(pb, index=v.index))
-            + (27.0 / 81.0) * _zwinsor(-pd.Series(ps, index=v.index))
-        )
+            _sector_relative_cheap_high_pct(-pe, sector_map)
+            + _sector_relative_cheap_high_pct(-pb, sector_map)
+            + _sector_relative_cheap_high_pct(-ps, sector_map)
+        ) / 3.0
 
-        # quality_proxy: ROE11/ROA18/ROCE18/FCFmargin15/(-D2E)18/(-marginvol)7/assetturnover7/
-        # grossprofitability7, nominal 101 - matches _score_quality's current 8-component live
-        # weights exactly (re-verified 2026-08-31, unchanged from 2026-08-27).
-        quality_proxy = (
-            (11.0 / 101.0) * _zwinsor(q["roe"])
-            + (18.0 / 101.0) * _zwinsor(q["roa"])
-            + (18.0 / 101.0) * _zwinsor(q["roce"])
-            + (15.0 / 101.0) * _zwinsor(q["fcf_margin"])
-            + (18.0 / 101.0) * _zwinsor(-q["debt_to_equity"])
-            + (7.0 / 101.0) * _zwinsor(-q["margin_volatility_3y"])
-            + (7.0 / 101.0) * _zwinsor(q["asset_turnover"])
-            + (7.0 / 101.0) * _zwinsor(q["gross_profitability"])
-        )
+        # CORRECTED 2026-09-12 (same audit): was (a) flat universe-wide z-score with no sector
+        # grouping AND (b) a stale differential 11/18/18/15/18/7/7/7 weighting - production
+        # sector-neutralized Quality 2026-09-07 AND moved every component to flat 12.5% (1/8)
+        # each 2026-09-11 (UNIFORM EQUAL-WEIGHT directive, vqg_quality_score.py's
+        # quality_components list, re-verified live this pass).
+        quality_cols_pct = [
+            _sector_neutral_zscore_pct(q["roe"], sector_map),
+            _sector_neutral_zscore_pct(q["roa"], sector_map),
+            _sector_neutral_zscore_pct(q["roce"], sector_map),
+            _sector_neutral_zscore_pct(q["fcf_margin"], sector_map),
+            _sector_neutral_zscore_pct(-q["debt_to_equity"], sector_map),
+            _sector_neutral_zscore_pct(-q["margin_volatility_3y"], sector_map),
+            _sector_neutral_zscore_pct(q["asset_turnover"], sector_map),
+            _sector_neutral_zscore_pct(q["gross_profitability"], sector_map),
+        ]
+        quality_proxy = sum(quality_cols_pct) / len(quality_cols_pct)
 
         # Risk (stability_proxy): vol_60d/vol_252d/max_dd_1y from the DAILY panel (real
         # 60/252-trading-day windows), beta from the monthly 24-month window (unchanged
@@ -780,16 +815,16 @@ def build_pillar_proxy_records(
             else pd.Series(np.nan, index=winb.columns)
         )
         beta = beta.reindex(vol_60d.index)
-        # CORRECTED 2026-09-01 (live-reverified in loaders/load_stock_scores.py's _score_risk):
-        # live weights are now vol_60d 45 + vol_252d 15 + beta 15 + max_dd_1y 10 + Liquidity 15
-        # (Liquidity added 2026-09-01, avg_dollar_volume_20d-based - not reconstructed here, no
-        # point-in-time dollar-volume panel built yet, same "disclosed exclusion" convention as
-        # value_proxy's forward_pe/dividend_yield). Renormalized over the remaining 85.
+        # CORRECTED 2026-09-12 (same audit): was still the pre-2026-09-11 asymmetric 45/15/15/10
+        # split. Live risk_scoring.py's _score_risk now weights vol_60d/vol_252d/beta/max_dd_1y/
+        # Liquidity FLAT 20% EACH (UNIFORM EQUAL-WEIGHT directive) - Liquidity stays excluded
+        # (no point-in-time avg_dollar_volume_20d panel built), so the 4 available components
+        # are equal-weighted 25% each instead of the stale differential split.
         stability_proxy = (
-            (45.0 / 85.0) * _zwinsor(-vol_60d)
-            + (15.0 / 85.0) * _zwinsor(-vol_252d)
-            + (15.0 / 85.0) * _zwinsor(-(beta - 1.0).abs())
-            + (10.0 / 85.0) * _zwinsor(max_dd_1y)
+            0.25 * _zwinsor(-vol_60d)
+            + 0.25 * _zwinsor(-vol_252d)
+            + 0.25 * _zwinsor(-(beta - 1.0).abs())
+            + 0.25 * _zwinsor(max_dd_1y)
         )
 
         mom_3m = _trailing_cumret(px, i, 3)
