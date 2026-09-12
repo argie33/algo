@@ -12,7 +12,10 @@ This migration ensures critical safety features are enabled with proper threshol
 
 2. Quality Score Thresholds (Hard Gates):
    - min_signal_quality_score: 60 (0-100 scale, signal quality gate)
-   - min_completeness_score: 70 (data completeness %, Minervini standard)
+   - min_completeness_score: 70 (data completeness % - NOT a Minervini standard, that
+     attribution was fabricated; corrected 2026-09-13, see config_defaults_signals.py's
+     own comment for the full note. Value itself unchanged - comment-only correction,
+     this is a historical migration record, not a re-seed.)
    - These ensure we only trade high-quality signals, preventing low-quality entries.
 
 3. Earnings Blackout (Hard Gate):

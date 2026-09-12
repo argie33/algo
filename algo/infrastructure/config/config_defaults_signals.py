@@ -14,7 +14,11 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
     "min_completeness_score": (
         "70",
         "int",
-        "Minimum data completeness % (Minervini standard)",
+        "Minimum data completeness % - UNVALIDATED: prior 'Minervini standard' label was "
+        "fabricated (Minervini's published methodology is price/technical-only and has no "
+        "data-completeness concept; found and removed 2026-09-13, /goal scoring-methodology "
+        "audit). This is an arbitrary round number with no empirical backing - needs a real "
+        "completeness-threshold sensitivity backtest.",
         "Filter Thresholds",
     ),
     "min_stock_price": ("5.0", "float", "Minimum stock price $", "Filter Thresholds"),
