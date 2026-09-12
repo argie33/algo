@@ -187,6 +187,34 @@ first 90 days of live trading once the sleeve is live. Any change to the cap per
 should be a deliberate, written decision the same way this doc is — not an ad hoc edit under
 time pressure.
 
+## Phase 3 status: backtest built and run (2026-09-12)
+
+`algo/backtest/run_options_backtest.py` (commit `0586610bf`) implements a synthetic
+Black-Scholes wheel backtest — **read its module docstring before trusting any number
+below**: `options_chains`/`iv_history` only started accumulating today, so there is no real
+historical vendor options-quote data to replay yet. This backtest prices every hypothetical
+CSP/covered-call using trailing realized volatility (× a documented, conservative 1.15
+volatility-risk-premium multiplier) as an IV proxy — evidence about the mechanical
+construction (delta band/DTE/assignment), not the same evidence a real historical-quote
+backtest would give.
+
+Run against real local `price_daily` history, 35 liquid symbols, 2020-01 to 2024-06
+(spans both the COVID crash and the 2022 bear market): **1,427 cycles, 85.7% win rate,
++1.14% avg return on collateral per cycle**, still positive when isolated to 2022 alone
+(+0.60% avg/cycle, 315 cycles). Saved as `backtest_runs.run_id=2`.
+
+**Verdict**: directionally positive signal, grounds to continue into phase 4
+(risk/collateral infrastructure) — but NOT grounds to treat §7's go/no-go gate item 1 as
+satisfied. Real historical options data (a paid vendor, or waiting years for the daily
+loader to accumulate its own history) is still needed to actually confirm the edge before
+phase 5 (real execution).
+
+v1 scope gaps carried forward (not simulated): early-close-at-50%-profit, DTE<=7 rolls, the
+>15%-underlying-drop stop rule (spec §5), and the composite-score eligibility filter (spec
+§2 — `stock_scores` has no historical date dimension to backtest against without look-ahead
+bias). None of these affect the core edge-sign question v1 answers; they're risk-management
+refinements for a v2 once a real-data backtest justifies further investment.
+
 ## Open items carried into phase 3+
 
 - Loader's "nearest 2 expirations" behavior vs. this spec's 30-45 DTE target (§3) — needs a
