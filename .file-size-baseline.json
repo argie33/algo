@@ -215,6 +215,7 @@
   "algo/research/value_absolute_curve_vs_relative_ranking_20260828.py": 390,
   "algo/research/value_ev_ebit_owner_earnings_candidates.py": 260,
   "algo/research/value_percentile_rank_winsorization_test_20260907.py": 383,
+  "algo/research/value_risk_interaction_oos_reverify_20260912.py": 141,
   "algo/risk/__init__.py": 20,
   "algo/risk/capital_routing.py": 515,
   "algo/risk/circuit_breaker.py": 359,
