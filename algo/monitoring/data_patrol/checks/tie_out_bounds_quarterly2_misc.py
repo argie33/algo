@@ -298,8 +298,8 @@ class TieOutBoundsQuarterly2MiscMixin:
             )
 
     def check_stock_scores_bounds(self, cur: Any) -> None:
-        """composite_score/quality_score/growth_score/value_score/risk_score/momentum_score
-        must all fall within [0, 100] (stock_scores).
+        """composite_score/quality_score/growth_score/value_score/risk_score/momentum_score/
+        rs_percentile must all fall within [0, 100] (stock_scores).
 
         ADDED 2026-09-08 (goal: "check the factor/composite scores make sense" + "make sure
         we have all the right tie outs" sweep). Every pillar and the composite are built as
@@ -310,12 +310,17 @@ class TieOutBoundsQuarterly2MiscMixin:
         2026-09-08: 0 violations across all 5,448 rows (min composite_score 0.00, max 99.62) -
         this is a pure regression guard for a currently-clean invariant, not a fix for an
         existing violation.
+
+        EXTENDED same day: rs_percentile (load_stock_scores.py's update_rs_percentiles(), a
+        cross-sectional percentile rank of momentum_score) shares the identical [0, 100]
+        contract but was outside this check's original scope - added after a broader column
+        sweep. Live-checked: 0 violations.
         """
         try:
             cur.execute(
                 """
                 SELECT symbol, date, composite_score, quality_score, growth_score,
-                       value_score, risk_score, momentum_score
+                       value_score, risk_score, momentum_score, rs_percentile
                 FROM stock_scores
                 WHERE date = (SELECT MAX(date) FROM stock_scores)
                 """
@@ -327,6 +332,7 @@ class TieOutBoundsQuarterly2MiscMixin:
                 "value_score",
                 "risk_score",
                 "momentum_score",
+                "rs_percentile",
             )
             flagged = []
             for row in cur.fetchall():

@@ -3526,6 +3526,7 @@ class TestStockScoresBounds:
                         "value_score": 50.0,
                         "risk_score": 50.0,
                         "momentum_score": -3.5,
+                        "rs_percentile": 50.0,
                     }
                 ]
             ]
@@ -3537,6 +3538,29 @@ class TestStockScoresBounds:
         assert checker.results[0].details["count"] == 2
         flagged_fields = {e["field"] for e in checker.results[0].details["examples"]}
         assert flagged_fields == {"composite_score", "momentum_score"}
+
+    def test_flags_out_of_range_rs_percentile(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "ZZZZ",
+                        "date": "2026-09-08",
+                        "composite_score": 50.0,
+                        "quality_score": 50.0,
+                        "growth_score": 50.0,
+                        "value_score": 50.0,
+                        "risk_score": 50.0,
+                        "momentum_score": 50.0,
+                        "rs_percentile": 142.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_stock_scores_bounds(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].details["examples"][0]["field"] == "rs_percentile"
 
     def test_does_not_flag_in_range_scores(self) -> None:
         cur = _mock_cursor(
@@ -3551,6 +3575,7 @@ class TestStockScoresBounds:
                         "value_score": 15.54,
                         "risk_score": 66.13,
                         "momentum_score": 75.98,
+                        "rs_percentile": 88.0,
                     }
                 ]
             ]
@@ -3572,6 +3597,7 @@ class TestStockScoresBounds:
                         "value_score": None,
                         "risk_score": None,
                         "momentum_score": None,
+                        "rs_percentile": None,
                     }
                 ]
             ]
@@ -3587,6 +3613,7 @@ class TestStockScoresBounds:
         executed_sql = cur.execute.call_args[0][0]
         assert "stock_scores" in executed_sql
         assert "SELECT MAX(date) FROM stock_scores" in executed_sql
+        assert "rs_percentile" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
