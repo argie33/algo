@@ -733,10 +733,10 @@ class ValueScoreMixin:
         # average book/price, earnings/price, and sales/price roughly EQUALLY, not skewed
         # toward whichever ratio happens to backtest strongest on one specific sample. User's
         # explicit direction: match the industry-conventional equal-weight-the-core-multiples
-        # approach over this repo's own in-sample-optimized weights. P/E (27%) + P/B (27%) +
-        # P/S (27%) equal-weighted core; Forward P/E (9%) and Dividend Yield (10%) stay smaller
-        # satellite inputs (thinner history / weaker evidence respectively - neither is one of
-        # the 3 "core" multiples in any of the cited methodologies).
+        # approach over this repo's own in-sample-optimized weights (this 27/27/27/9/10 split
+        # itself SUPERSEDED 2026-09-11 - see this method's top docstring, "UNIFORM
+        # EQUAL-WEIGHT": all 5 inputs are flat 20% each below now; stale-comment/live-code
+        # mismatch found 2026-09-13 scoring-accuracy audit).
         if metrics.get("pe_ratio") is not None and metrics["pe_ratio"] > 0:
             pe_score = self._pe_curve_score(metrics["pe_ratio"])
             weighted_sum += pe_score * 0.20
