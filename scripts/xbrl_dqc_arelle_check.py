@@ -292,10 +292,25 @@ def _is_taxonomy_resolution_false_positive(code: str, message_el: ET.Element) ->
     dqc_arelle_local_validation_proven_20260912's "genuine" finding) - that claim is retracted;
     see memory dqc_arelle_taxonomy_resolution_false_positive_20260912.
 
-    EXTENDED 2026-09-12 with `_KNOWN_STANDARD_AXIS_MEMBER_LABELS` as a second, independent check
-    (see its own docstring) - the dimensions-text approach below is necessary for axes/members not
-    in that hand-maintained table, but proved insufficient alone once MSFT/KO exposed its
-    truncation blind spot.
+    EXTENDED 2026-09-12 (first pass) with `_KNOWN_STANDARD_AXIS_MEMBER_LABELS` as a second,
+    independent check (see its own docstring) after MSFT/KO exposed the fact1.dimensions
+    ATTRIBUTE's truncation blind spot - kept as a defense-in-depth fallback.
+
+    EXTENDED 2026-09-12 (second pass) to read dimensions from the message's own untruncated *text*
+    (`message_el.text`, e.g. "...\nDimensions: us-gaap:FairValueByFairValueHierarchyLevelAxis =
+    us-gaap:FairValueInputsLevel3Member\n...") instead of the `fact1.dimensions` XML *attribute*,
+    which Arelle truncates to a fixed length and was the actual cause of the original MSFT
+    truncation gap this docstring's first EXTENDED note describes. This is a strictly more
+    correct data source than the attribute (more robust against long/many-dimension facts) but
+    does NOT, on its own, close the separate KO "Segment Reporting, Reconciling Item, Corporate
+    Nonsegment [Member]" gap - tested directly and confirmed that gap is NOT truncation at all:
+    the qname (`us-gaap:CorporateNonSegmentMember`) is fully present, untruncated, in this same
+    text, but its normalized local name has zero textual overlap with the member's own displayed
+    label ("segmentreportingreconcilingitemcorporatenonsegmentmember" vs
+    "corporatenonsegmentmember") - a genuine label-vs-qname wording mismatch, structurally
+    different from anything a truncation fix (this one) or a hardcoded label table
+    (`_KNOWN_STANDARD_AXIS_MEMBER_LABELS`) can close. See the module docstring's
+    "STILL-INCOMPLETE" note - that gap remains open, this change does not resolve it.
     """
     if not code.startswith("DQC.US.0001."):
         return False
@@ -306,19 +321,21 @@ def _is_taxonomy_resolution_false_positive(code: str, message_el: ET.Element) ->
     axis_key = _normalize_xbrl_label(message_el.get("axis", ""))
     if target in _KNOWN_STANDARD_AXIS_MEMBER_LABELS.get(axis_key, ()):
         return True
-    # Arelle truncates a long fact1.dimensions string mid-token (e.g. "...us-gaap:Nondesigna...")
-    # on facts with several dimensions, so an exact match on the (possibly cut-off) local name
-    # would miss real matches; a truncated local name is still always a genuine prefix of the
-    # full one, so prefix-match in both directions rather than requiring equality.
-    dimensions_text = message_el.get("fact1.dimensions", "")
+    # Prefer the message's own untruncated text (the "Dimensions: ..." section) over the
+    # fact1.dimensions attribute, which Arelle truncates to a fixed length and can cut off the
+    # flagged member's qname entirely on a fact with several dimensions. Fall back to the
+    # attribute for older/malformed entries that lack the expected text section.
+    text = message_el.text or ""
+    dims_marker = text.find("Dimensions:")
+    dimensions_text = text[dims_marker:] if dims_marker != -1 else message_el.get("fact1.dimensions", "")
     for prefix, local in _QNAME_TOKEN_RE.findall(dimensions_text):
         if prefix not in _STANDARD_TAXONOMY_PREFIXES:
             continue
         normalized_local = _normalize_xbrl_label(local)
         if normalized_local == target:
             return True
-        # Only trust a one-sided prefix match (truncation) once it's long enough that a
-        # coincidental short-prefix collision between unrelated members is implausible.
+        # Truncated-attribute fallback only: a one-sided prefix match is only trustworthy once
+        # long enough that a coincidental short-prefix collision is implausible.
         if len(normalized_local) >= 8 and target.startswith(normalized_local):
             return True
     return False
