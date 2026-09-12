@@ -97,6 +97,7 @@ from algo.orchestrator.phase8_guards import (
     _check_pending_orders_guard,
     _check_price_freshness_guard,
     _check_signal_freshness_guard,
+    check_options_sleeve_overlap,
 )
 from algo.orchestrator.phase8_pdt_check import _check_pdt_limit_breach
 from algo.orchestrator.phase8_preentry_health_check import PreEntryHealthValidator
@@ -2092,17 +2093,9 @@ def run(
             cumulative_conc = 0.0
             skipped_reason_counts: dict[str, int] = {}
 
-            # AUDIT GAP FIX 2026-08-10: every skip path below used to only increment the
-            # in-memory skipped_reason_counts dict (a log line only) - unlike every other
-            # rejection path in this function (health_validation, liquidity, sizer_blocked -
-            # see the two comments on those about closing this exact gap), nothing here ever
-            # called _log_signal_rejection() or touched algo_signals.execution_status. Live-
-            # confirmed: a 2026-08-10 run qualified 19 signals, 8 got real rejection rows from
-            # the checks below, and the other 11 - filtered out right here by this
-            # concentration/sizer pre-check - sat in algo_signals as 'pending' forever with zero
-            # record of why, indistinguishable from "hasn't been evaluated yet". Also fixes the
-            # `break` on exceeds_limit: everything after the breaking signal in sorted_signals
-            # was never even visited, so the counts themselves silently undercounted these too.
+            # AUDIT GAP FIX 2026-08-10: every skip path below must call _log_signal_rejection(),
+            # not just increment skipped_reason_counts, or the signal sits in algo_signals as
+            # 'pending' forever with no record of why (live-confirmed, 11/19 signals lost this way).
             for idx, signal in enumerate(sorted_signals):
                 symbol = signal.get("symbol")
                 if not symbol:
@@ -2145,6 +2138,13 @@ def run(
                             continue
                 except Exception as e:  # FAIL CLOSED (2026-09-07): was "proceed with caution"
                     logger.warning(f"[PHASE 8] {symbol}: duplicate_check_error: {e}. Skipping (fail closed).")
+                    continue
+
+                if (sleeve_skip := check_options_sleeve_overlap(str(symbol))) is not None:
+                    skipped_reason_counts[sleeve_skip[0]] = skipped_reason_counts.get(sleeve_skip[0], 0) + 1
+                    _log_signal_rejection(
+                        symbol, "concentration_prefilter", sleeve_skip[1], run_date, signal_entry_price_hint, None
+                    )
                     continue
 
                 try:

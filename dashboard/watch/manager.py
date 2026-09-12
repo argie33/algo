@@ -79,6 +79,7 @@ class WatchModeController:
             "x": "exposure",
             "m": "market",
             "d": "errors",
+            "o": "options",
         }
 
     def handle_keypress(self, key: str) -> None:

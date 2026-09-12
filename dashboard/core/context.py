@@ -111,6 +111,10 @@ class DashboardContext:
         return sf.get("freshness") if isinstance(sf, dict) else None
 
     @property
+    def options(self) -> Any:
+        return self.data.get("options")
+
+    @property
     def econ_cal(self) -> Any:
         return self.extract_items(self.data.get("econ_cal"))
 

@@ -221,6 +221,7 @@ _._validate_sector_row  # unused method (algo\signals\sector_rotation.py:193)
 _.format_signal  # unused method (algo\signals\signal_base.py:21)
 _.pocket_pivot  # unused method (algo\signals\signal_momentum.py:258)
 _.distribution_days  # unused method (algo\signals\signal_momentum.py:377)
+_.check_options_pretrade  # unused function, phase-5 execution code not written yet (algo\risk\circuit_breaker_options.py:200)
 _.iv_rank_signal  # unused method (algo\signals\signal_options.py:32)
 _.put_call_ratio_signal  # unused method (algo\signals\signal_options.py:96)
 _.implied_move_signal  # unused method (algo\signals\signal_options.py:162)
@@ -272,6 +273,7 @@ TRADES  # unused variable (dashboard\core\view_modes.py:19)
 ECONOMIC  # unused variable (dashboard\core\view_modes.py:20)
 PORTFOLIO  # unused variable (dashboard\core\view_modes.py:21)
 ERRORS  # unused variable (dashboard\core\view_modes.py:22)
+OPTIONS  # unused variable (dashboard\core\view_modes.py:23) - view_mode dispatch (WatchModeController.key_map, renderers/pipeline.py's match/case, panel_registry.py's view_panels dict) all key off the raw string "options" rather than ViewMode.OPTIONS by name, same as every other member above
 _.toggle_to  # unused method (dashboard\core\view_modes.py:61)
 _.fetch_secrets_manager_credentials  # unused method (dashboard\credentials_provider.py:23)
 _.fetch_terraform_credentials  # unused method (dashboard\credentials_provider.py:91)
@@ -805,3 +807,5 @@ OrchestratorPhasesMixin  # unused class (algo\orchestration\orchestrator_phases_
 OrchestratorRunLoopMixin  # unused class (algo\orchestration\orchestrator_run_loop.py:49) - see OrchestratorStartupMixin above
 OrchestratorFinalReportMixin  # unused class (algo\orchestration\orchestrator_final_report.py:24) - see OrchestratorStartupMixin above
 _.get_frames  # unused method (utils\external\sec_edgar_client.py:326) - called only from scripts\xbrl_frames_check.py, which vulture doesn't trace into, same false positive as save_dismissed above
+put_delta  # unused function (utils\options\black_scholes.py:57) - called from scripts\options_data_loader.py's per-symbol loader, which vulture doesn't trace into, same false positive as save_dismissed above
+implied_volatility  # unused function (utils\options\black_scholes.py:62) - only production call site is future strategy logic that doesn't exist yet; exercised today by tests\unit\test_black_scholes_iv_delta_roundtrip.py's round-trip checks, which vulture doesn't trace into either

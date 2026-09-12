@@ -5,6 +5,20 @@ Options-Based Alpha Signals - IV rank, put/call ratio, implied move.
 
 All signals return bonus points (0-3 pts max) to momentum component.
 Gracefully handle missing options data (many small-caps have no options).
+
+STATUS (confirmed 2026-09-12, options-strategy planning phase 1): `SignalOptionsMixin` is
+mixed into `SignalComputer` (algo/signals/signal_computer.py) but none of its three methods
+are actually called anywhere in the scoring pipeline - dead code, not wired in, same as a
+2026-08-04 commit (691d60f82) already found and documented when it removed options_chains
+from health monitoring for this exact reason. `.vulture_whitelist.py` explicitly whitelists
+all three methods as unused rather than flagging them as bugs.
+
+Left unwired deliberately, not by omission: enabling these as real scoring inputs needs the
+same IC/backtest validation this codebase already demands before trusting any other signal
+(see MEMORY.md's scoring-methodology-audit entries) - that hasn't been done for these three,
+and options_chains' historically-thin, unscheduled data (see scripts/options_data_loader.py)
+would have made any such validation unreliable anyway. Do not wire these into
+signal_computer's scoring without that validation first.
 """
 
 import logging

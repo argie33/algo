@@ -131,6 +131,10 @@ class _FakeCursor:
             return (None,)  # no 52w support data -> skip support-based stop adjustment
         if "SELECT ID FROM ALGO_TRADES" in sql:
             return None  # no existing open/pending position for this symbol
+        if "ALGO_POSITIONS" in sql and "STATUS = 'OPEN'" in sql and "LIMIT 1" in sql:
+            return None  # has_equity_overlap(): no open equity position by default
+        if "ALGO_OPTIONS_POSITIONS" in sql:
+            return None  # has_equity_overlap(): no open/assigned sleeve position by default
         if sql.strip() == "SELECT 1":
             return (1,)
         return (0,)

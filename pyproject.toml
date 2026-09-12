@@ -154,6 +154,7 @@ ignore = ["E203", "E501", "UP031", "RUF012", "N999", "N812"]  # N812: `cursor as
 "dashboard/panels/exposure.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
 "dashboard/panels/market.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
 "dashboard/panels/mascot.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
+"dashboard/panels/options.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
 "dashboard/panels/portfolio.py" = ["E402", "C901"]  # Panels: TYPE_CHECKING conditional imports + complex aggregation
 "dashboard/panels/positions.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports
 "dashboard/panels/scores.py" = ["E402"]  # Panels: TYPE_CHECKING conditional imports

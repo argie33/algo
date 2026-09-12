@@ -52,6 +52,7 @@ from .fetchers_market import (
     fetch_sector_ranking,
     fetch_sector_rotation,
 )
+from .fetchers_options import fetch_options
 from .fetchers_portfolio import (
     fetch_completed_trades,
     fetch_perf,
@@ -88,6 +89,7 @@ __all__ = [
     "fetch_industry_ranking",
     "fetch_market",
     "fetch_notifications",
+    "fetch_options",
     "fetch_orch_extended",
     "fetch_perf",
     "fetch_perf_analytics",
@@ -141,6 +143,7 @@ FETCHERS = {
     "data_coverage": fetch_data_coverage,
     "orch_extended": fetch_orch_extended,
     "signal_freshness": fetch_signal_freshness,
+    "options": fetch_options,
 }
 
 
@@ -320,6 +323,7 @@ def load_all() -> dict[str, Any]:
         "data_coverage": 6.0,
         "orch_extended": 6.0,
         "signal_freshness": 6.0,
+        "options": 6.0,
     }
 
     # Categorize fetchers by priority to reduce concurrent RDS connections
@@ -365,6 +369,8 @@ def load_all() -> dict[str, Any]:
         # failure patterns, loader health, 7d/30d trend - DATA FRESHNESS - EXPANDED only.
         "signal_freshness",  # /api/health: signal freshness status/age - DATA FRESHNESS -
         # EXPANDED panel's system status section only.
+        "options",  # CSP/covered-call candidate screener (goal session 2026-09-12 POC) -
+        # manual/periodic-sample data source, not a continuously-refreshed loader yet.
     }
 
     def one(name: str, fn: Callable[..., Any], timeout_sec: float) -> tuple[str, Any]:

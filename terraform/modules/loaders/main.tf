@@ -1453,6 +1453,117 @@ resource "aws_cloudwatch_event_target" "xbrl_second_opinion_daily_target" {
 }
 
 # ============================================================
+# scripts/options_data_loader.py - options-strategy planning phase 1 (goal session
+# 2026-09-12): promotes the manual/POC options-chain loader to a real schedule instead of
+# depending on a human remembering to run it, following the exact same pattern as
+# xbrl_second_opinion above and for the same reason - it makes live outbound yfinance calls
+# with unpredictable latency and shared-IP rate-limit exposure (see
+# yfinance_validation_calls_self_triggered_ban_during_reload_20260903 in MEMORY.md), so it
+# is deliberately kept OUT of the Step-Functions-gated pipeline (terraform/modules/pipeline/
+# main.tf) and out of LOADER_TABLES - a failure or slow run here can never halt trading.
+# _select_symbols() rotates its --limit-sized sample by CURRENT_DATE (same mechanism as the
+# xbrl second-opinion layers), so daily cadence accumulates coverage across the
+# market_constituents universe over time rather than needing a full-universe run in one
+# pass. Scheduled 05:30 UTC - 30 minutes after xbrl_second_opinion (05:00 UTC) to avoid
+# both tasks hitting yfinance concurrently, and still comfortably ahead of the morning
+# pipeline's ~06:00-07:00 UTC start (2:00 AM ET, DST-dependent).
+#
+# This is still an options-strategy DATA foundation step, not a trading strategy - nothing
+# reads this table to place an order yet. A written strategy spec + backtest validation
+# (not yet checked in as of this commit) must land before any execution code is built - see
+# MEMORY.md's options-strategy-planning entry for the full phased plan this is phase 1 of.
+
+resource "null_resource" "ensure_options_data_loader_log_group" {
+  provisioner "local-exec" {
+    command = "aws logs create-log-group --log-group-name /ecs/${var.project_name}-options-data-loader --region ${var.aws_region} 2>/dev/null || true"
+  }
+}
+
+resource "aws_ecs_task_definition" "options_data_loader" {
+  depends_on = [null_resource.ensure_options_data_loader_log_group]
+
+  family = "${var.project_name}-options-data-loader"
+  container_definitions = jsonencode([
+    {
+      name      = "${var.project_name}-options-data-loader"
+      image     = "${var.ecr_repository_uri}:${var.environment}-latest"
+      essential = true
+
+      # Do NOT prefix with "python3" — ENTRYPOINT ["python3", "-u"] already provides the interpreter.
+      command = ["scripts/options_data_loader.py"]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${var.project_name}-options-data-loader"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.db_secret_arn}:password::" },
+        { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" }
+      ]
+
+      environment = [
+        { name = "AWS_EXECUTION_ENV", value = "ECS_FARGATE" },
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "DB_HOST", value = var.db_host },
+        { name = "DB_PORT", value = tostring(var.db_port) },
+        { name = "DB_NAME", value = var.db_name },
+        { name = "DB_SECRET_ARN", value = var.db_secret_arn },
+        { name = "ALGO_SECRETS_ARN", value = var.algo_secrets_arn },
+        { name = "DB_SSL", value = var.db_ssl_mode },
+        { name = "PYTHONPATH", value = "/app" }
+      ]
+    }
+  ])
+
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "512"
+  memory                   = "1024"
+  execution_role_arn       = var.task_execution_role_arn
+  task_role_arn            = var.task_role_arn
+
+  tags = var.common_tags
+}
+
+resource "aws_cloudwatch_event_rule" "options_data_loader_daily" {
+  name                = "${var.project_name}-options-data-loader-schedule"
+  description         = "Daily rotating-sample options-chain data collection (options-strategy planning phase 1) - 05:30 UTC every day, staggered 30min after xbrl_second_opinion to avoid concurrent yfinance load, still ahead of the morning pipeline."
+  schedule_expression = "cron(30 5 * * ? *)"
+  state               = "ENABLED"
+
+  tags = var.common_tags
+}
+
+resource "aws_cloudwatch_event_target" "options_data_loader_daily_target" {
+  rule      = aws_cloudwatch_event_rule.options_data_loader_daily.name
+  target_id = "OptionsDataLoaderTarget"
+  arn       = var.ecs_cluster_arn
+  role_arn  = aws_iam_role.eventbridge_run_task.arn
+
+  ecs_target {
+    launch_type         = "FARGATE"
+    task_definition_arn = aws_ecs_task_definition.options_data_loader.arn
+    task_count          = 1
+    platform_version    = "LATEST"
+
+    network_configuration {
+      subnets          = var.public_subnet_ids
+      security_groups  = [var.ecs_tasks_sg_id]
+      assign_public_ip = true
+    }
+  }
+
+  dead_letter_config {
+    arn = aws_sqs_queue.loader_dlq.arn
+  }
+}
+
+# ============================================================
 # CloudWatch Alarm — SQS DLQ depth (any loader failure lands here)
 # ============================================================
 

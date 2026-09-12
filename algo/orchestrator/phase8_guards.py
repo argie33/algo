@@ -22,6 +22,7 @@ from typing import Any
 import algo.orchestrator.phase8_entry_execution as _p8e
 from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.phase_result import PhaseResult
+from algo.risk.options_collateral import has_equity_overlap
 from utils.infrastructure import EASTERN_TZ as _EASTERN_TZ
 
 logger = logging.getLogger(__name__)
@@ -316,3 +317,33 @@ def _check_drawdown_daily_loss_guard(
     logger.critical(msg)
     log_phase_result_fn(8, "entry_execution", "blocked", msg)
     return PhaseResult(8, "entry_execution", "blocked", {"entered": 0}, False, msg)
+
+
+def check_options_sleeve_overlap(symbol: str) -> tuple[str, str] | None:
+    """OPTIONS-SLEEVE EQUITY-OVERLAP GUARD (2026-09-12): steering/OPTIONS_STRATEGY_SPEC.md
+    section 6 is a HARD rule - the sleeve and the equity strategy must never both hold
+    exposure to the same underlying. algo/risk/options_collateral.py's has_equity_overlap()
+    already enforced the sleeve-entering-checks-equity direction (circuit_breaker_options.py,
+    phase 4); this closes the other direction, which was a documented open gap until now (see
+    has_equity_overlap's own docstring / the spec's phase 4 status section) - the equity
+    strategy's own entry path (phase8_entry_execution.py's per-candidate pre-filter loop)
+    never checked for open sleeve exposure before this.
+
+    Returns (skip_reason_key, log_message) if `symbol` should be skipped this run, else None.
+    Fails CLOSED (returns a skip tuple, never None) on any error - this rule is hard/capital-
+    safety, not advisory, unlike the fail-open sector-concentration gate in
+    phase8_entry_execution.py.
+    """
+    try:
+        with _p8e.DatabaseContext("read") as cur:  # type: ignore[attr-defined]
+            overlap = has_equity_overlap(cur, symbol)
+    except Exception as e:
+        logger.warning(f"[PHASE 8] {symbol}: sleeve_overlap_check_error: {e}. Skipping (fail closed).")
+        return "sleeve_overlap_check_error", f"sleeve_overlap_check_error: {e}"
+    if overlap:
+        logger.info(
+            f"[PHASE 8 SLEEVE_OVERLAP] {symbol}: skipping equity entry - options sleeve already "
+            "holds a CSP/assigned position in this underlying (spec section 6, hard rule)."
+        )
+        return "options_sleeve_overlap", "options_sleeve_overlap: symbol has open/assigned options-sleeve exposure"
+    return None

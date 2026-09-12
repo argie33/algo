@@ -91,6 +91,11 @@ FETCHER_METADATA = {
         "endpoint": "/api/health",
         "desc": "Signal freshness (status/signal_age_hours) for the DATA FRESHNESS - EXPANDED panel",
     },
+    "options": {
+        "endpoint": "/api/options/candidates",
+        "desc": "CSP/covered-call candidate screener (0.15-0.30 delta zone, self-computed via "
+        "Black-Scholes - goal session 2026-09-12 POC, manual/periodic-sample data source)",
+    },
 }
 
 
