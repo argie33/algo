@@ -83,9 +83,9 @@ loaders/load_stock_scores.py directly on 2026-08-31:
   excluded, computed/persisted but deliberately unscored as a discrete distress classifier, not
   part of the live weighted formula either.
 
-- stability_proxy (maps to live BASE_PILLAR_WEIGHTS["risk"]): (-vol_60d)*0.45 + (-vol_252d)*0.20
-  + (-|beta-1|)*0.20 + max_dd_1y*0.15 - matches the Risk pillar's 2026-08-31 rework exactly
-  (downside_vol_60d fully removed from live scoring; vol_252d added; beta is NOT clipped to a
+- stability_proxy (maps to live BASE_PILLAR_WEIGHTS["risk"]): flat 25% each of -vol_60d/
+  -vol_252d/-|beta-1|/max_dd_1y - CORRECTED 2026-09-12 from the stale pre-2026-09-11
+  45/20/20/15 split to match the live UNIFORM EQUAL-WEIGHT rework (beta is NOT clipped to a
   floor of 0 here, matching the live 2026-08-28/29 fix that removed that clip since beta is a
   signed regression coefficient, not a floor-0 metric). FIDELITY UPGRADE this rebuild: vol_60d/
   vol_252d/max_dd_1y are now computed from the DAILY price panel already fetched for Momentum
@@ -97,10 +97,11 @@ loaders/load_stock_scores.py directly on 2026-08-31:
   approximation carried over from every prior version of this script, not attempted to fix here
   to keep this rebuild's scope to the weight/formula staleness it was written to address.
 
-- momentum_proxy: mom_3m*0.20 + mom_12_1*0.35 + avg(rsi_14, macd_sign)*0.37 +
-  avg(price_vs_sma_50, price_vs_sma_200)*0.08 - unchanged from the 2026-08-27 rebuild,
-  re-verified against _score_momentum's actual code (not just its docstring prose) this pass:
-  RSI/MACD are score-then-averaged in production (two 0-100 sub-scores), but macd_sign is
+- momentum_proxy: flat 25% each of mom_3m, mom_12_1, avg(rsi_14, macd_sign), and
+  avg(price_vs_sma_50, price_vs_sma_200) - CORRECTED 2026-09-13 from the stale pre-2026-09-11
+  20/35/37/8 split (missed in the 2026-09-12 pass that fixed stability_proxy/value_proxy/
+  growth_proxy/quality_proxy the same way). RSI/MACD are score-then-averaged in production
+  (two 0-100 sub-scores), but macd_sign is
   ALREADY a sign-only extraction here (np.sign(macd_line) in
   fama_macbeth_momentum_factors.py's compute_daily_indicators), so z-scoring these two
   components and averaging them is a faithful linear analogue of production's "average the two
@@ -366,8 +367,14 @@ PROXY_GROWTH_FIELDS = set(GROWTH_PROXY_COLS)
 # field (numerator only - denominator is each pillar's own renormalization, computed below from
 # the LIVE nominal total of just the implemented fields, not hardcoded here).
 PROXY_VALUE_NUMERATORS = {"pe": 27.0, "pb": 27.0, "ps": 27.0}
-PROXY_RISK_NUMERATORS = {"vol60": 45.0, "vol252": 15.0, "beta": 15.0, "maxdd": 10.0}
-PROXY_MOMENTUM_NUMERATORS = {"mom_3m": 0.20, "mom_12_1": 0.35, "tech_trend": 0.37, "sma": 0.08}
+# FIXED 2026-09-13 (/goal scoring-accuracy audit): both were still the pre-2026-09-11
+# magnitude-tuned splits - live risk_scoring.py/momentum_scoring.py moved to flat equal
+# weight that day (see pillar_weights.py's UNIFORM EQUAL-WEIGHT note) and this script's
+# own _check_pillar_weights() drift detector was silently never run to catch it. Live-
+# reconfirmed via get_live_risk_weights()/get_live_momentum_weights(): all 5 risk fields
+# and all 4 momentum fields are flat 0.20/0.25 respectively - no [DRIFT] now.
+PROXY_RISK_NUMERATORS = {"vol60": 1.0, "vol252": 1.0, "beta": 1.0, "maxdd": 1.0}
+PROXY_MOMENTUM_NUMERATORS = {"mom_3m": 1.0, "mom_12_1": 1.0, "tech_trend": 1.0, "sma": 1.0}
 PROXY_QUALITY_NUMERATORS = {
     "roe": 11.0,
     "roa": 18.0,
@@ -851,7 +858,11 @@ def build_pillar_proxy_records(
         sma_avg = (
             _zwinsor(indicators["price_vs_sma_50"].iloc[i]) + _zwinsor(indicators["price_vs_sma_200"].iloc[i])
         ) / 2.0
-        momentum_proxy = 0.20 * _zwinsor(mom_3m) + 0.35 * _zwinsor(mom_12_1) + 0.37 * tech_trend + 0.08 * sma_avg
+        # FIXED 2026-09-13 (/goal scoring-accuracy audit): was still the pre-2026-09-11
+        # 20/35/37/8 split - live momentum_scoring.py's _score_momentum weights momentum_3m/
+        # mom_12_1/tech_trend/SMA FLAT 25% EACH (same UNIFORM EQUAL-WEIGHT directive that
+        # already got applied to stability_proxy above but was missed here).
+        momentum_proxy = 0.25 * (_zwinsor(mom_3m) + _zwinsor(mom_12_1) + tech_trend + sma_avg)
 
         fwd_ret = ret.iloc[i + 1]
 
