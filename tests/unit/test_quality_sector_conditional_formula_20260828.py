@@ -25,6 +25,11 @@ helper `test_quality_roe_roce_percentile_ranking_20260828.py` already uses for t
 purpose) applied to the SAME breakpoints live in `_compute_quality_metrics`, not copied from a
 particular run's output - if either the curve breakpoints or the composite weights drift, this
 test should fail, not silently keep matching.
+
+UNIFORM EQUAL-WEIGHT 2026-09-11 (see loaders/stock_scores/pillar_weights.py's
+BASE_PILLAR_WEIGHTS comment): all 8 components are now flat 12.5 each (nominal total 100, not
+101) instead of 11/18/18/15/18/7/7/7 - expected values and completeness-floor outcomes below
+updated accordingly.
 """
 
 from unittest.mock import MagicMock, patch
@@ -161,16 +166,16 @@ class TestMarginVolatilityScoreActuallyWired:
         at_curve = L._margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
 
         weighted_sum = (
-            roe_curve * 11
-            + roa_curve * 18
-            + roce_curve * 18
-            + fcf_curve * 15
-            + d2e_score * 18
-            + mv_score * 7
-            + at_curve * 7
-            + gp_curve * 7
+            roe_curve * 12.5
+            + roa_curve * 12.5
+            + roce_curve * 12.5
+            + fcf_curve * 12.5
+            + d2e_score * 12.5
+            + mv_score * 12.5
+            + at_curve * 12.5
+            + gp_curve * 12.5
         )
-        expected = weighted_sum / 101.0
+        expected = weighted_sum / 100.0
 
         metrics = loader._compute_quality_metrics("TECHCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
@@ -199,16 +204,16 @@ class TestUniformFormulaAcrossSectors:
         at_curve = L._margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
 
         weighted_sum = (
-            roe_curve * 11
-            + roa_curve * 18
-            + roce_curve * 18
-            + fcf_curve * 15
-            + d2e_score * 18
-            + mv_score * 7
-            + at_curve * 7
-            + gp_curve * 7
+            roe_curve * 12.5
+            + roa_curve * 12.5
+            + roce_curve * 12.5
+            + fcf_curve * 12.5
+            + d2e_score * 12.5
+            + mv_score * 12.5
+            + at_curve * 12.5
+            + gp_curve * 12.5
         )
-        return weighted_sum / 101.0
+        return weighted_sum / 100.0
 
     def test_real_estate_uses_the_same_universal_formula_as_technology(self):
         loader = _make_loader()
@@ -264,11 +269,10 @@ class TestUniformFormulaAcrossSectors:
         fcf_curve = L._margin_curve(8.0, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
         at_curve = L._margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
         gp_curve = L._margin_curve(53.333333333333336, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
-        expected = (roe_curve * 11 + roa_curve * 18 + fcf_curve * 15 + at_curve * 7 + gp_curve * 7) / (
-            11 + 18 + 15 + 7 + 7
-        )
+        # 5 components x 12.5 each = 62.5, well above the 40.0 floor.
+        expected = (roe_curve + roa_curve + fcf_curve + at_curve + gp_curve) / 5.0
 
-        assert metrics["quality_score"] == expected
+        assert metrics["quality_score"] == pytest.approx(expected)
         assert metrics["quality_score_unavailable_reason"] is None
 
     def test_almost_nothing_available_reports_insufficient_completeness(self):
@@ -291,15 +295,14 @@ class TestUniformFormulaAcrossSectors:
         assert metrics.get("quality_score") is None
         assert metrics["quality_score_unavailable_reason"] == "insufficient_completeness"
 
-    def test_debt_volatility_and_roce_clear_the_universal_floor(self):
+    def test_debt_volatility_and_roce_alone_now_fail_the_universal_floor(self):
         # net_income/total_assets/revenue nulled kills roe/roa/fcf_margin/gross_profitability/
-        # asset_turnover, but roce_pct is independent of all three (it comes from
-        # stockholders_equity/debt_for_roic/cash via invested_capital, untouched here) - so
-        # debt_to_equity(18)+margin_volatility(7)+roce(18)=43 of the universal formula's 101
-        # nominal weight clears its 40.0 floor. Under the old two-cluster architecture this
-        # sector used to test, roce alone (1 of profitability_cluster's 5 inputs) failed that
-        # cluster's own >=2/5 floor, so the composite came back None entirely - that
-        # cluster-level gating no longer exists (see the class docstring), so this now scores.
+        # asset_turnover, leaving only debt_to_equity/margin_volatility/roce_pct (roce_pct is
+        # independent of all three, it comes from stockholders_equity/debt_for_roic/cash via
+        # invested_capital, untouched here). Under equal weighting (2026-09-11), 3 components x
+        # 12.5 = 37.5, BELOW the 40.0 floor - previously 18+18+7=43 of 101 cleared it under the
+        # old magnitude-tuned weights. This now correctly withholds a score instead of
+        # extrapolating from 3 of 8 equally-weighted inputs.
         loader = _make_loader()
         loader._get_symbol_sector = lambda symbol: "Financial Services"
         row = _row(net_income=None, total_assets=None, revenue=None)
@@ -314,13 +317,8 @@ class TestUniformFormulaAcrossSectors:
         assert metrics.get("fcf_margin") is None
         assert metrics.get("gross_profitability") is None
 
-        roce_curve = L._margin_curve(15.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
-        d2e_score = max(0.0, min(100.0, 100.0 - (0.2 / 2.0) * 100.0))
-        mv_score = 100.0 - L._margin_curve(10.0, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
-        expected = (roce_curve * 18 + d2e_score * 18 + mv_score * 7) / (18 + 18 + 7)
-
-        assert metrics["quality_score"] == expected
-        assert metrics["quality_score_unavailable_reason"] is None
+        assert metrics["quality_score"] is None
+        assert metrics["quality_score_unavailable_reason"] == "insufficient_completeness"
 
 
 class TestGetSymbolSector:

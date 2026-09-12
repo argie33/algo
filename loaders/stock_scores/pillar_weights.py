@@ -227,12 +227,23 @@ from loaders.load_stock_scores and must keep working unchanged.
 #      1.0%->75 breakpoint - that's how you'd catch an overly generous or overly harsh curve
 #      BEFORE it ships, not after a leaderboard looks wrong).
 # ============================================================================================
+# UNIFORM EQUAL-WEIGHT PRINCIPLE (2026-09-11, user directive: the backtest/Fama-MacBeth evidence
+# behind every non-Growth pillar's weights is the same contaminated-data family this module's own
+# history above already documents for the composite level (imputed vs. complete-case regimes
+# disagree, missingness is non-random, "no pillar robustly clears the bar" under the honest
+# methodology) - rather than re-litigate each pillar's weights in isolation again, every level of
+# the scoring hierarchy (component->pillar, pillar->composite) now uses a single uniform rule:
+# equal-weight whichever inputs are available. No magnitude/t-stat/backtest-derived differential
+# weighting anywhere. This extends what Growth (1/12 each) and Value's PE/PB/PS core (27/27/27)
+# already did on prior user override - not a new philosophy, just applied consistently instead of
+# pillar-by-pillar. The extensive weight-revision history above is kept as the audit trail of what
+# was tried and why it was abandoned, not because it still justifies today's live weights.
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
     "quality": 0.20,
-    "growth": 0.24,
-    "value": 0.27,
-    "risk": 0.19,
-    "momentum": 0.10,
+    "growth": 0.20,
+    "value": 0.20,
+    "risk": 0.20,
+    "momentum": 0.20,
 }
 # VALUE x RISK INTERACTION (added 2026-08-28, goal: cross-pillar interaction sweep - see
 # value_stability_interaction_found_robust_20260828 in memory). Swept all 15 pillar-proxy pairs
@@ -256,22 +267,21 @@ BASE_PILLAR_WEIGHTS: dict[str, float] = {
 # single sweep. Only applied when risk_score is itself a real (non-marker) score - a symbol
 # missing Risk data gets the unmodified base weights, same "skip what's unavailable" principle as
 # everywhere else in this file.
-VALUE_RISK_INTERACTION_MAX_SHIFT = BASE_PILLAR_WEIGHTS["value"] * 0.5
+# RETIRED 2026-09-11 (same uniform-equal-weight directive as BASE_PILLAR_WEIGHTS above): this
+# interaction was itself a differential/conditional weighting device, and the sweep that
+# justified it (cross_pillar_interaction_sweep_20260828.py) is the same contaminated-data family
+# as the composite-level FM work. Left at 0.0 (not deleted) so any stale caller doing arithmetic
+# with this constant is inert rather than broken. _value_risk_adjusted_weights below now always
+# returns BASE_PILLAR_WEIGHTS unmodified - kept as a function (not inlined at call sites) so
+# load_stock_scores.py/growth_scoring.py don't need their own call-site changes.
+VALUE_RISK_INTERACTION_MAX_SHIFT = 0.0
 
 
 def _value_risk_adjusted_weights(risk_score: float | None) -> dict[str, float]:
-    """Return BASE_PILLAR_WEIGHTS with Value's and Risk's weights adjusted for the
-    value_proxy x stability_proxy interaction (see VALUE_RISK_INTERACTION_MAX_SHIFT docstring
-    above). Falls back to unmodified base weights when risk_score isn't a real float (Risk
-    pillar unavailable for this symbol) - no interaction without a real risk_score to condition on.
+    """Retired 2026-09-11 - always returns BASE_PILLAR_WEIGHTS unmodified. Kept as a function
+    (rather than inlining BASE_PILLAR_WEIGHTS at every call site) purely so existing callers in
+    load_stock_scores.py/growth_scoring.py don't need their own edits. See
+    VALUE_RISK_INTERACTION_MAX_SHIFT's docstring for why the interaction itself was retired.
     """
-    if risk_score is None:
-        return BASE_PILLAR_WEIGHTS
-    # risk_score in [0, 100], higher = safer. Center at 50 so a risk_score of exactly 50 (neither
-    # notably risky nor safe) reproduces the unmodified base weights exactly.
-    risk_centered = max(-1.0, min(1.0, (50.0 - risk_score) / 50.0))  # +1 at risk_score=0 (riskiest)
-    shift = VALUE_RISK_INTERACTION_MAX_SHIFT * risk_centered
-    weights = dict(BASE_PILLAR_WEIGHTS)
-    weights["value"] = BASE_PILLAR_WEIGHTS["value"] + shift
-    weights["risk"] = BASE_PILLAR_WEIGHTS["risk"] - shift
-    return weights
+    del risk_score  # unused - interaction retired, argument kept for call-site compatibility
+    return BASE_PILLAR_WEIGHTS

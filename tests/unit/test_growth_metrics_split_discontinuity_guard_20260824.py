@@ -110,6 +110,31 @@ def test_cumulative_multi_year_dilution_with_no_single_year_split_jump_is_not_bl
     assert result["eps_growth_5y_unavailable_reason"] is None
 
 
+def test_single_year_ma_share_issuance_near_a_clean_multiple_is_not_blocked():
+    """REGRESSION for the 2026-09-11 fix: EPS_SPLIT_GUARD_CLEAN_TOLERANCE was 0.06 (6%), loose
+    enough that a genuine SINGLE-YEAR share jump from ordinary M&A/capital-raise issuance could
+    coincidentally land near a "clean" split multiple and get wrongly blocked. Live-confirmed on
+    COF (Capital One's 2024->2025 Discover Financial acquisition issuance, real ratio 1.411x,
+    5.9% off 1.5x - not remotely a split) and IRT (2016->2017 RAIT Residential merger issuance,
+    same ~1.41x). A live-DB histogram of all flagged (symbol, adjacent-year-pair) deviations from
+    their nearest clean multiple was essentially flat noise from 0% to 6%, with a genuine-split
+    excess confined to the 0.0%-0.1% band (see NVDA's real 10:1 split two tests below, which
+    reports a 1.10%-off-10x ratio from in-year buyback/issuance activity) - tolerance tightened to
+    1.5% to keep detecting real splits like NVDA's with margin while excluding this class of false
+    positive. This fixture mirrors COF's real ratio (1.411x, single year, no other jump nearby).
+    """
+    loader = _make_loader()
+    income_rows = [
+        (2026, 100.0, None, None, 2.0, 141100000, None),
+        (2025, 100.0, None, None, 1.8, 100000000, None),
+    ]
+
+    result = loader._compute_growth_metrics("MAISSUANCE", income_rows)
+
+    assert result["eps_growth_1y"] is not None
+    assert result["eps_growth_1y_unavailable_reason"] is None
+
+
 def test_real_split_confounded_by_surrounding_buybacks_is_still_caught():
     """GOOGL-shaped: a real 20:1 split concentrated in one fiscal year, with buybacks in the
     surrounding years pulling the naive 5yr ENDPOINT ratio down to ~18x (not exactly 20x) - the

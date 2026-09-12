@@ -19,6 +19,11 @@ each filler value below was chosen so its OWN score exactly matches what the tes
 demonstrate about beta, since a weighted average of two IDENTICAL values equals that same value
 regardless of their weights - this keeps every original exact-value assertion true, not just the
 ordering ones.
+
+UNIFORM EQUAL-WEIGHT 2026-09-11 (see loaders/stock_scores/pillar_weights.py's
+BASE_PILLAR_WEIGHTS comment): all 5 Risk components are now flat 20% each instead of
+45/15/15/10/15 - exact weighted-average values and which component combinations clear
+RISK_MIN_WEIGHT_AVAILABLE=0.40 both changed accordingly; updated below.
 """
 
 import pytest
@@ -69,19 +74,18 @@ class TestRiskNegativeBetaNotClipped:
     def test_positive_beta_symmetric_around_target_unaffected(self):
         """Sanity check the fix didn't change behavior for the common positive-beta case.
 
-        vol filler alone scores 83.3333 (see test_volatility_60d_alone_at_0_20_is_neutral_baseline)
-        at 45% weight; beta contributes its own beta_score at 15% weight (was 20% before the
-        2026-09-01 Liquidity reweight). at_target (beta=1.0, beta_score=100):
-        (83.3333*0.45 + 100*0.15) / 0.60 = 87.5. high_beta (beta=2.0, beta_score=50):
-        (83.3333*0.45 + 50*0.15) / 0.60 = 75.0 - strictly lower, same ordering the
+        vol filler alone scores 83.3333 at 20% weight (equal weighting, 2026-09-11); beta
+        contributes its own beta_score at 20% weight too. at_target (beta=1.0, beta_score=100):
+        (83.3333*0.20 + 100*0.20) / 0.40 = 91.6667. high_beta (beta=2.0, beta_score=50):
+        (83.3333*0.20 + 50*0.20) / 0.40 = 66.6667 - strictly lower, same ordering the
         pre-floor version of this test pinned (100.0 > 50.0)."""
         loader = StockScoresLoader()
 
         at_target = loader._score_risk({"beta": 1.0, "volatility_60d": 0.20}, "TARGET")
         high_beta = loader._score_risk({"beta": 2.0, "volatility_60d": 0.20}, "HIGH")
 
-        assert at_target == pytest.approx(87.5, abs=1e-3)
-        assert high_beta == pytest.approx(75.0, abs=1e-3)
+        assert at_target == pytest.approx(91.6667, abs=1e-3)
+        assert high_beta == pytest.approx(66.6667, abs=1e-3)
 
 
 class TestRiskMinWeightAvailable:
@@ -111,25 +115,25 @@ class TestRiskMinWeightAvailable:
         assert result["data_unavailable"] is True
         assert result["reason"] == "insufficient_risk_inputs_thin_sample"
 
-    def test_volatility_60d_alone_clears_floor_on_its_own(self):
-        # volatility_60d is 0.45 weight alone, already above the 0.40 floor by itself.
+    def test_volatility_60d_alone_is_below_floor_returns_thin_sample_marker(self):
+        # volatility_60d is 0.20 weight alone under equal weighting (2026-09-11) - below the
+        # 0.40 floor by itself (previously 0.45, above the floor, under the old split).
         loader = StockScoresLoader()
         result = loader._score_risk({"volatility_60d": 0.10}, "TEST")
-        assert isinstance(result, float)
-
-    def test_beta_plus_max_drawdown_together_clear_floor(self):
-        # 0.15 + 0.10 = 0.25 (was 0.20 + 0.15 = 0.35 pre-Liquidity-reweight), still under
-        # 0.40 - must NOT clear the floor.
-        loader = StockScoresLoader()
-        result = loader._score_risk({"beta": 1.0, "max_drawdown_1y": -10.0}, "TEST")
         assert isinstance(result, dict)
         assert result["reason"] == "insufficient_risk_inputs_thin_sample"
 
+    def test_beta_plus_max_drawdown_together_clear_floor(self):
+        # 0.20 + 0.20 = 0.40 under equal weighting - exactly clears the floor (previously
+        # 0.15 + 0.10 = 0.25, below it, under the old split).
+        loader = StockScoresLoader()
+        result = loader._score_risk({"beta": 1.0, "max_drawdown_1y": -10.0}, "TEST")
+        assert isinstance(result, float)
+
     def test_volatility_252d_plus_beta_exactly_at_floor_returns_real_score(self):
-        # 0.15 (volatility_252d) + 0.15 (beta) + 0.10 (max_drawdown_1y) = 0.40, exactly at
-        # the floor - must clear it. (Was volatility_252d 0.20 + beta 0.20 alone before the
-        # 2026-09-01 Liquidity reweight shrank both to 0.15 each; a third input is now needed
-        # to reach the same 0.40 floor.)
+        # 0.20 (volatility_252d) + 0.20 (beta) + 0.20 (max_drawdown_1y) = 0.60, well above
+        # the 0.40 floor - must clear it (already clears with just the first two under equal
+        # weighting; the third input isn't required, unlike under the old split).
         loader = StockScoresLoader()
         result = loader._score_risk({"volatility_252d": 0.10, "beta": 1.0, "max_drawdown_1y": -0.05}, "TEST")
         assert isinstance(result, float)

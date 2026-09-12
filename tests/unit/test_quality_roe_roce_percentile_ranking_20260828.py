@@ -85,17 +85,19 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
         # negative - each floors to 0.0 directly (the "if value < 0: floor" convention this
         # pass preserves from Pass 1's _margin_curve), never entering the z-score population.
         # margin_volatility=10.0 (>=0, no floor case) is alone in its pool -> neutral 50.0.
+        # UNIFORM EQUAL-WEIGHT 2026-09-11: all 8 components are flat 12.5 each (nominal total
+        # 100, not 101) - see pillar_weights.py's BASE_PILLAR_WEIGHTS comment.
         row = ("NEG", "Technology", None, -1.0, -1.0, -1.0, -1.0, -1.0, 10.0, -1.0, -1.0, 999.0)
         updates = dict(_run_with_mocked_rows([row]))
         components = [
-            (0.0, 11.0),  # roe: sign-flip-guard floor (roe<0 and roa<0)
-            (0.0, 18.0),  # roa
-            (0.0, 18.0),  # roce
-            (0.0, 15.0),  # fcf_margin
-            (0.0, 18.0),  # debt_to_equity: negative = real distress, floored
-            (50.0, 7.0),  # margin_volatility: not floored, z-scores to neutral
-            (0.0, 7.0),  # asset_turnover
-            (0.0, 7.0),  # gross_profitability
+            (0.0, 12.5),  # roe: sign-flip-guard floor (roe<0 and roa<0)
+            (0.0, 12.5),  # roa
+            (0.0, 12.5),  # roce
+            (0.0, 12.5),  # fcf_margin
+            (0.0, 12.5),  # debt_to_equity: negative = real distress, floored
+            (50.0, 12.5),  # margin_volatility: not floored, z-scores to neutral
+            (0.0, 12.5),  # asset_turnover
+            (0.0, 12.5),  # gross_profitability
         ]
         expected = round(
             sum(v * w for v, w in components) / sum(w for _, w in components),
@@ -103,16 +105,15 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
         )
         assert updates["NEG"] == expected
 
-    def test_missing_metrics_omitted_not_defaulted(self) -> None:
-        # fcf_margin + roce + debt_to_equity present (weight 15+18+18=51, clears the
-        # 2026-09-10 40%-of-101 completeness floor - see vqg_quality_batch.py's own
-        # comment) - every OTHER component's weight must still be excluded from the
-        # denominator entirely, not defaulted to 0 and diluting the average.
+    def test_missing_metrics_below_new_equal_weight_floor_produces_no_update(self) -> None:
+        # fcf_margin + roce + debt_to_equity present. Under equal weighting (2026-09-11), that's
+        # 3 x 12.5 = 37.5 of the 100 nominal total - BELOW the 40.0 completeness floor (this
+        # exact combination cleared it under the old 15+18+18=51 magnitude-tuned weights, before
+        # the equal-weight move) - so this pass now correctly declines to update the row at all,
+        # same as the all-components-missing case, rather than extrapolating from 3 of 8
+        # equally-weighted inputs.
         row = ("SPARSE", "Technology", None, None, None, 15.0, 20.0, 0.5, None, None, None, 0.0)
-        updates = dict(_run_with_mocked_rows([row]))
-        # All three present components are alone in their pools -> each z-scores to neutral
-        # percentile 50.0, so the weighted composite equals 50.0 regardless of their weights.
-        assert updates["SPARSE"] == 50.0
+        assert _run_with_mocked_rows([row]) == []
 
     def test_all_components_missing_produces_no_update(self) -> None:
         row = ("EMPTY", "Technology", None, None, None, None, None, None, None, None, None, 0.0)
