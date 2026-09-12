@@ -77,11 +77,16 @@ from algo.research.fama_macbeth_price_factors import (
     _fama_macbeth,
     benjamini_hochberg_fdr,
     fetch_month_end_prices,
+    fetch_symbols_for_industries,
     print_survivorship_bias_caveat,
 )
+from loaders.helpers.vqg_shared import DEPOSITORY_BANK_INDUSTRIES
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
+
+# See fama_macbeth_quality_factors.py's own INDUSTRY_GROUPS for why this exists.
+INDUSTRY_GROUPS = {"banks": DEPOSITORY_BANK_INDUSTRIES}
 
 # Local SEC EDGAR disk caches populated by ordinary loader operation (utils/external/
 # sec_ticker_cache.py / sec_edgar_client.py) - reused here read-only to recover REAL 10-K
@@ -277,15 +282,39 @@ def merge_asof_monthly(
     return result
 
 
-def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: int = 1) -> None:
+def _filter_by_industry(
+    fund: pd.DataFrame, price_df: pd.DataFrame, industry_group: str | None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Restrict `fund` and `price_df` to symbols in INDUSTRY_GROUPS[industry_group], or return
+    both unchanged when industry_group is None. Same helper as fama_macbeth_quality_factors.py's
+    own _filter_by_industry - kept per-module (not shared) since each module's `fund` schema
+    differs; only the filtering logic itself is identical."""
+    if industry_group is None:
+        return fund, price_df
+    symbols = fetch_symbols_for_industries(INDUSTRY_GROUPS[industry_group])
+    logger.info(f"--industries {industry_group}: {len(symbols)} symbols in company_profile")
+    fund = fund[fund["symbol"].isin(symbols)]
+    logger.info(f"{len(fund)} symbol-fiscal-year rows after industry filter")
+    return fund, price_df[price_df["symbol"].isin(symbols)]
+
+
+def run(
+    start_date: str,
+    end_date: str,
+    min_cross_section: int,
+    horizon_months: int = 1,
+    industry_group: str | None = None,
+) -> None:
     print_survivorship_bias_caveat()
     logger.info("Fetching annual fundamentals (point-in-time reconstruction)")
     fund = fetch_annual_fundamentals()
     logger.info(f"{len(fund)} symbol-fiscal-year rows")
-    growth_panel = build_growth_panel(fund)
 
     logger.info(f"Pulling month-end price panel {start_date}..{end_date}")
     price_df = fetch_month_end_prices(start_date, end_date)
+    fund, price_df = _filter_by_industry(fund, price_df, industry_group)
+
+    growth_panel = build_growth_panel(fund)
     px = price_df.pivot(index="month", columns="symbol", values="px").sort_index()
     ret = px.pct_change(fill_method=None)
     months = ret.index
@@ -350,10 +379,16 @@ def main() -> None:
     parser.add_argument("--end-date", default=datetime.now(tz=None).date().isoformat())
     parser.add_argument("--min-cross-section", type=int, default=100)
     parser.add_argument("--horizon-months", type=int, default=1, help="Forward return horizon in months (default 1)")
+    parser.add_argument(
+        "--industries",
+        choices=sorted(INDUSTRY_GROUPS),
+        default=None,
+        help="Restrict the panel to one industry group (see INDUSTRY_GROUPS) instead of the whole universe.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    run(args.start_date, args.end_date, args.min_cross_section, args.horizon_months)
+    run(args.start_date, args.end_date, args.min_cross_section, args.horizon_months, args.industries)
 
 
 if __name__ == "__main__":

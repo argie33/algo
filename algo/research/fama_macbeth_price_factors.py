@@ -48,11 +48,15 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
+from loaders.helpers.vqg_shared import DEPOSITORY_BANK_INDUSTRIES
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
 FACTOR_COLS = ["mom_12_1", "mom_6m", "mom_3m", "str_1m", "vol", "downside_vol", "beta", "max_dd"]
+
+# See fama_macbeth_quality_factors.py's own INDUSTRY_GROUPS for why this exists.
+INDUSTRY_GROUPS = {"banks": DEPOSITORY_BANK_INDUSTRIES}
 
 
 def fetch_month_end_prices(start_date: str, end_date: str) -> pd.DataFrame:
@@ -249,11 +253,24 @@ def fetch_symbols_for_industries(industries: frozenset[str]) -> set[str]:
         return {row[0] for row in cur.fetchall()}
 
 
-def run(start_date: str, end_date: str, min_cross_section: int, beta_window: int, vol_window: int) -> None:
+def run(
+    start_date: str,
+    end_date: str,
+    min_cross_section: int,
+    beta_window: int,
+    vol_window: int,
+    industry_group: str | None = None,
+) -> None:
     print_survivorship_bias_caveat()
     logger.info(f"Pulling month-end price panel {start_date}..{end_date}")
     df = fetch_month_end_prices(start_date, end_date)
     logger.info(f"{len(df)} symbol-month rows fetched")
+
+    if industry_group is not None:
+        symbols = fetch_symbols_for_industries(INDUSTRY_GROUPS[industry_group]) | {"SPY"}
+        logger.info(f"--industries {industry_group}: {len(symbols) - 1} symbols in company_profile (+SPY)")
+        df = df[df["symbol"].isin(symbols)]
+        logger.info(f"{len(df)} symbol-month rows after industry filter")
 
     px = df.pivot(index="month", columns="symbol", values="px").sort_index()
     ret = px.pct_change(fill_method=None)
@@ -291,10 +308,23 @@ def main() -> None:
     parser.add_argument("--min-cross-section", type=int, default=100)
     parser.add_argument("--beta-window", type=int, default=24)
     parser.add_argument("--vol-window", type=int, default=12)
+    parser.add_argument(
+        "--industries",
+        choices=sorted(INDUSTRY_GROUPS),
+        default=None,
+        help="Restrict the panel to one industry group (see INDUSTRY_GROUPS) instead of the whole universe.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    run(args.start_date, args.end_date, args.min_cross_section, args.beta_window, args.vol_window)
+    run(
+        args.start_date,
+        args.end_date,
+        args.min_cross_section,
+        args.beta_window,
+        args.vol_window,
+        args.industries,
+    )
 
 
 if __name__ == "__main__":
