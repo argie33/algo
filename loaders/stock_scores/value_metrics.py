@@ -34,16 +34,39 @@ from utils.type_conversion import safe_float
 # raw-yield IC that DOES clear the bar (t=3.04/2.79) into extensive (pays vs doesn't, binary)
 # and intensive (magnitude among payers only) margins found ~100% of the real signal is
 # extensive (t=3.01/2.83) and the intensive margin fails outright (t=1.05 fit / -0.05 holdout,
-# sign flips out of sample). Feeding raw magnitude into the z-score still rewards a 6% payer
+# sign flips out of sample).
+#
+# CAVEAT NOT YET RESOLVED (flagged by peer review 2026-09-12, same session): this test's panel
+# comes from price_daily via fetch_month_end_prices(), the SAME return panel this repo's own
+# open finding (survivorship_bias_concretely_reverified_zero_rows_named_failures_20260912, in
+# memory) already documents as missing known dividend-cutting failures (Lehman/Enron/SVB etc
+# have zero rows - free paths exhausted, needs a paid vendor). A company that cut its dividend
+# and later failed would look artificially safe in this exact test (extensive margin =
+# "survived long enough to still be a payer"), which biases toward, not against, this specific
+# finding - not verified either way here, same unresolved limitation this repo's other
+# factor-validation scripts already carry, not something newly introduced by this fix.
+# Feeding raw magnitude into the z-score still rewards a 6% payer
 # far more than a 0.5% payer within the same sector - exactly the ungrounded gradient the test
 # found isn't real. This saturating transform compresses that gradient (any real payer reaches
 # most of its final value quickly) while staying strictly monotonic in effective_yield - so a
 # genuine higher yield still never scores below a lower one (same-signed, no regression versus
-# before), just without the outsized reward for magnitude the evidence doesn't support. K=0.005
-# (0.5%) means a 0.5% payer already reaches 63% of the way to a saturated payer's value, a 1%
-# payer 86%, a 2%+ payer >98% - "evidenced direction conservatively, not the literal point
-# estimate" (this file's own standing convention, e.g. Growth/Quality curve caps), not a hard
-# step function, since one test could still be missing some real residual magnitude signal.
+# before), just without the outsized reward for magnitude the evidence doesn't support.
+#
+# K=0.005 IS NOT AN EMPIRICALLY-FIT PARAMETER - flagged by a peer review of this change
+# (2026-09-12) and confirmed by direct test (scratch/dividend_k_sensitivity_check.py):
+# re-running the exact same fit/holdout IC test across K in {binary, 0.001, 0.002, 0.005, 0.01,
+# 0.02} produces statistically IDENTICAL results (fit_t 3.00-3.04, hold_t 2.79-2.83, all clear
+# the bar) - the specific value of K carries no real information the evidence distinguishes.
+# A pure binary transform (payer=1.0, non-payer=0.0) is exactly what "extensive margin only,
+# zero intensive-margin power" actually supports, and IS the more defensible reading of the
+# evidence. The smooth exponential is kept anyway for a SOFTWARE reason, not a statistical
+# one: a pure binary would put every real payer in a sector at the identical raw value (1.0),
+# reintroducing a large-tie-block problem inside sector_neutral_zscore for the payer subgroup -
+# a smaller version of the exact majority-zero tie-block distortion the 2026-09-11
+# "SECTOR-RELATIVE DIVIDEND YIELD" fix (above) already had to solve once for the payer/
+# non-payer split. K=0.005 keeps that block from re-forming while conceding almost none of the
+# extensive-margin separation (per the sensitivity test) - a smoothing/tie-avoidance choice, not
+# a point estimate the data fit.
 DIVIDEND_EXTENSIVE_SATURATION_K = 0.005
 
 
