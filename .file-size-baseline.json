@@ -639,7 +639,7 @@
   "scripts/local_loader_scheduler.py": 1904,
   "scripts/manage_halt_flag.py": 90,
   "scripts/monitor_data_staleness.py": 932,
-  "scripts/options_data_loader.py": 350,
+  "scripts/options_data_loader.py": 374,
   "scripts/orchestrator_scheduler.py": 199,
   "scripts/prune_stale_snapshot_symbols.py": 105,
   "scripts/record_capital_flow.py": 192,
