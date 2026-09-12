@@ -442,12 +442,13 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
 
     def test_real_row_shape_does_not_raise_indexerror(self) -> None:
         # One profitable symbol, one unprofitable (floored) symbol, one negative-forecast
-        # Forward P/E symbol, one negative-book-value (floored) symbol - exercises every branch
-        # of the real row-unpacking code with the REAL 21-column shape the live SELECT actually
-        # returns (sector added 2026-09-04 for sector-relative Value percentile ranking - see
-        # update_value_multiples_percentiles' own "SECTOR-RELATIVE RANKING ADOPTED 2026-09-04"
-        # docstring note; pb_ratio_unavailable_reason added 2026-09-11 - see that method's own
-        # "BUG FOUND + FIXED 2026-09-11" docstring note).
+        # Forward P/E symbol, one negative-book-value (floored) symbol, one no-revenue
+        # (floored) P/S symbol - exercises every branch of the real row-unpacking code with
+        # the REAL 22-column shape the live SELECT actually returns (sector added 2026-09-04
+        # for sector-relative Value percentile ranking - see update_value_multiples_
+        # percentiles' own "SECTOR-RELATIVE RANKING ADOPTED 2026-09-04" docstring note;
+        # pb_ratio_unavailable_reason added 2026-09-11 - see that method's own "BUG FOUND +
+        # FIXED 2026-09-11" docstring note; ps_ratio_unavailable_reason added same fix family).
         rows = [
             (
                 "AAPL",
@@ -471,6 +472,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 99.99,  # data_completeness
                 False,  # data_unavailable
                 {},  # unavailable_metrics
+                None,  # ps_ratio_unavailable_reason
             ),
             (
                 "UNPROFIT",
@@ -494,6 +496,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 99.99,  # data_completeness
                 False,  # data_unavailable
                 {},  # unavailable_metrics
+                None,  # ps_ratio_unavailable_reason
             ),
             (
                 "NEGFWD",
@@ -517,6 +520,7 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 99.99,  # data_completeness
                 False,  # data_unavailable
                 {},  # unavailable_metrics
+                None,  # ps_ratio_unavailable_reason
             ),
             (
                 "NEGBOOK",
@@ -540,6 +544,31 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
                 99.99,  # data_completeness
                 False,  # data_unavailable
                 {},  # unavailable_metrics
+                None,  # ps_ratio_unavailable_reason
+            ),
+            (
+                "NOREV",
+                30.0,
+                35.0,
+                50.0,
+                45.0,
+                40.0,
+                30.0,
+                9.0,
+                1.2,
+                None,
+                None,
+                None,
+                None,
+                None,
+                "no_analyst_estimates",
+                None,
+                None,
+                "Health Care",
+                99.99,  # data_completeness
+                False,  # data_unavailable
+                {},  # unavailable_metrics
+                "no_revenue_reported",  # ps_ratio_unavailable_reason
             ),
         ]
         cur = self._make_mock_cursor(rows)
@@ -611,6 +640,7 @@ class TestNegativeBookValueFloorSurvivesPercentilePass:
             99.99,  # data_completeness
             False,  # data_unavailable
             {},  # unavailable_metrics
+            None,  # ps_ratio_unavailable_reason
         )
 
     def test_negative_book_value_scores_lower_than_positive_peer(self) -> None:

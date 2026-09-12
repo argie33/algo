@@ -454,11 +454,13 @@ class StockScoresLoader(
             # "unprofitable/undefined-ratio silently skipped instead of scored at the floor"
             # bug class already fixed for pe_ratio/forward_pe above, found unfixed for pb_ratio
             # (negative book value) - see _score_value's P/B block for how this is now used.
+            # ps_ratio_unavailable_reason added (real-money-readiness audit): same bug class
+            # again for ps_ratio (no revenue reported) - see _score_value's P/S block below.
             cur.execute(
                 "SELECT symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, "
                 "forward_pe, ev_ebitda, ev_revenue, margin_of_safety_pct, market_cap, net_payout_yield, "
                 "pe_ratio_unavailable_reason, forward_pe_unavailable_reason, pb_ratio_unavailable_reason, "
-                "data_unavailable FROM value_metrics"
+                "ps_ratio_unavailable_reason, data_unavailable FROM value_metrics"
             )
             self._value_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 

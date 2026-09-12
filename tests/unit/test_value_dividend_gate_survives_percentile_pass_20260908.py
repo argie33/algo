@@ -71,6 +71,7 @@ def _cato_like_row(dividend_yield: float, fcf_yield: float | None) -> tuple[Any,
         99.0,  # data_completeness
         False,  # data_unavailable
         {},  # unavailable_metrics
+        None,  # ps_ratio_unavailable_reason
     )
 
 
