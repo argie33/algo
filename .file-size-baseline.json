@@ -18,6 +18,7 @@
   "algo/backtest/__init__.py": 0,
   "algo/backtest/live_exit_trail.py": 193,
   "algo/backtest/run_backtest.py": 1413,
+  "algo/backtest/run_options_backtest.py": 589,
   "algo/config/__init__.py": 197,
   "algo/config/api_endpoints.py": 95,
   "algo/config/config_monitoring.py": 63,
