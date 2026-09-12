@@ -898,6 +898,20 @@ class MarketConstituentsLoader(OptimalLoader):
 
         Never raises - a failure here (network, cache miss, whatever) must never block the
         real stock_symbols load this runs alongside.
+
+        CAVEAT (found 2026-09-11, same day, via a concurrent session spot-checking this
+        method's own output): a flagged candidate can also be a stale/bad CIK written into
+        the PERSISTENT ticker cache at some point in the past by an unrelated bug (fail-open
+        on a transient SEC error in TickerCache._lookup_via_browse_edgar/
+        _verify_ticker_matches_cik, which never gets rechecked once cached) rather than a
+        genuine rename - live-confirmed one such case (ATTT falsely cached against
+        Raytech's/RAY's CIK, two unrelated companies, no formerNames link) alongside 3
+        genuine renames (GLMD/EOCN, KWM/NXAT, CYCN/KRSA) in this fix's first live run. This
+        method's own submissions.json filter can't distinguish the two cases - both produce
+        "one candidate ticker missing from the CIK's own reported tickers list". A human
+        reviewing an alert from this method should independently verify each candidate
+        (e.g. a fresh, non-cached CIK lookup or a formerNames/press-release check) before
+        assuming it's a real rename.
         """
         try:
             from utils.external.sec_edgar_client import SecEdgarClient
@@ -969,8 +983,11 @@ class MarketConstituentsLoader(OptimalLoader):
                         "likely a corporate rename where the old ticker's historical data "
                         "hasn't been migrated to the new one yet, inflating the coverage "
                         "report's missing-data count for the new ticker while the old one "
-                        "goes stale. Requires a reviewed data migration, not automatic action: "
-                        f"{dict(sample)}"
+                        "goes stale. Requires a reviewed data migration, not automatic action. "
+                        "CAVEAT: a candidate can also be a stale/bad CIK from an unrelated "
+                        "ticker-cache bug rather than a real rename (live-confirmed one such "
+                        "case, ATTT/RAY) - verify each independently (fresh CIK lookup or "
+                        f"formerNames/press-release check) before acting: {dict(sample)}"
                     ),
                     details={"duplicates": duplicates},
                 )
