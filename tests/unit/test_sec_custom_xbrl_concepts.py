@@ -388,6 +388,40 @@ def test_custom_revenue_concepts_registry_is_well_formed():
             assert prefix and local_name
 
 
+# Mirrors the real structure confirmed live 2026-09-11 against PayPay Corp's actual filed
+# FY2026 20-F raw XBRL instance document (accession 0001193125-26-289382): context "c-1"
+# (plain, no segment/scenario dimension) carries the real consolidated FY2026 dividend cash
+# outflow; "c-1-equity" is a ComponentsOfEquityAxis-dimensioned decoy (a real Statement-of-
+# Changes-in-Equity cross-tab carrying the SAME value as a different concept, not this one -
+# proving the two concepts are related but only the plain one is safe to use standalone) and
+# "c-q4" a Q4-only (92-day) decoy.
+_PAYP_XML = """<?xml version="1.0" encoding="utf-8"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+      xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2025-03-01/ifrs-full">
+  <context id="c-1">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0002080845</identifier></entity>
+    <period><startDate>2025-04-01</startDate><endDate>2026-03-31</endDate></period>
+  </context>
+  <context id="c-1-equity">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0002080845</identifier>
+      <segment>
+        <xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">ifrs-full:RetainedEarningsMember</xbrldi:explicitMember>
+      </segment>
+    </entity>
+    <period><startDate>2025-04-01</startDate><endDate>2026-03-31</endDate></period>
+  </context>
+  <context id="c-q4">
+    <entity><identifier scheme="http://www.sec.gov/CIK">0002080845</identifier></entity>
+    <period><startDate>2026-01-01</startDate><endDate>2026-03-31</endDate></period>
+  </context>
+  <ifrs-full:DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities contextRef="c-1" unitRef="jpy" decimals="-6">311000000</ifrs-full:DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities>
+  <ifrs-full:DividendsRecognisedAsDistributionsToOwnersOfParent contextRef="c-1-equity" unitRef="jpy" decimals="-6">311000000</ifrs-full:DividendsRecognisedAsDistributionsToOwnersOfParent>
+  <ifrs-full:DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities contextRef="c-q4" unitRef="jpy" decimals="-6">90000000</ifrs-full:DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities>
+</xbrl>
+"""
+
+
 class TestExtractCustomDividendsFromXbrlXml:
     def test_cms_returns_the_consolidated_total_for_each_fiscal_year(self):
         result = extract_custom_dividends_from_xbrl_xml(_CMS_XML, "CMS")
@@ -411,6 +445,10 @@ class TestExtractCustomDividendsFromXbrlXml:
 
     def test_malformed_xml_does_not_match_wrong_symbol_data(self):
         assert extract_custom_dividends_from_xbrl_xml(_APA_XML, "CMS") == {}
+
+    def test_payp_returns_plain_cashflow_concept_excluding_equity_dimensioned_and_q4_decoys(self):
+        result = extract_custom_dividends_from_xbrl_xml(_PAYP_XML, "PAYP")
+        assert result[2026] == 311_000_000.0
 
 
 class TestFetchCustomDividends:
@@ -448,6 +486,7 @@ def test_custom_dividend_concepts_registry_is_well_formed():
     """Every registered symbol must map to at least one (prefix, local_name) tuple - a
     guard against an accidental empty-list entry that would silently resolve to no data."""
     assert "CMS" in CUSTOM_DIVIDEND_CONCEPTS
+    assert "PAYP" in CUSTOM_DIVIDEND_CONCEPTS
     for symbol, concepts in CUSTOM_DIVIDEND_CONCEPTS.items():
         assert concepts, f"{symbol} has an empty concept list"
         for prefix, local_name in concepts:

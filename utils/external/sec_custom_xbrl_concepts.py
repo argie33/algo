@@ -412,6 +412,25 @@ CUSTOM_DIVIDEND_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     "SPG": [("spg", "PaymentsOfOrdinaryDividendsCommonStockAndPreferredStock")],
     "RS": [("rs", "PaymentsOfOrdinaryDividendsCommonStockAndDividendEquivalents")],
     "HUBB": [("us-gaap", "PaymentsOfDividendsMinorityInterest")],
+    # PayPay Corp (CIK 0002080845, 20-F filer, Japanese mobile-payments company) - verified
+    # live 2026-09-11 (goal: "missing SEC/XBRL data under 200" push, dividend_data
+    # no_us_gaap_facts investigation) against the real filed FY2026 20-F raw XBRL instance
+    # document (accession 0001193125-26-289382): companyfacts genuinely returns ZERO
+    # us-gaap/ifrs-full facts for this CIK (a real SEC-side companyfacts indexing gap for
+    # this filer, not a cache artifact - confirmed against the live API response directly),
+    # despite the filing itself carrying real, standard IFRS-taxonomy data. Two candidate
+    # dividend concepts exist with the SAME values: the Statement-of-Changes-in-Equity
+    # concept "DividendsRecognisedAsDistributionsToOwnersOfParent" is
+    # ComponentsOfEquityAxis-dimensioned in every context (not safely usable per this
+    # registry's own consolidated-total-only convention), but the cash-flow-statement
+    # concept below has 3 plain, non-dimensioned, full-year contexts with the identical
+    # values, confirming the dimensioned one is just a roll-forward cross-tab of the same
+    # real total, not a partial sub-component:
+    # ifrs-full:DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities =
+    # $179,000,000 FY2024 (2023-04-01/2024-03-31) / $283,000,000 FY2025
+    # (2024-04-01/2025-03-31) / $311,000,000 FY2026 (2025-04-01/2026-03-31), all plain
+    # `<context>` elements with no `<segment>`/`<scenario>` element.
+    "PAYP": [("ifrs-full", "DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities")],
 }
 
 
