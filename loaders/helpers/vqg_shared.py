@@ -458,6 +458,108 @@ REIT_INDUSTRIES = frozenset(
     }
 )
 
+# Mortgage/commercial-mortgage REITs - a real, previously-undocumented peer-group conflation
+# found 2026-09-12 (goal session: "leaderboards don't match real industry leaders" investigation).
+# `company_profile.sector`/`industry` (and SEC's own SIC code 6798) do NOT distinguish these from
+# ordinary equity REITs - live-verified against company_info_sec.sic_code/sic_description for
+# both groups (NLY/AGNC/MFA/BXMT/STWD all file under the identical 6798 "Real Estate Investment
+# Trusts" SIC as PLD/AMT/PSA/SPG). But they are a structurally different business: leveraged funds
+# holding agency/non-agency MBS or commercial mortgage loans financed with repo/warehouse debt,
+# valued off book value and dividend yield the way a leveraged fixed-income vehicle is - not an
+# equity REIT's FFO/AFFO-driven, physical-asset-and-occupancy economics. Because both share the
+# single "Real Estate" GICS sector value that `_percent_rank_cheap_high_sector_relative`/
+# `sector_neutral_zscore` use as the peer group for Value's P/E-P/B-P/S-dividend-yield percentile
+# ranks and for Quality/Growth's sector-neutral z-scores, mortgage REITs' near/below-1x book value
+# and high yield (mechanical features of a leveraged debt vehicle, not genuine "cheapness" in the
+# equity-REIT sense) mechanically win the Value pillar within that shared peer group - live-
+# verified 24-32 mortgage/commercial-mortgage REITs vs ~140+ equity REITs in the same "Real
+# Estate Investment Trusts" industry bucket, avg value_score ~70 vs ~40, which is exactly why the
+# live REIT leaderboard topped DX/ORC/NLY/AGNC/MFA/MITT/IVR while real industry leaders (PLD, AMT,
+# PSA, SPG, EQIX) ranked far down the list.
+#
+# NO CLEAN AUTOMATIC SIGNAL EXISTS for this split - checked and rejected before falling back to a
+# curated list (2026-09-12, user raised the "won't a hardcoded list always drift out of date?"
+# concern directly): SIC 6798 is identical for both groups (verified above); debt_to_equity looked
+# promising but overlaps too much to threshold cleanly (live-queried: mortgage-REIT median D/E
+# 1.94 vs equity-REIT median 0.81, but equity REITs range up to 12.0x and mortgage REITs as low as
+# 0.0x); this schema has no GICS sub-industry column. A name-keyword heuristic ("mortgage",
+# "finance") would MISS several of the largest, highest-impact names entirely - NLY (Annaly
+# Capital Management), AGNC (AGNC Investment Corp), DX (Dynex Capital), ORC (Orchid Island
+# Capital), MFA (MFA Financial) - so it is not a safe substitute either. The real long-term fix is
+# to source this classification from something already externally maintained for exactly this
+# purpose (Nareit's own Mortgage REIT sector classification, or a mortgage-REIT ETF's holdings
+# e.g. MORT/REM) and diff against it periodically - the same "periodically re-verify against an
+# external ground truth" pattern this repo already uses for xbrl_concept_coverage_scan.py's
+# dismissal list - NOT YET BUILT, tracked as a follow-up. Until then this is a curated symbol
+# list, the same "no clean data signal, fall back to a maintained list" pattern this repo already
+# accepts elsewhere (e.g. this file's own industry-string frozensets above, one level coarser).
+# Compiled by cross-referencing company_profile.long_name for mortgage/commercial-real-estate-
+# finance naming conventions ("Mortgage", "Capital Corp", "Real Estate Finance", "Realty Finance")
+# against the live-scored "Real Estate Investment Trusts" universe, then manually verified each
+# symbol's real business against public knowledge (agency/non-agency MBS or commercial mortgage
+# lending, not property ownership). Will drift as new mortgage REITs IPO/rename/merge or agency
+# vs. commercial-mortgage REITs are relisted - re-verify periodically, not a one-time fix.
+MORTGAGE_REIT_SYMBOLS = frozenset(
+    {
+        "AGNC",
+        "NLY",
+        "ARR",
+        "ORC",
+        "DX",
+        "IVR",
+        "MFA",
+        "MITT",
+        "CIM",
+        "CHMI",
+        "EARN",
+        "ABR",
+        "ACR",
+        "ACRE",
+        "ARI",
+        "BRSP",
+        "BXMT",
+        "FBRT",
+        "GPMT",
+        "KREF",
+        "LADR",
+        "LFT",
+        "LOAN",
+        "NREF",
+        "PMT",
+        "RC",
+        "REFI",
+        "RITM",
+        "RPT",
+        "RWT",
+        "SACH",
+        "SEVN",
+        "STWD",
+        "SUNS",
+        "TRTX",
+    }
+)
+
+# Synthetic peer-group label mortgage REITs are remapped to (see apply_mortgage_reit_sector_
+# override below) - distinct from the real GICS "Real Estate" sector value so it never collides
+# with an actual company_profile.sector string.
+MORTGAGE_REIT_SECTOR_LABEL = "Real Estate (Mortgage REITs)"
+
+
+def apply_mortgage_reit_sector_override(symbol: str, sector: str | None) -> str | None:
+    """Split MORTGAGE_REIT_SYMBOLS out of the "Real Estate" sector-relative peer group.
+
+    Called wherever a sector_map for `_percent_rank_cheap_high_sector_relative`/
+    `sector_neutral_zscore` is built (loaders/stock_scores/value_metrics.py,
+    growth_scoring.py, loaders/helpers/vqg_quality_batch.py) so all three pillars treat
+    mortgage/commercial-mortgage REITs and equity REITs as separate peer groups consistently,
+    instead of duplicating this check at each call site. Only touches the "Real Estate" sector
+    value - a mortgage-REIT symbol somehow classified elsewhere (data drift) is left alone
+    rather than force-relabeled, matching this module's fail-open convention.
+    """
+    if sector == "Real Estate" and symbol in MORTGAGE_REIT_SYMBOLS:
+        return MORTGAGE_REIT_SECTOR_LABEL
+    return sector
+
 
 class SectorIndustryCacheMixin:
     """Lazy, once-per-run symbol->sector/industry caches shared by the value/quality/growth mixins.

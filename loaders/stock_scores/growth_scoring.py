@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 import psycopg2
 
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
+from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
 from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.loaders.unavailable_markers import marker_loader_failed
@@ -683,7 +684,7 @@ class GrowthScoringMixin:
 
             sector_map: dict[str, str] = {}
             for row in rows:
-                sector = row[22]
+                sector = apply_mortgage_reit_sector_override(row[0], row[22])
                 if sector is not None:
                     sector_map[row[0]] = sector
 

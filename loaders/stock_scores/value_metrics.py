@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 import psycopg2
 
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
+from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
 from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
 from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT, _dividend_sustainability_factor
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
@@ -636,7 +637,7 @@ class ValueMetricsMixin:
                 fcf_yield_raw = safe_float(row[12], f"{symbol}.fcf_yield") if row[12] is not None else None
                 pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
                 ps_reason = row[21]
-                sector = row[17]
+                sector = apply_mortgage_reit_sector_override(symbol, row[17])
                 if sector is not None:
                     sector_map[symbol] = sector
                 if pe is not None and float(pe) > 0:

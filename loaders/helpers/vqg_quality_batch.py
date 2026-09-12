@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
 from loaders.helpers.vqg_quality_debt_fallback import DebtComponentsFallbackMixin
-from loaders.helpers.vqg_shared import BROKER_DEALER_INDUSTRIES
+from loaders.helpers.vqg_shared import BROKER_DEALER_INDUSTRIES, apply_mortgage_reit_sector_override
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 
 
@@ -164,7 +164,14 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
             # Sector peer group for the z-score - a symbol with no company_profile.sector row
             # simply has no entry here, which sector_neutral_zscore() pools into its residual
             # group rather than dropping (see that function's own docstring).
-            sectors: dict[str, str] = {row[0]: row[1] for row in rows if row[1]}
+            # Mortgage/commercial-mortgage REITs are split out of "Real Estate" into their own
+            # peer group (see apply_mortgage_reit_sector_override's docstring in vqg_shared.py) -
+            # same "Real Estate" sector-conflation bug class as the FS bank/insurer carve-out
+            # just below, found 2026-09-12 while investigating why the live REIT leaderboard
+            # topped mortgage REITs (DX/ORC/NLY/AGNC) instead of real REIT industry leaders.
+            sectors: dict[str, str] = {
+                row[0]: (apply_mortgage_reit_sector_override(row[0], row[1]) or row[1]) for row in rows if row[1]
+            }
 
             # D2E/ROA/ROCE-only peer-group refinement (2026-09-08, quality_value_sector_
             # neutral_zscore_rewrite follow-up): the single "Financial Services" GICS sector
