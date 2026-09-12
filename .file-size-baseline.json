@@ -671,7 +671,7 @@
   "scripts/xbrl_dqc_arelle_check.py": 588,
   "scripts/xbrl_frames_check.py": 99,
   "scripts/xbrl_scored_headline_count.py": 133,
-  "scripts/xbrl_second_opinion_daily.py": 147,
+  "scripts/xbrl_second_opinion_daily.py": 166,
   "scripts/xbrl_segment_sum_reconciliation.py": 390,
   "scripts/xbrl_yfinance_crosscheck.py": 263,
   "shared_contracts/__init__.py": 25,
