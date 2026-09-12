@@ -12,6 +12,7 @@ instance regardless of which mixin file defines it.
 
 import json
 import logging
+import math
 from typing import TYPE_CHECKING, Any
 
 import psycopg2
@@ -22,6 +23,41 @@ from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk
 from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT, _dividend_sustainability_factor
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.type_conversion import safe_float
+
+# DIVIDEND EXTENSIVE-MARGIN TRANSFORM (2026-09-12, real-issue-audit session - see
+# scratch/dividend_yield_extensive_vs_intensive_20260912.py). The z-score below
+# (sector_neutral_zscore(div_effective_raw, ...)) was already a real, evidenced fix for a
+# DIFFERENT problem (the 2026-09-11 "SECTOR-RELATIVE DIVIDEND YIELD" note's majority-zero
+# tie-block inflation) - but it still z-scores raw yield MAGNITUDE, which a real point-in-time
+# IC test (dividend_data's actual ex-dividend history, fit 2017-2021/holdout 2022-2026,
+# |t|>=2-both-eras bar) found carries ZERO robust predictive power on its own: decomposing the
+# raw-yield IC that DOES clear the bar (t=3.04/2.79) into extensive (pays vs doesn't, binary)
+# and intensive (magnitude among payers only) margins found ~100% of the real signal is
+# extensive (t=3.01/2.83) and the intensive margin fails outright (t=1.05 fit / -0.05 holdout,
+# sign flips out of sample). Feeding raw magnitude into the z-score still rewards a 6% payer
+# far more than a 0.5% payer within the same sector - exactly the ungrounded gradient the test
+# found isn't real. This saturating transform compresses that gradient (any real payer reaches
+# most of its final value quickly) while staying strictly monotonic in effective_yield - so a
+# genuine higher yield still never scores below a lower one (same-signed, no regression versus
+# before), just without the outsized reward for magnitude the evidence doesn't support. K=0.005
+# (0.5%) means a 0.5% payer already reaches 63% of the way to a saturated payer's value, a 1%
+# payer 86%, a 2%+ payer >98% - "evidenced direction conservatively, not the literal point
+# estimate" (this file's own standing convention, e.g. Growth/Quality curve caps), not a hard
+# step function, since one test could still be missing some real residual magnitude signal.
+DIVIDEND_EXTENSIVE_SATURATION_K = 0.005
+
+
+def _dividend_extensive_transform(effective_yield: float) -> float:
+    """Monotonic, saturating transform of a (sustainability-gated) effective dividend yield -
+    see DIVIDEND_EXTENSIVE_SATURATION_K's module docstring for the evidence. Zero/negative
+    stays exactly 0.0 (a real non-payer, or a payout the sustainability gate zeroed, is still
+    the worst case - unaffected by this transform, matches the pre-existing floor). Strictly
+    increasing for any positive input, so relative ordering between any two positive yields is
+    always preserved."""
+    if effective_yield <= 0:
+        return 0.0
+    return 1.0 - math.exp(-effective_yield / DIVIDEND_EXTENSIVE_SATURATION_K)
+
 
 logger = logging.getLogger("loaders.load_stock_scores")
 
@@ -658,7 +694,8 @@ class ValueMetricsMixin:
                     negative_fwd_symbols.add(symbol)
                 if dividend_yield_raw is not None:
                     dy = float(dividend_yield_raw)
-                    div_effective_raw[symbol] = dy * _dividend_sustainability_factor(dy, fcf_yield_raw)
+                    effective_yield = dy * _dividend_sustainability_factor(dy, fcf_yield_raw)
+                    div_effective_raw[symbol] = _dividend_extensive_transform(effective_yield)
 
             pe_pct = self._percent_rank_cheap_high_sector_relative(pe_raw, sector_map)
             pb_pct = self._percent_rank_cheap_high_sector_relative(pb_raw, sector_map)
