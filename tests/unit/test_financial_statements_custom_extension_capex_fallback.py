@@ -145,6 +145,48 @@ class TestCustomExtensionCapexFallback:
         assert rows[0]["custom_extension_vessel_capex"] == 309_636_000.0
 
 
+class TestCustomExtensionCapexCurrencyAwareFallback:
+    """SU (Suncor Energy) tags real capex under a custom extension concept in CAD, not
+    USD - CUSTOM_CAPEX_CONCEPTS's plain extractor has no currency conversion, so this is
+    a separate registry/extractor (fetch_custom_capex_currency_aware) that already
+    returns USD-converted values - see sec_custom_xbrl_currency_duration.py.
+    """
+
+    def test_registered_symbol_gets_currency_converted_custom_capex_injected(self):
+        loader = _make_cashflow_loader()
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[{"symbol": "SU", "fiscal_year": 2025, "fiscal_period": "FY", "operating_cash_flow": 1}],
+            ),
+            patch(
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_capex_currency_aware",
+                return_value={2025: 4_276_950_043.82},
+            ) as mock_fetch,
+        ):
+            rows = loader.fetch_incremental("SU", since=None)
+
+        mock_fetch.assert_called_once_with("SU", loader._sec_client)
+        assert rows[0]["custom_extension_vessel_capex"] == 4_276_950_043.82
+
+    def test_unregistered_symbol_never_calls_currency_aware_fetch(self):
+        loader = _make_cashflow_loader()
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[{"symbol": "AAPL", "fiscal_year": 2025, "operating_cash_flow": 1}],
+            ),
+            patch(
+                "loaders.helpers.financial_statements_custom_extension_fallbacks.fetch_custom_capex_currency_aware"
+            ) as mock_fetch,
+        ):
+            loader.fetch_incremental("AAPL", since=None)
+
+        mock_fetch.assert_not_called()
+
+
 class TestCustomExtensionCapexFieldMappingFallbackOnly:
     def test_custom_extension_capex_field_maps_to_capex_column(self):
         config = get_cash_flow_config("annual")
