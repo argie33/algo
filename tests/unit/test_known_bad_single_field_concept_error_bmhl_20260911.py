@@ -79,3 +79,46 @@ class TestKnownBadSingleFieldConceptErrorRejected:
         transformed = _transform(loader, rows)
         assert transformed[0]["cost_of_revenue"] == Decimal("200000000000")
         assert loader._explicit_null_rejections == []
+
+
+class TestKnownBadSingleFieldConceptErrorChciRejected:
+    """Regression test for the 2026-09-12 CHCI revenue fix (goal session: "get missing SEC/XBRL
+    under 200" sweep, cost_of_revenue-dwarfs-revenue candidate list follow-up).
+
+    Live-confirmed via CHCI's (Comstock Holding Companies) real SEC companyfacts JSON: the
+    stored FY2026 "revenue"=$40,000 exactly matches us-gaap:InterestIncomeOperating for period
+    2026-01-01/2026-03-31 (a minor interest-income line), not the real
+    us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax fact for the identical period
+    ($17,446,000, present in CHCI's own companyfacts but not the one that ended up stored).
+    cost_of_revenue=$14,671,000 is independently confirmed correct for the same period - only
+    revenue is wrong here.
+    """
+
+    def test_chci_revenue_nulled_cost_of_revenue_untouched(self) -> None:
+        loader = _make_loader(statement_type="income")
+        rows = [
+            {
+                "symbol": "CHCI",
+                "fiscal_year": 2026,
+                "revenue": Decimal("40000"),
+                "cost_of_revenue": Decimal("14671000"),
+                "gross_profit": None,
+                "net_income": Decimal("1000000"),
+                "data_unavailable": False,
+                "reason": None,
+            }
+        ]
+        transformed = _transform(loader, rows)
+        row = transformed[0]
+        assert row["revenue"] is None
+        assert row["cost_of_revenue"] == Decimal("14671000")
+        assert row["net_income"] == Decimal("1000000")
+        rejected_fields = {field for _, field in loader._explicit_null_rejections}
+        assert rejected_fields == {"revenue"}
+
+    def test_chci_unaffected_fiscal_year_untouched(self) -> None:
+        loader = _make_loader(statement_type="income")
+        rows = [{"symbol": "CHCI", "fiscal_year": 2025, "revenue": Decimal("62861000")}]
+        transformed = _transform(loader, rows)
+        assert transformed[0]["revenue"] == Decimal("62861000")
+        assert loader._explicit_null_rejections == []

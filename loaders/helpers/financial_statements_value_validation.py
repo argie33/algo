@@ -100,11 +100,29 @@ class FinancialStatementsValueValidationMixin:
     # fix's evidence-gathering pass" reasoning as KNOWN_BAD_FILING_SCALE_ERRORS's own UPC
     # entry above) - rejecting just this one field, not revenue/gross_profit/net_income which
     # are independently confirmed correct.
+    # CHCI (Comstock Holding Companies, CIK 0001299969): live-confirmed via real SEC
+    # companyfacts JSON that the stored FY2026 "revenue"=$40,000 exactly matches
+    # us-gaap:InterestIncomeOperating for period 2026-01-01/2026-03-31 (Q1 2026 10-Q,
+    # accn 0001628280-26-035147) - a minor, incidental interest-income line, not real
+    # revenue. The correct concept for the identical period,
+    # us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax, IS present in CHCI's own
+    # companyfacts for that exact period ($17,446,000) but wasn't the one that ended up
+    # stored - get_income_statement()'s period/duration matching for this partial fiscal
+    # year (CHCI hadn't filed its FY2026 10-K yet, only interim 10-Qs) picked the wrong
+    # concept's fact for reasons not further root-caused here (out of scope to chase into
+    # the shared annual-assembly logic under this fix's evidence-gathering pass, same
+    # "shared engine every symbol goes through" reasoning as BMHL/UPC above).
+    # cost_of_revenue=$14,671,000 is independently confirmed correct for the SAME period
+    # (us-gaap:CostOfRevenue, same accession) - only revenue is wrong here, not the whole
+    # row (gross_profit is already NULL for this row, so nothing else to reject).
     KNOWN_BAD_SINGLE_FIELD_CONCEPT_ERRORS: dict[str, dict[int, frozenset[str]]] = {
         "BMHL": {
             2023: frozenset({"cost_of_revenue"}),
             2024: frozenset({"cost_of_revenue"}),
             2025: frozenset({"cost_of_revenue"}),
+        },
+        "CHCI": {
+            2026: frozenset({"revenue"}),
         },
     }
 
