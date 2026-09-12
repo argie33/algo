@@ -639,6 +639,7 @@
   "scripts/record_capital_flow.py": 192,
   "scripts/run_loader.py": 574,
   "scripts/run_local_orchestrator.py": 420,
+  "scripts/score_realized_ic_monitor.py": 252,
   "scripts/setup_production_monitoring.py": 359,
   "scripts/test_yfinance_parallelism_2.py": 154,
   "scripts/test_yfinance_parallelism_optimization.py": 371,
