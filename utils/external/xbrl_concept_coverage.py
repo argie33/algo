@@ -801,7 +801,18 @@ def find_gaps(
             continue
         if n < min_companies:
             continue
-        if exclude_noise and any(noise in concept for noise in NOISE_SUBSTRINGS):
+        # Case-INsensitive (FIXED 2026-09-12, goal session: "keep going with XBRL until it's
+        # working best and right"): several NOISE_SUBSTRINGS entries were typed with FASB's
+        # human-readable label capitalization (e.g. "ShareBasedCompensationArrangementBy
+        # ShareBasedPaymentAward") rather than the actual XBRL concept local-name casing SEC's
+        # companyfacts API returns (e.g. "SharebasedCompensationArrangementBySharebasedPayment
+        # Award...", lowercase "b") - a plain case-sensitive `in` check silently never matched
+        # that whole concept family (option/RSU vesting-schedule detail, exactly the kind of
+        # noise this list exists to exclude), letting them leak through as apparent "gaps" in
+        # every scan/DataPatrol alert since this list was created. Concept names follow FASB's
+        # taxonomy convention consistently, so folding case cannot introduce a new false match
+        # that wasn't already a real substring match modulo casing.
+        if exclude_noise and any(noise.lower() in concept.lower() for noise in NOISE_SUBSTRINGS):
             continue
         if key in dismissed and not include_dismissed:
             continue
