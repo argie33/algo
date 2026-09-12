@@ -242,8 +242,13 @@ class TestMarkerPropagation(unittest.TestCase):
         completeness_missing_momentum = _run("momentum", scores)
 
         # Both cases are missing exactly 1 of 5 pillars - a flat count would report the
-        # same 80.0% for each. Value (27%) is the largest pillar and momentum (10%) the
-        # smallest, so missing value must report meaningfully lower completeness.
+        # same 80.0% for each regardless of which pillar. Completeness must instead track
+        # each pillar's actual BASE_PILLAR_WEIGHTS share (FIXED 2026-09-11: previously
+        # hardcoded value>momentum as permanently unequal, which broke when the equal-weight
+        # pillar refactor, see MEMORY.md's equal_weight_refactor_amplifies_weak_pillar_
+        # components_20260911, made every pillar's weight identical - derive the expected
+        # ordering from the live weights dict instead of a stale assumption about relative
+        # pillar sizes).
         self.assertAlmostEqual(
             completeness_missing_value,
             round((1 - BASE_PILLAR_WEIGHTS["value"]) * 100, 2),
@@ -254,7 +259,12 @@ class TestMarkerPropagation(unittest.TestCase):
             round((1 - BASE_PILLAR_WEIGHTS["momentum"]) * 100, 2),
             places=1,
         )
-        self.assertLess(completeness_missing_value, completeness_missing_momentum)
+        if BASE_PILLAR_WEIGHTS["value"] > BASE_PILLAR_WEIGHTS["momentum"]:
+            self.assertLess(completeness_missing_value, completeness_missing_momentum)
+        elif BASE_PILLAR_WEIGHTS["value"] < BASE_PILLAR_WEIGHTS["momentum"]:
+            self.assertGreater(completeness_missing_value, completeness_missing_momentum)
+        else:
+            self.assertAlmostEqual(completeness_missing_value, completeness_missing_momentum, places=1)
 
     def test_marker_reason_propagates_to_api_response(self) -> None:
         """Verify marker reasons appear in API responses."""
