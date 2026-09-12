@@ -50,7 +50,12 @@ VALIDATION_SCHEMA = {
     "min_avg_daily_dollar_volume": ("float", 1.0, 100000000.0, True, 500000.0),
     "require_stock_stage_2": ("bool", None, None, False, None),
     "max_stop_distance_pct": ("float", 0.1, 50.0, False, 12.0),
-    "max_positions_per_sector": ("int", 1, 100, False, 10),
+    # Tightened 10->5 (2026-09-12, risk control not a factor reweight): the backtest evidence
+    # base has confirmed survivorship bias (every 2000-2026 company failure, including the 2023
+    # regional-bank crisis, is absent from the DB with no delisting-return field anywhere) that
+    # specifically blinds the system to the tail risk a concentrated single-sector bet carries -
+    # see memory scoring_methodology_audit_survivorship_lookahead_restatement_20260912.
+    "max_positions_per_sector": ("int", 1, 100, False, 5),
     "max_positions_per_industry": ("int", 1, 100, False, 8),
     # Correlation-based diversification (2026-08-25): sector/industry caps above only catch
     # concentration within GICS-style taxonomy - two names in different sectors can still move

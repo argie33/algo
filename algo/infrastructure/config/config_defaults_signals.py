@@ -48,9 +48,11 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
     "require_stock_stage_2": ("true", "bool", "Require Stage 2 trend template", "Filter Thresholds"),
     "max_stop_distance_pct": ("12.0", "float", "Max stop distance % from entry", "Filter Thresholds"),
     "max_positions_per_sector": (
-        "10",
+        "5",
         "int",
-        "Max concurrent positions in one sector",
+        "Max concurrent positions in one sector (tightened 10->5, 2026-09-12: survivorship-biased "
+        "backtest data can't see the tail risk a concentrated single-sector bet carries - see "
+        "memory scoring_methodology_audit_survivorship_lookahead_restatement_20260912)",
         "Filter Thresholds",
     ),
     "max_positions_per_industry": (
