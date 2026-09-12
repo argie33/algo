@@ -389,11 +389,11 @@ class TestValueMultiplesReconciliationMath:
 
     def test_base_pillar_weights_value_unchanged_by_this_feature(self) -> None:
         # This feature changes HOW value_score's multiples are computed, not the top-level
-        # Value pillar weight itself. 0.23 -> 0.27 update 2026-08-28 is unrelated to this
-        # feature - it's Size's retirement as a composite pillar freeing weight to Growth/Value
-        # (see BASE_PILLAR_WEIGHTS's own comment for the full trail), not a percentile-ranking
-        # side effect.
-        assert BASE_PILLAR_WEIGHTS["value"] == 0.27
+        # Value pillar weight itself. That weight moved 0.23 -> 0.27 -> 0.20 across two later,
+        # unrelated changes (Size's composite-pillar retirement, then the 2026-09-11
+        # uniform-equal-weight move - see BASE_PILLAR_WEIGHTS's own comment for the full
+        # trail), neither a percentile-ranking side effect.
+        assert BASE_PILLAR_WEIGHTS["value"] == 0.20
 
 
 class TestUpdateValueMultiplesPercentilesEndToEnd:

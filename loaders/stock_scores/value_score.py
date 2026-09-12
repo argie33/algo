@@ -113,6 +113,14 @@ class ValueScoreMixin:
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
+        UNIFORM EQUAL-WEIGHT (2026-09-11, user directive - see pillar_weights.py's
+        BASE_PILLAR_WEIGHTS comment for the full rationale): the 27/27/27/9/10 split below
+        (already a move away from fully in-sample-optimized weights, see "EQUAL-WEIGHTED
+        2026-09-01" note further down) is now flat 20% each across all 5 components (PE/PB/PS/
+        Forward PE/Dividend Yield) - no more smaller "satellite" weights for Forward PE/Dividend
+        Yield. value_metrics.py's update_value_multiples_percentiles() mirrors this exact split -
+        keep both in sync if either changes. Historical reasoning below is kept as audit trail.
+
         ARCHITECTURE CHANGE 2026-08-28 (goal: "what does IBD/the best and brightest do" - see
         VALUE_RISK_INTERACTION_MAX_SHIFT's neighbor, update_value_multiples_percentiles()'s own
         docstring, for the full evidence trail and citations). P/E, P/B, and P/S are no longer
@@ -714,11 +722,11 @@ class ValueScoreMixin:
         # the 3 "core" multiples in any of the cited methodologies).
         if metrics.get("pe_ratio") is not None and metrics["pe_ratio"] > 0:
             pe_score = self._pe_curve_score(metrics["pe_ratio"])
-            weighted_sum += pe_score * 0.27
-            total_weight += 0.27
+            weighted_sum += pe_score * 0.20
+            total_weight += 0.20
         elif metrics.get("pe_ratio_unavailable_reason") == "unprofitable_stock":
-            weighted_sum += 0.0 * 0.27
-            total_weight += 0.27
+            weighted_sum += 0.0 * 0.20
+            total_weight += 0.20
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors.
         # NEGATIVE-BOOK-VALUE FLOOR ADDED 2026-09-05 (real-money-readiness audit): same bug
@@ -733,18 +741,18 @@ class ValueScoreMixin:
         # applied to P/E's `unprofitable_stock` and Forward P/E's `negative_forward_eps` cases.
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
             pb_score = self._pb_curve_score(metrics["pb_ratio"])
-            weighted_sum += pb_score * 0.27
-            total_weight += 0.27
+            weighted_sum += pb_score * 0.20
+            total_weight += 0.20
         elif metrics.get("pb_ratio_unavailable_reason") == "negative_book_value":
-            weighted_sum += 0.0 * 0.27
-            total_weight += 0.27
+            weighted_sum += 0.0 * 0.20
+            total_weight += 0.20
 
         # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
         # multiples run richer than book multiples (especially for growth/SaaS names).
         if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
             ps_score = self._ps_curve_score(metrics["ps_ratio"])
-            weighted_sum += ps_score * 0.27
-            total_weight += 0.27
+            weighted_sum += ps_score * 0.20
+            total_weight += 0.20
 
         # PEG - REMOVED FROM SCORING 2026-08-28 (goal: "is this value score right per industry
         # best practice"). Prior passes (see "PEG - TRIMMED FURTHER, NOT REMOVED" docstring
@@ -808,11 +816,11 @@ class ValueScoreMixin:
         # at last check) that can't be backtested the way the 3 core trailing multiples were.
         if metrics.get("forward_pe") is not None and metrics["forward_pe"] > 0:
             fwd_pe_score = self._pe_curve_score(metrics["forward_pe"])
-            weighted_sum += fwd_pe_score * 0.09
-            total_weight += 0.09
+            weighted_sum += fwd_pe_score * 0.20
+            total_weight += 0.20
         elif metrics.get("forward_pe_unavailable_reason") == "negative_forward_eps":
-            weighted_sum += 0.0 * 0.09
-            total_weight += 0.09
+            weighted_sum += 0.0 * 0.20
+            total_weight += 0.20
 
         # FCF yield REMOVED 2026-08-28 (see "FCF YIELD - RESOLVED 2026-08-28" docstring note
         # below): independently re-verified and confirmed robustly wrong-signed - higher
@@ -874,8 +882,8 @@ class ValueScoreMixin:
             # free cash flow - the CATO-pattern value trap this pillar previously scored
             # identically to a well-covered dividend of the same magnitude.
             div_score *= _dividend_sustainability_factor(metrics["dividend_yield"], metrics.get("fcf_yield"))
-            weighted_sum += div_score * 0.10
-            total_weight += 0.10
+            weighted_sum += div_score * 0.20
+            total_weight += 0.20
 
         # Forward P/E REMOVED 2026-08-25, RE-ADDED 2026-08-28 - see "FORWARD P/E - ADDED
         # 2026-08-28" docstring note above and the scored block earlier in this function for

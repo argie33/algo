@@ -200,6 +200,15 @@ class RiskScoringMixin:
     def _score_risk(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score risk metrics on 0-100 scale using price volatility / risk-of-loss signals only.
 
+        UNIFORM EQUAL-WEIGHT (2026-09-11, user directive - see pillar_weights.py's
+        BASE_PILLAR_WEIGHTS comment for the full rationale): the magnitude-tuned 45/15/15/10/15
+        split documented below traced to the same isolated-backtest/contaminated-FM-data family
+        that forced Growth and Value off similar weighting. All 5 components (Volatility 60D,
+        Volatility 252D, Beta, Max Drawdown 1Y, Liquidity) are now flat 20% each. The component
+        LIST and every curve/gate below (NEAR_ZERO_LIQUIDITY_THRESHOLD, the beta sign fix, the
+        max_drawdown sign guard) are unchanged - only the combination weights are. The historical
+        reasoning below is kept as the audit trail, not as justification for today's live weights.
+
         RENAMED 2026-08-26 (user directive): Stability -> Risk. Same computation
         (volatility/beta/downside-vol/max-drawdown), name only - the underlying
         stability_metrics input table and _get_stability_metrics accessor are unchanged.
@@ -405,13 +414,13 @@ class RiskScoringMixin:
 
         if not price_stats_unreliable and metrics.get("volatility_60d") is not None:
             v60_score = self._vol_curve_score(max(0, metrics["volatility_60d"]))
-            weighted_sum += v60_score * 0.45
-            total_weight += 0.45
+            weighted_sum += v60_score * 0.20
+            total_weight += 0.20
 
         if not price_stats_unreliable and metrics.get("volatility_252d") is not None:
             v252_score = self._vol_curve_score(max(0, metrics["volatility_252d"]))
-            weighted_sum += v252_score * 0.15
-            total_weight += 0.15
+            weighted_sum += v252_score * 0.20
+            total_weight += 0.20
 
         # Beta: close to 1.0 is best, target 0.8-1.2 for market-correlated swing trading.
         # Deliberately not the literature's low-beta preference (Frazzini & Pedersen 2014
@@ -435,8 +444,8 @@ class RiskScoringMixin:
             beta = metrics["beta"]
             diff = min(abs(beta - 1.0), 2.0)
             beta_score = max(0, 100 - (diff * 50))
-            weighted_sum += beta_score * 0.15
-            total_weight += 0.15
+            weighted_sum += beta_score * 0.20
+            total_weight += 0.20
 
         # Max drawdown (1y): peak-to-trough decline, stored as a negative percentage
         # (e.g. -34.63 = a 34.63% decline from peak). Distinct signal from volatility (a
@@ -463,8 +472,8 @@ class RiskScoringMixin:
             else:
                 drawdown_pct = abs(raw_max_drawdown)
                 dd_score = self._max_drawdown_curve_score(drawdown_pct)
-                weighted_sum += dd_score * 0.10
-                total_weight += 0.10
+                weighted_sum += dd_score * 0.20
+                total_weight += 0.20
 
         # Liquidity (20-trading-day average dollar volume), ADDED 2026-09-01 (goal session -
         # user directive after live-observing untradeable micro-cap banks topping Risk's
@@ -496,8 +505,8 @@ class RiskScoringMixin:
         # $50M+->100 (saturates - no further scoring benefit to being more liquid than that).
         if metrics.get("avg_dollar_volume_20d") is not None and metrics["avg_dollar_volume_20d"] > 0:
             liq_score = self._liquidity_curve_score(metrics["avg_dollar_volume_20d"])
-            weighted_sum += liq_score * 0.15
-            total_weight += 0.15
+            weighted_sum += liq_score * 0.20
+            total_weight += 0.20
 
         if total_weight >= RISK_MIN_WEIGHT_AVAILABLE:
             return weighted_sum / total_weight
