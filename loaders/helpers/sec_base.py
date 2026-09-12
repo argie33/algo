@@ -27,6 +27,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, cast
 
+from loaders.helpers.sec_statement_field_bookkeeping import is_bookkeeping_key
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
 from utils.external.sec_ticker_cache import cik_not_found_reason
@@ -1454,12 +1455,10 @@ class SecEdgarStatementLoader(SecLoaderBase):
             for sec_field, value in ordered_fields:
                 if sec_field in ("symbol", "fiscal_year"):
                     continue
-                # `_rank_{col}` bookkeeping (see _aggregate_concepts_apply_entry_value /
-                # sec_statements_aggregate.py's result-building comment on why it alone,
-                # unlike its `_filed_`/`_end_`/`_frame_`/`_span_`/`_is_instant_` siblings, is
-                # not stripped before reaching here) is read on demand below via
-                # r.get(f"_rank_{sec_field}") - it is never itself a field to map/warn on.
-                if sec_field.startswith("_rank_"):
+                # `_rank_{col}`/`_concept_{col}` bookkeeping keys are read on demand
+                # elsewhere, never themselves a field to map/warn on - see
+                # sec_statement_field_bookkeeping.py's module docstring.
+                if is_bookkeeping_key(sec_field):
                     continue
 
                 if sec_field not in field_mapping:
