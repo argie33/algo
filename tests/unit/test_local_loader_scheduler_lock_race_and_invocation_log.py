@@ -443,7 +443,14 @@ class TestSchedulerLockFifoFairnessAcrossPipelines:
             real_try_acquire = module._try_acquire_lock
 
             def _tracking_try_acquire(lock: Path, name: str) -> bool:
-                if queue_path.exists():
+                # Checking bare queue_path.exists() is not the right proxy for "morning is
+                # still queued ahead of us": 'signals' legitimately re-creates this same file
+                # with its OWN ticket once it registers (before this point in the loop), so
+                # the file existing again after morning's ticket is gone is not a fairness
+                # violation - only morning's own pid line still being present would be. Root-
+                # caused via direct instrumentation (found this file existing at attempt time
+                # purely because of signals' own just-registered ticket, not morning's).
+                if queue_path.exists() and f"pid={morning_stub.pid} " in queue_path.read_text():
                     attempts_while_morning_queued["n"] += 1
                 return bool(real_try_acquire(lock, name))
 

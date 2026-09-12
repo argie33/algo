@@ -77,18 +77,56 @@ class TestWtPtsRejectsNonFiniteScore:
         assert avail == 10.0
 
 
+class _FakeTrendCursor:
+    """trend_30wk (post-2026-09-08 3-day-majority fix) issues two queries: a fetchone()
+    for the 30-week SMA, then a fetchall() for the last 3 SPY daily closes. Returns the
+    given sma_row/day_rows for each in turn, regardless of query text."""
+
+    def __init__(self, sma_row, day_rows):
+        self._sma_row = sma_row
+        self._day_rows = day_rows
+        self._calls = 0
+
+    def execute(self, query, params=None):
+        self._calls += 1
+
+    def fetchone(self):
+        return self._sma_row
+
+    def fetchall(self):
+        return self._day_rows
+
+
 class TestTrendRejectsNonFinitePrices:
     def test_nan_spy_close_raises(self):
         calc = MarketFactorCalculator()
-        cur = _FakeCursor((float("nan"), 500.0))
-        with pytest.raises(RuntimeError, match="Non-finite SPY trend data"):
+        cur = _FakeTrendCursor((500.0,), [(float("nan"),), (501.0,), (502.0,)])
+        with pytest.raises(RuntimeError, match="Non-finite/missing SPY daily close"):
             calc.trend_30wk(date(2026, 8, 10), cur)
 
     def test_nan_sma_raises(self):
         calc = MarketFactorCalculator()
-        cur = _FakeCursor((500.0, float("nan")))
-        with pytest.raises(RuntimeError, match="Non-finite SPY trend data"):
+        cur = _FakeTrendCursor((float("nan"),), [(500.0,), (501.0,), (502.0,)])
+        with pytest.raises(RuntimeError, match="Non-finite SPY 30-week SMA"):
             calc.trend_30wk(date(2026, 8, 10), cur)
+
+    def test_majority_vote_confirms_bullish_despite_one_day_dip(self):
+        """The whole point of the 2026-09-08 fix: a single day's close dipping below the
+        30wk MA must NOT flip the regime - only a 2-of-3 majority does."""
+        calc = MarketFactorCalculator()
+        # Most recent close (499, below sma=500) is a 1-day dip; the other two of the last
+        # three days (501, 502) are above sma - majority (2/3) stays bullish.
+        cur = _FakeTrendCursor((500.0,), [(499.0,), (501.0,), (502.0,)])
+        result = calc.trend_30wk(date(2026, 8, 10), cur)
+        assert result["above_30wma"] is True
+        assert result["score"] == 100.0
+
+    def test_majority_vote_flips_bearish_on_sustained_move(self):
+        calc = MarketFactorCalculator()
+        cur = _FakeTrendCursor((500.0,), [(490.0,), (491.0,), (492.0,)])
+        result = calc.trend_30wk(date(2026, 8, 10), cur)
+        assert result["above_30wma"] is False
+        assert result["score"] == 0.0
 
 
 class TestMomentumRejectsNonFinitePrices:
