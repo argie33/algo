@@ -838,6 +838,8 @@ class DividendDataLoader(SecLoaderBase):
                 # fetching the raw filing XML directly).
                 custom_records = self._extract_custom_extension_dividends(symbol, now_et)
                 if custom_records:
+                    # Same stale-marker gap as the main unique_results success path below.
+                    self._retract_stale_marker(symbol)
                     return custom_records
                 # See _classify_no_gaap_or_ifrs_facts's docstring: registered-investment-
                 # company detection (cef/ffd taxonomy, or company_info_sec's
@@ -890,6 +892,16 @@ class DividendDataLoader(SecLoaderBase):
                     unique_results.append(r)
 
             if unique_results:
+                # BUG FOUND 2026-09-12 ("Other (errors/excluded)" bucket audit): the two
+                # exception branches above (cik_not_found, fetch_error) retract a stale
+                # data_unavailable marker once real history is confirmed, but this - the
+                # ordinary successful-extraction path, the common case - never did. A symbol
+                # with an old marker row (e.g. from a transient SEC timeout before the
+                # 2026-08-20/21 retraction fixes landed) that later succeeds cleanly here kept
+                # its stale marker forever, since nothing else ever revisits it. Live-confirmed
+                # 13 such symbols still coexisting post-migration-1214. Same retraction here
+                # closes the loop for every path instead of just the two failure branches.
+                self._retract_stale_marker(symbol)
                 return unique_results
 
             # FIX 2026-08-19 (goal session continuation - "Scores Data Coverage" dashboard
