@@ -132,7 +132,8 @@ class TestFactsByConceptForAccession:
             }
         }
         value = _facts_by_concept_for_accession(company_facts, "us-gaap", "Assets", "0001-new")
-        assert value == 1000.0
+        assert value is not None
+        assert value[0] == 1000.0
 
     def test_returns_none_when_concept_missing(self) -> None:
         assert _facts_by_concept_for_accession({"facts": {"us-gaap": {}}}, "us-gaap", "Assets", "0001") is None
@@ -159,7 +160,8 @@ class TestFactsByConceptForAccession:
             }
         }
         value = _facts_by_concept_for_accession(company_facts, "us-gaap", "GrossProfit", "0001")
-        assert value == 174_680_000.0
+        assert value is not None
+        assert value[0] == 174_680_000.0
 
     def test_full_year_wins_regardless_of_fact_order_in_source_data(self) -> None:
         """Same as above with the two facts in the opposite order - the fix must not
@@ -179,7 +181,8 @@ class TestFactsByConceptForAccession:
             }
         }
         value = _facts_by_concept_for_accession(company_facts, "us-gaap", "GrossProfit", "0001")
-        assert value == 174_680_000.0
+        assert value is not None
+        assert value[0] == 174_680_000.0
 
 
 def _fake_submissions(accession: str = "0001234567-25-000001", filed: str = "2025-11-01") -> dict[str, object]:
