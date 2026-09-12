@@ -1,0 +1,165 @@
+"""Currency-aware duration-fact extractor for custom XBRL extension concepts, extracted
+out of sec_custom_xbrl_concepts.py (2026-09-12, file-size ratchet: that file is already at
+its baseline, so a new capability must land in a new module, not grow it) rather than
+alongside its non-currency sibling `_extract_values_for_concepts`.
+
+Goal-session context ("SEC/XBRL missing data under 200" push): SU (Suncor Energy, CIK
+0000311337) tags real, consolidated, non-dimensioned capex under a custom extension
+concept (su:CashFlowsUsedForCapitalExpenditures) - live-confirmed against its real filed
+FY2025 40-F (accession 0001104659-26-020411): CAD 5,856,000,000 FY2025 / CAD
+6,483,000,000 FY2024, plain `Duration_..._2025` contexts with no SegmentAxis (the
+filing's per-segment OilSands/E&P/Refining breakdowns use separate, clearly-dimensioned
+contexts, correctly excluded). The existing `_extract_values_for_concepts` (used by every
+current CUSTOM_CAPEX_CONCEPTS entry - DHT, CMRE, EGY, APA - all USD-only filers) has no
+currency/unitRef check at all, so using it as-is for SU would treat the raw CAD figure as
+USD - a real currency-scale bug, same class this codebase already caught and fixed once
+for NXAT's KRW debt figures (see utils/external/sec_custom_xbrl_concepts.py's
+CUSTOM_DEBT_LONGTERM_CONCEPTS module comment) and for DB/BIDU's income-dimensioned
+figures (`_extract_single_concept_duration_dimensioned_sum`). This combines that same
+proven currency-resolution logic (`_parse_unit_currencies` + MAJOR_CURRENCIES-gated FX
+conversion via `_fx_rate_cache.get_usd_rate`) with `_extract_values_for_concepts`'s own
+"exclude any dimensioned context, require a ~350-380 day annual duration" governance,
+which neither existing extractor did on its own.
+"""
+
+from __future__ import annotations
+
+import xml.etree.ElementTree as ET
+from datetime import date
+from typing import Any
+
+from utils.external.fx_rates import MAJOR_CURRENCIES
+from utils.external.sec_custom_xbrl_concepts import _fetch_custom_concept, _local_name, _parse_unit_currencies
+from utils.external.sec_custom_xbrl_concepts import _fx_rate_cache as _shared_fx_rate_cache
+
+
+def _index_non_dimensioned_duration_contexts(root: ET.Element) -> dict[str, tuple[str, str]]:
+    """{context id: (startDate, endDate)} for every context in `root` that is a plain
+    duration (no <segment>/<scenario> dimensional qualifier) - the consolidated-total
+    contexts a non-dimensioned figure like SU's capex is tagged against.
+    """
+    context_periods: dict[str, tuple[str, str]] = {}
+    for ctx in root.iter():
+        if _local_name(ctx.tag) != "context":
+            continue
+        ctx_id = ctx.get("id")
+        if not ctx_id:
+            continue
+        if any(_local_name(child.tag) in ("segment", "scenario") for child in ctx.iter() if child is not ctx):
+            continue  # Dimensionally-scoped context - not the consolidated total.
+        period = next((c for c in ctx if _local_name(c.tag) == "period"), None)
+        if period is None:
+            continue
+        start_el = next((c for c in period if _local_name(c.tag) == "startDate"), None)
+        end_el = next((c for c in period if _local_name(c.tag) == "endDate"), None)
+        if start_el is None or end_el is None or not start_el.text or not end_el.text:
+            continue  # Instant context, not a duration one.
+        context_periods[ctx_id] = (start_el.text.strip(), end_el.text.strip())
+    return context_periods
+
+
+def _extract_duration_values_for_concepts_with_currency(
+    xml_content: str, concepts: list[tuple[str, str]] | None
+) -> dict[int, float]:
+    """Currency-aware counterpart of sec_custom_xbrl_concepts._extract_values_for_concepts
+    - see this module's own docstring for why SU needs it. Returns {fiscal_year: value},
+    always in USD.
+    """
+    if not concepts:
+        return {}
+    wanted_local_names = {local_name for _prefix, local_name in concepts}
+
+    root = ET.fromstring(xml_content)
+    unit_currencies = _parse_unit_currencies(root)
+    context_periods = _index_non_dimensioned_duration_contexts(root)
+
+    # {fiscal_year: {currency: value}} - a real USD fact always wins over a same-year
+    # local-currency duplicate, same governance as the income-dimensioned case.
+    candidates_by_year: dict[int, dict[str, float]] = {}
+    seen_context_concepts: set[tuple[str, str]] = set()
+    for el in root.iter():
+        local_name = _local_name(el.tag)
+        if local_name not in wanted_local_names:
+            continue
+        ctx_ref = el.get("contextRef")
+        if ctx_ref not in context_periods:
+            continue
+        # LIVE-CONFIRMED 2026-09-12 (SU/Suncor): the identical (contextRef, concept) fact
+        # can appear MORE THAN ONCE in a real filing's raw instance document with the
+        # exact same value (once inline in the primary cash-flow statement, once again in
+        # a footnote/reconciliation table reusing the same context) - summing every
+        # occurrence silently doubled SU's real figure before this dedup was added, same
+        # governance as _extract_instant_values_for_concepts's own dedup-by-(contextRef,
+        # concept) set.
+        dedup_key = (ctx_ref, local_name)
+        if dedup_key in seen_context_concepts:
+            continue
+        seen_context_concepts.add(dedup_key)
+        start_str, end_str = context_periods[ctx_ref]
+        try:
+            start_date = date.fromisoformat(start_str)
+            end_date = date.fromisoformat(end_str)
+        except ValueError:
+            continue
+        duration_days = (end_date - start_date).days
+        if not (350 <= duration_days <= 380):
+            continue  # Not a full-year duration.
+        if el.text is None:
+            continue
+        try:
+            value = float(el.text.strip())
+        except ValueError:
+            continue
+        unit_ref = el.get("unitRef")
+        currency = unit_currencies.get(unit_ref) if unit_ref else None
+        if currency is None:
+            continue  # Unresolvable unit - never guess a currency.
+        fiscal_year = end_date.year
+        # Sum multiple concepts (e.g. a long-term + current-portion pair) within the same
+        # currency for the same year, mirroring _extract_values_for_concepts's summing
+        # behavior - only meaningfully differs from it once a real multi-concept,
+        # non-USD registry entry exists.
+        by_currency = candidates_by_year.setdefault(fiscal_year, {})
+        by_currency[currency] = by_currency.get(currency, 0.0) + value
+
+    values_by_year: dict[int, float] = {}
+    for fiscal_year, by_currency in candidates_by_year.items():
+        if "USD" in by_currency:
+            values_by_year[fiscal_year] = by_currency["USD"]
+            continue
+        for currency, value in by_currency.items():
+            if currency not in MAJOR_CURRENCIES:
+                continue
+            fx_rate = _shared_fx_rate_cache.get_usd_rate(currency, f"{fiscal_year}-12-31")
+            if fx_rate is None or fx_rate == 0:
+                continue  # No real rate available - fail closed.
+            values_by_year[fiscal_year] = value / fx_rate
+            break
+
+    return values_by_year
+
+
+# SU (Suncor Energy Inc, CIK 0000311337) - see module docstring for the live evidence.
+CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE: dict[str, list[tuple[str, str]]] = {
+    "SU": [("su", "CashFlowsUsedForCapitalExpenditures")],
+}
+
+
+def extract_custom_capex_currency_aware_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known currency-aware
+    custom capex concept(s) (see CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE), returning
+    {fiscal_year: summed_value_in_usd}. Returns {} for any unregistered symbol.
+    """
+    return _extract_duration_values_for_concepts_with_currency(
+        xml_content, CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE.get(symbol)
+    )
+
+
+def fetch_custom_capex_currency_aware(symbol: str, sec_client: Any) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known
+    CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE concept(s). Returns {} if symbol isn't
+    registered, the filing can't be found, or the XML can't be parsed.
+    """
+    return _fetch_custom_concept(
+        symbol, sec_client, CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE, extract_custom_capex_currency_aware_from_xbrl_xml
+    )

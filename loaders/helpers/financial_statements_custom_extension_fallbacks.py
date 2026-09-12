@@ -47,6 +47,10 @@ from utils.external.sec_custom_xbrl_concepts import (
     fetch_custom_income_dimensioned,
     fetch_custom_revenue,
 )
+from utils.external.sec_custom_xbrl_currency_duration import (
+    CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE,
+    fetch_custom_capex_currency_aware,
+)
 
 
 def _annual_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -97,6 +101,17 @@ def apply_custom_cashflow_extensions(symbol: str, rows: list[dict[str, Any]], se
                 # which filers report as a positive magnitude. abs() here is a no-op for
                 # every existing (already-positive) entry.
                 row["custom_extension_vessel_capex"] = abs(custom_capex_by_year[fiscal_year])
+
+    if symbol in CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE:
+        # SU (Suncor Energy) - see sec_custom_xbrl_currency_duration.py's module comment:
+        # tags real, consolidated capex under a custom extension concept in CAD, not USD -
+        # CUSTOM_CAPEX_CONCEPTS's own extractor has no currency conversion, so this is a
+        # separate registry/extractor pair rather than a plain addition to it.
+        custom_capex_currency_by_year = fetch_custom_capex_currency_aware(symbol, sec_client)
+        for row in _annual_rows(rows):
+            fiscal_year = row.get("fiscal_year")
+            if fiscal_year in custom_capex_currency_by_year:
+                row["custom_extension_vessel_capex"] = abs(custom_capex_currency_by_year[fiscal_year])
 
     if symbol in CUSTOM_CAPEX_DIMENSIONED_CONCEPTS:
         dimensioned_capex_by_year = fetch_custom_capex_dimensioned_sum(symbol, sec_client)
