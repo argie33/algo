@@ -246,6 +246,27 @@ from loaders.load_stock_scores and must keep working unchanged.
 #      pillar/component weight on the strength of the uncorrected number. This does not
 #      retroactively invalidate weights already live (see the file's own history above for
 #      what evidence backed each); it applies to every new candidate screen from here on.
+#   6. NO CIRCULAR FORWARD-RETURN VALIDATION FOR PRICE-TOUCHED INPUTS (added 2026-09-12, see
+#      forward_return_validation_methodology_circular_for_price_derived_pillars_20260912 in
+#      memory). stock_scores/value_metrics/quality_metrics/momentum_metrics are single-row
+#      snapshots (no history - COUNT(DISTINCT date) GROUP BY symbol returns 1 for every symbol).
+#      "Today's score vs. this symbol's own trailing realized return" is NOT a valid earned/
+#      artifact test for ANY input whose current value is itself a function of recent price
+#      action - Momentum by construction, but also P/E, P/B, dividend_yield, and Risk's
+#      volatility legs (any ratio where the price side just moved). Comparing "this went up" to
+#      "this has been going up" proves nothing; it is not a weaker test, it is not a test at all.
+#      GOING FORWARD: any "is this concentration/inversion real or a scoring artifact" question
+#      touching a price-derived input MUST use a genuine point-in-time panel reconstructed from
+#      price_daily/annual_income_statement/annual_balance_sheet with real calendar-FYE + lag
+#      handling - the fama_macbeth_quality_factors.py / fama_macbeth_value_factors.py pattern,
+#      extended with an --industries filter where the question is sub-industry-specific (see
+#      industry_conditional_pillar_signal_banks_insurers_reits_compared_20260912) - never the
+#      snapshot-vs-trailing-return shortcut. Conclusions already reached via the circular method
+#      are UNCONFIRMED, not disproven, and must be redone this way before being trusted for a
+#      production weight decision: financial_services_pillar_concentration_deserved_not_artifact_
+#      20260911, reit_risk_pillar_concentration_not_fixable_by_sector_relative_20260911, and
+#      insurance_community_bank_subcluster_earned_gate_binds_20260912 all rest on this method and
+#      are open again until redone.
 # ============================================================================================
 # UNIFORM EQUAL-WEIGHT PRINCIPLE (2026-09-11, user directive: the backtest/Fama-MacBeth evidence
 # behind every non-Growth pillar's weights is the same contaminated-data family this module's own

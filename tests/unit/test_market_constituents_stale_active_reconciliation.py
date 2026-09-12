@@ -668,3 +668,135 @@ class TestPurgeDownstreamRowsForInactiveSymbols:
 
             # Must not raise despite notify() failing internally.
             loader._purge_downstream_rows_for_inactive_symbols()
+
+
+class TestReactivateWronglyDelistedSymbols:
+    """Regression test added 2026-09-12 (methodology-foundation goal session). The missing
+    self-healing loop for `_deactivate_symbols_delisted_from_exchange_feed` - that method's
+    own false-positive class was documented recurring twice (2026-08-21, 2026-09-01) with
+    only ever a notify() alert, never a correction. Live-verified via Stooq's bulk archive
+    (an independent third data source) that 19 of 44 symbols marked
+    `delisted_or_removed_from_exchange_feed` are still genuinely trading, including EFA
+    (iShares MSCI EAFE ETF) with a price row from the day before this fix.
+    """
+
+    def test_symbol_back_in_feed_gets_reactivated(self):
+        loader = _make_loader()
+        feed_symbols = {f"SYM{i}" for i in range(5000)} | {"AAPL", "TWO"}
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
+            mock_wrongly_delisted_cur = MagicMock()
+            mock_wrongly_delisted_cur.fetchall.return_value = [("TWO",)]
+            mock_priced_cur = MagicMock()
+            mock_priced_cur.fetchall.return_value = []  # no recent price row needed - back in feed is enough
+            mock_write_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [
+                mock_wrongly_delisted_cur,
+                mock_priced_cur,
+                mock_write_cur,
+            ]
+
+            loader._reactivate_wrongly_delisted_symbols(feed_symbols)
+
+            mock_write_cur.execute.assert_called_once()
+            sql, params = mock_write_cur.execute.call_args[0]
+            assert "UPDATE stock_symbols" in sql
+            assert "active = true" in sql
+            assert params == (["TWO"],)
+
+        mock_notify.assert_called_once()
+        _, kwargs = mock_notify.call_args
+        assert "TWO" in kwargs["message"]
+        assert kwargs["details"]["symbols"] == ["TWO"]
+
+    def test_symbol_with_recent_price_but_absent_from_feed_still_reactivated(self):
+        """Either signal alone is sufficient - mirrors the deactivation side needing BOTH
+        signals to agree before acting; reactivation only needs one to show they no longer do."""
+        loader = _make_loader()
+        feed_symbols = {f"SYM{i}" for i in range(5000)} | {"AAPL"}  # EFA NOT in this feed snapshot
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
+            mock_wrongly_delisted_cur = MagicMock()
+            mock_wrongly_delisted_cur.fetchall.return_value = [("EFA",)]
+            mock_priced_cur = MagicMock()
+            mock_priced_cur.fetchall.return_value = [("EFA",)]  # recent price_daily row exists
+            mock_write_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [
+                mock_wrongly_delisted_cur,
+                mock_priced_cur,
+                mock_write_cur,
+            ]
+
+            loader._reactivate_wrongly_delisted_symbols(feed_symbols)
+
+            mock_write_cur.execute.assert_called_once()
+            _, params = mock_write_cur.execute.call_args[0]
+            assert params == (["EFA"],)
+        mock_notify.assert_called_once()
+
+    def test_symbol_still_genuinely_delisted_not_reactivated(self):
+        loader = _make_loader()
+        feed_symbols = {f"SYM{i}" for i in range(5000)} | {"AAPL"}
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify") as mock_notify,
+        ):
+            mock_wrongly_delisted_cur = MagicMock()
+            mock_wrongly_delisted_cur.fetchall.return_value = [("NSA",)]
+            mock_priced_cur = MagicMock()
+            mock_priced_cur.fetchall.return_value = []  # no recent price row either
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_wrongly_delisted_cur, mock_priced_cur]
+
+            loader._reactivate_wrongly_delisted_symbols(feed_symbols)
+
+        mock_notify.assert_not_called()
+
+    def test_no_wrongly_delisted_candidates_skips_all_further_queries(self):
+        loader = _make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = []
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur]
+
+            loader._reactivate_wrongly_delisted_symbols({"AAPL"})
+
+            assert mock_db_ctx.call_args_list == [(("read",), {})]
+
+    def test_read_query_scoped_to_delisted_from_feed_reason(self):
+        """Must never touch active=false rows excluded for an unrelated, still-valid reason
+        (e.g. a real SPAC/rights/preferred correctly excluded by naming pattern)."""
+        loader = _make_loader()
+        with patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx:
+            mock_read_cur = MagicMock()
+            mock_read_cur.fetchall.return_value = []
+            mock_db_ctx.return_value.__enter__.side_effect = [mock_read_cur]
+
+            loader._reactivate_wrongly_delisted_symbols({"AAPL"})
+
+            sql = mock_read_cur.execute.call_args[0][0]
+            assert "data_unavailable_reason = 'delisted_or_removed_from_exchange_feed'" in sql
+
+    def test_notify_failure_does_not_crash_the_loader(self):
+        loader = _make_loader()
+        feed_symbols = {f"SYM{i}" for i in range(5000)} | {"AAPL", "TWO"}
+        with (
+            patch("loaders.load_market_constituents.DatabaseContext") as mock_db_ctx,
+            patch("algo.reporting.notify", side_effect=RuntimeError("smtp down")),
+        ):
+            mock_wrongly_delisted_cur = MagicMock()
+            mock_wrongly_delisted_cur.fetchall.return_value = [("TWO",)]
+            mock_priced_cur = MagicMock()
+            mock_priced_cur.fetchall.return_value = []
+            mock_write_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.side_effect = [
+                mock_wrongly_delisted_cur,
+                mock_priced_cur,
+                mock_write_cur,
+            ]
+
+            # Must not raise despite notify() failing internally.
+            loader._reactivate_wrongly_delisted_symbols(feed_symbols)

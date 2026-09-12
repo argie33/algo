@@ -902,6 +902,103 @@ class MarketConstituentsLoader(OptimalLoader):
         except (ValueError, TypeError, RuntimeError) as notify_err:
             logger.error(f"[MARKET_CONSTITUENTS] Failed to send delisted-deactivation alert: {notify_err}")
 
+    def _reactivate_wrongly_delisted_symbols(self, current_feed_symbols: set[str]) -> None:
+        """Reverse of `_deactivate_symbols_delisted_from_exchange_feed` - the missing
+        self-healing loop that method's own docstring history already flagged the need for
+        but never built.
+
+        FOUND 2026-09-12 (methodology-foundation goal session: "review memory, find what's
+        weird"). This exact false-positive class was already documented recurring TWICE
+        before this fix (2026-08-21's original 94-symbol false-positive batch including AVB/
+        EQR/WBS/BBBY, and 2026-09-01's live EQR re-occurrence) - both passes only added a
+        notify() alert, never a correction. Live-verified via a THIRD independent signal
+        (Stooq's bulk daily-price archive, downloaded manually this session since Stooq's
+        per-symbol API is Cloudflare-blocked here) that 19 of the 44 symbols this repo
+        currently has `data_unavailable_reason = 'delisted_or_removed_from_exchange_feed'`
+        for are still genuinely trading - some sitting wrongly deactivated for weeks
+        (AFBI/CCRN/ELSE/LPRO/NFBK/SKYT since 2026-07-19) with zero mechanism to ever notice.
+        Most damning single case: EFA (iShares MSCI EAFE ETF, one of the most liquid ETFs
+        that exists) had a `last=2026-09-11` price row - one day before this fix - and was
+        still marked permanently delisted.
+
+        Uses the SAME two-signal design as the deactivation this reverses, just inverted:
+        a symbol is only reactivated if it is EITHER back in today's live feed OR has real
+        price_daily data within the same STALE_PRICE_DAYS window that method uses to decide
+        delisting in the first place - either signal alone is enough to override a prior
+        false positive, since the deactivation required BOTH signals to agree before acting
+        and this only needs to show that agreement no longer holds.
+
+        Scoped to `data_unavailable_reason = 'delisted_or_removed_from_exchange_feed'`
+        specifically (not blanket `active = false`), same discipline as
+        `_reactivate_no_longer_excluded_symbols` - never touches a symbol inactive for an
+        unrelated, still-valid reason.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM stock_symbols
+                WHERE active = false AND data_unavailable_reason = 'delisted_or_removed_from_exchange_feed'
+                """
+            )
+            wrongly_delisted = [row[0] for row in cur.fetchall()]
+        if not wrongly_delisted:
+            return
+
+        back_in_feed = {s for s in wrongly_delisted if s in current_feed_symbols}
+
+        stale_price_days = 14
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT symbol FROM (
+                    SELECT symbol, MAX(date) AS last_price_date
+                    FROM price_daily WHERE symbol = ANY(%s) GROUP BY symbol
+                ) latest
+                WHERE last_price_date >= CURRENT_DATE - INTERVAL '%s days'
+                """,
+                (wrongly_delisted, stale_price_days),
+            )
+            still_priced = {row[0] for row in cur.fetchall()}
+
+        recovered = sorted(back_in_feed | still_priced)
+        if not recovered:
+            return
+
+        logger.warning(
+            f"[MARKET_CONSTITUENTS] Reactivating {len(recovered)} symbol(s) wrongly marked "
+            f"delisted (back in feed or has recent price_daily data): {recovered[:10]}"
+            + (f" ...and {len(recovered) - 10} more" if len(recovered) > 10 else "")
+        )
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE stock_symbols
+                SET active = true, data_unavailable = false, data_unavailable_reason = NULL
+                WHERE symbol = ANY(%s)
+                """,
+                (recovered,),
+            )
+        try:
+            from algo.reporting import notify
+
+            notify(
+                severity="warning",
+                title="Symbols Reactivated After False-Positive Delisting Detection",
+                message=(
+                    f"{len(recovered)} symbol(s) previously marked delisted/removed from "
+                    "exchange feed were reactivated after confirming they still trade "
+                    "(back in today's feed or have price_daily data within "
+                    f"{stale_price_days}d): {', '.join(recovered[:10])}"
+                    + (f" ...and {len(recovered) - 10} more" if len(recovered) > 10 else "")
+                    + ". These were previously excluded from stock_scores and every "
+                    "downstream leaderboard - verify they get picked up by the next "
+                    "scoring loader run."
+                ),
+                details={"symbols": recovered},
+            )
+        except (ValueError, TypeError, RuntimeError) as notify_err:
+            logger.error(f"[MARKET_CONSTITUENTS] Failed to send reactivation alert: {notify_err}")
+
     def _detect_same_cik_duplicate_active_symbols(self) -> None:
         """Detect (never mutate) active `stock_symbols` pairs that resolve to the same SEC
         CIK - i.e. a corporate rename in progress where the old and new tickers briefly
@@ -1212,9 +1309,9 @@ class MarketConstituentsLoader(OptimalLoader):
 
             logger.info(f"Fetched {len(base_symbols)} base symbols from NASDAQ/NYSE")
 
-            self._deactivate_symbols_delisted_from_exchange_feed(
-                {row["symbol"] for row in base_symbols if row.get("symbol")}
-            )
+            feed_symbols = {row["symbol"] for row in base_symbols if row.get("symbol")}
+            self._reactivate_wrongly_delisted_symbols(feed_symbols)
+            self._deactivate_symbols_delisted_from_exchange_feed(feed_symbols)
             self._detect_same_cik_duplicate_active_symbols()
 
             # STEP 2: Fetch and index S&P 500 constituents (critical enrichment for signal generation)
