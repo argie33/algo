@@ -57,6 +57,44 @@ from utils.infrastructure.url_validator import validate_url
 VERIFIED_RENAMES: dict[str, str] = {
     "KWM": "NXAT",
     "CYCN": "KRSA",
+    # ADDED 2026-09-12 (goal session: "SEC/XBRL missing data to zero" push): Raytech Holding
+    # Limited -> Atlas Trinity Tech Limited, effective 2026-09-10 (Nasdaq press release,
+    # "Raytech Holding Limited Announces Official Name Change to 'Atlas Trinity Tech Limited'
+    # and New Ticker Symbol 'ATTT'"). Both sources verified live: nasdaqlisted.txt lists ONLY
+    # ATTT ("Atlas Trinity Tech Limited - Ordinary Shares"), RAY absent from both NASDAQ feeds;
+    # SEC's bulk company_tickers.json (refreshed within the last ~12h as of this writing) now
+    # lists BOTH "RAY" and "ATTT" under the same CIK 0001948443 - stronger corroboration than
+    # KWM/CYCN had. SEC's per-CIK submissions.json still lags (only shows "RAY", empty
+    # formerNames) - same documented lag as every other rename here, not a reason to doubt this.
+    # ATTT was previously flagged as a stale/bad ticker-cache entry with "no formerNames link"
+    # (see load_market_constituents.py's _detect_same_cik_duplicate_active_symbols docstring,
+    # 2026-09-11) - that was correct AT THE TIME (the rename hadn't been reflected anywhere yet
+    # the previous day); it is now a genuine, real, live rename and should be treated as such.
+    "RAY": "ATTT",
+    # ADDED 2026-09-12 (same push, found via a systematic scan of every symbol added to
+    # stock_symbols in the last 10 days for a same-CIK duplicate against another active
+    # symbol - the same detection shape as _detect_same_cik_duplicate_active_symbols, just
+    # run directly against the full ticker-CIK map rather than waiting for that loader
+    # method's own notify() alert). Both verified the same two-source way as RAY/ATTT above:
+    # nasdaqlisted.txt/otherlisted.txt list only the new ticker, old ticker absent from both;
+    # SEC's bulk company_tickers.json links both tickers to the same CIK.
+    "PHGE": "HLSQ",  # BiomX Inc. -> Tessera Defense and Homeland Security Inc., CIK 0001739174
+    "BTOG": "SGRX",  # Bit Origin Limited -> Sangrix Inc., CIK 0001735556
+    # ADDED 2026-09-12 (same push, found via a full-universe same-CIK scan, not just the last
+    # 10 days - these three predate that window so wouldn't have been caught by only checking
+    # recent stock_symbols rows). Same two-source verification as above for all three.
+    "AREN": "PAAI",  # (unnamed prior entity) -> Paradium.AI, Inc., CIK 0000894871
+    "YYGH": "YFOR",  # YYForce Inc. ticker change (YYGH -> YFOR), CIK 0001985337
+    # HLX/HOS is a REVERSE MERGER, not a pure rename: Hornbeck Offshore Services, Inc.
+    # acquired Helix Energy Solutions Group, Inc. (announced 2026-04-23) and the combined
+    # company kept Helix's CIK (0000866829) but trades as HOS under the Hornbeck name -
+    # confirmed via SEC bulk company_tickers.json (both tickers -> same CIK, title now
+    # "HORNBECK OFFSHORE SERVICES, INC.") and live NASDAQ/otherlisted feeds (HLX absent, HOS
+    # present). HLX's stock_symbols row is the pre-merger entity and should be deactivated
+    # the same way as a pure rename - this script's downstream-score-purge behavior is
+    # correct here regardless of merger vs. rename mechanics (either way, the OLD ticker no
+    # longer trades and shouldn't carry active score rows).
+    "HLX": "HOS",
 }
 
 _DOWNSTREAM_SCORE_TABLES = (

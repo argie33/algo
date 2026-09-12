@@ -129,7 +129,7 @@ literally without checking that. **This terraform is written but NOT applied** �
 `terraform plan`/`apply` in `terraform/` to actually turn the schedule on; until then
 these two layers are still manual-only in practice, same as before.
 
-**Calculation-linkbase self-consistency check (5th and final layer of the XBRL data-quality
+**Calculation-linkbase self-consistency check (5th layer of the XBRL data-quality
 architecture, added 2026-09-10 - not a bug-report-driven thing, run it periodically):**
 ```bash
 python scripts/xbrl_calculation_linkbase_check.py               # samples 15 symbols, writes findings
@@ -154,6 +154,53 @@ losing the dimensional context, not a real filing error (live-confirmed on AAPL'
 10-K before this filter was added: all 3 raw mismatches were note-schedule concepts, 0 were
 face-financial-statement concepts). Same rate-limit posture as the yfinance script - not part
 of every DataPatrol run, small rotating sample only.
+
+**DQC (Data Quality Committee) rule validation via Arelle (6th layer, added 2026-09-12 -
+not a bug-report-driven thing, run it periodically):**
+```bash
+python scripts/xbrl_dqc_arelle_check.py               # samples symbols, writes findings
+python scripts/xbrl_dqc_arelle_check.py --limit 30
+python scripts/xbrl_dqc_arelle_check.py --symbols AAPL,MSFT,KO
+python scripts/xbrl_dqc_arelle_check.py --dry-run      # print only, don't write to data_patrol_log
+```
+Runs the actual industry-standard DQC ruleset (the rules SEC filing agents/vendors use,
+published at github.com/DataQualityCommittee/dqc_us_rules) against each sampled symbol's
+latest 10-K/20-F/40-F XBRL instance, entirely locally and free — no account needed, unlike
+the XBRL US API. Requires `pip install -r requirements-xbrl-dqc.txt` (Arelle + dqc_us_rules,
+a real local XBRL processor — deliberately NOT in `requirements.txt` or the orchestrator/API/
+dashboard runtime path, same reasoning as the two layers above) and `arelleCmdLine` resolvable
+on PATH; without it the script raises loudly rather than silently reporting "clean" — a missing
+`"validated in ..."` info line in Arelle's own log is treated as a fetch/load failure, not a
+pass. Resolves each symbol's latest filing instance URL from SEC EDGAR's `submissions.json`,
+shells out to `arelleCmdLine` with the `dqc_us_rules` plugin (passed as a filesystem path, not
+a bare name — `--plugins dqc_us_rules` alone fails to resolve), and parses `DQC.*` entries out
+of Arelle's log XML. Findings are about the FILING itself (e.g. extension members used on axes
+where the taxonomy only allows standard members) — a genuine filing-quality defect independent
+of anything our own extraction pipeline does. Same rate-limit/subprocess-latency posture as the
+two layers above — not part of every DataPatrol run, small rotating sample only.
+
+**Segment-sum-to-consolidated-revenue reconciliation (7th layer, added 2026-09-12 - not a
+bug-report-driven thing, run it periodically):**
+```bash
+python scripts/xbrl_segment_sum_reconciliation.py               # current month, full active universe
+python scripts/xbrl_segment_sum_reconciliation.py --symbols AAPL,MSFT,KO
+python scripts/xbrl_segment_sum_reconciliation.py --dry-run      # print only, don't write to data_patrol_log
+```
+The one check in this suite that never touches our own tables — it uses SEC's free
+"Financial Statement and Notes Data Sets" (distinct from the plain "Financial Statement Data
+Sets" `xbrl_dera_bulk_scan.py` uses; a ~300MB/month download, no registration), whose `dim.tsv`
+carries real per-fact axis=member dimensional context via a `dimhash` joined against `num.tsv`.
+That dimensional context is exactly what made a segment-sum-vs-consolidated-revenue check
+impossible from companyfacts alone (rejected twice, 2026-09-06/07 — see `tie_out.py`'s own
+module docstring — because companyfacts flattens ASC 280 segment facts and ASC 606
+product-disaggregation facts into one indistinguishable bucket). Filters to facts dimensioned
+by exactly one axis whose local name is/ends in `Segments`/`SegmentAxis` (true business-segment
+facts only), dedupes to one value per (accession, period, dimhash) — `num.tsv` is fact-INSTANCE
+level, so the same disclosed number can appear more than once if a filer's own HTML rendering
+repeats it across tables, and skipping the dedupe produced a wave of suspiciously-exact
+ratio=2.0 false positives on first test — then sums per filing and compares to that filing's own
+non-dimensional consolidated revenue total, logging >10% divergences as WARN. Not yet wired
+into any schedule; run it roughly matching the dataset's own monthly publish cadence.
 
 `monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use
 **different freshness methodologies** — a table can show FRESH in the monitor and still halt

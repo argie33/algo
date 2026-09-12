@@ -1,0 +1,15 @@
+# Optional dependency for scripts/xbrl_dqc_arelle_check.py only - NOT installed by
+# requirements.txt (the app runtime deps) and NOT a dependency of anything in the orchestrator/
+# API/dashboard runtime path. Same status as requirements-dev.txt: a separate, deliberately
+# opt-in file for one specific tool.
+#
+# Why kept separate: this pulls in a real local XBRL processor (Arelle) with its own
+# taxonomy-caching HTTP layer - a meaningfully heavier dependency than anything else this repo
+# installs by default, and the script that uses it makes per-filing subprocess calls to SEC
+# EDGAR that are far too slow/network-dependent to belong anywhere near the trading-critical
+# orchestrator path (same reasoning that already keeps xbrl_yfinance_crosscheck.py and
+# xbrl_calculation_linkbase_check.py out of every DataPatrol run - see their own docstrings).
+#
+# Install with: pip install -r requirements-xbrl-dqc.txt
+arelle-release==2.45.0
+dqc_us_rules==3.6.0
