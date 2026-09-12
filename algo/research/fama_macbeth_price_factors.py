@@ -233,6 +233,22 @@ def print_survivorship_bias_caveat() -> None:
     print(f"\n{'=' * 78}\n{SURVIVORSHIP_BIAS_CAVEAT}\n{'=' * 78}\n")
 
 
+def fetch_symbols_for_industries(industries: frozenset[str]) -> set[str]:
+    """Symbols whose company_profile.industry (SIC-derived) is in `industries`.
+
+    Added 2026-09-12 (see forward_return_validation_methodology_circular_for_price_derived_pillars_20260912
+    in memory) - the "real next step" flagged there: an industry filter for
+    fama_macbeth_quality_factors.py/fama_macbeth_value_factors.py, tested first against
+    DEPOSITORY_BANK_INDUSTRIES (loaders/helpers/vqg_shared.py) to get a genuine point-in-time-panel
+    answer for banks specifically, rather than the circular snapshot-vs-trailing-return proxy used
+    in prior sessions' bank/insurance memory entries.
+    """
+    sql = "SELECT symbol FROM company_profile WHERE industry = ANY(%s)"
+    with DatabaseContext("read") as cur:
+        cur.execute(sql, (list(industries),))
+        return {row[0] for row in cur.fetchall()}
+
+
 def run(start_date: str, end_date: str, min_cross_section: int, beta_window: int, vol_window: int) -> None:
     print_survivorship_bias_caveat()
     logger.info(f"Pulling month-end price panel {start_date}..{end_date}")

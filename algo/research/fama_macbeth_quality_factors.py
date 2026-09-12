@@ -36,9 +36,16 @@ from algo.research.fama_macbeth_price_factors import (
     _fama_macbeth,
     benjamini_hochberg_fdr,
     fetch_month_end_prices,
+    fetch_symbols_for_industries,
     print_survivorship_bias_caveat,
 )
+from loaders.helpers.vqg_shared import DEPOSITORY_BANK_INDUSTRIES
 from utils.db.context import DatabaseContext
+
+# name -> SIC industry frozenset, for --industries. Only depository banks wired up so far
+# (the concrete case that motivated this filter - see fetch_symbols_for_industries' own
+# docstring) - add more of vqg_shared.py's industry frozensets here as needed.
+INDUSTRY_GROUPS = {"banks": DEPOSITORY_BANK_INDUSTRIES}
 
 logger = logging.getLogger(__name__)
 
@@ -365,15 +372,38 @@ def _build_records(
     return records
 
 
-def run(start_date: str, end_date: str, min_cross_section: int, horizon_months: int = 1) -> None:
+def _filter_by_industry(
+    fund: pd.DataFrame, price_df: pd.DataFrame, industry_group: str | None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Restrict `fund` and `price_df` to symbols in INDUSTRY_GROUPS[industry_group], or return
+    both unchanged when industry_group is None. Split out of run() purely to keep run()'s own
+    cyclomatic complexity under the ruff C901 threshold - no behavior beyond that."""
+    if industry_group is None:
+        return fund, price_df
+    symbols = fetch_symbols_for_industries(INDUSTRY_GROUPS[industry_group])
+    logger.info(f"--industries {industry_group}: {len(symbols)} symbols in company_profile")
+    fund = fund[fund["symbol"].isin(symbols)]
+    logger.info(f"{len(fund)} symbol-fiscal-year rows after industry filter")
+    return fund, price_df[price_df["symbol"].isin(symbols)]
+
+
+def run(
+    start_date: str,
+    end_date: str,
+    min_cross_section: int,
+    horizon_months: int = 1,
+    industry_group: str | None = None,
+) -> None:
     print_survivorship_bias_caveat()
     logger.info("Fetching annual quality fundamentals (point-in-time reconstruction)")
     fund = fetch_annual_quality_fundamentals()
     logger.info(f"{len(fund)} symbol-fiscal-year rows")
-    quality_panel = build_quality_panel(fund)
 
     logger.info(f"Pulling month-end price panel {start_date}..{end_date}")
     price_df = fetch_month_end_prices(start_date, end_date)
+    fund, price_df = _filter_by_industry(fund, price_df, industry_group)
+
+    quality_panel = build_quality_panel(fund)
     px = price_df.pivot(index="month", columns="symbol", values="px").sort_index()
     months = px.index
 
@@ -533,10 +563,16 @@ def main() -> None:
     parser.add_argument("--end-date", default=datetime.now(tz=None).date().isoformat())
     parser.add_argument("--min-cross-section", type=int, default=100)
     parser.add_argument("--horizon-months", type=int, default=1)
+    parser.add_argument(
+        "--industries",
+        choices=sorted(INDUSTRY_GROUPS),
+        default=None,
+        help="Restrict the panel to one industry group (see INDUSTRY_GROUPS) instead of the whole universe.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    run(args.start_date, args.end_date, args.min_cross_section, args.horizon_months)
+    run(args.start_date, args.end_date, args.min_cross_section, args.horizon_months, args.industries)
 
 
 if __name__ == "__main__":
