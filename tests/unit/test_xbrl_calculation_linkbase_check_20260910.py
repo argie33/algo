@@ -137,6 +137,50 @@ class TestFactsByConceptForAccession:
     def test_returns_none_when_concept_missing(self) -> None:
         assert _facts_by_concept_for_accession({"facts": {"us-gaap": {}}}, "us-gaap", "Assets", "0001") is None
 
+    def test_full_year_wins_over_q4_only_when_end_dates_tie(self) -> None:
+        """Regression for the 2026-09-11 fix (live-caught via PLOW/Douglas Dynamics):
+        a December-fiscal-year-end filer's Q4-standalone duration fact
+        (2025-10-01/2025-12-31) shares the exact same `end` date as the full-year fact
+        (2025-01-01/2025-12-31) for the SAME concept and accession. Sorting by `end`
+        alone can't disambiguate a same-`end` tie - must prefer the earlier `start`
+        (the longer, full-year duration)."""
+        company_facts = {
+            "facts": {
+                "us-gaap": {
+                    "GrossProfit": {
+                        "units": {
+                            "USD": [
+                                {"accn": "0001", "start": "2025-10-01", "end": "2025-12-31", "val": 48_138_000},
+                                {"accn": "0001", "start": "2025-01-01", "end": "2025-12-31", "val": 174_680_000},
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+        value = _facts_by_concept_for_accession(company_facts, "us-gaap", "GrossProfit", "0001")
+        assert value == 174_680_000.0
+
+    def test_full_year_wins_regardless_of_fact_order_in_source_data(self) -> None:
+        """Same as above with the two facts in the opposite order - the fix must not
+        depend on the SEC API's arbitrary return order for a same-`end` tie."""
+        company_facts = {
+            "facts": {
+                "us-gaap": {
+                    "GrossProfit": {
+                        "units": {
+                            "USD": [
+                                {"accn": "0001", "start": "2025-01-01", "end": "2025-12-31", "val": 174_680_000},
+                                {"accn": "0001", "start": "2025-10-01", "end": "2025-12-31", "val": 48_138_000},
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+        value = _facts_by_concept_for_accession(company_facts, "us-gaap", "GrossProfit", "0001")
+        assert value == 174_680_000.0
+
 
 def _fake_submissions(accession: str = "0001234567-25-000001", filed: str = "2025-11-01") -> dict[str, object]:
     return {

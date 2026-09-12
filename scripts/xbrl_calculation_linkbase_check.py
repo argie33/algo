@@ -116,6 +116,25 @@ def _facts_by_concept_for_accession(
     duration context somehow tag the same concept, or FY vs cumulative quarters - takes
     the one with the longest/most-recent period end, which is the one a balance-sheet
     or full-year income-statement calc relationship actually means.
+
+    FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push, found via a live
+    xbrl_calculation_linkbase_check.py run flagging PLOW/Douglas Dynamics as a $345M
+    mismatch): the old sort key was `end` alone, but a Q4-standalone duration fact
+    (e.g. 2025-10-01/2025-12-31) and the SAME concept's full-year fact
+    (2025-01-01/2025-12-31) share the identical `end` date for any December-fiscal-
+    year-end filer - a same-`end` tie leaves the stable-sort tiebreak dependent on the
+    SEC API's arbitrary return order, and live-confirmed it picked PLOW's Q4-only
+    GrossProfit ($48,138,000) as the "parent" value instead of the real full-year one
+    ($174,680,000), while CostOfGoodsAndServicesSold/Revenue for the same accession
+    happened to resolve correctly - producing a large false-positive mismatch that
+    was really just an internal period-selection bug, not any real filing
+    inconsistency. Sorting by (end, start) instead: for a tied `end`, the EARLIER
+    `start` (the longer, full-year duration) now always sorts after the later-start
+    (shorter, quarterly) one, so `matches[-1]` reliably picks the full-year fact -
+    matches this function's own stated intent ("the longest/most-recent period end").
+    An instant fact (balance-sheet concepts, no `start` key at all) sorts using ""
+    for its missing start, which is fine since instant facts never collide with a
+    duration fact under the same concept name in practice.
     """
     node = company_facts.get("facts", {}).get(taxonomy, {}).get(concept)
     if not node:
@@ -125,6 +144,14 @@ def _facts_by_concept_for_accession(
     matches = [e for e in entries if e.get("accn") == accession_number and e.get("val") is not None]
     if not matches:
         return None
+    # Two stable sorts (not one tuple key): first by start descending, then by end
+    # ascending - stability means that within a tied `end`, entries keep the relative
+    # order from the first sort, i.e. later-start (shorter duration) entries end up
+    # BEFORE earlier-start (longer duration) entries in that tied group. matches[-1]
+    # then picks the max `end` overall, and within that group, the earliest `start` -
+    # the longest, full-year duration - exactly the "longest/most-recent period end"
+    # this function's docstring already promises.
+    matches.sort(key=lambda e: e.get("start") or "", reverse=True)
     matches.sort(key=lambda e: e.get("end") or "")
     return float(matches[-1]["val"])
 
