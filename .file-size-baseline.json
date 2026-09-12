@@ -599,7 +599,7 @@
   "loaders/signal_quality_scorer.py": 333,
   "loaders/stock_scores/__init__.py": 0,
   "loaders/stock_scores/growth_scoring.py": 822,
-  "loaders/stock_scores/momentum_scoring.py": 1007,
+  "loaders/stock_scores/momentum_scoring.py": 1005,
   "loaders/stock_scores/pillar_weights.py": 328,
   "loaders/stock_scores/quality_scoring.py": 192,
   "loaders/stock_scores/risk_scoring.py": 602,

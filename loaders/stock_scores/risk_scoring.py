@@ -11,6 +11,34 @@ Mixed into StockScoresLoader alongside the other stock_scores/*.py pillar mixins
 `self.` reference here resolves normally through the instance regardless of which mixin file
 defines it. No database access here, so no `_owner()` indirection is needed (unlike
 value_metrics.py/momentum_scoring.py).
+
+DELIBERATELY NOT given a sector-neutral z-score batch pass (2026-09-13, /goal "question the
+scoring methodology" session, same session that added Momentum's equivalent pass -
+`momentum_scoring.py`'s `update_momentum_sector_neutral_scores()`). Investigated directly
+before deciding, not assumed: this pillar's live sector averages DO diverge (Real Estate/
+Utilities score safest ~60/59, Technology least-safe ~36, per that session's live DB check) -
+the same shape of divergence that justified Momentum's rewrite. The difference is what the
+divergence MEANS. Momentum's raw inputs are classic cross-sectional relative-strength measures
+- the momentum anomaly (Jegadeesh 1990/Jegadeesh-Titman 1993/Carhart 1997) is defined and
+academically harvested RELATIVE to peers, so an un-neutralized sector tilt is exactly the
+"disguised sector bet" failure mode Barra/MSCI sector-neutralize momentum to prevent. Risk's
+inputs here (volatility, max drawdown) are ABSOLUTE risk-of-loss magnitudes, and the low-
+volatility anomaly they're meant to capture (Ang et al. 2006; Frazzini & Pedersen 2014 "Betting
+Against Beta"; MSCI Minimum Volatility methodology) is measured and harvested on an ABSOLUTE
+basis in the literature, not sector-relative - a utility genuinely being less volatile than a
+biotech, day to day, is real economic signal the factor is supposed to reward, not measurement
+noise to normalize away the way an ill-fitting absolute breakpoint curve was for Quality/Growth/
+Value's fundamental ratios. Sector-neutralizing Risk would force Utilities and Technology to the
+same average "safety" score by construction, destroying the exact signal this pillar exists to
+capture. Beta is a second, independent reason it wouldn't fit this pillar's existing mechanism
+even if the above didn't apply: it's already scored as distance-from-1.0 for market-correlated
+swing-trading fit (see `_score_risk`'s own docstring), not as a return predictor - sector-
+neutralizing a "closeness to 1.0" target would change what the score means, not just how it's
+calibrated. Liquidity (avg_dollar_volume_20d) is a third: its curve is deliberately anchored to
+`algo_config.min_adv_dollars` ($500K), this system's own absolute, non-sector-relative execution
+gate - sector-relativizing it would break that anchor's entire rationale. Not re-litigated
+without new evidence that contradicts the academic distinction above; if that evidence ever
+shows up, redo this analysis rather than assume Momentum's fix generalizes automatically.
 """
 
 import itertools

@@ -1286,6 +1286,16 @@ class StockScoresLoader(
         # the real cause. Compute the RS ranking first (it doesn't depend on the audited
         # tables), THEN run the audit - a coverage problem should still fail the run for
         # visibility, but must not collaterally block an unrelated, Phase-7-critical step.
+        #
+        # Momentum sector-neutral z-score pass (2026-09-13, /goal scoring-methodology session -
+        # see update_momentum_sector_neutral_scores()'s own docstring for the full evidence
+        # trail). Placed FIRST, ahead of update_rs_percentiles(), so rs_percentile ranks off the
+        # CORRECTED momentum_score rather than Pass 1's provisional one, and ahead of
+        # update_value_multiples_percentiles()/update_growth_sector_neutral_scores() so their own
+        # composite_score recomputes see momentum_score already finalized, not provisional -
+        # same "later pass sees earlier pass's finalized pillar" ordering principle Growth's own
+        # placement after Value already established, just one step earlier in the chain.
+        self.update_momentum_sector_neutral_scores()
         self.update_rs_percentiles()
         # Must run before snapshot_score_history() so the history snapshot captures the
         # CORRECTED value_score/composite_score, not Pass 1's provisional fixed-curve values -
