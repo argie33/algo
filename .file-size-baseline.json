@@ -75,7 +75,7 @@
   "algo/monitoring/data_patrol/checks/composite_score_reconciliation.py": 115,
   "algo/monitoring/data_patrol/checks/coverage.py": 326,
   "algo/monitoring/data_patrol/checks/financial_statement_flag_drift.py": 97,
-  "algo/monitoring/data_patrol/checks/pillar_score_reconciliation.py": 170,
+  "algo/monitoring/data_patrol/checks/pillar_score_reconciliation.py": 208,
   "algo/monitoring/data_patrol/checks/price_sanity.py": 317,
   "algo/monitoring/data_patrol/checks/quality.py": 374,
   "algo/monitoring/data_patrol/checks/score_ratio_outliers.py": 187,
