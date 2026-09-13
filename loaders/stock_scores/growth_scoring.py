@@ -21,7 +21,11 @@ import psycopg2
 
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
 from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
-from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
+from loaders.stock_scores.pillar_weights import (
+    BASE_PILLAR_WEIGHTS,
+    DEFAULT_MIN_INVESTABLE_MARKET_CAP,
+    _value_risk_adjusted_weights,
+)
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.loaders.unavailable_markers import marker_loader_failed
 from utils.type_conversion import safe_float
@@ -591,6 +595,13 @@ class GrowthScoringMixin:
         SAME shared primitive Quality already validated (`sector_neutral_zscore()`/
         `zscore_to_percentile_scale()`), not a bespoke re-derivation.
 
+        INVESTABILITY FLOOR ADDED 2026-09-13 (`vm.market_cap >= %s`, algo_config.min_market_
+        cap_millions, same $300M threshold LiquidityChecks._check_market_cap() now enforces at
+        trade entry): the sector-neutral z-score's peer group is the current run's universe -
+        if that includes sub-floor nanocaps, their more extreme growth ratios distort the
+        percentile boundaries real, investable companies get ranked against. Sub-floor symbols
+        simply aren't included in this pass and keep whatever Pass-1 already gave them.
+
         MECHANISM: Pass 1 (`_score_growth`, per-symbol, no access to the universe distribution)
         still runs first via `_compute_stock_score` so growth_score/composite_score are never
         NULL mid-run - `_score_single_growth`'s absolute curve is now PROVISIONAL scaffolding
@@ -651,13 +662,16 @@ class GrowthScoringMixin:
                            cp.sector
                     FROM stock_scores ss
                     JOIN growth_metrics gm ON gm.symbol = ss.symbol
+                    JOIN value_metrics vm ON vm.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
                     JOIN stock_symbols su ON su.symbol = ss.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
                     WHERE ss.growth_score IS NOT NULL
+                      AND vm.market_cap >= %s
                       AND ("""
                     + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
-                    + ")"
+                    + ")",
+                    (getattr(self, "_min_investable_market_cap", None) or DEFAULT_MIN_INVESTABLE_MARKET_CAP,),
                 )
                 rows = cur.fetchall()
 

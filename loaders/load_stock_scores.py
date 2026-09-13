@@ -64,6 +64,7 @@ from loaders.stock_scores.growth_scoring import (  # noqa: E402
 from loaders.stock_scores.momentum_scoring import MomentumScoringMixin  # noqa: E402
 from loaders.stock_scores.pillar_weights import (  # noqa: E402
     BASE_PILLAR_WEIGHTS,
+    DEFAULT_MIN_INVESTABLE_MARKET_CAP,
     VALUE_RISK_INTERACTION_MAX_SHIFT,
     _value_risk_adjusted_weights,
 )
@@ -370,6 +371,48 @@ class StockScoresLoader(
             logger.warning(
                 "[STOCK_SCORES] min_completeness_score not configured in database. "
                 "Using conservative default 70% - consider setting explicit value in algo_config table."
+            )
+
+        # Load the investability floor (algo_config.min_market_cap_millions, default $300M) -
+        # ADDED 2026-09-13. Same config value LiquidityChecks._check_market_cap() now enforces
+        # at trade entry, and the /api/algo/scores display already floors at - but until this
+        # fix, the PILLAR-SCORING z-score/percentile peer populations below (Quality/Growth/
+        # Value/Risk) computed cross-sectional statistics against the FULL active universe,
+        # nanocaps included. That's the actual driver of "the leaderboard doesn't look like a
+        # real institutional quality/momentum list even above a cap floor" - a nanocap's
+        # extreme ratio distorts the percentile boundary every real company gets ranked
+        # against, the same way a single huge outlier skews an average. Real index/factor
+        # methodology (MSCI Quality/Momentum, AQR QMJ, Barra USE4) defines the eligible
+        # universe BEFORE computing factor exposures, never scores the full market then
+        # filters after - this makes that same ordering the actual peer group these batch
+        # passes z-score against, not just a display-time filter on the output.
+        self._min_investable_market_cap: float | None = None
+        try:
+            with DatabaseContext("read") as config_cur:
+                config_cur.execute("SELECT value FROM algo_config WHERE key = 'min_market_cap_millions'")
+                config_row = config_cur.fetchone()
+                if config_row and config_row[0]:
+                    self._min_investable_market_cap = float(config_row[0]) * 1_000_000.0
+                    logger.debug(
+                        f"[STOCK_SCORES] Using configurable investability floor: "
+                        f"${self._min_investable_market_cap:,.0f}"
+                    )
+        except Exception as config_err:
+            logger.critical(
+                f"[STOCK_SCORES FAIL-FAST] Could not load min_market_cap_millions from config table: {config_err}. "
+                f"This is a critical data quality gate. Database may be inaccessible or corrupted. "
+                f"Cannot proceed without explicit investability configuration."
+            )
+            raise RuntimeError(
+                f"[STOCK_SCORES CRITICAL] Failed to load min_market_cap_millions configuration: {config_err}. "
+                f"This parameter is critical for scoring-population integrity. Check database connectivity and schema."
+            ) from config_err
+
+        if self._min_investable_market_cap is None:
+            self._min_investable_market_cap = DEFAULT_MIN_INVESTABLE_MARKET_CAP
+            logger.warning(
+                "[STOCK_SCORES] min_market_cap_millions not configured in database. "
+                "Using conservative default $300M - consider setting explicit value in algo_config table."
             )
 
         with DatabaseContext("read") as cur:
