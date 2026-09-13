@@ -643,6 +643,7 @@
   "scripts/expire_stale_pending_signals.py": 123,
   "scripts/find_loader_data_gaps.py": 250,
   "scripts/fix_loader_status_drift.py": 259,
+  "scripts/fix_shares_outstanding_scale_errors.py": 136,
   "scripts/fix_stuck_available_but_null_financial_statement_flags.py": 236,
   "scripts/flatten_all_positions.py": 252,
   "scripts/load_credentials.py": 136,
