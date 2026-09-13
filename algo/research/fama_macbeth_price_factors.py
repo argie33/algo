@@ -44,7 +44,7 @@ Usage:
 import argparse
 import logging
 from datetime import datetime
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -171,9 +171,56 @@ def build_monthly_cross_sections(
     return records
 
 
-def _fama_macbeth(records: list[tuple[pd.Timestamp, pd.DataFrame]], cols: list[str]) -> dict[str, tuple[float, float]]:
+def newey_west_se(x: np.ndarray[Any, Any], lags: int) -> float:
+    """Newey-West HAC (Bartlett kernel) standard error of the sample mean of a time series.
+
+    Extracted 2026-09-13 (goal: "check the accuracy of all our inputs" session) from
+    `momentum_residual_univariate_isolation_check.py`'s own `_newey_west_tstat` (that file's
+    private, one-off copy predates this shared home - not touched here beyond adding this
+    shared version; existing call site is unaffected). `lags=0` is close to but not identical
+    to the plain `std(ddof=1)/sqrt(n)` formula `_fama_macbeth` uses when `hac_lags=None` (this
+    uses a population-variance convention, ddof=0, vs. that formula's sample-variance ddof=1 -
+    the two converge as n grows but differ slightly for small n), so `hac_lags=None` (unchanged
+    default behavior) rather than `hac_lags=0` is what preserves every existing call site's
+    exact historical output.
+    """
+    n = len(x)
+    mean = x.mean()
+    demeaned = x - mean
+    gamma0 = float(np.sum(demeaned * demeaned)) / n
+    var = gamma0
+    for lag in range(1, lags + 1):
+        w = 1.0 - lag / (lags + 1)
+        gamma_l = float(np.sum(demeaned[lag:] * demeaned[: n - lag])) / n
+        var += 2.0 * w * gamma_l
+    return float(np.sqrt(max(var, 0.0) / n))
+
+
+def _fama_macbeth(
+    records: list[tuple[pd.Timestamp, pd.DataFrame]], cols: list[str], hac_lags: int | None = None
+) -> dict[str, tuple[float, float]]:
     """Run one cross-sectional OLS per month on `cols` (plus intercept), average the
-    coefficient time series, and return {name: (mean_coef, t_stat)}."""
+    coefficient time series, and return {name: (mean_coef, t_stat)}.
+
+    `hac_lags` (added 2026-09-13, goal: "check the accuracy of all our inputs" session):
+    optional Newey-West HAC lag count for the t-stat's standard error, instead of the plain
+    `std(ddof=1)/sqrt(n)` this function has always used. Defaults to None (unchanged behavior -
+    every existing call site and every conclusion already drawn from this function's t-stats
+    stays exactly as computed) because the naive SE assumes the monthly coefficient series has
+    no serial correlation, which is optimistic in two known ways real callers hit: (1) any
+    horizon_months>1 caller (e.g. fama_macbeth_growth_factors.py's `run(horizon_months=N)`)
+    uses OVERLAPPING forward-return windows by construction - consecutive months share
+    horizon_months-1 months of the same realized return, which is textbook Newey-West territory
+    (the standard rule of thumb is lags=horizon_months-1); (2) even at horizon_months=1,
+    persistent factor premia (a value/quality/momentum regime that runs hot or cold for several
+    months in a row, not just one) can autocorrelate the coefficient series itself -
+    `momentum_residual_univariate_isolation_check.py` already found this worth checking
+    (Newey-West 3-lag) for one momentum-family isolation check; this makes that same check
+    available to every other factor-validation script in this family instead of it being a
+    one-off. Pass an explicit lag count (commonly horizon_months-1, or a small fixed count like
+    3 as a general robustness cross-check) on any NEW analysis where serial correlation is a
+    live concern - this does not retroactively change any already-documented conclusion.
+    """
     coef_hist: dict[str, list[float]] = {c: [] for c in ["const", *cols]}
     for _month, frame in records:
         x = np.column_stack([np.ones(len(frame))] + [frame[c].values for c in cols])
@@ -186,7 +233,7 @@ def _fama_macbeth(records: list[tuple[pd.Timestamp, pd.DataFrame]], cols: list[s
     for name, series in coef_hist.items():
         arr = np.array(series)
         mean = arr.mean()
-        se = arr.std(ddof=1) / np.sqrt(len(arr))
+        se = newey_west_se(arr, hac_lags) if hac_lags is not None else arr.std(ddof=1) / np.sqrt(len(arr))
         results[name] = (mean, mean / se if se > 0 else float("nan"))
     return results
 

@@ -380,6 +380,20 @@ def run(
     for c in GROWTH_FACTOR_COLS:
         print(f"{c:26s} {uni_mean[c]:10.5f} {uni_t[c]:8.2f} {'PASS' if fdr[c] else 'fail':>12s}")
 
+    if horizon_months > 1:
+        # Newey-West HAC correction (added 2026-09-13, goal: "check the accuracy of all our
+        # inputs" session) for the overlapping-window serial correlation this function's own
+        # NOTE above warns about, replacing "treat the magnitude with more skepticism" with an
+        # actual corrected number - lags=horizon_months-1 is the standard rule of thumb for an
+        # N-month-overlapping-window forward return. See _fama_macbeth's own hac_lags docstring.
+        print(
+            f"\n=== Newey-West HAC-corrected univariate (lags={horizon_months - 1}, overlapping-window correction) ==="
+        )
+        print(f"{'factor':26s} {'mean_coef':>10s} {'naive_t':>8s} {'hac_t':>8s}")
+        for c in GROWTH_FACTOR_COLS:
+            hac_mean, hac_t = _fama_macbeth(records, [c], hac_lags=horizon_months - 1)[c]
+            print(f"{c:26s} {hac_mean:10.5f} {uni_t[c]:8.2f} {hac_t:8.2f}")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
