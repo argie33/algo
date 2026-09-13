@@ -528,7 +528,7 @@
   "loaders/helpers/financial_statements_custom_extension_fallbacks.py": 154,
   "loaders/helpers/financial_statements_income_config.py": 629,
   "loaders/helpers/financial_statements_prefetch.py": 90,
-  "loaders/helpers/financial_statements_q4_sweeps.py": 941,
+  "loaders/helpers/financial_statements_q4_sweeps.py": 964,
   "loaders/helpers/financial_statements_share_count_validation.py": 596,
   "loaders/helpers/financial_statements_value_validation.py": 956,
   "loaders/helpers/price_batch_fetch_retry.py": 557,
