@@ -17,6 +17,45 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# See the ADS-ratio-shaped exception inside _reject_implausible_eps below. A genuine ADS
+# ratio (a foreign filer's ADS count vs. its ordinary-share count) is always an exact
+# whole-number multiple by construction; a filer-side scale/decimal tagging error is not -
+# live-confirmed via NRC's ~96.53x gap (docstring above) sitting 3.5% away from the nearest
+# candidate (100), well outside this tolerance, while ATHE's real ADS ratio measured
+# 99.75x/99.24x/100.00x/100.04x across 4 separate fiscal years (well inside it). Candidates
+# are the ADS ratios actually seen in practice, not "any integer" - matching any integer
+# would also admit NRC (96.53 rounds to 97, only 0.48% away).
+_CLEAN_ADS_RATIO_CANDIDATES = (
+    2,
+    3,
+    4,
+    5,
+    6,
+    8,
+    10,
+    15,
+    20,
+    25,
+    30,
+    40,
+    50,
+    60,
+    75,
+    100,
+    150,
+    200,
+    250,
+    300,
+    400,
+    500,
+    1000,
+    2000,
+    2500,
+    5000,
+    10000,
+)
+_ADS_RATIO_TOLERANCE = 0.015
+
 
 class FinancialStatementsValueValidationMixin:
     """EPS/net_income/gross_profit/debt/goodwill/revenue plausibility checks for
@@ -293,12 +332,21 @@ class FinancialStatementsValueValidationMixin:
                         # OutstandingBasic, never a separate diluted variant - live-
                         # confirmed via ATHE (Alterity Therapeutics): shares_outstanding_
                         # diluted is NULL on every row, so this cross-check silently never
-                        # ran for diluted_eps and let the exact same NRC-shaped 100x-scale-
-                        # mismatched value (ifrs-full BasicEarningsLossPerShare ==
-                        # DilutedEarningsLossPerShare here) sail into diluted_eps even
-                        # though the sibling earnings_per_share check correctly rejected
-                        # it against shares_outstanding_basic. Basic and diluted share
-                        # counts are always very close (diluted >= basic by definition),
+                        # ran for diluted_eps and let the same value (ifrs-full
+                        # BasicEarningsLossPerShare == DilutedEarningsLossPerShare here) sail
+                        # into diluted_eps unguarded while earnings_per_share went through this
+                        # same ratio check. CORRECTED 2026-09-12: this was originally described
+                        # as "the exact same NRC-shaped 100x-scale-mismatched value" - live
+                        # re-verification found that's the wrong diagnosis. ATHE's real ADS
+                        # ratio is 1 ADS = 100 ordinary shares (~100x, holding across every
+                        # fiscal year checked: 99.24x/99.75x/100.00x/100.04x - the signature of
+                        # a fixed real-world ratio, not a one-off filer mistake), so this
+                        # cross-check now keeps the value via the ADS-ratio-shaped exception
+                        # below instead of rejecting it - fixing the mischaracterization does
+                        # not remove the need for this basic-shares fallback itself, which still
+                        # matters for a genuine NRC-shaped error on a diluted-only filer. Basic
+                        # and diluted share counts are always very close (diluted >= basic by
+                        # definition),
                         # so basic is a safe proxy denominator when diluted was never
                         # separately tagged - same "resolves to the basic figure when no
                         # entity-wide one exists" fallback discipline as
@@ -325,6 +373,34 @@ class FinancialStatementsValueValidationMixin:
                             )
                             continue
                         if shares_ratio > max_implied_vs_reported_shares_ratio:
+                            # FIXED 2026-09-12 (goal session: XBRL follow-up fixes): live-confirmed
+                            # via ATHE (Alterity Therapeutics, 20-F/IFRS, real ADS ratio 1 ADS = 100
+                            # ordinary shares) - its EPS is genuinely tagged per-ADS
+                            # (BasicEarningsLossPerShare, e.g. FY2023 -0.57 AUD) while its shares
+                            # concept (WeightedAverageShares) is genuinely tagged in ordinary shares
+                            # (2,427,841,917) - both real, correctly-tagged filer facts, just on two
+                            # different (real) unit bases, not a scale-tagging error on either side.
+                            # Ratio held at ~100x across 4 separate fiscal years (99.24/99.75/100.00/
+                            # 100.04), the signature of a fixed real-world ADS ratio rather than a
+                            # per-filing decimal mistake. Distinguishing this from the genuine
+                            # NRC-shaped error this block exists to catch: an ADS ratio is always an
+                            # exact whole-number multiple by construction, so it lands within a tight
+                            # tolerance of one of the ratios actually used in practice; NRC's ~96.53x
+                            # scale error does not (3.5% away from the nearest candidate, 100).
+                            _nearest_ads_ratio = min(_CLEAN_ADS_RATIO_CANDIDATES, key=lambda c: abs(c - shares_ratio))
+                            if abs(_nearest_ads_ratio - shares_ratio) / _nearest_ads_ratio <= _ADS_RATIO_TOLERANCE:
+                                logger.info(
+                                    f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                                    f"{field}={eps} implies {implied_shares:,.0f} shares against "
+                                    f"net_income={net_income:,.0f}, vs. this row's own "
+                                    f"{eps_shares_field[field]}={float(reported_shares):,.0f} - a "
+                                    f"{shares_ratio:,.2f}x gap within {_ADS_RATIO_TOLERANCE:.1%} of a "
+                                    f"clean {_nearest_ads_ratio}x ratio. ADS-ratio-shaped: both figures "
+                                    "are real filer facts on two different (real) share-count bases, "
+                                    "not a scale-tagging error. Keeping the real, correctly-tagged EPS "
+                                    "value rather than nulling it."
+                                )
+                                continue
                             logger.warning(
                                 f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
                                 f"{field}={eps} implies {implied_shares:,.0f} shares against "
