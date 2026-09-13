@@ -288,6 +288,18 @@ class TieOutIdentityAnnualMixin:
         material restricted cash, where cash_and_equivalents alone already reconciles - no
         regression for that population.
 
+        FIXED 2026-09-13 (goal session: cross-session handoff from a peer investigating a live
+        EQNR false positive): the prior version's `cash` CTE COALESCEd combined-vs-unrestricted
+        independently PER ROW, so a filer whose combined-cash tag goes silent for exactly one
+        fiscal year (real, not a bug - EQNR's ifrs-full:RestrictedCashAndCashEquivalents concept
+        genuinely has zero facts in its FY2025 20-F) could compare one year on a combined basis
+        against the other on an unrestricted-only basis - an apples-to-oranges basis switch
+        baked into the comparison itself, not a real reconciliation failure or an extraction
+        bug (live-confirmed: EQNR's FY2024 real combined-cash figure and FY2025 real
+        unrestricted-only figure each individually correct for what they represent). Now picks
+        ONE basis for the PAIR: combined only when BOTH years have it, else unrestricted-only
+        for both.
+
         Excludes depository institutions and financial intermediaries (exchanges/clearinghouses/
         broker-dealers), plus individually-verified embedded-fintech exceptions - see
         _DEPOSITORY_INSTITUTION_SIC_CODES, _FINANCIAL_INTERMEDIARY_SIC_CODES, and
@@ -309,7 +321,7 @@ class TieOutIdentityAnnualMixin:
                 ),
                 cash AS (
                     SELECT symbol, fiscal_year,
-                        COALESCE(cash_and_restricted_cash_combined, cash_and_equivalents) AS cash_and_equivalents
+                        cash_and_restricted_cash_combined, cash_and_equivalents
                     FROM annual_balance_sheet
                     WHERE data_unavailable = FALSE AND cash_and_equivalents IS NOT NULL
                 )
@@ -317,8 +329,10 @@ class TieOutIdentityAnnualMixin:
                     cf.symbol, cf.fiscal_year,
                     cf.operating_cash_flow, cf.investing_cash_flow, cf.financing_cash_flow,
                     cf.updated_at,
-                    prior.cash_and_equivalents AS prior_cash,
-                    curr.cash_and_equivalents AS curr_cash
+                    prior.cash_and_restricted_cash_combined AS prior_cash_combined,
+                    prior.cash_and_equivalents AS prior_cash_unrestricted,
+                    curr.cash_and_restricted_cash_combined AS curr_cash_combined,
+                    curr.cash_and_equivalents AS curr_cash_unrestricted
                 FROM cf
                 JOIN stock_symbols s ON s.symbol = cf.symbol AND s.active = true
                 JOIN cash curr ON curr.symbol = cf.symbol AND curr.fiscal_year = cf.fiscal_year
@@ -341,7 +355,15 @@ class TieOutIdentityAnnualMixin:
                     float(row["investing_cash_flow"]),
                     float(row["financing_cash_flow"]),
                 )
-                prior_cash, curr_cash = float(row["prior_cash"]), float(row["curr_cash"])
+                # Same basis for BOTH years of the pair: combined only when both years actually
+                # have it, else unrestricted-only for both - see this method's own 2026-09-13
+                # fix note above for why comparing across bases produces false positives.
+                if row["prior_cash_combined"] is not None and row["curr_cash_combined"] is not None:
+                    prior_cash = float(row["prior_cash_combined"])
+                    curr_cash = float(row["curr_cash_combined"])
+                else:
+                    prior_cash = float(row["prior_cash_unrestricted"])
+                    curr_cash = float(row["curr_cash_unrestricted"])
                 implied_curr = prior_cash + ocf + icf + fcf
                 residual = implied_curr - curr_cash
                 tolerance = max(_CASHFLOW_TOLERANCE_FLOOR, abs(curr_cash) * _CASHFLOW_TOLERANCE_PCT)
