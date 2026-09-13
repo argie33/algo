@@ -21,6 +21,7 @@ import statistics
 from typing import Any
 
 from utils.db.context import DatabaseContext
+from utils.external.sec_statements_entry_resolution import _is_power_of_ten_scale_outlier
 
 logger = logging.getLogger(__name__)
 
@@ -380,6 +381,75 @@ class FinancialStatementsShareCountValidationMixin:
                     self._record_explicit_null_rejection(
                         row, field, "shares_outstanding_basic_diluted_dei_same_row_mismatch"
                     )
+
+    def _reject_shares_outstanding_scale_outlier_vs_own_dei_history(self, transformed: list[dict[str, Any]]) -> None:
+        """Reject shares_outstanding_basic/diluted when it's a clean power-of-10 multiple of
+        this SAME symbol's own shares_outstanding_dei from a DIFFERENT fiscal year in this
+        batch. Mutates `transformed` in place.
+
+        FOUND 2026-09-13 (goal session: keep-finding-data-issues audit, live-confirmed via CCU
+        against both its own real SEC companyfacts JSON and our live DB): the same-row check
+        just above (`_reject_shares_outstanding_basic_diluted_dei_same_row_mismatch`) requires
+        shares_outstanding_dei AND shares_outstanding_basic/diluted to both be populated on the
+        SAME fiscal-year row - a structural blind spot for foreign 20-F filers that don't
+        re-tag `dei:EntityCommonStockSharesOutstanding` every year. CCU tags it only for
+        FY2022 (369,502,872, stable across its whole real filing history 2017-2025 per its own
+        companyfacts JSON) while `shares_outstanding_basic` is only populated for FY2015-2018
+        (369,502,872,000 - exactly 1000x, a filer-side XBRL decimals-tag error) - the two
+        non-NULL fields never land on the same row, so the same-row guard never fires despite
+        both facts existing right there in this batch.
+
+        A real company's total share count essentially never moves by a clean factor of 10
+        between fiscal years (organic growth/buybacks move it by single-digit percentages a
+        year, not 100x/1000x/10000x) - reusing ANY other fiscal year's dei value from this same
+        symbol as a reference, gated on the exact same power-of-ten signature
+        `_is_power_of_ten_scale_outlier` already uses elsewhere in the XBRL aggregation engine
+        for this identical bug class (IPAR/UPC decimals-tag errors), is safe even across many
+        years of real share-count drift - a genuine business change is never a suspiciously
+        exact 100x/1000x/10000x/1000000x multiple.
+
+        LIMITATION (verified, not theoretical): this only catches filers whose real share count
+        is stable enough that a distant-year dei anchor still lands on a CLEAN power-of-10
+        ratio. PAGS (PagSeguro) has the identical underlying bug shape (its own FY2023 20-F
+        mistagged WeightedAverageShares with 3 extra zeros, self-corrected by the filer a year
+        later in its own next 20-F's comparative column) but its only dei anchor is 6 years
+        removed from the corrupted value and its real share count grew ~23% in that span, so
+        the true ratio (~1227x) isn't clean enough to trigger this check - see
+        ifrs_shares_outstanding_1000x_filer_typo_class_20260913 in memory for PAGS's own
+        unresolved fix path (needs the XBRL extraction engine to prefer the filer's own later
+        correction over its buggy home filing, not a downstream dei cross-check).
+        """
+        dei_values_by_symbol: dict[str, list[float]] = {}
+        for row in transformed:
+            symbol = row.get("symbol")
+            dei = row.get("shares_outstanding_dei")
+            if symbol and isinstance(dei, int | float) and dei > 0:
+                dei_values_by_symbol.setdefault(symbol, []).append(dei)
+
+        for row in transformed:
+            symbol = row.get("symbol")
+            dei_values = dei_values_by_symbol.get(symbol) if symbol else None
+            if not dei_values:
+                continue
+            for field in ("shares_outstanding_basic", "shares_outstanding_diluted"):
+                val = row.get(field)
+                if val is None or val <= 0:
+                    continue
+                for dei in dei_values:
+                    if _is_power_of_ten_scale_outlier(dei, val):
+                        logger.warning(
+                            f"[{self.table_name}] {symbol} FY{row.get('fiscal_year')}: "
+                            f"{field}={val:,.0f} is a magnitude-scale outlier vs this same "
+                            f"symbol's own shares_outstanding_dei={dei:,.0f} (a different "
+                            "fiscal year in this batch) - likely a filer/filing-agent XBRL "
+                            "decimals-tag error. Rejecting rather than storing a "
+                            "confidently-wrong share count."
+                        )
+                        row[field] = None
+                        self._record_explicit_null_rejection(
+                            row, field, "shares_outstanding_scale_outlier_vs_own_dei_history"
+                        )
+                        break
 
     def _fill_derived_eps(self, transformed: list[dict[str, Any]]) -> None:
         """Fill earnings_per_share when the filer never tagged EarningsPerShareBasic/Diluted

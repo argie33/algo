@@ -1641,6 +1641,7 @@ class ConsolidatedFinancialStatementsLoader(
         self._reject_implausible_shares_outstanding(transformed)
         self._reject_diluted_shares_below_basic(transformed)
         self._reject_shares_outstanding_basic_diluted_dei_same_row_mismatch(transformed)
+        self._reject_shares_outstanding_scale_outlier_vs_own_dei_history(transformed)
         self._reject_implausible_debt_field(transformed, "long_term_debt")
         self._reject_implausible_debt_field(transformed, "short_term_debt")
         self._reject_implausible_goodwill(transformed)
