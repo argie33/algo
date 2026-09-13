@@ -165,19 +165,19 @@ function ScoresDashboardPage() {
   const [sortBy, setSortBy] = useState("composite_score");
   const [sortOrder, setSortOrder] = useState("desc");
   const [minScore, setMinScore] = useState(0);
-  // Investability screen (2026-09-01, defaulted on 2026-09-08): the backend's `minMarketCap`
-  // API param (lambda/api/routes/scores.py) was added specifically because raw factor scores
-  // have no liquidity/size floor - a nano-cap with $2-3M market cap can top Value/Composite
-  // purely on scoring mechanics while being effectively untradeable at real size. That param
-  // was wired into this page's UI but left defaulted to "any", so the exact "top of list"
-  // problem it was built to solve kept recurring for anyone opening this page fresh. Defaulted
-  // to $300M to match algo_config.min_market_cap_millions (algo/infrastructure/config/
-  // config_defaults_risk.py), the same real-money eligibility floor lambda/api/routes/
-  // algo_handlers/dashboard/scores.py already applies - still user-adjustable via the
-  // dropdown below. Filtered client-side (market_cap is already in every row from
-  // value_metrics, same as minScore above) rather than round-tripping the API, since this
-  // page already fetches the full universe in one call.
-  const [minMarketCap, setMinMarketCap] = useState(300000000);
+  // Investability screen (2026-09-01, un-defaulted 2026-09-13): the backend's `minMarketCap`
+  // API param (lambda/api/routes/scores.py) exists because raw factor scores have no
+  // liquidity/size floor - a nano-cap with $2-3M market cap can top Value/Composite purely
+  // on scoring mechanics while being effectively untradeable at real size. This dropdown lets
+  // a user opt into that screen, but defaulting it to $300M (2026-09-08) meant this page
+  // silently disagreed with the raw stock_scores table by default: any row lacking a
+  // value_metrics market_cap (not just illiquid names - e.g. every symbol still missing
+  // Quality/Value/Growth pillar data, like the BDC/CEF cohort recovered in
+  // frozen_subpopulation_real_root_cause_and_live_gap_20260913) got silently dropped from
+  // view, making a real, verified stock_scores reload look like it hadn't landed. Default
+  // back to "any" - this page should show what's actually in the table unless a user
+  // deliberately opts into narrowing it via the dropdown below.
+  const [minMarketCap, setMinMarketCap] = useState(0);
   const [tab, setTab] = useState("rankings");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);

@@ -286,7 +286,14 @@ describe("ScoresDashboard Page", () => {
     });
   });
 
-  it("filters out nano-caps by default ($300M floor) and shows them once cleared", async () => {
+  it("shows nano-caps by default (no default floor) and hides them once the $300M filter is applied", async () => {
+    // Un-defaulted 2026-09-13: this page must show what's actually in the stock_scores
+    // table by default (no silent client-side floor) - a real, verified DB reload was
+    // being mistaken for "not working" because rows lacking value_metrics.market_cap
+    // (not just illiquid names - any symbol still missing Quality/Value/Growth pillar
+    // data, e.g. the BDC/CEF cohort) were being dropped from view with no indication why.
+    // The $300M investability screen itself is still a real, useful opt-in filter -
+    // just no longer applied unless the user explicitly picks it.
     const mockApi = await import("../../../services/api");
     mockApi.api.get.mockResolvedValue({
       data: { items: [...mockStocks, nanoStock] },
@@ -296,27 +303,28 @@ describe("ScoresDashboard Page", () => {
     await waitFor(() => {
       expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
     });
-    // Default floor is $300M (algo_config.min_market_cap_millions) - NANO's $2.5M cap
-    // should never reach the list without the user explicitly widening the filter.
-    expect(screen.queryAllByText("NANO").length).toBe(0);
+    // Default is "any" - NANO's $2.5M cap should reach the list same as everything else
+    // in the raw fetched set.
+    expect(screen.queryAllByText("NANO").length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByTitle(/thinly-traded micro\/nano-caps/i), {
-      target: { value: "0" },
+      target: { value: "300000000" },
     });
 
     await waitFor(() => {
-      expect(screen.getAllByText("NANO").length).toBeGreaterThan(0);
+      expect(screen.queryAllByText("NANO").length).toBe(0);
     });
   });
 
-  it("excludes nano-caps from Category Leaders/Laggards tabs (regression: unscreened universe)", async () => {
+  it("propagates the $300M filter to Category Leaders/Laggards tabs once applied (regression: unscreened universe)", async () => {
     // Regression test (2026-09-09, /goal session: "factor leaders and laggards still seem
     // off"): the Category Leaders/Laggards tabs (and Movers/Leaderboard/Heatmap/
     // Distribution/Correlation/Sectors alongside them) were wired to the raw, unscreened
-    // `items` array instead of `filtered` (the same $300M-market-cap-floored array Rankings
-    // already uses) - so a nano-cap could top every single factor's "leaders" list purely on
-    // scoring mechanics, the exact failure mode the $300M floor above exists to prevent for
-    // Rankings, just never propagated to these other views of the same data.
+    // `items` array instead of `filtered` (the same market-cap-floored array Rankings
+    // already uses) - so a nano-cap could top every single factor's "leaders" list purely
+    // on scoring mechanics whenever the floor was applied. The floor itself is opt-in as
+    // of 2026-09-13 (see test above) - this test confirms that once a user does apply it,
+    // every tab agrees, rather than just Rankings.
     const mockApi = await import("../../../services/api");
     mockApi.api.get.mockResolvedValue({
       data: { items: [...mockStocks, nanoStock] },
@@ -325,12 +333,16 @@ describe("ScoresDashboard Page", () => {
     renderScoresDashboard();
     await waitFor(() => {
       expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.change(screen.getByTitle(/thinly-traded micro\/nano-caps/i), {
+      target: { value: "300000000" },
     });
 
     fireEvent.click(screen.getByRole("button", { name: /Category Leaders/i }));
 
     // NANO scores 95-99 on every factor - the highest in the fixture - so it would top
-    // every "Category Leaders" card if the $300M floor weren't applied.
+    // every "Category Leaders" card if the $300M floor weren't applied here too.
     await waitFor(() => {
       expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
     });
