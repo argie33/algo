@@ -535,7 +535,7 @@
   "loaders/helpers/sec_revenue_total_resolution.py": 114,
   "loaders/helpers/sec_segment_debt.py": 213,
   "loaders/helpers/sec_statement_field_bookkeeping.py": 25,
-  "loaders/helpers/sec_valuations_checks.py": 826,
+  "loaders/helpers/sec_valuations_checks.py": 964,
   "loaders/helpers/sec_valuations_dcf.py": 644,
   "loaders/helpers/sec_valuations_dcf_fcf_recategorize.py": 328,
   "loaders/helpers/sec_valuations_income_context.py": 912,
