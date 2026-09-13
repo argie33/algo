@@ -97,6 +97,40 @@ class TestCheckOhlcSanity:
         assert flagged == {"XXX": "high < open/close/low", "YYY": "low > open/close/high"}
 
 
+class TestCheckIsolatedSpikeCorruption:
+    def test_confirmed_spike_logs_error_with_flagged_symbols(self) -> None:
+        """ADDED 2026-09-13 (goal: quarantine-coverage audit) - check_isolated_spike_corruption
+        already named the exact corrupted symbol per `confirmed` entry but never wired it into
+        `flagged_symbols`, so a hit halted the whole pipeline instead of quarantining just the
+        affected symbols. Regression-guards the fix.
+        """
+        checker = _price_sanity_checker()
+        cur = MagicMock()
+        cur.fetchall.side_effect = [
+            [("ZZZ",)],
+            [
+                ("2026-01-01", 1.0, 1000000, "sec"),
+                ("2026-01-02", 500.0, 5, "yfinance"),
+                ("2026-01-03", 1.0, 1000000, "sec"),
+            ],
+        ]
+        checker.check_isolated_spike_corruption(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == ERROR
+        flagged = checker.results[0].details["flagged_symbols"]
+        assert {f["symbol"] for f in flagged} == {"ZZZ"}
+        assert "spike" in flagged[0]["reason"]
+
+    def test_no_spike_logs_info(self) -> None:
+        checker = _price_sanity_checker()
+        cur = MagicMock()
+        cur.fetchall.side_effect = [[]]
+        checker.check_isolated_spike_corruption(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == INFO
+        assert "flagged_symbols" not in (checker.results[0].details or {})
+
+
 class TestCheckSequenceContinuity:
     def test_contiguous_sequence_logs_info(self) -> None:
         checker = _price_sanity_checker()

@@ -295,6 +295,14 @@ class PriceSanityChecker(BaseCheck):
 
             if confirmed:
                 total_rows = sum(r["rows"] for r in confirmed)
+                # ADDED 2026-09-13 (goal: quarantine-coverage audit - this finding already
+                # names the exact corrupted symbol per entry in `confirmed`, but never wired
+                # that into flagged_symbols, so an isolated-spike-corruption hit halted the
+                # whole pipeline instead of quarantining just the affected symbols - see
+                # algo/monitoring/data_patrol/quarantine.py's own opt-in contract). Every
+                # confirmed symbol goes here (not just a truncated sample) same as the
+                # quarterly_revenue_sum_vs_annual_extreme precedent.
+                affected_symbols = sorted({r["symbol"] for r in confirmed})
                 self.log(
                     "isolated_spike_corruption",
                     ERROR,
@@ -303,7 +311,22 @@ class PriceSanityChecker(BaseCheck):
                     f"(batch-tagged volume<={self._SPIKE_VOLUME_THRESHOLD} run bracketed by a real "
                     f">{self._ISOLATED_SPIKE_RATIO:.0f}x-away neighbor) - see "
                     "scripts/check_price_daily_isolated_spikes.py for detail/remediation",
-                    {"count": total_rows, "symbols": len(confirmed), "samples": confirmed[:10]},
+                    {
+                        "count": total_rows,
+                        "symbols": len(confirmed),
+                        "samples": confirmed[:10],
+                        "flagged_symbols": [
+                            {
+                                "symbol": s,
+                                "reason": (
+                                    "isolated batch-tagged price spike >"
+                                    f"{self._ISOLATED_SPIKE_RATIO:.0f}x away from a real "
+                                    "bracketing neighbor (corrupted price_daily rows)"
+                                ),
+                            }
+                            for s in affected_symbols
+                        ],
+                    },
                 )
             else:
                 self.log(
