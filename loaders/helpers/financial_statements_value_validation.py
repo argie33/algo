@@ -463,6 +463,22 @@ class FinancialStatementsValueValidationMixin:
         noise this file's own pretax_to_net_income WARN check already tolerates can push a
         real match a few points off 1,000x/1,000,000x without this guard losing confidence
         that it's still the same scale-error shape.
+
+        WIDENED 2026-09-13 (goal session: quarterly-revenue-identity backlog implausibility
+        scan): the original check only multiplied net_income UP (net_income*scale ~= expected),
+        catching the "reported in thousands/millions" direction only. Live-confirmed the
+        MIRROR-IMAGE error also occurs via INVE (CIK unknown, real SEC companyfacts JSON):
+        FY2021 NetIncomeLoss tagged $1,620,000,000,000 while the SAME row's own sibling
+        ProfitLoss concept (a real, correctly-scaled fact for the identical period) is
+        $1,620,000 - exactly 1,000,000x SMALLER, not larger. pretax_income($1,648,000) -
+        income_tax_expense($28,000) = $1,620,000 confirms ProfitLoss is the real figure and
+        NetIncomeLoss is over-scaled by exactly 1,000,000x - the reverse direction this guard
+        never checked, so it sailed through untouched. Same MKZR-shaped "genuine sibling
+        concept on the same row proves the scale factor" signature as
+        sec_reit_exclusive_scale_guard.py's REIT-only case, just discovered independently via
+        the pretax/tax identity instead of a sibling lookup. Checking net_income/scale in
+        addition to net_income*scale is a symmetric, equally-safe extension of the exact same
+        "unmistakably the same multiplicative family" logic already used here.
         """
         min_plausible_abs_expected = 100_000.0
         scale_tolerance_pct = 0.20
@@ -476,22 +492,28 @@ class FinancialStatementsValueValidationMixin:
             if abs(expected) < min_plausible_abs_expected:
                 continue
             for scale in (1_000, 1_000_000):
-                scaled_net_income = float(net_income) * scale
-                relative_error = abs(scaled_net_income - expected) / abs(expected)
-                if relative_error <= scale_tolerance_pct:
-                    logger.warning(
-                        f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
-                        f"net_income={net_income:,.0f} is a {scale:,}x-too-small match against "
-                        f"pretax_income({pretax_income:,.0f}) - income_tax_expense("
-                        f"{income_tax_expense:,.0f}) = {expected:,.0f} (net_income*{scale:,} = "
-                        f"{scaled_net_income:,.0f}, {relative_error:.1%} residual). Filer-side "
-                        "scale tagging error (reported in thousands/millions under a whole-"
-                        "dollar concept), not a currency issue. Rejecting rather than storing a "
-                        "confidently-wrong net_income."
-                    )
-                    row["net_income"] = None
-                    self._record_explicit_null_rejection(row, "net_income", "net_income_scale_error")
-                    break
+                for direction, candidate in (
+                    ("too-small", float(net_income) * scale),
+                    ("too-large", float(net_income) / scale),
+                ):
+                    relative_error = abs(candidate - expected) / abs(expected)
+                    if relative_error <= scale_tolerance_pct:
+                        op = "*" if direction == "too-small" else "/"
+                        logger.warning(
+                            f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                            f"net_income={net_income:,.0f} is a {scale:,}x-{direction} match against "
+                            f"pretax_income({pretax_income:,.0f}) - income_tax_expense("
+                            f"{income_tax_expense:,.0f}) = {expected:,.0f} (net_income{op}{scale:,} = "
+                            f"{candidate:,.0f}, {relative_error:.1%} residual). Filer-side "
+                            "scale tagging error, not a currency issue. Rejecting rather than "
+                            "storing a confidently-wrong net_income."
+                        )
+                        row["net_income"] = None
+                        self._record_explicit_null_rejection(row, "net_income", "net_income_scale_error")
+                        break
+                else:
+                    continue
+                break
 
     def _reject_implausible_gross_profit(self, transformed: list[dict[str, Any]]) -> None:
         """Reject `gross_profit` when it exceeds revenue by more than 3x while cost_of_revenue
