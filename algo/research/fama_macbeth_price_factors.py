@@ -44,6 +44,7 @@ Usage:
 import argparse
 import logging
 from datetime import datetime
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -225,6 +226,85 @@ def benjamini_hochberg_fdr(t_stats: dict[str, float], n_months: int, q: float = 
     return {name: bool(cutoff_p >= 0 and pvals[i] <= cutoff_p) for i, name in enumerate(names)}
 
 
+def variance_inflation_factors(records: list[tuple[pd.Timestamp, pd.DataFrame]], cols: list[str]) -> dict[str, float]:
+    """Average per-month VIF for each factor in `cols` (regress each factor on the others
+    within each month's cross-section, average 1/(1-R^2) across months).
+
+    Built 2026-09-13 - direct response to vol/max_dd/beta producing era-split results that
+    flipped BOTH which era was strong and the sign of the effect between two independently
+    written test scripts (see risk_momentum_price_factor_validity_fresh_run_postcleanup_20260913
+    vs algo-3b's contradicting run, in memory). A single 50/50 split can't distinguish "real,
+    unstable-over-time factor" from "collinear factor whose multivariate coefficient is
+    underdetermined" - VIF answers the second question directly. Loosely: VIF>5 means a
+    factor's multivariate sign/magnitude should not be trusted on its own; VIF>10 is severe.
+    Check this BEFORE shipping any weight change based on a multivariate coefficient's sign.
+    """
+    per_month: dict[str, list[float]] = {c: [] for c in cols}
+    for _month, frame in records:
+        for target in cols:
+            others = [c for c in cols if c != target]
+            x = np.column_stack([np.ones(len(frame))] + [frame[c].values for c in others])
+            y = frame[target].values
+            coefs, *_ = np.linalg.lstsq(x, y, rcond=None)
+            pred = x @ coefs
+            ss_res = np.sum((y - pred) ** 2)
+            ss_tot = np.sum((y - y.mean()) ** 2)
+            r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+            per_month[target].append(1.0 / (1.0 - r2) if r2 < 0.999 else float("inf"))
+    return {c: float(np.mean(v)) for c, v in per_month.items()}
+
+
+class EraRobustness(NamedTuple):
+    t_stats: list[float]
+    sign_agrees_across_blocks: bool
+    blocks_clearing_1_5: int
+    n_blocks: int
+
+
+def multi_split_era_robustness(
+    records: list[tuple[pd.Timestamp, pd.DataFrame]], cols: list[str], n_splits: int = 4
+) -> dict[str, EraRobustness]:
+    """Split the sample chronologically into `n_splits` contiguous, roughly-equal blocks - not
+    just one 50/50 split - and run a univariate Fama-MacBeth per factor within each block.
+
+    Built 2026-09-13, same motivation as `variance_inflation_factors` above. A single
+    split_date answers "is this factor stronger in the first half or second half" - one draw,
+    entirely dependent on exactly where the split falls, which is how two honest sessions can
+    get opposite-era-strength answers on the same (clean, post-price_daily-cleanup) data. This
+    reports the full block-by-block distribution instead: how many of the n_splits blocks agree
+    in sign, and how many independently clear a block-level bar of |t|>=1.5 (loosened from the
+    usual 2.0 since each block has ~1/n_splits the months of a single-split half). A factor
+    whose sign flips across blocks, or clears the bar in only one, is exactly the
+    noise/instability signature this exists to catch - do not make a weight decision off a
+    single split_date result for any factor without also checking this.
+    """
+    n = len(records)
+    edges = [round(i * n / n_splits) for i in range(n_splits + 1)]
+    blocks = [records[edges[i] : edges[i + 1]] for i in range(n_splits)]
+
+    out: dict[str, EraRobustness] = {}
+    for c in cols:
+        t_stats: list[float] = []
+        signs: list[int] = []
+        for block in blocks:
+            if len(block) < 3:
+                t_stats.append(float("nan"))
+                signs.append(0)
+                continue
+            _mean, t = _fama_macbeth(block, [c])[c]
+            t_stats.append(t)
+            signs.append(int(np.sign(t)) if not np.isnan(t) else 0)
+        valid = [t for t in t_stats if not np.isnan(t)]
+        nonzero_signs = {s for s in signs if s != 0}
+        out[c] = EraRobustness(
+            t_stats=t_stats,
+            sign_agrees_across_blocks=len(nonzero_signs) <= 1 and bool(nonzero_signs),
+            blocks_clearing_1_5=sum(1 for t in valid if abs(t) >= 1.5),
+            n_blocks=n_splits,
+        )
+    return out
+
+
 SURVIVORSHIP_BIAS_CAVEAT = (
     "SURVIVORSHIP BIAS WARNING: this panel excludes every company that failed/delisted for "
     "cause during the sample window (confirmed 2026-09-12 - zero price_daily rows for Lehman, "
@@ -307,6 +387,27 @@ def run(
     for c in FACTOR_COLS:
         verdict = "PASS" if fdr[c] else "fail"
         print(f"{c:14s} {uni_mean[c]:10.5f} {uni_t[c]:8.2f} {verdict:>12s}")
+
+    print("\n=== Multicollinearity check (VIF - check before trusting any multivariate sign) ===")
+    vif = variance_inflation_factors(records, FACTOR_COLS)
+    for c in FACTOR_COLS:
+        flag = (
+            "  <- HIGH: multivariate coef for this factor is unstable, don't trust its sign alone" if vif[c] > 5 else ""
+        )
+        print(f"{c:14s} VIF={vif[c]:6.2f}{flag}")
+
+    n_splits = 4
+    print(f"\n=== Multi-split era robustness ({n_splits}-block chronological split, not a single 50/50) ===")
+    robustness = multi_split_era_robustness(records, FACTOR_COLS, n_splits=n_splits)
+    for c in FACTOR_COLS:
+        r = robustness[c]
+        t_str = "  ".join(f"{t:6.2f}" if not np.isnan(t) else "   nan" for t in r.t_stats)
+        robust = r.sign_agrees_across_blocks and r.blocks_clearing_1_5 >= n_splits - 1
+        verdict = "ROBUST" if robust else "unstable/inconclusive"
+        print(
+            f"{c:14s} block t-stats: [{t_str}]  sign_agrees={r.sign_agrees_across_blocks}  "
+            f"clears|t|>=1.5 in {r.blocks_clearing_1_5}/{r.n_blocks}  -> {verdict}"
+        )
 
 
 def main() -> None:
