@@ -180,7 +180,10 @@ _CACHE_TTL_SECS = 300  # 5 minute cache
 
 
 def get_active_symbols(
-    max_symbols: int | None = None, timeout_secs: int = 120, exclude_etfs: bool = False
+    max_symbols: int | None = None,
+    timeout_secs: int = 120,
+    exclude_etfs: bool = False,
+    exclude_non_operating: bool | None = None,
 ) -> list[str]:
     """Get list of active symbols (stocks and ETFs) from database with timeout protection.
 
@@ -191,8 +194,27 @@ def get_active_symbols(
     Args:
         max_symbols: Limit results to N symbols (default: None = all)
         timeout_secs: Timeout for database query (default: 120 seconds for parallel batch execution)
-        exclude_etfs: If True, exclude ETFs and bonds (default: False, include all active symbols)
-                      Set to True for: income_statement, growth_metrics, quality_metrics, positioning_metrics
+        exclude_etfs: If True, exclude real ETFs (etf='true') and obviously non-equity tickers
+                      (warrants/units/rights/SPACs/ETNs/etc by name). Set to True for:
+                      income_statement, growth_metrics, quality_metrics, positioning_metrics,
+                      and price/technical loaders alike - none of them want literal ETFs.
+        exclude_non_operating: If True, additionally exclude closed-end funds/BDCs/financing
+                      trusts (sic_code=0 + entity_type in other/investment, plus the explicit
+                      BDC/TVC/TVE/SCE$L/GRN carve-outs) that structurally can't report normal
+                      operating financials. Defaults to `exclude_etfs`'s value when not given,
+                      preserving old behavior for the ~19 pre-existing exclude_etfs=True callers
+                      (income_statement/growth/quality/positioning/momentum loaders, all of
+                      which genuinely need real operating-company financials to compute).
+                      FIXED 2026-09-13: load_prices.py passed exclude_etfs=True (added
+                      2026-07-13, to stop double-loading ~5,250 ETFs) and silently inherited
+                      this fund/BDC exclusion once it was added to the same branch on
+                      2026-08-20/2026-09-03 - live-confirmed 154 real, actively-traded CEFs/
+                      BDCs (BBN, BST, MAIN, FSK, GAB, HQH, ...) stopped getting ANY price_daily
+                      updates the moment their company_info_sec classification (or the BDC
+                      denylist) started matching, even though these are ordinary NYSE-listed
+                      securities that trade daily and need price/technical data regardless of
+                      whether they file a normal 10-K income statement. Price/technical loaders
+                      must pass exclude_non_operating=False explicitly.
     """
 
     def timeout_handler(signum: int, frame: Any) -> None:
@@ -208,8 +230,13 @@ def get_active_symbols(
             # signal.SIGALRM not available on this platform, use threading timeout instead
             pass
 
+    # Default exclude_non_operating to exclude_etfs's value: preserves the exact prior
+    # behavior of every existing exclude_etfs=True caller (financial-data loaders that
+    # want funds/BDCs excluded too), while letting price/technical loaders opt out.
+    resolved_exclude_non_operating = exclude_etfs if exclude_non_operating is None else exclude_non_operating
+
     # Check cache first to reduce database load under parallelism
-    cache_key = f"all_symbols:exclude_etfs={exclude_etfs}"
+    cache_key = f"all_symbols:exclude_etfs={exclude_etfs}:exclude_non_operating={resolved_exclude_non_operating}"
     with _cache_lock:
         if cache_key in _symbols_cache:
             cached_time, cached_symbols = _symbols_cache[cache_key]
@@ -358,7 +385,31 @@ def get_active_symbols(
                         # (which fails the IN check) forces that conjunct to a definite false
                         # instead, so "we haven't classified this symbol yet" now correctly means
                         # "don't exclude it" rather than "treat it as a fund."
-                        sql = """
+                        # FIXED 2026-09-13: the fund/BDC/financing-trust exclusion block below
+                        # (sic_code/entity_type check through the BDC denylist) only belongs to
+                        # exclude_non_operating callers - price/technical loaders pass
+                        # exclude_non_operating=False and skip straight past it, since these are
+                        # real tradable securities that need price data regardless of whether
+                        # they file normal operating financials. See this function's docstring.
+                        non_operating_exclusion_sql = (
+                            """
+                              AND NOT (
+                                    COALESCE(c.sic_code, 0) = 0
+                                    AND COALESCE(c.entity_type, 'operating') IN ('other', 'investment')
+                                    AND s.symbol != 'OZK'
+                              )
+                              AND s.symbol NOT IN ('TVC', 'TVE', 'SCE$L')
+                              AND s.symbol NOT IN ({bdc_symbols})
+                            """.format(
+                                bdc_symbols=", ".join(
+                                    f"'{sym}'" for sym in sorted(_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS)
+                                )
+                            )
+                            if resolved_exclude_non_operating
+                            else ""
+                        )
+                        sql = (
+                            """
                             SELECT s.symbol FROM stock_symbols s
                             LEFT JOIN company_info_sec c ON c.symbol = s.symbol
                             WHERE s.active = true
@@ -366,11 +417,9 @@ def get_active_symbols(
                               AND (s.etf IS NULL OR s.etf != 'true')
                               AND s.security_name !~* '\\y(Warrant|Unit|Contingent Value|ETNs?|Exchange[- ]Traded Notes?|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Crypto|Debenture|Subordinated|Preferred|Perpetual)\\y'
                               AND s.security_name !~* '(?<!the )\\yRights?\\y'
-                              AND NOT (
-                                    COALESCE(c.sic_code, 0) = 0
-                                    AND COALESCE(c.entity_type, 'operating') IN ('other', 'investment')
-                                    AND s.symbol != 'OZK'
-                              )
+                            """
+                            + non_operating_exclusion_sql
+                            + """
                               -- GOVERNANCE 2026-08-21 (goal session - "is SEC/XBRL data really
                               -- missing, or are we scoring the wrong thing"): TVC/TVE ("Tennessee
                               -- Valley Authority Common Stock" / "Tennessee Valley Authority") are
@@ -407,15 +456,10 @@ def get_active_symbols(
                               -- universe with a `$` in its ticker (checked live), NYSE's own
                               -- convention for preferred/trust-preferred securities - same
                               -- unclassifiable-by-name-pattern situation as TVC/TVE, same fix.
-                              AND s.symbol NOT IN ('TVC', 'TVE', 'SCE$L')
-                              -- FIXED 2026-09-03: see _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS'
-                              -- own module-level comment above.
-                              AND s.symbol NOT IN ({bdc_symbols})
+                              -- (TVC/TVE/SCE$L and the BDC denylist are applied above, inside
+                              -- non_operating_exclusion_sql, gated on exclude_non_operating)
                             ORDER BY s.symbol
-                        """.format(
-                            bdc_symbols=", ".join(
-                                f"'{sym}'" for sym in sorted(_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS)
-                            )
+                            """
                         )
                     else:
                         # For price/market data loaders: include both stocks and ETFs.

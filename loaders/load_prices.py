@@ -3260,15 +3260,14 @@ def main() -> int:
             symbol_query_timeout_sec = 1800 if os.getenv("LOADER_BATCH_SIZE", "50000") == "50000" else 600
             logger.info(f"[MAIN] Symbol query timeout: {symbol_query_timeout_sec}s ({symbol_query_timeout_sec // 60}m)")
             try:
-                # exclude_etfs=True: this list only ever feeds the "stock" asset_class branch
-                # below (the "etf" branch uses its own essential_etf_symbols list and never
-                # reads `symbols` at all) -- but without this flag, get_active_symbols() was
-                # pulling in ~5,250 ETFs alongside the ~5,344 real stocks, doubling API calls
-                # and DB writes for tickers that were already loaded via the essential-ETF pass
-                # and never used by stock_scores/signals anyway. Same pattern already used by
-                # growth/quality/positioning/income-statement loaders for the same reason.
+                # exclude_etfs=True: only "stock" asset_class reads `symbols` ("etf" uses its
+                # own essential_etf_symbols list), avoiding doubled API/DB work for real ETFs.
+                # exclude_non_operating=False (FIXED 2026-09-13, see docstring): CEFs/BDCs stay in.
                 symbols = get_active_symbols(
-                    max_symbols=limit, timeout_secs=symbol_query_timeout_sec, exclude_etfs=True
+                    max_symbols=limit,
+                    timeout_secs=symbol_query_timeout_sec,
+                    exclude_etfs=True,
+                    exclude_non_operating=False,
                 )
                 logger.info("[MAIN] Loaded %s symbols from database (max_limit=%s)", len(symbols), limit)
             except TimeoutError as e:

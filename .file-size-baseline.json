@@ -576,7 +576,7 @@
   "loaders/load_market_status_daily.py": 999,
   "loaders/load_naaim.py": 187,
   "loaders/load_positioning_metrics.py": 467,
-  "loaders/load_prices.py": 3576,
+  "loaders/load_prices.py": 3575,
   "loaders/load_risk_metrics_daily.py": 960,
   "loaders/load_sec_segment_info.py": 634,
   "loaders/load_sec_segment_metrics.py": 183,
