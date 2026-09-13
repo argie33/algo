@@ -106,6 +106,36 @@ class TestCompositeScoreReconciliation:
         results = _checker().run(cur)
         assert len(results) == 1
         assert results[0].severity == ERROR
+        # ADDED (quarantine wiring fix): an ERROR finding must carry flagged_symbols so
+        # Phase 1 can quarantine just this symbol instead of halting the whole pipeline.
+        flagged_symbols = results[0].details["flagged_symbols"]
+        assert [f["symbol"] for f in flagged_symbols] == ["BROKEN"]
+        assert "reason" in flagged_symbols[0]
+
+    def test_warn_only_divergence_has_no_flagged_symbols(self) -> None:
+        # A WARN-severity finding is not quarantinable - flagged_symbols must be empty so
+        # quarantine.py's severity gate (error/critical only) is the only thing that matters,
+        # but this also confirms the check itself doesn't over-populate it for a WARN symbol.
+        cur = _mock_cursor([_row("DRIFT", composite_score=50.5)])
+        results = _checker().run(cur)
+        assert results[0].severity == WARN
+        assert results[0].details["flagged_symbols"] == []
+
+    def test_mixed_severity_only_quarantines_the_error_level_symbol(self) -> None:
+        # One symbol pushes the aggregate severity to ERROR; a second, merely-WARN-level
+        # symbol must NOT be swept into flagged_symbols just because the overall finding's
+        # severity is ERROR (quarantine.py gates per-finding, not per-symbol).
+        cur = _mock_cursor(
+            [
+                _row("BROKEN", composite_score=70.0),  # 20pt off -> ERROR-level
+                _row("MILD", composite_score=50.5),  # 0.5pt off -> WARN-level only
+            ]
+        )
+        results = _checker().run(cur)
+        assert len(results) == 1
+        assert results[0].severity == ERROR
+        flagged_symbols = results[0].details["flagged_symbols"]
+        assert [f["symbol"] for f in flagged_symbols] == ["BROKEN"]
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()

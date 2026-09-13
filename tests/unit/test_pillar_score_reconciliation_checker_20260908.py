@@ -87,6 +87,10 @@ class TestPillarScoreReconciliation:
         assert results[0].severity == ERROR
         assert results[0].details["confirmed_fresh"] == 1
         assert results[0].details["unverified_stale"] == 0
+        # ADDED (quarantine wiring fix): confirmed-fresh + over-error-bar must be quarantinable.
+        flagged_symbols = results[0].details["flagged_symbols"]
+        assert [f["symbol"] for f in flagged_symbols] == ["GS"]
+        assert "reason" in flagged_symbols[0]
 
     def test_large_divergence_pending_reload_not_escalated_to_error(self) -> None:
         # Same 30-point divergence as test_large_divergence_flagged_error, but the source
@@ -99,6 +103,24 @@ class TestPillarScoreReconciliation:
         assert results[0].severity == WARN
         assert results[0].details["confirmed_fresh"] == 0
         assert results[0].details["unverified_stale"] == 1
+        # A pending-reload-lag symbol must never be quarantined - it isn't a confirmed bug.
+        assert results[0].details["flagged_symbols"] == []
+
+    def test_mixed_fresh_and_stale_only_quarantines_the_fresh_one(self) -> None:
+        # GS is a confirmed-fresh, over-error-bar divergence; MS has the identical divergence
+        # but is only pending-reload (unverified) - only GS may end up in flagged_symbols even
+        # though the aggregate finding severity (driven by GS) is ERROR for both.
+        cur = _mock_cursor(
+            [
+                _row("GS", 30.0, 60.0, updated_at=_BEFORE_WATERMARK),
+                _row("MS", 30.0, 60.0, updated_at=_AFTER_WATERMARK),
+            ]
+        )
+        results = _checker().run(cur)
+        assert len(results) == 1
+        assert results[0].severity == ERROR
+        flagged_symbols = results[0].details["flagged_symbols"]
+        assert [f["symbol"] for f in flagged_symbols] == ["GS"]
 
     def test_no_watermark_treated_as_unverified(self) -> None:
         # No data_loader_status row for stock_scores at all - can't distinguish pending-reload
