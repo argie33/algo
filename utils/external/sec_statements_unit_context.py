@@ -99,6 +99,47 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
         if _e.get("form") in _ANNUAL_REPORT_FORMS and not _e.get("start") and _e.get("end"):
             _fye_month = int(_e["end"][5:7])
             break
+    # ADDED 2026-09-13 (goal session: quarantine-backlog audit, UHAL live-confirmed via real
+    # SEC companyfacts JSON): the instant-fact check just above can never fire for an income-
+    # statement/cash-flow concept (Revenues, NetIncomeLoss, ...) - those are always duration
+    # facts (see the "instant-fact check above can never fire..." comment a few dozen lines
+    # below) - so a March/June/September-fiscal-year-end filer's own income-statement
+    # concepts had NO direct fiscal-year-end signal available before falling through to the
+    # quarterly self-consistency guess below. That guess is unreliable for exactly this
+    # group of filers: ANY fiscal year end that's an exact multiple of 3 months offset from
+    # December (Mar/Jun/Sep FYEs, not just Dec) draws its own quarter-end months from the
+    # identical {03, 06, 09, 12} set the guess checks for, so a genuine, promptly-filed
+    # quarterly fact can coincidentally satisfy the December mapping purely by chance. Live-
+    # confirmed via UHAL (U-Haul/AMERCO, real FYE March 31): its own "Revenues" concept
+    # already carries real FY-tagged DURATION facts (every one, 2010-2026, ending March 31)
+    # directly showing a March fiscal year end - but the quarterly guess below was
+    # independently, coincidentally satisfied by a genuine, promptly-filed Q3 fact
+    # (end=2024-09-30, filed 37 days later), flipping has_december_fiscal_year_end to True
+    # and then triggering the AMZN-rolling-window guard in
+    # _aggregate_concepts_resolve_entry_period to reject every one of UHAL's real, non-
+    # December-ending annual "Revenues" facts - leaving "revenue" to fall back to a much
+    # smaller ASC-606 sub-line concept (RevenueFromContractWithCustomerExcludingAssessedTax,
+    # ~$699M vs the real ~$5.7B), feeding UHAL into the quarterly_revenue_sum_vs_annual_
+    # extreme DataPatrol quarantine.
+    #
+    # Requires EVERY FY-tagged duration fact in this concept's history to agree on the same
+    # end month before trusting it, not just the first one found - a 52/53-week fiscal
+    # calendar (SWK/Stanley Black & Decker-shaped, already covered by
+    # test_sec_statements_fiscal_year_end_crosses_january.py) legitimately ends in December
+    # most years but drifts into early January every 5-6 years, so a single differing FY
+    # fact's month is NOT reliable evidence on its own - only unanimous agreement across the
+    # whole history is. UHAL's real facts satisfy this trivially (every single FY fact ends
+    # in March); SWK's do not (Dec/Dec/Jan), so this new check correctly stays silent for
+    # SWK and leaves it to the existing January-crossing special case elsewhere in this
+    # file, unchanged.
+    if _fye_month is None:
+        _fy_duration_months = {
+            int(_e["end"][5:7])
+            for _e in entries
+            if _e.get("fp") == "FY" and _e.get("start") and _e.get("end") and len(_e["end"]) >= 7
+        }
+        if len(_fy_duration_months) == 1:
+            _fye_month = next(iter(_fy_duration_months))
     has_december_fiscal_year_end = _fye_month == 12
     # RESTORED 2026-09-02 (goal session: "missing SEC/XBRL data" audit) - this block
     # was part of `fd1c8a99f` (OFRM comparative-fp-aliasing fix) but that commit only
@@ -183,7 +224,14 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
     # (AMZN/OFRM/DXC/CCLD) already files its genuine quarterly facts within ~40 days
     # of their own end date, so this is purely additive - it only ever rejects a
     # match the span gate alone let through, never one it already excluded.
-    if not has_december_fiscal_year_end:
+    #
+    # GATED ON `_fye_month is None` INSTEAD OF `not has_december_fiscal_year_end`
+    # (2026-09-13, UHAL fix - see the direct-duration-FY-fact check above): once a
+    # genuine, unanimous FY-tagged (or instant) fact history has directly established
+    # this concept's real fiscal-year-end month - December or otherwise - that
+    # first-party evidence must never be second-guessed by this indirect quarterly
+    # coincidence-based guess. Only run the guess when there's no direct signal at all.
+    if _fye_month is None:
         _q_from_month = {"03": "Q1", "06": "Q2", "09": "Q3", "12": "Q4"}
         for _e in entries:
             _e_fp = _e.get("fp")
