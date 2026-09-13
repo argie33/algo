@@ -155,6 +155,17 @@ def _get_scores_coverage(cur: cursor, group_filter: str | None = None, meta_only
         # patterns found`) embed the ticker/date range inline, so _categorize_reason's
         # `base = reason.split(":")[0]` never matches a set-literal key for either - see the
         # startswith checks added there for both patterns.
+        # ADDED 2026-09-13 (goal: patrol/quarantine/data-coverage comprehensiveness audit):
+        # momentum_metrics.reason was missing from this allowlist entirely - unlike the
+        # genuinely-coarse whole-row `reason` columns this allowlist deliberately excludes
+        # (quality_metrics/value_metrics etc., a single generic message), momentum_metrics'
+        # `reason` is a real compound per-factor signal (live values look like
+        # "momentum_12m:insufficient_price_history; momentum_6m:insufficient_price_history",
+        # 248/5154 rows populated) - exactly the shape this allowlist exists to surface, yet
+        # Momentum, one of the five core scoring pillars, had zero gap visibility on the Data
+        # Coverage tab. Never added when this allowlist was built (2026-08-19/08-29 fix
+        # history covers 13F/analyst/segment/short-interest/valuations/signal-quality but
+        # never mentions momentum_metrics) - plain oversight, not a deliberate exclusion.
         bare_reason_tables = (
             "institutional_holdings_13f",
             "analyst_earnings_estimates",
@@ -163,6 +174,7 @@ def _get_scores_coverage(cur: cursor, group_filter: str | None = None, meta_only
             "short_interest_finra",
             "sec_valuations",
             "signal_quality_scores",
+            "momentum_metrics",
         )
         cur.execute(
             """
