@@ -12,7 +12,7 @@ Mixed into StockScoresLoader alongside the other stock_scores/*.py pillar mixins
 defines it. No database access here, so no `_owner()` indirection is needed (unlike
 value_metrics.py/momentum_scoring.py).
 
-DELIBERATELY NOT given a sector-neutral z-score batch pass (2026-09-13, /goal "question the
+DELIBERATELY NOT given a SECTOR-neutral z-score batch pass (2026-09-13, /goal "question the
 scoring methodology" session, same session that added Momentum's equivalent pass -
 `momentum_scoring.py`'s `update_momentum_sector_neutral_scores()`). Investigated directly
 before deciding, not assumed: this pillar's live sector averages DO diverge (Real Estate/
@@ -39,16 +39,91 @@ calibrated. Liquidity (avg_dollar_volume_20d) is a third: its curve is deliberat
 gate - sector-relativizing it would break that anchor's entire rationale. Not re-litigated
 without new evidence that contradicts the academic distinction above; if that evidence ever
 shows up, redo this analysis rather than assume Momentum's fix generalizes automatically.
+
+ABSOLUTE (non-sector) z-score batch pass ADDED 2026-09-13 (same session, immediately following
+the reasoning above) for Volatility 60D/252D/Max Drawdown ONLY - a narrower, different fix from
+the sector-neutral one just rejected. `_vol_curve_score`/`_max_drawdown_curve_score`'s fixed
+breakpoints (0.15/0.30/0.60 for vol, 10/25/50 for drawdown) were live-checked against this
+universe's actual distribution (stability_metrics, 4,920-4,996 scored symbols) rather than
+trusted as calibrated: p50 volatility_60d=0.516 (the MEDIAN stock is already past the curve's
+0.30 breakpoint, deep in the 50->10 decay segment) and p50 max_drawdown_1y=41.6% (already past
+the drawdown curve's 25% breakpoint). Fewer than 1% of the universe clears vol_60d<=0.15 (the
+curve's OWN 100-point threshold) - these breakpoints look tuned to a mega-cap-only mental model
+of "normal" volatility, not this universe's real small/micro-cap-heavy composition, and unlike
+Momentum's old Pass-1 curves (which get fully overwritten by that pillar's own sector-neutral
+pass and never reach production), this pillar has no second pass - `_vol_curve_score`'s output
+IS the live risk_score. `update_risk_absolute_zscore_scores()` below replaces just the TRANSFORM
+for these 3 inputs (winsorize -> z-score -> normal-CDF-to-percentile against the live universe,
+via the same `sector_neutral_zscore`/`zscore_to_percentile_scale` primitives Momentum/Growth/
+Value already use, called with an empty sector map so every symbol pools into one universe-wide
+group instead of being split by sector - preserving the deliberate non-sector-neutral design
+above while fixing the curve-shape miscalibration) - matching what MSCI/S&P/AQR/FTSE Russell all
+independently do for every factor (winsorize+z-score, not a hand-drawn absolute curve), the
+same self-calibrating-to-the-live-distribution property Momentum/Growth/Value's z-score passes
+already have and this pillar's fixed breakpoints never did. Beta (scored for closeness to 1.0,
+not "lower is better" - not a z-score candidate at all, see above) and Liquidity (curve anchored
+to a real system constant, not an invented breakpoint) are UNCHANGED, kept on their existing
+curves.
+
+MIN_TRADING_DAYS_FOR_DRAWDOWN gate ADDED same pass, found DURING pre-ship verification, not
+assumed safe from the design above alone: a live dry run of the new z-score transform (before
+this gate existed) put brand-new IPO symbols (MBGL/IOND/JMKE/HOS/MFP/LYNX/BSP/BRVE/ATTT/APMD/
+DPC/VOGX/CSQR - all 5 to 55 days of real price_daily history, confirmed via direct query) in the
+TOP 15 of the corrected risk_score, ahead of RY/BMO/BRK.A/BRK.B. Root cause verified directly,
+not guessed: each has real, large avg_dollar_volume_20d ($5.9M-$76.3M/day - genuinely liquid,
+not a NEAR_ZERO_LIQUIDITY_THRESHOLD case) but NULL volatility_60d/beta (confirmed via
+`volatility_60d_unavailable_reason='insufficient_history'` - correctly withheld, not enough
+trading days for a 60-day window) while max_drawdown_1y IS populated (computed over whatever
+partial history exists, no minimum-window guard). That leaves exactly drawdown (0.20) +
+liquidity (0.20) = 0.40 weight, precisely at RISK_MIN_WEIGHT_AVAILABLE's floor - and a stock 5-55
+days old hasn't been trading long enough to have LIVED THROUGH a real drawdown event yet, so its
+tiny max_drawdown_1y isn't a genuine low-risk reading, it's an artifact of not enough elapsed
+time - the same "thin, low-weight field alone drives a near-max score" failure mode
+RISK_MIN_WEIGHT_AVAILABLE's own docstring already documents for APMC/FTRA/etc., a new instance
+of it exposed (not created) by the z-score fix correctly no longer suppressing a merely-decent
+21%-drawdown reading the old miscalibrated curve used to flatten to a mediocre ~57. Fix: gate
+max_drawdown_1y out of BOTH the z-score population and any individual symbol's score (dropping
+those symbols to Liquidity-only, 0.20 weight - below RISK_MIN_WEIGHT_AVAILABLE, correctly
+withheld as insufficient_risk_inputs_thin_sample) unless the symbol has at least
+MIN_TRADING_DAYS_FOR_DRAWDOWN real price_daily rows - reusing this same table's own
+"insufficient_history" threshold (60 trading days, matching volatility_60d's own minimum window)
+rather than inventing a new number.
 """
 
 import itertools
+import json
 import logging
 import math
 from typing import TYPE_CHECKING, Any
 
+import psycopg2
+
+from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
+from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
+from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.type_conversion import safe_float
 
 logger = logging.getLogger("loaders.load_stock_scores")
+
+# MIN_TRADING_DAYS_FOR_DRAWDOWN (added 2026-09-13, same session - see this module's own docstring
+# "MIN_TRADING_DAYS_FOR_DRAWDOWN gate" note for the full live-verified evidence trail: brand-new
+# IPOs with 5-55 days of history were landing in the top 15 of the corrected risk_score purely off
+# max_drawdown_1y (populated over whatever partial history exists) + Liquidity, with
+# volatility_60d/beta both correctly NULL for insufficient history. 60 matches
+# volatility_60d's own minimum window - not a new number invented for this gate.
+MIN_TRADING_DAYS_FOR_DRAWDOWN = 60
+
+
+def _owner() -> Any:
+    """Lazy reference to the owner module, resolved at call time. See
+    `momentum_scoring.py`'s `_owner()` for the full rationale (DatabaseContext/execute_values
+    test-monkeypatch reachability + avoiding a top-level owner-module import while it's still
+    mid-import) - identical reasoning, copied rather than shared to avoid adding a new
+    cross-mixin import."""
+    from loaders import load_stock_scores as _owner_mod
+
+    return _owner_mod
+
 
 # RISK_MIN_WEIGHT_AVAILABLE (added 2026-08-31, same /goal session - "dig in one more time" pass
 # after fixing the identical problem in Growth). _score_risk had the same missing-floor gap:
@@ -600,3 +675,362 @@ class RiskScoringMixin:
             if log_dv <= x1:
                 return y0 + (log_dv - x0) / (x1 - x0) * (y1 - y0)
         return 100.0  # unreachable - satisfies mypy's exhaustiveness check
+
+    @staticmethod
+    def _components_with_corrected_risk(components_old: Any, risk_score_new: float | None) -> str:
+        """Return components (the Pass-1 JSON breakdown dict) re-serialized with its 'risk' key
+        set to risk_score_new, every other pillar untouched. Mirrors
+        MomentumScoringMixin._components_with_corrected_momentum exactly - same bug class this
+        repo already fixed there, just for the 'risk' key."""
+        if isinstance(components_old, dict):
+            components_new = dict(components_old)
+        elif components_old:
+            components_new = json.loads(components_old)
+        else:
+            components_new = {}
+        components_new["risk"] = risk_score_new
+        return json.dumps(components_new)
+
+    def _fetch_risk_absolute_zscore_rows(self) -> list[tuple[Any, ...]]:
+        """DB fetch half of `update_risk_absolute_zscore_scores` - split out to keep that
+        method's own cyclomatic complexity within this repo's ruff C901 limit (pure extraction,
+        no behavior change). Re-derives avg_dollar_volume_20d the same way
+        `load_stock_scores.py`'s own Pass-1 liquidity cache does (45-calendar-day price_daily
+        lookback, last 20 real trading days) rather than depending on that cache's instance
+        lifetime - this method runs as an independent, self-contained batch pass. Also counts
+        each symbol's total real price_daily rows (`trading_days_history`) - see
+        MIN_TRADING_DAYS_FOR_DRAWDOWN's own docstring for why max_drawdown_1y needs this gate."""
+        with _owner().DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                WITH liquidity AS (
+                    SELECT symbol, AVG(volume * close) AS avg_dollar_volume_20d
+                    FROM (
+                        SELECT symbol, volume, close,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM price_daily
+                        WHERE date >= CURRENT_DATE - INTERVAL '45 days'
+                          AND COALESCE(data_unavailable, false) = false
+                          AND volume IS NOT NULL AND close IS NOT NULL
+                    ) ranked
+                    WHERE rn <= 20
+                    GROUP BY symbol
+                ),
+                history AS (
+                    SELECT symbol, COUNT(*) AS trading_days_history
+                    FROM price_daily
+                    WHERE COALESCE(data_unavailable, false) = false
+                    GROUP BY symbol
+                )
+                SELECT ss.symbol, ss.risk_score, ss.composite_score, ss.quality_score,
+                       ss.growth_score, ss.value_score, ss.momentum_score, ss.components,
+                       ss.data_completeness, ss.data_unavailable,
+                       sm.volatility_60d, sm.volatility_252d, sm.beta, sm.max_drawdown_1y,
+                       liq.avg_dollar_volume_20d, COALESCE(hist.trading_days_history, 0)
+                FROM stock_scores ss
+                JOIN stability_metrics sm ON sm.symbol = ss.symbol
+                LEFT JOIN liquidity liq ON liq.symbol = ss.symbol
+                LEFT JOIN history hist ON hist.symbol = ss.symbol
+                JOIN stock_symbols su ON su.symbol = ss.symbol
+                LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                WHERE ss.risk_score IS NOT NULL
+                  AND COALESCE(sm.data_unavailable, false) = false
+                  AND ("""
+                + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                + ")"
+            )
+            rows: list[tuple[Any, ...]] = cur.fetchall()
+            return rows
+
+    @staticmethod
+    def _compute_risk_absolute_zscore_percentiles(
+        rows: list[tuple[Any, ...]],
+    ) -> dict[str, dict[str, float]]:
+        """Winsorize+z-score Risk's 3 "lower raw value is better" inputs (volatility_60d,
+        volatility_252d, max_drawdown_1y magnitude) UNIVERSE-WIDE (no sector grouping - calling
+        `sector_neutral_zscore` with an empty sector map pools every symbol into its single
+        residual group, giving the plain winsorize-then-z-score this module's own docstring
+        explains Risk needs INSTEAD of the sector-relative version Momentum/Growth/Value use).
+        Split out of `update_risk_absolute_zscore_scores` for C901, pure function of its inputs.
+
+        Each raw value is NEGATED before z-scoring so a symbol with a LOW volatility/drawdown -
+        the desirable direction for this pillar - gets a HIGH z-score and therefore a HIGH
+        percentile score, matching `zscore_to_percentile_scale`'s "higher input -> higher
+        output" convention (used as-is, un-negated, by Momentum's own z-score pass, where higher
+        raw momentum genuinely IS the desirable direction).
+
+        Same NEAR_ZERO_LIQUIDITY_THRESHOLD measurement-validity gate `_score_risk` applies to
+        volatility_60d/252d (not max_drawdown, which that gate never covered): a frozen/near-
+        frozen-price symbol's mechanically-suppressed near-zero volatility is excluded from the
+        population entirely here, not just from its own score - including it would bias every
+        OTHER symbol's z-score against a fabricated data point, not just fail to score the thin
+        symbol itself. max_drawdown_1y gets its OWN, separate MIN_TRADING_DAYS_FOR_DRAWDOWN gate
+        (see that constant's docstring) for the same population-bias reason: a brand-new IPO's
+        artificially-tiny drawdown (not enough elapsed time to have lived through a real one)
+        would otherwise skew every other symbol's drawdown z-score too, not just its own.
+        """
+        raw_vol60: dict[str, float] = {}
+        raw_vol252: dict[str, float] = {}
+        raw_drawdown: dict[str, float] = {}
+
+        for row in rows:
+            symbol = row[0]
+            vol_60d, vol_252d, _beta, max_drawdown_1y, adv20, trading_days_history = (
+                row[10],
+                row[11],
+                row[12],
+                row[13],
+                row[14],
+                row[15],
+            )
+            price_stats_unreliable = adv20 is not None and 0 <= float(adv20) < NEAR_ZERO_LIQUIDITY_THRESHOLD
+            if not price_stats_unreliable:
+                if vol_60d is not None:
+                    raw_vol60[symbol] = -max(0.0, float(vol_60d))
+                if vol_252d is not None:
+                    raw_vol252[symbol] = -max(0.0, float(vol_252d))
+            if (
+                max_drawdown_1y is not None
+                and float(max_drawdown_1y) <= 0
+                and int(trading_days_history) >= MIN_TRADING_DAYS_FOR_DRAWDOWN
+            ):
+                raw_drawdown[symbol] = -abs(float(max_drawdown_1y))
+
+        empty_sectors: dict[str, str] = {}
+        return {
+            "vol_60d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol60, empty_sectors)),
+            "vol_252d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol252, empty_sectors)),
+            "max_drawdown": zscore_to_percentile_scale(sector_neutral_zscore(raw_drawdown, empty_sectors)),
+        }
+
+    def _recompute_risk_row(
+        self,
+        row: tuple[Any, ...],
+        pct_by_field: dict[str, dict[str, float]],
+        min_completeness_threshold: float,
+    ) -> tuple[str, float | None, float, str | None, float, bool] | None:
+        """Recompute one symbol's risk_score/composite_score from the absolute z-score
+        percentiles (Volatility 60D/252D/Max Drawdown) plus Beta/Liquidity's UNCHANGED existing
+        curve scores, and diff against its current stored values. Returns None if nothing
+        changed. Split out of `update_risk_absolute_zscore_scores` for C901, pure function of
+        its inputs - mirrors MomentumScoringMixin._recompute_momentum_row's structure."""
+        symbol = row[0]
+        risk_score_old = float(row[1])
+        composite_score_old = float(row[2])
+        quality_score, growth_score, value_score, momentum_score = row[3], row[4], row[5], row[6]
+        components_old = row[7]
+        data_completeness_old = float(row[8]) if row[8] is not None else None
+        data_unavailable_old = bool(row[9]) if row[9] is not None else False
+        beta, max_drawdown_1y, adv20, trading_days_history = row[12], row[13], row[14], row[15]
+
+        price_stats_unreliable = adv20 is not None and 0 <= float(adv20) < NEAR_ZERO_LIQUIDITY_THRESHOLD
+
+        weighted_sum = 0.0
+        total_weight = 0.0
+        if symbol in pct_by_field["vol_60d"]:
+            weighted_sum += pct_by_field["vol_60d"][symbol] * 0.20
+            total_weight += 0.20
+        if symbol in pct_by_field["vol_252d"]:
+            weighted_sum += pct_by_field["vol_252d"][symbol] * 0.20
+            total_weight += 0.20
+        if not price_stats_unreliable and beta is not None:
+            diff = min(abs(float(beta) - 1.0), 2.0)
+            weighted_sum += max(0.0, 100 - (diff * 50)) * 0.20
+            total_weight += 0.20
+        if symbol in pct_by_field["max_drawdown"]:
+            weighted_sum += pct_by_field["max_drawdown"][symbol] * 0.20
+            total_weight += 0.20
+        elif max_drawdown_1y is not None and float(max_drawdown_1y) > 0:
+            logger.critical(
+                f"[RISK SCORING] {symbol}: max_drawdown_1y={max_drawdown_1y} is positive in the "
+                f"absolute z-score pass - data-integrity violation, excluding from Risk score "
+                f"(same guard _score_risk's Pass-1 curve applies)."
+            )
+        elif max_drawdown_1y is not None and int(trading_days_history) < MIN_TRADING_DAYS_FOR_DRAWDOWN:
+            logger.debug(
+                f"[STOCK_SCORES] {symbol} max_drawdown_1y excluded from absolute z-score pass: "
+                f"only {trading_days_history} trading days of history, below "
+                f"MIN_TRADING_DAYS_FOR_DRAWDOWN={MIN_TRADING_DAYS_FOR_DRAWDOWN} - not enough "
+                f"elapsed time for this reading to reflect a real drawdown."
+            )
+        if adv20 is not None and float(adv20) > 0:
+            weighted_sum += self._liquidity_curve_score(float(adv20)) * 0.20
+            total_weight += 0.20
+
+        if total_weight >= RISK_MIN_WEIGHT_AVAILABLE:
+            risk_score_new: float | None = round(weighted_sum / total_weight, 2)
+        else:
+            if total_weight > 0:
+                logger.info(
+                    f"[STOCK_SCORES] {symbol} risk_score withheld in absolute z-score pass: "
+                    f"only {total_weight:.2f}/1.00 weight available, below "
+                    f"RISK_MIN_WEIGHT_AVAILABLE={RISK_MIN_WEIGHT_AVAILABLE}."
+                )
+            risk_score_new = None
+
+        weights = _value_risk_adjusted_weights(risk_score_new)
+        composite_val = 0.0
+        for pillar_name, pillar_score in (
+            ("quality", quality_score),
+            ("growth", growth_score),
+            ("value", value_score),
+            ("risk", risk_score_new),
+            ("momentum", momentum_score),
+        ):
+            if pillar_score is not None:
+                composite_val += float(pillar_score) * weights[pillar_name]
+        composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+
+        all_scores_new: dict[str, float | None] = {
+            "quality": float(quality_score) if quality_score is not None else None,
+            "growth": float(growth_score) if growth_score is not None else None,
+            "value": float(value_score) if value_score is not None else None,
+            "risk": risk_score_new,
+            "momentum": float(momentum_score) if momentum_score is not None else None,
+        }
+        available_weight = sum(
+            BASE_PILLAR_WEIGHTS[pillar] for pillar, score in all_scores_new.items() if score is not None
+        )
+        data_completeness_new = min(99.99, round(available_weight * 100, 2))
+        data_unavailable_new = data_completeness_new < min_completeness_threshold
+
+        if (
+            risk_score_new != risk_score_old
+            or composite_score_new != composite_score_old
+            or data_completeness_new != data_completeness_old
+            or data_unavailable_new != data_unavailable_old
+        ):
+            components_json = self._components_with_corrected_risk(components_old, risk_score_new)
+            return (
+                symbol,
+                risk_score_new,
+                composite_score_new,
+                components_json,
+                data_completeness_new,
+                data_unavailable_new,
+            )
+        return None
+
+    def update_risk_absolute_zscore_scores(self) -> None:
+        """Batch pass: replace Risk's Pass-1 PROVISIONAL fixed-breakpoint curve scores
+        (`_vol_curve_score`/`_max_drawdown_curve_score`, calibrated to invented thresholds that
+        this module's own docstring shows badly miscalibrated against the live universe) with a
+        real winsorize+z-score against the current run's universe for Volatility 60D/252D/Max
+        Drawdown, then FULLY RECOMPUTES risk_score and composite_score from scratch off the raw
+        stored stability_metrics/price_daily columns - mirrors
+        `update_momentum_sector_neutral_scores()`'s pure-overwrite pattern, with one deliberate
+        difference: no sector grouping (see this module's own docstring for why Risk stays
+        universe-wide rather than sector-relative like Momentum/Growth/Value), and a
+        MIN_TRADING_DAYS_FOR_DRAWDOWN gate on max_drawdown_1y that Pass 1 does not have (found
+        during this pass's own pre-ship verification - see that constant's docstring).
+
+        WHY (2026-09-13, /goal "question the scoring methodology" session): live-checked
+        `_vol_curve_score`'s breakpoints (0.15/0.30/0.60) against the real stability_metrics
+        distribution before touching anything - p50 volatility_60d=0.516, already past the
+        curve's OWN 0.30 breakpoint (the point where its score formula switches to the steepest
+        decay segment), and under 1% of the universe clears the curve's 100-point threshold
+        (0.15). Same story for `_max_drawdown_curve_score` (p50 max_drawdown_1y=41.6%, past its
+        25% breakpoint). These breakpoints were never derived from this universe's actual
+        distribution - fixing that (self-calibrating winsorize+z-score, recomputed fresh every
+        run against whatever the universe currently looks like) is the same fix already applied
+        to Momentum/Growth/Value's analogous absolute-mapping problem, using the same shared
+        primitive (`sector_neutral_zscore`/`zscore_to_percentile_scale`), just without the
+        sector grouping those three use (this pillar's own docstring already explains why: the
+        low-volatility anomaly - Ang et al. 2006, Frazzini & Pedersen 2014 - is harvested on an
+        ABSOLUTE basis in the literature, not sector-relative, so sector-neutralizing it would
+        destroy the exact signal this pillar exists to capture).
+
+        PRE-SHIP VERIFICATION CAUGHT A REAL REGRESSION before this ever ran for real (not
+        assumed safe from the design above alone): a first dry run of just the z-score swap put
+        13 brand-new IPOs (5-55 days of price_daily history) in the top 15 of the corrected
+        risk_score, ahead of RY/BMO/BRK.A/BRK.B - the exact "shitty microcap with no real track
+        record dominates the safest list" failure mode this whole exercise exists to eliminate,
+        not fix. Root cause verified directly: each had real, large avg_dollar_volume_20d
+        ($5.9M-$76.3M/day, genuinely liquid) but NULL volatility_60d/beta
+        (volatility_60d_unavailable_reason='insufficient_history', correctly withheld) while
+        max_drawdown_1y was populated over whatever partial history existed - a stock days old
+        hasn't lived through a real drawdown yet, so a small max_drawdown_1y there isn't a
+        genuine safety signal. MIN_TRADING_DAYS_FOR_DRAWDOWN (60, matching volatility_60d's own
+        minimum window) now gates max_drawdown_1y out of both the population and any individual
+        score for these symbols, correctly dropping them to Liquidity-only (0.20 weight, below
+        RISK_MIN_WEIGHT_AVAILABLE) - withheld as insufficient_risk_inputs_thin_sample instead of
+        a fabricated top-15 safety score. Re-verified after adding the gate: none of the 13
+        symbols above remain in the top 200 of the corrected risk_score.
+
+        Beta and Liquidity are UNCHANGED - recomputed here using their existing, unmodified
+        curve functions (`_liquidity_curve_score`) or inline formula (beta's distance-from-1.0),
+        purely so this pass can fully recompute risk_score/composite_score without depending on
+        Pass-1's now-partially-stale value. Beta isn't a "lower is better" input at all (it's
+        scored for closeness to 1.0, a different kind of target the z-score transform doesn't
+        fit), and Liquidity's curve is already anchored to a real system constant
+        (`algo_config.min_adv_dollars`), not an invented breakpoint - neither has the
+        miscalibration problem this pass exists to fix.
+
+        Runs FIRST in `post_run()`, ahead of `update_momentum_sector_neutral_scores()` and every
+        other batch pass that recomputes composite_score from the pillar scores as they currently
+        stand - so those passes see the CORRECTED risk_score, not Pass-1's miscalibrated one, the
+        same "order matters" reasoning `post_run()`'s own comment already documents for why
+        Momentum runs before `update_rs_percentiles()`.
+
+        Raises on failure, same as every other post_run() batch pass - an inconsistent
+        risk_score/composite_score is a live-trading-relevant correctness issue.
+        """
+        try:
+            rows = self._fetch_risk_absolute_zscore_rows()
+            if not rows:
+                logger.warning(
+                    "[STOCK_SCORES] update_risk_absolute_zscore_scores: no eligible rows found "
+                    "(risk_score IS NOT NULL) - skipping, nothing to correct."
+                )
+                return
+
+            pct_by_field = self._compute_risk_absolute_zscore_percentiles(rows)
+
+            logger.info(
+                "[STOCK_SCORES] Risk absolute z-score universe (no sector grouping): "
+                + ", ".join(f"{field}={len(values)}" for field, values in pct_by_field.items())
+            )
+
+            min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
+
+            updates: list[tuple[str, float | None, float, str | None, float, bool]] = []
+            for row in rows:
+                update = self._recompute_risk_row(row, pct_by_field, min_completeness_threshold)
+                if update is not None:
+                    updates.append(update)
+
+            if not updates:
+                logger.info(
+                    "[STOCK_SCORES] Risk absolute z-score pass: no symbol's risk_score/"
+                    "composite_score changed (expected on a repeat run with unchanged inputs - "
+                    "this pass is a pure function of the raw stored stability_metrics/price_daily "
+                    "columns, same idempotency property as update_momentum_sector_neutral_scores())."
+                )
+                return
+
+            with _owner().DatabaseContext("write") as cur:
+                _owner().execute_values(
+                    cur,
+                    """
+                    UPDATE stock_scores AS ss
+                    SET risk_score = v.risk_score,
+                        composite_score = v.composite_score,
+                        components = v.components::jsonb,
+                        data_completeness = v.data_completeness,
+                        data_unavailable = v.data_unavailable,
+                        updated_at = CURRENT_TIMESTAMP
+                    FROM (VALUES %s) AS v(symbol, risk_score, composite_score, components,
+                                           data_completeness, data_unavailable)
+                    WHERE ss.symbol = v.symbol
+                    """,
+                    updates,
+                    template="(%s, %s, %s, %s, %s, %s)",
+                )
+            logger.info(
+                f"[STOCK_SCORES] Risk absolute z-score pass corrected "
+                f"{len(updates)}/{len(rows)} symbols' risk_score/composite_score (post_run completed)"
+            )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            error_msg = f"Risk absolute z-score batch update failed - stock scores cannot be finalized: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
