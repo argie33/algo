@@ -10,7 +10,7 @@ from rich.text import Text
 
 from ..error_boundary import has_error
 from ..formatters import fmt_age, next_run_str
-from ..utilities import DIM, PHASE_NAMES, G, R, Y
+from ..utilities import DIM, PHASE_NAMES, G, R, Y, get_market_condition_thresholds
 from ._helpers import _best_halt_reason, _error_panel
 from .data_extractors import extract_config_params, extract_risk_metrics, safe_get_dict, safe_get_list
 from .health_shared import (
@@ -251,8 +251,15 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
             logger.debug("[HEALTH] Risk: has_positions missing, defaulting to False for display")
             has_positions = False
         beta_display = f"{beta_val:.2f}" if has_positions else "--"
+        _mct = get_market_condition_thresholds()
         beta_c = (
-            "dim" if (not has_positions or beta_val <= 0) else (R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G))
+            "dim"
+            if (not has_positions or beta_val <= 0)
+            else (
+                R
+                if beta_val >= _mct["beta_warning_threshold"]
+                else (Y if beta_val >= _mct["beta_caution_threshold"] else G)
+            )
         )
         var_c = _var_color(var95_val)
         svar_s = (

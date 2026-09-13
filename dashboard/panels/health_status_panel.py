@@ -14,7 +14,7 @@ from rich.text import Text
 
 from ..error_boundary import has_error
 from ..formatters import fmt_age, next_run_str
-from ..utilities import DIM, PHASE_NAMES, G, R, Y
+from ..utilities import DIM, PHASE_NAMES, G, R, Y, get_market_condition_thresholds
 from ._helpers import _best_halt_reason, _error_panel
 from .data_extractors import extract_config_params, safe_get_dict, safe_get_list
 from .health_shared import (
@@ -216,8 +216,11 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
     cvar95_val = safe_float(risk_dict.get("cvar95"), default=None)
     svar_val = safe_float(risk_dict.get("svar"), default=None)
 
+    _mct = get_market_condition_thresholds()
     beta_c = (
-        R if (beta_val is not None and beta_val >= 1.2) else (Y if (beta_val is not None and beta_val >= 0.8) else G)
+        R
+        if (beta_val is not None and beta_val >= _mct["beta_warning_threshold"])
+        else (Y if (beta_val is not None and beta_val >= _mct["beta_caution_threshold"]) else G)
     )
     conc_c = (
         R

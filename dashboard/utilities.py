@@ -471,3 +471,63 @@ def clear_data_quality_issues() -> None:
     global _data_quality_issues
     with _data_quality_lock:
         _data_quality_issues = []
+
+
+# FIXED 2026-09-13 (systematic seeded-vs-enforced algo_config sweep,
+# scripts/audit_unenforced_config.py): put_call_bullish_threshold/put_call_fearful_
+# threshold/upvol_good_threshold/upvol_caution_threshold/breadth_good_threshold/
+# breadth_caution_threshold/yield_curve_good_threshold/beta_warning_threshold/
+# beta_caution_threshold were all seeded, schema-validated algo_config values under
+# the "Market Conditions" category, only ever referenced via trading_config.py's dead
+# get_stock_filter_config() dict-builder - dashboard/panels/market.py,
+# dashboard/panels/portfolio.py, dashboard/panels/health_orch.py and
+# dashboard/panels/health_status_panel.py all had the exact same GREEN/YELLOW/RED
+# breakpoints hardcoded as magic-number literals in duplicated inline ternaries
+# instead of reading them. Same shape as market_exposure.py's veto-cluster fix
+# (commit 6c9f26864) - a pure configurability fix, zero behavior change on default
+# config, but an operator editing e.g. upvol_good_threshold via the dashboard/API now
+# actually changes where the up-volume traffic light flips, instead of silently
+# doing nothing. Centralized here (one AlgoConfig() read per grade, cached for the
+# life of the process the same way other dashboard config reads already are) rather
+# than duplicating the fail-fast config.get() boilerplate at every one of the ~13
+# call sites across 4 files.
+_market_condition_thresholds: dict[str, float] | None = None
+
+
+def get_market_condition_thresholds() -> dict[str, float]:
+    """Fail-fast fetch of the GREEN/YELLOW/RED breakpoints dashboard panels use to
+    color-grade put/call ratio, up-volume %, NH-NL breadth, yield-curve slope and
+    portfolio beta. Cached at module scope - these are operator-tunable but not
+    expected to change within a single dashboard process lifetime; a config edit
+    takes effect on the next dashboard restart, same as other startup-loaded config.
+    """
+    global _market_condition_thresholds
+    if _market_condition_thresholds is not None:
+        return _market_condition_thresholds
+
+    from algo.infrastructure.config.main import AlgoConfig
+
+    cfg = AlgoConfig()
+    keys = (
+        "put_call_bullish_threshold",
+        "put_call_fearful_threshold",
+        "upvol_good_threshold",
+        "upvol_caution_threshold",
+        "breadth_good_threshold",
+        "breadth_caution_threshold",
+        "yield_curve_good_threshold",
+        "beta_warning_threshold",
+        "beta_caution_threshold",
+    )
+    thresholds: dict[str, float] = {}
+    for key in keys:
+        val = cfg.get(key)
+        if val is None:
+            raise ValueError(
+                f"[MARKET_CONDITION_THRESHOLDS] Missing config '{key}'. "
+                f"Cannot color-grade market condition panels without this threshold. "
+                f"Check algo_config table has this key."
+            )
+        thresholds[key] = float(val)
+    _market_condition_thresholds = thresholds
+    return thresholds
