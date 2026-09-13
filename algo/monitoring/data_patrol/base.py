@@ -192,6 +192,14 @@ class DataPatrol:
                 from .logger import PatrolLogger
 
                 patrol_logger = PatrolLogger(self.run_id)
+                # FIXED 2026-09-12: log_configuration() was fully implemented in logger.py
+                # (INSERT INTO data_patrol_log AS check_name='configuration_audit') but had no
+                # call site anywhere in the codebase - the exact same "computed but never wired"
+                # pattern as the log_results/log_performance gap fixed 2026-09-07 just above,
+                # just missed in that pass. Left data_patrol_log's configuration_audit row
+                # permanently stuck at its last manual/ad-hoc insert (2026-06-28) regardless of
+                # how many scheduled patrol runs executed since.
+                patrol_logger.log_configuration(cur, self.config.as_dict())
                 patrol_logger.log_results(cur, self.results)
                 patrol_logger.log_performance(cur, time.monotonic() - run_started, "OK")
                 conn.commit()
