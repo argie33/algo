@@ -773,7 +773,19 @@ class DividendDataLoader(SecLoaderBase):
         """
         if isinstance(facts.get("cef"), dict) or isinstance(facts.get("ffd"), dict):
             return self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")
+        if self._is_registered_investment_company_fingerprint(symbol):
+            return self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")
+        return self._unavailable_record(symbol, now_et, "no_us_gaap_facts")
 
+    @staticmethod
+    def _is_registered_investment_company_fingerprint(symbol: str) -> bool:
+        """True if company_info_sec's entity_type='other'+sic_code IS NULL fingerprint
+        (the same signal vqg_symbol_gates.py's _get_registered_investment_company_symbols
+        already relies on) matches this symbol - live-checked to hold for every known real
+        closed-end fund/investment trust, and NOT for a real operating company that merely
+        happens to also carry a "cef"/"ffd" taxonomy key (e.g. FTW's Reg A offering-fee
+        data). Extracted so both call sites (fully-empty facts, and non-empty us-gaap with
+        only fee-table concepts) apply the identical, verified guard."""
         from utils.db import DatabaseContext
 
         with DatabaseContext("read") as cur:
@@ -782,9 +794,7 @@ class DividendDataLoader(SecLoaderBase):
                 (symbol,),
             )
             cis_row = cur.fetchone()
-        if cis_row and cis_row[0] == "other" and cis_row[1] is None:
-            return self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")
-        return self._unavailable_record(symbol, now_et, "no_us_gaap_facts")
+        return bool(cis_row and cis_row[0] == "other" and cis_row[1] is None)
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch dividend data for symbol from SEC XBRL companyfacts.
@@ -854,9 +864,17 @@ class DividendDataLoader(SecLoaderBase):
                 symbol, us_gaap, "CommonStockDividendsPerShareDeclared"
             )
             paid = self._extract_dividends_from_xbrl_concept(symbol, us_gaap, "CommonStockDividendsPerShareCashPaid")
+            # FIX 2026-09-10 (goal: "Missing SEC/XBRL data" under-300 push): live-confirmed
+            # FTW (real oil & gas operating company, SIC 1311, entity_type='operating') tags
+            # its real quarterly cash dividend ($0.10125/share) exclusively under this concept
+            # - never the two above. Same per-share-dollar semantics as
+            # CommonStockDividendsPerShareDeclared (USD/shares), just a less common tag some
+            # filers use for a payable/declared-but-unpaid per-share amount.
+            payable = self._extract_dividends_from_xbrl_concept(symbol, us_gaap, "DividendsPayableAmountPerShare")
 
             results.extend(declared)
             results.extend(paid)
+            results.extend(payable)
 
             for ifrs_concept in _IFRS_DIVIDEND_PER_SHARE_CONCEPTS:
                 results.extend(self._extract_dividends_from_xbrl_concept(symbol, ifrs_full, ifrs_concept))
@@ -961,7 +979,21 @@ class DividendDataLoader(SecLoaderBase):
             # confirming no real income-statement facts either) rather than widening the
             # earlier gate, so a genuine thin/unavailable operating filer that happens to
             # lack both is unaffected.
-            if isinstance(facts.get("cef"), dict) or isinstance(facts.get("ffd"), dict):
+            # BUG FOUND 2026-09-10 (goal: "under 300" push): this used to trust "cef"/"ffd"
+            # taxonomy presence alone as a registered-investment-company signal - but
+            # live-confirmed FTW (real oil & gas operating company, SIC 1311,
+            # entity_type='operating' - see the dividend-payable fix just above) also carries
+            # an "ffd" key, whose concepts here (NetFeeAmt/TtlFeeAmt/TtlOfferingAmt/...) are a
+            # Regulation A/crowdfunding offering-fee schedule, unrelated to fund/CEF status -
+            # "ffd" is not a fund-exclusive taxonomy. Gating on the same entity_type='other'+
+            # sic_code IS NULL fingerprint the fully-empty-facts branch above already uses
+            # (live-confirmed: every real CEF in this bucket - BCAT/BGT/BIT/TYG/BOT/BST/GBAB/
+            # VKI/VTN/ECC/XFLT - has exactly that fingerprint, while FTW does not) keeps the
+            # genuine CEF case working and stops misclassifying a real operating-company
+            # dividend gap as "Legitimate / not applicable".
+            if (
+                isinstance(facts.get("cef"), dict) or isinstance(facts.get("ffd"), dict)
+            ) and self._is_registered_investment_company_fingerprint(symbol):
                 return [self._unavailable_record(symbol, now_et, "registered_investment_company_no_xbrl")]
 
             # No dividend data found in XBRL, and no real income-statement facts either -
