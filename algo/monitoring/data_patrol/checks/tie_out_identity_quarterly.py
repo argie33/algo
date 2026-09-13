@@ -24,6 +24,8 @@ from .tie_out_shared import (
     _QUARTERLY_NET_CHANGE_CASH_TOLERANCE_PCT,
     _QUARTERLY_PRETAX_NET_INCOME_TOLERANCE_FLOOR,
     _QUARTERLY_PRETAX_NET_INCOME_TOLERANCE_PCT,
+    _QUARTERLY_REVENUE_ANNUAL_EXTREME_OVERSHOOT,
+    _QUARTERLY_REVENUE_ANNUAL_OVERSHOOT_TOLERANCE,
 )
 
 logger = logging.getLogger(__name__)
@@ -691,6 +693,109 @@ class TieOutIdentityQuarterlyMixin:
             logger.error(f"[TieOutChecker] quarterly_revenue_annual_duplicate failed: {e}", exc_info=True)
             self.log(
                 "quarterly_revenue_annual_duplicate",
+                ERROR,
+                "quarterly_income_statement",
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
+
+    def check_quarterly_revenue_sum_vs_annual_total(self, cur: Any) -> None:
+        """Sum of a fiscal year's real quarterly revenue vs. that year's own audited annual
+        total - flags the opposite shape from check_quarterly_revenue_annual_duplicate above
+        (there, all 4 quarters wrongly COPY the annual figure; here, one quarter wrongly holds
+        a multi-month CUMULATIVE figure, so the year's quarters summed overshoot the real total).
+
+        ADDED 2026-09-13 (goal: "ours vs industry factor lists" symbol-level audit - VLUE's real
+        top holdings tested against our value_score). Found via QCOM, VLUE holding #14: its
+        ps_ratio was 312 (implausible for a semiconductor filer), traced to
+        quarterly_income_statement.revenue at fiscal_quarter=3 being ~$33B in both FY2025 and
+        FY2026 while every other quarter is $9.9-12.3B - live-verified against SEC EDGAR's own
+        companyconcept API directly (accession 0000804328-25-000085): real FY2025 annual revenue
+        is $44.284B, not the $639M stored in annual_income_statement. Q1+Q2+a-plausible-Q3
+        (~$11B) sums to ~$32.3B, almost exactly the stored Q3 figure - reads as a 9-month YTD
+        cumulative XBRL duration fact extracted and mislabeled as the discrete quarter, recurring
+        at the same fiscal position across at least two fiscal years, not a one-off parsing
+        glitch. This check formalizes that discovery into a permanent scan instead of leaving it
+        a one-off manual dig (per user direction the same session: "how do we flag all these
+        things in our scans").
+
+        Two severities, same underlying signature (year's quarters summed exceed the audited
+        annual total by more than the tolerance), split by how extreme the overshoot is:
+        - WARN (1.35x-10x): most likely the QUARTER is wrong (a cumulative fact mislabeled as
+          discrete) while the annual total itself is trustworthy.
+        - ERROR (>10x): the annual total itself is implausibly small for the overshoot to be
+          explained by one bad quarter alone - the ANNUAL figure is probably the broken value,
+          same shape as QCOM's $639M vs real $44.284B.
+
+        Deliberately NOT flagging every symbol where quarters merely sum higher than the annual
+        figure - normal Q4-derivation rounding and genuine intra-year revenue growth both produce
+        modest overshoot on their own (live-tested: a 1,878-candidate same-year-cumulative-shape
+        screen had 1,351/1,878 rows explained by ordinary growth once checked against this exact
+        1.35x floor). Only sampled, not exhaustively confirmed against an external source beyond
+        QCOM - treat WARN findings here as a review queue, not an auto-confirmed bug list, until
+        a broader sample is cross-checked the same way QCOM was.
+        """
+        try:
+            cur.execute(
+                """
+                WITH quarters AS (
+                    SELECT symbol, fiscal_year, SUM(revenue) AS quarters_sum, COUNT(*) AS n_quarters
+                    FROM quarterly_income_statement
+                    WHERE data_unavailable = FALSE AND revenue IS NOT NULL AND revenue > 0
+                    GROUP BY symbol, fiscal_year
+                    HAVING COUNT(*) >= 2
+                )
+                SELECT q.symbol, q.fiscal_year, q.quarters_sum, q.n_quarters, a.revenue AS annual_revenue
+                FROM quarters q
+                JOIN annual_income_statement a ON a.symbol = q.symbol AND a.fiscal_year = q.fiscal_year
+                JOIN stock_symbols s ON s.symbol = q.symbol AND s.active = true
+                WHERE a.data_unavailable = FALSE AND a.revenue IS NOT NULL AND a.revenue > 0
+                """
+            )
+            warn_flagged, error_flagged = [], []
+            for row in cur.fetchall():
+                quarters_sum, annual_revenue = float(row["quarters_sum"]), float(row["annual_revenue"])
+                overshoot_ratio = quarters_sum / annual_revenue
+                if overshoot_ratio <= _QUARTERLY_REVENUE_ANNUAL_OVERSHOOT_TOLERANCE:
+                    continue
+                entry = {
+                    "symbol": row["symbol"],
+                    "fiscal_year": row["fiscal_year"],
+                    "quarters_sum": quarters_sum,
+                    "annual_revenue": annual_revenue,
+                    "n_quarters": row["n_quarters"],
+                    "overshoot_ratio": round(overshoot_ratio, 2),
+                }
+                if overshoot_ratio > _QUARTERLY_REVENUE_ANNUAL_EXTREME_OVERSHOOT:
+                    error_flagged.append(entry)
+                else:
+                    warn_flagged.append(entry)
+            if error_flagged:
+                error_flagged.sort(key=lambda r: r["overshoot_ratio"], reverse=True)
+                self.log(
+                    "quarterly_revenue_sum_vs_annual_extreme",
+                    ERROR,
+                    "annual_income_statement",
+                    f"{len(error_flagged)} symbol/year(s) where summed quarterly revenue exceeds "
+                    f"the audited annual total by >{_QUARTERLY_REVENUE_ANNUAL_EXTREME_OVERSHOOT:.0f}x - "
+                    f"the ANNUAL figure itself is likely the broken value, not just a quarter",
+                    {"count": len(error_flagged), "examples": error_flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+            if warn_flagged:
+                warn_flagged.sort(key=lambda r: r["overshoot_ratio"], reverse=True)
+                self.log(
+                    "quarterly_revenue_sum_vs_annual",
+                    WARN,
+                    "quarterly_income_statement",
+                    f"{len(warn_flagged)} symbol/year(s) where summed quarterly revenue exceeds "
+                    f"the audited annual total by more than "
+                    f"{_QUARTERLY_REVENUE_ANNUAL_OVERSHOOT_TOLERANCE:.0%} - review queue, not yet "
+                    f"individually confirmed against an external source (see docstring)",
+                    {"count": len(warn_flagged), "examples": warn_flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+        except Exception as e:
+            logger.error(f"[TieOutChecker] quarterly_revenue_sum_vs_annual failed: {e}", exc_info=True)
+            self.log(
+                "quarterly_revenue_sum_vs_annual",
                 ERROR,
                 "quarterly_income_statement",
                 f"Check execution failed (likely schema drift, not a data finding): {e}",

@@ -8,7 +8,7 @@ check to one row per symbol instead of re-flagging every historical year forever
 from unittest.mock import MagicMock
 
 from algo.monitoring.data_patrol.checks.tie_out import TieOutChecker
-from algo.monitoring.data_patrol.config import ERROR, INFO, PatrolConfig
+from algo.monitoring.data_patrol.config import ERROR, INFO, WARN, PatrolConfig
 
 
 def _checker() -> TieOutChecker:
@@ -3725,15 +3725,101 @@ class TestQuarterlyRevenueAnnualDuplicate:
         assert checker.results[0].severity == ERROR
 
 
+class TestQuarterlyRevenueSumVsAnnualTotal:
+    def test_flags_extreme_overshoot_as_error(self) -> None:
+        # QCOM's real shape, live-verified against SEC EDGAR: stored annual revenue ($639M) is
+        # itself implausibly small vs. the year's own quarters summed ($66.6B here), 100x+ over.
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "QCOM",
+                        "fiscal_year": 2025,
+                        "quarters_sum": 66_609_000_000.0,
+                        "n_quarters": 4,
+                        "annual_revenue": 639_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_revenue_sum_vs_annual_total(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_revenue_sum_vs_annual_extreme"
+        assert checker.results[0].severity == ERROR
+        assert checker.results[0].details["examples"][0]["symbol"] == "QCOM"
+
+    def test_flags_moderate_overshoot_as_warn(self) -> None:
+        # A year's quarters summed moderately exceed the annual total (1.35x-10x) - most likely
+        # a single quarter carrying a multi-month cumulative figure, annual total still trusted.
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "SBUX",
+                        "fiscal_year": 2009,
+                        "quarters_sum": 14_000_000_000.0,
+                        "n_quarters": 4,
+                        "annual_revenue": 9_774_600_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_revenue_sum_vs_annual_total(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_revenue_sum_vs_annual"
+        assert checker.results[0].severity == WARN
+        assert checker.results[0].details["examples"][0]["symbol"] == "SBUX"
+
+    def test_does_not_flag_within_tolerance(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "MSFT",
+                        "fiscal_year": 2025,
+                        "quarters_sum": 260_000_000_000.0,
+                        "n_quarters": 4,
+                        "annual_revenue": 245_000_000_000.0,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_revenue_sum_vs_annual_total(cur)
+        assert checker.results == []
+
+    def test_query_requires_at_least_two_quarters_and_positive_annual_revenue(self) -> None:
+        cur = _mock_cursor([[]])
+        checker = _checker()
+        checker.check_quarterly_revenue_sum_vs_annual_total(cur)
+        executed_sql = cur.execute.call_args[0][0]
+        assert "HAVING COUNT(*) >= 2" in executed_sql
+        assert "a.revenue > 0" in executed_sql
+        assert "quarterly_income_statement" in executed_sql
+        assert "annual_income_statement" in executed_sql
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_quarterly_revenue_sum_vs_annual_total(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_revenue_sum_vs_annual"
+        assert checker.results[0].severity == ERROR
+
+
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_eighty_five_checks(self) -> None:
+    def test_run_calls_all_eighty_six_checks(self) -> None:
         # 55 pre-existing checks + 30 Round 7 nonnegative-magnitude checks (15 balance-sheet
-        # fields x annual/quarterly) added in tie_out_nonnegative_magnitudes.py. The 30 new
-        # checks (and the 4 pre-existing ones sharing their now-fixed helper, see
-        # tie_out_shared.py's 2026-09-10 fix) log an INFO result even when clean, so a
-        # no-violations run no longer yields an empty results list for every check.
-        cur = _mock_cursor([[]] * 85)
+        # fields x annual/quarterly) added in tie_out_nonnegative_magnitudes.py + 1 (2026-09-13,
+        # check_quarterly_revenue_sum_vs_annual_total). The 30 Round-7 checks (and the 4
+        # pre-existing ones sharing their now-fixed helper, see tie_out_shared.py's 2026-09-10
+        # fix) log an INFO result even when clean, so a no-violations run no longer yields an
+        # empty results list for every check.
+        cur = _mock_cursor([[]] * 86)
         checker = _checker()
         results = checker.run(cur)
-        assert cur.execute.call_count == 85
+        assert cur.execute.call_count == 86
         assert all(r.severity in (INFO, "info") for r in results)
