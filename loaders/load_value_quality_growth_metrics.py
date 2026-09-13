@@ -43,7 +43,7 @@ from typing import Any, cast
 import psycopg2  # noqa: F401 - used via _owner().psycopg2 in vqg_quality_batch.py
 from psycopg2.extras import execute_values  # noqa: F401 - used via _owner().execute_values in vqg_quality_batch.py
 
-from loaders.helpers.vqg_growth import GrowthMetricsMixin
+from loaders.helpers.vqg_growth import GrowthMetricsMixin, is_split_or_share_count_scale_error
 from loaders.helpers.vqg_quality import QualityMetricsMixin
 from loaders.helpers.vqg_quality_batch import QualityBatchMixin
 from loaders.helpers.vqg_shared import (
@@ -1717,9 +1717,8 @@ class ValueQualityGrowthMetricsLoader(
             for year_a, year_b in itertools.pairwise(window_years):
                 shares_a, shares_b = shares_by_year[year_a], shares_by_year[year_b]
                 share_ratio = max(shares_a, shares_b) / min(shares_a, shares_b)
-                if any(
-                    abs(share_ratio - mult) / mult < self.EPS_SPLIT_GUARD_CLEAN_TOLERANCE
-                    for mult in self.EPS_SPLIT_GUARD_CLEAN_MULTIPLES
+                if is_split_or_share_count_scale_error(
+                    share_ratio, self.EPS_SPLIT_GUARD_CLEAN_MULTIPLES, self.EPS_SPLIT_GUARD_CLEAN_TOLERANCE
                 ):
                     failed_metrics.append(metric_key)
                     if split_discontinuity_metrics is not None:

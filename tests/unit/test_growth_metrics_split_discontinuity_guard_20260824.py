@@ -135,6 +135,32 @@ def test_single_year_ma_share_issuance_near_a_clean_multiple_is_not_blocked():
     assert result["eps_growth_1y_unavailable_reason"] is None
 
 
+def test_unit_scale_error_far_beyond_any_real_split_is_caught_20260913():
+    """REGRESSION for the 2026-09-13 fix: SHARE_COUNT_IMPLAUSIBLE_RATIO. Live-confirmed on
+    several 20-F foreign-private-issuer filers (VALE, PDD, WB, BMA, GGAL) whose
+    shares_outstanding_diluted/basic swings ~1000x-1,000,000x between adjacent fiscal years with
+    no real split anywhere near that ratio (largest real multiple in EPS_SPLIT_GUARD_CLEAN_MULTIPLES
+    is 100) - a filer/extraction unit-scale tagging error, not a corporate action. Before this fix
+    a ratio that didn't closely match any of the recognized clean multiples fell through the guard
+    entirely and was treated as ordinary dilution/buyback drift, silently feeding a garbage BVPS/EPS
+    denominator into CAGR. This fixture mirrors VALE's real FY2008/FY2009 pattern (~1000x jump).
+    """
+    loader = _make_loader()
+    income_rows = [
+        (2026, 100.0, None, None, 2.0, 5200000000, None),
+        (2025, 100.0, None, None, 1.8, 5100000000, None),
+        (2024, 100.0, None, None, 1.6, 5150000000, None),
+        (2023, 100.0, None, None, 1.4, 5180000000, None),
+        (2022, 100.0, None, None, 1.2, 5062148, None),  # scale error: ~1000x too small
+        (2021, 100.0, None, None, 1.0, 5000000000, None),
+    ]
+
+    result = loader._compute_growth_metrics("SCALEERR", income_rows)
+
+    assert result["eps_growth_5y"] is None
+    assert result["eps_growth_5y_unavailable_reason"] == "growth_undefined_share_count_discontinuity"
+
+
 def test_real_split_confounded_by_surrounding_buybacks_is_still_caught():
     """GOOGL-shaped: a real 20:1 split concentrated in one fiscal year, with buybacks in the
     surrounding years pulling the naive 5yr ENDPOINT ratio down to ~18x (not exactly 20x) - the

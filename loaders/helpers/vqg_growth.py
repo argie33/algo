@@ -48,6 +48,23 @@ def _owner() -> Any:
 
 logger = logging.getLogger("loaders.load_value_quality_growth_metrics")
 
+# Beyond the largest real split multiple in EPS_SPLIT_GUARD_CLEAN_MULTIPLES (100x), with
+# margin - live-confirmed 2026-09-13 that real adjacent-year share-count changes never exceed
+# ~100x (the extreme end of a legitimate reverse split), while filer/extraction unit-scale
+# errors on shares_outstanding (several 20-F foreign-private-issuers: VALE/PDD/WB/BMA/GGAL/ALC)
+# cluster tightly around 1000x-1,000,000x with nothing in between.
+SHARE_COUNT_IMPLAUSIBLE_RATIO = 150
+
+
+def is_split_or_share_count_scale_error(ratio: float, clean_multiples: tuple[float, ...], tolerance: float) -> bool:
+    """True if an adjacent-year share-count ratio is either a real stock split (near one of
+    `clean_multiples`) or so far beyond any real split that it's a data error, not a corporate
+    action - treating it as "ordinary dilution/buyback drift" would silently feed a garbage
+    BVPS/EPS denominator into CAGR instead of failing closed like a real split does."""
+    if any(abs(ratio - mult) / mult < tolerance for mult in clean_multiples):
+        return True
+    return ratio > SHARE_COUNT_IMPLAUSIBLE_RATIO
+
 
 class GrowthMetricsMixin(SymbolGateMixin):
     """See module docstring.
