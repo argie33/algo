@@ -123,9 +123,12 @@ class Q4DerivationSweepMixin:
         self._sweep_correct_cumulative_ytd_field("stock_based_compensation")
         self._sweep_correct_cumulative_ytd_field("common_stock_repurchased")
         self._sweep_correct_cumulative_ytd_field("capex")
+        self._sweep_correct_cumulative_ytd_field("dividends_paid")
+        self._sweep_correct_cumulative_ytd_field("financing_cash_flow", sign_scoped=False)
+        self._sweep_correct_cumulative_ytd_field("investing_cash_flow", sign_scoped=False)
         self._sweep_derive_missing_q4_cash_flow_remaining_fields()
 
-    def _sweep_correct_cumulative_ytd_field(self, field: str) -> None:
+    def _sweep_correct_cumulative_ytd_field(self, field: str, sign_scoped: bool = True) -> None:
         """Correct Q2/Q3 quarterly_cash_flow.{field} for filers that never file a true
         discrete-quarter XBRL fact for this concept - only year-to-date cumulative ones
         (`start` = fiscal-year start on every instance) - before
@@ -181,21 +184,36 @@ class Q4DerivationSweepMixin:
         val=8,007,362; Q3 start=2022-07-01 end=2023-03-31 val=8,007,362 - same exact-duplicate
         cumulative pattern.
 
-        SCOPE: stock_based_compensation, common_stock_repurchased, and capex - the three
-        fields individually source-verified here. Live scan (2026-09-13) found the identical
-        statistical signature (exact Q2==Q3 dollar match) also in financing_cash_flow (671
-        distinct symbols), investing_cash_flow (507), dividends_paid (628), and
-        operating_cash_flow (88) - likely the same underlying cause, but NOT individually
-        verified against each field's own real SEC source data the way these three were, so
-        deliberately not corrected yet. Note financing_cash_flow/investing_cash_flow are net
-        flows that can legitimately be genuinely flat quarter-over-quarter for reasons other
-        than a cumulative-tagging bug (e.g. one financing event then none), so the fingerprint
-        needs per-symbol source verification before extending to them, not just a rowcount
-        scan. See quarterly_cashflow_cumulative_ytd_stored_as_discrete_20260913 in memory for
-        the full scope and the case for extending this same fix field-by-field with the same
-        verification discipline, rather than generalizing this correction across fields
-        unverified.
+        FOURTH/FIFTH/SIXTH FIELDS VERIFIED 2026-09-13 (same session, closing out the last of
+        the original 6-field scope): dividends_paid, financing_cash_flow, and
+        investing_cash_flow all confirmed against real SEC companyfacts JSON too -
+        dividends_paid via ACN/Accenture (single annual dividend paid entirely in Q1,
+        cumulative-YTD then flat through Q2/Q3/FY - same "no incremental activity after a
+        one-time event" signature as RITM's SBC case); financing_cash_flow/investing_cash_flow
+        via ABEO (CIK 0000318306) - FY2020 financing_cash_flow Q2=Q3=1,933,000, FY2012
+        investing_cash_flow Q1=-13,000/Q2=Q3=-15,000, both real filer data, not extraction
+        artifacts. Unlike the extraction-layer fix (sec_statements_cumulative_quarter_
+        derivation.py, which only prevents this going forward on a symbol's NEXT reload), this
+        sweep is the only thing that ever corrects an ALREADY-LOADED old fiscal year's Q2/Q3 -
+        confirmed live 2026-09-13 that even a forced `--backfill-days 3650` reload leaves old
+        rows like ABEO's FY2012 untouched, because sec_base.py's fetch_incremental filters
+        every fetched row to `fiscal_year > since.year` (the watermark) before it ever reaches
+        bulk_insert, regardless of the backfill-days flag - only a direct SQL sweep like this
+        one bypasses that filter.
+
+        financing_cash_flow/investing_cash_flow are real net-flow figures that can be
+        legitimately negative (a company can genuinely have net cash USED in financing/
+        investing activities), so they use `sign_scoped=False`: Q1 != Q2 == Q3 with no sign
+        requirement, instead of the tight Q1 < Q2 (both non-negative) shape the other 4 fields
+        use - same distinction the tie_out_cashflow_cumulative_quarters.py DataPatrol check
+        already makes for these two fields.
+
+        SCOPE: all 6 fields from the original investigation now individually source-verified
+        and corrected by this sweep. See quarterly_cashflow_cumulative_ytd_stored_as_discrete_
+        20260913 in memory for the full history.
         """
+        sign_clause = "AND q1.{f} >= 0 AND q2.{f} > 0 AND q1.{f} < q2.{f}" if sign_scoped else "AND q1.{f} != q2.{f}"
+        sign_clause = sign_clause.format(f=field)
         with _database_context()("write") as cur:
             cur.execute(
                 f"""
@@ -218,8 +236,7 @@ class Q4DerivationSweepMixin:
                            AND q2.{field} IS NOT NULL
                            AND q3x.{field} IS NOT NULL
                            AND q2.{field} = q3x.{field}
-                           AND q1.{field} < q2.{field}
-                           AND q2.{field} > 0
+                           {sign_clause}
                            AND q2.data_source IS DISTINCT FROM 'derived_ytd_split'
                            AND q3x.data_source IS DISTINCT FROM 'derived_ytd_split'
                        ) AS src
@@ -299,12 +316,18 @@ class Q4DerivationSweepMixin:
         # cell that already holds SOME value, even a stale/wrong one left over from upstream
         # extraction corruption fixed later - e.g. _sweep_correct_cumulative_ytd_field() above
         # corrects Q1-Q3, but without this, that field's own Q4 (already non-NULL, just wrong)
-        # would never get re-derived from the now-correct inputs. Scoped to
-        # stock_based_compensation, common_stock_repurchased, and capex ONLY - the three fields
-        # individually verified against real SEC source data; the other three fields stay on
-        # the conservative fill-only guard until each is independently verified the same way
-        # (see quarterly_cashflow_cumulative_ytd_stored_as_discrete_20260913 in memory).
-        _self_healing_fields = {"stock_based_compensation", "common_stock_repurchased", "capex"}
+        # would never get re-derived from the now-correct inputs. WIDENED AGAIN 2026-09-13
+        # (same session) to all 6 fields now that _sweep_correct_cumulative_ytd_field() itself
+        # covers all 6 (see that method's own docstring for the individual per-field SEC
+        # verification).
+        _self_healing_fields = {
+            "stock_based_compensation",
+            "common_stock_repurchased",
+            "capex",
+            "dividends_paid",
+            "financing_cash_flow",
+            "investing_cash_flow",
+        }
         with _database_context()("write") as cur:
             for field in fields:
                 q4_guard = (
