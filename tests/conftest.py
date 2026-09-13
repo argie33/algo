@@ -101,6 +101,19 @@ def _create_mock_cursor():
         if "algo_trades" in query and "price_daily" in query:
             return []  # No orphaned trades
 
+        # xbrl_scored_headline_count.py's _find_reason_columns: two information_schema.columns
+        # queries selecting (table_name, column_name) tuples, accessed via r[0]/r[1] positional
+        # indexing (matches real DictCursor behavior in production). BUG FIX 2026-09-13: this
+        # used to fall through to the generic "else" branch below, which returns plain dicts
+        # shaped {"column_name": ...} for an unrelated query - r[0] on that dict raised
+        # `KeyError: 0` instead of returning a table name, breaking every test that exercises
+        # scripts/xbrl_unavailable_reason_audit.py (the 8th XBRL layer, wired into
+        # xbrl_second_opinion_daily.py 2026-09-12). Empty list matches the existing "safe
+        # generic default" convention used elsewhere in this file for queries with no
+        # meaningful fake data - _headline_symbols() already handles zero reason-columns fine.
+        if "unavailable_reason" in query or ("column_name = 'reason'" in query and "table_name = ANY" in query):
+            return []
+
         # Sentiment aggregate columns check & other information_schema.columns queries
         if "information_schema.columns" in query:
             if "sentiment_aggregate" in query:
