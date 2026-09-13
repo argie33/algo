@@ -110,13 +110,17 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
         "Lower is better" metrics (debt_to_equity, margin_volatility) are z-scored on their
         NEGATED raw value, so a higher z-score means better quality for every component alike.
 
-        Every non-negative-domain metric (roe/roa/roce/fcf_margin/asset_turnover/
-        gross_profitability, plus debt_to_equity/margin_volatility after negation) is
-        z-scored only over its non-negative population, with negative-raw-value symbols
-        explicitly floored to 0.0 (matching Pass-1 `_margin_curve`'s own
-        `if value < 0: return 0.0`) - a plain z-score doesn't floor at the bottom for a
-        non-worst performer, which otherwise systematically over-scores unprofitable
-        companies or (for debt_to_equity) a real negative-book-equity distress case.
+        Non-negative-domain metrics were historically floored to 0.0 for negative values
+        (matching Pass-1 `_margin_curve`'s `if value < 0: return 0.0`) - justified by ROE's
+        sign-flip artifact (below), then copied onto the rest without checking each needed it.
+
+        FLOOR REMOVED FOR roa/roce/fcf_margin ONLY (2026-09-13, evidence trail in memory:
+        quality_roa_roce_fcf_margin_floor_removed_20260913) - a real point-in-time panel test
+        shows continuous z-scoring (negatives included) beats the floor on era-robust
+        forward-return prediction for these 3. debt_to_equity's apparently bigger gap was
+        RETRACTED (test-script sign bug) - floor UNCHANGED there, and for gross_profitability
+        (no material difference) and margin_volatility/asset_turnover (untested). ROE keeps
+        its own floor/sign-flip guard (independent justification, not the copied pattern here).
 
         Sign-flip distress guard (live-confirmed 2026-09-07, 274 universe symbols, e.g. ROC
         roe=915.88%/roa=-38.43%): a negative-ROA (loss-making) company can only show a
@@ -240,19 +244,21 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                 # means better quality, matching every other component's direction.
                 return {row[0]: -float(row[idx]) for row in rows if row[idx] is not None and float(row[idx]) >= 0.0}
 
-            # roe additionally requires roa present and non-negative - the sign-flip guard
-            # above; a roe<0 or roa<0 symbol is excluded from the z-score population and
-            # floored to 0.0 directly in the per-symbol loop below, same as every other metric.
+            def _continuous_raw(idx: int) -> dict[str, float]:  # no floor - see "FLOOR REMOVED" note above
+                return {row[0]: float(row[idx]) for row in rows if row[idx] is not None}
+
+            # roe additionally requires roa present/non-negative (sign-flip guard), floored
+            # to 0.0 in the loop below - independent of roa's own component (continuous above).
             roe_raw = {
                 row[0]: float(row[3])
                 for row in rows
                 if row[3] is not None and row[4] is not None and float(row[3]) >= 0.0 and float(row[4]) >= 0.0
             }
-            roa_raw = _nonneg_raw(4)
-            roce_raw = _nonneg_raw(5)
+            roa_raw = _continuous_raw(4)
+            roce_raw = _continuous_raw(5)
             fcf_margin_raw = {
                 symbol: val
-                for symbol, val in _nonneg_raw(6).items()
+                for symbol, val in _continuous_raw(6).items()
                 if industries.get(symbol) not in _fcf_excluded_industries
             }
             d2e_raw = _negated_nonneg_raw(7)
@@ -288,19 +294,13 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                 if roe is not None and roa is not None:  # roa<0 = sign-flip distress artifact; missing roa omits it
                     roe_component = 0.0 if float(roe) < 0.0 or float(roa) < 0.0 else roe_pct[symbol]
                     components.append((roe_component, 12.5))
-                if roa is not None:
-                    roa_component = 0.0 if float(roa) < 0.0 else roa_pct[symbol]
-                    components.append((roa_component, 12.5))
-                if roce_pct_val is not None:
-                    roce_component = 0.0 if float(roce_pct_val) < 0.0 else roce_pct[symbol]
-                    components.append((roce_component, 12.5))
+                if roa is not None:  # continuous, no floor
+                    components.append((roa_pct[symbol], 12.5))
+                if roce_pct_val is not None:  # continuous, no floor
+                    components.append((roce_pct[symbol], 12.5))
                 if fcf_margin is not None and industries.get(symbol) not in _fcf_excluded_industries:
-                    fcf_component = 0.0 if float(fcf_margin) < 0.0 else fcf_margin_pct[symbol]
-                    components.append((fcf_component, 12.5))
-                if d2e is not None:
-                    # Negative D/E (negative book equity) is real distress, not a scale
-                    # issue - floored to 0.0 the same as every other metric's negative case,
-                    # never inverted into a spuriously high score.
+                    components.append((fcf_margin_pct[symbol], 12.5))  # continuous, no floor
+                if d2e is not None:  # negative D/E = real distress, floored to 0.0 - UNCHANGED
                     d2e_component = 0.0 if float(d2e) < 0.0 else d2e_pct[symbol]
                     components.append((d2e_component, 12.5))
                 if margin_vol is not None:

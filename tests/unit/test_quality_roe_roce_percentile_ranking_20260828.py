@@ -81,20 +81,24 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
         assert updates["ONLY"] == 50.0
 
     def test_negative_metrics_floor_to_zero_not_zscored(self) -> None:
-        # roe/roa/roce/fcf_margin/asset_turnover/gross_profitability/debt_to_equity all
-        # negative - each floors to 0.0 directly (the "if value < 0: floor" convention this
-        # pass preserves from Pass 1's _margin_curve), never entering the z-score population.
-        # margin_volatility=10.0 (>=0, no floor case) is alone in its pool -> neutral 50.0.
+        # roe/asset_turnover/gross_profitability/debt_to_equity all negative - each floors
+        # to 0.0 directly (the "if value < 0: floor" convention this pass preserves from
+        # Pass 1's _margin_curve), never entering the z-score population. roa/roce/fcf_margin
+        # had their OWN component floor REMOVED 2026-09-13 (see vqg_quality_batch.py's
+        # "FLOOR REMOVED" docstring note) - each now scores continuously and, as the sole
+        # symbol in its own z-score pool (no peer to compare against), lands at neutral 50.0
+        # rather than a floored 0.0 (same "singleton pool -> neutral" reasoning as
+        # margin_volatility=10.0, which was never floored to begin with).
         # UNIFORM EQUAL-WEIGHT 2026-09-11: all 8 components are flat 12.5 each (nominal total
         # 100, not 101) - see pillar_weights.py's BASE_PILLAR_WEIGHTS comment.
         row = ("NEG", "Technology", None, -1.0, -1.0, -1.0, -1.0, -1.0, 10.0, -1.0, -1.0, 999.0)
         updates = dict(_run_with_mocked_rows([row]))
         components = [
             (0.0, 12.5),  # roe: sign-flip-guard floor (roe<0 and roa<0)
-            (0.0, 12.5),  # roa
-            (0.0, 12.5),  # roce
-            (0.0, 12.5),  # fcf_margin
-            (0.0, 12.5),  # debt_to_equity: negative = real distress, floored
+            (50.0, 12.5),  # roa: continuous, singleton pool -> neutral
+            (50.0, 12.5),  # roce: continuous, singleton pool -> neutral
+            (50.0, 12.5),  # fcf_margin: continuous, singleton pool -> neutral
+            (0.0, 12.5),  # debt_to_equity: negative = real distress, still floored
             (50.0, 12.5),  # margin_volatility: not floored, z-scores to neutral
             (0.0, 12.5),  # asset_turnover
             (0.0, 12.5),  # gross_profitability

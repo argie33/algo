@@ -54,9 +54,12 @@ class TestRoeSignFlipDistressArtifactExcluded:
         row = ("ROC_SHAPED", "Technology", None, 915.88, -38.43, 20.0, 12.0, 0.2, 3.0, 90.0, 35.0, 999.0)
         updates = dict(_run_with_mocked_rows([row]))
         assert "ROC_SHAPED" in updates
-        # roe/roa both floor to 0 (sign-flip guard / negative roa); the other 6 components
-        # (weight 12.5 each = 75) are each solo in their pool -> neutral 50.0.
-        expected = round((50.0 * 75) / 100.0, 2)
+        # ROE floors to 0 (sign-flip guard: roa<0). ROA's OWN component floor was REMOVED
+        # 2026-09-13 (see vqg_quality_batch.py's "FLOOR REMOVED" docstring note) - roa is now
+        # continuous, and as the sole symbol in its z-score pool it scores neutral 50.0 (a
+        # singleton pool has no variance to standardize against), same as the other 6
+        # components (weight 12.5 each = 87.5, all solo in their pools -> neutral 50.0).
+        expected = round((50.0 * 87.5) / 100.0, 2)
         assert updates["ROC_SHAPED"] == expected
 
     def test_positive_roe_with_positive_roa_still_ranks_normally(self) -> None:

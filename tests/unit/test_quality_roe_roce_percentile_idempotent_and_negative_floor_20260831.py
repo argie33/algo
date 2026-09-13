@@ -134,18 +134,25 @@ class TestNegativeRoeRoceFloor:
         values (weight 5 x 12.5 = 62.5 under equal weighting - 2026-09-11, see
         pillar_weights.py's BASE_PILLAR_WEIGHTS comment - clears the 40.0 completeness floor)
         so an update actually fires - with matching values across both rows, those three
-        components pool as ties and z-score to neutral percentile 50.0 for both symbols, so
-        the ROE/ROA floor-to-0 behavior is still the only thing distinguishing the composite
-        from a plain neutral score."""
+        components pool as ties and z-score to neutral percentile 50.0 for both symbols.
+
+        ROE's floor-to-0-for-negative-roa (the sign-flip guard) is unchanged and still
+        applies to both rows here. ROA's OWN component floor was REMOVED 2026-09-13 (see
+        vqg_quality_batch.py's "FLOOR REMOVED" docstring note) - roa now scores continuously,
+        so WORST_NEG (roa=-30, the more deeply negative of the pair) and MID_NEG (roa=-3)
+        no longer tie at a floored 0; they z-score against each other within their 2-symbol
+        residual pool (below sector_neutral_zscore's min_sector_size=15) and WORST_NEG
+        correctly scores LOWER than MID_NEG - continuous scoring preserving real magnitude
+        information the old floor discarded, not a bug in this test."""
         rows = [
             ("WORST_NEG", "Technology", None, -40.0, -30.0, None, None, None, 10.0, 50.0, 25.0, 99.0),
             ("MID_NEG", "Technology", None, -5.0, -3.0, None, None, None, 10.0, 50.0, 25.0, 99.0),
         ]
         updates = dict(_run_with_mocked_rows(rows))
-        # Both symbols: ROE and ROA (both weight 12.5 each under equal weighting) both
-        # negative, both floored to 0; margin_volatility/asset_turnover/gross_profitability
-        # (weight 12.5 each, tied between the two rows) all z-score to neutral 50.0.
-        # Composite = (0*12.5 + 0*12.5 + 50*12.5*3) / 62.5.
-        expected = round((50.0 * 12.5 * 3) / 62.5, 2)
-        assert updates.get("WORST_NEG") == expected
-        assert updates.get("MID_NEG") == expected
+        # ROE floors to 0 for both (sign-flip guard, roa<0); roa is continuous and WORST_NEG's
+        # more deeply negative roa scores a lower percentile than MID_NEG's; the other 3 tied
+        # components z-score to neutral 50.0 each. Exact values pinned via the real
+        # sector_neutral_zscore/zscore_to_percentile_scale computation (2-element residual pool).
+        assert updates.get("WORST_NEG") == 33.17
+        assert updates.get("MID_NEG") == 46.83
+        assert updates["WORST_NEG"] < updates["MID_NEG"]

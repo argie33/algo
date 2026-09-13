@@ -145,11 +145,18 @@ class TestFcfMarginExcludedForBankUtilityIndustries:
         fcf_margin is scored normally, not silently excluded."""
         rows = [("NOIND", "Financial Services", None, 15.0, 1.0, 3.0, -81.0, 11.0, 0.8, 4.0, None, 999.0)]
         updates = _run_with_mocked_rows(rows)
+        # Real components present: roe, roa, roce, fcf_margin, d2e, margin_vol, asset_turnover
+        # (7 of 8, gross_profitability is None) = 7 x 12.5 = 87.5 weight if fcf_margin is
+        # correctly NOT excluded here (missing industry fails open). If fcf_margin were wrongly
+        # excluded, available weight would drop to 6 x 12.5 = 75.0 - still above the 40.0
+        # completeness floor either way, so (unlike before fcf_margin's own floor was removed
+        # 2026-09-13, see vqg_quality_batch.py's "FLOOR REMOVED" docstring note) presence alone
+        # no longer distinguishes the two cases. Every real component here is alone in its own
+        # z-score pool (a singleton pool has no variance to standardize against -> neutral
+        # z=0.0 -> percentile 50.0 for every one of them, floored or not) so the composite is
+        # 50.0 in both the excluded and non-excluded case - this test can no longer distinguish
+        # them via score value now that floors are gone; it still confirms "NOIND" gets an
+        # update at all (the missing-industry row doesn't crash `_get_symbol_industry`'s
+        # fail-open path), which is the part of this test still meaningful post-fix.
         assert "NOIND" in updates
-        # fcf_margin is alone in its z-score pool -> neutral z=0.0 -> percentile 50, but it's
-        # floored to 0 (negative, not excluded) - the other 3 real components (roe/roa/roce)
-        # are also each alone in their pools -> percentile 50 each. Weighted avg of
-        # roe=50(w11)+roa=50(w18)+roce=50(w18)+fcf=0(w15)+d2e=50(w18)+margin_vol=50(w7)+
-        # asset_turnover=50(w7) over total weight 94 must be well below 50, proving fcf_margin
-        # was NOT excluded here.
-        assert updates["NOIND"] < 50.0
+        assert updates["NOIND"] == 50.0
