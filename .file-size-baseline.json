@@ -537,7 +537,7 @@
   "loaders/helpers/sec_base.py": 1974,
   "loaders/helpers/sec_dual_class_eps.py": 270,
   "loaders/helpers/sec_reit_exclusive_scale_guard.py": 115,
-  "loaders/helpers/sec_revenue_total_resolution.py": 101,
+  "loaders/helpers/sec_revenue_total_resolution.py": 140,
   "loaders/helpers/sec_segment_debt.py": 213,
   "loaders/helpers/sec_statement_field_bookkeeping.py": 25,
   "loaders/helpers/sec_valuations_checks.py": 964,
