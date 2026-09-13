@@ -78,24 +78,29 @@ class StatisticalAnomalyChecker(BaseCheck):
         field: str,
     ) -> None:
         try:
+            # FIXED 2026-09-13 (goal: patrol/quarantine comprehensiveness audit): this used to
+            # pick only each symbol's single LATEST fiscal year via `DISTINCT ON (symbol) ...
+            # ORDER BY fiscal_year DESC`, then join that one year to fiscal_year - 1 - so a
+            # magnitude jump in any OLDER fiscal-year transition was permanently invisible, the
+            # same "narrow scope misses historical corruption" bug class already fixed in
+            # ohlc_sanity (quality.py). These tables get populated via historical backfills
+            # (many past fiscal years loaded at once), so an old-year jump may never have been
+            # "latest" at the moment it actually happened. Live-verified: reproducing this same
+            # logic across ALL adjacent fiscal-year pairs (not just each symbol's latest) found
+            # 15 real anomalous jumps this check could never surface, e.g. UK FY2017->FY2018
+            # revenue $99.31 -> $65.2M (656,640x) and HL FY2010->FY2011 $126,000 -> $477.6M -
+            # several of the prior-year values look like unit/scale extraction bugs, exactly
+            # what this checker exists to catch. Now joins every (year, year-1) pair directly
+            # instead of restricting to the latest year first.
             cur.execute(
                 f"""
-                WITH curr AS (
-                    SELECT DISTINCT ON (symbol) symbol, fiscal_year, {field}
-                    FROM {table}
-                    WHERE data_unavailable = FALSE AND {field} IS NOT NULL AND {field} != 0
-                    ORDER BY symbol, fiscal_year DESC
-                ),
-                prior AS (
-                    SELECT symbol, fiscal_year, {field}
-                    FROM {table}
-                    WHERE data_unavailable = FALSE AND {field} IS NOT NULL AND {field} != 0
-                )
-                SELECT curr.symbol, curr.fiscal_year,
-                       curr.{field} AS curr_value, p.{field} AS prior_value
-                FROM curr
-                JOIN stock_symbols s ON s.symbol = curr.symbol AND s.active = true
-                JOIN prior p ON p.symbol = curr.symbol AND p.fiscal_year = curr.fiscal_year - 1
+                SELECT a.symbol, a.fiscal_year,
+                       a.{field} AS curr_value, b.{field} AS prior_value
+                FROM {table} a
+                JOIN stock_symbols s ON s.symbol = a.symbol AND s.active = true
+                JOIN {table} b ON b.symbol = a.symbol AND b.fiscal_year = a.fiscal_year - 1
+                WHERE a.data_unavailable = FALSE AND a.{field} IS NOT NULL AND a.{field} != 0
+                  AND b.data_unavailable = FALSE AND b.{field} IS NOT NULL AND b.{field} != 0
                 """
             )
             flagged = []
