@@ -27,9 +27,10 @@ particular run's output - if either the curve breakpoints or the composite weigh
 test should fail, not silently keep matching.
 
 UNIFORM EQUAL-WEIGHT 2026-09-11 (see loaders/stock_scores/pillar_weights.py's
-BASE_PILLAR_WEIGHTS comment): all 8 components are now flat 12.5 each (nominal total 100, not
-101) instead of 11/18/18/15/18/7/7/7 - expected values and completeness-floor outcomes below
-updated accordingly.
+BASE_PILLAR_WEIGHTS comment), then MARGIN_VOLATILITY REWEIGHTED 2026-09-13 (see
+vqg_quality_score.py's "MARGIN_VOLATILITY REWEIGHTED" comment): margin_volatility is now 25.0,
+the other 7 components flat 10.71 each (nominal total ~100) - expected values and
+completeness-floor outcomes below updated accordingly.
 """
 
 from unittest.mock import MagicMock, patch
@@ -166,20 +167,20 @@ class TestMarginVolatilityScoreActuallyWired:
         at_curve = L._margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
 
         weighted_sum = (
-            roe_curve * 12.5
-            + roa_curve * 12.5
-            + roce_curve * 12.5
-            + fcf_curve * 12.5
-            + d2e_score * 12.5
-            + mv_score * 12.5
-            + at_curve * 12.5
-            + gp_curve * 12.5
+            roe_curve * 10.71
+            + roa_curve * 10.71
+            + roce_curve * 10.71
+            + fcf_curve * 10.71
+            + d2e_score * 10.71
+            + mv_score * 25.0
+            + at_curve * 10.71
+            + gp_curve * 10.71
         )
-        expected = weighted_sum / 100.0
+        expected = weighted_sum / (10.71 * 7 + 25.0)
 
         metrics = loader._compute_quality_metrics("TECHCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
-        assert metrics["quality_score"] == expected
+        assert metrics["quality_score"] == pytest.approx(expected)
 
 
 class TestUniformFormulaAcrossSectors:
@@ -204,16 +205,16 @@ class TestUniformFormulaAcrossSectors:
         at_curve = L._margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
 
         weighted_sum = (
-            roe_curve * 12.5
-            + roa_curve * 12.5
-            + roce_curve * 12.5
-            + fcf_curve * 12.5
-            + d2e_score * 12.5
-            + mv_score * 12.5
-            + at_curve * 12.5
-            + gp_curve * 12.5
+            roe_curve * 10.71
+            + roa_curve * 10.71
+            + roce_curve * 10.71
+            + fcf_curve * 10.71
+            + d2e_score * 10.71
+            + mv_score * 25.0
+            + at_curve * 10.71
+            + gp_curve * 10.71
         )
-        return weighted_sum / 100.0
+        return weighted_sum / (10.71 * 7 + 25.0)
 
     def test_real_estate_uses_the_same_universal_formula_as_technology(self):
         loader = _make_loader()
@@ -221,7 +222,7 @@ class TestUniformFormulaAcrossSectors:
 
         metrics = loader._compute_quality_metrics("REITCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
-        assert metrics["quality_score"] == self._expected_universal_score()
+        assert metrics["quality_score"] == pytest.approx(self._expected_universal_score())
 
     def test_financial_services_uses_the_same_universal_formula_as_technology(self):
         loader = _make_loader()
@@ -229,7 +230,7 @@ class TestUniformFormulaAcrossSectors:
 
         metrics = loader._compute_quality_metrics("BANKCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
-        assert metrics["quality_score"] == self._expected_universal_score()
+        assert metrics["quality_score"] == pytest.approx(self._expected_universal_score())
 
     def test_utilities_uses_the_same_universal_formula_as_technology(self):
         loader = _make_loader()
@@ -237,7 +238,7 @@ class TestUniformFormulaAcrossSectors:
 
         metrics = loader._compute_quality_metrics("UTILCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
-        assert metrics["quality_score"] == self._expected_universal_score()
+        assert metrics["quality_score"] == pytest.approx(self._expected_universal_score())
 
     def test_unknown_or_missing_sector_also_uses_universal_formula(self):
         loader = _make_loader()
@@ -245,7 +246,7 @@ class TestUniformFormulaAcrossSectors:
 
         metrics = loader._compute_quality_metrics("UNKNOWNCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
-        assert metrics["quality_score"] == self._expected_universal_score()
+        assert metrics["quality_score"] == pytest.approx(self._expected_universal_score())
 
     def test_real_estate_missing_debt_and_volatility_still_scores_off_remaining_inputs(self):
         # debt_to_equity/roce_pct/margin_volatility unavailable - the universal formula's own
@@ -295,14 +296,16 @@ class TestUniformFormulaAcrossSectors:
         assert metrics.get("quality_score") is None
         assert metrics["quality_score_unavailable_reason"] == "insufficient_completeness"
 
-    def test_debt_volatility_and_roce_alone_now_fail_the_universal_floor(self):
+    def test_debt_volatility_and_roce_alone_now_clears_the_universal_floor(self):
         # net_income/total_assets/revenue nulled kills roe/roa/fcf_margin/gross_profitability/
         # asset_turnover, leaving only debt_to_equity/margin_volatility/roce_pct (roce_pct is
         # independent of all three, it comes from stockholders_equity/debt_for_roic/cash via
-        # invested_capital, untouched here). Under equal weighting (2026-09-11), 3 components x
-        # 12.5 = 37.5, BELOW the 40.0 floor - previously 18+18+7=43 of 101 cleared it under the
-        # old magnitude-tuned weights. This now correctly withholds a score instead of
-        # extrapolating from 3 of 8 equally-weighted inputs.
+        # invested_capital, untouched here). Under the original 2026-09-11 equal weighting, 3
+        # components x 12.5 = 37.5, BELOW the 40.0 floor. MARGIN_VOLATILITY REWEIGHTED 2026-09-13
+        # (10.71/10.71/25.0 for this trio) moves the same 3 components to 46.42, now ABOVE the
+        # floor - an intended consequence of weighting stability higher, not a regression: this
+        # trio (debt-to-equity, margin stability, ROCE) is no longer a "thin 3-of-8" sample once
+        # one of the three carries 25% of the pillar's own weight on its own.
         loader = _make_loader()
         loader._get_symbol_sector = lambda symbol: "Financial Services"
         row = _row(net_income=None, total_assets=None, revenue=None)
@@ -317,8 +320,14 @@ class TestUniformFormulaAcrossSectors:
         assert metrics.get("fcf_margin") is None
         assert metrics.get("gross_profitability") is None
 
-        assert metrics["quality_score"] is None
-        assert metrics["quality_score_unavailable_reason"] == "insufficient_completeness"
+        d2e_score = max(0.0, min(100.0, 100.0 - (0.2 / 2.0) * 100.0))
+        mv_score = 100.0 - L._margin_curve(10.0, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
+        roce_curve = L._margin_curve(15.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
+        weighted_sum = d2e_score * 10.71 + mv_score * 25.0 + roce_curve * 10.71
+        expected = weighted_sum / (10.71 + 25.0 + 10.71)
+
+        assert metrics["quality_score"] == pytest.approx(expected)
+        assert metrics["quality_score_unavailable_reason"] is None
 
 
 class TestGetSymbolSector:

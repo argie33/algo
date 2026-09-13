@@ -89,19 +89,20 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
         # symbol in its own z-score pool (no peer to compare against), lands at neutral 50.0
         # rather than a floored 0.0 (same "singleton pool -> neutral" reasoning as
         # margin_volatility=10.0, which was never floored to begin with).
-        # UNIFORM EQUAL-WEIGHT 2026-09-11: all 8 components are flat 12.5 each (nominal total
-        # 100, not 101) - see pillar_weights.py's BASE_PILLAR_WEIGHTS comment.
+        # UNIFORM EQUAL-WEIGHT 2026-09-11, MARGIN_VOLATILITY REWEIGHTED 2026-09-13: 7 components
+        # flat 10.71 each + margin_volatility at 25.0 (nominal total ~100) - see
+        # vqg_quality_score.py's "MARGIN_VOLATILITY REWEIGHTED" comment.
         row = ("NEG", "Technology", None, -1.0, -1.0, -1.0, -1.0, -1.0, 10.0, -1.0, -1.0, 999.0)
         updates = dict(_run_with_mocked_rows([row]))
         components = [
-            (0.0, 12.5),  # roe: sign-flip-guard floor (roe<0 and roa<0)
-            (50.0, 12.5),  # roa: continuous, singleton pool -> neutral
-            (50.0, 12.5),  # roce: continuous, singleton pool -> neutral
-            (50.0, 12.5),  # fcf_margin: continuous, singleton pool -> neutral
-            (0.0, 12.5),  # debt_to_equity: negative = real distress, still floored
-            (50.0, 12.5),  # margin_volatility: not floored, z-scores to neutral
-            (0.0, 12.5),  # asset_turnover
-            (0.0, 12.5),  # gross_profitability
+            (0.0, 10.71),  # roe: sign-flip-guard floor (roe<0 and roa<0)
+            (50.0, 10.71),  # roa: continuous, singleton pool -> neutral
+            (50.0, 10.71),  # roce: continuous, singleton pool -> neutral
+            (50.0, 10.71),  # fcf_margin: continuous, singleton pool -> neutral
+            (0.0, 10.71),  # debt_to_equity: negative = real distress, still floored
+            (50.0, 25.0),  # margin_volatility: not floored, z-scores to neutral
+            (0.0, 10.71),  # asset_turnover
+            (0.0, 10.71),  # gross_profitability
         ]
         expected = round(
             sum(v * w for v, w in components) / sum(w for _, w in components),

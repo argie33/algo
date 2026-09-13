@@ -47,10 +47,11 @@ class TestRoeSignFlipDistressArtifactExcluded:
         """ROC-shaped case: roe=915.88 (positive) but roa=-38.43 (a real loss) - the ROE
         term must contribute 0, the same as a directly-negative ROE, not win a high
         percentile off the sign-flip artifact. Standalone row (no peer) with every other
-        component filled in (8 x 12.5 = 100 under equal weighting - 2026-09-11, see
-        pillar_weights.py's BASE_PILLAR_WEIGHTS comment - well clear of the 40.0
-        completeness floor) so an update actually fires - alone, each of those other
-        components pools with itself and z-scores to neutral percentile 50.0."""
+        component filled in (7 x 10.71 + 25.0 = 99.97 under the 2026-09-13
+        margin_volatility reweight - see vqg_quality_score.py's "MARGIN_VOLATILITY
+        REWEIGHTED" comment - well clear of the 40.0 completeness floor) so an update
+        actually fires - alone, each of those other components pools with itself and
+        z-scores to neutral percentile 50.0."""
         row = ("ROC_SHAPED", "Technology", None, 915.88, -38.43, 20.0, 12.0, 0.2, 3.0, 90.0, 35.0, 999.0)
         updates = dict(_run_with_mocked_rows([row]))
         assert "ROC_SHAPED" in updates
@@ -58,8 +59,9 @@ class TestRoeSignFlipDistressArtifactExcluded:
         # 2026-09-13 (see vqg_quality_batch.py's "FLOOR REMOVED" docstring note) - roa is now
         # continuous, and as the sole symbol in its z-score pool it scores neutral 50.0 (a
         # singleton pool has no variance to standardize against), same as the other 6
-        # components (weight 12.5 each = 87.5, all solo in their pools -> neutral 50.0).
-        expected = round((50.0 * 87.5) / 100.0, 2)
+        # components (weight 10.71 each except margin_volatility at 25.0 = 89.26 total, all
+        # solo in their pools -> neutral 50.0).
+        expected = round((50.0 * 89.26) / 99.97, 2)
         assert updates["ROC_SHAPED"] == expected
 
     def test_positive_roe_with_positive_roa_still_ranks_normally(self) -> None:

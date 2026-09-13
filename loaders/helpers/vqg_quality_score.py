@@ -526,21 +526,34 @@ class QualityScoreMixin:
         # weights previously here traced to the same contaminated-data family as the top-level
         # composite's FM work. Replaced with flat 1/8 (12.5) each - the component LIST itself
         # (still literature-grounded: Novy-Marx/Fama-French RMW/Sloan/QMJ, see this method's own
-        # docstring) is unchanged, only the combination weights are. Mirrors Piotroski (1996)'s
-        # own convention of unweighted equally-combined signals. current_ratio stays excluded
-        # (a genuine no-signal finding, not a weighting decision). Pass-2's sector-neutral
-        # overwrite (vqg_quality_batch.py) mirrors this exact same 8x12.5 scheme - keep both in
-        # sync if either changes. min_quality_weight_pct below is unchanged at ~40% of the
+        # docstring) is unchanged. current_ratio stays excluded (a genuine no-signal finding, not
+        # a weighting decision). min_quality_weight_pct below is unchanged at ~40% of the
         # composite's nominal weight sum.
+        #
+        # MARGIN_VOLATILITY REWEIGHTED 12.5->25.0 (2026-09-13, /goal session - "figure out what's
+        # right by looking across the industry"): NOT another FM re-derivation of this repo's own
+        # panel (that already failed once, per the comment above, and the panel's survivorship-
+        # bias gap means FM can't see the earnings-instability blow-ups this leg exists to catch
+        # anyway). Grounded instead in real-world convergent evidence: MSCI weights earnings
+        # variability ~1/3 of Quality, AQR's QMJ paper treats "Safety" (low earnings vol/leverage/
+        # beta) as 1/4 of Quality - 5 independent institutional providers checked this session all
+        # weight stability far above a flat 1/8. Landed at 25.0 (AQR's figure, conservative vs
+        # MSCI's ~33) rather than copying either exactly. The other 7 components renormalized down
+        # from 12.5 to 10.71 each (75/7) to keep the nominal sum at 100. Paired with extending
+        # _compute_margin_volatility's window 3->7 usable years (load_value_quality_growth_metrics.py) -
+        # see that method's own docstring for the live evidence (HMY margin_volatility lower than
+        # JNJ's during the 2026 gold bull run) and the coverage check that kept the minimum at 3.
+        # Pass-2's sector-neutral overwrite (vqg_quality_batch.py) mirrors this exact scheme - keep
+        # both in sync if either changes.
         quality_components = [
-            (roe_score, 12.5),
-            (roa_score, 12.5),
-            (roce_score, 12.5),
-            (fcf_margin_score, 12.5),
-            (debt_to_equity_score, 12.5),
-            (margin_volatility_score, 12.5),
-            (asset_turnover_score, 12.5),
-            (gross_profitability_score, 12.5),
+            (roe_score, 10.71),
+            (roa_score, 10.71),
+            (roce_score, 10.71),
+            (fcf_margin_score, 10.71),
+            (debt_to_equity_score, 10.71),
+            (margin_volatility_score, 25.0),
+            (asset_turnover_score, 10.71),
+            (gross_profitability_score, 10.71),
         ]
         # COMPLETENESS FLOOR: without it, renormalizing over 1-3 available components lets
         # a single extreme raw ratio (e.g. an oil/gas royalty trust's ROA of 700%+) drive

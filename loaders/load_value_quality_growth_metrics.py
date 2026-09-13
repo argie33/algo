@@ -1320,30 +1320,30 @@ class ValueQualityGrowthMetricsLoader(
         return metrics
 
     def _compute_margin_volatility(self, income_rows: list[Any]) -> tuple[float | None, str | None]:
-        """Trailing-3-fiscal-year stdev (percentage points) of net_margin - QMJ (2013) Safety
-        leg proxy: earnings/margin persistence, distinct from price-return volatility (which
-        lives in the Risk pillar) and from the accruals ratio (composition of one year's
-        earnings, not stability across years). income_rows is ordered fiscal_year DESC (see
-        fetch_incremental's SELECT above) - [:3] takes the most recent 3 fiscal years.
-        Requires all 3 years usable (real revenue>0); a symbol with fewer usable years returns
-        None (data_unavailable for this component) rather than a volatility estimate from 1-2
-        points, which would be too noisy to trust.
-
-        Returns (value, unavailable_reason) - reason is only meaningful when value is None.
-
-        Guards |margin|>1000 per-year (same bound as every sibling margin ratio in this file)
-        before the variance calc - a near-zero-revenue year's raw margin can otherwise overflow
-        quality_metrics.margin_volatility's NUMERIC(10,2) column and crash the entire row's
-        INSERT, not just this field. Scans the full fetched history (already bounded to 30 rows
-        by the caller) and takes the 3 most recent USABLE years, skipping - not aborting on - a
-        bad or missing one in between, so one garbage year doesn't discard an otherwise-usable
-        older one. `implausible` tracks whether any skipped year was real-but-garbage (vs.
-        simply missing), for the fallback reason string when fewer than 3 usable years exist.
+        """Stdev (percentage points) of net_margin over up to the trailing 7 usable fiscal
+        years (minimum 3) - QMJ (2013) Safety leg proxy: earnings/margin persistence, distinct
+        from price-return volatility (Risk pillar) and the accruals ratio (one-year composition,
+        not cross-year stability). income_rows is ordered fiscal_year DESC.
+        WINDOW EXTENDED 3->7 (2026-09-13, /goal session): a 3yr window can sit entirely inside
+        one leg of a multi-year commodity cycle (gold cycles run 7-10+ years) and misread a
+        cyclical company as stable - live-confirmed: HMY's 3yr margin_volatility (3.53) was
+        LOWER than JNJ's (10.39) during the 2026 gold bull run. Grounded in cross-provider
+        convergence (MSCI/AQR/S&P/BlackRock/Vanguard weight earnings stability well above a flat
+        1/8), not a fresh FM re-derivation - that already failed once (vqg_quality_score.py's
+        "UNIFORM EQUAL-WEIGHT" comment) and the panel's survivorship-bias gap can't see the
+        blow-ups this leg exists to catch. Minimum kept at 3: a >=7 requirement drops scored-
+        universe coverage 87%->69% (~900 symbols); up-to-7-but-require-3 avoids that loss.
+        Returns (value, unavailable_reason) - reason only meaningful when value is None. Guards
+        |margin|>1000 per-year (same bound as every sibling ratio here) before the variance calc,
+        since a near-zero-revenue year's raw margin can overflow the NUMERIC(10,2) column and
+        crash the row's INSERT. Scans the fetched history (bounded to 30 rows by the caller) and
+        takes up to the 7 most recent USABLE years, skipping - not aborting on - a bad/missing
+        one in between; `implausible` tracks a skipped garbage year for the fallback reason.
         """
         margins: list[float] = []
         implausible = False
         for row in income_rows:
-            if len(margins) >= 3:
+            if len(margins) >= 7:
                 break
             revenue = safe_float(row[1], "margin_vol.revenue", allow_none=True)
             net_income = safe_float(row[3], "margin_vol.net_income", allow_none=True)
