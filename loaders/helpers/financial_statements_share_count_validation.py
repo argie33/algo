@@ -197,39 +197,88 @@ class FinancialStatementsShareCountValidationMixin:
             except Exception as e:
                 logger.debug(f"[{self.table_name}] company_info_sec cross-check lookup failed (non-fatal): {e}")
 
-        if not reference_shares:
-            return
         for row in transformed:
             symbol = row.get("symbol")
             reference = reference_shares.get(symbol) if symbol else None
             if not reference:
                 continue
             for field in ("shares_outstanding_basic", "shares_outstanding_diluted", "shares_outstanding_dei"):
-                val = row.get(field)
-                if val is None or val <= 0:
-                    continue
-                ratio = reference / float(val)
-                if ratio > 20 or ratio < 1 / 20:
-                    # BUG FOUND 2026-08-21 (goal session - log-accuracy audit): `{ratio:.0f}x`
-                    # only reads sensibly when val is too SMALL (ratio > 1). When val is too
-                    # LARGE instead (ratio < 1, e.g. ALMU FY2026's shares_outstanding_basic=
-                    # 17,354,370,000 vs company_info_sec's 18,305,335 - the ~1000x-too-large
-                    # mirror image of the same scale bug), `ratio:.0f` rounds to "0x",
-                    # printing the nonsensical "disagrees ... by 0x" - live-confirmed 241
-                    # occurrences in a single run. Report the magnitude symmetrically
-                    # (always >= 1x) and say which side is off so the log is actually usable
-                    # for diagnosing which direction the scale error went.
-                    times_off = ratio if ratio >= 1 else 1 / ratio
-                    direction = "too small" if ratio >= 1 else "too large"
-                    logger.warning(
-                        f"[{self.table_name}] {symbol} FY{row.get('fiscal_year')}: {field}={val:,.0f} "
-                        f"disagrees with company_info_sec.shares_outstanding={reference:,.0f} - "
-                        f"{field} looks {times_off:.0f}x {direction} - likely an unconverted "
-                        "'reported in thousands' XBRL scale error the absolute floor above didn't "
-                        "catch. Rejecting rather than storing a confidently-wrong share count."
-                    )
-                    row[field] = None
-                    self._record_explicit_null_rejection(row, field, "implausible_shares_outstanding_scale_error")
+                self._reject_if_disagrees_with_reference(row, field, reference, "company_info_sec.shares_outstanding")
+
+        # FIXED 2026-09-13 (goal: find/fix inaccurate factor-score-input data - shares_outstanding
+        # scale-error sweep): the company_info_sec cross-check above is a no-op for any symbol
+        # where that column is NULL - live-confirmed NULL for VALE/PDD/WB/BMA/GGAL/CIGI/ALC/BBD
+        # and more (mostly 20-F foreign-private-issuers, which commonly have no independently-
+        # extracted company_info_sec row at all), so the exact ~1000x-1,000,000x scale-error
+        # pattern this whole guard exists to catch sailed straight through for all of them -
+        # confirmed live via a direct DB scan finding ~40 such symbols with historically-stored
+        # values >100x off their own multi-year median. Falls back to the symbol's OWN median
+        # across every OTHER already-loaded fiscal year in this same table as a second
+        # independent reference when company_info_sec has nothing - not circular, since a
+        # single bad year can't move a multi-year median past the 20x rejection threshold.
+        no_reference_symbols = [s for s in shares_check_symbols if s not in reference_shares]
+        if no_reference_symbols:
+            self._reject_shares_outstanding_off_own_history(transformed, no_reference_symbols)
+
+    def _reject_if_disagrees_with_reference(
+        self, row: dict[str, Any], field: str, reference: float, reference_label: str
+    ) -> None:
+        val = row.get(field)
+        if val is None or val <= 0:
+            return
+        ratio = reference / float(val)
+        if ratio > 20 or ratio < 1 / 20:
+            # BUG FOUND 2026-08-21 (goal session - log-accuracy audit): `{ratio:.0f}x`
+            # only reads sensibly when val is too SMALL (ratio > 1). When val is too
+            # LARGE instead (ratio < 1, e.g. ALMU FY2026's shares_outstanding_basic=
+            # 17,354,370,000 vs company_info_sec's 18,305,335 - the ~1000x-too-large
+            # mirror image of the same scale bug), `ratio:.0f` rounds to "0x",
+            # printing the nonsensical "disagrees ... by 0x" - live-confirmed 241
+            # occurrences in a single run. Report the magnitude symmetrically
+            # (always >= 1x) and say which side is off so the log is actually usable
+            # for diagnosing which direction the scale error went.
+            times_off = ratio if ratio >= 1 else 1 / ratio
+            direction = "too small" if ratio >= 1 else "too large"
+            logger.warning(
+                f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: {field}={val:,.0f} "
+                f"disagrees with {reference_label}={reference:,.0f} - "
+                f"{field} looks {times_off:.0f}x {direction} - likely an unconverted "
+                "'reported in thousands' XBRL scale error the absolute floor above didn't "
+                "catch. Rejecting rather than storing a confidently-wrong share count."
+            )
+            row[field] = None
+            self._record_explicit_null_rejection(row, field, "implausible_shares_outstanding_scale_error")
+
+    def _reject_shares_outstanding_off_own_history(self, transformed: list[dict[str, Any]], symbols: list[str]) -> None:
+        """Second-chance reference for symbols with no company_info_sec value: each symbol's
+        own median shares_outstanding_basic/diluted across every OTHER fiscal year already
+        stored in this table. See _reject_implausible_shares_outstanding's 2026-09-13 note."""
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    f"SELECT symbol, shares_outstanding_basic, shares_outstanding_diluted "
+                    f"FROM {self.table_name} WHERE symbol = ANY(%s)",
+                    (symbols,),
+                )
+                by_symbol: dict[str, list[float]] = {}
+                for symbol, basic, diluted in cur.fetchall():
+                    for val in (basic, diluted):
+                        if val is not None and val > 0:
+                            by_symbol.setdefault(symbol, []).append(float(val))
+        except Exception as e:
+            logger.debug(f"[{self.table_name}] own-history shares_outstanding fallback lookup failed: {e}")
+            return
+
+        own_history_reference = {sym: statistics.median(vals) for sym, vals in by_symbol.items() if len(vals) >= 2}
+        for row in transformed:
+            symbol = row.get("symbol")
+            reference = own_history_reference.get(symbol) if symbol else None
+            if not reference:
+                continue
+            for field in ("shares_outstanding_basic", "shares_outstanding_diluted", "shares_outstanding_dei"):
+                self._reject_if_disagrees_with_reference(
+                    row, field, reference, f"{self.table_name}'s own multi-year median"
+                )
 
     def _reject_diluted_shares_below_basic(self, transformed: list[dict[str, Any]]) -> None:
         """Reject shares_outstanding_diluted when it's materially BELOW the same row's
