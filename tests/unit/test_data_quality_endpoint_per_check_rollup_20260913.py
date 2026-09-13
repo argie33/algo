@@ -72,12 +72,15 @@ class TestDataQualityPerCheckRollup:
         assert response["data"]["accuracy_check"] == "failed"
 
     def test_different_tables_each_get_their_own_worst_status(self) -> None:
+        # "info" is the real DataPatrol severity for a health CONFIRMATION
+        # (algo/monitoring/data_patrol/config.py has no "healthy" severity value) - never
+        # "healthy" itself, which only exists as this endpoint's own summary bucket name.
         cur = _mock_cursor(
             [
                 {
                     "table_name": "annual_income_statement",
                     "check_name": "statistical_anomaly",
-                    "severity": "healthy",
+                    "severity": "info",
                     "message": "no anomalies",
                     "data_detail": None,
                     "created_at": datetime(2026, 9, 13, 10, 0, 0),
@@ -101,3 +104,28 @@ class TestDataQualityPerCheckRollup:
         assert by_table["annual_income_statement"]["status"] == "passed"
         assert by_table["price_daily"]["status"] == "warning"
         assert response["data"]["summary"]["total_tables_checked"] == 2
+
+    def test_info_severity_counted_as_healthy_not_warning(self) -> None:
+        """BUG FIXED 2026-09-13: an INFO-severity health confirmation used to fall through
+        this endpoint's severity_counts `else "warn"` branch (only "critical"/"error"/"warn"/
+        "healthy" were dict keys, and "info" is never one of them) - overcounting warnings by
+        every passing check that ran, while the "healthy" bucket sat permanently at 0."""
+        cur = _mock_cursor(
+            [
+                {
+                    "table_name": "price_daily",
+                    "check_name": "staleness",
+                    "severity": "info",
+                    "message": "price_daily fresh",
+                    "data_detail": None,
+                    "created_at": datetime(2026, 9, 13, 10, 0, 0),
+                    "rn": 1,
+                },
+            ]
+        )
+
+        response = data_quality_module._get_data_quality(cur)
+
+        assert response["data"]["summary"]["healthy"] == 1
+        assert response["data"]["summary"]["warnings"] == 0
+        assert response["data"]["accuracy_check"] == "passed"

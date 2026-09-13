@@ -28,6 +28,11 @@ from algo.infrastructure.config.sql_intervals import get_interval_sql
 logger = logging.getLogger(__name__)
 
 _SEVERITY_RANK = {"critical": 0, "error": 1, "warn": 2, "healthy": 3}
+# DataPatrol severities are only ever "info"/"warn"/"error"/"critical"
+# (algo/monitoring/data_patrol/config.py) - never "healthy" - so an INFO-severity health
+# CONFIRMATION ("price_daily fresh", "loader_contract OK") maps to the "healthy" summary
+# bucket explicitly, rather than falling through to "warn" for anything unrecognized.
+_SEVERITY_TO_BUCKET = {"critical": "critical", "error": "error", "warn": "warn", "info": "healthy"}
 
 
 def _severity_rank(severity: Any) -> int:
@@ -108,6 +113,10 @@ def _get_data_quality(cur: cursor) -> Any:
 
         # Compute summary - every distinct (table, check) finding counts, not just one per
         # table, so this doesn't undercount how many checks are actually flagging something.
+        # FIXED 2026-09-13 (same pass as the collapse fix above): this used to bucket any
+        # severity not already a dict key (i.e. every "info" row) into "warn" - see
+        # _SEVERITY_TO_BUCKET's own comment for why that overcounted warnings by every
+        # passing/healthy check that ran.
         severity_counts = {"critical": 0, "error": 0, "warn": 0, "healthy": 0}
         worst_per_table: dict[str, dict[str, Any]] = {}
         for (table_name, _check_name), entry in checks_dict.items():
@@ -118,7 +127,7 @@ def _get_data_quality(cur: cursor) -> Any:
                     f"Cannot determine health status of this table. "
                     f"Check data_patrol_log.severity column for NULL values."
                 )
-            severity_counts[severity if severity in severity_counts else "warn"] += 1
+            severity_counts[_SEVERITY_TO_BUCKET.get(severity, "warn")] += 1
 
             current_worst = worst_per_table.get(table_name)
             if current_worst is None or _severity_rank(severity) < _severity_rank(current_worst.get("severity")):

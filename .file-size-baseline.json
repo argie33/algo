@@ -397,7 +397,7 @@
   "lambda/api/routes/algo_handlers/external.py": 111,
   "lambda/api/routes/algo_handlers/inventory.py": 139,
   "lambda/api/routes/algo_handlers/market/__init__.py": 92,
-  "lambda/api/routes/algo_handlers/market/data_quality.py": 182,
+  "lambda/api/routes/algo_handlers/market/data_quality.py": 191,
   "lambda/api/routes/algo_handlers/market/data_status.py": 1392,
   "lambda/api/routes/algo_handlers/market/pipeline_tables.py": 147,
   "lambda/api/routes/algo_handlers/market_health.py": 594,
