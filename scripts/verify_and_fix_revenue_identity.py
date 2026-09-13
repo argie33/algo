@@ -206,7 +206,27 @@ def run(limit: int | None, symbols_override: list[str] | None, apply: bool) -> d
                 "annual_income_statement",
                 f"{len(no_change)} flagged row(s) UNCHANGED by a live reload - a currently-reproducing "
                 "extraction bug (QCOM's shape), needs a code-level fix, not reachable by re-running the loader",
-                {"count": len(no_change), "examples": no_change[:_MAX_EXAMPLES_PER_CATEGORY]},
+                {
+                    "count": len(no_change),
+                    "examples": no_change[:_MAX_EXAMPLES_PER_CATEGORY],
+                    # Per-symbol isolable (see algo/monitoring/data_patrol/quarantine.py's own
+                    # docstring: an ERROR/CRITICAL finding with a non-empty flagged_symbols list
+                    # gets those specific symbols quarantined - excluded from scoring - instead of
+                    # Phase 1 halting the whole pipeline for it). Every affected symbol goes here,
+                    # not just the truncated `examples` slice above - quarantine must be complete
+                    # even when the display list is capped.
+                    "flagged_symbols": [
+                        {
+                            "symbol": s,
+                            "reason": (
+                                "revenue identity fails a live reload re-check (FY"
+                                f"{sorted({e['fiscal_year'] for e in no_change if e['symbol'] == s})}) - "
+                                "currently-reproducing extraction bug, not a stale-data issue"
+                            ),
+                        }
+                        for s in dict.fromkeys(e["symbol"] for e in no_change)
+                    ],
+                },
             ),
             CheckResult(
                 "revenue_identity_reload_changed_still_wrong",
