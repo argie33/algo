@@ -39,13 +39,22 @@ export default function ScoresCorrectnessCoverage({ active }) {
   );
 
   const [search, setSearch] = useState("");
-  const [hideChecked, setHideChecked] = useState(false);
+  // Defaults to the actionable view: scored factors DataPatrol never touches - the same
+  // "lead with what can actually move a score" posture ScoresDataCoverage already takes for
+  // completeness (its "not scored" badge + real-gap-only headline numbers). A gap on a
+  // display-only field (EV/EBITDA, PEG, short-interest fields, ...) can't move stock_scores,
+  // so it shouldn't compete for attention with a genuine gap on a live pillar input by
+  // default - both toggles below let someone widen back out to the full picture on demand.
+  const [hideChecked, setHideChecked] = useState(true);
+  const [showUnscored, setShowUnscored] = useState(false);
 
   const factors = data?.factors || [];
+  const isScored = (f) => f.scored !== false;
 
   const rows = useMemo(() => {
     return factors.filter((f) => {
       if (hideChecked && f.checked) return false;
+      if (!showUnscored && !isScored(f)) return false;
       if (
         search &&
         !(
@@ -56,7 +65,7 @@ export default function ScoresCorrectnessCoverage({ active }) {
         return false;
       return true;
     });
-  }, [factors, search, hideChecked]);
+  }, [factors, search, hideChecked, showUnscored]);
 
   if (!active) return null;
 
@@ -68,8 +77,11 @@ export default function ScoresCorrectnessCoverage({ active }) {
     );
   }
 
-  const pctChecked = data?.factor_count
-    ? Math.round((1000 * data.checked_count) / data.factor_count) / 10
+  const pctScoredChecked = data?.scored_factor_count
+    ? Math.round(
+        (1000 * (data.scored_factor_count - data.scored_unchecked_count)) /
+          data.scored_factor_count
+      ) / 10
     : null;
 
   return (
@@ -80,10 +92,12 @@ export default function ScoresCorrectnessCoverage({ active }) {
       >
         <div style={{ flex: 1 }}>
           <div className="t-sm muted">
-            Of the same pillar-input factors above, which ones does any DataPatrol check
-            (<code className="mono t-2xs">algo/monitoring/data_patrol/checks/</code>) actually
-            reference — a present value can still be silently wrong if nothing ever
-            cross-checks it. Correctness, not completeness.
+            Of the scored pillar-input factors above — the ones that can actually move a
+            stock's score — which have zero DataPatrol check
+            (<code className="mono t-2xs">algo/monitoring/data_patrol/checks/</code>) ever
+            referencing them. A present value can still be silently wrong if nothing ever
+            cross-checks it. Correctness, not completeness. Defaults to the actionable view;
+            widen it with the checkboxes below.
           </div>
         </div>
         <button
@@ -108,17 +122,23 @@ export default function ScoresCorrectnessCoverage({ active }) {
         <>
           <div className="grid grid-4" style={{ marginBottom: "var(--space-4)" }}>
             <div className="stile">
-              <div className="stile-label">Factors Tracked</div>
-              <div className="stile-value">{data.factor_count}</div>
-              <div className="stile-sub">same universe as Data Coverage above</div>
-            </div>
-            <div className="stile">
-              <div className="stile-label">Zero Direct Check</div>
-              <div className={`stile-value ${data.unchecked_count > 0 ? "down" : "up"}`}>
-                {data.unchecked_count}
+              <div className="stile-label">Scored Factors, Zero Check</div>
+              <div
+                className={`stile-value ${data.scored_unchecked_count > 0 ? "down" : "up"}`}
+              >
+                {data.scored_unchecked_count}
               </div>
               <div className="stile-sub">
-                {pctChecked != null ? `${pctChecked}% of factors are checked` : ""}
+                of {data.scored_factor_count} that can actually move a score
+                {pctScoredChecked != null ? ` — ${pctScoredChecked}% checked` : ""}
+              </div>
+            </div>
+            <div className="stile">
+              <div className="stile-label">Factors Tracked</div>
+              <div className="stile-value">{data.factor_count}</div>
+              <div className="stile-sub">
+                {data.factor_count - data.scored_factor_count} display-only (unscored), same
+                universe as Data Coverage above
               </div>
             </div>
             <div className="stile">
@@ -167,6 +187,17 @@ export default function ScoresCorrectnessCoverage({ active }) {
               />
               Show only zero-check factors
             </label>
+            <label
+              className="flex items-center gap-2 t-sm muted"
+              style={{ cursor: "pointer" }}
+            >
+              <input
+                type="checkbox"
+                checked={showUnscored}
+                onChange={(e) => setShowUnscored(e.target.checked)}
+              />
+              Include display-only (unscored) factors
+            </label>
           </div>
 
           <div
@@ -174,6 +205,7 @@ export default function ScoresCorrectnessCoverage({ active }) {
             style={{ padding: "0 var(--space-2) var(--space-2)" }}
           >
             {rows.length} of {factors.length} factors
+            {hideChecked || !showUnscored ? " (filtered — see checkboxes above)" : ""}
           </div>
 
           <div className="card">
@@ -208,6 +240,28 @@ export default function ScoresCorrectnessCoverage({ active }) {
                               >
                                 {f.table}
                               </span>
+                              {f.group && f.group !== f.table && (
+                                <span
+                                  className="badge badge-neutral"
+                                  style={{ fontSize: "var(--t-2xs)", marginLeft: 4 }}
+                                >
+                                  {f.group}
+                                </span>
+                              )}
+                              {!isScored(f) && (
+                                <span
+                                  className="badge"
+                                  title="Computed/displayed elsewhere but not read by the live composite scoring formula - a check gap here can't move a stock's score."
+                                  style={{
+                                    fontSize: "var(--t-2xs)",
+                                    marginLeft: 4,
+                                    color: "var(--text-faint)",
+                                    border: "1px solid var(--border-soft)",
+                                  }}
+                                >
+                                  not scored
+                                </span>
+                              )}
                             </span>
                           </div>
                         </td>

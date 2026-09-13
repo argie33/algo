@@ -34,6 +34,7 @@ from routes.utils import error_response, handle_db_error, json_response
 
 from loaders.loader_registry import LOADER_TABLES, PSEUDO_LOADER_TABLES
 
+from .coverage_classification import _TABLE_GROUP, _UNSCORED_FACTORS, _UNSCORED_TABLES
 from .coverage_sources import _resolve_factor_value_col
 
 logger = logging.getLogger(__name__)
@@ -137,23 +138,43 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
                 continue
             seen.add(key)
             checks = _referencing_checks(table, factor_name, check_sources)
+            # Same "can this factor ever move a live pillar score" classification
+            # ScoresDataCoverage already applies (coverage.py's "scored" flag, reusing
+            # coverage_classification.py's _UNSCORED_TABLES/_UNSCORED_FACTORS directly rather
+            # than re-deriving it) - a zero-check gap on a display-only field (EV/EBITDA, PEG,
+            # short-interest fields, ...) can't affect a stock's score, so it shouldn't count
+            # toward this panel's headline "needs attention" number any more than it counts
+            # toward ScoresDataCoverage's. This mirrors the "reason"/"data" fallback fix above:
+            # this file mirrors coverage.py's factor universe but had drifted out of sync with
+            # its classification too.
+            scored = table not in _UNSCORED_TABLES and (table, factor_name) not in _UNSCORED_FACTORS
             factors.append(
                 {
                     "table": table,
+                    "group": _TABLE_GROUP.get(table, table),
                     "factor": factor_name,
                     "checked": len(checks) > 0,
                     "checks": sorted(checks),
+                    "scored": scored,
                 }
             )
 
-        factors.sort(key=lambda f: (f["checked"], f["table"], f["factor"]))
+        factors.sort(key=lambda f: (f["checked"], not f["scored"], f["table"], f["factor"]))
         checked_count = sum(1 for f in factors if f["checked"])
+        scored_factors = [f for f in factors if f["scored"]]
+        scored_unchecked_count = sum(1 for f in scored_factors if not f["checked"])
         return json_response(
             200,
             {
                 "factor_count": len(factors),
                 "checked_count": checked_count,
                 "unchecked_count": len(factors) - checked_count,
+                # The headline number: scored (score-affecting) factors with zero check -
+                # unlike unchecked_count above, this excludes display-only/unscored fields the
+                # same way ScoresDataCoverage's KPIs already do, so a gap here always means
+                # something that can actually move a live stock score.
+                "scored_factor_count": len(scored_factors),
+                "scored_unchecked_count": scored_unchecked_count,
                 "check_module_count": len(check_sources),
                 "factors": factors,
             },
