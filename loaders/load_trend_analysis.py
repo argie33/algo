@@ -102,10 +102,25 @@ def _fetch_latest_dates(cur: psycopg2.extensions.cursor) -> list[date]:
     return [r[0] for r in rows]
 
 
+_TECH_COLUMNS = [
+    "symbol",
+    "date",
+    "rsi_14",
+    "sma_50",
+    "sma_200",
+    "roc_20d",
+    "roc_60d",
+    "roc_252d",
+    "source_data_unavailable",
+    "source_reason",
+]
+
+
 def _fetch_technical_data(cur: psycopg2.extensions.cursor, dates: list[date]) -> pd.DataFrame:
     cur.execute(
         """
-        SELECT symbol, date, rsi_14, sma_50, sma_200, roc_20d, roc_60d, roc_252d
+        SELECT symbol, date, rsi_14, sma_50, sma_200, roc_20d, roc_60d, roc_252d,
+               data_unavailable, reason
         FROM technical_data_daily
         WHERE date = ANY(%s)
         """,
@@ -113,11 +128,8 @@ def _fetch_technical_data(cur: psycopg2.extensions.cursor, dates: list[date]) ->
     )
     rows = cur.fetchall()
     if not rows:
-        return pd.DataFrame(columns=["symbol", "date", "rsi_14", "sma_50", "sma_200", "roc_20d", "roc_60d", "roc_252d"])
-    return pd.DataFrame(
-        rows,
-        columns=["symbol", "date", "rsi_14", "sma_50", "sma_200", "roc_20d", "roc_60d", "roc_252d"],
-    )
+        return pd.DataFrame(columns=_TECH_COLUMNS)
+    return pd.DataFrame(rows, columns=_TECH_COLUMNS)
 
 
 def _fetch_price_data(cur: psycopg2.extensions.cursor, dates: list[date]) -> pd.DataFrame:
@@ -197,6 +209,23 @@ def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
     return merged
 
 
+def _propagate_source_availability(merged: pd.DataFrame) -> pd.DataFrame:
+    """Set data_unavailable/reason from the source technical_data_daily row instead of
+    blanket-marking every merged row as available.
+
+    BUG FIXED 2026-09-13: a row whose source technical_data_daily entry is itself an
+    unavailable-marker (e.g. ROC_OVERFLOW_SKIP - see load_technical_indicators.py's
+    _write_roc_overflow_markers) has every indicator column NULL, so
+    _compute_scores_vectorized already correctly NaN's out
+    weinstein_stage/minervini_trend_score/trend_direction/price_above_sma50 for it - but
+    this used to then unconditionally set data_unavailable=False anyway, mislabeling a
+    propagated unavailable-marker row as a successful computation.
+    """
+    merged["data_unavailable"] = merged["source_data_unavailable"].fillna(False)
+    merged["reason"] = merged["source_reason"].where(merged["source_data_unavailable"].fillna(False), None)
+    return merged
+
+
 def _upsert_batch(cur: psycopg2.extensions.cursor, rows: list) -> int:  # type: ignore[type-arg]
     """Upsert a batch of rows into trend_template_data."""
     if not rows:
@@ -272,10 +301,7 @@ def run() -> dict:  # type: ignore[type-arg]
         logger.info(f"[TREND] Computing scores for {len(merged)} symbol-date pairs (vectorized)")
 
         merged = _compute_scores_vectorized(merged)
-
-        # Mark all successfully computed rows as available
-        merged["data_unavailable"] = False
-        merged["reason"] = None
+        merged = _propagate_source_availability(merged)
 
         rows = list(
             merged[

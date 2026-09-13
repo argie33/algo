@@ -432,6 +432,7 @@ class VectorizedTechnicalLoader:
         results = []
 
         skipped_symbols = []
+        skipped_symbol_dates: dict[str, date] = {}
         for symbol in df["symbol"].unique():
             symbol_df = df[df["symbol"] == symbol].sort_values("date").reset_index(drop=True)
             # In-memory only: price_daily stores raw/unadjusted prices, so a stock split
@@ -508,6 +509,7 @@ class VectorizedTechnicalLoader:
                                 f"Examples: {exceeded_values.head(3).values}"
                             )
                             skipped_symbols.append(symbol)
+                            skipped_symbol_dates[symbol] = symbol_df["date"].max().date()
                             raise RuntimeError(f"[ROC_OVERFLOW_SKIP] {symbol}: extreme volatility detected")
 
                         logger.warning(
@@ -667,11 +669,46 @@ class VectorizedTechnicalLoader:
                 f"(extreme ROC values, insufficient price data, etc): {skipped_symbols[:10]}"
                 + (f"... and {len(skipped_symbols) - 10} more" if len(skipped_symbols) > 10 else "")
             )
+            self._write_roc_overflow_markers(skipped_symbol_dates)
 
         if not results:
             return pd.DataFrame()
 
         return pd.concat(results, ignore_index=True)
+
+    def _write_roc_overflow_markers(self, skipped_symbol_dates: dict[str, date]) -> None:
+        """Give a symbol skipped for ROC_OVERFLOW_SKIP a visible data_unavailable marker
+        row instead of silently having zero rows for its latest date.
+
+        BUG FIXED 2026-09-13 (see technical_data_daily/trend_template_data 'needs_fix'
+        review, data_patrol_backlog_report.py): the `continue` above dropped the symbol
+        entirely - no row was ever written for it, so it looked identical to "not yet
+        computed" rather than "computed and rejected". `data_unavailable`/`reason`
+        already exist on this table (used elsewhere in this loader for successful rows,
+        always False) and there's already a dedicated index on `data_unavailable = true`
+        that nothing was ever writing to. Same never-silently-drop principle as
+        OptimalLoader.unavailable_marker_columns (utils/optimal_loader.py), applied here
+        directly since VectorizedTechnicalLoader isn't OptimalLoader-based.
+
+        Best-effort and ON CONFLICT DO NOTHING - never overwrites a real row from an
+        earlier successful run, and a failure to write the marker must not mask the
+        already-logged skip.
+        """
+        for symbol, marker_date in skipped_symbol_dates.items():
+            try:
+                with DatabaseContext("write") as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO technical_data_daily (symbol, date, data_unavailable, reason)
+                        VALUES (%s, %s, TRUE, %s)
+                        ON CONFLICT (symbol, date) DO NOTHING
+                        """,
+                        (symbol, marker_date, "roc_overflow_skip:extreme_volatility_exceeds_numeric_range"),
+                    )
+            except Exception as marker_err:
+                logger.warning(
+                    f"[technical_data_daily] {symbol}: failed to write ROC_OVERFLOW_SKIP unavailable marker: {marker_err}"
+                )
 
     def _fetch_spy_prices(self, start_date: date, end_date: date) -> list[dict[str, Any]]:
         try:
