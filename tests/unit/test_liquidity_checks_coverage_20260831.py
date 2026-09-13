@@ -18,6 +18,7 @@ CONFIG = {
     "min_adv_shares": 300000,
     "min_adv_dollars": 500000.0,
     "min_price_history_days": 200,
+    "min_market_cap_millions": 300.0,
 }
 
 
@@ -28,11 +29,15 @@ def _checks():
 class TestLiquidityChecksInit:
     def test_raises_when_min_adv_shares_missing(self):
         with pytest.raises(ValueError, match="min_adv_shares"):
-            LiquidityChecks({"min_adv_dollars": 1.0, "min_price_history_days": 200})
+            LiquidityChecks({"min_adv_dollars": 1.0, "min_price_history_days": 200, "min_market_cap_millions": 300.0})
 
     def test_raises_when_min_adv_dollars_missing(self):
         with pytest.raises(ValueError, match="min_adv_dollars"):
-            LiquidityChecks({"min_adv_shares": 1, "min_price_history_days": 200})
+            LiquidityChecks({"min_adv_shares": 1, "min_price_history_days": 200, "min_market_cap_millions": 300.0})
+
+    def test_raises_when_min_market_cap_millions_missing(self):
+        with pytest.raises(ValueError, match="min_market_cap_millions"):
+            LiquidityChecks({"min_adv_shares": 1, "min_adv_dollars": 1.0, "min_price_history_days": 200})
 
 
 class TestRunAll:
@@ -42,12 +47,13 @@ class TestRunAll:
         assert passed is False
         assert "no signal_date" in reason
 
-    def test_passes_when_all_three_sub_checks_pass(self):
+    def test_passes_when_all_four_sub_checks_pass(self):
         checks = _checks()
         with (
             patch.object(checks, "_check_price_history_age", return_value=(True, "ok")),
             patch.object(checks, "_check_adv", return_value=(True, "ok")),
             patch.object(checks, "_check_dollar_volume", return_value=(True, "ok")),
+            patch.object(checks, "_check_market_cap", return_value=(True, "ok")),
         ):
             passed, reason = checks.run_all("AAPL", 100.0, signal_date=date(2026, 1, 15))
         assert passed is True
@@ -58,6 +64,7 @@ class TestRunAll:
             patch.object(checks, "_check_price_history_age", return_value=(False, "too new")),
             patch.object(checks, "_check_adv", return_value=(True, "ok")),
             patch.object(checks, "_check_dollar_volume", return_value=(True, "ok")),
+            patch.object(checks, "_check_market_cap", return_value=(True, "ok")),
         ):
             passed, reason = checks.run_all("AAPL", 100.0, signal_date=date(2026, 1, 15))
         assert passed is False
@@ -69,6 +76,7 @@ class TestRunAll:
             patch.object(checks, "_check_price_history_age", return_value=(True, "ok")),
             patch.object(checks, "_check_adv", return_value=(False, "too thin")),
             patch.object(checks, "_check_dollar_volume", return_value=(True, "ok")),
+            patch.object(checks, "_check_market_cap", return_value=(True, "ok")),
         ):
             passed, reason = checks.run_all("AAPL", 100.0, signal_date=date(2026, 1, 15))
         assert passed is False
@@ -80,10 +88,23 @@ class TestRunAll:
             patch.object(checks, "_check_price_history_age", return_value=(True, "ok")),
             patch.object(checks, "_check_adv", return_value=(True, "ok")),
             patch.object(checks, "_check_dollar_volume", return_value=(False, "too thin")),
+            patch.object(checks, "_check_market_cap", return_value=(True, "ok")),
         ):
             passed, reason = checks.run_all("AAPL", 100.0, signal_date=date(2026, 1, 15))
         assert passed is False
         assert "Dollar volume check failed" in reason
+
+    def test_blocks_when_market_cap_check_fails(self):
+        checks = _checks()
+        with (
+            patch.object(checks, "_check_price_history_age", return_value=(True, "ok")),
+            patch.object(checks, "_check_adv", return_value=(True, "ok")),
+            patch.object(checks, "_check_dollar_volume", return_value=(True, "ok")),
+            patch.object(checks, "_check_market_cap", return_value=(False, "too small")),
+        ):
+            passed, reason = checks.run_all("AAPL", 100.0, signal_date=date(2026, 1, 15))
+        assert passed is False
+        assert "Market cap check failed" in reason
 
     def test_blocks_on_database_error_fail_closed(self):
         checks = _checks()
@@ -149,6 +170,45 @@ class TestCheckDollarVolume:
         assert "No price data" in reason
 
 
+class TestCheckMarketCap:
+    def test_passes_when_market_cap_above_minimum(self):
+        checks = _checks()
+        with patch("algo.risk.liquidity_checks.DatabaseContext") as MockDB:
+            MockDB.return_value.__enter__.return_value.fetchone.return_value = (5_000_000_000.0,)
+            passed, reason = checks._check_market_cap("AAPL")
+        assert passed is True
+
+    def test_fails_when_market_cap_below_minimum(self):
+        checks = _checks()
+        with patch("algo.risk.liquidity_checks.DatabaseContext") as MockDB:
+            MockDB.return_value.__enter__.return_value.fetchone.return_value = (50_000_000.0,)
+            passed, reason = checks._check_market_cap("PENNYCO")
+        assert passed is False
+        assert "minimum" in reason
+
+    def test_fails_closed_when_no_market_cap_data(self):
+        checks = _checks()
+        with patch("algo.risk.liquidity_checks.DatabaseContext") as MockDB:
+            MockDB.return_value.__enter__.return_value.fetchone.return_value = None
+            passed, reason = checks._check_market_cap("AAPL")
+        assert passed is False
+        assert "No market_cap data" in reason
+
+    def test_fails_closed_when_market_cap_is_none(self):
+        checks = _checks()
+        with patch("algo.risk.liquidity_checks.DatabaseContext") as MockDB:
+            MockDB.return_value.__enter__.return_value.fetchone.return_value = (None,)
+            passed, reason = checks._check_market_cap("AAPL")
+        assert passed is False
+
+    def test_fails_closed_on_database_error(self):
+        checks = _checks()
+        with patch("algo.risk.liquidity_checks.DatabaseContext", side_effect=psycopg2.OperationalError("down")):
+            passed, reason = checks._check_market_cap("AAPL")
+        assert passed is False
+        assert "blocking as safety measure" in reason
+
+
 class TestCheckPriceHistoryAge:
     def test_passes_when_enough_trading_days(self):
         checks = _checks()
@@ -174,7 +234,7 @@ class TestCheckPriceHistoryAge:
         assert "No price history" in reason
 
     def test_raises_when_min_price_history_days_config_missing(self):
-        checks = LiquidityChecks({"min_adv_shares": 1, "min_adv_dollars": 1.0})
+        checks = LiquidityChecks({"min_adv_shares": 1, "min_adv_dollars": 1.0, "min_market_cap_millions": 300.0})
         with patch("algo.risk.liquidity_checks.DatabaseContext"):
             passed, reason = checks._check_price_history_age("AAPL", date(2026, 1, 15))
         assert passed is False
