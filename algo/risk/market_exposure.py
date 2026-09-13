@@ -528,42 +528,75 @@ class MarketExposure(
             halt_reasons = []
             cap = 100.0
 
+            # Config-driven veto thresholds/caps (FIXED 2026-09-13, systematic
+            # seeded-vs-enforced sweep, scripts/audit_unenforced_config.py):
+            # market_exposure_veto{1,2,4,5}_cap_pct, veto1_breadth_pct,
+            # veto2_vix_threshold and veto5_credit_spread_threshold were all seeded,
+            # schema-validated algo_config values (only ever referenced via
+            # trading_config.py's dead get_stock_filter_config() dict-builder - the
+            # same false-wiring shape found for min_market_cap_millions/
+            # max_short_interest_pct in algo/risk/liquidity_checks.py) whose numeric
+            # values this function had hardcoded as magic-number literals instead of
+            # actually reading. Unlike the superseded Minervini config cluster
+            # (config_defaults_signals.py's "Entry Rules (Minervini)" note), this is
+            # the SAME live mechanism as veto3's already-config-driven
+            # market_exposure_veto3_distribution_days_threshold just above - the
+            # hardcoded numbers exactly matched the seeded defaults, so wiring them in
+            # is a pure configurability fix with zero behavior change for anyone on
+            # default config, not a methodology change.
+            cfg = AlgoConfig()
+
+            def _require_veto_config(key: str, veto_label: str) -> Any:
+                val = cfg.get(key)
+                if val is None:
+                    raise ValueError(
+                        f"[{veto_label} CONFIG] Missing config '{key}'. "
+                        f"Cannot apply {veto_label.lower()} without this threshold. "
+                        f"Check algo_config table has this key."
+                    )
+                return val
+
+            veto1_breadth_pct = float(_require_veto_config("market_exposure_veto1_breadth_pct", "VETO 1"))
+            veto1_cap_pct = float(_require_veto_config("market_exposure_veto1_cap_pct", "VETO 1"))
+            veto2_vix_threshold = float(_require_veto_config("market_exposure_veto2_vix_threshold", "VETO 2"))
+            veto2_cap_pct = float(_require_veto_config("market_exposure_veto2_cap_pct", "VETO 2"))
+            veto3_cap_pct = float(_require_veto_config("market_exposure_veto3_cap_pct", "VETO 3"))
+            veto4_cap_pct = float(_require_veto_config("market_exposure_veto4_cap_pct", "VETO 4"))
+            veto5_credit_spread_threshold = float(
+                _require_veto_config("market_exposure_veto5_credit_spread_threshold", "VETO 5")
+            )
+            veto5_cap_pct = float(_require_veto_config("market_exposure_veto5_cap_pct", "VETO 5"))
+
             # Veto 1: SPY < rising 30wk MA AND breadth weak
             b50_value = b50.get("value")
             if t30.get("score") is not None and not t30.get("above_30wma"):
-                if b50_value is not None and b50_value < 30:
-                    halt_reasons.append("SPY < 30wk MA AND <30% above 50-DMA")
-                    cap = min(cap, 25.0)
+                if b50_value is not None and b50_value < veto1_breadth_pct:
+                    halt_reasons.append(f"SPY < 30wk MA AND <{veto1_breadth_pct:.0f}% above 50-DMA")
+                    cap = min(cap, veto1_cap_pct)
                 elif b50_value is None:
                     msg = (
                         "[VETO 1 CRITICAL] Breadth data unavailable for veto check. "
-                        "Cannot apply 25% cap without knowing market breadth. "
+                        f"Cannot apply {veto1_cap_pct:.0f}% cap without knowing market breadth. "
                         "Check: market_health_daily table freshness and breadth data"
                     )
                     logger.critical(msg)
                     raise RuntimeError(msg)
-            # Veto 2: VIX > 40 rising (only if VIX data available)
+            # Veto 2: VIX > threshold rising (only if VIX data available)
             vix_value = vix.get("value")
-            if vix_value is not None and vix_value > 40 and vix.get("rising"):
-                halt_reasons.append(f"VIX {vix_value:.1f} rising > 40")
-                cap = min(cap, 30.0)
+            if vix_value is not None and vix_value > veto2_vix_threshold and vix.get("rising"):
+                halt_reasons.append(f"VIX {vix_value:.1f} rising > {veto2_vix_threshold:.0f}")
+                cap = min(cap, veto2_cap_pct)
             # Veto 3: selling-pressure days threshold (severe institutional distribution)
             sp_count = sp.get("count")
-            sp_threshold_val = AlgoConfig().get("market_exposure_veto3_distribution_days_threshold")
-            if sp_threshold_val is None:
-                raise ValueError(
-                    "[VETO 3 CONFIG] Missing config 'market_exposure_veto3_distribution_days_threshold'. "
-                    "Cannot apply selling-pressure veto without threshold. "
-                    "Check algo_config table has this key."
-                )
+            sp_threshold_val = _require_veto_config("market_exposure_veto3_distribution_days_threshold", "VETO 3")
             sp_threshold = int(sp_threshold_val)
             if sp_count is not None and sp_count >= sp_threshold:
                 halt_reasons.append(f"{sp_count} selling-pressure days >= {sp_threshold}")
-                cap = min(cap, 35.0)
+                cap = min(cap, veto3_cap_pct)
             elif sp_count is None:
                 msg = (
                     "[VETO 3 CRITICAL] Selling pressure data unavailable for distribution detection. "
-                    "Cannot apply 35% cap without knowing institutional distribution. "
+                    f"Cannot apply {veto3_cap_pct:.0f}% cap without knowing institutional distribution. "
                     "Check: selling_pressure() implementation, price_daily table freshness"
                 )
                 logger.critical(msg)
@@ -575,7 +608,7 @@ class MarketExposure(
                 has_confirmation = self._has_market_confirmation(eval_date, cur)
                 if not has_confirmation and t30.get("score") is not None and not t30.get("above_30wma"):
                     halt_reasons.append("No market confirmation signal while SPY below 30-week MA")
-                    cap = min(cap, 40.0)
+                    cap = min(cap, veto4_cap_pct)
             except RuntimeError as e:
                 msg = (
                     f"[VETO 4 CRITICAL] Market confirmation check failed: {e}. "
@@ -590,13 +623,15 @@ class MarketExposure(
                 # _credit_spread() returns "value" as raw percent (e.g. 3.5 for 3.5%,
                 # matching its own scoring bands hy < 3.5/4.5/5.5/7.0 and the docstring
                 # "Scale: <3.5% = tight/healthy... >7% = severe stress").
-                if cs_value > 8.5:  # 8.5% OAS = systemic stress threshold
-                    halt_reasons.append(f"HY credit spread {cs_value:.2f}% > 8.5% (systemic stress)")
-                    cap = min(cap, 30.0)
+                if cs_value > veto5_credit_spread_threshold:
+                    halt_reasons.append(
+                        f"HY credit spread {cs_value:.2f}% > {veto5_credit_spread_threshold:.1f}% (systemic stress)"
+                    )
+                    cap = min(cap, veto5_cap_pct)
             else:
                 msg = (
                     "[VETO 5 CRITICAL] Credit spread data unavailable for systemic stress check. "
-                    "Cannot apply 30% cap without knowing credit market stress. "
+                    f"Cannot apply {veto5_cap_pct:.0f}% cap without knowing credit market stress. "
                     "HY credit spread (OAS) is a leading indicator of systemic risk. "
                     "Check: credit_spreads table and ensure recent readings are loaded"
                 )
