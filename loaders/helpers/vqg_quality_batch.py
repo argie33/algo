@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
 from loaders.helpers.vqg_quality_debt_fallback import DebtComponentsFallbackMixin
 from loaders.helpers.vqg_shared import BROKER_DEALER_INDUSTRIES, apply_mortgage_reit_sector_override
+from loaders.stock_scores.pillar_weights import DEFAULT_MIN_INVESTABLE_MARKET_CAP
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 
 
@@ -124,6 +125,13 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
         missing, and floored to 0.0 (not z-scored) if roe<0 OR roa<0 - unchanged from the
         prior ROE/ROCE-only version of this method.
 
+        INVESTABILITY FLOOR ADDED 2026-09-13 (`vm.market_cap >= %s`, algo_config.min_market_
+        cap_millions, same $300M threshold LiquidityChecks._check_market_cap() now enforces at
+        trade entry): the sector-neutral z-score's peer group is the current run's universe -
+        if that includes sub-floor nanocaps, their more extreme ratios distort the percentile
+        boundaries real, investable companies get ranked against. Sub-floor symbols simply
+        aren't included in this pass and keep whatever Pass-1 already gave them.
+
         Raises on failure, same as every other post_run() batch pass - an inconsistent
         quality_score is a live-trading-relevant correctness issue.
         """
@@ -144,14 +152,17 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                            qm.debt_to_equity, qm.margin_volatility, qm.asset_turnover, qm.gross_profitability,
                            qm.quality_score
                     FROM quality_metrics qm
+                    JOIN value_metrics vm ON vm.symbol = qm.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = qm.symbol
                     JOIN stock_symbols su ON su.symbol = qm.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = qm.symbol
                     WHERE qm.quality_score IS NOT NULL
                       AND COALESCE(qm.data_unavailable, false) = false
+                      AND vm.market_cap >= %s
                       AND ("""
                     + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
-                    + ")"
+                    + ")",
+                    (getattr(self, "_min_investable_market_cap", None) or DEFAULT_MIN_INVESTABLE_MARKET_CAP,),
                 )
                 rows = cur.fetchall()
 

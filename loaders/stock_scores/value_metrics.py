@@ -19,7 +19,11 @@ import psycopg2
 
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
 from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
-from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
+from loaders.stock_scores.pillar_weights import (
+    BASE_PILLAR_WEIGHTS,
+    DEFAULT_MIN_INVESTABLE_MARKET_CAP,
+    _value_risk_adjusted_weights,
+)
 from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT, _dividend_sustainability_factor
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.type_conversion import safe_float
@@ -423,6 +427,16 @@ class ValueMetricsMixin:
         design this method used until the rewrite below - see "BUG FOUND + FIXED 2026-08-31"
         below.
 
+        INVESTABILITY FLOOR ADDED 2026-09-13 (`vm.market_cap >= %s`, algo_config.min_market_
+        cap_millions, same $300M threshold LiquidityChecks._check_market_cap() now enforces at
+        trade entry): this percentile rank is computed against the CURRENT RUN'S UNIVERSE - if
+        that universe includes thousands of sub-floor nanocaps, their more extreme P/E/P/B/P/S
+        ratios distort the percentile boundaries real, investable companies get ranked against.
+        Real index/factor methodology defines the eligible universe before computing exposures,
+        never after - this makes the scoring population match that ordering instead of relying
+        on a display-time filter to hide the effect. Sub-floor symbols simply aren't included
+        in this pass and keep whatever Pass-1 (`_score_value`) already gave them.
+
         BUG FOUND + FIXED 2026-09-11 (goal: "value score rankings look wrong" investigation):
         this batch pass never selected/used `vm.pb_ratio_unavailable_reason`, so the
         negative-book-value P/B floor `_score_value` applies in Pass 1 (see
@@ -638,9 +652,11 @@ class ValueMetricsMixin:
                     LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
                     WHERE ss.value_score IS NOT NULL
                       AND COALESCE(vm.data_unavailable, false) = false
+                      AND vm.market_cap >= %s
                       AND ("""
                     + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
-                    + ")"
+                    + ")",
+                    (getattr(self, "_min_investable_market_cap", None) or DEFAULT_MIN_INVESTABLE_MARKET_CAP,),
                 )
                 rows = cur.fetchall()
 
