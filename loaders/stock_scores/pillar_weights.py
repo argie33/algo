@@ -317,6 +317,19 @@ BASE_PILLAR_WEIGHTS: dict[str, float] = {
 # load_stock_scores.py/growth_scoring.py don't need their own call-site changes.
 VALUE_RISK_INTERACTION_MAX_SHIFT = 0.0
 
+# INVESTABILITY FLOOR fallback default, dollars (added 2026-09-13). The real, live value is
+# always read from algo_config.min_market_cap_millions in `_prepare_batch_context()` (stored on
+# self._min_investable_market_cap) - this constant exists ONLY as the single shared fallback
+# for the rare case that attribute is missing (algo_config row absent, or a batch-pass method
+# called on a loader instance that never ran _prepare_batch_context, e.g. some unit tests).
+# Single source of truth so the same number isn't hand-copied into every pillar batch-pass
+# file's own `getattr(...)` call and left to drift if the real default ever changes - same
+# "module-level constant, not hand-copied" reasoning as BASE_PILLAR_WEIGHTS above. Matches
+# algo_config.min_market_cap_millions's own seeded default (migration 005) and
+# algo/infrastructure/config/config_defaults_risk.py's "300.0" - keep all three in sync if this
+# ever changes.
+DEFAULT_MIN_INVESTABLE_MARKET_CAP = 300_000_000.0
+
 
 def _value_risk_adjusted_weights(risk_score: float | None) -> dict[str, float]:
     """Retired 2026-09-11 - always returns BASE_PILLAR_WEIGHTS unmodified. Kept as a function

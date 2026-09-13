@@ -99,7 +99,11 @@ from typing import TYPE_CHECKING, Any
 import psycopg2
 
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
-from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
+from loaders.stock_scores.pillar_weights import (
+    BASE_PILLAR_WEIGHTS,
+    DEFAULT_MIN_INVESTABLE_MARKET_CAP,
+    _value_risk_adjusted_weights,
+)
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.type_conversion import safe_float
 
@@ -699,7 +703,19 @@ class RiskScoringMixin:
         lookback, last 20 real trading days) rather than depending on that cache's instance
         lifetime - this method runs as an independent, self-contained batch pass. Also counts
         each symbol's total real price_daily rows (`trading_days_history`) - see
-        MIN_TRADING_DAYS_FOR_DRAWDOWN's own docstring for why max_drawdown_1y needs this gate."""
+        MIN_TRADING_DAYS_FOR_DRAWDOWN's own docstring for why max_drawdown_1y needs this gate.
+
+        INVESTABILITY FLOOR ADDED 2026-09-13 (`vm.market_cap >= %s`, algo_config.min_market_
+        cap_millions, same $300M threshold LiquidityChecks._check_market_cap() now enforces at
+        trade entry): orthogonal to the sector-neutral-vs-universe-wide question this pillar's
+        own module docstring already settles (Risk stays universe-wide, not sector-relative) -
+        this is about WHICH symbols are in that universe-wide population at all. Reinforces the
+        same failure mode MIN_TRADING_DAYS_FOR_DRAWDOWN above was added to catch ("a shitty
+        microcap with no real track record dominates the safest list") one level earlier: an
+        illiquid-but-technically-scored nanocap's more extreme volatility/drawdown reading
+        shouldn't set the percentile curve real, investable companies get ranked against
+        either. Sub-floor symbols simply aren't included in this pass and keep whatever Pass-1
+        already gave them."""
         with _owner().DatabaseContext("write") as cur:
             cur.execute(
                 """
@@ -729,15 +745,18 @@ class RiskScoringMixin:
                        liq.avg_dollar_volume_20d, COALESCE(hist.trading_days_history, 0)
                 FROM stock_scores ss
                 JOIN stability_metrics sm ON sm.symbol = ss.symbol
+                JOIN value_metrics vm ON vm.symbol = ss.symbol
                 LEFT JOIN liquidity liq ON liq.symbol = ss.symbol
                 LEFT JOIN history hist ON hist.symbol = ss.symbol
                 JOIN stock_symbols su ON su.symbol = ss.symbol
                 LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
                 WHERE ss.risk_score IS NOT NULL
                   AND COALESCE(sm.data_unavailable, false) = false
+                  AND vm.market_cap >= %s
                   AND ("""
                 + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
-                + ")"
+                + ")",
+                (getattr(self, "_min_investable_market_cap", None) or DEFAULT_MIN_INVESTABLE_MARKET_CAP,),
             )
             rows: list[tuple[Any, ...]] = cur.fetchall()
             return rows
