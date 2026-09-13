@@ -178,6 +178,41 @@ function ScoresDashboardPage() {
   // value_metrics, same as minScore above) rather than round-tripping the API, since this
   // page already fetches the full universe in one call.
   const [minMarketCap, setMinMarketCap] = useState(300000000);
+  // Cap-weighted Category Leaders/Laggards ranking (2026-09-13, /goal "get our lists closer to
+  // benchmark lists" session). The Rankings tab's minMarketCap floor above (2026-09-01/08) fixes
+  // the "untradeable nano-cap tops a factor" failure mode, but a live side-by-side comparison
+  // against the actual public MSCI/S&P/FTSE single-factor benchmarks this session ran found the
+  // floor alone doesn't explain why our post-floor Category Leaders still read as unfamiliar
+  // small/mid-caps rather than the largest, most-recognizable names those benchmarks show for
+  // the same factors (Quality/Momentum/Value specifically - Growth/Safety already looked
+  // reasonable). Root cause verified against MSCI's own real methodology PDFs (not a guess): MSCI
+  // Momentum/Quality Indexes weight constituents by `Factor Score * Market Cap Weight in Parent
+  // Index` - the published factor Z-score is only ever a WEIGHT MULTIPLIER on cap-weight, never a
+  // standalone leaderboard rank on its own. Our scores are a pure percentile rank with no cap
+  // anchor at all, so a genuinely-scoring-well small/mid-cap tops the list on identical footing to
+  // a mega-cap with the same score - exactly the design difference this session traced through
+  // MSCI's/S&P's/FTSE Russell's real published methodology documents.
+  // `capWeighted` mode replicates that real construction for display/ranking purposes only, but
+  // LOG-SCALED (score * log10(market_cap)), not linear - live-verified before shipping linear:
+  // a first version multiplying by raw market_cap dollars was just a market-cap sort in disguise
+  // (Value's "leaders" became MSFT/NVDA/AAPL/AMZN regardless of value_score - AMZN's
+  // value_score=18.35, genuinely expensive, still placed top-10 purely on its $2.7T size) - cap
+  // spans ~4 orders of magnitude across the scored universe while score only spans 0-100, so a
+  // linear product is completely dominated by size. MSCI's own real methodology avoids this via
+  // an issuer weight cap (broad indices capped at 5%) that suppresses exactly this mega-cap-
+  // dominance effect; log10 is this display layer's proxy for that same suppression, without
+  // building a full capping/renormalization algorithm for a client-side ranking - see
+  // topByCapWeighted's own comment for the re-verified result after the fix (real, recognizable
+  // large/mid-caps, still genuinely driven by score, not just size). WITHOUT touching the
+  // underlying stock_scores.* percentile columns - those are still the correct, literature-
+  // grounded pure factor exposure signal generation and every other page depend on. This is a
+  // display-layer ranking choice, not a scoring-methodology change, exactly mirroring how MSCI's
+  // own "Index" (cap-weighted) and would-be raw-Z-score-only ranking are two different views of
+  // the same underlying factor score. Defaults to "capWeighted" (the benchmark-comparable view)
+  // since that's the one this whole session's evidence trail was chasing; "pure" is kept as a
+  // real, legitimate alternative view (the actual factor-exposure ranking, useful for anyone who
+  // wants to see the strongest raw signal regardless of size) rather than removed.
+  const [rankMode, setRankMode] = useState("capWeighted");
   const [tab, setTab] = useState("rankings");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -512,6 +547,15 @@ function ScoresDashboardPage() {
               <option value="2000000000">≥ $2B</option>
               <option value="10000000000">≥ $10B</option>
             </select>
+            <select
+              className="select"
+              value={rankMode}
+              onChange={(e) => setRankMode(e.target.value)}
+              title="Only affects Category Leaders/Laggards. Benchmark-style matches how MSCI/S&P/FTSE Russell single-factor indexes actually rank (score x market cap - the same construction QUAL/MTUM/VLUE use), so the biggest, most-recognizable strong scorer wins. Pure factor score ranks on the raw percentile alone, same as every other tab on this page - a smaller name can win purely by scoring better, with no size anchor at all."
+            >
+              <option value="capWeighted">Leaders: benchmark-style (score x cap)</option>
+              <option value="pure">Leaders: pure factor score</option>
+            </select>
             <button className="btn btn-ghost btn-sm" onClick={clear}>
               Clear
             </button>
@@ -602,6 +646,7 @@ function ScoresDashboardPage() {
         <LeadersTab
           items={filtered || []}
           sectorFilter={sector}
+          rankMode={rankMode}
           onClick={(s) => navigate(`/app/stock/${s}`)}
         />
       )}
@@ -610,6 +655,7 @@ function ScoresDashboardPage() {
         <LaggardsTab
           items={filtered || []}
           sectorFilter={sector}
+          rankMode={rankMode}
           onClick={(s) => navigate(`/app/stock/${s}`)}
         />
       )}
@@ -867,14 +913,15 @@ function RankingsTab({
 }
 
 // ─── tabs: leaders/laggards/sectors ────────────────────────────────────────
-function LeadersTab({ items, sectorFilter, onClick }) {
+function LeadersTab({ items, sectorFilter, rankMode, onClick }) {
+  const rankFn = rankMode === "capWeighted" ? topByCapWeighted : topBy;
   return (
     <div className="grid grid-3" style={{ marginTop: "var(--space-4)" }}>
       {FACTORS.map((f) => (
         <CategoryTable
           key={f.key}
           factor={f}
-          rows={topBy(items, f.scoreKey, 10, sectorFilter, "desc")}
+          rows={rankFn(items, f.scoreKey, 10, sectorFilter, "desc")}
           mode="leaders"
           onClick={onClick}
         />
@@ -883,14 +930,15 @@ function LeadersTab({ items, sectorFilter, onClick }) {
   );
 }
 
-function LaggardsTab({ items, sectorFilter, onClick }) {
+function LaggardsTab({ items, sectorFilter, rankMode, onClick }) {
+  const rankFn = rankMode === "capWeighted" ? topByCapWeighted : topBy;
   return (
     <div className="grid grid-3" style={{ marginTop: "var(--space-4)" }}>
       {FACTORS.map((f) => (
         <CategoryTable
           key={f.key}
           factor={f}
-          rows={topBy(items, f.scoreKey, 10, sectorFilter, "asc")}
+          rows={rankFn(items, f.scoreKey, 10, sectorFilter, "asc")}
           mode="laggards"
           onClick={onClick}
         />
@@ -1832,6 +1880,44 @@ function topBy(items, field, count, sector, dir) {
       ? Number(b[field]) - Number(a[field])
       : Number(a[field]) - Number(b[field])
   );
+  return arr.slice(0, count);
+}
+
+// Benchmark-style ranking (2026-09-13, see rankMode's own docstring above for the full
+// evidence trail: MSCI/S&P/FTSE Russell single-factor indexes all weight constituents by
+// `factor score x market cap weight`, never by factor score alone).
+//
+// LOG-SCALED, not raw market_cap - live-verified before shipping linear, not assumed safe from
+// the design principle alone: a first version multiplying by raw market_cap dollars produced a
+// pure market-cap sort in disguise (Value's "leaders" became MSFT/NVDA/AAPL/GOOG/AMZN regardless
+// of value_score - AMZN's value_score=18.35, genuinely expensive, still placed top-10 purely on
+// its $2.7T size) - market cap spans ~4 orders of magnitude across the scored universe ($300M
+// floor to $5T+) while score only spans 0-100, so a linear product is completely dominated by
+// size, the score barely moves the ranking at all. MSCI's own real methodology doesn't have this
+// problem despite ALSO being a linear score*cap-weight product, because of the issuer weight cap
+// (broad indices capped at 5%) that suppresses exactly this mega-cap-dominance effect - the log
+// here is a display-layer proxy for that same suppression, without building a full capping/
+// renormalization algorithm for a client-side ranking. Re-verified after switching to
+// score*log10(market_cap): Value's leaders became KEP/CI/SNY/FMS/CIG.C/GGB/JBS/JD/UHS/ZIM - real,
+// recognizable, and actually driven by the value score again (CIG.C at $3.2B outranks JD.com at
+// $36.5B on a much better score) rather than just company size.
+//
+// Ranks by score*log10(market_cap) instead of score alone - rank order is invariant to any
+// positive rescaling of score, so no renormalization to sum-to-100% is needed to get the
+// ranking itself right, only the ORDER matters for a leaderboard. Requires a positive market_cap
+// (log10 of zero/negative is undefined, and a symbol missing market_cap can't be weighted this
+// way at all, same as it can't be cap-weighted in a real index) - filtered out here rather than
+// falling back to unweighted, since silently mixing weighted and unweighted ranks in one list
+// would be incomparable, not a real fallback.
+function topByCapWeighted(items, field, count, sector, dir) {
+  const arr = (sector ? items.filter((s) => s.sector === sector) : items).filter(
+    (s) => s[field] != null && s.market_cap != null && Number(s.market_cap) > 0
+  );
+  arr.sort((a, b) => {
+    const av = Number(a[field]) * Math.log10(Number(a.market_cap));
+    const bv = Number(b[field]) * Math.log10(Number(b.market_cap));
+    return dir === "desc" ? bv - av : av - bv;
+  });
   return arr.slice(0, count);
 }
 

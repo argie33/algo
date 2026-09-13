@@ -342,6 +342,71 @@ describe("ScoresDashboard Page", () => {
     });
   });
 
+  it("benchmark-style Category Leaders still lets a much-cheaper mid-cap outrank an expensive mega-cap (regression: linear cap-weighting became a pure market-cap sort)", async () => {
+    // Regression test (2026-09-13, /goal "get our lists closer to benchmark lists" session).
+    // The first version of rankMode="capWeighted" multiplied by RAW market_cap dollars, which
+    // is completely dominated by size (cap spans ~4 orders of magnitude across the universe,
+    // score only spans 0-100) - live-verified against the real database before landing the fix:
+    // Value's "leaders" became MSFT/NVDA/AAPL/AMZN regardless of value_score, with AMZN's
+    // genuinely-expensive value_score=18.35 still placing top-10 purely on its $2.7T size.
+    // topByCapWeighted now uses score*log10(market_cap) instead, which compresses that dynamic
+    // range enough for the actual factor score to matter again. This fixture reproduces the
+    // exact failure shape: EXPENSIVE is 10x bigger than CHEAP but scores far worse on value - a
+    // linear weighting would let EXPENSIVE's size alone put it above CHEAP; log-scaling must not.
+    const expensiveMegaCap = {
+      symbol: "EXPENSIVE",
+      company_name: "Expensive Mega Corp",
+      composite_score: 50.0,
+      quality_score: 50.0,
+      momentum_score: 50.0,
+      value_score: 15.0, // genuinely poor value - should NOT top a Value leaders list
+      growth_score: 50.0,
+      risk_score: 50.0,
+      price: 100,
+      change_percent: 0.5,
+      sector: "Technology",
+      market_cap: 2_000_000_000_000, // $2T
+    };
+    const cheapMidCap = {
+      symbol: "CHEAP",
+      company_name: "Cheap Mid Corp",
+      composite_score: 60.0,
+      quality_score: 60.0,
+      momentum_score: 60.0,
+      value_score: 92.0, // genuinely excellent value
+      growth_score: 60.0,
+      risk_score: 60.0,
+      price: 40,
+      change_percent: 0.2,
+      sector: "Industrials",
+      market_cap: 2_000_000_000, // $2B - 1000x smaller than EXPENSIVE, still well above the $300M floor
+    };
+    const mockApi = await import("../../../services/api");
+    mockApi.api.get.mockResolvedValue({
+      data: { items: [...mockStocks, expensiveMegaCap, cheapMidCap] },
+    });
+
+    renderScoresDashboard();
+    await waitFor(() => {
+      expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Category Leaders/i }));
+    await waitFor(() => {
+      expect(screen.getAllByText("CHEAP").length).toBeGreaterThan(0);
+    });
+
+    const valueCard = screen.getByText("Value Leaders").closest(".card");
+    const cardRows = Array.from(valueCard.querySelectorAll("tbody tr")).map((tr) => tr.textContent);
+    const cheapIdx = cardRows.findIndex((t) => t.includes("CHEAP"));
+    const expensiveIdx = cardRows.findIndex((t) => t.includes("EXPENSIVE"));
+    expect(cheapIdx).toBeGreaterThanOrEqual(0);
+    // EXPENSIVE's value_score (15) is far worse than CHEAP's (92) - under log-scaled cap
+    // weighting CHEAP must still rank above it despite being 1000x smaller by market cap.
+    // (expensiveIdx of -1 means it didn't make the top 10 at all, which also satisfies this.)
+    expect(expensiveIdx === -1 || cheapIdx < expensiveIdx).toBe(true);
+  });
+
   it("clears search when Clear button is clicked", async () => {
     renderScoresDashboard();
     await waitFor(() => {
