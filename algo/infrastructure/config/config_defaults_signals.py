@@ -188,6 +188,13 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "Max % RS-line below 60d high (Minervini strict = 5%)",
         "Entry Quality Gates",
     ),
+    # DEAD (confirmed 2026-09-13, systematic seeded-vs-enforced sweep,
+    # scripts/audit_unenforced_config.py): both keys' own descriptions reference a "T3"
+    # hard-gate concept that does not exist anywhere in this codebase - grepped for `T3`
+    # across algo/signals/, zero hits. Only referenced via trading_config.py's dead
+    # get_stock_filter_config(). Not superseded by a live equivalent like the Minervini
+    # cluster above - the "T3" hard-gate feature these were meant to toggle appears to
+    # have never been built (or was removed) independent of these flags.
     "rs_slope_gate_enabled": (
         "false",
         "bool",
