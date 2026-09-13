@@ -84,6 +84,29 @@ class TestLiabilitiesFromAssetsMinusEquity:
         row = by_period[(2025, "Q2")]
         assert row["liabilities"] == 3_671_235.0
 
+    def test_noncontrolling_interest_subtracted_when_deriving_liabilities_20260913(self) -> None:
+        """REGRESSION for the 2026-09-13 fix: DIS-shaped (Disney FY2025, live-confirmed real
+        values) - plain "Liabilities" absent, only LiabilitiesAndStockholdersEquity/
+        StockholdersEquity/MinorityInterest tagged. Before this fix, liabilities derived as
+        total - equity (197,514,000,000 - 109,869,000,000 = 87,645,000,000) ignored the real
+        $4,743,000,000 noncontrolling interest, overstating liabilities by exactly that amount
+        and making the balance_sheet_identity check's separate +noncontrolling_interest term
+        double-count it. True liabilities must subtract MinorityInterest too."""
+        facts = {
+            "us-gaap": {
+                "StockholdersEquity": {"units": {"USD": [_entry("2025-09-27", 109_869_000_000.0, "2025-11-13")]}},
+                "MinorityInterest": {"units": {"USD": [_entry("2025-09-27", 4_743_000_000.0, "2025-11-13")]}},
+                "LiabilitiesAndStockholdersEquity": {
+                    "units": {"USD": [_entry("2025-09-27", 197_514_000_000.0, "2025-11-13")]}
+                },
+            },
+            "ifrs-full": {},
+        }
+        rows = get_balance_sheet(_FakeClient(facts), "DIS", period="quarterly")
+        by_period = {(r["fiscal_year"], r["fiscal_period"]): r for r in rows}
+        row = by_period[(2025, "Q4")]
+        assert row["liabilities"] == 82_902_000_000.0
+
     def test_no_combined_concept_leaves_gap_untouched(self) -> None:
         facts = {
             "us-gaap": {

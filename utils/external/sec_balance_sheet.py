@@ -1128,7 +1128,15 @@ def _fill_liabilities_from_assets_minus_equity(
         if row.get("liabilities") is None:
             equity = row.get("stockholders_equity")
             if equity is not None:
-                row["liabilities"] = total - equity
+                # FIXED 2026-09-13 (goal: find/fix inaccurate factor-score-input data -
+                # balance_sheet_identity confirmed-fresh sweep): this derivation didn't
+                # subtract noncontrolling_interest, so any filer landing here
+                # with real NCI (Disney live-confirmed: FY2025 MinorityInterest=$4,743,000,000,
+                # LiabilitiesAndStockholdersEquity == Assets exactly at $197,514,000,000, plain
+                # "Liabilities" absent) got total_liabilities overstated by exactly the NCI
+                # amount - the identity check (correctly) adding noncontrolling_interest back
+                # on top of an already-inflated liabilities figure then overshot assets.
+                row["liabilities"] = total - equity - (row.get("minority_interest") or 0)
 
 
 def _fill_liabilities_from_ifrs_current_noncurrent_split(
