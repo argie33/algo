@@ -9,7 +9,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..base import CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 from .tie_out_shared import (
     _ACCOUNTS_PAYABLE_TOLERANCE_PCT,
     _ACCOUNTS_RECEIVABLE_TOLERANCE_PCT,
@@ -94,6 +94,13 @@ class TieOutBoundsAnnual1Mixin:
                     f"(structurally impossible - quick_ratio excludes inventory)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
                 )
+            else:
+                self.log(
+                    "quick_ratio_le_current_ratio",
+                    INFO,
+                    "quality_metrics",
+                    "no quick_ratio > current_ratio violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quick_ratio_le_current_ratio failed: {e}", exc_info=True)
             self.log(
@@ -165,6 +172,13 @@ class TieOutBoundsAnnual1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "current_assets_le_total_assets",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no current_assets > total_assets violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] current_assets_le_total_assets failed: {e}", exc_info=True)
             self.log(
@@ -232,6 +246,13 @@ class TieOutBoundsAnnual1Mixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "current_liabilities_le_total_liabilities",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no current_liabilities > total_liabilities violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] current_liabilities_le_total_liabilities failed: {e}", exc_info=True)
@@ -301,6 +322,13 @@ class TieOutBoundsAnnual1Mixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "long_term_debt_le_total_liabilities",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no long_term_debt > total_liabilities violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] long_term_debt_le_total_liabilities failed: {e}", exc_info=True)
@@ -390,6 +418,13 @@ class TieOutBoundsAnnual1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "operating_income_upper_bound",
+                    INFO,
+                    "annual_income_statement",
+                    "no operating_income upper-bound violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] operating_income_upper_bound failed: {e}", exc_info=True)
             self.log(
@@ -459,6 +494,13 @@ class TieOutBoundsAnnual1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "goodwill_le_total_assets",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no goodwill > total_assets violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] goodwill_le_total_assets failed: {e}", exc_info=True)
             self.log(
@@ -525,6 +567,13 @@ class TieOutBoundsAnnual1Mixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "accounts_payable_le_current_liabilities",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no accounts_payable > current_liabilities violations found",
                 )
         except Exception as e:
             logger.error(
@@ -596,6 +645,13 @@ class TieOutBoundsAnnual1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "cash_le_current_assets",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no cash_and_equivalents > current_assets violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] cash_le_current_assets failed: {e}", exc_info=True)
             self.log(
@@ -662,6 +718,13 @@ class TieOutBoundsAnnual1Mixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "inventory_le_current_assets",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no inventory > current_assets violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] inventory_le_current_assets failed: {e}", exc_info=True)
@@ -733,6 +796,13 @@ class TieOutBoundsAnnual1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "accounts_receivable_le_current_assets",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no accounts_receivable > current_assets violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] accounts_receivable_le_current_assets failed: {e}", exc_info=True)
             self.log(
@@ -799,6 +869,13 @@ class TieOutBoundsAnnual1Mixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "ppe_net_le_total_assets",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no ppe_net > total_assets violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] ppe_net_le_total_assets failed: {e}", exc_info=True)
@@ -873,6 +950,13 @@ class TieOutBoundsAnnual1Mixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "diluted_ge_basic_shares",
+                    INFO,
+                    "annual_income_statement",
+                    "no shares_outstanding_diluted < shares_outstanding_basic violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] diluted_ge_basic_shares failed: {e}", exc_info=True)
