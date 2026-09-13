@@ -52,7 +52,14 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
             loader.post_run()
 
         sqls = [call[0][0] for call in mock_cur.execute.call_args_list]
-        for field in ("stock_based_compensation", "common_stock_repurchased", "capex"):
+        for field in (
+            "stock_based_compensation",
+            "common_stock_repurchased",
+            "capex",
+            "dividends_paid",
+            "financing_cash_flow",
+            "investing_cash_flow",
+        ):
             q3_sqls = [s for s in sqls if f"q3.{field} - src.q2_val" in s]
             q2_sqls = [s for s in sqls if f"q2.{field} - src.q1_val" in s]
             assert len(q3_sqls) == 1
@@ -72,12 +79,24 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
         # Exact-duplicate fingerprint: Q2 == Q3, Q1 < Q2, Q2 > 0 - verified against RITM's
         # real SEC source data (FY2018: Q1=420000, Q2=Q3=1019000), Agilent's (FY2017:
         # Q1=111000000, Q2=Q3=194000000), and AAT/ABAT's (capex).
-        for field in ("stock_based_compensation", "common_stock_repurchased", "capex"):
+        for field in ("stock_based_compensation", "common_stock_repurchased", "capex", "dividends_paid"):
             q3_sql = next(s for s in sqls if f"q3.{field} - src.q2_val" in s)
             assert f"q2.{field} = q3x.{field}" in q3_sql
             assert f"q1.{field} < q2.{field}" in q3_sql
             assert f"q2.{field} > 0" in q3_sql
             # Never re-fires on its own prior output.
+            assert "q2.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
+            assert "q3x.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
+
+        # financing_cash_flow/investing_cash_flow are net flows that can legitimately be
+        # negative, so they use sign_scoped=False: Q1 != Q2 == Q3, no sign requirement -
+        # verified against ABEO's real SEC source data (FY2020 financing_cash_flow,
+        # FY2012 investing_cash_flow), same distinction tie_out_cashflow_cumulative_
+        # quarters.py already makes for these two fields.
+        for field in ("financing_cash_flow", "investing_cash_flow"):
+            q3_sql = next(s for s in sqls if f"q3.{field} - src.q2_val" in s)
+            assert f"q2.{field} = q3x.{field}" in q3_sql
+            assert f"q1.{field} != q2.{field}" in q3_sql
             assert "q2.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
             assert "q3x.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
 
@@ -127,14 +146,18 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
         assert "q4x.data_unavailable = TRUE" in capex_sql
         assert "q4x.capex IS DISTINCT FROM ( a.capex - (q1.capex + q2.capex + q3.capex)" in capex_sql
 
+        # 2026-09-13 widening (dividends_paid/financing_cash_flow/investing_cash_flow):
+        # once _sweep_correct_cumulative_ytd_field() itself covers all 6 fields (verified
+        # against ACN/ABEO real SEC source data), the self-heal guard widens to match -
+        # these 3 are no longer left on the conservative fill-only guard.
         for field in (
+            "dividends_paid",
             "financing_cash_flow",
             "investing_cash_flow",
-            "dividends_paid",
         ):
             field_sql = " ".join(next(s for s in sqls if f"SET {field} = derived.{field}" in s).split())
-            assert f"WHERE q4x.fiscal_quarter = 4 AND q4x.{field} IS NULL AND" in field_sql
-            assert f"q4x.{field} IS DISTINCT FROM" not in field_sql
+            assert "q4x.data_unavailable = TRUE" in field_sql
+            assert f"q4x.{field} IS DISTINCT FROM ( a.{field} - (q1.{field} + q2.{field} + q3.{field})" in field_sql
 
     def test_annual_cash_flow_run_does_not_trigger_this_sweep(self) -> None:
         loader = _make_loader(statement_type="cashflow", period="annual")
