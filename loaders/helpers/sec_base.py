@@ -27,7 +27,11 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, cast
 
-from loaders.helpers.sec_revenue_total_resolution import resolve_revenue_total_candidate
+from loaders.helpers.sec_revenue_total_resolution import (
+    asc606_existing_value_outranks_candidate,
+    reit_fallback_existing_value_protected,
+    resolve_revenue_total_candidate,
+)
 from loaders.helpers.sec_statement_field_bookkeeping import is_bookkeeping_key
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
@@ -1542,11 +1546,8 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # touching the WAFDP/AMTB bank case above - there the existing value
                     # (interest income, $607.1M) is already larger than the ASC-606 fee
                     # ($25.9M), so the magnitude check still protects it exactly as before.
-                    and not (
-                        isinstance(row[db_field], (int, float, Decimal))
-                        and isinstance(value, (int, float, Decimal))
-                        and float(row[db_field]) < float(value)
-                    )
+                    # FIXED 2026-09-13 (MKZR): see reit_fallback_existing_value_protected's docstring.
+                    and reit_fallback_existing_value_protected(row.get(db_field), value)
                 ):
                     # REIT filer: real lease revenue already populated this field.
                     # Insurance filer (2026-08-22 fix): real "Revenues" (premiums + investment
@@ -1600,18 +1601,12 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 # magnitude one). The source check lets that precedence stand while still
                 # protecting a genuinely different, larger, earlier-written total like ANDE's
                 # "Revenues".
-                if (
-                    db_field in row
-                    and isinstance(row[db_field], (int, float, Decimal))
-                    and isinstance(value, (int, float, Decimal))
-                    and float(row[db_field]) > float(value)
-                    and (
-                        sec_field == "revenue_from_contract_with_customer_including_assessed_tax"
-                        or (
-                            sec_field == "revenue_from_contract_with_customer_excluding_assessed_tax"
-                            and _revenue_source_sec_field
-                            != "revenue_from_contract_with_customer_including_assessed_tax"
-                        )
+                # FIXED 2026-09-13 (MKZR): see asc606_existing_value_outranks_candidate's docstring.
+                if asc606_existing_value_outranks_candidate(row.get(db_field), value) and (
+                    sec_field == "revenue_from_contract_with_customer_including_assessed_tax"
+                    or (
+                        sec_field == "revenue_from_contract_with_customer_excluding_assessed_tax"
+                        and _revenue_source_sec_field != "revenue_from_contract_with_customer_including_assessed_tax"
                     )
                 ):
                     continue
