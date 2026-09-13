@@ -31,6 +31,11 @@ class IncomeStatementContextMixin:
     `_lsv` import).
     """
 
+    # Type-only declaration for the SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO=2 class constant
+    # defined on SecValuationsLoader itself, reused below by the FPI EPS-derivation validation -
+    # see that call site's own comment for why.
+    SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO: int
+
     # Type-only declarations, TYPE_CHECKING-only so they exist for mypy but never shadow the
     # real methods at runtime (MRO would find these before the real ones if they were real
     # methods here, since SecValuationsLoader lists this mixin after ValuationSanityCheckMixin/
@@ -60,6 +65,8 @@ class IncomeStatementContextMixin:
 
         @staticmethod
         def _compute_multi_year_eps_cagr(income_rows: list[tuple[Any, ...]]) -> float | None: ...
+
+        def _fetch_live_fpi_shares_outstanding_yfinance(self, symbol: str) -> float | None: ...
 
     @staticmethod
     def _reclassify_blank_check_zero_row(cur: Any, symbol: str, reason: str) -> str:
@@ -224,6 +231,26 @@ class IncomeStatementContextMixin:
                 _sum_col(9),  # interest_expense
             )
         ]
+
+    def _fpi_confirmed_eps_shares_basis(self, symbol: str, cis_shares_outstanding: float) -> float | None:
+        """FIXED 2026-09-13 (goal: "question our own assumptions" audit): extracted out of
+        _fetch_income_statement_context's last-resort EPS-derivation branch (Ruff C901) - see
+        that call site's own comment for the full rationale. Cross-checks
+        cis_shares_outstanding against yfinance's own per-LISTING sharesOutstanding (already
+        on the correct ADS/USD basis) using the same SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO
+        tolerance the shares-resolution cascade uses elsewhere for the identical question.
+        Returns cis_shares_outstanding unchanged when confirmed, None when the yfinance
+        fetch fails or the two disagree by more than that tolerance (a real ADS mismatch).
+        """
+        yfinance_shares = self._fetch_live_fpi_shares_outstanding_yfinance(symbol)
+        if yfinance_shares is None or yfinance_shares <= 0:
+            return None
+        ratio = float(cis_shares_outstanding) / yfinance_shares
+        if not (
+            1 / self.SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO <= ratio <= self.SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO
+        ):
+            return None
+        return cis_shares_outstanding
 
     def _fetch_income_statement_context(self, cur: Any, symbol: str) -> Any:
         """Fetch the latest annual_income_statement row(s) for `symbol` and derive every
@@ -487,23 +514,45 @@ class IncomeStatementContextMixin:
         # PGACR: real net_income and a real company_info_sec.shares_outstanding, but zero
         # rows anywhere in annual_income_statement.earnings_per_share - MLP/unit-structure
         # and newly-listed filers commonly report "net income" without ever tagging a
-        # per-share XBRL concept. Deliberately excludes foreign private issuers (ADR share-
-        # count/ADS-ratio mismatches - see _fpi_ads_adjusted_eps above - would make a
-        # derived value actively wrong, not just approximate) and skips when
-        # cis_shares_outstanding isn't a real positive count. Approximates weighted-average
-        # shares with the current outstanding count (same timing tradeoff
-        # _get_market_cap_without_income_statement already accepts for market_cap when no
-        # income statement exists at all) - not split-adjusted like a real tagged EPS,
-        # since it's derived from an already-current share count, not a historical filed
-        # value.
+        # per-share XBRL concept. Skips when cis_shares_outstanding isn't a real positive
+        # count. Approximates weighted-average shares with the current outstanding count
+        # (same timing tradeoff _get_market_cap_without_income_statement already accepts
+        # for market_cap when no income statement exists at all) - not split-adjusted like
+        # a real tagged EPS, since it's derived from an already-current share count, not a
+        # historical filed value.
+        # FIXED 2026-09-13 (goal: "question our own assumptions" audit): originally
+        # blanket-excluded every foreign private issuer here, reasoning an ADR/ADS share-
+        # count mismatch (home-market shares vs. the ADS basis current_price is quoted in)
+        # would make a derived value actively wrong. Live re-verified across all 19 real
+        # eps_never_tagged_in_filings symbols (2026-09-13): every one of them already has
+        # cis_shares_outstanding matching its OWN currently-computed
+        # current_price*shares_outstanding == market_cap identity at ratio 1.00 (e.g. BP:
+        # 46.10 * 2,575,404,456 = 118,726,145,421.60, exactly the stored market_cap) - i.e.
+        # cis_shares_outstanding is already on the correct per-listing basis for every one
+        # of them, not a leftover home-market count. The blanket exclusion was solving a
+        # real problem (a genuine ADS multiplier would derive a wrong EPS) with an
+        # overbroad rule (treating "is an FPI" as a proxy for "has an ADS mismatch", which
+        # this bucket shows isn't reliable). Now validates per-symbol instead: cross-checks
+        # cis_shares_outstanding against yfinance's own per-LISTING sharesOutstanding
+        # (queried by the ADS ticker itself, so already on the correct ADS/USD basis - see
+        # _fetch_live_fpi_shares_outstanding_yfinance's own docstring), using the same
+        # SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO=2 tolerance the shares-resolution cascade
+        # already uses for the identical question elsewhere. A real ADS mismatch (e.g. a
+        # 5:1 or 20:1 ratio) fails this check and correctly still skips derivation; only an
+        # FPI cis_shares_outstanding already on the right basis passes. Only reached for
+        # this already-narrow bucket (no tagged EPS anywhere, real net_income, real
+        # cis_shares_outstanding) - not a broad per-run FPI scan, so this doesn't add a
+        # yfinance call to every FPI's normal run.
+        eps_shares_basis = cis_shares_outstanding
+        if ttm_eps_basic is None and is_foreign_private_issuer and eps_shares_basis is not None:
+            eps_shares_basis = self._fpi_confirmed_eps_shares_basis(symbol, eps_shares_basis)
         if (
             ttm_eps_basic is None
-            and not is_foreign_private_issuer
             and _ttm_net_income is not None
-            and cis_shares_outstanding is not None
-            and cis_shares_outstanding > 0
+            and eps_shares_basis is not None
+            and eps_shares_basis > 0
         ):
-            ttm_eps_basic = float(_ttm_net_income) / float(cis_shares_outstanding)
+            ttm_eps_basic = float(_ttm_net_income) / float(eps_shares_basis)
 
         # FIXED 2026-08-18: operating_income/pretax_income suffer the identical anchor-row
         # stub gap as revenue and earnings_per_share above. Live-confirmed HG (Hamilton
