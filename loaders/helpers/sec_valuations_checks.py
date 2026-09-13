@@ -527,6 +527,110 @@ class ValuationSanityCheckMixin:
                 return False
         return True
 
+    @staticmethod
+    def _find_single_missing_quarter_gap(
+        rows: list[tuple[Any, ...]],
+    ) -> tuple[int, int] | None:
+        """If `rows` (period_end DESC, any number of trailing value columns) has exactly one
+        gap between consecutive period_ends that's roughly double a normal ~91-day quarter
+        (150-250 days) while every OTHER consecutive gap is a normal 60-120 days, return the
+        (older_index, newer_index) pair straddling that gap. Otherwise None.
+
+        FIXED 2026-09-13 (goal session: MU TTM-builder gap): MU-shaped annual reporters never
+        file a standalone Q4 10-Q (Q4 = FY total - Q1-Q3, disclosed only in the 10-K's own
+        comparative tables) - live-confirmed via MU's real quarters: 2024-11-28/2025-02-27/
+        2025-05-29 (each ~91 days apart) then a 182-day gap to 2025-11-27, because FY2025 Q4
+        (period ~2025-08-28) was never separately filed. `_validate_ttm_quarter_window`
+        correctly rejects this shape (it's not 4 valid consecutive quarters), silently falling
+        back to stale annual EPS - this identifies the shape so the caller can try deriving
+        the missing quarter instead of giving up.
+
+        Returns `(index_before_gap, index_after_gap)`: `rows[index_before_gap]` is the newer
+        side of the gap (still a plain real quarter, part of the final window unchanged);
+        `rows[index_after_gap]` is the older side (the last real quarter of the fiscal year
+        whose Q4 is missing - the caller derives Q4 from that quarter plus its own 2
+        predecessors, replacing `rows[index_after_gap:]` in the final trailing-4 window).
+        """
+        if len(rows) < 4:
+            return None
+        period_ends = [r[0] for r in rows]
+        gap_idx = None
+        for i, (newer, older) in enumerate(pairwise(period_ends)):
+            gap_days = (newer - older).days
+            if 60 <= gap_days <= 120:
+                continue
+            if 150 <= gap_days <= 250 and gap_idx is None:
+                gap_idx = i
+                continue
+            return None  # a second irregular gap, or one outside both known shapes - bail
+        if gap_idx is None:
+            return None
+        return (gap_idx, gap_idx + 1)
+
+    def _derive_missing_annual_only_quarter(
+        self,
+        symbol: str,
+        surrounding_quarters: list[tuple[Any, ...]],
+        value_column_names: tuple[str, ...],
+    ) -> tuple[float, ...] | None:
+        """Derive a missing Q4 (never separately filed - see `_find_single_missing_quarter_gap`)
+        as `annual_total - sum(the other 3 real quarters of that same fiscal year)`, for each
+        of `value_column_names` (e.g. ("revenue", "net_income", "earnings_per_share")).
+
+        `surrounding_quarters` must be the 3 real quarters immediately BEFORE the gap
+        (period_end ASC), found by walking forward from the gap by real period_end proximity,
+        not by trusting the `fiscal_year`/`fiscal_quarter` label pair - MU's own quarterly rows
+        mislabel fiscal_year inconsistently (see this codebase's other migration-1256 ordering
+        fix for the general version of that problem), so the annual fiscal_year matching those
+        3 quarters is determined by TRYING each distinct fiscal_year label present among them
+        (plus their immediate neighbors don't need trying - the annual total for a materially
+        wrong fiscal year would produce an implausible derived quarter) and accepting a
+        candidate only if it's unambiguous and plausible: positive, and each derived value
+        within [0.1x, 5x] of the average of the 3 known quarters' corresponding values -
+        conservative bounds wide enough for a real seasonal swing but tight enough to reject a
+        wrong-fiscal-year match. Returns None (never fabricates) if zero or multiple candidates
+        pass that bar.
+        """
+        candidate_fiscal_years = sorted({int(r[-2]) for r in surrounding_quarters if r[-2] is not None})
+        if not candidate_fiscal_years:
+            return None
+        select_cols = ", ".join(value_column_names)
+        accepted: list[tuple[float, ...]] = []
+        with DatabaseContext("read") as cur:
+            for fy in candidate_fiscal_years:
+                cur.execute(
+                    f"SELECT {select_cols} FROM annual_income_statement "
+                    "WHERE symbol = %s AND fiscal_year = %s AND data_unavailable IS NOT TRUE",
+                    (symbol, fy),
+                )
+                annual_row = cur.fetchone()
+                if annual_row is None or any(v is None for v in annual_row):
+                    continue
+                derived = []
+                plausible = True
+                for col_idx, annual_value in enumerate(annual_row):
+                    known_values = [float(r[col_idx + 1]) for r in surrounding_quarters]
+                    if any(v is None for v in known_values):
+                        plausible = False
+                        break
+                    derived_value = float(annual_value) - sum(known_values)
+                    avg_known = sum(known_values) / len(known_values)
+                    # Revenue must stay positive and in-range; net_income/EPS can legitimately
+                    # be negative (a real loss quarter, e.g. MU's own FY2025 Q4-shape history
+                    # elsewhere), so only bound-check those by magnitude, not sign.
+                    if col_idx == 0 and derived_value <= 0:
+                        plausible = False
+                        break
+                    if avg_known > 0 and not (0.1 * avg_known <= abs(derived_value) <= 5 * avg_known):
+                        plausible = False
+                        break
+                    derived.append(derived_value)
+                if plausible and len(derived) == len(value_column_names):
+                    accepted.append(tuple(derived))
+        if len(accepted) != 1:
+            return None
+        return accepted[0]
+
     def _compute_ttm_eps_from_quarters(self, symbol: str) -> float | None:
         """Sum of the 4 most recent real quarterly `earnings_per_share` values, ordered by
         actual `period_end` date (not the fiscal_year/fiscal_quarter pair - see migration
@@ -593,28 +697,62 @@ class ValuationSanityCheckMixin:
         flagged as a reason NOT to swap `pe_ratio` itself - now addressed instead of avoided).
 
         Returns `{"period_end", "revenue", "net_income", "eps"}` or `None`.
+
+        FIXED 2026-09-13 (goal session: MU TTM-builder gap - see `_find_single_missing_quarter_
+        gap`'s own docstring for the live-confirmed MU shape this handles): fetches 8 rows
+        instead of 4 so a single missing-Q4 gap can be detected and the missing quarter
+        derived from `annual_income_statement` (via `_derive_missing_annual_only_quarter`)
+        rather than giving up and falling back to a stale annual EPS/revenue/net_income figure.
+        The normal (no-gap) path is unchanged - this only engages when the plain 4-quarter
+        window fails validation.
         """
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
-                SELECT period_end, revenue, net_income, earnings_per_share
+                SELECT period_end, revenue, net_income, earnings_per_share, fiscal_year, fiscal_quarter
                 FROM quarterly_income_statement
                 WHERE symbol = %s AND data_unavailable IS NOT TRUE AND period_end IS NOT NULL
                 ORDER BY period_end DESC
-                OFFSET %s LIMIT 4
+                OFFSET %s LIMIT 8
                 """,
                 (symbol, offset),
             )
             rows = cur.fetchall()
-        if not self._validate_ttm_quarter_window(rows, require_recency=(offset == 0)):
+        window = rows[:4]
+        if self._validate_ttm_quarter_window(window, require_recency=(offset == 0)):
+            if any(r[1] is None or r[2] is None or r[3] is None for r in window):
+                return None
+            return {
+                "period_end": window[0][0],
+                "revenue": float(sum(r[1] for r in window)),
+                "net_income": float(sum(r[2] for r in window)),
+                "eps": float(sum(r[3] for r in window)),
+            }
+        gap = self._find_single_missing_quarter_gap(window)
+        if gap is None:
             return None
-        if any(r[1] is None or r[2] is None or r[3] is None for r in rows):
+        newer_idx, older_idx = gap
+        if older_idx + 2 >= len(rows):
+            return None  # not enough history fetched to derive the missing quarter
+        surrounding = [rows[older_idx + 2], rows[older_idx + 1], rows[older_idx]]
+        known = window[: newer_idx + 1]
+        if any(r[1] is None or r[2] is None or r[3] is None for r in surrounding + known):
             return None
+        derived = self._derive_missing_annual_only_quarter(
+            symbol, surrounding, ("revenue", "net_income", "earnings_per_share")
+        )
+        if derived is None:
+            return None
+        logger.info(
+            f"[{symbol}] TTM income derived using an inferred quarter (annual-only reporter, "
+            f"no standalone Q4 10-Q filed) - synthesized from annual_income_statement minus "
+            f"the other 3 real quarters of that fiscal year."
+        )
         return {
-            "period_end": rows[0][0],
-            "revenue": float(sum(r[1] for r in rows)),
-            "net_income": float(sum(r[2] for r in rows)),
-            "eps": float(sum(r[3] for r in rows)),
+            "period_end": window[0][0],
+            "revenue": sum(float(r[1]) for r in known) + derived[0],
+            "net_income": sum(float(r[2]) for r in known) + derived[1],
+            "eps": sum(float(r[3]) for r in known) + derived[2],
         }
 
     def _get_total_cash_and_debt(self, cur: Any, symbol: str) -> tuple[float | None, float | None]:
