@@ -69,7 +69,7 @@
   "algo/monitoring/__init__.py": 27,
   "algo/monitoring/connection_monitor.py": 167,
   "algo/monitoring/data_patrol/__init__.py": 10,
-  "algo/monitoring/data_patrol/base.py": 268,
+  "algo/monitoring/data_patrol/base.py": 276,
   "algo/monitoring/data_patrol/checks/__init__.py": 34,
   "algo/monitoring/data_patrol/checks/alignment.py": 470,
   "algo/monitoring/data_patrol/checks/composite_score_reconciliation.py": 115,
