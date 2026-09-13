@@ -225,25 +225,41 @@ class QualityChecker(BaseCheck):
 
     def check_ohlc_sanity(self, cur: Any) -> None:
         try:
+            # FIXED 2026-09-13 (goal: patrol/quarantine comprehensiveness audit): this used to
+            # scan only `date = MAX(date)` (today's rows), so any inverted/negative row on an
+            # older date was permanently invisible to this check while it kept logging "OHLC
+            # relationships valid" forever. dashboard/freshness_enhancements.py's independent
+            # ad-hoc quality-status query (`close<=0 OR volume<0 OR high<low`, no date filter)
+            # disagreed with this check on live data for exactly that reason - it found a real
+            # corrupted row (BBI 2009-03-20, high 5.35 < low 5.50, data_source='wayback_yahoo',
+            # since corrected directly - a high/low swap, confirmed against neighboring days)
+            # that this check could never see, so it was never quarantined and only ever showed
+            # up as an unattributed "QA" badge on the health page. A second, live pass after
+            # widening this query found a further 15-row systemic batch (13 symbols on
+            # 2026-05-26 + 2 on 2026-07-22, all high<open by a small margin, data_source NULL -
+            # a real ingestion-layer bug, not noise) that a MAX(date)-only scan could never
+            # surface either. Scans full history now, bounded the same way
+            # check_isolated_spike_corruption bounds its own full-table scan (LIMIT, not
+            # date-restricted).
             cur.execute("""
-                SELECT symbol,
+                SELECT symbol, date,
                        (open < 0 OR close < 0 OR high < 0 OR low < 0) AS negative,
                        (high < open OR high < close OR high < low) AS bad_high,
                        (low > open OR low > close OR low > high) AS bad_low
                 FROM price_daily
-                WHERE date = (SELECT MAX(date) FROM price_daily)
-                  AND (open < 0 OR close < 0 OR high < 0 OR low < 0
-                       OR high < open OR high < close OR high < low
-                       OR low > open OR low > close OR low > high)
+                WHERE open < 0 OR close < 0 OR high < 0 OR low < 0
+                   OR high < open OR high < close OR high < low
+                   OR low > open OR low > close OR low > high
+                LIMIT 1000
             """)
             violations = cur.fetchall()
 
             def _get(r: Any, key: str, idx: int) -> Any:
                 return r.get(key) if isinstance(r, dict) else r[idx]
 
-            negative_symbols = [_get(r, "symbol", 0) for r in violations if _get(r, "negative", 1)]
-            bad_high_symbols = [_get(r, "symbol", 0) for r in violations if _get(r, "bad_high", 2)]
-            bad_low_symbols = [_get(r, "symbol", 0) for r in violations if _get(r, "bad_low", 3)]
+            negative_symbols = sorted({_get(r, "symbol", 0) for r in violations if _get(r, "negative", 2)})
+            bad_high_symbols = sorted({_get(r, "symbol", 0) for r in violations if _get(r, "bad_high", 3)})
+            bad_low_symbols = sorted({_get(r, "symbol", 0) for r in violations if _get(r, "bad_low", 4)})
             negative = len(negative_symbols)
             bad_high = len(bad_high_symbols)
             bad_low = len(bad_low_symbols)
@@ -256,7 +272,7 @@ class QualityChecker(BaseCheck):
                     "ohlc_sanity",
                     CRIT,
                     "price_daily",
-                    f"{negative} rows with NEGATIVE prices - data corruption",
+                    f"{len(violations)} rows with NEGATIVE prices across {negative} symbol(s) - data corruption",
                     {
                         "negative_count": negative,
                         "flagged_symbols": [{"symbol": s, "reason": "negative OHLC price"} for s in negative_symbols],
@@ -269,7 +285,8 @@ class QualityChecker(BaseCheck):
                     "ohlc_sanity",
                     ERROR,
                     "price_daily",
-                    f"OHLC violation: {bad_high} high<OHLC, {bad_low} low>OHLC",
+                    f"OHLC violation: {bad_high} symbol(s) high<OHLC, {bad_low} symbol(s) low>OHLC "
+                    f"({len(violations)} row(s) total)",
                     {
                         "bad_high": bad_high,
                         "bad_low": bad_low,
