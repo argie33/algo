@@ -23,6 +23,8 @@ from routes.utils import (
     json_response,
 )
 
+from algo.signals.investable_universe import investable_universe_conditions
+
 from .stock_scores_helpers import (
     _build_stock_score_items,
     _build_stock_scores_query,
@@ -63,155 +65,14 @@ def _get_stock_scores(
         # Use etf_symbols table (definitive source). Note: ss.etf column does not exist in stock_scores.
         # This pattern is mirrored in /api/market/breadth and Phase 7 signal generation.
         #
-        # SPAC-SHELL/DERIVATIVE FILTERING (2026-08-03): pre-merger SPAC common shares
-        # ("... Acquisition Corp[oration] - Class A Ordinary Shares") and their Rights/
-        # Warrants derivatives have no operating business, so SEC EDGAR has no income
-        # statement/balance sheet for them - loaders correctly mark them
-        # 'no_annual_income_data_in_sec_edgar_reit_or_special_entity', which surfaced on
-        # the scores page as "No SEC data" for ~5% of the universe (279/5455 symbols,
-        # verified live 2026-08-03). That's not a loader gap to fix - there is nothing to
-        # load - so exclude them the same way ETFs are excluded. The Rights/Warrants
-        # pattern is end-anchored ('...Rights?/Warrants?$') to avoid matching ADS
-        # boilerplate like "...American Depositary Shares (each representing the right to
-        # receive...)" (e.g. AMX/RLX/WDH), which are real operating companies.
-        #
-        # SIC-CODE SPAC FILTERING (2026-08-03, follow-up): the name regex above was
-        # verified live to still miss a real, non-trivial share of SPAC shells with
-        # heterogeneous naming - "General Catalyst Global Resilience Merger Corp" (GCGR,
-        # "Merger" not "Acquisition"), "Iron Dome Acquisition I Corp" / "Research Alliance
-        # Corp III" / "Texas Ventures Acquisition IV Corp" (IDAC/RACC/RACD/TVIV, a roman
-        # numeral or ordinal breaks the "Acquisition Corp" substring match), "Yorkville
-        # International Capital Corp" (YICC, no "Acquisition"/"Merger" at all). Live-verified
-        # against real SEC EDGAR submissions JSON: all 6 of the above report SIC code 6770
-        # ("Blank Checks") - the SEC's own official classification for pre-merger SPAC
-        # shells - while real operating companies with similar naming (AAPL, MSFT, FNWB) and
-        # REITs/banks previously at false-positive risk from name regexes (NREF, OZK) do not.
-        # `company_info_sec.sic_code` is already fetched from this same submissions endpoint
-        # by loaders/load_company_info_sec.py, just never used for this filter before - a
-        # strictly more reliable, name-independent signal than pattern matching heterogeneous
-        # SPAC naming conventions.
-        #
-        # SIC-CODE ROYALTY TRUST FILTERING (2026-08-03, same follow-up): oil/gas royalty
-        # trusts (CRT, MTR, PBT, SBR, SJT - ~5 symbols) have the identical "no operating
-        # business, nothing for SEC EDGAR to report" problem as SPAC shells, but with their
-        # own distinct, clean SIC code: 6792 ("Oil Royalty Traders"), live-verified for all 5.
-        # No false-positive risk from real oil/gas producers - XOM/CVX (2911 Petroleum
-        # Refining) and OXY (1311 Crude Petroleum & Natural Gas) live-confirmed as different
-        # codes. Closed-end funds/investment trusts (~60+ symbols, the largest remaining
-        # bucket) were also tested this same way and do NOT have a usable SIC signal - their
-        # SIC field is blank/empty via this endpoint, identical to real operating companies
-        # like OZK (Bank OZK) that were already a known false-positive risk for name-based
-        # filtering. Solved instead via `has_annual_report_filing` below (migration 1193).
-        #
-        # SIC-CODE STRUCTURED-NOTE FILTERING (2026-08-03, same follow-up): trust-preferred/
-        # structured-note certificates (GJH/GJO/GJP/GJR/GJS/GJT "STRATS", KTN "CorTS", PYT
-        # "PPlus Trust" - a securitization wrapper around another company's bonds, no
-        # operating business of its own) live-verified with their own distinct SIC code:
-        # 6189 ("Asset-Backed Securities"), consistent across all 6 checked. Note:
-        # ELC/EMP/ENJ/ENO ("Entergy First Mortgage Bonds") were checked too but their ticker
-        # resolves to the PARENT operating utility's own CIK/SIC (real Entergy subsidiaries
-        # with real SEC filings), not a separate securitization vehicle - those are a
-        # different, not-yet-understood problem, NOT fixed by this filter and not added here.
-        #
-        # HAS_ANNUAL_REPORT_FILING FILTERING (2026-08-03, migration 1193): closed-end funds/
-        # investment trusts (~60+ symbols, the LARGEST remaining "No SEC data" bucket - real
-        # 40-Act funds like BlackRock/Eaton Vance/Gabelli/Invesco/Franklin CEFs) have no
-        # usable SIC signal (blank sic_code, same as some real operating companies - see
-        # comment above). Different, more direct signal: whether SEC EDGAR submissions.
-        # filings.recent.form has EVER included 10-K/10-K-A (domestic annual report) or
-        # 20-F/20-F-A (foreign private issuer annual report) - the two filing types this
-        # pipeline's loaders actually parse for annual_income_statement/annual_balance_sheet.
-        # Live-verified via loaders/load_company_info_sec.py: CEFs (BGT, GAB) file NEITHER -
-        # only fund-specific forms (N-Q, NPORT-P, 40-17G, N-30B-2, DEF 14A) - while real
-        # operating companies (AAPL, FNWB) have 10-K and foreign filers (IBN/ICICI Bank) have
-        # 20-F, so this correctly leaves foreign 20-F filers unaffected (a separate, sparser-
-        # coverage problem, not "no data at all"). `has_annual_report_filing IS NOT FALSE`
-        # (not `= TRUE`) deliberately includes NULL (not yet checked for this symbol, or no
-        # company_info_sec row at all) - only excludes symbols explicitly confirmed to have
-        # neither filing type, same "fail open on unknown" posture as the ETF/SPAC filters
-        # above.
-        #
-        # DEBT/PREFERRED-CERTIFICATE FILTERING (2026-08-03): subordinated debentures/mortgage
-        # bonds (AFGB/AFGC/AFGD/AFGE - American Financial Group; ELC/EMP/ENJ/ENO/EAI - Entergy
-        # utility subsidiaries) trade under their own ticker but share the parent operating
-        # company's CIK, so they inherit real revenue/net_income data yet aren't common equity
-        # and structurally have no separate balance sheet of their own to compute ROE/margins
-        # from. Live-verified zero false-positive risk: `security_name ~*
-        # '(Subordinated Debentures?|First Mortgage Bonds?|Collateral Trust Mortgage Bonds?)'`
-        # matched exactly these 5 tickers across the ENTIRE active universe, nothing else.
-        # Deliberately did NOT extend this to a broader "Trust N" pattern (e.g. for SCE$L "SCE
-        # TRUST VI") - live-checked and found it collides with real closed-end funds (VLT
-        # "Invesco High Income Trust II"), the same false-positive trap already documented for
-        # CEF name-matching above.
-        # PHYSICAL COMMODITY TRUST FILTERING (2026-08-10): grantor trusts that hold physical
-        # bullion (GraniteShares Gold Trust "BAR" the live example - 279 more like it exist
-        # for silver/platinum/palladium under other issuers) file real 10-Ks (so they pass
-        # has_annual_report_filing) and aren't ETF-registered '40 Act funds (so etf_symbols
-        # doesn't have them either) - they slipped through every filter above and ranked #1
-        # in the entire universe on last live check. SIC 6221 ("Commodity Contracts Brokers &
-        # Dealers") alone isn't a safe filter - live-verified it also covers real operating
-        # companies (AIB "Data Centers Inc", ANTA "Antalpha Platform Holding", UROY "Uranium
-        # Royalty Corp"), none of which have "Trust" in their name. Requiring both SIC 6221
-        # AND a commodity-Trust name pattern together matched only BAR across the entire
-        # scored universe, zero false positives against the SIC-6221 operating companies above.
-        #
-        # ETN FILTERING (goal: "scores still including ETFs", 2026-08-20): GRN ("iPath Series B
-        # Carbon Exchange-Traded Notes") ranked in the score leaderboard despite every filter
-        # above - not in etf_symbols (ETNs are debt notes, not '40 Act funds), sic_code=6029
-        # ("Commercial Banks") not 6770/6792/6189, and has_annual_report_filing=TRUE, because
-        # an ETN's SEC filer is the issuing BANK (Barclays Bank PLC here), which has its own
-        # real filing history and SIC code unrelated to the note's actual structure. No usable
-        # SIC/has_annual_report_filing signal exists for this case - same root cause as
-        # utils/loaders/helpers.py::get_active_symbols(exclude_etfs=True), see that function's
-        # 2026-08-20 comment for the live investigation. Name-based catch, verified against the
-        # live active universe to match only GRN.
-        # ACTIVE-UNIVERSE FILTER (found 2026-09-08, goal session score-sanity sweep): this
-        # endpoint had no `ss.active` check anywhere - live-verified 3 delisted/deactivated
-        # symbols (TOI, KORE, PSNYW) still cleared every other filter below and would render
-        # on the live leaderboard with a plausible-looking composite_score, indistinguishable
-        # from a real tradeable idea. The scores loader keeps scoring inactive symbols (last-
-        # known-state bookkeeping is useful internally) but this user-facing endpoint should
-        # only ever surface the current tradeable universe.
-        #
-        # STRUCTURALLY-EXCLUDED BDC FILTER (added 2026-09-08, REMOVED 2026-09-13): this used
-        # to hard-exclude _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS (MAIN, HTGC, GAIN, TSLX and
-        # siblings) because their stock_scores row was permanently frozen - the loader that
-        # would refresh it deliberately skipped them entirely (get_active_symbols()'s
-        # exclude_non_operating coupling to exclude_etfs, see
-        # frozen_subpopulation_real_root_cause_and_live_gap_20260913 in memory for the root
-        # cause). That loader gap is now fixed (load_stock_scores.py/load_risk_metrics_daily.py
-        # opt out via exclude_non_operating_from_symbols=False) - live-verified 2026-09-13:
-        # MAIN/HTGC/GAIN/TSLX all show a fresh same-day updated_at with real risk_score/
-        # momentum_score and data_completeness=40 (growth/quality/value pillars stay withheld,
-        # those 3 loaders still exclude BDCs pending their own review - see load_stock_scores.py's
-        # exclude_non_operating_from_symbols comment). The premise for this filter (permanently
-        # frozen, indistinguishable from live) no longer holds, so the special-case symbol list
-        # is removed - the existing generic `data_unavailable = false` filter below already
-        # hides these from bulk listings on the same basis as any other thin-coverage stock
-        # (loader marks data_unavailable=true under 70% completeness, and these sit at 40%),
-        # and single-symbol lookups (which bypass that bulk-only filter, same as any other
-        # symbol) now correctly work for BDCs instead of hard-blocking them - consistent with
-        # this endpoint's own "always look up any specific symbol" principle (see the
-        # min_market_cap filter's comment below for that same principle applied elsewhere).
-        where_clause = """
-            WHERE sc.composite_score > 0
-            AND ss.active = true
-            AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
-            AND ss.symbol NOT IN (SELECT symbol FROM company_info_sec WHERE sic_code IN (6770, 6792, 6189))
-            AND ss.symbol NOT IN (
-                SELECT symbol FROM company_info_sec WHERE has_annual_report_filing = FALSE
-            )
-            AND NOT (
-                ss.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6221)
-                AND ss.security_name ~* '(Gold|Silver|Platinum|Palladium|Bullion) Trust'
-            )
-            AND (ss.security_name IS NULL OR (
-                ss.security_name !~* '(Rights?|Warrants?)$'
-                AND ss.security_name NOT ILIKE '%%Acquisition Corp%%'
-                AND ss.security_name !~* '(Subordinated Debentures?|First Mortgage Bonds?|Collateral Trust Mortgage Bonds?)'
-                AND ss.security_name !~* '(ETNs?|Exchange[- ]Traded Notes?)'
-            ))
-            """
+        # EXTRACTED 2026-09-13 to algo/signals/investable_universe.py, along with every
+        # filter's own detailed rationale (SPAC/royalty-trust/structured-note/CEF/gold-trust/
+        # ETN/active-universe history) - loaders/load_sector_industry_daily.py needed the
+        # identical definition for its sector/industry rankings and was silently missing all
+        # of it (414 non-tradeable symbols, live-counted, were skewing those averages). Only
+        # this endpoint's own request-specific conditions (sp500_only, symbol lookup,
+        # data_unavailable, market_cap floor) stay inline below.
+        where_clause = "WHERE " + investable_universe_conditions("sc", "ss")
         params_list: list[Any] = []
 
         if sp500_only:

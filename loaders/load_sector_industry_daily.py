@@ -28,6 +28,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from algo.infrastructure.market_calendar import MarketCalendar
+from algo.signals.investable_universe import investable_universe_conditions
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
@@ -319,6 +320,14 @@ class SectorIndustryDailyLoader(OptimalLoader):
                 # company_profile.sector is still 76% "Unknown" overall, but restricted to symbols with
                 # a real composite_score (the actual ranking universe) all 8 required sectors have
                 # 100+ stocks - real, non-fabricated coverage, just narrower than the full symbol list.
+                #
+                # INVESTABLE-UNIVERSE FILTER ADDED (2026-09-13, /goal session Item 2): this CTE's
+                # only prior filter was `composite_score IS NOT NULL` - live-verified that let 414
+                # ETF/SPAC/royalty-trust/structured-note/CEF/inactive symbols (~8% of the scored
+                # universe) into stock_count/avg_score/current_rank, none of which could ever
+                # appear on the actual leaderboard or get traded. Now shares the exact same
+                # definition as that leaderboard (algo/signals/investable_universe.py - see its
+                # docstring for the full per-filter history) instead of a narrower ad hoc check.
                 cur.execute(
                     """
                     WITH sector_stats AS (
@@ -329,7 +338,10 @@ class SectorIndustryDailyLoader(OptimalLoader):
                             RANK() OVER (ORDER BY AVG(ss.composite_score) DESC) AS current_rank
                         FROM stock_scores ss
                         LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
-                        WHERE ss.composite_score IS NOT NULL
+                        JOIN stock_symbols sy ON sy.symbol = ss.symbol
+                        WHERE """
+                    + investable_universe_conditions("ss", "sy")
+                    + """
                         GROUP BY COALESCE(cp.sector, 'Unknown')
                     )
                     INSERT INTO sector_ranking
@@ -397,6 +409,8 @@ class SectorIndustryDailyLoader(OptimalLoader):
                 # ===== INDUSTRY RANKINGS =====
                 # Same ranking logic but for industries
                 # GOVERNANCE FIX: Removed COALESCE(ss.composite_score, 50) - no fabricated scores
+                # INVESTABLE-UNIVERSE FILTER ADDED (2026-09-13, /goal session Item 2) - same gap
+                # and same fix as sector_stats above, see that CTE's comment.
                 cur.execute(
                     """
                     WITH industry_stats AS (
@@ -406,10 +420,13 @@ class SectorIndustryDailyLoader(OptimalLoader):
                             AVG(ss.composite_score) AS avg_score,
                             RANK() OVER (ORDER BY AVG(ss.composite_score) DESC) AS current_rank
                         FROM company_profile cp
-                        LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
+                        JOIN stock_scores ss ON cp.symbol = ss.symbol
+                        JOIN stock_symbols sy ON sy.symbol = ss.symbol
                         WHERE cp.industry IS NOT NULL
                           AND cp.industry != ''
-                          AND ss.composite_score IS NOT NULL
+                          AND """
+                    + investable_universe_conditions("ss", "sy")
+                    + """
                         GROUP BY cp.industry
                     )
                     INSERT INTO industry_ranking
