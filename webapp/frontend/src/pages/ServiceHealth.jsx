@@ -31,6 +31,7 @@ import {
 import { api } from "../services/api";
 import ErrorBoundary from "../components/ErrorBoundary";
 import ScoresDataCoverage from "../components/ScoresDataCoverage";
+import ScoresCorrectnessCoverage from "../components/ScoresCorrectnessCoverage";
 
 const CHART_TOOLTIP_STYLE = {
   background: "var(--surface)",
@@ -596,7 +597,12 @@ function ServiceHealthContent() {
         ))}
       </div>
 
-      {tab === "coverage" && <ScoresDataCoverage active={tab === "coverage"} />}
+      {tab === "coverage" && (
+        <>
+          <ScoresDataCoverage active={tab === "coverage"} />
+          <ScoresCorrectnessCoverage active={tab === "coverage"} />
+        </>
+      )}
 
       {tab === "execution" && <ExecutionHistoryTab />}
 

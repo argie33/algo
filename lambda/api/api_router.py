@@ -155,6 +155,7 @@ else:
 # _get_scores_coverage for the actual handler.
 if "scores" in _AVAILABLE_ROUTES:
     PUBLIC_HANDLERS["/api/algo/scores/coverage"] = _AVAILABLE_ROUTES["scores"]
+    PUBLIC_HANDLERS["/api/algo/scores/correctness-coverage"] = _AVAILABLE_ROUTES["scores"]
 
 # Dashboard data endpoints (public, for analytics/monitoring - no sensitive data)
 # These endpoints return portfolio snapshots, performance metrics, and trading statistics

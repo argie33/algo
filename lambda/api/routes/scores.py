@@ -20,6 +20,7 @@ from routes.utils import error_response, extract_param, handle_db_error, safe_da
 
 from .scores_handlers.coverage import _NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE, _get_scores_coverage
 from .scores_handlers.coverage_classification import _UNSCORED_TABLES, _categorize_reason
+from .scores_handlers.coverage_correctness import _get_scores_correctness_coverage
 from .scores_handlers.coverage_sources import _coverage_order_col, _prettify_source
 from .scores_handlers.incomplete_and_coverage import _get_incomplete_stocks
 from .scores_handlers.stock_details import _get_stock_details
@@ -33,6 +34,7 @@ __all__ = [
     "_coverage_order_col",
     "_get_incomplete_stocks",
     "_get_score_history",
+    "_get_scores_correctness_coverage",
     "_get_scores_coverage",
     "_get_stock_details",
     "_get_stock_scores",
@@ -106,6 +108,13 @@ def handle(
             if extract_param(params, "meta") == "1":
                 return _get_scores_coverage(cur, meta_only=True)
             return _get_scores_coverage(cur, group_filter=extract_param(params, "group"))
+
+        # Handle /api/scores/correctness-coverage - companion to /coverage above: which
+        # pillar-input factors have zero DataPatrol check actually validating them, as
+        # opposed to /coverage's completeness-only view. See coverage_correctness.py's
+        # module docstring for the full "why this exists" context.
+        if path in ["/api/scores/correctness-coverage", "/api/algo/scores/correctness-coverage"]:
+            return _get_scores_correctness_coverage(cur)
 
         if path in [
             "/api/scores",
