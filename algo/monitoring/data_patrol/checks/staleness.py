@@ -37,6 +37,25 @@ class StalenessChecker(BaseCheck):
             "aaii_sentiment": 7,  # Weekly sentiment, warning if >7 days old
             "growth_metrics": 30,  # Monthly growth data, warning if >30 days old
             "earnings_history": 90,  # Quarterly earnings, warning if >90 days old
+            # ADDED (goal session 2026-09-13, "data integrity gaps galore" meta-gap sweep):
+            # value_metrics/quality_metrics are written by the SAME loader run as
+            # growth_metrics (load_value_quality_growth_metrics.py, one process, one pass -
+            # see that file's INSERT INTO value_metrics/quality_metrics/growth_metrics, all
+            # three ON CONFLICT (symbol) DO UPDATE SET updated_at = EXCLUDED.updated_at) but
+            # had no table-level staleness entry at all - a structural blind spot, not an
+            # oversight in this dict: growth_metrics was added here 2026-08-24 for the exact
+            # same table-level staleness reasoning, its two same-run siblings were simply
+            # never carried along. Same 30-day/INFO treatment as growth_metrics (new/
+            # uncharacterized check, matching that precedent) until a production run
+            # establishes the real false-positive rate.
+            "value_metrics": 30,
+            "quality_metrics": 30,
+            # momentum_metrics is written by load_risk_metrics_daily.py (separate loader,
+            # terraform "stability_metrics" pipeline step) and feeds the Momentum pillar
+            # directly (load_stock_scores.py reads FROM momentum_metrics) - same
+            # never-had-a-staleness-entry gap, independently confirmed live 2026-09-13: 34
+            # active symbols already >7d stale and 92 active symbols with zero row at all.
+            "momentum_metrics": 7,
         }
 
         # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
@@ -150,6 +169,27 @@ class StalenessChecker(BaseCheck):
                 "filing_date",
                 "quarterly",
                 staleness_thresholds["earnings_history"],
+                INFO,
+            ),
+            (
+                "value_metrics",
+                "updated_at",
+                "monthly",
+                staleness_thresholds["value_metrics"],
+                INFO,
+            ),
+            (
+                "quality_metrics",
+                "updated_at",
+                "monthly",
+                staleness_thresholds["quality_metrics"],
+                INFO,
+            ),
+            (
+                "momentum_metrics",
+                "updated_at",
+                "weekly",
+                staleness_thresholds["momentum_metrics"],
                 INFO,
             ),
         ]
@@ -354,6 +394,28 @@ class StalenessChecker(BaseCheck):
         # threshold before this addition would have pushed it over.
         self._check_frozen_price_symbols(cur)
 
+        # PER-SYMBOL FROZEN/MISSING PILLAR-METRICS CHECK (added 2026-09-13, goal session
+        # "data integrity gaps galore... gaps in our approach" meta-gap sweep). The
+        # frozen-subpopulation blind spot above was fixed pointwise for stock_scores
+        # (2026-09-08) and price_daily (2026-09-08) after each was live-caught separately -
+        # but never generalized, so the same blind spot was still wide open for every other
+        # single-row-per-symbol pillar-input table (growth_metrics/momentum_metrics/
+        # value_metrics/quality_metrics all upsert via ON CONFLICT (symbol) DO UPDATE, the
+        # exact shape that lets a silently-dropped subpopulation go undetected forever).
+        # None of these four had ANY per-symbol coverage: CoverageChecker.check_loader_coverage
+        # structurally can't see them either (its UNION query requires a `date` column these
+        # tables don't have - they're single-row-per-symbol via `updated_at`, not date-keyed).
+        # Live-confirmed on the local DB before adding this: momentum_metrics had 34 active
+        # symbols already >7d frozen AND 92 active symbols with zero row at all; value_metrics/
+        # quality_metrics each had 90 active symbols with zero row, and growth_metrics itself
+        # (despite already having a table-level check above) had 2 frozen + 90 missing -
+        # proof the table-level check alone was never enough for any of these four.
+        # WARN only, same reasoning as every other frozen-subpopulation check in this file: a
+        # residual handful of symbols with a real per-symbol data ceiling is expected, this is
+        # a signal to investigate WHY a population is stuck/missing, not an automatic halt.
+        for pillar_table in ("growth_metrics", "momentum_metrics", "value_metrics", "quality_metrics"):
+            self._check_frozen_pillar_metrics_symbols(cur, pillar_table)
+
         # Alert on stale critical signals
         if stale_critical_signals:
             from algo.reporting.notifications import notify_signal_staleness
@@ -449,4 +511,69 @@ class StalenessChecker(BaseCheck):
                 )
                 raise RuntimeError(
                     f"Database connection corrupted during frozen-price check cleanup: {release_err}"
+                ) from release_err
+
+    def _check_frozen_pillar_metrics_symbols(self, cur: Any, table: str) -> None:
+        """Generalized frozen/missing-row check for single-row-per-symbol pillar tables.
+
+        See the call site's comment in run() for the full evidence trail (2026-09-13). Covers
+        both failure shapes in one pass, since they're the same underlying loader-side
+        subpopulation-drop bug: a symbol whose row exists but hasn't been refreshed
+        (frozen), and a symbol with no row at all (missing) - the latter is invisible to a
+        pure MAX(updated_at)-per-symbol frozen check and wasn't caught by CoverageChecker
+        either (its coverage query requires a `date` column these tables don't have).
+        """
+        table_safe = assert_safe_table(table)
+        sp = f"sp_stale_{table_safe}_frozen_symbols"
+        try:
+            cur.execute(f"SAVEPOINT {sp}")
+            cur.execute(
+                f"""
+                SELECT
+                    COUNT(*) FILTER (
+                        WHERE t.updated_at < (SELECT MAX(updated_at) - INTERVAL '7 days' FROM {table_safe})
+                    ) AS frozen_count,
+                    COUNT(*) FILTER (WHERE t.symbol IS NULL) AS missing_count
+                FROM stock_symbols sy
+                LEFT JOIN {table_safe} t ON t.symbol = sy.symbol
+                WHERE sy.active = true
+                """
+            )
+            row = cur.fetchone()
+            frozen_count = row[0] or 0
+            missing_count = row[1] or 0
+            if frozen_count > 0 or missing_count > 0:
+                self.log(
+                    "staleness",
+                    WARN,
+                    table,
+                    f"{table}: {frozen_count} active symbols frozen more than 7 days behind "
+                    f"the table's latest updated_at, {missing_count} active symbols have no "
+                    f"row at all - check for a silent per-symbol loader backlog/exclusion",
+                    {"frozen_symbol_count": frozen_count, "missing_symbol_count": missing_count},
+                )
+            else:
+                self.log(
+                    "staleness",
+                    INFO,
+                    table,
+                    f"no active symbols frozen or missing in {table}",
+                    {"frozen_symbol_count": 0, "missing_symbol_count": 0},
+                )
+        except Exception as e:
+            self.log("staleness", ERROR, table, f"Frozen/missing-symbol check failed: {e}", None)
+            try:
+                cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+            except Exception as rollback_err:
+                logger.error(f"CRITICAL: ROLLBACK TO SAVEPOINT {sp} failed: {rollback_err}. Connection corrupted.")
+                raise RuntimeError(
+                    f"Database connection corrupted during {table} frozen-symbol check rollback: {rollback_err}"
+                ) from rollback_err
+        finally:
+            try:
+                cur.execute(f"RELEASE SAVEPOINT {sp}")
+            except Exception as release_err:
+                logger.error(f"CRITICAL: RELEASE SAVEPOINT {sp} failed: {release_err}. Connection corrupted.")
+                raise RuntimeError(
+                    f"Database connection corrupted during {table} frozen-symbol check cleanup: {release_err}"
                 ) from release_err
