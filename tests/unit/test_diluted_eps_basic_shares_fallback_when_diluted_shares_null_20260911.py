@@ -10,11 +10,19 @@ Live-confirmed via ATHE (Alterity Therapeutics, ASX-listed biotech filing 20-F):
 annual_income_statement row has shares_outstanding_diluted NULL, shares_outstanding_basic
 a real, large value (e.g. FY2020 894,872,224), and diluted_eps==earnings_per_share (both
 sourced from the filer's ifrs-full:BasicEarningsLossPerShare/DilutedEarningsLossPerShare,
-tagged identically) - the basic value was correctly rejected as a ~100x scale mismatch
-against shares_outstanding_basic, but diluted_eps kept the same bad value since its own
-denominator was missing. Fix: fall back to shares_outstanding_basic for the diluted_eps
-check when shares_outstanding_diluted is null - basic and diluted share counts are always
-close, so basic is a safe proxy.
+tagged identically). Fix: fall back to shares_outstanding_basic for the diluted_eps check
+when shares_outstanding_diluted is null - basic and diluted share counts are always close,
+so basic is a safe proxy.
+
+CORRECTED 2026-09-12: this test originally asserted diluted_eps gets rejected as a
+~100x "scale mismatch" once the basic-shares fallback ran. Live re-verification (real SEC
+companyfacts JSON) found that's the wrong diagnosis - ATHE's real ADS ratio is 1 ADS = 100
+ordinary shares, and the ~99.75x gap here is that same ratio (see
+loaders/helpers/financial_statements_value_validation.py's ADS-ratio-shaped exception,
+test_eps_ads_ratio_shaped_kept_20260912.py), not a filer-side tagging error. The
+basic-shares-fallback mechanism this test exists to cover is still correct and still
+needed for a genuine NRC-shaped error on a diluted-only filer - only the expected outcome
+for this specific ATHE example changes, from reject to keep.
 """
 
 from decimal import Decimal
@@ -34,7 +42,11 @@ def _transform(loader: ConsolidatedFinancialStatementsLoader, rows: list[dict[st
 
 
 class TestDilutedEpsFallsBackToBasicSharesWhenDilutedSharesNull:
-    def test_athe_shaped_row_rejects_diluted_eps_via_basic_shares_fallback(self) -> None:
+    def test_athe_shaped_row_keeps_real_diluted_eps_via_basic_shares_fallback(self) -> None:
+        """The basic-shares fallback runs (shares_outstanding_diluted is null), and the
+        resulting ~99.75x gap against shares_outstanding_basic is recognized as ATHE's
+        real ADS ratio (~100x) rather than rejected as a scale-tagging error - see the
+        module docstring's 2026-09-12 correction."""
         loader = _make_loader()
         rows = [
             {
@@ -51,8 +63,8 @@ class TestDilutedEpsFallsBackToBasicSharesWhenDilutedSharesNull:
             }
         ]
         result = _transform(loader, rows)
-        assert result[0]["diluted_eps"] is None
-        assert ({"symbol": "ATHE", "fiscal_year": 2020}, "diluted_eps") in loader._explicit_null_rejections
+        assert result[0]["diluted_eps"] == Decimal("-1.027749229188078")
+        assert ({"symbol": "ATHE", "fiscal_year": 2020}, "diluted_eps") not in loader._explicit_null_rejections
 
     def test_real_diluted_eps_kept_when_basic_shares_corroborate_it(self) -> None:
         """A genuinely correct diluted_eps must survive the basic-shares fallback too."""
