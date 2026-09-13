@@ -216,4 +216,13 @@ class TestQuarterlyDurationFactComparativeFpAliasing:
         by_year_quarter = {(r["fiscal_year"], r["fiscal_period"]): r for r in rows}
 
         assert by_year_quarter[(2019, "Q1")]["net_cash_provided_by_used_in_operating_activities"] == -66_000_000
-        assert by_year_quarter[(2019, "Q2")]["net_cash_provided_by_used_in_operating_activities"] == 1_585_000_000
+        # UPDATED 2026-09-13 (see sec_statements_cumulative_quarter_derivation.py): DXC never
+        # files a genuine discrete-quarter fact for this concept - real Q2 (Apr-Sep cumulative,
+        # 1,585,000,000) is now correctly converted to its true discrete Jul-Sep value by
+        # subtracting the real Q1 (Apr-Jun, -66,000,000): 1,585,000,000 - (-66,000,000) =
+        # 1,651,000,000. The raw 1,585,000,000 this test previously asserted was itself an
+        # instance of the quarterly_cashflow_cumulative_ytd_stored_as_discrete bug (RITM-
+        # confirmed same class), not a value this test was specifically trying to protect -
+        # this test's own purpose (guarding against the false December-FYE self-consistency
+        # trigger) is unaffected by the derivation.
+        assert by_year_quarter[(2019, "Q2")]["net_cash_provided_by_used_in_operating_activities"] == 1_651_000_000

@@ -12,6 +12,7 @@ import logging
 from typing import Any
 
 from utils.external.fx_rates import MAJOR_CURRENCIES
+from utils.external.sec_statements_cumulative_quarter_derivation import apply_cumulative_quarter_derivation
 from utils.external.sec_statements_entry_resolution import (
     _aggregate_concepts_apply_entry_value,
     _aggregate_concepts_resolve_entry_period,
@@ -347,6 +348,10 @@ def _aggregate_concepts(
     # itself is meaningless without also keeping the row.
     # FIXED 2026-09-13 (PROK): see sec_statements_fy_stub_period_guard.py's docstring.
     apply_fy_stub_period_guard(rows, period, symbol, logger)
+    # FIXED 2026-09-13 (RITM): see sec_statements_cumulative_quarter_derivation.py's docstring.
+    # Must run on the still-bookkeeping-annotated `rows` (needs `_span_{col}`), before the
+    # stripping pass below removes it.
+    apply_cumulative_quarter_derivation(rows, period)
 
     result = []
     for row in rows.values():

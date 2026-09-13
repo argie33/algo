@@ -3914,15 +3914,23 @@ class TestQuarterlyRevenueSumVsAnnualTotal:
 
 
 class TestRunAggregatesAllChecks:
-    def test_run_calls_all_eighty_six_checks(self) -> None:
+    def test_run_calls_all_ninety_eight_checks(self) -> None:
         # 55 pre-existing checks + 30 Round 7 nonnegative-magnitude checks (15 balance-sheet
         # fields x annual/quarterly) added in tie_out_nonnegative_magnitudes.py + 1 (2026-09-13,
-        # check_quarterly_revenue_sum_vs_annual_total). The 30 Round-7 checks (and the 4
-        # pre-existing ones sharing their now-fixed helper, see tie_out_shared.py's 2026-09-10
-        # fix) log an INFO result even when clean, so a no-violations run no longer yields an
-        # empty results list for every check.
-        cur = _mock_cursor([[]] * 86)
+        # check_quarterly_revenue_sum_vs_annual_total) + 12 implausible-magnitude ceiling checks
+        # (2026-09-13, tie_out_implausible_magnitude.py - the permanent-suite version of the
+        # hand-run MKZR/INVE/SKM/KT/TSM/IX implausible-value scan) + 6 (2026-09-13,
+        # check_quarterly_cashflow_cumulative_duplicate in
+        # tie_out_cashflow_cumulative_quarters.py - one execute() per cash-flow field checked,
+        # see that module's docstring for the cumulative-YTD-stored-as-discrete-quarter bug
+        # this permanently guards against). All of these log an INFO result even when clean,
+        # so a no-violations run no longer yields an empty results list for every check -
+        # except check_quarterly_cashflow_cumulative_duplicate itself, which (like its
+        # sibling check_quarterly_revenue_annual_duplicate) logs nothing at all when clean,
+        # matching the assertion below (it only requires every LOGGED result be INFO, not one
+        # per check call).
+        cur = _mock_cursor([[]] * 104)
         checker = _checker()
         results = checker.run(cur)
-        assert cur.execute.call_count == 86
+        assert cur.execute.call_count == 104
         assert all(r.severity in (INFO, "info") for r in results)

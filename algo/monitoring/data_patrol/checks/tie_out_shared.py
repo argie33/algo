@@ -490,3 +490,69 @@ class TieOutSharedMixin:
                 table,
                 f"Check execution failed (likely schema drift, not a data finding): {e}",
             )
+
+    def _check_implausible_magnitude_field(
+        self, cur: Any, *, table: str, field: str, check_name: str, quarterly: bool, ceiling: float
+    ) -> None:
+        """Shared implementation for tie_out_implausible_magnitude.py's checks: `field`
+        should never exceed `ceiling` in absolute value.
+
+        ADDED 2026-09-13 (goal session: quarterly-revenue-identity backlog implausibility
+        scan, wired into the permanent suite so this class of bug no longer needs a hand-run
+        one-off scan to catch). Same class of check as
+        _check_shares_outstanding_dei_plausible_scale above, generalized to any flow/balance-
+        sheet field with a real-world ceiling: no company has ever reported revenue/
+        net_income/operating_cash_flow in excess of ~$1T, or total_assets/stockholders_equity
+        in excess of the low tens of trillions, regardless of currency or filer size - a
+        value beyond that is definitionally a scale-tagging error (a REIT-exclusive-concept
+        or NetIncomeLoss/ProfitLoss-sibling mismatch, a raw non-major-currency pass-through,
+        etc.), not a real business figure, live-confirmed via MKZR/INVE/SKM/KT/TSM/IX this
+        same session.
+        """
+        try:
+            order_cols = (
+                "b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" if quarterly else "b.symbol, b.fiscal_year DESC"
+            )
+            quarter_col = ", b.fiscal_quarter" if quarterly else ""
+            cur.execute(
+                f"""
+                SELECT DISTINCT ON (b.symbol)
+                    b.symbol, b.fiscal_year{quarter_col}, b.{field}
+                FROM {table} b
+                JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                WHERE b.data_unavailable = FALSE
+                  AND b.{field} IS NOT NULL
+                ORDER BY {order_cols}
+                """
+            )
+            flagged = []
+            for row in cur.fetchall():
+                value = float(row[field])
+                if abs(value) > ceiling:
+                    example = {"symbol": row["symbol"], "fiscal_year": row["fiscal_year"], field: value}
+                    if quarterly:
+                        example["fiscal_quarter"] = row["fiscal_quarter"]
+                    flagged.append(example)
+            if flagged:
+                flagged.sort(key=lambda r: abs(r[field]), reverse=True)
+                unit = "symbol/quarter(s)" if quarterly else "symbol(s)"
+                self.log(
+                    check_name,
+                    WARN,
+                    table,
+                    f"{len(flagged)} {unit} have an implausible {field} (|value| > "
+                    f"{ceiling:,.0f}) - no real filer has ever reported a figure this large, "
+                    "regardless of currency or company size. Likely a scale-tagging error "
+                    "(sibling-concept mismatch, raw non-major-currency pass-through, ...).",
+                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+            else:
+                self.log(check_name, INFO, table, f"no implausible {field} found (|value| <= {ceiling:,.0f})")
+        except Exception as e:
+            logger.error(f"[TieOutChecker] {check_name} failed: {e}", exc_info=True)
+            self.log(
+                check_name,
+                ERROR,
+                table,
+                f"Check execution failed (likely schema drift, not a data finding): {e}",
+            )
