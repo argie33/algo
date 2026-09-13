@@ -14,6 +14,7 @@ a bare `\\bpfd\\b` pattern would have wrongly excluded it.
 
 from loaders.load_market_constituents import (
     CORP_SPONSOR_PATTERN,
+    KNOWN_ETF_MISCLASSIFICATIONS,
     KNOWN_FUND_NAME_MISCLASSIFICATIONS,
     KNOWN_SPAC_MISCLASSIFICATIONS,
     _is_excluded,
@@ -355,6 +356,20 @@ class TestCapitalTrustAndSpacSponsorGapsFoundInFactorScoreReview:
         assert _is_excluded("SBXD", "SilverBox Corp IV Class A Ordinary Shares")
         assert _is_excluded("DYNC", "Dynamix Corporation - Class A Ordinary Share")
         assert _is_excluded("CUB", "Lionheart Holdings - Class A Ordinary Shares")
+
+    def test_grn_etn_misclassification_individually_verified(self):
+        """GRN ("iPath Series B Carbon Exchange-Traded Notes") slips through both existing
+        gates: the upstream feed's own ETF column is "N" for it (an ETN is technically a debt
+        note, not a fund) and its security_name doesn't contain the substring "etf" either.
+        Live-confirmed via real SEC submissions.json: GRN's CIK (0000312070) belongs to
+        Barclays Bank PLC, the note issuer - our extraction pipeline pulled Barclays' own real
+        bank-holding-company financials (~$10-13B/yr revenue) into GRN's annual/quarterly
+        income_statement/balance_sheet/cash_flow (56 rows across 6 tables, live-confirmed and
+        corrected in the DB) before this fix. Added to KNOWN_ETF_MISCLASSIFICATIONS (not full
+        exclusion, matching real ETFs like SPY/QQQ) since GRN is a real, actively-traded
+        product that still needs its own price series, just not fundamentals extraction.
+        """
+        assert "GRN" in KNOWN_ETF_MISCLASSIFICATIONS
 
     def test_first_majestic_silver_not_caught_by_broadened_pattern(self):
         """Regression guard: CORP_SPONSOR_PATTERN's broadened suffix group must not, on its
