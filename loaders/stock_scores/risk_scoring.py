@@ -56,6 +56,28 @@ independent reason unrelated to the anomaly-literature argument above. Not re-li
 without new evidence; if this reverses again, redo the fama_macbeth_price_factors run fresh
 rather than trust this comment's numbers as still current.
 
+FOLLOW-UP RE-CHECKED, NOT ACTED ON (2026-09-13, later same session, steady-wiggling-unicorn.md
+plan): re-ran the same non-circular FM/IC methodology against the ACTUAL transforms this pillar
+scores - `beta_fit = -|beta-1.0|` (not raw signed beta, which is a different hypothesis -
+Betting-Against-Beta - than what `_score_risk` measures) and `log10(avg_dollar_volume_20d)`
+(never tested before at all) - across banks/insurers/reits (see
+`algo/research/fama_macbeth_price_factors.py`'s `NEW_CANDIDATE_COLS`/
+`build_new_candidate_cross_sections`). Both failed FDR and era-robustness in all 3 industries,
+same as vol/drawdown above. Despite that, this does NOT flip Beta/Liquidity to sector-relative,
+because - unlike vol/drawdown - their absolute-scoring rationale was never "this captures a
+return-predictive anomaly that the literature measures absolutely" in the first place (that's
+the specific claim the vol/drawdown re-test rebutted). Beta targets closeness to a FIXED value
+(1.0, market-correlated, for swing-trading style-fit) and Liquidity is anchored to a FIXED
+external execution threshold (`algo_config.min_adv_dollars`, $500K - can a trade actually be
+filled at all) - neither claims to be harvesting a cross-sectional forward-return edge, so
+"no forward-return edge" is not evidence against either rationale; it's an answer to a question
+neither component's design was actually asking. Sector-neutralizing a fixed-target/fixed-floor
+metric would swap "how far from 1.0 / how far above $500K" for "rank within your sector" - a
+real change in what the score MEANS, not a re-calibration, and not something this evidence
+justifies. Recorded so this isn't silently retested with the same non-answer next time; a
+future case FOR changing either one needs a different kind of evidence (e.g. a live-verified
+problem with the fixed target/floor themselves, not a return-predictiveness test).
+
 z-score batch pass ADDED 2026-09-13 (earlier same session, before the reversal above) for
 Volatility 60D/252D/Max Drawdown ONLY. `_vol_curve_score`/`_max_drawdown_curve_score`'s fixed
 breakpoints (0.15/0.30/0.60 for vol, 10/25/50 for drawdown) were live-checked against this

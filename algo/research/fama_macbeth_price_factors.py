@@ -61,6 +61,20 @@ logger = logging.getLogger(__name__)
 
 FACTOR_COLS = ["mom_12_1", "mom_6m", "mom_3m", "str_1m", "vol", "downside_vol", "beta", "max_dd"]
 
+# Added 2026-09-13 (steady-wiggling-unicorn.md plan: "close the remaining gap between our Risk
+# pillar and standard factor methodology") - tested via build_new_candidate_cross_sections()
+# below, kept OUT of FACTOR_COLS/build_monthly_cross_sections deliberately so this new test
+# can never change the row-survival (dropna) behavior of the already-validated FACTOR_COLS
+# analysis. `beta_fit` = -|beta-1.0| is the ACTUAL transform loaders/stock_scores/
+# risk_scoring.py scores ("distance from market-correlated", higher=better like every other
+# factor here) - distinct from raw signed `beta` above, which tests the literature's
+# Betting-Against-Beta hypothesis instead. Testing raw beta's forward-return edge does not
+# tell you whether |beta-1.0| has edge; they're different semantics of the same input.
+# `log_dvol` (log10 of avg_dollar_volume_20d) was never tested at all before - Liquidity's
+# `_liquidity_curve_score()` in risk_scoring.py is the only Risk sub-component with zero
+# forward-return evidence either way.
+NEW_CANDIDATE_COLS = ["beta_fit", "log_dvol"]
+
 # See fama_macbeth_quality_factors.py's own INDUSTRY_GROUPS for why this exists.
 INDUSTRY_GROUPS = {
     "banks": DEPOSITORY_BANK_INDUSTRIES,
@@ -106,6 +120,42 @@ def fetch_month_end_prices(start_date: str, end_date: str) -> pd.DataFrame:
         rows = cur.fetchall()
     df = pd.DataFrame(rows, columns=["symbol", "month", "px"])
     df["px"] = df["px"].astype(float)  # psycopg2 returns NUMERIC as decimal.Decimal
+    return df
+
+
+def fetch_trailing_dollar_volume(start_date: str, end_date: str) -> pd.DataFrame:
+    """Pull, for each (symbol, month), the 20-trading-day trailing average dollar volume as of
+    that month's last trading day - the exact same `AVG(volume * close)` over a trailing-20-row
+    window `loaders/stock_scores/risk_scoring.py`'s `_recompute_risk_row` uses for
+    `avg_dollar_volume_20d`, just computed once per historical month (via a window function)
+    instead of only for "today". Needed to test whether Liquidity has genuine sector-specific
+    forward-return edge - this factor was never in FACTOR_COLS before (see NEW_CANDIDATE_COLS).
+    """
+    sql = """
+        WITH daily AS (
+            SELECT symbol, date,
+                   AVG(volume * COALESCE(adj_close, close)) OVER (
+                       PARTITION BY symbol ORDER BY date
+                       ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+                   ) AS dollar_vol_20d,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY symbol, date_trunc('month', date) ORDER BY date DESC
+                   ) AS rn
+            FROM price_daily
+            WHERE date >= %s AND date < %s
+              AND volume IS NOT NULL
+              AND COALESCE(adj_close, close) > 0
+              AND COALESCE(data_unavailable, false) = false
+        )
+        SELECT symbol, date_trunc('month', date)::date AS month, dollar_vol_20d
+        FROM daily WHERE rn = 1
+        ORDER BY symbol, month
+    """
+    with DatabaseContext("read") as cur:
+        cur.execute(sql, (start_date, end_date))
+        rows = cur.fetchall()
+    df = pd.DataFrame(rows, columns=["symbol", "month", "dollar_vol_20d"])
+    df["dollar_vol_20d"] = df["dollar_vol_20d"].astype(float)
     return df
 
 
@@ -174,6 +224,54 @@ def build_monthly_cross_sections(
             continue
 
         for col in FACTOR_COLS:
+            lo, hi = frame[col].quantile([0.01, 0.99])
+            frame[col] = frame[col].clip(lo, hi)
+            std = frame[col].std()
+            frame[col] = (frame[col] - frame[col].mean()) / std if std > 0 else 0.0
+
+        records.append((months[i], frame))
+
+    return records
+
+
+def build_new_candidate_cross_sections(
+    px: pd.DataFrame, ret: pd.DataFrame, dvol: pd.DataFrame, beta_window: int, min_cross_section: int
+) -> list[tuple[pd.Timestamp, pd.DataFrame]]:
+    """Same construction as `build_monthly_cross_sections`, deliberately isolated into its own
+    function (rather than folded into that one) so testing NEW_CANDIDATE_COLS can never change
+    the row-survival (dropna) behavior of the already-validated FACTOR_COLS analysis - see
+    steady-wiggling-unicorn.md plan and NEW_CANDIDATE_COLS' own comment for why these two
+    candidates need their own pass instead of joining FACTOR_COLS directly.
+    """
+    if "SPY" not in ret.columns:
+        raise ValueError("SPY not present in price panel - required as the market factor for beta")
+    mkt = ret["SPY"]
+    months = ret.index
+    records: list[tuple[pd.Timestamp, pd.DataFrame]] = []
+
+    for i in range(len(months)):
+        if i < beta_window or i >= len(months) - 1:
+            continue
+
+        winb = ret.iloc[i - beta_window + 1 : i + 1]
+        mkt_win = mkt.iloc[i - beta_window + 1 : i + 1]
+        mkt_var = mkt_win.var()
+        beta = winb.apply(lambda col, m=mkt_win: col.cov(m)) / mkt_var if mkt_var and mkt_var > 0 else np.nan
+        beta_fit = -abs(beta - 1.0)
+
+        raw_dvol = dvol.iloc[i]
+        log_dvol = np.log10(raw_dvol.where(raw_dvol > 0))
+
+        fwd_ret = ret.iloc[i + 1]
+
+        frame = pd.DataFrame({"beta_fit": beta_fit, "log_dvol": log_dvol, "fwd_ret": fwd_ret})
+        frame = frame.drop(index=["SPY"], errors="ignore")
+        frame = frame.replace([np.inf, -np.inf], np.nan).dropna()
+        frame = frame[(frame["fwd_ret"] > -0.95) & (frame["fwd_ret"] < 5.0)]
+        if len(frame) < min_cross_section:
+            continue
+
+        for col in NEW_CANDIDATE_COLS:
             lo, hi = frame[col].quantile([0.01, 0.99])
             frame[col] = frame[col].clip(lo, hi)
             std = frame[col].std()
@@ -366,14 +464,21 @@ def multi_split_era_robustness(
 
 
 SURVIVORSHIP_BIAS_CAVEAT = (
-    "SURVIVORSHIP BIAS WARNING: this panel excludes every company that failed/delisted for "
-    "cause during the sample window (confirmed 2026-09-12 - zero price_daily rows for Lehman, "
-    "Bear Stearns, Enron, SVB, Signature Bank, First Republic, WorldCom, WAMU under any ticker; "
-    "see survivorship_bias_concretely_reverified_zero_rows_named_failures_20260912 in memory). "
-    "Every t-stat/IC below answers 'does this factor help pick among companies that survived,' "
-    "NEVER 'does this factor protect against picking one that was about to fail.' Do not treat "
-    "a significant result here as evidence a factor manages tail/crisis risk. No fix currently "
-    "applied - real fix is a delisted-symbol price backfill (data vendor decision, not started)."
+    "SURVIVORSHIP BIAS WARNING: this panel is now PARTIALLY, NOT FULLY, corrected (updated "
+    "2026-09-13). scripts/wayback_yahoo_delisted_price_backfill.py + scripts/"
+    "tiingo_delisted_price_backfill.py added real price_daily history for 18 major failures "
+    "across banks/retail/telecom/airlines/autos/brokerage (Lehman, Bear Stearns, WaMu, Enron, "
+    "WorldCom, Sears, JCPenney, Credit Suisse, Toys R Us, First Republic, SVB, Signature Bank, "
+    "PacWest, Kmart, US Airways, old GM, Blockbuster, MF Global, Adelphia, Global Crossing) - "
+    "previously ZERO rows for all of them (see "
+    "survivorship_bias_concretely_reverified_zero_rows_named_failures_20260912 in memory). "
+    "BUT this is 842 symbol-months out of a ~300k-symbol-month universe (0.28%) - confirmed "
+    "live 2026-09-13 that excluding these 18 symbols entirely from a 2002-2012 Fama-MacBeth run "
+    "changes every reported t-stat by <0.01, i.e. NO measurable effect on any factor conclusion "
+    "yet. Every OTHER company that failed/delisted for cause and isn't in this short list is "
+    "still completely absent. Do not treat a significant result here as evidence a factor "
+    "manages tail/crisis risk - the correction so far is real but far too small in sample size "
+    "to change that answer either way."
 )
 
 
@@ -444,6 +549,13 @@ def run(
     px = df.pivot(index="month", columns="symbol", values="px").sort_index()
     ret = px.pct_change(fill_method=None)
 
+    dvol_df = fetch_trailing_dollar_volume(start_date, end_date)
+    if symbols is not None:
+        dvol_df = dvol_df[dvol_df["symbol"].isin(symbols)]
+    dvol = dvol_df.pivot(index="month", columns="symbol", values="dollar_vol_20d").reindex(
+        index=ret.index, columns=ret.columns
+    )
+
     records = build_monthly_cross_sections(px, ret, beta_window, vol_window, min_cross_section)
     if not records:
         raise RuntimeError("No usable cross-sectional months - check date range / min_cross_section")
@@ -489,6 +601,39 @@ def run(
             f"{c:14s} block t-stats: [{t_str}]  sign_agrees={r.sign_agrees_across_blocks}  "
             f"clears|t|>=1.5 in {r.blocks_clearing_1_5}/{r.n_blocks}  -> {verdict}"
         )
+
+    print(
+        "\n=== NEW CANDIDATES: beta_fit (|beta-1.0|, production semantic) & "
+        "log_dollar_volume_20d (steady-wiggling-unicorn.md plan) ==="
+    )
+    new_min_cross_section = max(10, min_cross_section // 2) if symbols is not None else min_cross_section
+    new_records = build_new_candidate_cross_sections(px, ret, dvol, beta_window, new_min_cross_section)
+    if not new_records:
+        print("Insufficient data for beta_fit/log_dvol panel - skipped.")
+    else:
+        print(f"Usable cross-sectional months: {len(new_records)}  ({new_records[0][0]} to {new_records[-1][0]})")
+        print("\n--- Univariate Fama-MacBeth (each candidate alone) ---")
+        uni_mean2, uni_t2 = {}, {}
+        for c in NEW_CANDIDATE_COLS:
+            uni = _fama_macbeth(new_records, [c])
+            uni_mean2[c], uni_t2[c] = uni[c]
+        fdr2 = benjamini_hochberg_fdr(uni_t2, len(new_records))
+        print(f"{'factor':14s} {'mean_coef':>10s} {'t_stat':>8s} {'FDR q<=0.10':>12s}")
+        for c in NEW_CANDIDATE_COLS:
+            verdict = "PASS" if fdr2[c] else "fail"
+            print(f"{c:14s} {uni_mean2[c]:10.5f} {uni_t2[c]:8.2f} {verdict:>12s}")
+
+        print(f"\n--- Multi-split era robustness ({n_splits}-block chronological split) ---")
+        robustness2 = multi_split_era_robustness(new_records, NEW_CANDIDATE_COLS, n_splits=n_splits)
+        for c in NEW_CANDIDATE_COLS:
+            r = robustness2[c]
+            t_str = "  ".join(f"{t:6.2f}" if not np.isnan(t) else "   nan" for t in r.t_stats)
+            robust = r.sign_agrees_across_blocks and r.blocks_clearing_1_5 >= n_splits - 1
+            verdict = "ROBUST" if robust else "unstable/inconclusive"
+            print(
+                f"{c:14s} block t-stats: [{t_str}]  sign_agrees={r.sign_agrees_across_blocks}  "
+                f"clears|t|>=1.5 in {r.blocks_clearing_1_5}/{r.n_blocks}  -> {verdict}"
+            )
 
 
 def main() -> None:
