@@ -1,71 +1,80 @@
 /**
- * ScoresCorrectnessCoverage — companion to ScoresDataCoverage: instead of "is the value
- * present at all" (completeness), this answers "if a value IS present, does any DataPatrol
- * check ever validate it" (correctness). Rendered directly below ScoresDataCoverage on the
- * ServiceHealth "Scores Data Coverage" tab - same question, correctness angle.
+ * ScoresCorrectnessCoverage — for every pillar-input table, has DataPatrol actually ever run
+ * and found (or not found) anything, and what did it say. Rendered directly below
+ * ScoresDataCoverage on the ServiceHealth "Scores Data Coverage" tab: that panel answers "is
+ * the value present" (completeness); this one answers "has anything ever actually checked it"
+ * (correctness monitoring).
  *
- * ADDED 2026-09-13 (goal session continuation) - a prior session found "89 of 111 pillar-input
- * fields have zero direct check" but never persisted the analysis anywhere (no memory entry, no
- * script, no commit), so that number couldn't be trusted or reproduced. This re-derives it live
- * via GET /api/algo/scores/correctness-coverage (lambda/api/routes/scores_handlers/
- * coverage_correctness.py), which cross-references the same factor universe
- * /api/algo/scores/coverage tracks against which algo/monitoring/data_patrol/checks/*.py
- * module source text mentions both that factor's table and column name.
+ * REWRITTEN FROM SCRATCH 2026-09-13 (user directive - the prior version, which showed whether
+ * a DataPatrol check MODULE'S SOURCE TEXT happened to mention a field name, was rejected
+ * outright: "it tells us nothing, gives us nothing, worthless"). That was a guess about what a
+ * check could theoretically do; it never asked whether DataPatrol had actually run against a
+ * table and what it found. This version is sourced entirely from GET
+ * /api/algo/scores/correctness-coverage (lambda/api/routes/scores_handlers/
+ * coverage_correctness.py), which reads `data_patrol_log` directly - the table every check's
+ * own `self.log(...)` call writes to - so every number and message here reflects something
+ * that actually ran, not source code that could in principle run.
  *
- * This is a static-text heuristic, not semantic analysis - a "checked" verdict means "a check
- * module's source references this field", not proof of what it validates or how rigorously.
- * See the backend module's own docstring for the exact matching rule and its known blind spot
- * (a check reaching a factor only through an alias/joined column name or a shared helper won't
- * be found). Treat "0 checks" rows as the real signal (a genuine, confirmable gap); treat
- * "checked" rows as a lead to spot-check, not a guarantee.
+ * Table-level, not per-field (data_patrol_log's target_table is a real DB table name for most
+ * checks, but doesn't carry per-column detail) - coarser than the old per-factor claim, but
+ * everything shown is real execution history instead of a text-match guess.
  */
-import React, { useMemo, useState } from "react";
-import { RefreshCw, Search, ShieldAlert, ShieldCheck } from "lucide-react";
+import React, { useState } from "react";
+import { AlertTriangle, CheckCircle2, Clock, HelpCircle, RefreshCw } from "lucide-react";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { api } from "../services/api";
 
 const CORRECTNESS_URL = "/api/algo/scores/correctness-coverage";
 
+const STATUS_META = {
+  never_logged: {
+    label: "Never checked",
+    color: "var(--danger, #e2645f)",
+    icon: HelpCircle,
+    blurb: "DataPatrol has never logged a single finding against this table.",
+  },
+  active_findings: {
+    label: "Findings open",
+    color: "var(--danger, #e2645f)",
+    icon: AlertTriangle,
+    blurb: "Checked recently, and it found something worth a look.",
+  },
+  stale: {
+    label: "Stale",
+    color: "var(--warning, #d99a2b)",
+    icon: Clock,
+    blurb: "Has real check history, but nothing logged inside the lookback window.",
+  },
+  active_clean: {
+    label: "Clean",
+    color: "var(--success, #22ab84)",
+    icon: CheckCircle2,
+    blurb: "Checked recently, nothing above informational.",
+  },
+};
+
+function StatusBadge({ status }) {
+  const meta = STATUS_META[status] || STATUS_META.stale;
+  const Icon = meta.icon;
+  return (
+    <span
+      className="flex items-center gap-1 t-xs"
+      style={{ color: meta.color, fontWeight: 600 }}
+      title={meta.blurb}
+    >
+      <Icon size={13} /> {meta.label}
+    </span>
+  );
+}
+
 export default function ScoresCorrectnessCoverage({ active }) {
-  // useApiQuery's own queryFn contract: pass the raw api.get() call through - the hook
-  // calls extractData() internally exactly once (see SymbolQuarantinePanel.jsx's identical
-  // fix and comment for the double-extraction bug this avoids; harmless here in practice
-  // since this endpoint has no "items" key to collide with extractData's pagination
-  // heuristic, but the pattern should stay consistent either way).
   const { data, loading, error, isFetching, refetch } = useApiQuery(
     ["scores-correctness-coverage"],
     () => api.get(CORRECTNESS_URL),
     { enabled: active, timeout: 30000, retry: 1 }
   );
 
-  const [search, setSearch] = useState("");
-  // Defaults to the actionable view: scored factors DataPatrol never touches - the same
-  // "lead with what can actually move a score" posture ScoresDataCoverage already takes for
-  // completeness (its "not scored" badge + real-gap-only headline numbers). A gap on a
-  // display-only field (EV/EBITDA, PEG, short-interest fields, ...) can't move stock_scores,
-  // so it shouldn't compete for attention with a genuine gap on a live pillar input by
-  // default - both toggles below let someone widen back out to the full picture on demand.
-  const [hideChecked, setHideChecked] = useState(true);
-  const [showUnscored, setShowUnscored] = useState(false);
-
-  const factors = data?.factors || [];
-  const isScored = (f) => f.scored !== false;
-
-  const rows = useMemo(() => {
-    return factors.filter((f) => {
-      if (hideChecked && f.checked) return false;
-      if (!showUnscored && !isScored(f)) return false;
-      if (
-        search &&
-        !(
-          f.factor.toLowerCase().includes(search.toLowerCase()) ||
-          f.table.toLowerCase().includes(search.toLowerCase())
-        )
-      )
-        return false;
-      return true;
-    });
-  }, [factors, search, hideChecked, showUnscored]);
+  const [pillarFilter, setPillarFilter] = useState(null);
 
   if (!active) return null;
 
@@ -77,27 +86,21 @@ export default function ScoresCorrectnessCoverage({ active }) {
     );
   }
 
-  const pctScoredChecked = data?.scored_factor_count
-    ? Math.round(
-        (1000 * (data.scored_factor_count - data.scored_unchecked_count)) /
-          data.scored_factor_count
-      ) / 10
-    : null;
+  const tables = data?.tables || [];
+  const pillarSummary = data?.pillar_summary || [];
+  const totals = data?.totals;
+  const visibleTables = pillarFilter ? tables.filter((t) => t.group === pillarFilter) : tables;
 
   return (
     <div style={{ marginTop: "var(--space-5)" }}>
-      <div
-        className="flex items-center gap-3"
-        style={{ marginBottom: "var(--space-4)" }}
-      >
+      <div className="flex items-center gap-3" style={{ marginBottom: "var(--space-4)" }}>
         <div style={{ flex: 1 }}>
           <div className="t-sm muted">
-            Of the scored pillar-input factors above — the ones that can actually move a
-            stock's score — which have zero DataPatrol check
-            (<code className="mono t-2xs">algo/monitoring/data_patrol/checks/</code>) ever
-            referencing them. A present value can still be silently wrong if nothing ever
-            cross-checks it. Correctness, not completeness. Defaults to the actionable view;
-            widen it with the checkboxes below.
+            For every pillar-input table, whether DataPatrol has actually ever logged a finding
+            against it — sourced live from <code className="mono t-2xs">data_patrol_log</code>,
+            not from guessing what a check's source code could do. A table can look fine in
+            ScoresDataCoverage above (values present) and still never have been validated for
+            plausibility at all.
           </div>
         </div>
         <button
@@ -122,154 +125,189 @@ export default function ScoresCorrectnessCoverage({ active }) {
         <>
           <div className="grid grid-4" style={{ marginBottom: "var(--space-4)" }}>
             <div className="stile">
-              <div className="stile-label">Scored Factors, Zero Check</div>
-              <div
-                className={`stile-value ${data.scored_unchecked_count > 0 ? "down" : "up"}`}
-              >
-                {data.scored_unchecked_count}
+              <div className="stile-label">Never Checked</div>
+              <div className={`stile-value ${totals.never_logged > 0 ? "down" : "up"}`}>
+                {totals.never_logged}
+              </div>
+              <div className="stile-sub">of {totals.total_tables} pillar-input tables</div>
+            </div>
+            <div className="stile">
+              <div className="stile-label">Findings Open</div>
+              <div className={`stile-value ${totals.active_findings > 0 ? "down" : "up"}`}>
+                {totals.active_findings}
               </div>
               <div className="stile-sub">
-                of {data.scored_factor_count} that can actually move a score
-                {pctScoredChecked != null ? ` — ${pctScoredChecked}% checked` : ""}
+                checked in the last {data.window_days}d, something to review
               </div>
             </div>
             <div className="stile">
-              <div className="stile-label">Factors Tracked</div>
-              <div className="stile-value">{data.factor_count}</div>
-              <div className="stile-sub">
-                {data.factor_count - data.scored_factor_count} display-only (unscored), same
-                universe as Data Coverage above
-              </div>
+              <div className="stile-label">Stale</div>
+              <div className="stile-value">{totals.stale}</div>
+              <div className="stile-sub">has check history, none in the last {data.window_days}d</div>
             </div>
             <div className="stile">
-              <div className="stile-label">Referenced By a Check</div>
-              <div className="stile-value">{data.checked_count}</div>
-              <div className="stile-sub">≥1 DataPatrol check module mentions it</div>
-            </div>
-            <div className="stile">
-              <div className="stile-label">Check Modules Scanned</div>
-              <div className="stile-value">{data.check_module_count}</div>
-              <div className="stile-sub">algo/monitoring/data_patrol/checks/*.py</div>
+              <div className="stile-label">Clean</div>
+              <div className="stile-value">{totals.active_clean}</div>
+              <div className="stile-sub">checked recently, nothing found</div>
             </div>
           </div>
 
-          <div
-            className="card-pad-sm flex gap-3 items-center"
-            style={{ flexWrap: "wrap", marginBottom: "var(--space-2)" }}
-          >
-            <div style={{ position: "relative", minWidth: 200 }}>
-              <Search
-                size={14}
-                style={{
-                  position: "absolute",
-                  left: 10,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "var(--text-faint)",
-                }}
-              />
-              <input
-                className="input"
-                placeholder="Search factor or table…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{ paddingLeft: 32 }}
-              />
+          {pillarSummary.length > 0 && (
+            <div className="card" style={{ marginBottom: "var(--space-4)" }}>
+              <div className="card-body" style={{ padding: "var(--space-3)" }}>
+                <div className="flex items-center gap-3" style={{ marginBottom: "var(--space-2)" }}>
+                  <div className="t-xs faint" style={{ flex: 1 }}>
+                    By pillar — click to filter the table below
+                  </div>
+                  {pillarFilter && (
+                    <button
+                      className="btn btn-ghost btn-sm t-2xs"
+                      onClick={() => setPillarFilter(null)}
+                    >
+                      Clear filter ({pillarFilter})
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {pillarSummary.map((p) => {
+                    const needsAttention = p.never_logged + p.active_findings;
+                    return (
+                      <div
+                        key={p.pillar}
+                        className="flex items-center gap-3"
+                        style={{
+                          cursor: "pointer",
+                          opacity: pillarFilter && pillarFilter !== p.pillar ? 0.45 : 1,
+                        }}
+                        onClick={() => setPillarFilter(pillarFilter === p.pillar ? null : p.pillar)}
+                      >
+                        <div className="t-sm" style={{ width: 90, flexShrink: 0 }}>
+                          {p.pillar}
+                        </div>
+                        <div
+                          className="flex"
+                          style={{
+                            flex: 1,
+                            height: 10,
+                            borderRadius: 4,
+                            overflow: "hidden",
+                            background: "var(--border-soft)",
+                          }}
+                        >
+                          {p.never_logged > 0 && (
+                            <div
+                              style={{
+                                width: `${(100 * p.never_logged) / p.total}%`,
+                                background: STATUS_META.never_logged.color,
+                              }}
+                              title={`${p.never_logged} never checked`}
+                            />
+                          )}
+                          {p.active_findings > 0 && (
+                            <div
+                              style={{
+                                width: `${(100 * p.active_findings) / p.total}%`,
+                                background: STATUS_META.active_findings.color,
+                                opacity: 0.7,
+                              }}
+                              title={`${p.active_findings} findings open`}
+                            />
+                          )}
+                          {p.stale > 0 && (
+                            <div
+                              style={{
+                                width: `${(100 * p.stale) / p.total}%`,
+                                background: STATUS_META.stale.color,
+                              }}
+                              title={`${p.stale} stale`}
+                            />
+                          )}
+                          {p.active_clean > 0 && (
+                            <div
+                              style={{
+                                width: `${(100 * p.active_clean) / p.total}%`,
+                                background: STATUS_META.active_clean.color,
+                              }}
+                              title={`${p.active_clean} clean`}
+                            />
+                          )}
+                        </div>
+                        <div
+                          className="t-xs faint mono"
+                          style={{ width: 100, textAlign: "right", flexShrink: 0 }}
+                        >
+                          {needsAttention}/{p.total} need attention
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-            <label
-              className="flex items-center gap-2 t-sm muted"
-              style={{ cursor: "pointer" }}
-            >
-              <input
-                type="checkbox"
-                checked={hideChecked}
-                onChange={(e) => setHideChecked(e.target.checked)}
-              />
-              Show only zero-check factors
-            </label>
-            <label
-              className="flex items-center gap-2 t-sm muted"
-              style={{ cursor: "pointer" }}
-            >
-              <input
-                type="checkbox"
-                checked={showUnscored}
-                onChange={(e) => setShowUnscored(e.target.checked)}
-              />
-              Include display-only (unscored) factors
-            </label>
-          </div>
-
-          <div
-            className="t-xs faint"
-            style={{ padding: "0 var(--space-2) var(--space-2)" }}
-          >
-            {rows.length} of {factors.length} factors
-            {hideChecked || !showUnscored ? " (filtered — see checkboxes above)" : ""}
-          </div>
+          )}
 
           <div className="card">
             <div className="card-body" style={{ padding: 0, overflowX: "auto" }}>
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th style={{ width: 24 }}></th>
-                    <th>Factor</th>
-                    <th>Referencing Checks</th>
+                    <th>Table</th>
+                    <th>Status</th>
+                    <th>Last Checked</th>
+                    <th>Recent ({data.window_days}d)</th>
+                    <th>Latest Finding</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((f) => {
-                    const key = `${f.table}.${f.factor}`;
+                  {visibleTables.map((t) => {
+                    const top = t.recent_findings[0];
                     return (
-                      <tr key={key}>
-                        <td>
-                          {f.checked ? (
-                            <ShieldCheck size={14} style={{ color: "var(--success, #22ab84)" }} />
-                          ) : (
-                            <ShieldAlert size={14} style={{ color: "var(--danger, #e2645f)" }} />
-                          )}
-                        </td>
+                      <tr key={t.table}>
                         <td>
                           <div className="dbl">
-                            <span className="dbl-main mono t-sm">{f.factor}</span>
+                            <span className="dbl-main mono t-sm">{t.table}</span>
                             <span className="dbl-sub">
-                              <span
-                                className="badge badge-neutral"
-                                style={{ fontSize: "var(--t-2xs)" }}
-                              >
-                                {f.table}
+                              <span className="badge badge-neutral" style={{ fontSize: "var(--t-2xs)" }}>
+                                {t.group}
                               </span>
-                              {f.group && f.group !== f.table && (
-                                <span
-                                  className="badge badge-neutral"
-                                  style={{ fontSize: "var(--t-2xs)", marginLeft: 4 }}
-                                >
-                                  {f.group}
-                                </span>
-                              )}
-                              {!isScored(f) && (
-                                <span
-                                  className="badge"
-                                  title="Computed/displayed elsewhere but not read by the live composite scoring formula - a check gap here can't move a stock's score."
-                                  style={{
-                                    fontSize: "var(--t-2xs)",
-                                    marginLeft: 4,
-                                    color: "var(--text-faint)",
-                                    border: "1px solid var(--border-soft)",
-                                  }}
-                                >
-                                  not scored
-                                </span>
-                              )}
                             </span>
                           </div>
                         </td>
-                        <td className="t-sm">
-                          {f.checks.length ? (
-                            f.checks.join(", ")
+                        <td>
+                          <StatusBadge status={t.status} />
+                        </td>
+                        <td className="t-xs">
+                          {t.last_seen_at ? (
+                            <span title={t.last_seen_at}>
+                              {t.days_since_last_seen < 1
+                                ? "< 1d ago"
+                                : `${Math.round(t.days_since_last_seen)}d ago`}
+                            </span>
                           ) : (
-                            <span className="t-2xs faint">No check references this field</span>
+                            <span className="faint">never</span>
+                          )}
+                        </td>
+                        <td className="t-xs mono">
+                          {t.recent.critical ? `${t.recent.critical} crit ` : ""}
+                          {t.recent.error ? `${t.recent.error} err ` : ""}
+                          {t.recent.warn ? `${t.recent.warn} warn ` : ""}
+                          {!t.recent.critical && !t.recent.error && !t.recent.warn
+                            ? t.recent.info
+                              ? `${t.recent.info} info`
+                              : "—"
+                            : ""}
+                        </td>
+                        <td className="t-2xs" style={{ maxWidth: 420 }}>
+                          {top ? (
+                            <span title={t.recent_findings.map((f) => f.message).join("\n")}>
+                              <span className="mono faint">[{top.check}]</span> {top.message}
+                            </span>
+                          ) : (
+                            <span className="faint">
+                              {t.status === "never_logged"
+                                ? "No check has ever targeted this table"
+                                : "No finding in the lookback window"}
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -280,17 +318,12 @@ export default function ScoresCorrectnessCoverage({ active }) {
             </div>
           </div>
 
-          <div
-            className="t-2xs faint"
-            style={{ marginTop: "var(--space-3)", lineHeight: 1.6 }}
-          >
-            "Referenced" means a check module's source text mentions both the factor's table
-            and column name as whole words — a static heuristic, not proof of what the check
-            actually validates or how rigorously (see this section's own header text). A
-            factor referenced by name in a check that was later removed, or reached only
-            through an alias/shared helper, can show up wrong in either direction — treat
-            "zero direct check" rows as the reliable signal to investigate, and "referenced"
-            rows as a lead to spot-check rather than a guarantee.
+          <div className="t-2xs faint" style={{ marginTop: "var(--space-3)", lineHeight: 1.6 }}>
+            Table-level, not per-field — a "Clean" table has had at least one recent DataPatrol
+            finding of any severity logged against it, which doesn't guarantee every column on
+            it is validated. "Never checked" and "Findings open" are the two statuses worth
+            acting on first: the former means literally nothing has ever run against this table;
+            the latter means something ran recently and flagged a real issue still open.
           </div>
         </>
       )}
