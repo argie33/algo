@@ -83,8 +83,20 @@ def _headline_symbols(cur: Any) -> dict[str, list[tuple[str, str, str]]]:
     *_unavailable_reason (or bare `reason`) on its LATEST row per table/column - same
     DISTINCT ON/active-universe/_categorize_reason logic scripts/xbrl_scored_headline_count.py
     uses, reused here rather than reimplemented so this audit always tracks the real live
-    headline, not a stale snapshot of it."""
-    from routes.scores_handlers.coverage_classification import _categorize_reason
+    headline, not a stale snapshot of it.
+
+    BUG FIX 2026-09-13 (found live while running the full xbrl_second_opinion_daily suite
+    during this goal session): this function was missing xbrl_scored_headline_count.py's
+    own _UNSCORED_TABLES/_UNSCORED_FACTORS skip - factors deliberately descoped from the
+    live composite/display headline but still carrying stale *_unavailable_reason values
+    from before they were descoped. Without that skip this counted 1045 symbols against
+    the tracked headline's own 126 for the exact same live data - the "reused logic"
+    docstring claim above was false until this fix; the two scripts now agree."""
+    from routes.scores_handlers.coverage_classification import (
+        _UNSCORED_FACTORS,
+        _UNSCORED_TABLES,
+        _categorize_reason,
+    )
 
     from scripts.xbrl_scored_headline_count import _find_reason_columns
     from utils.loaders.helpers import get_active_symbols
@@ -92,6 +104,9 @@ def _headline_symbols(cur: Any) -> dict[str, list[tuple[str, str, str]]]:
     active = set(get_active_symbols(exclude_etfs=True))
     out: dict[str, list[tuple[str, str, str]]] = {}
     for table, column in _find_reason_columns(cur):
+        factor_name = column.replace("_unavailable_reason", "") if column != "reason" else table
+        if table in _UNSCORED_TABLES or (table, factor_name) in _UNSCORED_FACTORS:
+            continue
         cur.execute(
             "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s "
             "AND column_name IN ('symbol','fiscal_year','date','computed_at','updated_at','created_at')",

@@ -82,12 +82,23 @@ def _discover_keys() -> dict[str, str]:
     return keys
 
 
+_EXCLUDED_DIR_PARTS = {"__pycache__", ".git", "worktrees", "node_modules", ".venv", ".mypy_cache", ".pytest_cache"}
+
+
 def _all_py_files() -> list[Path]:
-    return [
-        p
-        for p in REPO_ROOT.rglob("*.py")
-        if "__pycache__" not in p.parts and not any(part == ".git" for part in p.parts)
-    ]
+    """BUG FIX 2026-09-13 (found live while running this script during the goal session:
+    it hung for minutes instead of finishing near-instantly on a pure-static grep). rglob
+    walked into `.claude/worktrees/` - this repo runs well over 100 concurrent agent
+    worktrees, each a full checkout - so every real source file was being re-scanned 100+
+    times over, and any config key literal that happens to also appear in a worktree's own
+    in-progress (possibly stale/reverted) copy of a file could produce a misleading
+    "enforced" result that isn't true of the actual main-tree code being audited. Excluding
+    `worktrees` (matches both `.claude/worktrees/*` and the sibling `algo-wt-*` checkouts
+    some sessions use, none of which are nested under REPO_ROOT so this alone wouldn't
+    catch those - they were never in scope for `rglob` to begin with since it only walks
+    REPO_ROOT) makes this audit fast and restricted to the actual tree being reasoned about.
+    """
+    return [p for p in REPO_ROOT.rglob("*.py") if not any(part in _EXCLUDED_DIR_PARTS for part in p.parts)]
 
 
 def _build_index(files: list[Path]) -> dict[str, str]:

@@ -679,7 +679,7 @@
   "scripts/xbrl_scored_headline_count.py": 133,
   "scripts/xbrl_second_opinion_daily.py": 177,
   "scripts/xbrl_segment_sum_reconciliation.py": 390,
-  "scripts/xbrl_unavailable_reason_audit.py": 370,
+  "scripts/xbrl_unavailable_reason_audit.py": 366,
   "scripts/xbrl_yfinance_crosscheck.py": 263,
   "shared_contracts/__init__.py": 25,
   "shared_contracts/dashboard_api_contract.py": 205,
