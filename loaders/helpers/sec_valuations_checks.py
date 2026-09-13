@@ -490,6 +490,43 @@ class ValuationSanityCheckMixin:
         if all(m is None for m in key_metrics):
             result["data_unavailable"] = True
 
+    @staticmethod
+    def _validate_ttm_quarter_window(rows: list[tuple[Any, ...]], require_recency: bool) -> bool:
+        """Shared validity guard for a 4-quarter TTM window, extracted 2026-09-13 (steady-
+        wiggling-unicorn.md plan: stop `_fetch_income_statement_context`'s primary path from
+        using a stale annual EPS/revenue/net_income when fresher quarters exist) so
+        `_compute_ttm_eps_from_quarters` (EPS-only, existing rescue-check caller) and the new
+        `_compute_ttm_income_from_quarters` (revenue+net_income+EPS together, the new primary-
+        path caller) share one guard instead of two copies drifting apart.
+
+        `rows` must be exactly 4 `(period_end, ...)` tuples ordered by `period_end DESC` (any
+        number of value columns after the first - callers null-check those columns
+        themselves, this only validates the period_end shape). `require_recency=True` (the
+        "this is the current TTM as of today" case) additionally requires the most recent
+        period_end within ~400 days of today; `False` (a shifted prior-period window, e.g.
+        "TTM as of a year ago" for a YoY comparison) skips that check by design - an
+        intentionally old window isn't a staleness bug.
+        """
+        if len(rows) != 4:
+            return False
+        period_ends = [r[0] for r in rows]
+        most_recent_period_end = period_ends[0]
+        if require_recency and (
+            most_recent_period_end is None or (date.today() - most_recent_period_end) > timedelta(days=400)
+        ):
+            return False
+        # Guard against a restated/duplicate-filing row for one quarter masking a missing
+        # quarter elsewhere: "4 most recent rows by period_end" is only a true TTM sum if
+        # those 4 period_ends are 4 distinct quarters spaced ~91 days apart, not two rows
+        # for the same reporting period plus a gap where a real quarter was never loaded.
+        if len(set(period_ends)) != 4:
+            return False
+        for earlier, later in pairwise(period_ends):
+            gap_days = (earlier - later).days
+            if not (60 <= gap_days <= 120):
+                return False
+        return True
+
     def _compute_ttm_eps_from_quarters(self, symbol: str) -> float | None:
         """Sum of the 4 most recent real quarterly `earnings_per_share` values, ordered by
         actual `period_end` date (not the fiscal_year/fiscal_quarter pair - see migration
@@ -501,6 +538,13 @@ class ValuationSanityCheckMixin:
         annual reporting cadence plus slack for late filers) - a genuine TTM figure needs all
         4 real quarters, and a stale set of "recent" quarters would just reintroduce the same
         stale-vs-live measurement-window problem this exists to fix.
+
+        UNCHANGED BEHAVIOR (2026-09-13): still EPS-only, still exactly this sanity-check
+        rescue's own caller - see `_compute_ttm_income_from_quarters` below for the newer,
+        stricter (revenue+net_income+EPS all required) sibling the primary income-statement
+        path now uses. Kept separate rather than merged so this method's existing test
+        (`test_sec_valuations_pe_ratio_ttm_from_quarters_rescue_20260905.py`) stays valid
+        without needing revenue/net_income fixtures it was never written to provide.
         """
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -514,25 +558,64 @@ class ValuationSanityCheckMixin:
                 (symbol,),
             )
             rows = cur.fetchall()
-        if len(rows) != 4:
-            return None
-        most_recent_period_end = rows[0][0]
-        if most_recent_period_end is None or (date.today() - most_recent_period_end) > timedelta(days=400):
+        if not self._validate_ttm_quarter_window(rows, require_recency=True):
             return None
         if any(r[1] is None for r in rows):
             return None
-        # Guard against a restated/duplicate-filing row for one quarter masking a missing
-        # quarter elsewhere: "4 most recent rows by period_end" is only a true TTM sum if
-        # those 4 period_ends are 4 distinct quarters spaced ~91 days apart, not two rows
-        # for the same reporting period plus a gap where a real quarter was never loaded.
-        period_ends = [r[0] for r in rows]
-        if len(set(period_ends)) != 4:
-            return None
-        for earlier, later in pairwise(period_ends):
-            gap_days = (earlier - later).days
-            if not (60 <= gap_days <= 120):
-                return None
         return float(sum(r[1] for r in rows))
+
+    def _compute_ttm_income_from_quarters(self, symbol: str, offset: int = 0) -> dict[str, Any] | None:
+        """Sum of 4 real quarterly (revenue, net_income, earnings_per_share) values together,
+        same period_end-based guards as `_compute_ttm_eps_from_quarters` (via the shared
+        `_validate_ttm_quarter_window`), but requiring ALL THREE fields present for all 4
+        quarters, not just EPS - `_fetch_income_statement_context`'s primary path needs
+        ttm_revenue/ttm_net_income to be just as trustworthy as ttm_eps_basic (ps_ratio/
+        ev_revenue/ev_ebitda depend on them), so a gap in revenue/net_income for one quarter
+        must invalidate the whole window even if EPS alone would have passed.
+
+        Opens its own `DatabaseContext`, same convention as `_compute_ttm_eps_from_quarters`
+        above (this method's caller, `_fetch_income_statement_context`, has an open `cur` in
+        scope, but reusing it would insert a new query into that function's existing call
+        sequence, which many of this codebase's `_fetch_income_statement_context`/
+        `fetch_incremental` unit tests hardcode via a sequential/index-based mock cursor - a
+        separate connection here is non-invasive to that established test convention;
+        `test_sec_valuations_pe_ratio_ttm_from_quarters_rescue_20260905.py`'s
+        `patch("loaders.helpers.sec_valuations_checks.DatabaseContext", ...)` pattern is the
+        one to follow for testing this method too).
+
+        `offset` (added 2026-09-13, steady-wiggling-unicorn.md plan): 0 selects the most
+        recent 4 quarters (today's TTM, recency-checked); 4 selects the 4 quarters before
+        those (this window's own "year-ago TTM", NOT recency-checked by design - see
+        `_validate_ttm_quarter_window`'s own docstring) - used for a genuine TTM-over-TTM
+        `prior_year_eps` so `peg_ratio`'s growth-rate calc stays internally consistent with a
+        quarterly-TTM-based `pe_ratio` instead of comparing it against a stale annual EPS from
+        a different measurement window (the exact desync the 2026-09-05 rescue's own docstring
+        flagged as a reason NOT to swap `pe_ratio` itself - now addressed instead of avoided).
+
+        Returns `{"period_end", "revenue", "net_income", "eps"}` or `None`.
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT period_end, revenue, net_income, earnings_per_share
+                FROM quarterly_income_statement
+                WHERE symbol = %s AND data_unavailable IS NOT TRUE AND period_end IS NOT NULL
+                ORDER BY period_end DESC
+                OFFSET %s LIMIT 4
+                """,
+                (symbol, offset),
+            )
+            rows = cur.fetchall()
+        if not self._validate_ttm_quarter_window(rows, require_recency=(offset == 0)):
+            return None
+        if any(r[1] is None or r[2] is None or r[3] is None for r in rows):
+            return None
+        return {
+            "period_end": rows[0][0],
+            "revenue": float(sum(r[1] for r in rows)),
+            "net_income": float(sum(r[2] for r in rows)),
+            "eps": float(sum(r[3] for r in rows)),
+        }
 
     def _get_total_cash_and_debt(self, cur: Any, symbol: str) -> tuple[float | None, float | None]:
         """Pure balance-sheet total_cash/total_debt lookup - no income-statement dependency,

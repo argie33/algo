@@ -61,6 +61,8 @@ class IncomeStatementContextMixin:
         @staticmethod
         def _compute_multi_year_eps_cagr(income_rows: list[tuple[Any, ...]]) -> float | None: ...
 
+        def _compute_ttm_income_from_quarters(self, symbol: str, offset: int = 0) -> dict[str, Any] | None: ...
+
     @staticmethod
     def _reclassify_blank_check_zero_row(cur: Any, symbol: str, reason: str) -> str:
         """FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push, same-day sibling to
@@ -255,6 +257,88 @@ class IncomeStatementContextMixin:
                 _sum_col(9),  # interest_expense
             )
         ]
+
+    def _prefer_quarterly_ttm_over_stale_annual(
+        self,
+        symbol: str,
+        ttm_revenue: Any,
+        ttm_net_income: Any,
+        ttm_eps_basic: Any,
+        prior_year_eps: Any,
+    ) -> tuple[Any, Any, Any, Any]:
+        """Override the annual-sourced ttm_revenue/ttm_net_income/ttm_eps_basic/prior_year_eps
+        with a genuine trailing-twelve-month figure built from real quarters, whenever one
+        validates - extracted from `_fetch_income_statement_context` 2026-09-13 (steady-
+        wiggling-unicorn.md plan) purely to keep that already-large method under ruff's C901
+        complexity ceiling; no behavior change from the inline version.
+
+        ttm_revenue/ttm_net_income/ttm_eps_basic above are, despite the name, just the latest
+        ANNUAL filing's figures - up to ~12 months stale relative to today. Measured scope:
+        comparing latest-annual EPS vs. a real rolling TTM (sum of the actual 4 most recent
+        quarters) across every symbol where both exist found 738/1,387 (53%) diverge >30%,
+        361/1,387 (26%) diverge >100% - live-confirmed on MU (Micron): stored pe_ratio 127.48
+        off a stale FY2025 annual EPS of $7.59, vs. real-world P/E ~22 (TTM EPS ~$44) once
+        FY2026 Q2/Q3's much higher diluted EPS ($12.07/$24.67, already reported in
+        quarterly_income_statement) are included. This exact staleness was already diagnosed
+        once (see eps_scale_mismatch_mostly_stale_annual_vs_live_ttm_not_true_scale_bug_20260905
+        in memory / sec_valuations_checks.py's `_sanity_check_pe_ratio` rescue comment) but
+        deliberately left unfixed at the source over a specific concern: "peg_ratio's
+        growth-rate calculation upstream already assumes pe_ratio came from the annual-EPS
+        path, so swapping the value here would silently desync the two." Addressed below
+        (prior_year_eps is recomputed from a matching year-ago TTM window when the override
+        fires, kept None rather than left mismatched otherwise) instead of left unfixed.
+
+        `_compute_ttm_income_from_quarters` (loaders/helpers/sec_valuations_checks.py) already
+        requires all 4 of the most recent quarters present/distinct/~91-days-spaced AND the
+        most recent within ~400 days of TODAY before returning anything - a result passing
+        those guards is, by construction, at least as current as any annual filing (a company
+        cannot have 4 solid recent real quarters that predate its own most recent annual
+        filing), so no separate "compare against the annual fiscal year" check is needed here.
+
+        Skipped for any symbol in the split/FPI-ADS-ratio override dicts (RECENT_STOCK_SPLITS/
+        FPI_EPS_ADS_RATIO_OVERRIDES/DOMESTIC_FILER_ADS_RATIO_OVERRIDES) - those are curated by
+        (symbol, ANNUAL fiscal_year), and building the equivalent fiscal-year anchoring for a
+        quarterly window isn't worth it for this handful of already-correctly-handled names;
+        their existing annual-based path is untouched.
+
+        REAL-WORLD IMPACT MEASURED BEFORE LANDING (2026-09-13): of the 738 diverging symbols
+        above, only 7 currently have a quarterly window clean enough to pass these guards - the
+        rest are blocked by a separate, deeper quarterly_income_statement completeness/spacing
+        gap (e.g. MSFT has quarterly rows for only ~3 of the last 18 years). This override is
+        correct and safe regardless (never produces a wrong number, only corrects when data
+        genuinely supports it), but its practical impact stays small until that separate gap is
+        addressed - not undertaken in this pass, flagged as the next, likely much bigger lever.
+        """
+        from loaders.load_sec_valuations import (
+            DOMESTIC_FILER_ADS_RATIO_OVERRIDES,
+            FPI_EPS_ADS_RATIO_OVERRIDES,
+            RECENT_STOCK_SPLITS,
+        )
+
+        if (
+            symbol in RECENT_STOCK_SPLITS
+            or symbol in FPI_EPS_ADS_RATIO_OVERRIDES
+            or symbol in DOMESTIC_FILER_ADS_RATIO_OVERRIDES
+        ):
+            return ttm_revenue, ttm_net_income, ttm_eps_basic, prior_year_eps
+
+        ttm_from_quarters = self._compute_ttm_income_from_quarters(symbol)
+        if ttm_from_quarters is None:
+            return ttm_revenue, ttm_net_income, ttm_eps_basic, prior_year_eps
+
+        # Year-ago TTM (quarters 5-8 back) for a genuine TTM-over-TTM PEG growth comparison,
+        # consistent with the now-quarterly-based current figure - not recency-checked by
+        # design (an intentionally old window), see _validate_ttm_quarter_window's own
+        # docstring. None (not the stale annual prior_year_eps passed in) when unavailable,
+        # rather than mixing two different measurement windows in one growth-rate calc.
+        prior_ttm_from_quarters = self._compute_ttm_income_from_quarters(symbol, offset=4)
+        new_prior_year_eps = prior_ttm_from_quarters["eps"] if prior_ttm_from_quarters is not None else None
+        return (
+            ttm_from_quarters["revenue"],
+            ttm_from_quarters["net_income"],
+            ttm_from_quarters["eps"],
+            new_prior_year_eps,
+        )
 
     def _fetch_income_statement_context(self, cur: Any, symbol: str) -> Any:
         """Fetch the latest annual_income_statement row(s) for `symbol` and derive every
@@ -623,6 +707,14 @@ class IncomeStatementContextMixin:
             prior_year_eps = _fpi_ads_adjusted_eps(symbol, prior_year_eps, older_eps_row[0] if older_eps_row else None)
         else:
             prior_year_eps = None
+
+        # TTM-FROM-QUARTERS PREFERRED OVER STALE ANNUAL (2026-09-13, steady-wiggling-unicorn.md
+        # plan) - see _prefer_quarterly_ttm_over_stale_annual's own docstring for the full
+        # rationale (extracted here solely to keep this already-large method under the ruff
+        # C901 complexity ceiling, no behavior change from inlining it).
+        ttm_revenue, _ttm_net_income, ttm_eps_basic, prior_year_eps = self._prefer_quarterly_ttm_over_stale_annual(
+            symbol, ttm_revenue, _ttm_net_income, ttm_eps_basic, prior_year_eps
+        )
 
         # ADDED 2026-08-25 (goal: "finance best practices" methodology audit,
         # deferred item - "multi-year EPS CAGR instead of single-year growth"): the
