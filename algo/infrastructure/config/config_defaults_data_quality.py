@@ -289,14 +289,27 @@ CONFIG_DEFAULTS_DATA_QUALITY: dict[str, tuple[Any, ...]] = {
         "Maximum age of signal data for trading",
         "Data Quality",
     ),
-    # Loader & Order Staleness Detection
+    # DEAD (confirmed 2026-09-13, systematic seeded-vs-enforced sweep,
+    # scripts/audit_unenforced_config.py): only referenced via trading_config.py's dead
+    # get_stock_filter_config(). scripts/monitor_data_staleness.py has its own separate
+    # per-table staleness-bucket thresholds (see CLAUDE.md's description of its 24h/36h/48h
+    # elapsed-time buckets) that don't read this key either - not confirmed superseded by
+    # that specific mechanism, just genuinely unread by anything.
     "stale_loader_threshold_minutes": (
         "60",
         "int",
         "Alert if loader stale for this many minutes",
         "Data Quality",
     ),
-    # Loader Failure Rate Thresholds
+    # DEAD/SUPERSEDED: loader_max_fail_rate_price/loader_max_fail_rate_buy_sell are only
+    # referenced via trading_config.py's dead get_stock_filter_config(). The REAL, live
+    # loader-failure-rate mechanism is loaders/config.py's get_loader_max_fail_rate() -
+    # driven by LOADER_MAX_FAIL_RATE_{TYPE} environment variables + a hardcoded Python dict
+    # (price=8.0%, sec/financial/earnings/default=5.0%), NOT algo_config at all. Wiring
+    # these DB keys in would create two disconnected sources of truth for the same concept
+    # (the exact anti-pattern freshness_config.py's own docstring warns against for
+    # staleness thresholds) - do not add a new consumer without first retiring the env-var
+    # mechanism.
     "loader_max_fail_rate_price": (
         "0.05",
         "float",

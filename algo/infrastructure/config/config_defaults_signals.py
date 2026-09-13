@@ -353,6 +353,14 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "Phase 7: Minimum composite score 0-100 for signal filtering",
         "Signal Generation",
     ),
+    # NOTE (2026-09-13): these 5 keys are ACTUALLY LIVE, not a gap - confirmed
+    # scripts/audit_unenforced_config.py's systematic sweep flagged them as ORPHANED,
+    # a false negative from that tool's own documented limitation (static literal-string
+    # search, no dynamic-key-construction awareness): utils/signals/grade_classifier.py's
+    # GradeClassifier.classify_ibd_composite() calls classify(score,
+    # config_prefix="advanced_filters"), which builds the key as
+    # f"{config_prefix}_grade_threshold_{level}" at runtime - never appears as a literal
+    # string anywhere. Verified by reading the call chain, not just re-running the tool.
     "advanced_filters_grade_threshold_aplus": (
         "90",
         "int",
