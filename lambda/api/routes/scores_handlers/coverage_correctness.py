@@ -125,6 +125,13 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
             factor_name, _value_col, _unavailable_col = _resolve_factor_value_col(
                 cur, table, column, table_all_cols_cache
             )
+            # A bare "reason"/"data" column (the bare_reason_tables case - "reason" describes
+            # the whole row, not one specific field) would otherwise show the unhelpful
+            # literal "reason"/"data" as the factor name here. Same fallback as coverage.py's
+            # _get_scores_coverage (the completeness sibling this correctness check mirrors) -
+            # this file just never got the same fix when that one was added.
+            if not factor_name or factor_name in ("data", "reason"):
+                factor_name = table
             key = (table, factor_name)
             if not factor_name or key in seen:
                 continue
