@@ -17,6 +17,7 @@ from utils.external.sec_statements_entry_resolution import (
     _aggregate_concepts_resolve_entry_period,
     _aggregate_concepts_should_replace_entry,
 )
+from utils.external.sec_statements_fy_stub_period_guard import apply_fy_stub_period_guard
 from utils.external.sec_statements_shared import _ANNUAL_REPORT_FORMS, _extract_currency_code
 from utils.external.sec_statements_unit_context import _aggregate_concepts_build_unit_context
 
@@ -344,6 +345,9 @@ def _aggregate_concepts(
     # Performance re-tag can silently win over a correct 10-K figure from a sibling concept
     # this way. transform() needs the per-concept rank to tell the two cases apart; the rank
     # itself is meaningless without also keeping the row.
+    # FIXED 2026-09-13 (PROK): see sec_statements_fy_stub_period_guard.py's docstring.
+    apply_fy_stub_period_guard(rows, period, symbol, logger)
+
     result = []
     for row in rows.values():
         result.append(
