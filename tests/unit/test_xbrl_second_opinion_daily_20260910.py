@@ -24,12 +24,13 @@ def _dqc_summary(n: int) -> dict:
 
 
 class TestMain:
-    def test_runs_all_three_layers_and_exits_zero_when_all_succeed(self) -> None:
+    def test_runs_all_four_layers_and_exits_zero_when_all_succeed(self) -> None:
         with (
             patch("scripts.xbrl_yfinance_crosscheck.run", return_value=_summary(25)) as yf_run,
             patch("scripts.xbrl_calculation_linkbase_check.run", return_value=_summary(15)) as calc_run,
             patch("scripts.xbrl_dqc_arelle_check._select_rotating_sample", return_value=["A"] * 10) as dqc_sample,
             patch("scripts.xbrl_dqc_arelle_check.run", return_value=_dqc_summary(10)) as dqc_run,
+            patch("scripts.xbrl_unavailable_reason_audit.run", return_value=_summary(40)) as reason_run,
         ):
             from scripts.xbrl_second_opinion_daily import main
 
@@ -41,6 +42,7 @@ class TestMain:
             calc_run.assert_called_once_with(limit=15, symbols_override=None, dry_run=False)
             dqc_sample.assert_called_once_with(10)
             dqc_run.assert_called_once_with(symbols=["A"] * 10, dry_run=False)
+            reason_run.assert_called_once_with(limit=40, symbols_override=None, dry_run=False)
 
     def test_dry_run_flag_threads_through_to_every_layer(self) -> None:
         """BUG FIX 2026-09-13: main() previously had no argument parsing at all, so
@@ -52,6 +54,7 @@ class TestMain:
             patch("scripts.xbrl_calculation_linkbase_check.run", return_value=_summary(15)) as calc_run,
             patch("scripts.xbrl_dqc_arelle_check._select_rotating_sample", return_value=["A"] * 10),
             patch("scripts.xbrl_dqc_arelle_check.run", return_value=_dqc_summary(10)) as dqc_run,
+            patch("scripts.xbrl_unavailable_reason_audit.run", return_value=_summary(40)) as reason_run,
         ):
             from scripts.xbrl_second_opinion_daily import main
 
@@ -62,6 +65,7 @@ class TestMain:
             yf_run.assert_called_once_with(limit=25, symbols_override=None, dry_run=True)
             calc_run.assert_called_once_with(limit=15, symbols_override=None, dry_run=True)
             dqc_run.assert_called_once_with(symbols=["A"] * 10, dry_run=True)
+            reason_run.assert_called_once_with(limit=40, symbols_override=None, dry_run=True)
 
     def test_dqc_adapter_uses_rotating_sample_when_no_override_given(self) -> None:
         """_run_dqc_layer itself (not just main()'s wiring) picks a fresh rotating
@@ -86,6 +90,7 @@ class TestMain:
             patch("scripts.xbrl_calculation_linkbase_check.run", return_value=_summary(15)) as calc_run,
             patch("scripts.xbrl_dqc_arelle_check._select_rotating_sample", return_value=["A"] * 10),
             patch("scripts.xbrl_dqc_arelle_check.run", return_value=_dqc_summary(10)) as dqc_run,
+            patch("scripts.xbrl_unavailable_reason_audit.run", return_value=_summary(40)) as reason_run,
         ):
             from scripts.xbrl_second_opinion_daily import main
 
@@ -100,6 +105,7 @@ class TestMain:
             yf_run.assert_called_once()
             calc_run.assert_called_once()
             dqc_run.assert_called_once()
+            reason_run.assert_called_once()
 
     def test_dqc_layer_missing_arelle_install_does_not_prevent_the_others(self) -> None:
         """The DQC layer raises loudly (RuntimeError) rather than reporting a silent
@@ -114,6 +120,7 @@ class TestMain:
                 "scripts.xbrl_dqc_arelle_check._select_rotating_sample",
                 side_effect=RuntimeError("arelleCmdLine not found on PATH"),
             ),
+            patch("scripts.xbrl_unavailable_reason_audit.run", return_value=_summary(40)) as reason_run,
         ):
             from scripts.xbrl_second_opinion_daily import main
 
@@ -123,6 +130,7 @@ class TestMain:
             assert exc.value.code == 1
             yf_run.assert_called_once()
             calc_run.assert_called_once()
+            reason_run.assert_called_once()
 
     def test_all_layers_failing_exits_nonzero_for_operator_visibility(self) -> None:
         with (
@@ -132,6 +140,7 @@ class TestMain:
                 "scripts.xbrl_dqc_arelle_check._select_rotating_sample",
                 side_effect=RuntimeError("boom"),
             ),
+            patch("scripts.xbrl_unavailable_reason_audit.run", side_effect=RuntimeError("boom")),
         ):
             from scripts.xbrl_second_opinion_daily import main
 

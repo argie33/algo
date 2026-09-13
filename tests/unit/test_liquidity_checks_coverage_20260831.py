@@ -19,6 +19,7 @@ CONFIG = {
     "min_adv_dollars": 500000.0,
     "min_price_history_days": 200,
     "min_market_cap_millions": 300.0,
+    "max_short_interest_pct": 30.0,
 }
 
 
@@ -47,13 +48,14 @@ class TestRunAll:
         assert passed is False
         assert "no signal_date" in reason
 
-    def test_passes_when_all_four_sub_checks_pass(self):
+    def test_passes_when_all_five_sub_checks_pass(self):
         checks = _checks()
         with (
             patch.object(checks, "_check_price_history_age", return_value=(True, "ok")),
             patch.object(checks, "_check_adv", return_value=(True, "ok")),
             patch.object(checks, "_check_dollar_volume", return_value=(True, "ok")),
             patch.object(checks, "_check_market_cap", return_value=(True, "ok")),
+            patch.object(checks, "_check_short_interest", return_value=(True, "ok")),
         ):
             passed, reason = checks.run_all("AAPL", 100.0, signal_date=date(2026, 1, 15))
         assert passed is True
@@ -65,6 +67,7 @@ class TestRunAll:
             patch.object(checks, "_check_adv", return_value=(True, "ok")),
             patch.object(checks, "_check_dollar_volume", return_value=(True, "ok")),
             patch.object(checks, "_check_market_cap", return_value=(True, "ok")),
+            patch.object(checks, "_check_short_interest", return_value=(True, "ok")),
         ):
             passed, reason = checks.run_all("AAPL", 100.0, signal_date=date(2026, 1, 15))
         assert passed is False
@@ -77,6 +80,7 @@ class TestRunAll:
             patch.object(checks, "_check_adv", return_value=(False, "too thin")),
             patch.object(checks, "_check_dollar_volume", return_value=(True, "ok")),
             patch.object(checks, "_check_market_cap", return_value=(True, "ok")),
+            patch.object(checks, "_check_short_interest", return_value=(True, "ok")),
         ):
             passed, reason = checks.run_all("AAPL", 100.0, signal_date=date(2026, 1, 15))
         assert passed is False
@@ -89,6 +93,7 @@ class TestRunAll:
             patch.object(checks, "_check_adv", return_value=(True, "ok")),
             patch.object(checks, "_check_dollar_volume", return_value=(False, "too thin")),
             patch.object(checks, "_check_market_cap", return_value=(True, "ok")),
+            patch.object(checks, "_check_short_interest", return_value=(True, "ok")),
         ):
             passed, reason = checks.run_all("AAPL", 100.0, signal_date=date(2026, 1, 15))
         assert passed is False
@@ -101,10 +106,24 @@ class TestRunAll:
             patch.object(checks, "_check_adv", return_value=(True, "ok")),
             patch.object(checks, "_check_dollar_volume", return_value=(True, "ok")),
             patch.object(checks, "_check_market_cap", return_value=(False, "too small")),
+            patch.object(checks, "_check_short_interest", return_value=(True, "ok")),
         ):
             passed, reason = checks.run_all("AAPL", 100.0, signal_date=date(2026, 1, 15))
         assert passed is False
         assert "Market cap check failed" in reason
+
+    def test_blocks_when_short_interest_check_fails(self):
+        checks = _checks()
+        with (
+            patch.object(checks, "_check_price_history_age", return_value=(True, "ok")),
+            patch.object(checks, "_check_adv", return_value=(True, "ok")),
+            patch.object(checks, "_check_dollar_volume", return_value=(True, "ok")),
+            patch.object(checks, "_check_market_cap", return_value=(True, "ok")),
+            patch.object(checks, "_check_short_interest", return_value=(False, "too high")),
+        ):
+            passed, reason = checks.run_all("AAPL", 100.0, signal_date=date(2026, 1, 15))
+        assert passed is False
+        assert "Short interest check failed" in reason
 
     def test_blocks_on_database_error_fail_closed(self):
         checks = _checks()
@@ -205,6 +224,59 @@ class TestCheckMarketCap:
         checks = _checks()
         with patch("algo.risk.liquidity_checks.DatabaseContext", side_effect=psycopg2.OperationalError("down")):
             passed, reason = checks._check_market_cap("AAPL")
+        assert passed is False
+        assert "blocking as safety measure" in reason
+
+
+class TestCheckShortInterest:
+    def test_passes_when_short_interest_below_maximum(self):
+        checks = _checks()
+        with patch("algo.risk.liquidity_checks.DatabaseContext") as MockDB:
+            MockDB.return_value.__enter__.return_value.fetchone.return_value = (5.0,)
+            passed, reason = checks._check_short_interest("AAPL")
+        assert passed is True
+
+    def test_fails_when_short_interest_above_maximum(self):
+        checks = _checks()
+        with patch("algo.risk.liquidity_checks.DatabaseContext") as MockDB:
+            MockDB.return_value.__enter__.return_value.fetchone.return_value = (45.0,)
+            passed, reason = checks._check_short_interest("GMESQUEEZE")
+        assert passed is False
+        assert "maximum" in reason
+
+    def test_fails_closed_when_no_short_interest_data(self):
+        checks = _checks()
+        with patch("algo.risk.liquidity_checks.DatabaseContext") as MockDB:
+            MockDB.return_value.__enter__.return_value.fetchone.return_value = None
+            passed, reason = checks._check_short_interest("AAPL")
+        assert passed is False
+        assert "No short_interest_pct data" in reason
+
+    def test_fails_closed_when_short_interest_is_none(self):
+        checks = _checks()
+        with patch("algo.risk.liquidity_checks.DatabaseContext") as MockDB:
+            MockDB.return_value.__enter__.return_value.fetchone.return_value = (None,)
+            passed, reason = checks._check_short_interest("AAPL")
+        assert passed is False
+
+    def test_fails_closed_on_database_error(self):
+        checks = _checks()
+        with patch("algo.risk.liquidity_checks.DatabaseContext", side_effect=psycopg2.OperationalError("down")):
+            passed, reason = checks._check_short_interest("AAPL")
+        assert passed is False
+        assert "blocking as safety measure" in reason
+
+    def test_raises_when_max_short_interest_pct_config_missing(self):
+        checks = LiquidityChecks(
+            {
+                "min_adv_shares": 1,
+                "min_adv_dollars": 1.0,
+                "min_price_history_days": 200,
+                "min_market_cap_millions": 300.0,
+            }
+        )
+        with patch("algo.risk.liquidity_checks.DatabaseContext"):
+            passed, reason = checks._check_short_interest("AAPL")
         assert passed is False
         assert "blocking as safety measure" in reason
 

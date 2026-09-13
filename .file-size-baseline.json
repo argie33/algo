@@ -229,7 +229,7 @@
   "algo/risk/exposure_policy.py": 628,
   "algo/risk/governance_risk_watchlist.py": 33,
   "algo/risk/intraday_risk_monitor.py": 204,
-  "algo/risk/liquidity_checks.py": 310,
+  "algo/risk/liquidity_checks.py": 307,
   "algo/risk/market_exposure.py": 920,
   "algo/risk/market_exposure_cache.py": 370,
   "algo/risk/market_exposure_macro.py": 274,

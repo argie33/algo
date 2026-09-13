@@ -62,6 +62,10 @@ class LiquidityChecks:
             if not market_cap_passed:
                 return False, f"Market cap check failed: {market_cap_reason}"
 
+            short_interest_passed, short_interest_reason = self._check_short_interest(symbol)
+            if not short_interest_passed:
+                return False, f"Short interest check failed: {short_interest_reason}"
+
             return True, "All liquidity checks passed"
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -196,6 +200,56 @@ class LiquidityChecks:
             return (
                 False,
                 f"Market cap check unavailable ({type(e).__name__}) - blocking as safety measure",
+            )
+
+    def _check_short_interest(self, symbol: str) -> tuple[bool, str]:
+        """Enforce the short-interest ceiling (max_short_interest_pct, default 30%).
+
+        ADDED 2026-09-13: `max_short_interest_pct` has been a seeded, schema-validated
+        algo_config value since migration 005 ("Liquidity Requirements" category) but,
+        like `min_market_cap_millions` before it, was never wired into any real trade-entry
+        check - only exposed via `trading_config.py`'s dead `get_stock_filter_config()`.
+        Reuses `positioning_metrics.short_interest_pct` (FINRA Reg SHO, already loaded by
+        `load_positioning_metrics.py` for ~98% of symbols) rather than introducing a new
+        source. `min_float_millions` is NOT wired here: positioning_metrics has no float
+        column (float_pct was speced in migration 1023 but never actually added to the
+        live schema) - enforcing it would need a new loader/column, out of scope here.
+        """
+        try:
+            max_short_interest_pct_val = self.config.get("max_short_interest_pct")
+            if max_short_interest_pct_val is None:
+                raise ValueError("CRITICAL: max_short_interest_pct config missing. Cannot enforce liquidity checks.")
+            max_short_interest_pct = float(max_short_interest_pct_val)
+
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT short_interest_pct FROM positioning_metrics WHERE symbol = %s",
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                if not row or row[0] is None:
+                    return False, "No short_interest_pct data available"
+
+                short_interest_pct = float(row[0])
+                if short_interest_pct > max_short_interest_pct:
+                    return (
+                        False,
+                        f"Short interest {short_interest_pct:.1f}% > maximum {max_short_interest_pct:.1f}%",
+                    )
+
+                return True, f"Short interest {short_interest_pct:.1f}% ok"
+
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"Short interest check unavailable for {symbol}: {e} - blocking as safety measure")
+            return (
+                False,
+                f"Short interest check unavailable ({type(e).__name__}) - blocking as safety measure",
+            )
+        except (ValueError, ZeroDivisionError, TypeError) as e:
+            logger.error(f"Short interest check failed for {symbol}: {e} - blocking as safety measure")
+            return (
+                False,
+                f"Short interest check unavailable ({type(e).__name__}) - blocking as safety measure",
             )
 
     def _check_price_history_age(self, symbol: str, signal_date: _date) -> tuple[bool, str]:
