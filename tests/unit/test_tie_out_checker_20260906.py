@@ -3811,6 +3811,46 @@ class TestQuarterlyRevenueSumVsAnnualTotal:
         assert checker.results[0].check_name == "quarterly_revenue_sum_vs_annual_extreme"
         assert checker.results[0].severity == ERROR
         assert checker.results[0].details["examples"][0]["symbol"] == "QCOM"
+        # 2026-09-13 fix: an ERROR finding must name its symbols in flagged_symbols so
+        # PatrolLogger quarantines just them (algo/monitoring/data_patrol/quarantine.py)
+        # instead of Phase 1 halting the whole pipeline for a handful of known symbols.
+        assert checker.results[0].details["flagged_symbols"] == [
+            {
+                "symbol": "QCOM",
+                "reason": (
+                    "summed quarterly revenue exceeds the audited annual total by >10x "
+                    "(FY[2025]) - the annual revenue figure itself is likely broken"
+                ),
+            }
+        ]
+
+    def test_extreme_overshoot_flagged_symbols_deduplicated_across_fiscal_years(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "AAA",
+                        "fiscal_year": 2024,
+                        "quarters_sum": 100_000_000.0,
+                        "n_quarters": 4,
+                        "annual_revenue": 1_000_000.0,
+                    },
+                    {
+                        "symbol": "AAA",
+                        "fiscal_year": 2023,
+                        "quarters_sum": 90_000_000.0,
+                        "n_quarters": 4,
+                        "annual_revenue": 900_000.0,
+                    },
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_revenue_sum_vs_annual_total(cur)
+        flagged = checker.results[0].details["flagged_symbols"]
+        assert len(flagged) == 1
+        assert flagged[0]["symbol"] == "AAA"
+        assert "2023" in flagged[0]["reason"] and "2024" in flagged[0]["reason"]
 
     def test_flags_moderate_overshoot_as_warn(self) -> None:
         # A year's quarters summed moderately exceed the annual total (1.35x-10x) - most likely

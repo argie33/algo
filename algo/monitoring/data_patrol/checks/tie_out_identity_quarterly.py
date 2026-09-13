@@ -778,7 +778,30 @@ class TieOutIdentityQuarterlyMixin:
                     f"{len(error_flagged)} symbol/year(s) where summed quarterly revenue exceeds "
                     f"the audited annual total by >{_QUARTERLY_REVENUE_ANNUAL_EXTREME_OVERSHOOT:.0f}x - "
                     f"the ANNUAL figure itself is likely the broken value, not just a quarter",
-                    {"count": len(error_flagged), "examples": error_flagged[:_MAX_REPORTED_PER_CHECK]},
+                    {
+                        "count": len(error_flagged),
+                        "examples": error_flagged[:_MAX_REPORTED_PER_CHECK],
+                        # Per-symbol isolable (see algo/monitoring/data_patrol/quarantine.py's own
+                        # docstring: an ERROR/CRITICAL finding with a non-empty flagged_symbols list
+                        # gets those specific symbols quarantined - excluded from scoring - instead
+                        # of Phase 1 halting the whole pipeline). Every affected symbol goes here,
+                        # not just the truncated `examples` slice above - QCOM's own shape (this
+                        # check's own motivating discovery) is exactly this: a handful of symbols
+                        # with a broken annual figure, not a systemic condition worth halting
+                        # everyone else's scoring/trading over.
+                        "flagged_symbols": [
+                            {
+                                "symbol": s,
+                                "reason": (
+                                    "summed quarterly revenue exceeds the audited annual total by "
+                                    f">{_QUARTERLY_REVENUE_ANNUAL_EXTREME_OVERSHOOT:.0f}x (FY"
+                                    f"{sorted({r['fiscal_year'] for r in error_flagged if r['symbol'] == s})}) "
+                                    "- the annual revenue figure itself is likely broken"
+                                ),
+                            }
+                            for s in dict.fromkeys(r["symbol"] for r in error_flagged)
+                        ],
+                    },
                 )
             if warn_flagged:
                 warn_flagged.sort(key=lambda r: r["overshoot_ratio"], reverse=True)
