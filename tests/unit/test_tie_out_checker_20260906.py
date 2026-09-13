@@ -235,8 +235,10 @@ class TestCashflowReconciliation:
                         "operating_cash_flow": 100.0,
                         "investing_cash_flow": -50.0,
                         "financing_cash_flow": -10.0,
-                        "prior_cash": 1000.0,
-                        "curr_cash": 1000.0,  # implied 1040 vs actual 1000 = $40 residual
+                        "prior_cash_combined": None,
+                        "prior_cash_unrestricted": 1000.0,
+                        "curr_cash_combined": None,
+                        "curr_cash_unrestricted": 1000.0,  # implied 1040 vs actual 1000 = $40 residual
                     }
                 ]
             ]
@@ -257,8 +259,10 @@ class TestCashflowReconciliation:
                         "operating_cash_flow": 100_000_000.0,
                         "investing_cash_flow": -50_000_000.0,
                         "financing_cash_flow": -10_000_000.0,
-                        "prior_cash": 1_000_000_000.0,
-                        "curr_cash": 900_000_000.0,  # implied 1.04B vs actual 900M = $140M residual
+                        "prior_cash_combined": None,
+                        "prior_cash_unrestricted": 1_000_000_000.0,
+                        "curr_cash_combined": None,
+                        "curr_cash_unrestricted": 900_000_000.0,  # implied 1.04B vs actual 900M = $140M residual
                     }
                 ]
             ]
@@ -267,6 +271,63 @@ class TestCashflowReconciliation:
         checker.check_cashflow_reconciliation(cur)
         assert len(checker.results) == 1
         assert checker.results[0].check_name == "cashflow_reconciliation"
+
+    def test_basis_switch_not_flagged_when_combined_cash_goes_silent_one_year(self) -> None:
+        """FIXED 2026-09-13 (cross-session handoff, live EQNR investigation): EQNR's real
+        ifrs-full:RestrictedCashAndCashEquivalents concept has zero facts in its FY2025 20-F
+        (genuinely never tagged that year, not an extraction gap) while FY2024 has a real,
+        correctly-extracted combined-cash figure. Comparing FY2024-combined against
+        FY2025-unrestricted-only is an apples-to-oranges basis switch, not a real
+        reconciliation failure - both years must fall back to the unrestricted-only basis
+        together instead."""
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "EQNR",
+                        "fiscal_year": 2025,
+                        "operating_cash_flow": 100.0,
+                        "investing_cash_flow": -50.0,
+                        "financing_cash_flow": -10.0,
+                        # Combined-basis comparison would show a huge, false residual:
+                        # implied = 1_572_000 + 40 = 1_572_040 vs a combined curr_cash that
+                        # doesn't exist this year at all.
+                        "prior_cash_combined": 1_572_000.0,
+                        "prior_cash_unrestricted": 1_000_000.0,
+                        "curr_cash_combined": None,
+                        "curr_cash_unrestricted": 1_000_040.0,  # ties out exactly on unrestricted basis
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_cashflow_reconciliation(cur)
+        assert checker.results == []
+
+    def test_combined_basis_still_used_when_both_years_have_it(self) -> None:
+        """ADP-shape (migration 1267) must still reconcile on the combined basis when both
+        years actually have a combined figure - the 2026-09-13 fix only changes behavior when
+        the two years' bases would otherwise disagree."""
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "ADP",
+                        "fiscal_year": 2026,
+                        "operating_cash_flow": 5_608_000_000.0,
+                        "investing_cash_flow": 0.0,
+                        "financing_cash_flow": 0.0,
+                        "prior_cash_combined": 10_000_000_000.0,
+                        "prior_cash_unrestricted": 8_000_000_000.0,
+                        "curr_cash_combined": 15_608_000_000.0,  # ties out on combined basis
+                        "curr_cash_unrestricted": 8_882_000_000.0,  # would NOT tie out unrestricted-only
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_cashflow_reconciliation(cur)
+        assert checker.results == []
 
     def test_query_excludes_depository_institutions(self) -> None:
         cur = _mock_cursor([[]])
@@ -298,16 +359,18 @@ class TestCashflowReconciliation:
         assert "DISTINCT ON (symbol)" in executed_sql
         assert "ORDER BY symbol, fiscal_year DESC" in executed_sql
 
-    def test_query_prefers_combined_restricted_cash_when_present(self) -> None:
-        """FIXED 2026-09-07 (ADP live-confirmed, migration 1267): a filer with material
-        restricted cash reconciles OCF+ICF+FCF to cash_and_restricted_cash_combined, not
-        unrestricted cash_and_equivalents alone - see check_cashflow_reconciliation's own
-        docstring for the full evidence."""
+    def test_query_selects_both_combined_and_unrestricted_cash_bases(self) -> None:
+        """FIXED 2026-09-07 (ADP live-confirmed, migration 1267) then FIXED 2026-09-13 (EQNR
+        basis-switch false positive): the query now selects BOTH
+        cash_and_restricted_cash_combined and cash_and_equivalents for each year (rather than
+        COALESCEing them per-row) so the basis choice can be made per PAIR in Python - see
+        check_cashflow_reconciliation's own docstring for the full evidence."""
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_cashflow_reconciliation(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "COALESCE(cash_and_restricted_cash_combined, cash_and_equivalents)" in executed_sql
+        assert "cash_and_restricted_cash_combined, cash_and_equivalents" in executed_sql
+        assert "COALESCE(cash_and_restricted_cash_combined, cash_and_equivalents)" not in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
