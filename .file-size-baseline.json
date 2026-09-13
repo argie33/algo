@@ -80,7 +80,7 @@
   "algo/monitoring/data_patrol/checks/quality.py": 374,
   "algo/monitoring/data_patrol/checks/score_ratio_outliers.py": 187,
   "algo/monitoring/data_patrol/checks/specialized.py": 616,
-  "algo/monitoring/data_patrol/checks/staleness.py": 579,
+  "algo/monitoring/data_patrol/checks/staleness.py": 604,
   "algo/monitoring/data_patrol/checks/statistical_anomaly.py": 180,
   "algo/monitoring/data_patrol/checks/tie_out.py": 294,
   "algo/monitoring/data_patrol/checks/tie_out_bounds_annual1.py": 786,
