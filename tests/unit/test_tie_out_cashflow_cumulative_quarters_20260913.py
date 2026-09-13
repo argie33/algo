@@ -41,6 +41,31 @@ class TestQuarterlyCashflowCumulativeDuplicate:
                 {"symbol": "RITM", "reason": f"{result.details['field']}_cumulative_q2_eq_q3"}
             ]
 
+    def test_abeo_negative_net_flow_shaped_row_flagged(self) -> None:
+        """ABEO's real FY2012 investing_cash_flow/FY2020 financing_cash_flow: both NEGATIVE
+        throughout (Q1=-13,000, Q2==Q3==-15,000) - the net-flow variant must not require a
+        non-negative sign, unlike the 4 non-negative fields."""
+        checker = _checker()
+        cur = MagicMock()
+        # 4 non-negative-field calls first (no match, real values are non-negative-shaped),
+        # then the 2 net-flow-field calls (ABEO's real negative shape, must be flagged).
+        cur.fetchall.side_effect = [
+            [],
+            [],
+            [],
+            [],
+            [{"symbol": "ABEO", "fiscal_year": 2020, "q1_val": -13_000.0, "q2_val": -15_000.0}],
+            [{"symbol": "ABEO", "fiscal_year": 2012, "q1_val": -13_000.0, "q2_val": -15_000.0}],
+        ]
+
+        checker.check_quarterly_cashflow_cumulative_duplicate(cur)
+
+        assert len(checker.results) == 2
+        assert {r.details["field"] for r in checker.results} == {"financing_cash_flow", "investing_cash_flow"}
+        for result in checker.results:
+            assert result.details["examples"][0]["q1"] == -13_000.0
+            assert result.details["examples"][0]["q2_eq_q3"] == -15_000.0
+
     def test_no_rows_logs_nothing(self) -> None:
         checker = _checker()
         cur = _mock_cursor([])
