@@ -336,9 +336,20 @@ class StalenessChecker(BaseCheck):
                         error_msg,
                         {"latest": latest_str},
                     )
-                    # For critical tables, raise immediately to halt algo
-                    if tbl in critical_signal_tables:
-                        raise RuntimeError(error_msg)
+                    # FIXED 2026-09-13 (goal: patrol/quarantine comprehensiveness audit): this
+                    # used to `raise RuntimeError(error_msg)` here for critical tables, with a
+                    # comment claiming it would "raise immediately to halt algo" - but this
+                    # raise sits inside the per-table `try` whose own `except Exception` below
+                    # catches everything, so it was dead code: silently swallowed, re-logged as
+                    # a generic "Check failed" ERROR, rolled back, and the loop moved on to the
+                    # next table anyway. Even if it HAD propagated, that would have been worse,
+                    # not better - Phase 1 halts based on CRIT/ERROR rows in data_patrol_log
+                    # (_check_data_patrol_results), not on this process crashing, and the CRIT
+                    # log write two lines above already satisfies that. Letting the exception
+                    # escape this checker would only have aborted every table AFTER this one in
+                    # `sources`, silently losing their staleness coverage for the run - the
+                    # opposite of the intended effect. Removed; the log write above already does
+                    # everything the raise was trying to do, without the coverage loss.
                     continue
 
                 # Trading-day-aware for daily-freq tables (fixed 2026-09-08, goal: score-sanity
