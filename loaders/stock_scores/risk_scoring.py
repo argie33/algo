@@ -12,37 +12,52 @@ Mixed into StockScoresLoader alongside the other stock_scores/*.py pillar mixins
 defines it. No database access here, so no `_owner()` indirection is needed (unlike
 value_metrics.py/momentum_scoring.py).
 
-DELIBERATELY NOT given a SECTOR-neutral z-score batch pass (2026-09-13: a same-day Momentum
-equivalent, `momentum_scoring.py`'s `update_momentum_sector_neutral_scores()`, was added then
-reverted per a pre-existing FM/IC rejection - see load_stock_scores.py's post_run() NOTE).
-Investigated directly before deciding, not assumed: this pillar's live sector averages DO diverge (Real Estate/
-Utilities score safest ~60/59, Technology least-safe ~36, per that session's live DB check) -
-the same shape of divergence that justified Momentum's rewrite. The difference is what the
-divergence MEANS. Momentum's raw inputs are classic cross-sectional relative-strength measures
-- the momentum anomaly (Jegadeesh 1990/Jegadeesh-Titman 1993/Carhart 1997) is defined and
-academically harvested RELATIVE to peers, so an un-neutralized sector tilt is exactly the
-"disguised sector bet" failure mode Barra/MSCI sector-neutralize momentum to prevent. Risk's
-inputs here (volatility, max drawdown) are ABSOLUTE risk-of-loss magnitudes, and the low-
-volatility anomaly they're meant to capture (Ang et al. 2006; Frazzini & Pedersen 2014 "Betting
-Against Beta"; MSCI Minimum Volatility methodology) is measured and harvested on an ABSOLUTE
-basis in the literature, not sector-relative - a utility genuinely being less volatile than a
-biotech, day to day, is real economic signal the factor is supposed to reward, not measurement
-noise to normalize away the way an ill-fitting absolute breakpoint curve was for Quality/Growth/
-Value's fundamental ratios. Sector-neutralizing Risk would force Utilities and Technology to the
-same average "safety" score by construction, destroying the exact signal this pillar exists to
-capture. Beta is a second, independent reason it wouldn't fit this pillar's existing mechanism
-even if the above didn't apply: it's already scored as distance-from-1.0 for market-correlated
-swing-trading fit (see `_score_risk`'s own docstring), not as a return predictor - sector-
-neutralizing a "closeness to 1.0" target would change what the score means, not just how it's
-calibrated. Liquidity (avg_dollar_volume_20d) is a third: its curve is deliberately anchored to
-`algo_config.min_adv_dollars` ($500K), this system's own absolute, non-sector-relative execution
-gate - sector-relativizing it would break that anchor's entire rationale. Not re-litigated
-without new evidence that contradicts the academic distinction above; if that evidence ever
-shows up, redo this analysis rather than assume Momentum's fix generalizes automatically.
+SECTOR-NEUTRAL z-score batch pass for Volatility 60D/252D/Max Drawdown, REVERSING an earlier
+2026-09-13 decision to leave them universe-wide (see the git history/memory trail below for the
+full reasoning arc - kept for context, not because the conclusion still stands).
 
-ABSOLUTE (non-sector) z-score batch pass ADDED 2026-09-13 (same session, immediately following
-the reasoning above) for Volatility 60D/252D/Max Drawdown ONLY - a narrower, different fix from
-the sector-neutral one just rejected. `_vol_curve_score`/`_max_drawdown_curve_score`'s fixed
+ORIGINAL REASONING (2026-09-13, first pass, no longer followed): a same-day Momentum equivalent,
+`momentum_scoring.py`'s `update_momentum_sector_neutral_scores()`, was added then reverted per a
+pre-existing FM/IC rejection. Investigated directly before deciding, not assumed: this pillar's
+live sector averages DO diverge (Real Estate/Utilities score safest ~60/59, Technology
+least-safe ~36) - the same shape of divergence that justified Momentum's rewrite. The argument
+made at the time was that the difference is what the divergence MEANS: Momentum's raw inputs are
+classic cross-sectional relative-strength measures harvested RELATIVE to peers (an un-neutralized
+sector tilt is a "disguised sector bet"), while Risk's inputs (volatility, max drawdown) are
+ABSOLUTE risk-of-loss magnitudes, and the low-volatility anomaly they're meant to capture (Ang et
+al. 2006; Frazzini & Pedersen 2014 "Betting Against Beta"; MSCI Minimum Volatility methodology)
+is measured and harvested on an ABSOLUTE basis in the literature - a utility genuinely being less
+volatile than a biotech was treated as real economic signal, not noise to normalize away.
+
+REVERSED 2026-09-13 (composite-score structural audit, same day, later in the session): that
+academic-literature argument was never actually tested against THIS repo's OWN data before being
+acted on - it's a "should be true in general" claim, not evidence. Fresh non-circular test this
+session (`python -m algo.research.fama_macbeth_price_factors --industries banks|insurers|reits` -
+a genuine point-in-time monthly panel reconstructed from price_daily, not the circular
+snapshot-vs-trailing-return shortcut this codebase has separately flagged as invalid for any
+price-derived pillar - see forward_return_validation_methodology_circular_for_price_derived_
+pillars_20260912 in memory) found vol/downside_vol/beta/max_dd have ZERO robust forward-return
+edge in exactly the 3 industries whose elevated absolute Risk-pillar scores were driving the
+leaderboard's FS/REIT/bank/insurer overweight
+([[reit_risk_pillar_concentration_not_fixable_by_sector_relative_20260911]]): all 4 factors
+failed FDR correction in all 3 industries, and none cleared the 4-block era-robustness bar
+(consistent sign AND |t|>=1.5 in >=3/4 blocks) in any of the 12 industry x factor cells tested -
+several also flagged high-VIF (unstable multivariate sign). The "real, sector-independent signal"
+defense does not survive contact with this repo's own data for the specific industries it was
+meant to justify keeping absolute for. Sector-neutralizing costs nothing here (there is no
+real within-industry ranking signal being destroyed) and directly removes the mechanism inflating
+those industries' scores. Beta is UNCHANGED by this reversal - it's scored as distance-from-1.0
+for market-correlated swing-trading fit (see `_score_risk`'s own docstring), not as a return
+predictor at all, so sector-neutralizing a "closeness to 1.0" target would change what the score
+means, not just how it's calibrated; that reasoning was never about the anomaly-is-absolute
+argument and still holds. Liquidity (avg_dollar_volume_20d) is also UNCHANGED - its curve is
+anchored to `algo_config.min_adv_dollars` ($500K), this system's own absolute execution gate, an
+independent reason unrelated to the anomaly-literature argument above. Not re-litigated again
+without new evidence; if this reverses again, redo the fama_macbeth_price_factors run fresh
+rather than trust this comment's numbers as still current.
+
+z-score batch pass ADDED 2026-09-13 (earlier same session, before the reversal above) for
+Volatility 60D/252D/Max Drawdown ONLY. `_vol_curve_score`/`_max_drawdown_curve_score`'s fixed
 breakpoints (0.15/0.30/0.60 for vol, 10/25/50 for drawdown) were live-checked against this
 universe's actual distribution (stability_metrics, 4,920-4,996 scored symbols) rather than
 trusted as calibrated: p50 volatility_60d=0.516 (the MEDIAN stock is already past the curve's
@@ -52,18 +67,14 @@ curve's OWN 100-point threshold) - these breakpoints look tuned to a mega-cap-on
 of "normal" volatility, not this universe's real small/micro-cap-heavy composition, and unlike
 Momentum's old Pass-1 curves (which get fully overwritten by that pillar's own sector-neutral
 pass and never reach production), this pillar has no second pass - `_vol_curve_score`'s output
-IS the live risk_score. `update_risk_absolute_zscore_scores()` below replaces just the TRANSFORM
-for these 3 inputs (winsorize -> z-score -> normal-CDF-to-percentile against the live universe,
-via the same `sector_neutral_zscore`/`zscore_to_percentile_scale` primitives Momentum/Growth/
-Value already use, called with an empty sector map so every symbol pools into one universe-wide
-group instead of being split by sector - preserving the deliberate non-sector-neutral design
-above while fixing the curve-shape miscalibration) - matching what MSCI/S&P/AQR/FTSE Russell all
-independently do for every factor (winsorize+z-score, not a hand-drawn absolute curve), the
-same self-calibrating-to-the-live-distribution property Momentum/Growth/Value's z-score passes
-already have and this pillar's fixed breakpoints never did. Beta (scored for closeness to 1.0,
-not "lower is better" - not a z-score candidate at all, see above) and Liquidity (curve anchored
-to a real system constant, not an invented breakpoint) are UNCHANGED, kept on their existing
-curves.
+IS the live risk_score. `update_risk_absolute_zscore_scores()` below replaces the TRANSFORM for
+these 3 inputs (winsorize -> z-score -> normal-CDF-to-percentile, now SECTOR-RELATIVE per the
+reversal above, via the same `sector_neutral_zscore`/`zscore_to_percentile_scale` primitives
+Momentum/Growth/Value already use) - matching what MSCI/S&P/AQR/FTSE Russell all independently do
+for every factor (winsorize+z-score within a peer group, not a hand-drawn absolute curve). Beta
+(scored for closeness to 1.0, not "lower is better" - not a z-score candidate at all, see above)
+and Liquidity (curve anchored to a real system constant, not an invented breakpoint) are
+UNCHANGED, kept on their existing curves.
 
 MIN_TRADING_DAYS_FOR_DRAWDOWN gate ADDED same pass, found DURING pre-ship verification, not
 assumed safe from the design above alone: a live dry run of the new z-score transform (before
@@ -708,8 +719,10 @@ class RiskScoringMixin:
         INVESTABILITY FLOOR ADDED 2026-09-13 (`vm.market_cap >= %s`, algo_config.min_market_
         cap_millions, same $300M threshold LiquidityChecks._check_market_cap() now enforces at
         trade entry): orthogonal to the sector-neutral-vs-universe-wide question this pillar's
-        own module docstring already settles (Risk stays universe-wide, not sector-relative) -
-        this is about WHICH symbols are in that universe-wide population at all. Reinforces the
+        own module docstring covers (as of later the same session, Risk IS sector-relative for
+        vol/drawdown, same as Quality/Growth/Value - see that docstring's REVERSED note) - this
+        is about WHICH symbols are in the scored population at all, independent of grouping.
+        Reinforces the
         same failure mode MIN_TRADING_DAYS_FOR_DRAWDOWN above was added to catch ("a shitty
         microcap with no real track record dominates the safest list") one level earlier: an
         illiquid-but-technically-scored nanocap's more extreme volatility/drawdown reading
@@ -742,7 +755,8 @@ class RiskScoringMixin:
                        ss.growth_score, ss.value_score, ss.momentum_score, ss.components,
                        ss.data_completeness, ss.data_unavailable,
                        sm.volatility_60d, sm.volatility_252d, sm.beta, sm.max_drawdown_1y,
-                       liq.avg_dollar_volume_20d, COALESCE(hist.trading_days_history, 0)
+                       liq.avg_dollar_volume_20d, COALESCE(hist.trading_days_history, 0),
+                       cp.sector
                 FROM stock_scores ss
                 JOIN stability_metrics sm ON sm.symbol = ss.symbol
                 JOIN value_metrics vm ON vm.symbol = ss.symbol
@@ -750,6 +764,7 @@ class RiskScoringMixin:
                 LEFT JOIN history hist ON hist.symbol = ss.symbol
                 JOIN stock_symbols su ON su.symbol = ss.symbol
                 LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
                 WHERE ss.risk_score IS NOT NULL
                   AND COALESCE(sm.data_unavailable, false) = false
                   AND vm.market_cap >= %s
@@ -766,11 +781,32 @@ class RiskScoringMixin:
         rows: list[tuple[Any, ...]],
     ) -> dict[str, dict[str, float]]:
         """Winsorize+z-score Risk's 3 "lower raw value is better" inputs (volatility_60d,
-        volatility_252d, max_drawdown_1y magnitude) UNIVERSE-WIDE (no sector grouping - calling
-        `sector_neutral_zscore` with an empty sector map pools every symbol into its single
-        residual group, giving the plain winsorize-then-z-score this module's own docstring
-        explains Risk needs INSTEAD of the sector-relative version Momentum/Growth/Value use).
-        Split out of `update_risk_absolute_zscore_scores` for C901, pure function of its inputs.
+        volatility_252d, max_drawdown_1y magnitude) SECTOR-RELATIVE (via `sector_neutral_zscore`
+        with a real symbol->sector map, min_sector_size defaulting to 15) - the same primitive
+        Momentum/Growth/Value already use. Split out of `update_risk_absolute_zscore_scores` for
+        C901, pure function of its inputs.
+
+        REVERSED 2026-09-13 (composite-score structural audit, same session as the promotion
+        above): this was universe-wide (empty sector map) on the argument that the low-volatility
+        anomaly (Ang et al. 2006; Frazzini & Pedersen 2014) is harvested on an ABSOLUTE basis in
+        the literature - see this module's own top-of-file docstring for that argument in full.
+        That argument was never tested against this repo's own data before being acted on. Fresh
+        non-circular test this session (`python -m algo.research.fama_macbeth_price_factors
+        --industries banks|insurers|reits` - a genuine point-in-time monthly panel from
+        price_daily, not the circular snapshot-vs-trailing-return shortcut) found vol/downside_vol/
+        beta/max_dd have ZERO robust forward-return edge in exactly the 3 industries whose
+        elevated absolute Risk-pillar scores were driving the leaderboard's FS/REIT/bank/insurer
+        overweight (see [[reit_risk_pillar_concentration_not_fixable_by_sector_relative_20260911]]
+        / [[financial_services_and_reit_risk_concentration_redone_noncircular_20260912b]] in
+        memory for the earlier, staler versions of this same finding): every one of those 4
+        factors failed FDR correction in all 3 industries, and cleared the 4-block era-robustness
+        bar (|t|>=1.5 in >=3/4 blocks, consistent sign) in ZERO of the 12 industry x factor cells
+        tested. The "real, sector-independent signal" defense for leaving Risk absolute does not
+        hold up in this repo's own data for the industries it actually matters for - so this pass
+        now sector-neutralizes, matching Quality/Growth/Value's own methodology. Beta (scored for
+        closeness to 1.0, a different kind of target entirely - see `update_risk_absolute_
+        zscore_scores`'s own docstring) and Liquidity (anchored to a real system constant, not an
+        academic anomaly) are NOT changed by this reversal and stay on their existing curves.
 
         Each raw value is NEGATED before z-scoring so a symbol with a LOW volatility/drawdown -
         the desirable direction for this pillar - gets a HIGH z-score and therefore a HIGH
@@ -791,17 +827,21 @@ class RiskScoringMixin:
         raw_vol60: dict[str, float] = {}
         raw_vol252: dict[str, float] = {}
         raw_drawdown: dict[str, float] = {}
+        sectors: dict[str, str] = {}
 
         for row in rows:
             symbol = row[0]
-            vol_60d, vol_252d, _beta, max_drawdown_1y, adv20, trading_days_history = (
+            vol_60d, vol_252d, _beta, max_drawdown_1y, adv20, trading_days_history, sector = (
                 row[10],
                 row[11],
                 row[12],
                 row[13],
                 row[14],
                 row[15],
+                row[16],
             )
+            if sector is not None:
+                sectors[symbol] = sector
             price_stats_unreliable = adv20 is not None and 0 <= float(adv20) < NEAR_ZERO_LIQUIDITY_THRESHOLD
             if not price_stats_unreliable:
                 if vol_60d is not None:
@@ -815,11 +855,10 @@ class RiskScoringMixin:
             ):
                 raw_drawdown[symbol] = -abs(float(max_drawdown_1y))
 
-        empty_sectors: dict[str, str] = {}
         return {
-            "vol_60d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol60, empty_sectors)),
-            "vol_252d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol252, empty_sectors)),
-            "max_drawdown": zscore_to_percentile_scale(sector_neutral_zscore(raw_drawdown, empty_sectors)),
+            "vol_60d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol60, sectors)),
+            "vol_252d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol252, sectors)),
+            "max_drawdown": zscore_to_percentile_scale(sector_neutral_zscore(raw_drawdown, sectors)),
         }
 
     def _recompute_risk_row(
@@ -937,27 +976,26 @@ class RiskScoringMixin:
         real winsorize+z-score against the current run's universe for Volatility 60D/252D/Max
         Drawdown, then FULLY RECOMPUTES risk_score and composite_score from scratch off the raw
         stored stability_metrics/price_daily columns - mirrors
-        `update_momentum_sector_neutral_scores()`'s pure-overwrite pattern, with one deliberate
-        difference: no sector grouping (see this module's own docstring for why Risk stays
-        universe-wide rather than sector-relative like Momentum/Growth/Value), and a
-        MIN_TRADING_DAYS_FOR_DRAWDOWN gate on max_drawdown_1y that Pass 1 does not have (found
-        during this pass's own pre-ship verification - see that constant's docstring).
+        `update_momentum_sector_neutral_scores()`'s pure-overwrite pattern (and, as of the
+        2026-09-13 REVERSAL documented in this module's own top-of-file docstring, now also
+        matches its sector-relative grouping - see that docstring for the fresh non-circular
+        evidence behind the reversal), plus a MIN_TRADING_DAYS_FOR_DRAWDOWN gate on
+        max_drawdown_1y that Pass 1 does not have (found during this pass's own pre-ship
+        verification - see that constant's docstring).
 
-        WHY (2026-09-13, /goal "question the scoring methodology" session): live-checked
-        `_vol_curve_score`'s breakpoints (0.15/0.30/0.60) against the real stability_metrics
-        distribution before touching anything - p50 volatility_60d=0.516, already past the
-        curve's OWN 0.30 breakpoint (the point where its score formula switches to the steepest
-        decay segment), and under 1% of the universe clears the curve's 100-point threshold
-        (0.15). Same story for `_max_drawdown_curve_score` (p50 max_drawdown_1y=41.6%, past its
-        25% breakpoint). These breakpoints were never derived from this universe's actual
-        distribution - fixing that (self-calibrating winsorize+z-score, recomputed fresh every
-        run against whatever the universe currently looks like) is the same fix already applied
-        to Momentum/Growth/Value's analogous absolute-mapping problem, using the same shared
-        primitive (`sector_neutral_zscore`/`zscore_to_percentile_scale`), just without the
-        sector grouping those three use (this pillar's own docstring already explains why: the
-        low-volatility anomaly - Ang et al. 2006, Frazzini & Pedersen 2014 - is harvested on an
-        ABSOLUTE basis in the literature, not sector-relative, so sector-neutralizing it would
-        destroy the exact signal this pillar exists to capture).
+        WHY the z-score transform exists at all (2026-09-13, /goal "question the scoring
+        methodology" session): live-checked `_vol_curve_score`'s breakpoints (0.15/0.30/0.60)
+        against the real stability_metrics distribution before touching anything - p50
+        volatility_60d=0.516, already past the curve's OWN 0.30 breakpoint (the point where its
+        score formula switches to the steepest decay segment), and under 1% of the universe
+        clears the curve's 100-point threshold (0.15). Same story for `_max_drawdown_curve_score`
+        (p50 max_drawdown_1y=41.6%, past its 25% breakpoint). These breakpoints were never derived
+        from this universe's actual distribution - fixing that (self-calibrating winsorize+z-score,
+        recomputed fresh every run against whatever the universe currently looks like) is the same
+        fix already applied to Momentum/Growth/Value's analogous absolute-mapping problem, using
+        the same shared primitive (`sector_neutral_zscore`/`zscore_to_percentile_scale`). Whether
+        the grouping is sector-relative or universe-wide is a SEPARATE question, covered by this
+        module's top-of-file docstring's REVERSED note, not by this WHY.
 
         PRE-SHIP VERIFICATION CAUGHT A REAL REGRESSION before this ever ran for real (not
         assumed safe from the design above alone): a first dry run of just the z-score swap put

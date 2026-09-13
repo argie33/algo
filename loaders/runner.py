@@ -310,7 +310,24 @@ def run_loader(  # noqa: C901 -- pre-existing complexity debt, not introduced by
             else:
                 # Check if this loader needs real stocks only (exclude ETFs)
                 exclude_etfs = getattr(loader, "exclude_etfs_from_symbols", False)
-                symbols = get_active_symbols(timeout_secs=60, exclude_etfs=exclude_etfs)
+                # exclude_non_operating_from_symbols (added 2026-09-13, composite-score
+                # structural audit - see frozen_subpopulation_real_root_cause_and_live_gap_20260913
+                # in memory): get_active_symbols() silently defaults exclude_non_operating to
+                # exclude_etfs's value when not passed explicitly, so every loader here that sets
+                # exclude_etfs_from_symbols=True was ALSO, silently, excluding BDCs/CEFs/trusts -
+                # confirmed live: 124 active symbols (MAIN, HTGC, GAIN, TSLX, BBN, BST, GAB, HQH,
+                # FSK, ...) have zero stock_scores row at all. That's correct for loaders that
+                # genuinely need normal operating financials (most callers here), but wrong for
+                # ones that only need price-derived or ownership data - a BDC/CEF is a real,
+                # tradeable security for those, same reasoning load_prices.py's own 2026-09-13
+                # exclude_non_operating=False fix already established. Defaults to None (fully
+                # backward compatible - preserves the exact prior implicit-coupling behavior for
+                # every loader that doesn't opt in) so only a loader that explicitly sets this
+                # attribute changes behavior.
+                exclude_non_operating = getattr(loader, "exclude_non_operating_from_symbols", None)
+                symbols = get_active_symbols(
+                    timeout_secs=60, exclude_etfs=exclude_etfs, exclude_non_operating=exclude_non_operating
+                )
 
                 # ROOT-CAUSE FIX 2026-08-16: get_active_symbols() always returns symbols in
                 # fixed `ORDER BY symbol` (alphabetical) order. For a loader whose per-symbol

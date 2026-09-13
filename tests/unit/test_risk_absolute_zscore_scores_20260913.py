@@ -1,8 +1,19 @@
 """Tests for update_risk_absolute_zscore_scores() (loaders/stock_scores/risk_scoring.py, added
 2026-09-13), the Risk-pillar sibling of Momentum/Growth/Value's own sector-neutral z-score
-batch passes - deliberately UNIVERSE-WIDE, not sector-neutral (see that method's own docstring
-and this module's module-level docstring for why: the low-volatility anomaly is harvested on an
-absolute basis in the literature, not sector-relative).
+batch passes.
+
+REVERSED 2026-09-13 (same day, composite-score structural audit): originally shipped
+deliberately UNIVERSE-WIDE on the argument that the low-volatility anomaly is harvested on an
+absolute basis in the literature. A fresh non-circular test that same session
+(`algo/research/fama_macbeth_price_factors.py --industries banks|insurers|reits`) found zero
+robust forward-return edge for vol/beta/max_dd in exactly the industries that argument was meant
+to protect - see risk_scoring.py's own module docstring for the full evidence trail. This pass
+is now SECTOR-RELATIVE, matching Quality/Growth/Value, via the same `sector_neutral_zscore`
+primitive with a real symbol->sector map (a symbol with no sector, or in a sector below
+`min_sector_size`, is pooled into one residual group and z-scored against that pool instead -
+same fallback Value/Growth/Quality already use). Tests below that don't pass a `sector` to
+`_row()` default to None, landing every such symbol in that residual pool - preserving their
+original "no sector info at all" behavior unchanged.
 
 Context: `_vol_curve_score`/`_max_drawdown_curve_score`'s fixed breakpoints (0.15/0.30/0.60 for
 vol, 10/25/50 for drawdown) were live-checked against the real stability_metrics distribution
@@ -43,11 +54,13 @@ def _row(
     max_drawdown_1y: float | None,
     avg_dollar_volume_20d: float | None,
     trading_days_history: int,
+    sector: str | None = None,
 ) -> tuple:
     """Build a mocked SELECT row matching update_risk_absolute_zscore_scores()'s own column
     order exactly: symbol, risk_score, composite_score, quality_score, growth_score, value_score,
     momentum_score, components, data_completeness, data_unavailable, volatility_60d,
-    volatility_252d, beta, max_drawdown_1y, avg_dollar_volume_20d, trading_days_history."""
+    volatility_252d, beta, max_drawdown_1y, avg_dollar_volume_20d, trading_days_history, sector.
+    `sector` defaults to None (pools into the residual group - see module docstring)."""
     return (
         symbol,
         risk_score,
@@ -65,6 +78,7 @@ def _row(
         max_drawdown_1y,
         avg_dollar_volume_20d,
         trading_days_history,
+        sector,
     )
 
 
@@ -122,12 +136,10 @@ class TestAbsoluteZScoreRanking:
         ordered = [updates[f"SYM_{v}_{d}"][0] for v, d in pairs]
         assert ordered == sorted(ordered, reverse=True), f"expected strictly descending scores, got {ordered}"
 
-    def test_universe_wide_not_sector_relative(self) -> None:
-        """The whole point of this pass being DIFFERENT from Momentum's: an identical raw
-        volatility_60d must map to the IDENTICAL score regardless of which sector the symbol is
-        in - there is no sector grouping here at all (deliberately, unlike Momentum/Growth/
-        Value). Two symbols with the same raw inputs in different "sectors" (not even fetched by
-        this pass - it has no sector column) must score identically."""
+    def test_no_sector_info_pools_into_one_residual_group(self) -> None:
+        """Symbols with no sector (None, as when company_profile has no row) fall into
+        `sector_neutral_zscore`'s residual pool and are z-scored against each other - identical
+        raw inputs must still map to the IDENTICAL score in that shared residual group."""
         rows = [
             _row(
                 "A",
@@ -204,8 +216,111 @@ class TestAbsoluteZScoreRanking:
         ]
         updates = _run_with_mocked_rows(rows)
         assert updates["A"][0] == updates["B"][0], (
-            f"identical raw inputs must score identically with no sector grouping - "
+            f"identical raw inputs with no sector info must score identically in the residual pool - "
             f"A={updates['A'][0]} B={updates['B'][0]}"
+        )
+
+    def test_sector_relative_scoring_matches_quality_growth_value_pattern(self) -> None:
+        """The 2026-09-13 reversal: vol/drawdown are now sector-relative like Quality/Growth/
+        Value, via a real symbol->sector map. A symbol with mediocre raw vol/drawdown among a
+        rough Tech peer group (everyone volatile) should score HIGHER than the identical raw
+        readings would score among a calm Utilities peer group (everyone safe) - the same value
+        means something different relative to a different peer set. Uses 15 symbols per sector
+        to clear `sector_neutral_zscore`'s min_sector_size=15 floor, so neither group falls back
+        to the residual pool."""
+        tech_rows = [
+            _row(
+                f"TECH{i}",
+                999.0,
+                999.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                {},
+                99.99,
+                False,
+                0.70 + i * 0.05,
+                0.75 + i * 0.05,
+                1.0,
+                -50.0 - i,
+                5_000_000.0,
+                LONG_HISTORY,
+                sector="Technology",
+            )
+            for i in range(15)
+        ]
+        util_rows = [
+            _row(
+                f"UTIL{i}",
+                999.0,
+                999.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                {},
+                99.99,
+                False,
+                0.10 + i * 0.01,
+                0.12 + i * 0.01,
+                1.0,
+                -5.0 - i * 0.1,
+                5_000_000.0,
+                LONG_HISTORY,
+                sector="Utilities",
+            )
+            for i in range(15)
+        ]
+        # A "mediocre for its sector" symbol in each group - same relative position (roughly
+        # median-ish raw value within its own peer set), different absolute magnitude.
+        test_tech = _row(
+            "MEDTECH",
+            999.0,
+            999.0,
+            50.0,
+            50.0,
+            50.0,
+            50.0,
+            {},
+            99.99,
+            False,
+            0.90,
+            0.95,
+            1.0,
+            -55.0,
+            5_000_000.0,
+            LONG_HISTORY,
+            sector="Technology",
+        )
+        test_util = _row(
+            "MEDUTIL",
+            999.0,
+            999.0,
+            50.0,
+            50.0,
+            50.0,
+            50.0,
+            {},
+            99.99,
+            False,
+            0.10,
+            0.12,
+            1.0,
+            -5.0,
+            5_000_000.0,
+            LONG_HISTORY,
+            sector="Utilities",
+        )
+        updates = _run_with_mocked_rows([*tech_rows, *util_rows, test_tech, test_util])
+        # Sanity: sector-relative scoring means the raw-worse-looking absolute Tech reading and
+        # the raw-better-looking absolute Utilities reading land at comparable relative
+        # positions within their own peer groups, unlike a universe-wide transform where MEDTECH
+        # (much higher absolute vol/drawdown) would always score far below MEDUTIL.
+        assert abs(updates["MEDTECH"][0] - updates["MEDUTIL"][0]) < 30, (
+            f"sector-relative scoring should put a similarly-positioned peer within each sector "
+            f"in a comparable range, not penalize Tech purely for its sector's higher absolute "
+            f"volatility - MEDTECH={updates['MEDTECH'][0]} MEDUTIL={updates['MEDUTIL'][0]}"
         )
 
 

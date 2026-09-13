@@ -74,6 +74,18 @@ class RiskMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "created_at"
     exclude_etfs_from_symbols = True
+    # ADDED 2026-09-13 (composite-score structural audit): both momentum_metrics and
+    # stability_metrics (this loader's two output tables, feeding stock_scores' Momentum and
+    # Risk pillars) are computed purely from price/technical data - no financial-statement
+    # dependency at all (see _compute_momentum_row/_compute_stability_row below). The
+    # exclude_etfs_from_symbols=True above was, via get_active_symbols()'s implicit-default
+    # coupling, ALSO silently excluding BDCs/CEFs/trusts - real, tradeable securities that need
+    # Risk/Momentum scoring same as any other stock, same reasoning already established for
+    # load_prices.py's own exclude_non_operating=False fix. See
+    # frozen_subpopulation_real_root_cause_and_live_gap_20260913 in memory for the live-confirmed
+    # 124-symbol gap this closes (partially - value/quality/growth-derived pillars for these
+    # symbols remain gated at their own loaders pending the same review).
+    exclude_non_operating_from_symbols = False
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute momentum and stability metrics for symbol in single pass.

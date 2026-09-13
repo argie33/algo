@@ -15,24 +15,36 @@ HALT IF STALE (core to signal generation):
 3. market_health_daily: Market breadth metrics (regime detection)
 4. earnings_calendar: Earnings dates (blackout window gating)
 5. buy_sell_daily: Buy/sell technical signals (CRITICAL for Phase 7 signal generation)
+6. growth_metrics: feeds stock_scores' Growth pillar (CRITICAL, see below)
+7. quality_metrics: feeds stock_scores' Quality pillar (CRITICAL, see below)
+8. value_metrics: feeds stock_scores' Value pillar (CRITICAL, see below)
+9. stability_metrics: feeds stock_scores' Risk pillar (CRITICAL, see below)
 
-WARNING IF STALE (enrichment only, website/portfolio analysis, not core signals):
-6. market_exposure_daily: Market regime / exposure limits (EOD loader, morning runs lag 1d)
-7. growth_metrics: Multi-year revenue/EPS growth metrics
-8. quality_metrics: Financial quality metrics (ROE/margins/ratios)
-9. value_metrics: Valuation metrics (P/E, P/B, etc.)
-10. positioning_metrics: Ownership and short interest
-11. stability_metrics: Volatility and beta metrics
+WARNING IF STALE (genuinely enrichment-only, not read by any live composite pillar):
+10. market_exposure_daily: Market regime / exposure limits (EOD loader, morning runs lag 1d)
+11. positioning_metrics: Ownership and short interest (Positioning retired as a composite pillar
+    2026-08-27 - see loaders/stock_scores/pillar_weights.py's BASE_PILLAR_WEIGHTS docstring -
+    these inputs are display-only now, genuinely not read by _compute_stock_score)
 12. trend_template_data: Minervini/Weinstein criteria
 13. sector_ranking: Sector data for last trading day
 (swing_trader_scores: removed in Session 14, no longer checked)
 
-NOTE: Metric loaders (growth, quality, value, positioning, stability) are ENRICHMENT ONLY.
-They're used for website display and portfolio analysis, not core signal generation (which uses
-price_daily + technical_data_daily). Phase 5 generates stock_scores on-the-fly from price_daily;
-metrics are not required for trading. Stale metrics = WARNING only, trading continues.
-
-Phase 5 generates stock_scores and signals on-the-fly from price_daily input.
+CORRECTED 2026-09-13 (goal session: composite-score structural audit). growth_metrics/
+quality_metrics/value_metrics/stability_metrics were WARNING-only through Session 221 on the
+claim "core signal generation uses price_daily + technical_data_daily only, stock_scores is
+generated on-the-fly by Phase 5 and isn't a hard dependency." That claim is FALSE as of the
+current live code: algo/orchestrator/phase7_signal_generation.py INNER JOINs buy_sell_daily to
+stock_scores and hard-gates real trading candidates on composite_score >= 30 AND
+data_completeness >= 70 (see that module's own docstring, "Signal source: buy_sell_daily +
+stock_scores INNER JOIN (EXPLICIT - no degradation mode)"). composite_score is built directly
+from these four metrics tables (loaders/load_stock_scores.py's _compute_stock_score, via
+loaders/stock_scores/{growth_scoring,risk_scoring,value_metrics}.py and
+loaders/helpers/vqg_quality*.py) - there is no separate "on-the-fly from price_daily" scoring
+path. A stale growth_metrics/quality_metrics/value_metrics/stability_metrics table therefore
+silently corrupts (or freezes) composite_score, which Phase 7 then uses to gate real trades,
+with nothing halting on it. Promoted to HALT to match what Phase 7 actually depends on.
+positioning_metrics is correctly left as WARNING - unlike the other four, its pillar really was
+retired from the composite (2026-08-27) and it is genuinely display-only now.
 Excluded: stock_scores (orchestrator output), technical_data_daily, buy_sell_daily (pipeline-loaded, Phase 1 just validates).
 
 TIMEZONE REQUIREMENT: All dates passed to phases are ET (Eastern Time) dates, not UTC.
@@ -703,21 +715,26 @@ def _validate_dependency_freshness(
     if failed_deps:
         # FIX 2026-08-18 (loader-health review): this function returned a full HALT
         # (halted=True, status="halted") for every dependency in `dependencies` above -
-        # value_metrics, sec_segment_metrics, positioning_metrics, stock_scores - but this
-        # module's own header docstring is explicit: "Metric loaders (growth, quality,
-        # value, positioning, stability) are ENRICHMENT ONLY... Stale metrics = WARNING
-        # only, trading continues" - and stock_scores is separately documented as
-        # generated on-the-fly by Phase 5 from price_daily, not a hard dependency at all.
-        # None of price_daily/technical_data_daily/buy_sell_daily (the genuinely
-        # halt-worthy tables per that same docstring) are even checked by this function.
-        # Live-confirmed 2026-08-18: a real morning run halted entirely on
+        # value_metrics, sec_segment_metrics, positioning_metrics, stock_scores. Downgraded to
+        # a warning at the time because a real morning run halted entirely on
         # value_metrics->sec_valuations being one trading day behind (structurally
         # unavoidable pre-close, since sec_valuations values the latest CLOSED price and
-        # today's close doesn't exist yet during morning/intraday hours) - directly
-        # contradicting this file's own "trading continues" policy for exactly this class
-        # of dependency. Downgraded to a warning (log + continue), matching every other
-        # enrichment-metric staleness check in this same file - never blocks Phase 1 for
-        # data that was never meant to gate trading in the first place.
+        # today's close doesn't exist yet during morning/intraday hours).
+        #
+        # CORRECTED 2026-09-13 (composite-score structural audit): the original justification
+        # here - "stock_scores is generated on-the-fly by Phase 5 from price_daily, not a hard
+        # dependency at all" - is FALSE. phase7_signal_generation.py INNER JOINs stock_scores
+        # and hard-gates real trading candidates on composite_score/data_completeness (see this
+        # module's header docstring for the full correction). The real enforcement point for
+        # that is now the direct halt_tables check on growth_metrics/quality_metrics/
+        # value_metrics/stability_metrics themselves (promoted from warn_tables to halt_tables
+        # this same session) - a stale metrics table now halts Phase 1 directly, regardless of
+        # what this function decides. What THIS function checks is one level deeper (did
+        # value_metrics get computed from TODAY's annual_income_statement/sec_valuations, not
+        # just "does value_metrics itself have today's date") - the sec_valuations pre-close lag
+        # above is a genuine, structurally-unavoidable case of that deeper check firing when it
+        # shouldn't halt. Kept as a warning for that reason, not because stock_scores/its inputs
+        # don't matter - they do, and are now enforced one layer up.
         warning_msg = (
             "[PHASE 1] DEPENDENCY FRESHNESS WARNING (enrichment-only, trading continues):\n"
             + "\n".join(f"  {dep}" for dep in failed_deps[:5])
@@ -1381,9 +1398,15 @@ def run(  # noqa: C901 -- inherently a long sequential gate (11 early-return hal
             # - market_exposure_daily: Market exposure policy limits (when to trade, position sizing)
             # - earnings_calendar: Earnings dates for trading blackout windows
             # - buy_sell_daily: Technical signals required by Phase 7 (MUST have today's signals)
-            # NOTE: Metric enrichments (growth, quality, value, positioning, stability) are NOT
-            # halt-critical. They're used for website display and portfolio analysis, not core signals.
-            # Core signals come from price_daily + technical_data_daily. See Session 221.
+            # - growth_metrics/quality_metrics/value_metrics/stability_metrics: feed
+            #   stock_scores' Growth/Quality/Value/Risk pillars, which Phase 7 hard-gates real
+            #   trading candidates on (composite_score >= 30, data_completeness >= 70 - see
+            #   phase7_signal_generation.py's INNER JOIN). CORRECTED 2026-09-13: these were
+            #   WARNING-only through Session 221 on the false premise that "core signals come
+            #   from price_daily + technical_data_daily" and stock_scores is generated
+            #   on-the-fly - see this module's header docstring for the full correction. Moved
+            #   here so a stale/frozen metrics table halts instead of silently corrupting
+            #   composite_score for real trades.
             # CRITICAL FIX (2026-08-05): technical_data_daily was excluded from freshness checks,
             # allowing stale ATR/SMA data to be used for position sizing. Now added to halt_tables.
             halt_tables = {
@@ -1392,11 +1415,18 @@ def run(  # noqa: C901 -- inherently a long sequential gate (11 early-return hal
                 "market_health_daily": "Market health (breadth/regime)",
                 "earnings_calendar": "Earnings dates (blackout window gating)",
                 "buy_sell_daily": "Buy/sell signals (CRITICAL for Phase 7 signal generation)",
+                "growth_metrics": "Growth metrics (feeds stock_scores Growth pillar - CRITICAL, see 2026-09-13 fix above)",
+                "quality_metrics": "Quality metrics (feeds stock_scores Quality pillar - CRITICAL, see 2026-09-13 fix above)",
+                "value_metrics": "Value metrics (feeds stock_scores Value pillar - CRITICAL, see 2026-09-13 fix above)",
+                "stability_metrics": "Stability metrics (feeds stock_scores Risk pillar - CRITICAL, see 2026-09-13 fix above)",
             }
-            # Warning-only tables: enrichments + auxiliary data. Stale -> logged, trading continues.
-            # Moved metric tables here (Session 221): they're website enrichments, not core to signals.
-            # - growth_metrics, quality_metrics, value_metrics: Portfolio analysis only
-            # - positioning_metrics, stability_metrics: Website enrichments only
+            # Warning-only tables: genuinely enrichment/auxiliary data not read by any live
+            # composite pillar. Stale -> logged, trading continues.
+            # - positioning_metrics: Positioning was retired as a composite pillar 2026-08-27
+            #   (see pillar_weights.py's BASE_PILLAR_WEIGHTS docstring) - these inputs are
+            #   display-only now, genuinely not read by _compute_stock_score. Unlike
+            #   growth/quality/value/stability above, this one's WARNING classification is
+            #   still correct.
             # Moved market_exposure_daily here (Session 239): loaded by separate EOD loader at 4:05 PM,
             # not orchestrator. Phase 5 reads via read_market_regime(date <= eval_date) so 1-day-old
             # data works fine. Morning orchestrator runs would false-halt without this move.
@@ -1416,11 +1446,7 @@ def run(  # noqa: C901 -- inherently a long sequential gate (11 early-return hal
                 # representative table - it and its siblings are written together per symbol.
                 "annual_income_statement": "Financial statement data (SESSION 116 FIX: for visibility)",
                 "company_info_sec": "Company SEC information (SESSION 116 FIX: for visibility)",
-                "growth_metrics": "Growth metrics (enrichment only)",
-                "quality_metrics": "Quality metrics (enrichment only)",
-                "value_metrics": "Value metrics (enrichment only)",
-                "positioning_metrics": "Positioning metrics (enrichment only)",
-                "stability_metrics": "Stability metrics (enrichment only)",
+                "positioning_metrics": "Positioning metrics (enrichment only - pillar retired 2026-08-27)",
             }
             # Only check tables that have a date column for freshness
             date_checked_tables = {**halt_tables, **warn_tables}

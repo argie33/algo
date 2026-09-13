@@ -268,6 +268,37 @@ from loaders.load_stock_scores and must keep working unchanged.
 #      insurance_community_bank_subcluster_earned_gate_binds_20260912 all rest on this method and
 #      are open again until redone.
 # ============================================================================================
+# SECTOR-NEUTRALITY GOVERNANCE POLICY (added 2026-09-13, goal session: composite-score
+# structural audit - see [[composite_score_structural_audit_plan_20260913]] in memory). This is
+# the same-spirit companion to the WEIGHT-REVISION GOVERNANCE POLICY above, for a DIFFERENT
+# question this file's own history shows was decided ad hoc, pillar-by-pillar, at different
+# times, with different evidence standards: should a pillar's raw inputs be transformed via a
+# SECTOR-RELATIVE winsorize+z-score (`loaders/helpers/factor_normalization.py`'s
+# `sector_neutral_zscore`), or an absolute/universe-wide one?
+#
+# The pattern that triggered this policy: Risk's vol/max_drawdown were made universe-wide on
+# 2026-09-13 on the argument that the low-volatility anomaly (Ang et al. 2006; Frazzini &
+# Pedersen 2014) is harvested on an absolute basis in the published literature - a real argument,
+# but never tested against this repo's OWN data before being acted on. Hours later, a fresh
+# non-circular test (`algo/research/fama_macbeth_price_factors.py --industries
+# banks|insurers|reits`) found zero robust forward-return edge for vol/beta/max_dd in exactly the
+# 3 industries that argument was meant to protect - see risk_scoring.py's own module docstring
+# and [[risk_pillar_sector_neutralized_20260913]] for the full reversal. The literature-citation
+# argument alone was not sufficient evidence; a live re-test was.
+#
+# GOING FORWARD: a pillar/component's sector-neutrality classification (sector-relative vs.
+# absolute/universe-wide) may only be set or changed based on a NON-CIRCULAR, point-in-time panel
+# test - the fama_macbeth_quality_factors.py / fama_macbeth_value_factors.py /
+# fama_macbeth_price_factors.py pattern (real historical price_daily/annual_income_statement/
+# annual_balance_sheet reconstruction, never the single-row-stock_scores-snapshot-vs-trailing-
+# return shortcut banned by rule #6 of the weight-revision policy above), using an `--industries`
+# filter for any sub-industry-specific concentration question, with the SAME era-robustness
+# (4-block, not a single 50/50 split) and FDR bar already mandated there. A plausible-sounding
+# academic citation is a reason to RUN that test, not a substitute for running it. Re-run
+# whenever a prior sector-neutrality decision predates this bar, and always note the
+# survivorship-bias caveat (`SURVIVORSHIP_BIAS_CAVEAT` in fama_macbeth_price_factors.py) on the
+# result - it limits confidence in every such test, not just weight decisions.
+# ============================================================================================
 # UNIFORM EQUAL-WEIGHT PRINCIPLE (2026-09-11, user directive: the backtest/Fama-MacBeth evidence
 # behind every non-Growth pillar's weights is the same contaminated-data family this module's own
 # history above already documents for the composite level (imputed vs. complete-case regimes

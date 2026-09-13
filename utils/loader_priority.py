@@ -52,6 +52,20 @@ LOADER_PRIORITY_MAP: dict[str, LoaderPriority] = {
     # Downgraded to PHASE_1_OPTIONAL to match phase1_data_freshness.py's actual, deliberate,
     # documented behavior instead of a 2026-07-07 decision that was superseded by Session 221 but
     # never reflected here.
+    #
+    # CORRECTED 2026-09-13 (composite-score structural audit): Session 221's "these are website
+    # enrichments, not core to signals" premise was itself false - growth/quality/value/
+    # stability_metrics feed stock_scores' pillars, which phase7_signal_generation.py hard-gates
+    # real trading candidates on. phase1_data_freshness.py's halt_tables/warn_tables split was
+    # corrected this same session (those 4 promoted to halt_tables; positioning_metrics correctly
+    # stays warn - its pillar really was retired). This file's PRIORITY classification is
+    # DELIBERATELY left PHASE_1_OPTIONAL regardless: that's a separate concern (should the
+    # orchestrator proactively BLOCK AND WAIT up to 300s for the loader to finish) from whether
+    # Phase 1 HALTS if the resulting data is stale (yes, now). The 2026-08-10 fix above exists
+    # because a stuck/abandoned loader row (status=RUNNING, 0% complete for 56+ minutes) burned
+    # the full proactive-wait budget on every run for these exact tables - re-promoting to
+    # PHASE_1_CRITICAL here would reintroduce that live-confirmed failure mode. Phase 1's own
+    # halt (now correctly wired) is the right enforcement point; the proactive wait is not.
     "growth_metrics": LoaderPriority.PHASE_1_OPTIONAL,
     "quality_metrics": LoaderPriority.PHASE_1_OPTIONAL,
     "value_metrics": LoaderPriority.PHASE_1_OPTIONAL,

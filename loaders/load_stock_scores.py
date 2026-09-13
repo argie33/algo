@@ -122,6 +122,21 @@ class StockScoresLoader(
     primary_key = ("symbol",)
     watermark_field: str = "updated_at"
     exclude_etfs_from_symbols = True  # Metric loaders (quality, growth, value, risk) exclude ETFs
+    # ADDED 2026-09-13 (composite-score structural audit, see
+    # frozen_subpopulation_real_root_cause_and_live_gap_20260913 in memory): exclude_etfs_from_
+    # symbols=True was, via get_active_symbols()'s implicit-default coupling, ALSO silently
+    # excluding this loader from ever attempting a stock_scores row for BDCs/CEFs/trusts (124
+    # active symbols confirmed live with zero row at all) - not just withholding individual
+    # pillars for them, which this loader's own degraded-mode design (min_required_metrics=1,
+    # "no weight redistribution... skip missing, floor at ~40%" per-pillar) already handles
+    # gracefully. Now that load_risk_metrics_daily.py includes them (its own 2026-09-13 fix -
+    # Risk/Momentum are purely price-derived, no financial-statement dependency), this loader
+    # should be able to attempt a degraded-mode score for these symbols too instead of never
+    # trying at all. quality_metrics/growth_metrics/value_metrics loaders are NOT changed by this
+    # - those genuinely need financial-statement data these symbols mostly lack, and stay
+    # excluded pending their own separate review; this loader will correctly withhold those 3
+    # pillars per its existing missing-data handling.
+    exclude_non_operating_from_symbols = False
 
     def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         """Override run to validate upstream metrics are ready before computing scores.
