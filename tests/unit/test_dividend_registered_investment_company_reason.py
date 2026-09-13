@@ -141,9 +141,44 @@ class TestDividendRegisteredInvestmentCompanyReason:
 
         monkeypatch.setattr(DividendDataLoader, "_fetch_sec_data_with_timeout", fake_fetch)
 
-        results = _loader().fetch_incremental("BCAT", None)
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = ("other", None)
+
+        with patch("utils.db.DatabaseContext") as mock_db:
+            mock_db.return_value.__enter__.return_value = mock_cursor
+            results = _loader().fetch_incremental("BCAT", None)
 
         assert results[0]["data_unavailable_reason"] == "registered_investment_company_no_xbrl"
+
+    def test_ffd_taxonomy_on_real_operating_company_does_not_get_misclassified(self, monkeypatch):
+        # BUG FOUND 2026-09-10: "ffd" is not a fund-exclusive taxonomy - live-confirmed FTW
+        # (real oil & gas operating company, SIC 1311, entity_type='operating') carries an
+        # "ffd" key whose concepts are a Regulation A/crowdfunding offering-fee schedule,
+        # unrelated to fund/CEF status. Must not be classified as
+        # registered_investment_company_no_xbrl just because "ffd" is present.
+        def fake_fetch(self, symbol, timeout_sec=20.0):
+            return {
+                "cik": "1",
+                "facts_response": {
+                    "facts": {
+                        "ffd": {"NetFeeAmt": {"units": {"USD": [{"val": 1000}]}}},
+                        "us-gaap": {
+                            "PropertyPlantAndEquipmentNet": {"units": {"USD": [{"end": "2025-12-31", "val": 5000000}]}},
+                        },
+                    }
+                },
+            }
+
+        monkeypatch.setattr(DividendDataLoader, "_fetch_sec_data_with_timeout", fake_fetch)
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = ("operating", 1311)
+
+        with patch("utils.db.DatabaseContext") as mock_db:
+            mock_db.return_value.__enter__.return_value = mock_cursor
+            results = _loader().fetch_incremental("FTW", None)
+
+        assert results[0]["data_unavailable_reason"] != "registered_investment_company_no_xbrl"
 
     def test_real_us_gaap_facts_unaffected(self, monkeypatch):
         # Control: a normal operating company with real us-gaap facts must never take this
@@ -168,3 +203,30 @@ class TestDividendRegisteredInvestmentCompanyReason:
 
         assert results[0]["data_unavailable"] is False
         assert results[0]["dividend_per_share"] == 0.5
+
+    def test_dividends_payable_amount_per_share_extracted(self, monkeypatch):
+        # BUG FOUND 2026-09-10 (goal: "under 300" push): live-confirmed FTW (real oil & gas
+        # operating company) tags its real quarterly cash dividend exclusively under
+        # DividendsPayableAmountPerShare - never CommonStockDividendsPerShareDeclared/
+        # CashPaid, the only two per-share concepts this loader used to check. Same
+        # USD/shares per-share semantics; must be extracted the same way.
+        def fake_fetch(self, symbol, timeout_sec=20.0):
+            return {
+                "cik": "1",
+                "facts_response": {
+                    "facts": {
+                        "us-gaap": {
+                            "DividendsPayableAmountPerShare": {
+                                "units": {"USD/shares": [{"end": "2026-03-31", "val": 0.10125, "filed": "2026-05-15"}]}
+                            }
+                        }
+                    }
+                },
+            }
+
+        monkeypatch.setattr(DividendDataLoader, "_fetch_sec_data_with_timeout", fake_fetch)
+
+        results = _loader().fetch_incremental("FTW", None)
+
+        assert results[0]["data_unavailable"] is False
+        assert float(results[0]["dividend_per_share"]) == 0.10125
