@@ -169,6 +169,7 @@ from ..base import BaseCheck, CheckResult
 from .tie_out_bounds_annual1 import TieOutBoundsAnnual1Mixin
 from .tie_out_bounds_annual2_quarterly1 import TieOutBoundsAnnual2Quarterly1Mixin
 from .tie_out_bounds_quarterly2_misc import TieOutBoundsQuarterly2MiscMixin
+from .tie_out_cashflow_cumulative_quarters import TieOutCashflowCumulativeQuartersMixin
 from .tie_out_identity_annual import TieOutIdentityAnnualMixin
 from .tie_out_identity_quarterly import TieOutIdentityQuarterlyMixin
 from .tie_out_implausible_magnitude import TieOutImplausibleMagnitudeMixin
@@ -184,6 +185,7 @@ class TieOutChecker(
     TieOutBoundsAnnual1Mixin,
     TieOutBoundsAnnual2Quarterly1Mixin,
     TieOutBoundsQuarterly2MiscMixin,
+    TieOutCashflowCumulativeQuartersMixin,
     TieOutNonnegativeMagnitudesMixin,
     TieOutImplausibleMagnitudeMixin,
     TieOutSharedMixin,
@@ -306,4 +308,8 @@ class TieOutChecker(
         self.check_stockholders_equity_implausible_magnitude(cur)
         self.check_operating_cash_flow_implausible_magnitude(cur)
         self.check_quarterly_operating_cash_flow_implausible_magnitude(cur)
+        # 2026-09-13 (goal: keep finding data-quality issues): permanent guard for the
+        # cumulative-YTD-stored-as-discrete-quarter bug class - see
+        # tie_out_cashflow_cumulative_quarters.py's module docstring.
+        self.check_quarterly_cashflow_cumulative_duplicate(cur)
         return self.results
