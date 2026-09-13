@@ -96,7 +96,7 @@ class PillarScoreReconciliationChecker(BaseCheck):
             cur.execute(
                 """
                 SELECT ss.symbol, ss.date, ss.quality_score AS stock_scores_quality_score,
-                       qm.quality_score AS quality_metrics_quality_score
+                       qm.quality_score AS quality_metrics_quality_score, qm.updated_at
                 FROM (
                     SELECT DISTINCT ON (symbol) symbol, date, quality_score
                     FROM stock_scores
@@ -127,11 +127,44 @@ class PillarScoreReconciliationChecker(BaseCheck):
                             "stock_scores_quality_score": stored,
                             "quality_metrics_quality_score": source,
                             "divergence": round(divergence, 4),
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["divergence"], reverse=True)
-                severity = ERROR if flagged[0]["divergence"] > _ERROR_ABS else WARN
+                # ADDED 2026-09-13 (goal: "ways to catch when the data/calcs are wrong, make it a
+                # regular part of what we do" session): this check never got the reload-lag
+                # staleness split every tie_out_*.py identity check already has (see
+                # eps_reconciliation_reload_lag_blind_spot_20260912 in memory) - live-caught
+                # firing ERROR on 4522 symbols purely because quality_metrics.updated_at (16:07)
+                # is newer than stock_scores' last successful reload watermark (12:18): stock_scores
+                # simply hasn't had the chance to re-copy the new value yet - benign pending-reload
+                # lag, not a real bug.
+                #
+                # NOT the same comparison direction as tie_out_shared.py's own _staleness_split
+                # (that helper asks "is THIS flagged row's own table fresh relative to ITS OWN
+                # reload watermark" - a single-table self-consistency question). This check spans
+                # two DIFFERENT tables (quality_metrics the source, stock_scores the copy) - what
+                # matters is whether the source's update happened BEFORE or AFTER the copy's last
+                # reload, the opposite direction - so this is a deliberately separate inline
+                # comparison, not a reuse of that helper, even though it reads the same
+                # data_loader_status.last_success_at watermark.
+                cur.execute("SELECT last_success_at FROM data_loader_status WHERE table_name = %s", ("stock_scores",))
+                watermark_row = cur.fetchone()
+                watermark = watermark_row["last_success_at"] if watermark_row else None
+                if watermark is None:
+                    # No known reload watermark for stock_scores - can't distinguish pending-
+                    # reload from a real bug, so conservatively treat every row as unverified
+                    # (same "don't know != confirmed broken" principle as _staleness_split).
+                    fresh, stale = 0, len(flagged)
+                else:
+                    fresh = sum(1 for f in flagged if f["_updated_at"] is not None and f["_updated_at"] <= watermark)
+                    stale = len(flagged) - fresh
+                fresh_divergences = [
+                    f["divergence"] for f in flagged if watermark is not None and f["_updated_at"] <= watermark
+                ]
+                severity = ERROR if fresh_divergences and max(fresh_divergences) > _ERROR_ABS else WARN
+                examples = [{k: v for k, v in f.items() if k != "_updated_at"} for f in flagged]
                 self.log(
                     "pillar_score_reconciliation",
                     severity,
@@ -139,9 +172,14 @@ class PillarScoreReconciliationChecker(BaseCheck):
                     f"{len(flagged)} symbol(s) have a stock_scores.quality_score that doesn't "
                     f"match its own authoritative source (quality_metrics.quality_score) beyond "
                     f"a {_WARN_ABS}-point rounding budget (max divergence "
-                    f"{flagged[0]['divergence']:.4f}) - likely a stale stock_scores row awaiting "
-                    f"reload after a quality_metrics recompute/backfill",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"{flagged[0]['divergence']:.4f}) ({fresh} confirmed-fresh since the last "
+                    f"successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
             else:
                 # Always log even when clean (FIXED 2026-09-10, goal: institution-grade

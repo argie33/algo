@@ -4,8 +4,16 @@
 Added 2026-09-08 (goal: score sanity audit follow-up to composite_score_reconciliation.py).
 Covers: exact match, a real divergence (flagged WARN), a divergence beyond the rounding budget
 (flagged ERROR), and exception handling.
+
+EXTENDED 2026-09-13 (goal: "ways to catch when the data/calcs are wrong" session) - the check
+now splits flagged rows into confirmed-fresh (quality_metrics.updated_at <= stock_scores' last
+reload watermark - a real bug) vs unverified/pending-reload (source updated AFTER the last
+reload - benign lag), reusing a data_loader_status.last_success_at watermark read via a second
+cur.fetchone() call. _mock_cursor now also stubs fetchone for that watermark query; _row() takes
+an explicit updated_at so each test controls which side of the watermark its row falls on.
 """
 
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 from algo.monitoring.data_patrol.checks.pillar_score_reconciliation import (
@@ -13,23 +21,34 @@ from algo.monitoring.data_patrol.checks.pillar_score_reconciliation import (
 )
 from algo.monitoring.data_patrol.config import ERROR, INFO, WARN, PatrolConfig
 
+_WATERMARK = datetime(2026, 9, 8, 12, 0, 0)
+_BEFORE_WATERMARK = _WATERMARK - timedelta(hours=1)  # source updated before last reload -> "fresh" (real bug)
+_AFTER_WATERMARK = _WATERMARK + timedelta(hours=1)  # source updated after last reload -> pending-reload (benign)
+
 
 def _checker() -> PillarScoreReconciliationChecker:
     return PillarScoreReconciliationChecker(PatrolConfig())
 
 
-def _mock_cursor(rows: list[dict]) -> MagicMock:
+def _mock_cursor(rows: list[dict], watermark: datetime | None = _WATERMARK) -> MagicMock:
     cur = MagicMock()
     cur.fetchall.return_value = rows
+    cur.fetchone.return_value = {"last_success_at": watermark} if watermark is not None else None
     return cur
 
 
-def _row(symbol: str, stock_scores_quality_score: float, quality_metrics_quality_score: float) -> dict:
+def _row(
+    symbol: str,
+    stock_scores_quality_score: float,
+    quality_metrics_quality_score: float,
+    updated_at: datetime = _BEFORE_WATERMARK,
+) -> dict:
     return {
         "symbol": symbol,
         "date": "2026-09-08",
         "stock_scores_quality_score": stock_scores_quality_score,
         "quality_metrics_quality_score": quality_metrics_quality_score,
+        "updated_at": updated_at,
     }
 
 
@@ -58,12 +77,38 @@ class TestPillarScoreReconciliation:
         assert results[0].details["examples"][0]["symbol"] == "STALE"
 
     def test_large_divergence_flagged_error(self) -> None:
-        # 30 points off - a real, unreloaded rewrite (e.g. broker-dealer fcf_margin exclusion
-        # landing in quality_metrics without stock_scores being reloaded from it).
+        # 30 points off, and the source (quality_metrics) was updated BEFORE stock_scores' last
+        # reload - stock_scores had the chance to pick this up and didn't. A real, unreloaded
+        # rewrite (e.g. broker-dealer fcf_margin exclusion landing in quality_metrics without
+        # stock_scores being reloaded from it), not benign pending-reload lag.
         cur = _mock_cursor([_row("GS", 30.0, 60.0)])
         results = _checker().run(cur)
         assert len(results) == 1
         assert results[0].severity == ERROR
+        assert results[0].details["confirmed_fresh"] == 1
+        assert results[0].details["unverified_stale"] == 0
+
+    def test_large_divergence_pending_reload_not_escalated_to_error(self) -> None:
+        # Same 30-point divergence as test_large_divergence_flagged_error, but the source
+        # (quality_metrics) was updated AFTER stock_scores' last successful reload watermark -
+        # stock_scores hasn't had the chance to pick it up yet. Live-caught 2026-09-13: this
+        # exact shape (4522 symbols) was firing ERROR before this fix.
+        cur = _mock_cursor([_row("GS", 30.0, 60.0, updated_at=_AFTER_WATERMARK)])
+        results = _checker().run(cur)
+        assert len(results) == 1
+        assert results[0].severity == WARN
+        assert results[0].details["confirmed_fresh"] == 0
+        assert results[0].details["unverified_stale"] == 1
+
+    def test_no_watermark_treated_as_unverified(self) -> None:
+        # No data_loader_status row for stock_scores at all - can't distinguish pending-reload
+        # from a real bug, so stays WARN (conservative), not silently ERROR.
+        cur = _mock_cursor([_row("GS", 30.0, 60.0)], watermark=None)
+        results = _checker().run(cur)
+        assert len(results) == 1
+        assert results[0].severity == WARN
+        assert results[0].details["confirmed_fresh"] == 0
+        assert results[0].details["unverified_stale"] == 1
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
