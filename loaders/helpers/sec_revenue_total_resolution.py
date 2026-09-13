@@ -38,12 +38,33 @@ def resolve_revenue_total_candidate(
     $18.911B - $431M), independently reconfirmed via SF/Stifel Financial's real SEC
     companyfacts ($5.530B vs $6.348B). The general "biggest real positive wins" rule this
     function otherwise applies is backwards for this one pair - "revenues" is the gross
-    sub-line here, so give revenues_net_of_interest_expense unconditional priority over it
-    regardless of magnitude, independent of which one this loop happens to process first.
-    Every other pair in the candidate group (sales_revenue_net/regulated_operating_revenue/
-    etc.) is untouched by this special case - see
+    sub-line here, so give revenues_net_of_interest_expense priority over it regardless of
+    magnitude, independent of which one this loop happens to process first. Every other pair
+    in the candidate group (sales_revenue_net/regulated_operating_revenue/etc.) is untouched
+    by this special case - see
     tests/unit/test_sec_revenues_net_of_interest_expense_beats_gross_revenues.py and
     tests/unit/test_sec_sales_revenue_net_magnitude_resolves_over_small_revenues.py.
+
+    PLAUSIBILITY-GATED (2026-09-13, /goal quarantine-backlog audit): the override above was
+    unconditional, and that's too broad - live-confirmed via AMZE's real SEC companyfacts
+    JSON: FY2022 real "Revenues" = $2,860,001 (exactly equal to the sum of AMZE's own
+    correctly-extracted quarterly revenue facts, $929,125+$1,019,377+$535,584+$375,915), but
+    the filer ALSO tags "RevenuesNetOfInterestExpense" = $13,750 for the same period - not a
+    genuine net-of-interest-expense total (AMZE has no banking/deposit business at all), but
+    a filer-side XBRL tagging error: several unrelated concepts in AMZE's own companyfacts
+    (DeferredRevenueRevenueRecognized1, IncreaseDecreaseInDeferredRevenue,
+    ContractWithCustomerLiabilityRevenueRecognized) share this exact same $13,750 value,
+    the signature of one stray number reused across mistagged elements, not a real
+    consolidated total. The unconditional override let this ~208x-too-small garbage value
+    permanently clobber the correct annual revenue, then fed the
+    quarterly_revenue_sum_vs_annual_extreme DataPatrol check's "annual figure is the broken
+    one" quarantine for AMZE (and, by the same mechanism, other symbols in that 81-symbol
+    backlog). A genuine net-of-interest-expense relationship (AMP: 97.7% of gross; SF: 87.1%
+    of gross) never approaches this kind of falloff, so the override now only fires when the
+    net candidate is at least `_NET_OF_INTEREST_PLAUSIBLE_RATIO` of the gross one - otherwise
+    the pair falls through to the normal magnitude rule (largest real positive wins), which
+    correctly keeps AMZE's real, larger "revenues" figure. See
+    tests/unit/test_sec_revenues_net_of_interest_expense_implausible_ratio_rejected.py.
     """
     if db_field not in revenue_total_best and db_field in row:
         existing = row[db_field]
@@ -58,13 +79,31 @@ def resolve_revenue_total_candidate(
     current_source = revenue_total_source.get(db_field)
 
     if sec_field == "revenues" and current_source == "revenues_net_of_interest_expense":
-        return  # never let the gross sub-line overwrite the real net total
+        net_val = current_best
+        if net_val is not None and net_val >= _NET_OF_INTEREST_PLAUSIBLE_RATIO * fvalue:
+            return  # a genuine net-of-interest-expense total - never let the gross sub-line overwrite it
+        # net_val is implausibly small relative to this incoming gross figure (filer tagging
+        # error, not a real net-down) - fall through to the normal magnitude rule below.
 
-    is_net_of_interest_override = sec_field == "revenues_net_of_interest_expense" and current_source == "revenues"
+    is_net_of_interest_override = False
+    if sec_field == "revenues_net_of_interest_expense" and current_source == "revenues":
+        gross_val = current_best
+        if gross_val is not None and gross_val > 0 and fvalue >= _NET_OF_INTEREST_PLAUSIBLE_RATIO * gross_val:
+            is_net_of_interest_override = True
+        # else: this net value is implausibly small relative to the gross total already on
+        # file (filer tagging error) - don't override; the normal magnitude rule below will
+        # correctly leave the larger, real gross figure in place.
+
     if is_net_of_interest_override or current_best is None or fvalue > current_best:
         revenue_total_best[db_field] = fvalue
         revenue_total_source[db_field] = sec_field
         row[db_field] = value
+
+
+# A genuine "net of interest expense" total is a modest deduction from its gross counterpart
+# (AMP: 97.7%, SF: 87.1% of gross) - never a near-total wipeout. 0.5 comfortably separates
+# both real cases from AMZE's 0.48% (garbage-tag) case with wide margin on both sides.
+_NET_OF_INTEREST_PLAUSIBLE_RATIO = 0.5
 
 
 def _is_reit_scale_tag_error(existing_val: Any, candidate_val: Any) -> bool:
