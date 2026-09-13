@@ -265,6 +265,14 @@ _BALANCE_FIELD_MAPPING = {
     # left unfixed. Not fallback-only - single directly-tagged concept, same convention as
     # minority_interest above.
     "temporary_equity_carrying_amount_attributable_to_parent": "temporary_equity",
+    # ADDED 2026-09-13 (goal session: check_balance_sheet_identity 512-symbol/year WARN
+    # bucket triage): see sec_balance_sheet.py's get_balance_sheet() comment on
+    # "RedeemableNoncontrollingInterestEquityOtherCarryingAmount" for the live PROK evidence -
+    # same mezzanine-equity target column as temporary_equity_carrying_amount_attributable_to_
+    # parent above, just a different filer-side concept name for the same balance-sheet
+    # position. Not fallback-only - single directly-tagged concept, same convention as
+    # minority_interest above.
+    "redeemable_noncontrolling_interest_equity_other_carrying_amount": "temporary_equity",
     # ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push): see
     # sec_balance_sheet.py's get_balance_sheet() comment on
     # "PartnersCapitalAttributableToNoncontrollingInterest" for the live PS/Pershing Square
