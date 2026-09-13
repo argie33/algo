@@ -56,6 +56,47 @@ class StalenessChecker(BaseCheck):
             # never-had-a-staleness-entry gap, independently confirmed live 2026-09-13: 34
             # active symbols already >7d stale and 92 active symbols with zero row at all.
             "momentum_metrics": 7,
+            # ADDED (goal session 2026-09-13, closing the gaps the new /api/scores/
+            # correctness-coverage data_patrol_log-backed panel surfaced): these 5 tables are
+            # all real, actively-loaded pillar-input tables (confirmed via LOADER_TABLES/
+            # PSEUDO_LOADER_TABLES membership) that had ZERO data_patrol_log rows EVER - not
+            # just no staleness entry, no DataPatrol check of any kind had ever run against
+            # them. Same "new/uncharacterized check" INFO-severity treatment as value_metrics/
+            # quality_metrics/momentum_metrics above until a production run establishes the
+            # real false-positive rate - not proven-safe enough yet for WARN/ERROR/CRIT.
+            #
+            # analyst_sentiment_analysis: load_analyst_sentiment_analysis.py's own
+            # primary_key=("symbol","date")/watermark_field="date" writes one new row per
+            # active symbol per trading day (same shape as price_daily), so a short
+            # trading-day-aware threshold is safe.
+            "analyst_sentiment_analysis": 3,
+            # dividend_data: primary_key=("symbol","ex_dividend_date") - per-symbol dividend
+            # events are inherently sparse (quarterly/semi-annual), but load_dividend_data.py
+            # writes a new row whenever ANY symbol in the ~4,900-symbol universe goes
+            # ex-dividend, so MAX(ex_dividend_date) across the whole table should stay recent
+            # in aggregate even though no single symbol updates often - live-confirmed 2026-09-13:
+            # 27,708 rows with ex_dividend_date in the last 14 days alone. Calendar-day math
+            # (not trading-day), same as the other non-"daily"-freq entries below.
+            "dividend_data": 14,
+            # earnings_metrics: load_earnings_metrics.py's own watermark_field="updated_at"
+            # (not report_date, part of its primary key but not the refresh signal) - this
+            # loader continuously revises rows as new estimates/actuals arrive, live-confirmed
+            # MAX(updated_at) same-day. Same 30-day/INFO treatment as growth_metrics/
+            # value_metrics/quality_metrics above (siblings written by the same class of
+            # per-symbol upsert loader).
+            "earnings_metrics": 30,
+            # current_reports_8k: load_current_reports_8k.py's own watermark_field=
+            # "filing_date" - real SEC 8-K filings happen across the universe on essentially
+            # every business day (live-confirmed 2026-09-13: 1,266 filings in the last 14 days
+            # alone, latest filing_date 1 day old), so a short threshold is safe.
+            "current_reports_8k": 5,
+            # price_weekly: load_prices.py's own primary_key=("symbol","date")/
+            # watermark_field="date" for weekly bars - same shape as price_daily/
+            # technical_data_daily but weekly cadence. 10 days (not the bare 7 sector_ranking/
+            # industry_ranking use) gives a deliberate buffer over one calendar week so a
+            # single delayed weekly run right after a holiday week doesn't false-positive,
+            # while this is still a brand-new/uncharacterized check (INFO, not WARN).
+            "price_weekly": 10,
         }
 
         # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
@@ -190,6 +231,45 @@ class StalenessChecker(BaseCheck):
                 "updated_at",
                 "weekly",
                 staleness_thresholds["momentum_metrics"],
+                INFO,
+            ),
+            (
+                # "daily" freq (trading-day-aware math, same reasoning as price_daily above) -
+                # a new row per active symbol per trading day, so a plain calendar-day gap over
+                # a 3-day weekend would sit right at this table's 3-day threshold.
+                "analyst_sentiment_analysis",
+                "date",
+                "daily",
+                staleness_thresholds["analyst_sentiment_analysis"],
+                INFO,
+            ),
+            (
+                "dividend_data",
+                "ex_dividend_date",
+                "monthly",
+                staleness_thresholds["dividend_data"],
+                INFO,
+            ),
+            (
+                "earnings_metrics",
+                "updated_at",
+                "monthly",
+                staleness_thresholds["earnings_metrics"],
+                INFO,
+            ),
+            (
+                # "daily" freq - real SEC 8-K filings cluster on business/trading days.
+                "current_reports_8k",
+                "filing_date",
+                "daily",
+                staleness_thresholds["current_reports_8k"],
+                INFO,
+            ),
+            (
+                "price_weekly",
+                "date",
+                "weekly",
+                staleness_thresholds["price_weekly"],
                 INFO,
             ),
         ]

@@ -30,21 +30,33 @@ def apply_symbol_quarantine(
     patrol_run_id: str,
     flagged_symbols: list[dict[str, Any]],
 ) -> None:
-    """Record quarantine flags for this run's flagged symbols, resolving any for this
-    check_name that are no longer flagged (supersede-on-reinsert, same lifecycle as
-    PatrolLogger.log_results for data_patrol_log).
+    """Record quarantine flags for this run's flagged symbols, resolving ALL of this
+    check_name's prior open rows before inserting the current run's fresh set (supersede-
+    on-reinsert, same lifecycle as PatrolLogger.log_results for data_patrol_log).
+
+    FIXED 2026-09-13 (goal: patrol/quarantine comprehensiveness audit): this used to only
+    resolve symbols that had DROPPED OFF the flagged list (`symbol != ALL(%s)`) - a symbol
+    that stayed flagged run after run never got its prior open row resolved, so every run
+    inserted ANOTHER open row for it instead of superseding. Live-verified: 567 duplicate
+    open rows for the same 81 symbols under quarterly_revenue_sum_vs_annual_extreme (7 open
+    rows each, one per patrol run since it started firing) and 30 for ohlc_sanity's newly
+    re-flagged batch after just 2 runs. Now unconditionally resolves every open row for
+    this check_name first, then inserts one fresh row per currently-flagged symbol -
+    exactly mirroring data_patrol_log's own resolve-then-insert pattern instead of the
+    narrower "only resolve what's no longer flagged" logic that let persistent findings
+    accumulate unboundedly.
     """
     symbols = [f["symbol"] for f in flagged_symbols if f.get("symbol")]
     try:
+        cur.execute(
+            """
+            UPDATE symbol_quarantine
+            SET resolved_at = CURRENT_TIMESTAMP
+            WHERE resolved_at IS NULL AND check_name = %s
+            """,
+            (check_name,),
+        )
         if symbols:
-            cur.execute(
-                """
-                UPDATE symbol_quarantine
-                SET resolved_at = CURRENT_TIMESTAMP
-                WHERE resolved_at IS NULL AND check_name = %s AND symbol != ALL(%s)
-                """,
-                (check_name, symbols),
-            )
             cur.executemany(
                 """
                 INSERT INTO symbol_quarantine
@@ -56,15 +68,6 @@ def apply_symbol_quarantine(
                     for f in flagged_symbols
                     if f.get("symbol")
                 ],
-            )
-        else:
-            cur.execute(
-                """
-                UPDATE symbol_quarantine
-                SET resolved_at = CURRENT_TIMESTAMP
-                WHERE resolved_at IS NULL AND check_name = %s
-                """,
-                (check_name,),
             )
         _sync_stock_scores_exclusion(cur, check_name, symbols)
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

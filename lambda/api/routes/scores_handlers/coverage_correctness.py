@@ -40,6 +40,8 @@ from typing import Any
 from psycopg2.extensions import cursor
 from routes.utils import error_response, handle_db_error, json_response
 
+from loaders.loader_registry import LOADER_TABLES, PSEUDO_LOADER_TABLES
+
 from .coverage_classification import _TABLE_GROUP, _UNSCORED_TABLES
 
 logger = logging.getLogger(__name__)
@@ -58,11 +60,26 @@ _NON_FACTOR_TABLES = {"stock_scores", "stock_symbols"}
 
 
 def _scored_pillar_tables() -> list[str]:
-    """Real pillar-input tables: every _TABLE_GROUP entry except the whole-table unscored
-    cases and the two non-factor tables above. Derived from the same single source of truth
+    """Real, actively-loaded pillar-input tables: every _TABLE_GROUP entry except the
+    whole-table unscored cases and the two non-factor tables above, further restricted to
+    tables an active loader still writes to. Derived from the same single source of truth
     /api/scores/coverage uses for its own scored/unscored classification, so this panel's
-    table universe can't silently drift out of sync with that report's."""
-    return sorted(t for t in _TABLE_GROUP if t not in _UNSCORED_TABLES and t not in _NON_FACTOR_TABLES)
+    table universe can't silently drift out of sync with that report's.
+
+    FIXED 2026-09-13 (live-caught right after the data_patrol_log rewrite shipped, checking
+    its own "never checked" output): the pre-rewrite coverage_correctness.py filtered its
+    factor universe to LOADER_TABLES/PSEUDO_LOADER_TABLES-active tables, and that filter was
+    dropped in the rewrite. yfinance_snapshot has zero active loader (confirmed via
+    LOADER_TABLES/PSEUDO_LOADER_TABLES membership - it's the deprecated table
+    coverage_sources.py's own _SOURCE_LABELS already calls out as "Yahoo Finance (snapshot,
+    deprecated)") and so would ALWAYS show as a false "never checked" gap - the exact
+    "measuring a population nobody actually scores" bug class coverage_classification.py's own
+    _UNSCORED_TABLES comments already warn about, just for a dead table instead of a
+    display-only field."""
+    active = {t for tables in LOADER_TABLES.values() for t in tables} | {
+        t for tables in PSEUDO_LOADER_TABLES.values() for t in tables
+    }
+    return sorted(t for t in _TABLE_GROUP if t not in _UNSCORED_TABLES and t not in _NON_FACTOR_TABLES and t in active)
 
 
 def _classify_status(total_ever: int, days_since_last: float | None, recent: dict[str, int]) -> str:

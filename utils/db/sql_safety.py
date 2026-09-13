@@ -254,6 +254,11 @@ SAFE_COLUMNS = {
     # table's earnings_metrics SAFE_TABLES entry above, same load_earnings_metrics.py
     # first-run gap.
     "report_date",
+    # dividend_data.ex_dividend_date (watermark_field/primary-key column, load_dividend_data.py)
+    # - added 2026-09-13 alongside staleness.py's new dividend_data entry (closing a gap the
+    # data_patrol_log-backed /api/scores/correctness-coverage panel surfaced); live-caught the
+    # same first-run "not in whitelist" gap as report_date/filing_date above.
+    "ex_dividend_date",
     # Common columns
     "symbol",
     "count",
