@@ -147,12 +147,49 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
     # symbols (768 collision rows) that motivated this investigation. A genuine
     # single-quarter self-consistency match (like OFRM's, span=89) is unaffected by
     # this narrowing.
+    #
+    # BUG FOUND 2026-09-13 (goal session: revenue-identity reload-verified bug dig,
+    # QCOM/SBUX live-confirmed via real SEC companyfacts JSON): the 80-100 day span
+    # gate above narrows out DXC's ~183-day cumulative false positive, but not a
+    # DIFFERENT false-positive shape - a genuinely single-quarter-length (80-100 day)
+    # duration fact that is STILL a mistagged comparative echo, not this filer's own
+    # current-period fact. QCOM (real fiscal year end late September, never
+    # December) has a us-gaap:Revenues fact spanning 2017-12-25 to 2018-03-25 (90
+    # days) tagged fp="Q1"/fy=2019/accn filed 2019-01-30 - a later filing's own
+    # comparative echo of what was, in QCOM's real Oct-Sep fiscal calendar, actually
+    # fiscal Q2, inheriting that later filing's own fp/fy label (the same filing-
+    # context-vs-fact-identity conflation this file documents repeatedly elsewhere,
+    # e.g. the OFRM/CCLD cases above) - not evidence QCOM's fiscal year ends in
+    # December. Because the fact's own end-month (03) coincidentally satisfies the
+    # calendar-quarter mapping for its (wrong) fp="Q1" tag AND its span is a genuine
+    # single quarter, it passed every existing gate and flipped
+    # has_december_fiscal_year_end to True, which then made the AMZN-rolling-window
+    # guard in sec_statements_entry_resolution.py reject QCOM's real FY2025
+    # "Revenues" fact (end=2025-09-28, a real fiscal year-end, month != 12) -
+    # confirmed via scripts/verify_and_fix_revenue_identity.py's REELOAD_NO_CHANGE
+    # QCOM row (stored revenue $639M vs real $44.284B) surviving a live production
+    # reload unchanged. SBUX (also a non-December, real fiscal year end) reproduces
+    # the identical has_december_fiscal_year_end=True misfire from an analogous
+    # mistagged comparative fact.
+    #
+    # A genuine current-period quarterly fact is always filed shortly after its own
+    # end date (SEC's 10-Q deadline is 40-45 days for large accelerated filers, up
+    # to ~90 for smaller ones); a fact filed many months after its own end date is,
+    # by construction, riding along in a LATER filing as someone else's comparative
+    # column, not this filing's own current-period value - exactly QCOM's case
+    # (filed 311 days after end). Require filed within 120 days of end (generous
+    # buffer over the longest real 10-Q deadline) before trusting a match as
+    # self-consistency evidence. Every existing regression fixture in this file
+    # (AMZN/OFRM/DXC/CCLD) already files its genuine quarterly facts within ~40 days
+    # of their own end date, so this is purely additive - it only ever rejects a
+    # match the span gate alone let through, never one it already excluded.
     if not has_december_fiscal_year_end:
         _q_from_month = {"03": "Q1", "06": "Q2", "09": "Q3", "12": "Q4"}
         for _e in entries:
             _e_fp = _e.get("fp")
             _e_start = _e.get("start")
             _e_end = _e.get("end")
+            _e_filed = _e.get("filed")
             if _e_fp not in ("Q1", "Q2", "Q3", "Q4") or not _e_end or len(_e_end) < 7:
                 continue
             if _q_from_month.get(_e_end[5:7]) != _e_fp:
@@ -164,6 +201,14 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
                     continue
                 if not (80 <= _e_span <= 100):
                     continue
+            if not _e_filed:
+                continue
+            try:
+                _filed_gap_days = (datetime.date.fromisoformat(_e_filed) - datetime.date.fromisoformat(_e_end)).days
+            except ValueError:
+                continue
+            if not (0 <= _filed_gap_days <= 120):
+                continue
             has_december_fiscal_year_end = True
             break
     # BUG FOUND 2026-08-22 (goal session: quarterly balance-sheet comparative-period
