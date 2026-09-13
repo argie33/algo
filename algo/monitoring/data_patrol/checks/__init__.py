@@ -8,6 +8,7 @@ from .financial_statement_flag_drift import FinancialStatementFlagDriftChecker
 from .pillar_score_reconciliation import PillarScoreReconciliationChecker
 from .price_sanity import PriceSanityChecker
 from .quality import QualityChecker
+from .reverse_merger_shell import ReverseMergerShellChecker
 from .score_ratio_outliers import ScoreRatioOutlierChecker
 from .specialized import SpecializedChecker
 from .staleness import StalenessChecker
@@ -25,6 +26,7 @@ __all__ = [
     "PillarScoreReconciliationChecker",
     "PriceSanityChecker",
     "QualityChecker",
+    "ReverseMergerShellChecker",
     "ScoreRatioOutlierChecker",
     "SpecializedChecker",
     "StalenessChecker",

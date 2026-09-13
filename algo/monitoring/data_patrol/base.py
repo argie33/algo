@@ -127,6 +127,7 @@ class DataPatrol:
             PillarScoreReconciliationChecker,
             PriceSanityChecker,
             QualityChecker,
+            ReverseMergerShellChecker,
             ScoreRatioOutlierChecker,
             SpecializedChecker,
             StalenessChecker,
@@ -157,6 +158,7 @@ class DataPatrol:
                 XbrlConceptContinuityChecker(self.config),
                 StatisticalAnomalyChecker(self.config),
                 ScoreRatioOutlierChecker(self.config),
+                ReverseMergerShellChecker(self.config),
                 CompositeScoreReconciliationChecker(self.config),
                 PillarScoreReconciliationChecker(self.config),
             ]
