@@ -265,7 +265,19 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
         "Min trading days of price history (IPO age gate - Minervini avoids stocks <1yr post-IPO)",
         "Liquidity Requirements",
     ),
+    # min_daily_volume_shares: DEAD/SUPERSEDED (confirmed 2026-09-13, systematic
+    # seeded-vs-enforced sweep via scripts/audit_unenforced_config.py) - only ever referenced
+    # by trading_config.py's dead get_stock_filter_config() dict-builder, never read by real
+    # code. min_adv_shares below is the actually-enforced share-volume floor
+    # (LiquidityChecks._check_adv, algo/risk/liquidity_checks.py) - this key looks like an
+    # older/duplicate version of that same concept that predates it, not an independent gap.
     "min_daily_volume_shares": ("500000", "int", "Minimum daily volume shares", "Liquidity Requirements"),
+    # max_spread_pct / min_float_millions: genuinely unimplemented, NOT superseded by
+    # anything - see [[liquidity_checks_short_interest_enforced_20260913]] in MEMORY.md for
+    # why (max_spread_pct needs a live bid/ask quote at entry time, not just a stored value;
+    # min_float_millions needs a float-shares data source the schema doesn't have). Real
+    # future work, not a quick wiring fix like max_short_interest_pct (fixed 2026-09-13,
+    # commit 74d261c32) was.
     "max_spread_pct": ("0.5", "float", "Maximum bid-ask spread %", "Liquidity Requirements"),
     "min_market_cap_millions": ("300.0", "float", "Minimum market cap $M", "Liquidity Requirements"),
     "min_float_millions": ("50.0", "float", "Minimum float shares $M", "Liquidity Requirements"),
@@ -294,6 +306,18 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
     "min_order_size_dollars": ("100.0", "float", "Minimum order size in dollars", "Liquidity Requirements"),
     "phase1_min_coverage_pct": ("75", "int", "Phase 1: Minimum data coverage %", "Liquidity Requirements"),
     # Risk Metrics Calculation (M3 - Risk Thresholds)
+    # HARDCODED-BUT-LIVE, PARTIAL MATCH (confirmed 2026-09-13, systematic sweep,
+    # scripts/audit_unenforced_config.py): algo/risk/var.py's ValueAtRisk.historical_var()/
+    # .cvar()/.stressed_var() take a `confidence` parameter with hardcoded defaults
+    # (0.95/0.95/0.99) and are always called with zero arguments (generate_daily_risk_report()),
+    # so these three percentile keys are never actually read. var_percentile/cvar_percentile
+    # (5 = 95% confidence) DO exactly match their methods' hardcoded defaults - same safe,
+    # zero-behavior-change wiring shape as the market_exposure veto cluster (commit
+    # 6c9f26864), NOT done this pass (risk-report code, wanted a dedicated review rather than
+    # a batch triage pass). stressed_var_percentile does NOT match: config says "10 = worst
+    # 10% of days" but stressed_var()'s hardcoded default is 0.99 (worst 1% - notably more
+    # extreme) - wiring this one in would be a real behavior change, not just configurability;
+    # needs an explicit decision on which is correct before touching it.
     "var_percentile": (
         "5",
         "int",
@@ -312,6 +336,13 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
         "Percentile for stressed VaR (10 = worst 10% of days)",
         "Risk Metrics",
     ),
+    # DEAD/SUPERSEDED: not referenced anywhere, not even trading_config.py's dead
+    # dict-builder. The live grading mechanism for this exact concept is
+    # utils/signals/grade_classifier.py's GradeClassifier, but only via
+    # `classify_ibd_composite()`'s config_prefix="advanced_filters" call -
+    # dashboard_grade_threshold_a/b/c (only 3 of 5 grade levels, no aplus/d) look like
+    # an earlier/abandoned precursor to advanced_filters_grade_threshold_* below, never
+    # actually wired to any "dashboard" config_prefix call.
     "dashboard_grade_threshold_a": (
         "80",
         "int",

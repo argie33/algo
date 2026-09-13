@@ -62,7 +62,7 @@ from rich.text import Text
 from dashboard.data_validation import safe_float, safe_int
 
 from ..formatters import fmt_age, fmt_age_seconds, fmt_money, fmt_money_short, mini_bar, sign, sparkline
-from ..utilities import DIM, G, R, Y, normalize_positions_data
+from ..utilities import DIM, G, R, Y, get_market_condition_thresholds, normalize_positions_data
 from ._helpers import _error_panel
 
 
@@ -311,11 +311,20 @@ def panel_portfolio(
 
         # All critical fields available - render
         if var_v is not None and var_v > 0 and cvar_v is not None and beta_v is not None and conc5_v is not None:
+            _mct = get_market_condition_thresholds()
             conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
             var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
             # CRITICAL: Show beta value if positions exist (even if beta <= 0), show "--" only when no positions
             beta_display = f"{beta_v:.2f}" if has_positions else "--"
-            beta_c = "dim" if not has_positions else (R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G))
+            beta_c = (
+                "dim"
+                if not has_positions
+                else (
+                    R
+                    if beta_v >= _mct["beta_warning_threshold"]
+                    else (Y if beta_v >= _mct["beta_caution_threshold"] else G)
+                )
+            )
             tbl.add_row(
                 cell("Value at Risk (95%):", f"[{var_c}]{var_v:.2f}%[/]"),
                 cell("Cond. VaR (95%):", f"[{var_c}]{cvar_v:.2f}%[/]"),
@@ -1006,13 +1015,18 @@ def panel_portfolio_perf_expanded(
                 if beta is None:
                     logger.warning("[PORTFOLIO] Risk metric missing: Beta unavailable in risk response")
                 beta_display = f"{beta:.2f}" if (has_positions and beta is not None) else "N/A"
+                _mct = get_market_condition_thresholds()
                 beta_c = (
                     "dim"
                     if not has_positions
                     else (
                         R
-                        if (beta is not None and beta >= 1.2)
-                        else (Y if (beta is not None and beta >= 0.8) else (G if beta is not None else "dim"))
+                        if (beta is not None and beta >= _mct["beta_warning_threshold"])
+                        else (
+                            Y
+                            if (beta is not None and beta >= _mct["beta_caution_threshold"])
+                            else (G if beta is not None else "dim")
+                        )
                     )
                 )
                 if conc5 is None:

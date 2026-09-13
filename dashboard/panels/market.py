@@ -76,6 +76,7 @@ from ..utilities import (
     G,
     R,
     Y,
+    get_market_condition_thresholds,
 )
 from ._helpers import _error_panel
 from .data_extractors import (
@@ -217,11 +218,26 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     if not halts:
         logger.debug("[MARKET_PANEL] No trading halts - display color defaulting to DIM")
 
-    uvc = G if upvol is not None and upvol >= 60 else (Y if upvol is not None and upvol >= 50 else R)
-    pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
+    _mct = get_market_condition_thresholds()
+    uvc = (
+        G
+        if upvol is not None and upvol >= _mct["upvol_good_threshold"]
+        else (Y if upvol is not None and upvol >= _mct["upvol_caution_threshold"] else R)
+    )
+    pcr_c = (
+        DIM
+        if pcr is None
+        else (
+            G if pcr <= _mct["put_call_bullish_threshold"] else (Y if pcr <= _mct["put_call_fearful_threshold"] else R)
+        )
+    )
     nhnl = (nh - nl) if (nh is not None and nl is not None) else None
     nhnl_c = (
-        (G if nhnl is not None and nhnl >= 50 else (Y if nhnl is not None and nhnl >= 0 else R))
+        (
+            G
+            if nhnl is not None and nhnl >= _mct["breadth_good_threshold"]
+            else (Y if nhnl is not None and nhnl >= _mct["breadth_caution_threshold"] else R)
+        )
         if nhnl is not None
         else DIM
     )
@@ -270,7 +286,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     else:
         logger.debug("[MARKET_PANEL] Breadth momentum not available - optional market breadth enrichment incomplete")
     if ycs is not None:
-        yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
+        yc_c = G if ycs >= _mct["yield_curve_good_threshold"] else (Y if ycs >= 0 else R)
         bmom_pcr.append(f"[dim]Yield Curve Slope:[/][{yc_c}]{ycs:+.2f}[/]")
     else:
         logger.debug("[MARKET_PANEL] Yield curve slope not available - optional macro enrichment incomplete")
@@ -367,6 +383,7 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     bmom = safe_float(mkt.get("bmom"), field_name="bmom", strict=True) if mkt.get("bmom") is not None else None
     halts = _get_market_halts(mkt, "Market summary panel")
 
+    _mct = get_market_condition_thresholds()
     spy_s = f"${spy_raw:.2f}" if spy_raw else "--"
     # DIM (not R) when unavailable - line ~388 renders "--" in this color unconditionally
     # when spy_chg is None, previously painting unavailable data the same red as a real drop.
@@ -377,16 +394,28 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     # Negative slope (inverted yield curve) is a bearish signal - must be R, not G. This
     # branch previously fell back to G, disagreeing with the compact panel and header
     # elsewhere in this file, which both correctly use R for the same condition.
-    yc_c = G if (ycs is not None and ycs >= 0.5) else (Y if (ycs is not None and ycs >= 0) else R)
+    yc_c = (
+        G
+        if (ycs is not None and ycs >= _mct["yield_curve_good_threshold"])
+        else (Y if (ycs is not None and ycs >= 0) else R)
+    )
     yc_s = f"{ycs:+.3f}" if ycs is not None else "--"
-    uvc = DIM if upvol is None else (G if upvol >= 60 else (Y if upvol >= 50 else R))
+    uvc = (
+        DIM
+        if upvol is None
+        else (G if upvol >= _mct["upvol_good_threshold"] else (Y if upvol >= _mct["upvol_caution_threshold"] else R))
+    )
     upvol_s = f"{upvol:.1f}%" if upvol is not None else "--"
     adr_s = f"{adr:.2f}" if adr is not None else "--"
     nh_s = str(nh) if nh is not None else "--"
     nl_s = str(nl) if nl is not None else "--"
     nhnl = (nh - nl) if (nh is not None and nl is not None) else None
     nhnl_c = (
-        (G if (nhnl is not None and nhnl >= 50) else (Y if (nhnl is not None and nhnl >= 0) else R))
+        (
+            G
+            if (nhnl is not None and nhnl >= _mct["breadth_good_threshold"])
+            else (Y if (nhnl is not None and nhnl >= _mct["breadth_caution_threshold"]) else R)
+        )
         if nhnl is not None
         else DIM
     )
@@ -398,7 +427,13 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
         if pcr is None and mkt.get("pcr_stale") is not None
         else None
     )
-    pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
+    pcr_c = (
+        DIM
+        if pcr is None
+        else (
+            G if pcr <= _mct["put_call_bullish_threshold"] else (Y if pcr <= _mct["put_call_fearful_threshold"] else R)
+        )
+    )
     pcr_s = (
         f"{pcr:.3f}"
         if pcr is not None
@@ -488,6 +523,7 @@ def panel_header_market(  # noqa: C901
     cfg: Any = None,
     data_source: str = "AWS",
 ) -> Panel:
+    _mct = get_market_condition_thresholds()
     source_color = "cyan" if data_source == "LOCAL" else "dim"
     rows: list[Text | Rule] = [
         Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}  [{source_color}]{data_source}[/]")
@@ -540,10 +576,14 @@ def panel_header_market(  # noqa: C901
         if upvol is None:
             logger.debug("[MARKET_HEADER] Up volume data missing - breadth analysis incomplete")
         if upvol is not None:
-            uvc = G if upvol >= 60 else (Y if upvol >= 50 else R)
+            uvc = G if upvol >= _mct["upvol_good_threshold"] else (Y if upvol >= _mct["upvol_caution_threshold"] else R)
             nhnl = (nh - nl) if (nh is not None and nl is not None) else None
             nhnl_c = (
-                (G if (nhnl is not None and nhnl >= 50) else (Y if (nhnl is not None and nhnl >= 0) else R))
+                (
+                    G
+                    if (nhnl is not None and nhnl >= _mct["breadth_good_threshold"])
+                    else (Y if (nhnl is not None and nhnl >= _mct["breadth_caution_threshold"]) else R)
+                )
                 if nhnl is not None
                 else DIM
             )
@@ -568,7 +608,11 @@ def panel_header_market(  # noqa: C901
         _fed_ok = fed and str(fed).lower() not in ("unknown", "n/a", "none", "")
         parts4 = []
         if pcr is not None:
-            pcr_c = G if pcr <= 0.8 else (Y if pcr <= 1.0 else R)
+            pcr_c = (
+                G
+                if pcr <= _mct["put_call_bullish_threshold"]
+                else (Y if pcr <= _mct["put_call_fearful_threshold"] else R)
+            )
             parts4.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
         elif pcr_stale is not None:
             parts4.append(f"[dim]Put/Call:[/][dim]~{pcr_stale:.3f} ({mkt.get('pcr_stale_date', '?')})[/]")
@@ -584,7 +628,7 @@ def panel_header_market(  # noqa: C901
         else:
             logger.debug("[MARKET_HEADER] Breadth momentum not available - optional enrichment missing")
         if ycs is not None:
-            yc_c = G if ycs >= 0.5 else (Y if ycs >= 0 else R)
+            yc_c = G if ycs >= _mct["yield_curve_good_threshold"] else (Y if ycs >= 0 else R)
             parts4.append(f"[dim]Yield Curve:[/][{yc_c}]{ycs:+.2f}[/]")
         else:
             logger.debug("[MARKET_HEADER] Yield curve slope not available - optional macro indicator missing")

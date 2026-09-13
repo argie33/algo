@@ -62,7 +62,15 @@ CONFIG_DEFAULTS_SYSTEM: dict[str, tuple[Any, ...]] = {
         "Database connection timeout (seconds)  - RDS Proxy adds latency",
         "Network Configuration",
     ),
-    # Failsafe Configuration
+    # ORPHANED (confirmed 2026-09-13, systematic seeded-vs-enforced sweep,
+    # scripts/audit_unenforced_config.py): both keys are only referenced via
+    # trading_config.py's dead get_stock_filter_config(). algo/orchestrator/
+    # phase1_failsafe_retry.py (the real failsafe-retry logic) has zero references to
+    # either key or to any ECS-RUNNING-state wait / grace-period gate, and neither
+    # appears in terraform/. Not confirmed superseded by a specific alternative
+    # mechanism (unlike loader_max_fail_rate_* below) - genuinely unused, needs a
+    # human call on whether to build the ECS-wait/grace-period gate these describe
+    # or retire the keys.
     "failsafe_ecs_timeout_sec": (
         "180",
         "int",
@@ -89,6 +97,13 @@ CONFIG_DEFAULTS_SYSTEM: dict[str, tuple[Any, ...]] = {
         "Circuit break threshold (seconds) during EOD (3 min)",
         "Loader Rate Limiting",
     ),
+    # ORPHANED (confirmed 2026-09-13, systematic sweep): only referenced via
+    # trading_config.py's dead get_stock_filter_config(). Distinct from the two
+    # loader_rate_limit_circuit_break_threshold_* keys above (which ARE live, read
+    # directly in algo/infrastructure/config/main.py) - this "requests per minute"
+    # concept has no matching consumer anywhere; the real rate-limiting mechanisms
+    # this codebase actually uses (utils/rate_limiting.py, per-loader circuit
+    # breakers) don't read it either.
     "loader_rate_limit_requests_per_min": (
         "120",
         "int",
@@ -200,7 +215,16 @@ CONFIG_DEFAULTS_SYSTEM: dict[str, tuple[Any, ...]] = {
         "Alpaca API base URL",
         "External APIs",
     ),
-    # API Retry Configuration
+    # HARDCODED-BUT-LIVE, VALUE MISMATCH (confirmed 2026-09-13, systematic sweep) -
+    # NOT wired in this pass, needs a human call: loaders/load_aaii_sentiment.py has a
+    # real retry loop (`for attempt in range(1, 3)`, i.e. 2 attempts) that is the
+    # closest live equivalent to retry_count_aaii_sentiment, but that key's own seeded
+    # default is 3, not 2 - unlike the market_exposure veto cluster (where hardcoded
+    # numbers exactly matched the config defaults), wiring this in would silently
+    # change retry behavior, not just make it configurable. retry_count_fred_api has
+    # no equivalent hardcoded retry loop found in loaders/load_economic_data.py at
+    # all - likely a separate, still-genuine gap. Left undocumented-as-dead pending
+    # that reconciliation; do not assume either number is "the" correct one.
     "retry_count_fred_api": (
         "3",
         "int",

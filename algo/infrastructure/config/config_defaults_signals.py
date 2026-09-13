@@ -42,6 +42,13 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "Maximum signal age in hours (rejects stale EOD pipeline signals)",
         "Filter Thresholds",
     ),
+    # DEAD/SUPERSEDED (confirmed 2026-09-13 via scripts/audit_unenforced_config.py, was
+    # previously logged as "ambiguous, needs review" - now resolved): only referenced by
+    # trading_config.py's dead get_stock_filter_config(). min_avg_daily_dollar_volume
+    # (AdvancedFilters._avg_dollar_volume, also a 50-day window, same migration/seed batch)
+    # is the actually-enforced liquidity floor for this exact concept - a dollar-volume
+    # floor is the stricter/more relevant check, so this raw-share-count version reads as
+    # an earlier design predating that consolidation, not an independent gap.
     "min_volume_ma_50d": ("300000", "int", "Minimum 50-day avg volume", "Filter Thresholds"),
     "min_avg_daily_dollar_volume": (
         "500000",
@@ -49,6 +56,7 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "Minimum daily dollar volume for liquidity gate",
         "Filter Thresholds",
     ),
+    # DEAD/SUPERSEDED - see the "Entry Rules (Minervini)" block's note further down this file.
     "require_stock_stage_2": ("true", "bool", "Require Stage 2 trend template", "Filter Thresholds"),
     "max_stop_distance_pct": ("12.0", "float", "Max stop distance % from entry", "Filter Thresholds"),
     "max_positions_per_sector": (
@@ -120,7 +128,28 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "audit) - CVaR was computed and persisted everywhere but never alerted on anywhere.",
         "Filter Thresholds",
     ),
-    # Entry Rules (Minervini)
+    # Entry Rules (Minervini) - DEAD/SUPERSEDED CONFIG (confirmed 2026-09-13, systematic
+    # seeded-vs-enforced sweep, scripts/audit_unenforced_config.py): require_sma50_above_sma200,
+    # min_percent_from_52w_low, max_percent_from_52w_high, min_trend_template_score (this whole
+    # block) plus require_stock_stage_2/require_weekly_stage_2 below are only ever referenced by
+    # trading_config.py's dead get_stock_filter_config() dict-builder (confirmed dead code per
+    # .vulture_whitelist.py, the same false-wiring shape min_market_cap_millions/
+    # max_short_interest_pct were found in before being fixed - see LiquidityChecks in
+    # algo/risk/liquidity_checks.py). Unlike those two, this cluster is NOT a "never
+    # implemented" gap to wire in: the real production Minervini computation
+    # (loaders/load_trend_analysis.py's minervini_trend_score, 0-8, hardcoded c1-c8 criteria
+    # with no config reads at all - 52w-high/low aren't even among its criteria) feeds into
+    # a WEIGHTED signal_quality_score (loaders/signal_quality_scorer.py) that Phase 7/8 gates
+    # on via the separately-real min_signal_quality_score threshold, not a hard per-criterion
+    # cutoff. This block is a vestige of an earlier hard-gate design superseded by that
+    # weighted-scoring architecture - wiring these back in as additional hard gates would
+    # reintroduce logic the system deliberately moved away from, not fix a gap. A dead
+    # sibling implementation of the OLD design (algo/signals/vectorized.py's
+    # VectorizedSignalGenerator, using 0.75/1.30/>=5 magic numbers matching these configs'
+    # concepts almost but not exactly) is itself unused anywhere (confirmed: no real
+    # importer, only self-reference + package __init__ export) - do not treat its existence
+    # as evidence this config is wired, and do not "fix" its threshold mismatch (it uses 5,
+    # this config says 6) since neither path is live.
     "require_sma50_above_sma200": ("true", "bool", "Price and MA alignment", "Entry Rules"),
     "min_percent_from_52w_low": (
         "0.0",
@@ -150,6 +179,7 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "Volume must be N x 50-day average",
         "Entry Quality Gates",
     ),
+    # DEAD/SUPERSEDED - see the "Entry Rules (Minervini)" block's note earlier in this file.
     "require_weekly_stage_2": ("false", "bool", "Require weekly chart Stage 2", "Entry Quality Gates"),
     "min_rs_line_slope_days": ("10", "int", "Days for RS line slope check", "Signal Quality Thresholds"),
     "max_rs_pct_from_60d_high": (
@@ -158,6 +188,13 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "Max % RS-line below 60d high (Minervini strict = 5%)",
         "Entry Quality Gates",
     ),
+    # DEAD (confirmed 2026-09-13, systematic seeded-vs-enforced sweep,
+    # scripts/audit_unenforced_config.py): both keys' own descriptions reference a "T3"
+    # hard-gate concept that does not exist anywhere in this codebase - grepped for `T3`
+    # across algo/signals/, zero hits. Only referenced via trading_config.py's dead
+    # get_stock_filter_config(). Not superseded by a live equivalent like the Minervini
+    # cluster above - the "T3" hard-gate feature these were meant to toggle appears to
+    # have never been built (or was removed) independent of these flags.
     "rs_slope_gate_enabled": (
         "false",
         "bool",
@@ -316,6 +353,14 @@ CONFIG_DEFAULTS_SIGNALS: dict[str, tuple[Any, ...]] = {
         "Phase 7: Minimum composite score 0-100 for signal filtering",
         "Signal Generation",
     ),
+    # NOTE (2026-09-13): these 5 keys are ACTUALLY LIVE, not a gap - confirmed
+    # scripts/audit_unenforced_config.py's systematic sweep flagged them as ORPHANED,
+    # a false negative from that tool's own documented limitation (static literal-string
+    # search, no dynamic-key-construction awareness): utils/signals/grade_classifier.py's
+    # GradeClassifier.classify_ibd_composite() calls classify(score,
+    # config_prefix="advanced_filters"), which builds the key as
+    # f"{config_prefix}_grade_threshold_{level}" at runtime - never appears as a literal
+    # string anywhere. Verified by reading the call chain, not just re-running the tool.
     "advanced_filters_grade_threshold_aplus": (
         "90",
         "int",

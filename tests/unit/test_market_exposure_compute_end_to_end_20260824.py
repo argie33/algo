@@ -56,8 +56,27 @@ def _run_compute(me, eval_date):
     fake_db_ctx.__enter__.return_value = fake_cur
     fake_db_ctx.__exit__.return_value = False
 
+    # FIXED 2026-09-13: compute() now reads the other veto thresholds/caps from config too
+    # (previously hardcoded magic numbers - see algo/risk/market_exposure.py's own comment),
+    # so a blanket `.get.return_value = 6` for every key broke exact-equality assertions
+    # (e.g. VIX veto's cap became 6% instead of the real 30%). market_exposure_veto3_
+    # distribution_days_threshold intentionally stays 6 here (not the real production
+    # default of 9) - test_selling_pressure_veto_triggers_at_threshold sets count=6 to
+    # match it exactly; every other veto key gets its real production default from
+    # config_defaults_risk.py so tests exercise realistic threshold/cap values.
+    _veto_config_defaults = {
+        "market_exposure_veto3_distribution_days_threshold": 6,
+        "market_exposure_veto1_breadth_pct": 30.0,
+        "market_exposure_veto1_cap_pct": 25.0,
+        "market_exposure_veto2_vix_threshold": 40.0,
+        "market_exposure_veto2_cap_pct": 30.0,
+        "market_exposure_veto3_cap_pct": 35.0,
+        "market_exposure_veto4_cap_pct": 40.0,
+        "market_exposure_veto5_credit_spread_threshold": 8.5,
+        "market_exposure_veto5_cap_pct": 30.0,
+    }
     fake_config = MagicMock()
-    fake_config.get.return_value = 6  # market_exposure_veto3_distribution_days_threshold
+    fake_config.get.side_effect = lambda key, default=None: _veto_config_defaults.get(key, 6)
 
     with (
         patch("algo.risk.market_exposure.DatabaseContext", return_value=fake_db_ctx),
@@ -159,6 +178,47 @@ class TestComputeEndToEndVetoAndVolScaling:
 
         assert any("HY credit spread" in reason for reason in result["halt_reasons"])
         assert result["capped_score"] <= 30.0
+
+    def test_veto_thresholds_and_caps_are_config_driven_not_hardcoded(self):
+        """FIXED 2026-09-13: market_exposure_veto{1,2,4,5}_cap_pct, veto1_breadth_pct,
+        veto2_vix_threshold and veto5_credit_spread_threshold used to be magic-number
+        literals in compute() - editing these seeded algo_config values had zero effect.
+        Override the VIX veto's threshold/cap via config and verify compute() actually
+        picks up the override (a VIX value that would NOT trip the real-default 40
+        threshold trips a lowered 10 threshold instead, and caps at the overridden 5%
+        rather than the real-default 30%) - this fails if the thresholds are hardcoded.
+        """
+        me = _clean_factor_mocks(MarketExposure())
+        me.calculator.vix_regime.return_value = {"score": 50.0, "value": 20.0, "rising": True}
+
+        fake_cur = MagicMock()
+        fake_db_ctx = MagicMock()
+        fake_db_ctx.__enter__.return_value = fake_cur
+        fake_db_ctx.__exit__.return_value = False
+
+        overrides = {
+            "market_exposure_veto3_distribution_days_threshold": 6,
+            "market_exposure_veto1_breadth_pct": 30.0,
+            "market_exposure_veto1_cap_pct": 25.0,
+            "market_exposure_veto2_vix_threshold": 10.0,  # lowered from real default 40
+            "market_exposure_veto2_cap_pct": 5.0,  # lowered from real default 30
+            "market_exposure_veto3_cap_pct": 35.0,
+            "market_exposure_veto4_cap_pct": 40.0,
+            "market_exposure_veto5_credit_spread_threshold": 8.5,
+            "market_exposure_veto5_cap_pct": 30.0,
+        }
+        fake_config = MagicMock()
+        fake_config.get.side_effect = lambda key, default=None: overrides.get(key, 6)
+
+        with (
+            patch("algo.risk.market_exposure.DatabaseContext", return_value=fake_db_ctx),
+            patch("algo.infrastructure.MarketCalendar.is_trading_day", return_value=True),
+            patch("algo.risk.market_exposure.AlgoConfig", return_value=fake_config),
+        ):
+            result = me.compute(eval_date=date(2026, 8, 24))
+
+        assert any("VIX" in reason for reason in result["halt_reasons"])
+        assert result["capped_score"] == 5.0
 
 
 class TestVolManagedScalingActivationDateGating:
