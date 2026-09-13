@@ -25,6 +25,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_pretax_income_from_domestic_foreign_split,
     _fill_pretax_income_from_results_of_operations_when_validated,
     _fill_sga_from_general_and_administrative_when_no_selling_component,
+    _null_abandoned_revenues_concept_when_asc606_supersedes,
 )
 from utils.external.sec_statements_aggregate import _aggregate_concepts
 
@@ -1177,6 +1178,7 @@ def get_income_statement(
     _fill_operating_income_from_revenue_minus_cogs_and_opex(rows)
     _fill_operating_income_from_bank_net_interest_and_noninterest(rows)
     _fill_sga_from_general_and_administrative_when_no_selling_component(rows)
+    _null_abandoned_revenues_concept_when_asc606_supersedes(rows, client, symbol)
     if period == "annual":
         _fill_eps_shares_from_dual_class_dimensional_facts(rows, client, symbol, security_name)
         _fill_net_income_eps_from_legal_entity_dimensioned_instance_document(rows, client, symbol)
