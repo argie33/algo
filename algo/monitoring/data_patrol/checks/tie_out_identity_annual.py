@@ -44,6 +44,10 @@ class TieOutIdentityAnnualMixin:
             details: dict[str, Any] | None = None,
         ) -> CheckResult: ...
 
+        def _staleness_split(
+            self, cur: Any, table: str, flagged: list[dict[str, Any]]
+        ) -> tuple[int, int, list[dict[str, Any]]]: ...
+
     def check_balance_sheet_identity(self, cur: Any) -> None:
         """total_assets == total_liabilities + stockholders_equity.
 
@@ -109,7 +113,8 @@ class TieOutIdentityAnnualMixin:
                 """
                 SELECT DISTINCT ON (b.symbol)
                     b.symbol, b.fiscal_year, b.total_assets, b.total_liabilities,
-                    b.stockholders_equity, b.noncontrolling_interest, b.temporary_equity
+                    b.stockholders_equity, b.noncontrolling_interest, b.temporary_equity,
+                    b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -143,17 +148,26 @@ class TieOutIdentityAnnualMixin:
                             "temporary_equity": temp_equity,
                             "residual": residual,
                             "relative_error_pct": round(relative_error * 100, 2),
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["relative_error_pct"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_balance_sheet", flagged)
                 self.log(
                     "balance_sheet_identity",
                     WARN,
                     "annual_balance_sheet",
                     f"{len(flagged)} symbol/year(s) fail total_assets == total_liabilities + "
-                    f"stockholders_equity beyond {_BALANCE_SHEET_TOLERANCE_PCT:.0%} tolerance",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"stockholders_equity beyond {_BALANCE_SHEET_TOLERANCE_PCT:.0%} tolerance "
+                    f"({fresh} confirmed-fresh since the last successful reload, {stale} "
+                    "unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] balance_sheet_identity failed: {e}", exc_info=True)
@@ -194,7 +208,7 @@ class TieOutIdentityAnnualMixin:
                 """
                 SELECT DISTINCT ON (b.symbol)
                     b.symbol, b.fiscal_year, b.fiscal_quarter, b.total_assets, b.total_liabilities,
-                    b.stockholders_equity, b.noncontrolling_interest, b.temporary_equity
+                    b.stockholders_equity, b.noncontrolling_interest, b.temporary_equity, b.updated_at
                 FROM quarterly_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -229,18 +243,26 @@ class TieOutIdentityAnnualMixin:
                             "temporary_equity": temp_equity,
                             "residual": residual,
                             "relative_error_pct": round(relative_error * 100, 2),
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["relative_error_pct"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "quarterly_balance_sheet", flagged)
                 self.log(
                     "quarterly_balance_sheet_identity",
                     WARN,
                     "quarterly_balance_sheet",
                     f"{len(flagged)} symbol/quarter(s) fail total_assets == total_liabilities + "
                     f"stockholders_equity + noncontrolling_interest + temporary_equity beyond "
-                    f"{_BALANCE_SHEET_TOLERANCE_PCT:.0%} tolerance",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"{_BALANCE_SHEET_TOLERANCE_PCT:.0%} tolerance ({fresh} confirmed-fresh since "
+                    f"the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_balance_sheet_identity failed: {e}", exc_info=True)
@@ -276,7 +298,8 @@ class TieOutIdentityAnnualMixin:
                 """
                 WITH cf AS (
                     SELECT DISTINCT ON (symbol)
-                        symbol, fiscal_year, operating_cash_flow, investing_cash_flow, financing_cash_flow
+                        symbol, fiscal_year, operating_cash_flow, investing_cash_flow,
+                        financing_cash_flow, updated_at
                     FROM annual_cash_flow
                     WHERE data_unavailable = FALSE
                       AND operating_cash_flow IS NOT NULL
@@ -293,6 +316,7 @@ class TieOutIdentityAnnualMixin:
                 SELECT
                     cf.symbol, cf.fiscal_year,
                     cf.operating_cash_flow, cf.investing_cash_flow, cf.financing_cash_flow,
+                    cf.updated_at,
                     prior.cash_and_equivalents AS prior_cash,
                     curr.cash_and_equivalents AS curr_cash
                 FROM cf
@@ -332,17 +356,25 @@ class TieOutIdentityAnnualMixin:
                             "prior_cash": prior_cash,
                             "curr_cash": curr_cash,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_cash_flow", flagged)
                 self.log(
                     "cashflow_reconciliation",
                     WARN,
                     "annual_cash_flow",
                     f"{len(flagged)} symbol/year(s) fail prior_cash + OCF + ICF + FCF ~= curr_cash "
-                    f"beyond max(${_CASHFLOW_TOLERANCE_FLOOR:,.0f}, {_CASHFLOW_TOLERANCE_PCT:.0%} of ending cash)",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"beyond max(${_CASHFLOW_TOLERANCE_FLOOR:,.0f}, {_CASHFLOW_TOLERANCE_PCT:.0%} of ending cash) "
+                    f"({fresh} confirmed-fresh since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] cashflow_reconciliation failed: {e}", exc_info=True)
@@ -363,7 +395,8 @@ class TieOutIdentityAnnualMixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (i.symbol)
-                    i.symbol, i.fiscal_year, i.net_income, i.diluted_eps, i.shares_outstanding_diluted
+                    i.symbol, i.fiscal_year, i.net_income, i.diluted_eps, i.shares_outstanding_diluted,
+                    i.updated_at
                 FROM annual_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
@@ -395,18 +428,26 @@ class TieOutIdentityAnnualMixin:
                             "shares_outstanding_diluted": diluted_shares,
                             "implied_net_income": implied_net_income,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_income_statement", flagged)
                 self.log(
                     "eps_reconciliation",
                     WARN,
                     "annual_income_statement",
                     f"{len(flagged)} symbol(s) fail diluted_eps * shares_outstanding_diluted ~= "
                     f"net_income beyond max(${_EPS_TOLERANCE_FLOOR:,.0f}, {_EPS_TOLERANCE_PCT:.0%} "
-                    "of net_income)",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"of net_income) ({fresh} confirmed-fresh since the last successful reload, "
+                    f"{stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] eps_reconciliation failed: {e}", exc_info=True)
@@ -449,7 +490,8 @@ class TieOutIdentityAnnualMixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (i.symbol)
-                    i.symbol, i.fiscal_year, i.net_income, i.earnings_per_share, i.shares_outstanding_basic
+                    i.symbol, i.fiscal_year, i.net_income, i.earnings_per_share, i.shares_outstanding_basic,
+                    i.updated_at
                 FROM annual_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
@@ -481,18 +523,26 @@ class TieOutIdentityAnnualMixin:
                             "shares_outstanding_basic": basic_shares,
                             "implied_net_income": implied_net_income,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_income_statement", flagged)
                 self.log(
                     "basic_eps_reconciliation",
                     WARN,
                     "annual_income_statement",
                     f"{len(flagged)} symbol(s) fail earnings_per_share * shares_outstanding_basic ~= "
                     f"net_income beyond max(${_EPS_TOLERANCE_FLOOR:,.0f}, {_EPS_TOLERANCE_PCT:.0%} "
-                    "of net_income)",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"of net_income) ({fresh} confirmed-fresh since the last successful reload, "
+                    f"{stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] basic_eps_reconciliation failed: {e}", exc_info=True)
@@ -515,7 +565,7 @@ class TieOutIdentityAnnualMixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (i.symbol)
-                    i.symbol, i.fiscal_year, i.revenue, i.cost_of_revenue, i.gross_profit
+                    i.symbol, i.fiscal_year, i.revenue, i.cost_of_revenue, i.gross_profit, i.updated_at
                 FROM annual_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
@@ -546,18 +596,26 @@ class TieOutIdentityAnnualMixin:
                             "gross_profit": gross_profit,
                             "implied_gross_profit": implied_gross_profit,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_income_statement", flagged)
                 self.log(
                     "gross_profit_identity",
                     WARN,
                     "annual_income_statement",
                     f"{len(flagged)} symbol(s) fail revenue - cost_of_revenue ~= gross_profit "
                     f"beyond max(${_GROSS_PROFIT_TOLERANCE_FLOOR:,.0f}, "
-                    f"{_GROSS_PROFIT_TOLERANCE_PCT:.0%} of revenue)",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"{_GROSS_PROFIT_TOLERANCE_PCT:.0%} of revenue) ({fresh} confirmed-fresh "
+                    f"since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] gross_profit_identity failed: {e}", exc_info=True)
@@ -578,7 +636,8 @@ class TieOutIdentityAnnualMixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (i.symbol)
-                    i.symbol, i.fiscal_year, i.pretax_income, i.income_tax_expense, i.net_income
+                    i.symbol, i.fiscal_year, i.pretax_income, i.income_tax_expense, i.net_income,
+                    i.updated_at
                 FROM annual_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
@@ -609,18 +668,27 @@ class TieOutIdentityAnnualMixin:
                             "net_income": net_income,
                             "implied_net_income": implied_net_income,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_income_statement", flagged)
                 self.log(
                     "pretax_to_net_income",
                     WARN,
                     "annual_income_statement",
                     f"{len(flagged)} symbol(s) fail pretax_income - income_tax_expense ~= "
                     f"net_income beyond max(${_PRETAX_NET_INCOME_TOLERANCE_FLOOR:,.0f}, "
-                    f"{_PRETAX_NET_INCOME_TOLERANCE_PCT:.0%} of net_income)",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"{_PRETAX_NET_INCOME_TOLERANCE_PCT:.0%} of net_income) ({fresh} "
+                    f"confirmed-fresh since the last successful reload, {stale} "
+                    "unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] pretax_to_net_income failed: {e}", exc_info=True)
@@ -671,7 +739,7 @@ class TieOutIdentityAnnualMixin:
                 """
                 WITH re AS (
                     SELECT DISTINCT ON (symbol)
-                        symbol, fiscal_year, retained_earnings
+                        symbol, fiscal_year, retained_earnings, updated_at
                     FROM annual_balance_sheet
                     WHERE data_unavailable = FALSE AND retained_earnings IS NOT NULL
                     ORDER BY symbol, fiscal_year DESC
@@ -695,6 +763,7 @@ class TieOutIdentityAnnualMixin:
                     curr.symbol, curr.fiscal_year,
                     prior.retained_earnings AS prior_retained_earnings,
                     curr.retained_earnings AS curr_retained_earnings,
+                    curr.updated_at,
                     ni.net_income,
                     div.dividends_paid,
                     div.common_stock_repurchased
@@ -734,10 +803,12 @@ class TieOutIdentityAnnualMixin:
                             "dividends_paid": dividends_paid,
                             "implied_curr_retained_earnings": implied_curr_re,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: abs(r["residual"]), reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_balance_sheet", flagged)
                 self.log(
                     "retained_earnings_rollforward",
                     WARN,
@@ -745,8 +816,15 @@ class TieOutIdentityAnnualMixin:
                     f"{len(flagged)} symbol(s) fail prior_retained_earnings + net_income - "
                     f"|dividends_paid| ~= curr_retained_earnings beyond max("
                     f"${_RETAINED_EARNINGS_TOLERANCE_FLOOR:,.0f}, "
-                    f"{_RETAINED_EARNINGS_TOLERANCE_PCT:.0%} of curr_retained_earnings)",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"{_RETAINED_EARNINGS_TOLERANCE_PCT:.0%} of curr_retained_earnings) ({fresh} "
+                    f"confirmed-fresh since the last successful reload, {stale} "
+                    "unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] retained_earnings_rollforward failed: {e}", exc_info=True)

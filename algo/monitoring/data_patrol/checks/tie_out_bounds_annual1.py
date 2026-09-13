@@ -42,6 +42,10 @@ class TieOutBoundsAnnual1Mixin:
             details: dict[str, Any] | None = None,
         ) -> CheckResult: ...
 
+        def _staleness_split(
+            self, cur: Any, table: str, flagged: list[dict[str, Any]]
+        ) -> tuple[int, int, list[dict[str, Any]]]: ...
+
     def check_quick_ratio_le_current_ratio(self, cur: Any) -> None:
         """quick_ratio <= current_ratio (both from quality_metrics, one row per symbol).
 
@@ -115,7 +119,7 @@ class TieOutBoundsAnnual1Mixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.total_assets, b.current_assets
+                    b.symbol, b.fiscal_year, b.total_assets, b.current_assets, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -141,17 +145,25 @@ class TieOutBoundsAnnual1Mixin:
                             "total_assets": total_assets,
                             "current_assets": current_assets,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_balance_sheet", flagged)
                 self.log(
                     "current_assets_le_total_assets",
                     WARN,
                     "annual_balance_sheet",
                     f"{len(flagged)} symbol(s) fail current_assets <= total_assets beyond "
-                    f"{_CURRENT_VS_TOTAL_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"{_CURRENT_VS_TOTAL_TOLERANCE_PCT:.1%} slack ({fresh} confirmed-fresh since "
+                    f"the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] current_assets_le_total_assets failed: {e}", exc_info=True)
@@ -175,7 +187,7 @@ class TieOutBoundsAnnual1Mixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.total_liabilities, b.current_liabilities
+                    b.symbol, b.fiscal_year, b.total_liabilities, b.current_liabilities, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -201,17 +213,25 @@ class TieOutBoundsAnnual1Mixin:
                             "total_liabilities": total_liabilities,
                             "current_liabilities": current_liabilities,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_balance_sheet", flagged)
                 self.log(
                     "current_liabilities_le_total_liabilities",
                     WARN,
                     "annual_balance_sheet",
                     f"{len(flagged)} symbol(s) fail current_liabilities <= total_liabilities "
-                    f"beyond {_CURRENT_VS_TOTAL_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"beyond {_CURRENT_VS_TOTAL_TOLERANCE_PCT:.1%} slack ({fresh} confirmed-fresh "
+                    f"since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] current_liabilities_le_total_liabilities failed: {e}", exc_info=True)
@@ -236,7 +256,7 @@ class TieOutBoundsAnnual1Mixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.total_liabilities, b.long_term_debt
+                    b.symbol, b.fiscal_year, b.total_liabilities, b.long_term_debt, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -262,17 +282,25 @@ class TieOutBoundsAnnual1Mixin:
                             "total_liabilities": total_liabilities,
                             "long_term_debt": long_term_debt,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_balance_sheet", flagged)
                 self.log(
                     "long_term_debt_le_total_liabilities",
                     WARN,
                     "annual_balance_sheet",
                     f"{len(flagged)} symbol(s) fail long_term_debt <= total_liabilities beyond "
-                    f"{_LONG_TERM_DEBT_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"{_LONG_TERM_DEBT_TOLERANCE_PCT:.1%} slack ({fresh} confirmed-fresh since "
+                    f"the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] long_term_debt_le_total_liabilities failed: {e}", exc_info=True)
@@ -305,7 +333,8 @@ class TieOutBoundsAnnual1Mixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (i.symbol)
-                    i.symbol, i.fiscal_year, i.gross_profit, i.operating_expenses, i.operating_income
+                    i.symbol, i.fiscal_year, i.gross_profit, i.operating_expenses, i.operating_income,
+                    i.updated_at
                 FROM annual_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
@@ -339,18 +368,27 @@ class TieOutBoundsAnnual1Mixin:
                             "operating_income": operating_income,
                             "implied_ceiling": implied_ceiling,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_income_statement", flagged)
                 self.log(
                     "operating_income_upper_bound",
                     WARN,
                     "annual_income_statement",
                     f"{len(flagged)} symbol(s) fail operating_income <= gross_profit - "
                     f"operating_expenses beyond max(${_OPERATING_INCOME_BOUND_TOLERANCE_FLOOR:,.0f}, "
-                    f"{_OPERATING_INCOME_BOUND_TOLERANCE_PCT:.0%} of gross_profit)",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"{_OPERATING_INCOME_BOUND_TOLERANCE_PCT:.0%} of gross_profit) ({fresh} "
+                    f"confirmed-fresh since the last successful reload, {stale} "
+                    "unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] operating_income_upper_bound failed: {e}", exc_info=True)
@@ -375,7 +413,7 @@ class TieOutBoundsAnnual1Mixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.total_assets, b.goodwill
+                    b.symbol, b.fiscal_year, b.total_assets, b.goodwill, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -401,17 +439,25 @@ class TieOutBoundsAnnual1Mixin:
                             "total_assets": total_assets,
                             "goodwill": goodwill,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_balance_sheet", flagged)
                 self.log(
                     "goodwill_le_total_assets",
                     WARN,
                     "annual_balance_sheet",
                     f"{len(flagged)} symbol(s) fail goodwill <= total_assets beyond "
-                    f"{_GOODWILL_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"{_GOODWILL_TOLERANCE_PCT:.1%} slack ({fresh} confirmed-fresh since the "
+                    f"last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] goodwill_le_total_assets failed: {e}", exc_info=True)
@@ -434,7 +480,7 @@ class TieOutBoundsAnnual1Mixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.current_liabilities, b.accounts_payable
+                    b.symbol, b.fiscal_year, b.current_liabilities, b.accounts_payable, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -460,17 +506,25 @@ class TieOutBoundsAnnual1Mixin:
                             "current_liabilities": current_liabilities,
                             "accounts_payable": accounts_payable,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_balance_sheet", flagged)
                 self.log(
                     "accounts_payable_le_current_liabilities",
                     WARN,
                     "annual_balance_sheet",
                     f"{len(flagged)} symbol(s) fail accounts_payable <= current_liabilities "
-                    f"beyond {_ACCOUNTS_PAYABLE_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"beyond {_ACCOUNTS_PAYABLE_TOLERANCE_PCT:.1%} slack ({fresh} confirmed-fresh "
+                    f"since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(
@@ -496,7 +550,7 @@ class TieOutBoundsAnnual1Mixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.current_assets, b.cash_and_equivalents
+                    b.symbol, b.fiscal_year, b.current_assets, b.cash_and_equivalents, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -522,17 +576,25 @@ class TieOutBoundsAnnual1Mixin:
                             "current_assets": current_assets,
                             "cash_and_equivalents": cash_and_equivalents,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_balance_sheet", flagged)
                 self.log(
                     "cash_le_current_assets",
                     WARN,
                     "annual_balance_sheet",
                     f"{len(flagged)} symbol(s) fail cash_and_equivalents <= current_assets "
-                    f"beyond {_CASH_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"beyond {_CASH_TOLERANCE_PCT:.1%} slack ({fresh} confirmed-fresh since the "
+                    f"last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] cash_le_current_assets failed: {e}", exc_info=True)
@@ -555,7 +617,7 @@ class TieOutBoundsAnnual1Mixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.current_assets, b.inventory
+                    b.symbol, b.fiscal_year, b.current_assets, b.inventory, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -581,17 +643,25 @@ class TieOutBoundsAnnual1Mixin:
                             "current_assets": current_assets,
                             "inventory": inventory,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_balance_sheet", flagged)
                 self.log(
                     "inventory_le_current_assets",
                     WARN,
                     "annual_balance_sheet",
                     f"{len(flagged)} symbol(s) fail inventory <= current_assets "
-                    f"beyond {_INVENTORY_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"beyond {_INVENTORY_TOLERANCE_PCT:.1%} slack ({fresh} confirmed-fresh since "
+                    f"the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] inventory_le_current_assets failed: {e}", exc_info=True)
@@ -616,7 +686,7 @@ class TieOutBoundsAnnual1Mixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.current_assets, b.accounts_receivable
+                    b.symbol, b.fiscal_year, b.current_assets, b.accounts_receivable, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -642,17 +712,26 @@ class TieOutBoundsAnnual1Mixin:
                             "current_assets": current_assets,
                             "accounts_receivable": accounts_receivable,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_balance_sheet", flagged)
                 self.log(
                     "accounts_receivable_le_current_assets",
                     WARN,
                     "annual_balance_sheet",
                     f"{len(flagged)} symbol(s) fail accounts_receivable <= current_assets "
-                    f"beyond {_ACCOUNTS_RECEIVABLE_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"beyond {_ACCOUNTS_RECEIVABLE_TOLERANCE_PCT:.1%} slack ({fresh} "
+                    f"confirmed-fresh since the last successful reload, {stale} "
+                    "unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] accounts_receivable_le_current_assets failed: {e}", exc_info=True)
@@ -675,7 +754,7 @@ class TieOutBoundsAnnual1Mixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.total_assets, b.ppe_net
+                    b.symbol, b.fiscal_year, b.total_assets, b.ppe_net, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -701,16 +780,25 @@ class TieOutBoundsAnnual1Mixin:
                             "total_assets": total_assets,
                             "ppe_net": ppe_net,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_balance_sheet", flagged)
                 self.log(
                     "ppe_net_le_total_assets",
                     WARN,
                     "annual_balance_sheet",
-                    f"{len(flagged)} symbol(s) fail ppe_net <= total_assets beyond {_PPE_NET_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"{len(flagged)} symbol(s) fail ppe_net <= total_assets beyond "
+                    f"{_PPE_NET_TOLERANCE_PCT:.1%} slack ({fresh} confirmed-fresh since the "
+                    f"last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] ppe_net_le_total_assets failed: {e}", exc_info=True)
@@ -738,7 +826,8 @@ class TieOutBoundsAnnual1Mixin:
             cur.execute(
                 """
                 SELECT DISTINCT ON (i.symbol)
-                    i.symbol, i.fiscal_year, i.shares_outstanding_basic, i.shares_outstanding_diluted
+                    i.symbol, i.fiscal_year, i.shares_outstanding_basic, i.shares_outstanding_diluted,
+                    i.updated_at
                 FROM annual_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
@@ -764,17 +853,26 @@ class TieOutBoundsAnnual1Mixin:
                             "shares_outstanding_basic": basic_shares,
                             "shares_outstanding_diluted": diluted_shares,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_income_statement", flagged)
                 self.log(
                     "diluted_ge_basic_shares",
                     WARN,
                     "annual_income_statement",
                     f"{len(flagged)} symbol(s) fail shares_outstanding_diluted >= "
-                    f"shares_outstanding_basic beyond {_SHARE_COUNT_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    f"shares_outstanding_basic beyond {_SHARE_COUNT_TOLERANCE_PCT:.1%} slack "
+                    f"({fresh} confirmed-fresh since the last successful reload, {stale} "
+                    "unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] diluted_ge_basic_shares failed: {e}", exc_info=True)

@@ -35,6 +35,7 @@ class TestBalanceSheetIdentity:
                         "stockholders_equity": 400.0,  # off by 200, 20% of assets
                         "noncontrolling_interest": None,
                         "temporary_equity": None,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -150,6 +151,7 @@ class TestQuarterlyBalanceSheetIdentity:
                         "stockholders_equity": 400.0,  # off by 200, 20% of assets
                         "noncontrolling_interest": None,
                         "temporary_equity": None,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -330,6 +332,7 @@ class TestEpsReconciliation:
                         "net_income": 2_000_000_000.0,
                         "diluted_eps": 1.0,
                         "shares_outstanding_diluted": 3_000_000_000_000.0,  # off by ~1000x
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -394,6 +397,7 @@ class TestBasicEpsReconciliation:
                         "net_income": 2_000_000_000.0,
                         "earnings_per_share": 1.0,
                         "shares_outstanding_basic": 3_000_000_000_000.0,  # off by ~1000x
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -564,6 +568,7 @@ class TestDilutedGeBasicShares:
                         "fiscal_year": 2025,
                         "shares_outstanding_basic": 100_000_000.0,
                         "shares_outstanding_diluted": 90_000_000.0,  # diluted < basic
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -886,6 +891,7 @@ class TestCurrentAssetsLeTotalAssets:
                         "fiscal_year": 2025,
                         "total_assets": 20_000_000_000.0,
                         "current_assets": 130_000_000_000.0,  # far exceeds total_assets
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -958,6 +964,7 @@ class TestCurrentLiabilitiesLeTotalLiabilities:
                         "fiscal_year": 2025,
                         "total_liabilities": 11_000_000_000.0,
                         "current_liabilities": 69_000_000_000.0,  # far exceeds total_liabilities
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1013,6 +1020,7 @@ class TestLongTermDebtLeTotalLiabilities:
                         "fiscal_year": 2018,
                         "total_liabilities": 719_795_000.0,
                         "long_term_debt": 19_094_000_000.0,  # far exceeds total_liabilities
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1087,6 +1095,7 @@ class TestOperatingIncomeUpperBound:
                         "operating_expenses": 400_000_000.0,
                         # ceiling is 600M; 900M is far beyond even the 10%/floor tolerance
                         "operating_income": 900_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1144,6 +1153,7 @@ class TestGoodwillLeTotalAssets:
                         "fiscal_year": 2024,
                         "total_assets": 50_578_000.0,
                         "goodwill": 1_005_778_000.0,  # far exceeds total_assets
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1216,6 +1226,7 @@ class TestAccountsPayableLeCurrentLiabilities:
                         "fiscal_year": 2021,
                         "current_liabilities": 367_953.0,
                         "accounts_payable": 12_680_000.0,  # far exceeds current_liabilities
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1288,6 +1299,7 @@ class TestCashLeCurrentAssets:
                         "fiscal_year": 2021,
                         "current_assets": 901_355.0,
                         "cash_and_equivalents": 775_600_000.0,  # far exceeds current_assets
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1360,6 +1372,7 @@ class TestInventoryLeCurrentAssets:
                         "fiscal_year": 2022,
                         "current_assets": 1_021_603.0,
                         "inventory": 1_492_000_000.0,  # far exceeds current_assets
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1611,6 +1624,7 @@ class TestQuarterlyDilutedGeBasicShares:
                         "fiscal_quarter": 2,
                         "shares_outstanding_basic": 1_000_000.0,
                         "shares_outstanding_diluted": 900_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1687,6 +1701,7 @@ class TestQuarterlyInventoryLeCurrentAssets:
                         "fiscal_quarter": 2,
                         "current_assets": 1_000_000.0,
                         "inventory": 5_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1745,6 +1760,7 @@ class TestQuarterlyAccountsReceivableLeCurrentAssets:
                         "fiscal_quarter": 2,
                         "current_assets": 1_000_000.0,
                         "accounts_receivable": 5_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1803,6 +1819,7 @@ class TestQuarterlyPpeNetLeTotalAssets:
                         "fiscal_quarter": 2,
                         "total_assets": 1_000_000.0,
                         "ppe_net": 5_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1861,6 +1878,7 @@ class TestQuarterlyShortTermDebtLeCurrentLiabilities:
                         "fiscal_quarter": 2,
                         "current_liabilities": 1_000_000.0,
                         "short_term_debt": 5_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1919,6 +1937,7 @@ class TestQuarterlyOperatingLeaseLiabilityLeTotalLiabilities:
                         "fiscal_quarter": 2,
                         "total_liabilities": 1_000_000.0,
                         "operating_lease_liability": 5_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -1977,6 +1996,7 @@ class TestQuarterlyFinanceLeaseLiabilityLeTotalLiabilities:
                         "fiscal_quarter": 2,
                         "total_liabilities": 1_000_000.0,
                         "finance_lease_liability": 5_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2035,6 +2055,7 @@ class TestQuarterlyDilutedEpsLeBasicEps:
                         "fiscal_quarter": 2,
                         "diluted_eps": 5.00,
                         "earnings_per_share": 1.00,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2057,6 +2078,7 @@ class TestQuarterlyDilutedEpsLeBasicEps:
                         "fiscal_quarter": 2,
                         "diluted_eps": -0.16,
                         "earnings_per_share": -377.10,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2113,6 +2135,7 @@ class TestAccountsReceivableLeCurrentAssets:
                         "fiscal_year": 2025,
                         "current_assets": 1_000_000.0,
                         "accounts_receivable": 2_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2186,6 +2209,7 @@ class TestPpeNetLeTotalAssets:
                         "fiscal_year": 2025,
                         "total_assets": 1_000_000.0,
                         "ppe_net": 2_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2259,6 +2283,7 @@ class TestShortTermDebtLeCurrentLiabilities:
                         "fiscal_year": 2025,
                         "current_liabilities": 1_000_000.0,
                         "short_term_debt": 2_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2332,6 +2357,7 @@ class TestOperatingLeaseLiabilityLeTotalLiabilities:
                         "fiscal_year": 2025,
                         "total_liabilities": 1_000_000.0,
                         "operating_lease_liability": 2_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2405,6 +2431,7 @@ class TestFinanceLeaseLiabilityLeTotalLiabilities:
                         "fiscal_year": 2025,
                         "total_liabilities": 1_000_000.0,
                         "finance_lease_liability": 2_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2478,6 +2505,7 @@ class TestDilutedEpsLeBasicEps:
                         "fiscal_year": 2025,
                         "diluted_eps": 1.00,
                         "earnings_per_share": 0.50,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2497,6 +2525,7 @@ class TestDilutedEpsLeBasicEps:
                         "fiscal_year": 2022,
                         "diluted_eps": -0.16,
                         "earnings_per_share": -377.10,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2812,6 +2841,7 @@ class TestQuarterlyCurrentAssetsLeTotalAssets:
                         "fiscal_quarter": 2,
                         "total_assets": 1_000_000.0,
                         "current_assets": 2_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2888,6 +2918,7 @@ class TestQuarterlyCurrentLiabilitiesLeTotalLiabilities:
                         "fiscal_quarter": 2,
                         "total_liabilities": 1_000_000.0,
                         "current_liabilities": 2_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -2964,6 +2995,7 @@ class TestQuarterlyLongTermDebtLeTotalLiabilities:
                         "fiscal_quarter": 2,
                         "total_liabilities": 1_000_000.0,
                         "long_term_debt": 2_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -3042,6 +3074,7 @@ class TestQuarterlyOperatingIncomeUpperBound:
                         "operating_expenses": 400_000_000.0,
                         # ceiling is 600M; 900M is far beyond even the 10%/floor tolerance
                         "operating_income": 900_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -3101,6 +3134,7 @@ class TestQuarterlyGoodwillLeTotalAssets:
                         "fiscal_quarter": 2,
                         "total_assets": 1_000_000.0,
                         "goodwill": 2_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -3177,6 +3211,7 @@ class TestQuarterlyAccountsPayableLeCurrentLiabilities:
                         "fiscal_quarter": 2,
                         "current_liabilities": 1_000_000.0,
                         "accounts_payable": 2_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]
@@ -3253,6 +3288,7 @@ class TestQuarterlyCashLeCurrentAssets:
                         "fiscal_quarter": 2,
                         "current_assets": 1_000_000.0,
                         "cash_and_equivalents": 2_000_000.0,
+                        "updated_at": None,
                     }
                 ]
             ]

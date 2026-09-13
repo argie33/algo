@@ -19,8 +19,11 @@ from unittest.mock import MagicMock, patch
 from algo.monitoring.data_patrol.base import CheckResult, DataPatrol
 from algo.monitoring.data_patrol.checks import (
     AlignmentChecker,
+    CompositeScoreReconciliationChecker,
     CoverageChecker,
+    FinancialStatementFlagDriftChecker,
     NewXbrlConceptChecker,
+    PillarScoreReconciliationChecker,
     PriceSanityChecker,
     QualityChecker,
     ScoreRatioOutlierChecker,
@@ -28,27 +31,34 @@ from algo.monitoring.data_patrol.checks import (
     StalenessChecker,
     StatisticalAnomalyChecker,
     TieOutChecker,
+    XbrlConceptContinuityChecker,
 )
 from algo.monitoring.data_patrol.config import CRIT, PatrolConfig
 
 
 def _run_patrol_with_results(results_by_checker: dict[str, list[CheckResult]]) -> dict[str, Any]:
-    """STALE-MOCK-LIST BUG FIXED 2026-09-08 (goal session score-sanity/tie-out sweep):
-    DataPatrol.run()'s real `checkers` list (algo/monitoring/data_patrol/base.py) grew to 10
-    checkers (TieOutChecker added 2026-09-06, NewXbrlConceptChecker/StatisticalAnomalyChecker/
-    ScoreRatioOutlierChecker at various points since) but this test's checker_classes dict was
-    never updated past the original 6 - so every "unit" test here silently let the 4 newer
-    checkers run for REAL against a MagicMock cursor instead of being mocked out.
-    NewXbrlConceptChecker in particular calls utils/external/xbrl_concept_coverage.py's
-    scan_cache(), a real disk scan of the entire SEC EDGAR companyfacts cache (5,373 files
-    on this machine) - turning what should be a millisecond-scale mocked unit test into a
-    60-120+ second real filesystem operation on every run (live-confirmed via
-    faulthandler.dump_traceback_later: the hang's full stack traced to exactly this call).
-    Same failure class as any other unmocked real-I/O leak in a "unit" test - CI has no
-    XBRL cache at all, so there this call likely finds nothing and returns fast, but on any
-    machine that DOES have one (like this local dev box, or anyone else's), the test either
-    hangs for minutes or returns whatever real findings that scan produces instead of the
-    controlled `results_by_checker` fixture - either way, not a real unit test anymore.
+    """STALE-MOCK-LIST BUG FIXED 2026-09-08, RECURRED AND FIXED AGAIN 2026-09-12 (goal
+    session: "data integrity gaps galore... gaps in our approach"): DataPatrol.run()'s real
+    `checkers` list (algo/monitoring/data_patrol/base.py) grew to 14 checkers
+    (FinancialStatementFlagDriftChecker/XbrlConceptContinuityChecker/
+    CompositeScoreReconciliationChecker/PillarScoreReconciliationChecker added since the 2026-
+    09-08 fix) but this test's checker_classes dict was only ever updated to 10 - so the same
+    "4 newer checkers run for REAL against a MagicMock cursor instead of being mocked out" bug
+    class recurred with a different 4 checkers. Live-reproduced 2026-09-12: running this file
+    in isolation with a `timeout 30` wrapper never completes at all (was previously "just"
+    60-120s for the 2026-09-08 case) - one of the 4 newly-unmocked checkers here hangs
+    indefinitely rather than merely running slowly, discovered because this file was one of
+    358 tests in a `-k "tie_out or data_patrol"` run that itself never finished. This is
+    exactly the "gap in our approach" class the goal session was hunting: a stale test
+    fixture silently let real, unmocked, unbounded I/O leak into what every CI run treats as
+    a millisecond-scale mocked unit test. The structural fix (keep this dict in permanent sync
+    with base.py's real list) still doesn't exist - see the TODO on this dict below; this is
+    the second time it's silently drifted out of sync.
+
+    TODO: this dict must be derived from (or asserted equal to) DataPatrol.run()'s actual
+    `checkers` list rather than hand-copied, or it will drift a third time the next time a
+    checker is added to base.py. Not done in this pass - out of scope for the immediate hang
+    fix, flagged here so the next session doesn't have to rediscover it via another hang.
     """
     patrol = DataPatrol(PatrolConfig())
 
@@ -60,9 +70,13 @@ def _run_patrol_with_results(results_by_checker: dict[str, list[CheckResult]]) -
         "AlignmentChecker": AlignmentChecker,
         "SpecializedChecker": SpecializedChecker,
         "TieOutChecker": TieOutChecker,
+        "FinancialStatementFlagDriftChecker": FinancialStatementFlagDriftChecker,
         "NewXbrlConceptChecker": NewXbrlConceptChecker,
+        "XbrlConceptContinuityChecker": XbrlConceptContinuityChecker,
         "StatisticalAnomalyChecker": StatisticalAnomalyChecker,
         "ScoreRatioOutlierChecker": ScoreRatioOutlierChecker,
+        "CompositeScoreReconciliationChecker": CompositeScoreReconciliationChecker,
+        "PillarScoreReconciliationChecker": PillarScoreReconciliationChecker,
     }
 
     mock_conn = MagicMock()
@@ -129,9 +143,13 @@ class TestDataPatrolLogWiring:
             patch.object(AlignmentChecker, "run", return_value=[]),
             patch.object(SpecializedChecker, "run", return_value=[]),
             patch.object(TieOutChecker, "run", return_value=[]),
+            patch.object(FinancialStatementFlagDriftChecker, "run", return_value=[]),
             patch.object(NewXbrlConceptChecker, "run", return_value=[]),
+            patch.object(XbrlConceptContinuityChecker, "run", return_value=[]),
             patch.object(StatisticalAnomalyChecker, "run", return_value=[]),
             patch.object(ScoreRatioOutlierChecker, "run", return_value=[]),
+            patch.object(CompositeScoreReconciliationChecker, "run", return_value=[]),
+            patch.object(PillarScoreReconciliationChecker, "run", return_value=[]),
         ):
             summary = patrol.run()  # must not raise despite PatrolLogger failing internally
 
