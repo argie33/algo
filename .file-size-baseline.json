@@ -670,6 +670,7 @@
   "scripts/verify_loaders_health.py": 581,
   "scripts/verify_production_deployment.py": 281,
   "scripts/verify_safety_thresholds.py": 260,
+  "scripts/wayback_yahoo_delisted_price_backfill.py": 507,
   "scripts/xbrl_calculation_linkbase_check.py": 420,
   "scripts/xbrl_concept_continuity_scan.py": 116,
   "scripts/xbrl_concept_coverage_scan.py": 166,

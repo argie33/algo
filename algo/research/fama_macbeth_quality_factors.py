@@ -33,10 +33,12 @@ import pandas as pd
 
 from algo.research.fama_macbeth_growth_factors import compute_known_dates, merge_asof_monthly
 from algo.research.fama_macbeth_price_factors import (
+    SECTOR_GROUPS,
     _fama_macbeth,
     benjamini_hochberg_fdr,
     fetch_month_end_prices,
     fetch_symbols_for_industries,
+    fetch_symbols_for_sector,
     print_survivorship_bias_caveat,
 )
 from loaders.helpers.vqg_shared import (
@@ -391,7 +393,10 @@ def _filter_by_industry(
     cyclomatic complexity under the ruff C901 threshold - no behavior beyond that."""
     if industry_group is None:
         return fund, price_df
-    symbols = fetch_symbols_for_industries(INDUSTRY_GROUPS[industry_group])
+    if industry_group in SECTOR_GROUPS:
+        symbols = fetch_symbols_for_sector(SECTOR_GROUPS[industry_group])
+    else:
+        symbols = fetch_symbols_for_industries(INDUSTRY_GROUPS[industry_group])
     logger.info(f"--industries {industry_group}: {len(symbols)} symbols in company_profile")
     fund = fund[fund["symbol"].isin(symbols)]
     logger.info(f"{len(fund)} symbol-fiscal-year rows after industry filter")
@@ -576,7 +581,7 @@ def main() -> None:
     parser.add_argument("--horizon-months", type=int, default=1)
     parser.add_argument(
         "--industries",
-        choices=sorted(INDUSTRY_GROUPS),
+        choices=sorted(set(INDUSTRY_GROUPS) | set(SECTOR_GROUPS)),
         default=None,
         help="Restrict the panel to one industry group (see INDUSTRY_GROUPS) instead of the whole universe.",
     )
