@@ -664,6 +664,64 @@ class FinancialStatementsValueValidationMixin:
                 row["goodwill"] = None
                 self._record_explicit_null_rejection(row, "goodwill", "implausible_goodwill_exceeds_total_assets")
 
+    def _reject_implausible_asset_liability_subtotals(self, transformed: list[dict[str, Any]]) -> None:
+        """Reject `total_assets`/`total_liabilities` when either is LESS than its own
+        component sub-total (`current_assets`/`current_liabilities`) on the same row - a hard
+        mathematical impossibility symmetric to `_reject_implausible_goodwill` above: a "total"
+        line can never be smaller than a subset of the line items summed into it.
+
+        FOUND 2026-09-13 (XBRL data-integrity audit, `quarterly_goodwill_le_total_assets`
+        DataPatrol triage). Live-confirmed via NXAT (Nexus Advanced Technologies, formerly K
+        Wave Media - CIK 0002000756) FY2024: total_assets=$50,000/total_liabilities=$12,807
+        against current_assets=$11,237,510/current_liabilities=$15,854,527 in the SAME row -
+        not a filer-side tagging error like the other guards in this file, but a genuine
+        cross-filing entity mismatch in OUR extraction: SEC's companyfacts for this CIK has
+        exactly one `Assets` fact ($50,000, identical for both 2023-12-31 and 2024-12-31,
+        accession 0001829126-26-001496, a 6-K) - the pre-reverse-merger blank-check shell's own
+        trivial placeholder balance sheet, filed as a comparative exhibit - while every other
+        balance-sheet field on this same row (current_assets, current_liabilities, goodwill,
+        ppe_net, inventory, cash, AR, long_term_debt - all bearing the fractional-cent signature
+        of this pipeline's FX conversion, i.e. real KRW-denominated figures) reflects the actual
+        post-merger OPERATING company's real financials from a different filing entirely. Our
+        extraction correctly found the real operating-company data for every line-item field but
+        picked the shell company's stale placeholder for the three subtotal/derived fields
+        (total_assets, total_liabilities, stockholders_equity) - a genuine bug in this
+        pipeline's own concept-aggregation/period-matching, not something to fix by nulling the
+        (real, trustworthy) subtotal's own components. Rejects the subtotal rather than the
+        components, unlike `_reject_implausible_goodwill`'s "null the smaller/newer field"
+        convention - here the fine-grained fields are the ones with real-scale, internally
+        consistent values, and the coarse "total" is the outlier.
+
+        No tolerance factor (unlike the 1.05x on goodwill/20x on debt): current_assets can
+        never legitimately exceed total_assets even by a rounding margin, since it's a strict
+        subset by construction.
+        """
+        if self.statement_type != "balance":
+            return
+        for row in transformed:
+            for total_field, component_field in (
+                ("total_assets", "current_assets"),
+                ("total_liabilities", "current_liabilities"),
+            ):
+                total_value = row.get(total_field)
+                component_value = row.get(component_field)
+                if total_value is None or component_value is None:
+                    continue
+                if float(component_value) > float(total_value):
+                    logger.warning(
+                        f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                        f"{component_field}={component_value:,.0f} exceeds "
+                        f"{total_field}({total_value:,.0f}) - mathematically impossible "
+                        f"({component_field} is one of the line items summed into "
+                        f"{total_field}). Cross-filing entity mismatch in extraction, not a "
+                        "real figure. Rejecting the subtotal rather than storing a "
+                        "confidently-wrong value."
+                    )
+                    row[total_field] = None
+                    self._record_explicit_null_rejection(
+                        row, total_field, f"implausible_{total_field}_less_than_{component_field}"
+                    )
+
     # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep, gross_profit_
     # identity follow-up to the ABBV/GILD/AMGN/ABT stale-stub fix above): live-confirmed via
     # real SEC companyfacts JSON that Centene (CNC) and Elevance Health (ELV) - both managed-

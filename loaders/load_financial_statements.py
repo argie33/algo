@@ -1644,6 +1644,7 @@ class ConsolidatedFinancialStatementsLoader(
         self._reject_implausible_debt_field(transformed, "long_term_debt")
         self._reject_implausible_debt_field(transformed, "short_term_debt")
         self._reject_implausible_goodwill(transformed)
+        self._reject_implausible_asset_liability_subtotals(transformed)
         if self.statement_type == "income":
             self._fill_derived_eps(transformed)
             self._reject_implausible_eps(transformed)
