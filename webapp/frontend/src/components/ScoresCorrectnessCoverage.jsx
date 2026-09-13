@@ -23,19 +23,18 @@ import React, { useMemo, useState } from "react";
 import { RefreshCw, Search, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { api } from "../services/api";
-import { extractData } from "../utils/responseNormalizer";
 
 const CORRECTNESS_URL = "/api/algo/scores/correctness-coverage";
 
-async function fetchCorrectnessCoverage() {
-  const resp = await api.get(CORRECTNESS_URL);
-  return { statusCode: 200, ...(extractData(resp).data || {}) };
-}
-
 export default function ScoresCorrectnessCoverage({ active }) {
+  // useApiQuery's own queryFn contract: pass the raw api.get() call through - the hook
+  // calls extractData() internally exactly once (see SymbolQuarantinePanel.jsx's identical
+  // fix and comment for the double-extraction bug this avoids; harmless here in practice
+  // since this endpoint has no "items" key to collide with extractData's pagination
+  // heuristic, but the pattern should stay consistent either way).
   const { data, loading, error, isFetching, refetch } = useApiQuery(
     ["scores-correctness-coverage"],
-    fetchCorrectnessCoverage,
+    () => api.get(CORRECTNESS_URL),
     { enabled: active, timeout: 30000, retry: 1 }
   );
 

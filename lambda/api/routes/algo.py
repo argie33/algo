@@ -78,6 +78,7 @@ from .algo_handlers.monitoring import (
     _get_notifications,
     _get_orchestrator_history_extended,
     _get_patrol_log,
+    _get_symbol_quarantine,
     _trigger_data_patrol,
 )
 from .algo_handlers.orchestration import (
@@ -366,6 +367,16 @@ def _dispatch(  # noqa: C901
             offset_str = "0"
         offset = safe_offset(offset_str)
         return _get_patrol_log(cur, limit, offset)
+    elif path == "/api/algo/quarantine":
+        if jwt_claims is not None and not check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized algo quarantine access attempt by {user_id}")
+            raise_api_error(403, "forbidden", "Admin access required")
+        limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=200)
+        offset_str = extract_param(params, "offset")
+        if offset_str is None:
+            offset_str = "0"
+        offset = safe_offset(offset_str)
+        return _get_symbol_quarantine(cur, limit, offset)
     elif path == "/api/algo/sector-rotation":
         days = safe_days(extract_param(params, "limit"), max_val=365, default=180)
         return _get_sector_rotation(cur, days)

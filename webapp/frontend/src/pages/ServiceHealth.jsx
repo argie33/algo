@@ -32,6 +32,7 @@ import { api } from "../services/api";
 import ErrorBoundary from "../components/ErrorBoundary";
 import ScoresDataCoverage from "../components/ScoresDataCoverage";
 import ScoresCorrectnessCoverage from "../components/ScoresCorrectnessCoverage";
+import SymbolQuarantinePanel from "../components/SymbolQuarantinePanel";
 
 const CHART_TOOLTIP_STYLE = {
   background: "var(--surface)",
@@ -574,7 +575,7 @@ function ServiceHealthContent() {
         {[
           ["overview", "Overview"],
           ["execution", "Execution History"],
-          ["coverage", "Scores Data Coverage"],
+          ["coverage", "Data Coverage"],
         ].map(([v, lbl]) => (
           <button
             key={v}
@@ -599,6 +600,50 @@ function ServiceHealthContent() {
 
       {tab === "coverage" && (
         <>
+          {/* Data Coverage tab (renamed from "Scores Data Coverage" 2026-09-13, broadened to
+              be the single home for every "is our data right / do we know what's wrong with
+              it" surface instead of splitting them across tabs): raw patrol findings first
+              (what checks found), then quarantine (which symbols got isolated because of
+              it), then completeness, then correctness - each section builds on the one
+              before it. */}
+          <div className="card">
+            <div className="card-head">
+              <div>
+                <div className="card-title">Recent Patrol Findings</div>
+                <div className="card-sub">
+                  {findings.length === 0
+                    ? "Currently open, critical/error/warn only"
+                    : `${findings.length} open (critical/error/warn) — ` +
+                      `${patrolReviewSummary.acceptable} reviewed-acceptable, ` +
+                      `${patrolReviewSummary.needsFix} needs fix, ` +
+                      `${patrolReviewSummary.unreviewed} never reviewed`}
+                </div>
+              </div>
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {plAccessDenied ? (
+                <Empty
+                  title="Admin access required"
+                  desc="Patrol log requires admin permissions."
+                  icon={AlertTriangle}
+                />
+              ) : findings.length === 0 ? (
+                <Empty
+                  title="All clear"
+                  desc="No open patrol findings."
+                  icon={CheckCircle}
+                />
+              ) : (
+                <div style={{ maxHeight: "400px", overflow: "auto" }}>
+                  {findings.map((f, i) => (
+                    <FindingRow key={i} finding={f} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <SymbolQuarantinePanel active={tab === "coverage"} />
           <ScoresDataCoverage active={tab === "coverage"} />
           <ScoresCorrectnessCoverage active={tab === "coverage"} />
         </>
@@ -885,92 +930,56 @@ function ServiceHealthContent() {
             </div>
           </div>
 
-          {/* Two-column: patrol findings + orchestrator run status */}
-          <div className="grid grid-2" style={{ marginTop: "var(--space-4)" }}>
-            <div className="card">
-              <div className="card-head">
-                <div>
-                  <div className="card-title">Recent Patrol Findings</div>
-                  <div className="card-sub">
-                    {findings.length === 0
-                      ? "Currently open, critical/error/warn only"
-                      : `${findings.length} open (critical/error/warn) — ` +
-                        `${patrolReviewSummary.acceptable} reviewed-acceptable, ` +
-                        `${patrolReviewSummary.needsFix} needs fix, ` +
-                        `${patrolReviewSummary.unreviewed} never reviewed`}
-                  </div>
+          {/* Orchestrator run status - "Recent Patrol Findings" moved to the Data Coverage
+              tab (2026-09-13) alongside quarantine/coverage/correctness, so all "what's
+              wrong with our data right now" surfaces live together instead of findings
+              being split across two tabs from their own downstream effects. */}
+          <div className="card" style={{ marginTop: "var(--space-4)" }}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">Last Orchestrator Run</div>
+                <div className="card-sub">
+                  Phase results from the most recent algo workflow execution
                 </div>
-              </div>
-              <div className="card-body" style={{ padding: 0 }}>
-                {plAccessDenied ? (
-                  <Empty
-                    title="Admin access required"
-                    desc="Patrol log requires admin permissions."
-                    icon={AlertTriangle}
-                  />
-                ) : findings.length === 0 ? (
-                  <Empty
-                    title="All clear"
-                    desc="No open patrol findings."
-                    icon={CheckCircle}
-                  />
-                ) : (
-                  <div style={{ maxHeight: "400px", overflow: "auto" }}>
-                    {findings.map((f, i) => (
-                      <FindingRow key={i} finding={f} />
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
-
-            <div className="card">
-              <div className="card-head">
-                <div>
-                  <div className="card-title">Last Orchestrator Run</div>
-                  <div className="card-sub">
-                    Phase results from the most recent algo workflow execution
+            <div className="card-body">
+              {status ? (
+                <div className="grid grid-2">
+                  <div className="stile">
+                    <div className="stile-label">Last Run</div>
+                    <div className="stile-value">
+                      {status.last_run ? fmtAgo(status.last_run) : "—"}
+                    </div>
+                    <div className="stile-sub">{status.run_id || "—"}</div>
+                  </div>
+                  <div className="stile">
+                    <div className="stile-label">Status</div>
+                    <div
+                      className={`stile-value ${status.status === "success" ? "up" : "down"}`}
+                    >
+                      {(status.status || "UNKNOWN").toUpperCase()}
+                    </div>
+                  </div>
+                  <div className="stile">
+                    <div className="stile-label">Current Phase</div>
+                    <div className="stile-value">
+                      {status.current_phase || "—"}
+                    </div>
+                  </div>
+                  <div className="stile">
+                    <div className="stile-label">Open Positions</div>
+                    <div className="stile-value">
+                      {status.portfolio?.open_positions ?? "—"}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="card-body">
-                {status ? (
-                  <div className="grid grid-2">
-                    <div className="stile">
-                      <div className="stile-label">Last Run</div>
-                      <div className="stile-value">
-                        {status.last_run ? fmtAgo(status.last_run) : "—"}
-                      </div>
-                      <div className="stile-sub">{status.run_id || "—"}</div>
-                    </div>
-                    <div className="stile">
-                      <div className="stile-label">Status</div>
-                      <div
-                        className={`stile-value ${status.status === "success" ? "up" : "down"}`}
-                      >
-                        {(status.status || "UNKNOWN").toUpperCase()}
-                      </div>
-                    </div>
-                    <div className="stile">
-                      <div className="stile-label">Current Phase</div>
-                      <div className="stile-value">
-                        {status.current_phase || "—"}
-                      </div>
-                    </div>
-                    <div className="stile">
-                      <div className="stile-label">Open Positions</div>
-                      <div className="stile-value">
-                        {status.portfolio?.open_positions ?? "—"}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <Empty
-                    title="No status yet"
-                    desc="Algo orchestrator hasn't reported a run."
-                  />
-                )}
-              </div>
+              ) : (
+                <Empty
+                  title="No status yet"
+                  desc="Algo orchestrator hasn't reported a run."
+                />
+              )}
             </div>
           </div>
         </>

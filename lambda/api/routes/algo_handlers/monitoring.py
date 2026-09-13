@@ -733,6 +733,80 @@ def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
     return list_response([safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total)
 
 
+@db_route_handler("get symbol quarantine")
+@validate_api_response("health")
+def _get_symbol_quarantine(cur: cursor, limit: int = 200, offset: int = 0) -> Any:
+    """Currently-quarantined symbols: which check flagged them, why, and since when.
+
+    ADDED 2026-09-13 (goal session: "is the data/quarantine architecture comprehensive and
+    surfaced right" audit). `algo/monitoring/data_patrol/quarantine.py` (see its own module
+    docstring) excludes a per-symbol ERROR/CRITICAL finding from scoring/trading via
+    `symbol_quarantine`, instead of Phase 1 halting the whole pipeline - but until this
+    endpoint, that table had ZERO frontend surface: an operator could only see which symbols
+    are currently excluded, and why, via raw SQL. This mirrors _get_patrol_log's own shape
+    (open rows only, most-recent first, paginated) for the same reason - so the two "what's
+    currently wrong" surfaces (aggregate findings vs. per-symbol quarantine) look and behave
+    consistently in React.
+
+    `resolved_at IS NULL` is the live quarantine state (quarantine.py's own supersede-on-
+    reinsert / release-when-no-longer-flagged lifecycle already keeps this current - no
+    separate cleanup job needed here, same as data_patrol_log's own `status='open'` filter).
+    """
+    cur.execute("SELECT COUNT(*) as total FROM symbol_quarantine WHERE resolved_at IS NULL")
+    row = cur.fetchone()
+    if not row:
+        raise RuntimeError("[SYMBOL_QUARANTINE] COUNT(*) query returned no row - database may be corrupted")
+    row = safe_dict_convert(row)
+    total_raw = row.get("total")
+    if total_raw is None:
+        raise RuntimeError("[SYMBOL_QUARANTINE] COUNT(*) returned NULL total - database corruption detected")
+    try:
+        total = int(total_raw)
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"[SYMBOL_QUARANTINE] COUNT(*) total invalid type ({total_raw}): {e}") from e
+
+    cur.execute(
+        """
+        SELECT symbol, check_name, severity, reason, patrol_run_id, detected_at
+        FROM symbol_quarantine
+        WHERE resolved_at IS NULL
+        ORDER BY detected_at DESC
+        LIMIT %s OFFSET %s
+        """,
+        (limit, offset),
+    )
+    quarantined = cur.fetchall()
+
+    cur.execute(
+        """
+        SELECT check_name, COUNT(*) AS symbol_count
+        FROM symbol_quarantine
+        WHERE resolved_at IS NULL
+        GROUP BY check_name
+        ORDER BY symbol_count DESC
+        """
+    )
+    by_check = [safe_json_serialize(safe_dict_convert(r)) for r in cur.fetchall()]
+
+    return json_response(
+        200,
+        {
+            "items": [safe_json_serialize(safe_dict_convert(r)) for r in quarantined],
+            # Deliberately NOT "total" (or "limit"/"offset"/"pagination"): the frontend's
+            # shared extractData() normalizer (webapp/frontend/src/utils/responseNormalizer.js)
+            # treats an object with an "items" array PLUS any of those keys as a paginated
+            # list_response and flattens it - dropping any field outside its own hardcoded
+            # allowlist (by_check would silently vanish). "quarantine_count" keeps this a
+            # plain single-object response instead, preserved as-is under `.data` - the same
+            # shape /api/algo/scores/correctness-coverage already uses successfully for its
+            # own item-list-plus-extra-fields payload.
+            "quarantine_count": total,
+            "by_check": by_check,
+        },
+        preserve_arrays=True,
+    )
+
+
 @db_route_handler("trigger data patrol")
 def _trigger_data_patrol() -> Any:
     """Trigger async data patrol ECS task."""
