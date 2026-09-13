@@ -746,3 +746,115 @@ def _fill_net_income_eps_from_legal_entity_dimensioned_instance_document(
             fy = row.get("fiscal_year")
             if fy in missing_years and row.get(target_key) is None and fy in by_year:
                 row[target_key] = by_year[fy]
+
+
+# ASC-606 concepts that legitimately supersede "Revenues" for an ordinary post-2018 filer -
+# see sec_statements_entry_resolution.py's asc606_existing_value_outranks_candidate, the
+# function this fallback is deliberately NOT modifying (see this function's own docstring).
+_ASC606_REVENUE_SUCCESSOR_CONCEPTS = (
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "RevenueFromContractWithCustomerIncludingAssessedTax",
+)
+# A filer that has moved on to an ASC-606 concept keeps filing it every quarter/year going
+# forward; requiring the successor's own most recent filing to be at least this many days
+# AFTER "Revenues"' own most recent filing is a wide safety margin against ordinary filing-
+# calendar noise (a 10-K/10-Q is filed within ~90 days of its own period end) - it only fires
+# for a "Revenues" concept the filer has visibly, durably stopped using, not one that's merely
+# a quarter or two stale.
+_ABANDONED_REVENUES_CONCEPT_MIN_GAP_DAYS = 300
+
+
+def _max_filed_date(concept_facts: dict[str, Any] | None) -> str | None:
+    if not concept_facts:
+        return None
+    dates = [
+        v.get("filed") for unit_vals in (concept_facts.get("units") or {}).values() for v in unit_vals if v.get("filed")
+    ]
+    return max(dates, default=None)
+
+
+def _null_abandoned_revenues_concept_when_asc606_supersedes(
+    rows: list[dict[str, Any]], client: Any, symbol: str
+) -> None:
+    """Null a frozen/abandoned "Revenues" concept value so transform()'s existing revenue
+    precedence naturally falls through to a real, still-actively-filed ASC-606 successor
+    concept instead - WITHOUT touching sec_statements_entry_resolution.py's
+    asc606_existing_value_outranks_candidate (deliberately left alone: that function protects
+    dozens of individually-verified filer-specific cases - CHTR/HTLD/ANDE among them - where a
+    genuinely larger, still-current "Revenues" total must keep winning over a narrower,
+    smaller, but ALSO-current ASC-606 sub-line; this fallback only ever fires for the
+    disjoint, narrower case where "Revenues" itself has gone durably silent).
+
+    Live-confirmed via IONQ (IonQ, de-SPAC 2021): "Revenues" was tagged with a real-looking but
+    actually wildly wrong figure ($1.07B-$1.235B, presumably a frozen/leftover value from the
+    SPAC shell's own pre-merger accounts) for FY2021-2022, then never tagged again in any
+    filing after IonQ's FY2022 10-K (filed 2023-03-30) - meanwhile
+    RevenueFromContractWithCustomerExcludingAssessedTax continues with real, small, growing
+    figures ($11.1M FY2022 up to $130M FY2025) through IonQ's most recent 10-K (filed
+    2026-02-25), a gap of almost 3 years. Because the frozen $1.235B figure is LARGER than the
+    real $11.1M ASC-606 figure for FY2022, asc606_existing_value_outranks_candidate's "a real
+    consolidated total is never smaller than a genuine sub-line of itself" guard (correct for
+    CHTR/HTLD/ANDE) incorrectly protected the frozen, abandoned value from ever being
+    superseded - a ~111x overstatement with no data_unavailable/reason flag anywhere, already
+    visible in statistical_anomaly.py's revenue_yoy_magnitude_jump WARN queue but not fixed at
+    the extraction layer until now.
+
+    Deliberately scoped to require the "Revenues" concept to be durably abandoned (its own
+    most recent filing at least `_ABANDONED_REVENUES_CONCEPT_MIN_GAP_DAYS` before the ASC-606
+    successor's own most recent filing), not merely "smaller than a candidate" (a pure
+    magnitude/ratio rule was tried and rejected here - live-tested against the full active
+    universe, a same-accn "existing much larger than ASC-606 candidate" scan alone produced
+    413 false positives, mostly legitimate bank/conglomerate structural dualities like CHTR's
+    own ~55x gap - see MEMORY.md's ionq_revenues_concept_contamination_live_bug_20260913). The
+    abandonment signal is disjoint from those cases: CHTR/HTLD/ANDE's own "Revenues" concept
+    is STILL tagged in their most recent filing, right alongside the ASC-606 sub-line, so the
+    gap this check requires is at or near zero for them and this fallback never fires.
+    """
+    if not any(
+        row.get("revenues") is not None
+        and any(row.get(k) is not None for k in ("revenue_from_contract_with_customer_excluding_assessed_tax",))
+        for row in rows
+    ) and not any(
+        row.get("revenues") is not None
+        and any(row.get(k) is not None for k in ("revenue_from_contract_with_customer_including_assessed_tax",))
+        for row in rows
+    ):
+        return
+    try:
+        cik = client.symbol_to_cik(symbol)
+        facts = client.get_company_facts(cik)
+    except Exception:
+        # Deliberately broad: best-effort last-resort pass that must never break the ordinary
+        # companyfacts-based extraction it runs after - same discipline as every other sibling
+        # fallback in this file.
+        return
+    usgaap = (facts.get("facts") or {}).get("us-gaap") or {}
+    revenues_max_filed = _max_filed_date(usgaap.get("Revenues"))
+    if revenues_max_filed is None:
+        return
+    successor_max_filed = None
+    for concept_name in _ASC606_REVENUE_SUCCESSOR_CONCEPTS:
+        candidate = _max_filed_date(usgaap.get(concept_name))
+        if candidate and (successor_max_filed is None or candidate > successor_max_filed):
+            successor_max_filed = candidate
+    if successor_max_filed is None or successor_max_filed <= revenues_max_filed:
+        return
+    try:
+        from datetime import date
+
+        gap_days = (date.fromisoformat(successor_max_filed) - date.fromisoformat(revenues_max_filed)).days
+    except ValueError:
+        return
+    if gap_days < _ABANDONED_REVENUES_CONCEPT_MIN_GAP_DAYS:
+        return
+    for row in rows:
+        if row.get("revenues") is not None and any(
+            row.get(k) is not None
+            for k in (
+                "revenue_from_contract_with_customer_excluding_assessed_tax",
+                "revenue_from_contract_with_customer_including_assessed_tax",
+            )
+        ):
+            row.pop("revenues", None)
+            row.pop("_rank_revenues", None)
+            row.pop("_concept_revenues", None)
