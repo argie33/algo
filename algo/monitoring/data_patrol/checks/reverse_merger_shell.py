@@ -56,6 +56,10 @@ def _load_symbol_to_cik() -> dict[str, str]:
         with open(_TICKER_CACHE_FILE) as f:
             return dict(json.load(f).get("mapping") or {})
     except (OSError, json.JSONDecodeError, ValueError) as e:
+        # Not initialized: the local ticker cache is populated by normal loader runs, not
+        # fetched here - a missing/corrupt file just means no symbol->CIK mapping exists yet
+        # on this machine, not a data-loss case. This check's own caller already treats an
+        # empty mapping as "nothing to process" and returns cleanly with zero findings.
         logger.debug(f"[ReverseMergerShellChecker] could not load ticker cache: {e}")
         return {}
 
