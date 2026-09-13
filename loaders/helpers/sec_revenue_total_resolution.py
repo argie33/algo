@@ -84,20 +84,6 @@ def _is_reit_scale_tag_error(existing_val: Any, candidate_val: Any) -> bool:
     return _is_power_of_ten_scale_outlier(existing_val, candidate_val)
 
 
-def reit_fallback_existing_value_protected(existing: Any, candidate: Any) -> bool:
-    """True if `existing` (already in "revenue") should be protected from the REIT/insurance/
-    depository ASC-606 fallback concept's `candidate` value - i.e. the sec_base.py transform()
-    condition that used to just be `float(existing) < float(candidate)` (the CLDT fix: only
-    protect existing when it isn't already smaller). Extended 2026-09-13 for the MKZR shape
-    (see _is_reit_scale_tag_error): existing being bigger doesn't protect it when existing/
-    candidate are themselves a clean power-of-ten decimals-tag-error pair.
-    """
-    if not (isinstance(existing, (int, float, Decimal)) and isinstance(candidate, (int, float, Decimal))):
-        return True
-    e, c = float(existing), float(candidate)
-    return not (e < c or _is_reit_scale_tag_error(e, c))
-
-
 def asc606_existing_value_outranks_candidate(existing: Any, candidate: Any) -> bool:
     """True if `existing` (already in "revenue") is a genuinely larger, uncorrupted total that
     the CHTR/HTLD/ANDE guard (2026-08-31) should protect from an ASC-606 `candidate` -
@@ -106,7 +92,8 @@ def asc606_existing_value_outranks_candidate(existing: Any, candidate: Any) -> b
     _is_reit_scale_tag_error): existing being bigger doesn't make it the real total when
     existing/candidate are a clean power-of-ten decimals-tag-error pair (existing itself
     corrupted via a _reit_exclusive_fields concept processed earlier - see
-    reit_fallback_existing_value_protected above for the full MKZR shape).
+    loaders/helpers/sec_reit_exclusive_scale_guard.py's should_skip_reit_only_fallback_field
+    and reject_reit_exclusive_scale_mismatch for the full MKZR shape).
     """
     if not (isinstance(existing, (int, float, Decimal)) and isinstance(candidate, (int, float, Decimal))):
         return False

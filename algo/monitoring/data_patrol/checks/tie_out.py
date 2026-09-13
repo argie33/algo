@@ -257,6 +257,7 @@ class TieOutChecker(
         # Round 6 (same session): no prior check reconciled quarterly figures against their
         # own annual total at all - live-caught APA's genuine quarterly-revenue duplicate bug.
         self.check_quarterly_revenue_annual_duplicate(cur)
+        self.check_quarterly_revenue_sum_vs_annual_total(cur)
         # Round 7 (2026-09-10, goal: "full XBRL best-practices" review): DQC_0015/US1-style
         # "negative values" guard for balance-sheet magnitude fields that are non-negative by
         # GAAP definition - see tie_out_nonnegative_magnitudes.py's module docstring for why

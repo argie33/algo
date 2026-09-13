@@ -120,6 +120,21 @@ _OPERATING_INCOME_BOUND_TOLERANCE_FLOOR = 500_000.0
 _GOODWILL_TOLERANCE_PCT = 0.001
 _MAX_REPORTED_PER_CHECK = 20  # cap alert payload size - full detail still in the DB for follow-up
 
+# ADDED 2026-09-13 (goal: "ours vs industry factor lists" symbol-level audit). QCOM's real
+# annual_income_statement.revenue disagreed with SEC EDGAR's own us-gaap:Revenues fact by 69x
+# ($639M stored vs $44.284B real, live-verified against SEC's companyconcept API directly) - and
+# separately, quarterly_income_statement.revenue for QCOM's fiscal_quarter=3 carries a 9-month
+# YTD cumulative duration fact mislabeled as the discrete quarter (~$33B vs ~$11B every other
+# quarter, recurring every fiscal year 2008-2025), inflating ps_ratio to 312. Both symptoms show
+# up as the same signature: a fiscal year's quarters, summed, wildly exceed that year's own
+# audited 10-K annual total. 1.35 tolerance (35% slack) is deliberately loose - live-tested
+# against the full table, ratios up to ~1.35x are explained by ordinary Q4-derivation rounding
+# and real intra-year revenue growth (1,351/1,878 same-year candidates from a tighter screen
+# ruled out this way); above 10x the annual figure itself is almost certainly the broken value
+# (not just the quarter), same shape as QCOM.
+_QUARTERLY_REVENUE_ANNUAL_OVERSHOOT_TOLERANCE = 1.35
+_QUARTERLY_REVENUE_ANNUAL_EXTREME_OVERSHOOT = 10.0
+
 # Round 5 (2026-09-07, goal: "run all the tie-outs" buildout). stock_based_compensation/
 # common_stock_repurchased should always be non-negative magnitudes (a non-cash addback and a
 # cash outflow, respectively) - load_financial_statements.py's transform() now abs()'s both

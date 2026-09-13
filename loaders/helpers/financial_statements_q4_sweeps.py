@@ -62,6 +62,17 @@ class Q4DerivationSweepMixin:
         history), so a Q4 capex subtraction would silently produce a wrong result far more
         often than the OCF-only case does; a future pass could add it with its own explicit
         null-guard on all three quarters' capex.
+
+        WIDENED 2026-09-13 (goal session: cashflow_reconciliation/quarterly-revenue-identity
+        backlog - same self-healing fix as _sweep_derive_missing_q4()'s income-statement
+        sibling, QCOM-shaped bug live-confirmed to recur here too): the original NULL/
+        data_unavailable-only guard never re-fires once Q4 already holds SOME non-null,
+        "available" operating_cash_flow value, even a stale one left over from a
+        since-fixed quarterly extraction bug. Since FY-(Q1+Q2+Q3) is the same exact
+        accounting identity used above, any stored Q4 value disagreeing with a fresh
+        derivation from current Q1-Q3 is provably wrong - re-fires on that mismatch too, not
+        just on missing data, so this table self-heals the same way the income statement one
+        now does whenever an upstream quarterly-extraction fix changes Q1-Q3.
         """
         with _database_context()("write") as cur:
             cur.execute(
@@ -84,7 +95,13 @@ class Q4DerivationSweepMixin:
                           JOIN quarterly_cash_flow q3
                             ON q3.symbol = q4x.symbol AND q3.fiscal_year = q4x.fiscal_year AND q3.fiscal_quarter = 3
                          WHERE q4x.fiscal_quarter = 4
-                           AND (q4x.operating_cash_flow IS NULL OR q4x.data_unavailable = TRUE)
+                           AND (
+                                 q4x.operating_cash_flow IS NULL
+                                 OR q4x.data_unavailable = TRUE
+                                 OR q4x.operating_cash_flow IS DISTINCT FROM (
+                                      a.operating_cash_flow - (q1.operating_cash_flow + q2.operating_cash_flow + q3.operating_cash_flow)
+                                    )
+                               )
                            AND a.operating_cash_flow IS NOT NULL
                            AND q1.operating_cash_flow IS NOT NULL
                            AND q2.operating_cash_flow IS NOT NULL
@@ -208,6 +225,18 @@ class Q4DerivationSweepMixin:
         total_assets) - so recovering it is a direct copy, not an arithmetic derivation, with
         no scale-mismatch or corroboration risk at all. Live-confirmed 597 rows recoverable
         this way (574 symbols / 815 total gap rows before this fix).
+
+        WIDENED 2026-09-13 (goal session: balance_sheet_identity/quarterly-revenue-identity
+        backlog - same self-healing fix as _sweep_derive_missing_q4()'s income-statement
+        sibling): the original NULL/data_unavailable-only guard never re-copies once Q4
+        already holds SOME non-null, "available" total_assets value, even a stale one left
+        over from a since-fixed annual-balance-sheet extraction bug (e.g. the NCI double-
+        count fixes landed this session) or a since-corrected annual restatement. Since a
+        fiscal year's Q4 balance sheet IS, by definition, byte-identical to the annual one
+        (not an approximation), any stored Q4 total_assets that disagrees with the CURRENT
+        annual_balance_sheet value is provably stale - re-fires on that mismatch too, not
+        just on missing data, so a Q4 snapshot self-heals whenever the annual row it should
+        mirror gets corrected, without needing a manual follow-up copy.
         """
         with _database_context()("write") as cur:
             cur.execute(
@@ -233,7 +262,11 @@ class Q4DerivationSweepMixin:
                   FROM annual_balance_sheet a
                  WHERE a.symbol = q4.symbol AND a.fiscal_year = q4.fiscal_year
                    AND q4.fiscal_quarter = 4
-                   AND (q4.total_assets IS NULL OR q4.data_unavailable = TRUE)
+                   AND (
+                         q4.total_assets IS NULL
+                         OR q4.data_unavailable = TRUE
+                         OR q4.total_assets IS DISTINCT FROM a.total_assets
+                       )
                    AND a.total_assets IS NOT NULL
                    AND a.data_unavailable = FALSE
                 """
@@ -279,6 +312,21 @@ class Q4DerivationSweepMixin:
         legitimately absorbs large one-time items (annual bonus true-ups, impairments, tax
         adjustments) that don't afflict revenue the same way, so an aggressive magnitude guard
         there would reject far more real results than bad ones.
+
+        WIDENED 2026-09-13 (goal session: quarterly-revenue-identity backlog, QCOM live-
+        confirmed): the original NULL/data_unavailable-only guard never re-fires once a Q4 row
+        already holds SOME non-null, "available" value - even a stale, wrong one. Live-confirmed
+        via QCOM: a stale Q4 row (revenue=$12,252,000,000, an exact duplicate of that year's own
+        Q1 value - a leftover artifact of a since-fixed quarter-labeling bug, not a real Q4
+        result) sat untouched through a full watermark-driven reload of corrected Q1-Q3 data,
+        because it was neither NULL nor data_unavailable=TRUE. Since this method's own docstring
+        already establishes FY-(Q1+Q2+Q3) as an exact accounting identity for these two flow
+        fields (not a heuristic), any existing Q4 value that doesn't match a freshly-computed
+        derivation from now-correct Q1-Q3 is provably wrong and safe to recompute - re-fires
+        whenever the stored revenue is DISTINCT FROM the fresh derivation, not just when it's
+        missing, so a stale Q4 self-heals whenever an upstream quarterly extraction fix
+        (like this session's QCOM/SBUX one) changes Q1-Q3 without anything having to explicitly
+        invalidate the old Q4 value first.
         """
         with _database_context()("write") as cur:
             cur.execute(
@@ -303,7 +351,11 @@ class Q4DerivationSweepMixin:
                           JOIN quarterly_income_statement q3
                             ON q3.symbol = q4x.symbol AND q3.fiscal_year = q4x.fiscal_year AND q3.fiscal_quarter = 3
                          WHERE q4x.fiscal_quarter = 4
-                           AND (q4x.revenue IS NULL OR q4x.data_unavailable = TRUE)
+                           AND (
+                                 q4x.revenue IS NULL
+                                 OR q4x.data_unavailable = TRUE
+                                 OR q4x.revenue IS DISTINCT FROM (a.revenue - (q1.revenue + q2.revenue + q3.revenue))
+                               )
                            AND a.revenue IS NOT NULL AND a.net_income IS NOT NULL
                            AND q1.revenue IS NOT NULL AND q2.revenue IS NOT NULL AND q3.revenue IS NOT NULL
                            AND q1.net_income IS NOT NULL AND q2.net_income IS NOT NULL AND q3.net_income IS NOT NULL
