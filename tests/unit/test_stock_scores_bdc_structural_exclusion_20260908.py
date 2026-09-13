@@ -1,14 +1,16 @@
-"""Regression test: /api/scores still surfaced 29 structurally-excluded BDCs.
+"""REVERSED 2026-09-13: /api/scores no longer hard-denylists known BDC symbols.
 
-Live-verified (goal session score-sanity sweep, 2026-09-08): utils/loaders/helpers.py's
-get_active_symbols() has excluded _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS (MAIN, HTGC, GAIN,
-TSLX and 26 siblings) from every metrics/scores loader since 2026-09-03 - BDCs are
-"structurally unable to report interest_coverage/total_debt/free_cash_flow/etc. the way an
-operating company does". Consequence: those symbols' stock_scores rows never get touched again
-after that date, but `ss.active` stays true (they're still real, tradeable BDCs), so they sailed
-straight through this endpoint's active-universe filter with a plausible-looking composite_score
-that is actually a permanently frozen snapshot - same failure shape as the delisted-symbol bug
-this same where_clause was just fixed for.
+Originally (2026-09-08) this test asserted the opposite - that the bulk query hard-excluded
+_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS (MAIN, HTGC, GAIN, TSLX and siblings) because their
+stock_scores row was permanently frozen (the loader that would refresh it deliberately skipped
+them - see frozen_subpopulation_real_root_cause_and_live_gap_20260913 in memory). That loader
+gap is now fixed (load_stock_scores.py/load_risk_metrics_daily.py opt out of the exclusion via
+exclude_non_operating_from_symbols=False), live-verified 2026-09-13: these symbols now carry a
+fresh same-day updated_at with real risk_score/momentum_score. The special-case symbol denylist
+in stock_scores.py's where_clause is removed - the generic `data_unavailable = false` filter
+(already present for every symbol, based on the loader's own completeness marking) now does the
+same bulk-listing suppression on a non-special-cased basis, and single-symbol lookups for a BDC
+work again instead of hard-blocking.
 """
 
 import sys
@@ -27,11 +29,20 @@ def _mock_cursor():
 
 
 class TestStockScoresBdcStructuralExclusion:
-    def test_bulk_query_excludes_known_bdc_symbols(self):
+    def test_bulk_query_no_longer_denylists_known_bdc_symbols(self):
         from routes.scores_handlers.stock_scores import _get_stock_scores
 
         cursor = _mock_cursor()
         _get_stock_scores(cursor, limit=10, offset=0)
 
         executed_queries = [c.args[0] for c in cursor.execute.call_args_list]
-        assert any("'MAIN'" in sql and "'HTGC'" in sql for sql in executed_queries)
+        assert not any("'MAIN'" in sql and "'HTGC'" in sql for sql in executed_queries)
+
+    def test_bulk_query_still_filters_on_generic_data_unavailable_flag(self):
+        from routes.scores_handlers.stock_scores import _get_stock_scores
+
+        cursor = _mock_cursor()
+        _get_stock_scores(cursor, limit=10, offset=0)
+
+        executed_queries = [c.args[0] for c in cursor.execute.call_args_list]
+        assert any("data_unavailable = false" in sql for sql in executed_queries)

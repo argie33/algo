@@ -23,8 +23,6 @@ from routes.utils import (
     json_response,
 )
 
-from utils.loaders.helpers import _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS
-
 from .stock_scores_helpers import (
     _build_stock_score_items,
     _build_stock_scores_query,
@@ -175,20 +173,26 @@ def _get_stock_scores(
         # known-state bookkeeping is useful internally) but this user-facing endpoint should
         # only ever surface the current tradeable universe.
         #
-        # STRUCTURALLY-EXCLUDED BDC FILTER (found 2026-09-08, same sweep, follow-up to the
-        # active-universe fix above): utils/loaders/helpers.py's get_active_symbols() has
-        # excluded _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS (MAIN, HTGC, GAIN, TSLX and 26
-        # siblings) from the operating-company universe fed into every metrics/scores loader
-        # since 2026-09-03 (that fix's own comment: BDCs are "structurally unable to report
-        # interest_coverage/total_debt/free_cash_flow/etc. the way an operating company
-        # does"). Live-verified consequence: those 29 symbols' stock_scores rows simply never
-        # get touched again after that date - `ss.active` stays true (they're still real,
-        # tradeable BDCs) so they sailed straight through the active-universe filter above
-        # with a plausible-looking composite_score that is actually a permanently frozen
-        # 2026-09-03 snapshot, indistinguishable from a live one, same failure shape as the
-        # delisted-symbol bug above. A fresh `--now signals` reload (same day) confirmed this
-        # is not a "just needs a reload" staleness gap - it can never self-heal, since the
-        # loader that would refresh it now deliberately skips these symbols by design.
+        # STRUCTURALLY-EXCLUDED BDC FILTER (added 2026-09-08, REMOVED 2026-09-13): this used
+        # to hard-exclude _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS (MAIN, HTGC, GAIN, TSLX and
+        # siblings) because their stock_scores row was permanently frozen - the loader that
+        # would refresh it deliberately skipped them entirely (get_active_symbols()'s
+        # exclude_non_operating coupling to exclude_etfs, see
+        # frozen_subpopulation_real_root_cause_and_live_gap_20260913 in memory for the root
+        # cause). That loader gap is now fixed (load_stock_scores.py/load_risk_metrics_daily.py
+        # opt out via exclude_non_operating_from_symbols=False) - live-verified 2026-09-13:
+        # MAIN/HTGC/GAIN/TSLX all show a fresh same-day updated_at with real risk_score/
+        # momentum_score and data_completeness=40 (growth/quality/value pillars stay withheld,
+        # those 3 loaders still exclude BDCs pending their own review - see load_stock_scores.py's
+        # exclude_non_operating_from_symbols comment). The premise for this filter (permanently
+        # frozen, indistinguishable from live) no longer holds, so the special-case symbol list
+        # is removed - the existing generic `data_unavailable = false` filter below already
+        # hides these from bulk listings on the same basis as any other thin-coverage stock
+        # (loader marks data_unavailable=true under 70% completeness, and these sit at 40%),
+        # and single-symbol lookups (which bypass that bulk-only filter, same as any other
+        # symbol) now correctly work for BDCs instead of hard-blocking them - consistent with
+        # this endpoint's own "always look up any specific symbol" principle (see the
+        # min_market_cap filter's comment below for that same principle applied elsewhere).
         where_clause = """
             WHERE sc.composite_score > 0
             AND ss.active = true
@@ -201,14 +205,13 @@ def _get_stock_scores(
                 ss.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6221)
                 AND ss.security_name ~* '(Gold|Silver|Platinum|Palladium|Bullion) Trust'
             )
-            AND ss.symbol NOT IN ({bdc_symbols})
             AND (ss.security_name IS NULL OR (
                 ss.security_name !~* '(Rights?|Warrants?)$'
                 AND ss.security_name NOT ILIKE '%%Acquisition Corp%%'
                 AND ss.security_name !~* '(Subordinated Debentures?|First Mortgage Bonds?|Collateral Trust Mortgage Bonds?)'
                 AND ss.security_name !~* '(ETNs?|Exchange[- ]Traded Notes?)'
             ))
-            """.format(bdc_symbols=", ".join(f"'{sym}'" for sym in sorted(_KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS)))
+            """
         params_list: list[Any] = []
 
         if sp500_only:
