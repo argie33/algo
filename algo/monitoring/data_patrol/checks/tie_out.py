@@ -171,6 +171,7 @@ from .tie_out_bounds_annual2_quarterly1 import TieOutBoundsAnnual2Quarterly1Mixi
 from .tie_out_bounds_quarterly2_misc import TieOutBoundsQuarterly2MiscMixin
 from .tie_out_identity_annual import TieOutIdentityAnnualMixin
 from .tie_out_identity_quarterly import TieOutIdentityQuarterlyMixin
+from .tie_out_implausible_magnitude import TieOutImplausibleMagnitudeMixin
 from .tie_out_nonnegative_magnitudes import TieOutNonnegativeMagnitudesMixin
 from .tie_out_shared import TieOutSharedMixin
 
@@ -184,6 +185,7 @@ class TieOutChecker(
     TieOutBoundsAnnual2Quarterly1Mixin,
     TieOutBoundsQuarterly2MiscMixin,
     TieOutNonnegativeMagnitudesMixin,
+    TieOutImplausibleMagnitudeMixin,
     TieOutSharedMixin,
     BaseCheck,
 ):
@@ -292,4 +294,16 @@ class TieOutChecker(
         self.check_quarterly_accounts_payable_nonnegative(cur)
         self.check_cash_and_restricted_cash_combined_nonnegative(cur)
         self.check_quarterly_cash_and_restricted_cash_combined_nonnegative(cur)
+        self.check_revenue_implausible_magnitude(cur)
+        self.check_quarterly_revenue_implausible_magnitude(cur)
+        self.check_net_income_implausible_magnitude(cur)
+        self.check_quarterly_net_income_implausible_magnitude(cur)
+        self.check_gross_profit_implausible_magnitude(cur)
+        self.check_operating_income_implausible_magnitude(cur)
+        self.check_total_assets_implausible_magnitude(cur)
+        self.check_quarterly_total_assets_implausible_magnitude(cur)
+        self.check_total_liabilities_implausible_magnitude(cur)
+        self.check_stockholders_equity_implausible_magnitude(cur)
+        self.check_operating_cash_flow_implausible_magnitude(cur)
+        self.check_quarterly_operating_cash_flow_implausible_magnitude(cur)
         return self.results
