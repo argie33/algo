@@ -631,6 +631,7 @@
   "scripts/cleanup_loader_watermarks.py": 199,
   "scripts/clear_stale_loaders.py": 61,
   "scripts/comprehensive_diagnostics.py": 482,
+  "scripts/data_integrity_coverage_audit.py": 217,
   "scripts/data_patrol_backlog_report.py": 207,
   "scripts/deactivate_renamed_ticker_duplicates.py": 178,
   "scripts/dev_server_health_check.py": 187,
