@@ -165,19 +165,25 @@ function ScoresDashboardPage() {
   const [sortBy, setSortBy] = useState("composite_score");
   const [sortOrder, setSortOrder] = useState("desc");
   const [minScore, setMinScore] = useState(0);
-  // Investability screen (2026-09-01, un-defaulted 2026-09-13): the backend's `minMarketCap`
-  // API param (lambda/api/routes/scores.py) exists because raw factor scores have no
-  // liquidity/size floor - a nano-cap with $2-3M market cap can top Value/Composite purely
-  // on scoring mechanics while being effectively untradeable at real size. This dropdown lets
-  // a user opt into that screen, but defaulting it to $300M (2026-09-08) meant this page
-  // silently disagreed with the raw stock_scores table by default: any row lacking a
-  // value_metrics market_cap (not just illiquid names - e.g. every symbol still missing
-  // Quality/Value/Growth pillar data, like the BDC/CEF cohort recovered in
-  // frozen_subpopulation_real_root_cause_and_live_gap_20260913) got silently dropped from
-  // view, making a real, verified stock_scores reload look like it hadn't landed. Default
-  // back to "any" - this page should show what's actually in the table unless a user
-  // deliberately opts into narrowing it via the dropdown below.
-  const [minMarketCap, setMinMarketCap] = useState(0);
+  // Investability screen (2026-09-01, un-defaulted then RE-DEFAULTED same session 2026-09-13
+  // after live comparison against real institutional factor products - MSCI/iShares QUAL/
+  // VLUE/MTUM's actual top holdings). $300M matches algo_config.min_market_cap_millions,
+  // this system's own already-established real-money eligibility floor (LiquidityChecks.
+  // _check_market_cap) - not a new/arbitrary number invented for this page. Un-defaulting it
+  // to "any" earlier today fixed a real bug (a stock_scores reload looked broken because
+  // BDCs/CEFs with null market_cap were silently excluded), but going all the way to "any"
+  // reintroduced the ORIGINAL failure mode this filter was built for: live-verified same
+  // session that a pure, unscreened top-10 by any single factor score is dominated by
+  // sub-$500M micro-cap shells (several literally sub-$50M) with no analog in any real
+  // factor product, while the SAME ranking restricted to market_cap>=$300M produces
+  // recognizable, plausible large/mid-cap names - direct evidence this floor is doing real
+  // work, not just cosmetic filtering. The FIX that makes both true at once: the filter
+  // below now fails OPEN on unknown market_cap (only excludes a row with a KNOWN cap below
+  // the threshold) instead of excluding on missing data - so BDCs/CEFs (null market_cap,
+  // not actually small) pass through regardless of this default, while genuine sub-$300M
+  // names (known, real, small) are correctly screened out. Still user-adjustable via the
+  // dropdown below.
+  const [minMarketCap, setMinMarketCap] = useState(300000000);
   const [tab, setTab] = useState("rankings");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -236,9 +242,17 @@ function ScoresDashboardPage() {
         const v = s[sortBy];
         if (v == null || Number(v) < minScore) return false;
       }
-      if (minMarketCap > 0) {
+      if (minMarketCap > 0 && s.market_cap != null) {
+        // Fail-open on unknown market_cap (2026-09-13) - only excludes a row with a KNOWN
+        // cap below the floor. The old `!mc || mc < minMarketCap` treated "we don't know
+        // this symbol's cap" the same as "this symbol IS a microcap", which is why
+        // defaulting this filter to $300M previously hid every BDC/CEF (their market_cap is
+        // null - value_metrics/Quality/Value/Growth loaders don't run for them, not because
+        // they're actually small - see frozen_subpopulation_real_root_cause_and_live_gap_
+        // 20260913) even though they have real, scored risk/momentum data. A row with a
+        // genuinely unknown cap should be judged on its actual scores, not silently dropped.
         const mc = Number(s.market_cap);
-        if (!mc || mc < minMarketCap) return false;
+        if (mc < minMarketCap) return false;
       }
       return true;
     });

@@ -86,6 +86,26 @@ const nanoStock = {
   market_cap: 2500000,
 };
 
+// Regression fixture (2026-09-13): a real, scored symbol with an UNKNOWN market_cap (BDC/CEF
+// shape - Quality/Value/Growth loaders don't populate value_metrics.market_cap for these, not
+// because they're actually small - see frozen_subpopulation_real_root_cause_and_live_gap_
+// 20260913). Must pass the market-cap filter regardless of threshold (fail-open on unknown),
+// unlike nanoStock above which has a real, KNOWN sub-floor cap and should still be excluded.
+const unknownCapStock = {
+  symbol: "BDCX",
+  company_name: "BDC Co.",
+  composite_score: 80.0,
+  momentum_score: 80.0,
+  risk_score: 80.0,
+  quality_score: null,
+  value_score: null,
+  growth_score: null,
+  price: 12.0,
+  change_percent: 0.5,
+  sector: "Financial Services",
+  market_cap: null,
+};
+
 vi.mock("../../../services/api", () => {
   const mockApi = {
     get: vi.fn(() =>
@@ -286,14 +306,16 @@ describe("ScoresDashboard Page", () => {
     });
   });
 
-  it("shows nano-caps by default (no default floor) and hides them once the $300M filter is applied", async () => {
-    // Un-defaulted 2026-09-13: this page must show what's actually in the stock_scores
-    // table by default (no silent client-side floor) - a real, verified DB reload was
-    // being mistaken for "not working" because rows lacking value_metrics.market_cap
-    // (not just illiquid names - any symbol still missing Quality/Value/Growth pillar
-    // data, e.g. the BDC/CEF cohort) were being dropped from view with no indication why.
-    // The $300M investability screen itself is still a real, useful opt-in filter -
-    // just no longer applied unless the user explicitly picks it.
+  it("filters out nano-caps by default ($300M floor) but shows unknown-market-cap symbols regardless", async () => {
+    // RE-DEFAULTED 2026-09-13 (same session, after live comparison against real institutional
+    // factor products - MSCI/iShares QUAL/VLUE/MTUM's actual top holdings showed our
+    // unscreened top-10-by-factor was dominated by sub-$500M shells with no real-world
+    // analog, while the SAME ranking at $300M+ produced recognizable, plausible names).
+    // Un-defaulting this filter entirely (earlier same session) fixed a real bug - see
+    // the test below - but reintroduced the ORIGINAL nano-cap-domination failure mode this
+    // filter was built for. The actual fix for both problems at once: fail OPEN on unknown
+    // market_cap (BDCX below - passes regardless of the default) and fail CLOSED only on a
+    // known sub-floor cap (NANO below - still excluded).
     const mockApi = await import("../../../services/api");
     mockApi.api.get.mockResolvedValue({
       data: { items: [...mockStocks, nanoStock] },
@@ -303,28 +325,46 @@ describe("ScoresDashboard Page", () => {
     await waitFor(() => {
       expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
     });
-    // Default is "any" - NANO's $2.5M cap should reach the list same as everything else
-    // in the raw fetched set.
-    expect(screen.queryAllByText("NANO").length).toBeGreaterThan(0);
+    // Default floor is $300M - NANO's known $2.5M cap should never reach the list without
+    // the user explicitly widening the filter.
+    expect(screen.queryAllByText("NANO").length).toBe(0);
 
     fireEvent.change(screen.getByTitle(/thinly-traded micro\/nano-caps/i), {
-      target: { value: "300000000" },
+      target: { value: "0" },
     });
 
     await waitFor(() => {
-      expect(screen.queryAllByText("NANO").length).toBe(0);
+      expect(screen.getAllByText("NANO").length).toBeGreaterThan(0);
     });
   });
 
-  it("propagates the $300M filter to Category Leaders/Laggards tabs once applied (regression: unscreened universe)", async () => {
+  it("shows a symbol with unknown market_cap even under the default $300M floor (BDC/CEF regression)", async () => {
+    // Regression test for frozen_subpopulation_real_root_cause_and_live_gap_20260913 /
+    // scores_dashboard_default_market_cap_filter_removed_20260913: a real, scored BDC/CEF has
+    // market_cap=null (Quality/Value/Growth loaders don't run for it), not a real sub-floor
+    // cap - the filter must not treat "unknown" the same as "known and small".
+    const mockApi = await import("../../../services/api");
+    mockApi.api.get.mockResolvedValue({
+      data: { items: [...mockStocks, unknownCapStock] },
+    });
+
+    renderScoresDashboard();
+    await waitFor(() => {
+      expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
+    });
+    // Default $300M floor is active, but BDCX's market_cap is unknown (null), not known-small -
+    // it must still appear.
+    expect(screen.queryAllByText("BDCX").length).toBeGreaterThan(0);
+  });
+
+  it("propagates the $300M filter to Category Leaders/Laggards tabs (regression: unscreened universe)", async () => {
     // Regression test (2026-09-09, /goal session: "factor leaders and laggards still seem
     // off"): the Category Leaders/Laggards tabs (and Movers/Leaderboard/Heatmap/
     // Distribution/Correlation/Sectors alongside them) were wired to the raw, unscreened
-    // `items` array instead of `filtered` (the same market-cap-floored array Rankings
-    // already uses) - so a nano-cap could top every single factor's "leaders" list purely
-    // on scoring mechanics whenever the floor was applied. The floor itself is opt-in as
-    // of 2026-09-13 (see test above) - this test confirms that once a user does apply it,
-    // every tab agrees, rather than just Rankings.
+    // `items` array instead of `filtered` (the same $300M-market-cap-floored array Rankings
+    // already uses) - so a nano-cap could top every single factor's "leaders" list purely on
+    // scoring mechanics, the exact failure mode the $300M floor above exists to prevent for
+    // Rankings, just never propagated to these other views of the same data.
     const mockApi = await import("../../../services/api");
     mockApi.api.get.mockResolvedValue({
       data: { items: [...mockStocks, nanoStock] },
@@ -333,16 +373,12 @@ describe("ScoresDashboard Page", () => {
     renderScoresDashboard();
     await waitFor(() => {
       expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
-    });
-
-    fireEvent.change(screen.getByTitle(/thinly-traded micro\/nano-caps/i), {
-      target: { value: "300000000" },
     });
 
     fireEvent.click(screen.getByRole("button", { name: /Category Leaders/i }));
 
     // NANO scores 95-99 on every factor - the highest in the fixture - so it would top
-    // every "Category Leaders" card if the $300M floor weren't applied here too.
+    // every "Category Leaders" card if the $300M floor weren't applied.
     await waitFor(() => {
       expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
     });
