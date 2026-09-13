@@ -16,23 +16,8 @@ from contextlib import ExitStack
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from algo.monitoring.data_patrol import checks as _checks_module
 from algo.monitoring.data_patrol.base import CheckResult, DataPatrol
-from algo.monitoring.data_patrol.checks import (
-    AlignmentChecker,
-    CompositeScoreReconciliationChecker,
-    CoverageChecker,
-    FinancialStatementFlagDriftChecker,
-    NewXbrlConceptChecker,
-    PillarScoreReconciliationChecker,
-    PriceSanityChecker,
-    QualityChecker,
-    ScoreRatioOutlierChecker,
-    SpecializedChecker,
-    StalenessChecker,
-    StatisticalAnomalyChecker,
-    TieOutChecker,
-    XbrlConceptContinuityChecker,
-)
 from algo.monitoring.data_patrol.config import CRIT, PatrolConfig
 
 
@@ -55,29 +40,20 @@ def _run_patrol_with_results(results_by_checker: dict[str, list[CheckResult]]) -
     with base.py's real list) still doesn't exist - see the TODO on this dict below; this is
     the second time it's silently drifted out of sync.
 
-    TODO: this dict must be derived from (or asserted equal to) DataPatrol.run()'s actual
-    `checkers` list rather than hand-copied, or it will drift a third time the next time a
-    checker is added to base.py. Not done in this pass - out of scope for the immediate hang
-    fix, flagged here so the next session doesn't have to rediscover it via another hang.
+    STRUCTURAL FIX 2026-09-13 (goal session: comprehensive patrol/quarantine audit): drifted a
+    THIRD time (ReverseMergerShellChecker added to base.py's real checkers list but not to this
+    dict) - live-confirmed via reading base.py's own checkers list, not by running this test
+    (the check reads a real on-disk ticker cache and would only hang/fail if this machine's
+    local cache happens to be non-empty). Rather than hand-copy a 15th (and every future) entry,
+    this dict is now derived from checks/__init__.py's own `__all__` export list - the same
+    single source of truth base.py's DataPatrol.run() imports every checker from - so it can
+    only drift if a checker is wired into base.py's checkers list WITHOUT also being exported
+    from checks/__init__.py, which is its own bug (every other checker in the codebase is
+    exported there) rather than a hand-copy omission in this test.
     """
     patrol = DataPatrol(PatrolConfig())
 
-    checker_classes = {
-        "StalenessChecker": StalenessChecker,
-        "CoverageChecker": CoverageChecker,
-        "QualityChecker": QualityChecker,
-        "PriceSanityChecker": PriceSanityChecker,
-        "AlignmentChecker": AlignmentChecker,
-        "SpecializedChecker": SpecializedChecker,
-        "TieOutChecker": TieOutChecker,
-        "FinancialStatementFlagDriftChecker": FinancialStatementFlagDriftChecker,
-        "NewXbrlConceptChecker": NewXbrlConceptChecker,
-        "XbrlConceptContinuityChecker": XbrlConceptContinuityChecker,
-        "StatisticalAnomalyChecker": StatisticalAnomalyChecker,
-        "ScoreRatioOutlierChecker": ScoreRatioOutlierChecker,
-        "CompositeScoreReconciliationChecker": CompositeScoreReconciliationChecker,
-        "PillarScoreReconciliationChecker": PillarScoreReconciliationChecker,
-    }
+    checker_classes = {name: getattr(_checks_module, name) for name in _checks_module.__all__}
 
     mock_conn = MagicMock()
     with ExitStack() as stack:
@@ -123,34 +99,27 @@ class TestDataPatrolLogWiring:
         abort the patrol run or its notify() alert - same fail-safe posture as notify()."""
         patrol = DataPatrol(PatrolConfig())
         mock_conn = MagicMock()
-        with (
-            patch("utils.db.connection.get_db_connection", return_value=mock_conn),
-            patch("algo.reporting.notify") as mock_notify,
-            patch(
-                "algo.monitoring.data_patrol.logger.PatrolLogger",
-                side_effect=RuntimeError("db down"),
-            ),
-            patch.object(
-                StalenessChecker,
-                "run",
-                return_value=[
-                    CheckResult(check_name="staleness", severity=CRIT, target_table="price_daily", message="stale")
-                ],
-            ),
-            patch.object(CoverageChecker, "run", return_value=[]),
-            patch.object(QualityChecker, "run", return_value=[]),
-            patch.object(PriceSanityChecker, "run", return_value=[]),
-            patch.object(AlignmentChecker, "run", return_value=[]),
-            patch.object(SpecializedChecker, "run", return_value=[]),
-            patch.object(TieOutChecker, "run", return_value=[]),
-            patch.object(FinancialStatementFlagDriftChecker, "run", return_value=[]),
-            patch.object(NewXbrlConceptChecker, "run", return_value=[]),
-            patch.object(XbrlConceptContinuityChecker, "run", return_value=[]),
-            patch.object(StatisticalAnomalyChecker, "run", return_value=[]),
-            patch.object(ScoreRatioOutlierChecker, "run", return_value=[]),
-            patch.object(CompositeScoreReconciliationChecker, "run", return_value=[]),
-            patch.object(PillarScoreReconciliationChecker, "run", return_value=[]),
-        ):
+        checker_classes = {name: getattr(_checks_module, name) for name in _checks_module.__all__}
+        with ExitStack() as stack:
+            stack.enter_context(patch("utils.db.connection.get_db_connection", return_value=mock_conn))
+            mock_notify = stack.enter_context(patch("algo.reporting.notify"))
+            stack.enter_context(
+                patch(
+                    "algo.monitoring.data_patrol.logger.PatrolLogger",
+                    side_effect=RuntimeError("db down"),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    checker_classes.pop("StalenessChecker"),
+                    "run",
+                    return_value=[
+                        CheckResult(check_name="staleness", severity=CRIT, target_table="price_daily", message="stale")
+                    ],
+                )
+            )
+            for cls in checker_classes.values():
+                stack.enter_context(patch.object(cls, "run", return_value=[]))
             summary = patrol.run()  # must not raise despite PatrolLogger failing internally
 
         assert summary["ready"] is False
