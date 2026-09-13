@@ -604,6 +604,19 @@ class FinancialStatementsValueValidationMixin:
         20x deliberately leaves room for genuinely highly-levered financials/BDCs/REITs (which
         legitimately run high debt-to-assets) while still rejecting order-of-magnitude filer
         errors.
+
+        Also rejects a NEGATIVE `field` value outright (FIXED 2026-09-12, DataPatrol
+        long_term_debt_nonnegative/short_term_debt_nonnegative goal-session triage): a debt
+        balance is structurally >= 0 by accounting definition, unlike net_income or a cash-flow
+        line where a negative sign is a real, meaningful fact. Live-confirmed via real SEC
+        companyfacts JSON that this isn't OUR extraction flipping a sign - the raw filed facts
+        are themselves negative: POET Technologies (CIK 0001437424) tags
+        us-gaap:ShortTermBorrowings=-3,341,246 for FY2020 (and -3,089,033 the prior year) in its
+        own 20-F; Jones Lang LaSalle (CIK 0001037976) tags us-gaap:CommercialPaper=-200,000 as of
+        2025-12-31 in its own 10-K; ELVA (CIK 0001844450) tags a -661,000 long_term_debt-mapped
+        concept for FY2023. Same "filer-side XBRL tagging error, not a real figure" class as the
+        20x-of-assets guard above, just a sign-plausibility bound instead of a magnitude one -
+        rejecting rather than storing a value that is a physical impossibility for this field.
         """
         if self.statement_type != "balance":
             return
@@ -611,7 +624,19 @@ class FinancialStatementsValueValidationMixin:
         for row in transformed:
             total_assets = row.get("total_assets")
             value = row.get(field)
-            if total_assets is None or total_assets <= 0 or value is None:
+            if value is None:
+                continue
+            if float(value) < 0:
+                logger.warning(
+                    f"[{self.table_name}] {row.get('symbol')} FY{row.get('fiscal_year')}: "
+                    f"{field}={value:,.0f} is negative - a debt balance cannot be negative, "
+                    "filer-side XBRL tagging error, not a real debt figure. Rejecting rather "
+                    "than storing a confidently-wrong value."
+                )
+                row[field] = None
+                self._record_explicit_null_rejection(row, field, "implausible_negative_debt_value")
+                continue
+            if total_assets is None or total_assets <= 0:
                 continue
             if float(value) > float(total_assets) * max_plausible_debt_to_assets_ratio:
                 logger.warning(

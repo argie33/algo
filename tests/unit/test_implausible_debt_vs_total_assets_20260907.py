@@ -65,3 +65,27 @@ class TestImplausibleDebtVsTotalAssets:
         loader._reject_implausible_debt_field(rows, "long_term_debt")
 
         assert rows[0]["long_term_debt"] == 40_963_000_000.0
+
+    def test_negative_short_term_debt_rejected_even_without_total_assets(self) -> None:
+        """FIXED 2026-09-12: POET (CIK 0001437424) tags us-gaap:ShortTermBorrowings=-3,341,246
+        for FY2020 in its own 20-F, and Jones Lang LaSalle tags us-gaap:CommercialPaper=-200,000
+        as of 2025-12-31 in its own 10-K - both live-confirmed filer-side XBRL sign errors, not
+        an extraction bug on our end. A debt balance is never negative, so this rejects
+        regardless of whether total_assets is present."""
+        loader = self._make_loader()
+        rows: list[dict[str, Any]] = [{"symbol": "POET", "fiscal_year": 2020, "short_term_debt": -3_341_246.0}]
+
+        loader._reject_implausible_debt_field(rows, "short_term_debt")
+
+        assert rows[0]["short_term_debt"] is None
+        assert loader._explicit_null_rejections == [({"symbol": "POET", "fiscal_year": 2020}, "short_term_debt")]
+
+    def test_negative_long_term_debt_rejected_with_total_assets_present(self) -> None:
+        loader = self._make_loader()
+        rows: list[dict[str, Any]] = [
+            {"symbol": "ELVA", "fiscal_year": 2023, "total_assets": 29_368_000.0, "long_term_debt": -661_000.0}
+        ]
+
+        loader._reject_implausible_debt_field(rows, "long_term_debt")
+
+        assert rows[0]["long_term_debt"] is None
