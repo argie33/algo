@@ -677,7 +677,29 @@ def _get_notifications(
 @db_route_handler("get patrol log")
 @validate_api_response("health")
 def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
-    cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
+    """Current OPEN data_patrol_log backlog, one row per (check_name, target_table) at its
+    latest state, joined to any human triage decision.
+
+    FIXED 2026-09-13 (goal session: "make sure the react site has all the data-health
+    insights we need"): this used to be a raw `SELECT * ... ORDER BY created_at DESC LIMIT`
+    over the ENTIRE historical log - no `status='open'` filter, no dedup, no join to
+    data_patrol_review. That's the exact same "re-logged every run, functionally invisible"
+    problem scripts/data_patrol_backlog_report.py's 2026-09-09 module docstring describes
+    fixing for the CLI - the API/React path never got the equivalent fix, so the "Recent
+    Patrol Findings" panel silently stayed less trustworthy than the CLI tool this session
+    used to answer "how many data issues do we still have" (raw historical rows, including
+    duplicates and INFO-severity health confirmations, mixed in with real open findings,
+    despite the panel's own subtitle claiming "critical/error/warn only"). This query now
+    mirrors that CLI tool's logic exactly - same open/latest-per-check/review-join shape -
+    so the two surfaces can't silently disagree.
+    """
+    cur.execute(
+        """
+        SELECT COUNT(*) as total
+        FROM data_patrol_log p1
+        WHERE p1.status = 'open'
+        """
+    )
     row = cur.fetchone()
     if not row:
         # COUNT(*) always returns a row, even if table is empty (result is 0)
@@ -694,9 +716,15 @@ def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
 
     cur.execute(
         """
-            SELECT created_at, check_name, severity, target_table, message, patrol_run_id
-            FROM data_patrol_log
-            ORDER BY created_at DESC
+            SELECT p1.created_at, p1.check_name, p1.severity, p1.target_table, p1.message,
+                   p1.patrol_run_id, r.status AS review_status, r.note AS review_note,
+                   r.reviewed_at
+            FROM data_patrol_log p1
+            LEFT JOIN data_patrol_review r
+              ON r.check_name = p1.check_name
+             AND r.target_table IS NOT DISTINCT FROM p1.target_table
+            WHERE p1.status = 'open'
+            ORDER BY p1.created_at DESC
             LIMIT %s OFFSET %s
         """,
         (limit, offset),

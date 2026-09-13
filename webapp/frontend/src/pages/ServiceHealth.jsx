@@ -521,11 +521,23 @@ function ServiceHealthContent() {
     (s) => s.coverage_status === "partial" || s.coverage_status === "sparse"
   ).length;
   const executionHealth = dataStatus?.execution_health;
-  const findings = plAccessDenied
+  const allFindings = plAccessDenied
     ? []
     : Array.isArray(patrolLog)
       ? patrolLog
       : patrolLog?.items || [];
+  // INFO-severity rows are health CONFIRMATIONS ("price_daily fresh", "loader_contract OK"),
+  // not findings to triage - re-logged as "open" every run whether or not anything is wrong.
+  // Counting them here would make this panel disagree with its own "critical/error/warn"
+  // subtitle and with scripts/data_patrol_backlog_report.py's identical split (the CLI tool
+  // this same session used to answer "how many data issues do we still have") - see
+  // _get_patrol_log's 2026-09-13 fix docstring for why the two now share one query shape.
+  const findings = allFindings.filter((f) => f.severity !== "info");
+  const patrolReviewSummary = {
+    acceptable: findings.filter((f) => f.review_status === "acceptable").length,
+    needsFix: findings.filter((f) => f.review_status === "needs_fix").length,
+    unreviewed: findings.filter((f) => !f.review_status).length,
+  };
 
   return (
     <div className="main-content">
@@ -874,7 +886,12 @@ function ServiceHealthContent() {
                 <div>
                   <div className="card-title">Recent Patrol Findings</div>
                   <div className="card-sub">
-                    Last 50 issues across critical/error/warn
+                    {findings.length === 0
+                      ? "Currently open, critical/error/warn only"
+                      : `${findings.length} open (critical/error/warn) — ` +
+                        `${patrolReviewSummary.acceptable} reviewed-acceptable, ` +
+                        `${patrolReviewSummary.needsFix} needs fix, ` +
+                        `${patrolReviewSummary.unreviewed} never reviewed`}
                   </div>
                 </div>
               </div>
@@ -888,7 +905,7 @@ function ServiceHealthContent() {
                 ) : findings.length === 0 ? (
                   <Empty
                     title="All clear"
-                    desc="No recent patrol findings."
+                    desc="No open patrol findings."
                     icon={CheckCircle}
                   />
                 ) : (
@@ -999,6 +1016,21 @@ function FindingRow({ finding }) {
         {finding.target_table && (
           <span className="muted t-xs">· {finding.target_table}</span>
         )}
+        {finding.review_status && (
+          <span
+            className="badge"
+            title={finding.review_note || ""}
+            style={{
+              fontSize: "var(--t-2xs)",
+              color: "var(--text-faint)",
+              border: "1px solid var(--border-soft)",
+            }}
+          >
+            {finding.review_status === "acceptable"
+              ? "reviewed: acceptable"
+              : "reviewed: needs fix"}
+          </span>
+        )}
         <span className="t-xs faint mono" style={{ marginLeft: "auto" }}>
           {fmtAgo(finding.created_at)}
         </span>
@@ -1006,6 +1038,14 @@ function FindingRow({ finding }) {
       <div className="t-sm" style={{ marginTop: 4, color: "var(--text-2)" }}>
         {finding.message}
       </div>
+      {finding.review_status && finding.review_note && (
+        <div
+          className="t-xs faint"
+          style={{ marginTop: 4, fontStyle: "italic" }}
+        >
+          {finding.review_note}
+        </div>
+      )}
     </div>
   );
 }
