@@ -172,7 +172,7 @@
   "algo/research/fama_macbeth_liquidity_factor.py": 228,
   "algo/research/fama_macbeth_momentum_factors.py": 234,
   "algo/research/fama_macbeth_positioning_factors.py": 147,
-  "algo/research/fama_macbeth_price_factors.py": 487,
+  "algo/research/fama_macbeth_price_factors.py": 503,
   "algo/research/fama_macbeth_quality_factors.py": 590,
   "algo/research/fama_macbeth_quality_trend_factors.py": 191,
   "algo/research/fama_macbeth_value_factors.py": 780,
