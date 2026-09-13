@@ -1144,6 +1144,10 @@ class SecValuationsLoader(
                         )
                     ]
 
+                ttm_eps_basic = self._derive_fpi_eps_from_resolved_shares(
+                    ttm_eps_basic, is_foreign_private_issuer, _ttm_net_income, shares_out
+                )
+
                 # FIXED 2026-08-25 (goal: "margin of safety results look wrong" audit):
                 # shares_out above is deliberately CLASS-SPECIFIC whenever has_dual_class_sibling
                 # is True - correct for market_cap/pe_ratio/pb_ratio/ps_ratio, which must reflect

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Daily entrypoint for XBRL data-quality layers 4, 5 and 6 (see MEMORY.md's
+"""Daily entrypoint for XBRL data-quality layers 4, 5, 6 and 8 (see MEMORY.md's
 xbrl_calculation_linkbase_check_landed_20260910 and the "7 layers" docstring in
 scripts/xbrl_calculation_linkbase_check.py for the full architecture).
 
@@ -54,7 +54,7 @@ but not yet applied - needs real AWS access, unrelated to whether local automati
 Same small-rotating-sample posture as running each script by hand, just no longer
 dependent on anyone remembering to.
 
-All three underlying scripts already write their own findings straight to
+All four underlying scripts already write their own findings straight to
 data_patrol_log (WARN severity, same data_patrol_review triage queue as every other
 DataPatrol check) - this wrapper just calls their `run()` functions back to back with
 the same defaults the docstrings recommend for a periodic pass, and lets any one
@@ -69,7 +69,7 @@ companyfacts/calculation-linkbase disk cache (%TEMP%/algo-sec-edgar-cache, see
 utils/external/sec_edgar_client.py) that's normally warm on a LOCAL dev box after a loader
 run on the same machine - but each ECS Fargate task (this one included) gets its own fresh
 ephemeral filesystem, so there is no cross-task cache to inherit there regardless of where
-this runs. Not a correctness issue (all three fall back to live SEC/yfinance fetches
+this runs. Not a correctness issue (all fall back to live SEC/yfinance fetches
 fine), just don't expect the "already warm" request-volume savings their docstrings
 describe when this runs on its schedule - the fixed small sample size (25 + 15 + 10
 symbols) is what actually keeps this within the shared rate-limit budget, not cache reuse.
@@ -110,6 +110,7 @@ def _run_dqc_layer(*, limit: int, symbols_override: list[str] | None, dry_run: b
 
 def main(argv: list[str] | None = None) -> None:
     from scripts.xbrl_calculation_linkbase_check import run as run_calc_linkbase
+    from scripts.xbrl_unavailable_reason_audit import run as run_reason_audit
     from scripts.xbrl_yfinance_crosscheck import run as run_yfinance_crosscheck
 
     # BUG FIX (2026-09-13): this wrapper had NO argument parsing at all - `--dry-run` was
@@ -125,7 +126,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Run all three layers without writing findings to data_patrol_log.",
+        help="Run all four layers without writing findings to data_patrol_log.",
     )
     args = parser.parse_args(argv)
 
@@ -136,6 +137,16 @@ def main(argv: list[str] | None = None) -> None:
         ("yfinance_crosscheck", run_yfinance_crosscheck, 25),
         ("calculation_linkbase_check", run_calc_linkbase, 15),
         ("dqc_arelle_check", _run_dqc_layer, 10),
+        # ADDED 2026-09-13 (goal: "question our own assumptions" audit, "is 8 layers ai
+        # slop?" pushback): the 8th check (audits the unavailability VERDICTS behind the
+        # "Missing SEC/XBRL data" headline, not the values that made it through - see
+        # scripts/xbrl_unavailable_reason_audit.py's own docstring) was almost shipped as
+        # yet another standalone script with its own Task Scheduler entry, repeating the
+        # exact "a new file every session, nobody remembers to run it" pattern this
+        # wrapper exists to stop. Same call signature as the other three, so it slots in
+        # here directly instead - one schedule, one failure policy, one exit code, no new
+        # automation surface to maintain.
+        ("unavailable_reason_audit", run_reason_audit, 40),
     )
     for label, fn, limit in layers:
         try:

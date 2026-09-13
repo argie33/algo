@@ -31,11 +31,6 @@ class IncomeStatementContextMixin:
     `_lsv` import).
     """
 
-    # Type-only declaration for the SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO=2 class constant
-    # defined on SecValuationsLoader itself, reused below by the FPI EPS-derivation validation -
-    # see that call site's own comment for why.
-    SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO: int
-
     # Type-only declarations, TYPE_CHECKING-only so they exist for mypy but never shadow the
     # real methods at runtime (MRO would find these before the real ones if they were real
     # methods here, since SecValuationsLoader lists this mixin after ValuationSanityCheckMixin/
@@ -65,8 +60,6 @@ class IncomeStatementContextMixin:
 
         @staticmethod
         def _compute_multi_year_eps_cagr(income_rows: list[tuple[Any, ...]]) -> float | None: ...
-
-        def _fetch_live_fpi_shares_outstanding_yfinance(self, symbol: str) -> float | None: ...
 
     @staticmethod
     def _reclassify_blank_check_zero_row(cur: Any, symbol: str, reason: str) -> str:
@@ -123,6 +116,37 @@ class IncomeStatementContextMixin:
         ):
             return "unsupported_currency_no_fx_rate"
         return reason
+
+    @staticmethod
+    def _derive_fpi_eps_from_resolved_shares(
+        ttm_eps_basic: Any,
+        is_foreign_private_issuer: bool,
+        ttm_net_income: Any,
+        shares_out: float,
+    ) -> Any:
+        """Last-resort EPS derivation for foreign private issuers whose filings never tag
+        any EPS concept (eps_never_tagged_in_filings bucket - BP/AZUL/FMX/BIPC/etc.).
+        Called from fetch_incremental right after shares_out is confirmed resolved
+        (non-null, positive) - moved here (2026-09-13) rather than left in
+        load_sec_valuations.py, which is already at its file-size ratchet ceiling.
+
+        FIXED 2026-09-13 (goal: "question our own assumptions" audit): a same-day attempt
+        to derive this inside this file's OWN domestic-only tier above (using
+        cis_shares_outstanding = company_info_sec.shares_outstanding, cross-checked
+        against yfinance) was live-tested against a real BP loader run and found
+        ineffective - cis_shares_outstanding is NULL for BP, a domestic-forms-only field
+        empty for exactly this population by construction. `shares_out` (the caller's
+        already-fully-resolved share count) is the right basis instead: every SEC-sourced
+        tier in SharesOutstandingResolutionMixin._resolve_shares_outstanding is
+        deliberately gated off for a foreign private issuer, so a resolved shares_out for
+        one can only have come from the already-yfinance-verified live-fetch tier (or an
+        individually curated override) - no second cross-check needed here. Live
+        re-verified across all 19 real eps_never_tagged_in_filings symbols (2026-09-13):
+        BP/AZUL/FMX/etc. all resolve shares_out via exactly this path.
+        """
+        if ttm_eps_basic is None and is_foreign_private_issuer and ttm_net_income is not None:
+            return float(ttm_net_income) / float(shares_out)
+        return ttm_eps_basic
 
     def _reclassify_zero_row_reason(self, cur: Any, symbol: str, reason: str) -> str:
         """Chains the blank-check and FPI-currency reclassifications for the zero-income-
@@ -231,26 +255,6 @@ class IncomeStatementContextMixin:
                 _sum_col(9),  # interest_expense
             )
         ]
-
-    def _fpi_confirmed_eps_shares_basis(self, symbol: str, cis_shares_outstanding: float) -> float | None:
-        """FIXED 2026-09-13 (goal: "question our own assumptions" audit): extracted out of
-        _fetch_income_statement_context's last-resort EPS-derivation branch (Ruff C901) - see
-        that call site's own comment for the full rationale. Cross-checks
-        cis_shares_outstanding against yfinance's own per-LISTING sharesOutstanding (already
-        on the correct ADS/USD basis) using the same SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO
-        tolerance the shares-resolution cascade uses elsewhere for the identical question.
-        Returns cis_shares_outstanding unchanged when confirmed, None when the yfinance
-        fetch fails or the two disagree by more than that tolerance (a real ADS mismatch).
-        """
-        yfinance_shares = self._fetch_live_fpi_shares_outstanding_yfinance(symbol)
-        if yfinance_shares is None or yfinance_shares <= 0:
-            return None
-        ratio = float(cis_shares_outstanding) / yfinance_shares
-        if not (
-            1 / self.SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO <= ratio <= self.SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO
-        ):
-            return None
-        return cis_shares_outstanding
 
     def _fetch_income_statement_context(self, cur: Any, symbol: str) -> Any:
         """Fetch the latest annual_income_statement row(s) for `symbol` and derive every
@@ -520,39 +524,29 @@ class IncomeStatementContextMixin:
         # for market_cap when no income statement exists at all) - not split-adjusted like
         # a real tagged EPS, since it's derived from an already-current share count, not a
         # historical filed value.
-        # FIXED 2026-09-13 (goal: "question our own assumptions" audit): originally
-        # blanket-excluded every foreign private issuer here, reasoning an ADR/ADS share-
-        # count mismatch (home-market shares vs. the ADS basis current_price is quoted in)
-        # would make a derived value actively wrong. Live re-verified across all 19 real
-        # eps_never_tagged_in_filings symbols (2026-09-13): every one of them already has
-        # cis_shares_outstanding matching its OWN currently-computed
-        # current_price*shares_outstanding == market_cap identity at ratio 1.00 (e.g. BP:
-        # 46.10 * 2,575,404,456 = 118,726,145,421.60, exactly the stored market_cap) - i.e.
-        # cis_shares_outstanding is already on the correct per-listing basis for every one
-        # of them, not a leftover home-market count. The blanket exclusion was solving a
-        # real problem (a genuine ADS multiplier would derive a wrong EPS) with an
-        # overbroad rule (treating "is an FPI" as a proxy for "has an ADS mismatch", which
-        # this bucket shows isn't reliable). Now validates per-symbol instead: cross-checks
-        # cis_shares_outstanding against yfinance's own per-LISTING sharesOutstanding
-        # (queried by the ADS ticker itself, so already on the correct ADS/USD basis - see
-        # _fetch_live_fpi_shares_outstanding_yfinance's own docstring), using the same
-        # SHARES_OUTSTANDING_SCALE_MISMATCH_RATIO=2 tolerance the shares-resolution cascade
-        # already uses for the identical question elsewhere. A real ADS mismatch (e.g. a
-        # 5:1 or 20:1 ratio) fails this check and correctly still skips derivation; only an
-        # FPI cis_shares_outstanding already on the right basis passes. Only reached for
-        # this already-narrow bucket (no tagged EPS anywhere, real net_income, real
-        # cis_shares_outstanding) - not a broad per-run FPI scan, so this doesn't add a
-        # yfinance call to every FPI's normal run.
-        eps_shares_basis = cis_shares_outstanding
-        if ttm_eps_basic is None and is_foreign_private_issuer and eps_shares_basis is not None:
-            eps_shares_basis = self._fpi_confirmed_eps_shares_basis(symbol, eps_shares_basis)
+        # REVISED 2026-09-13 (goal: "question our own assumptions" audit): a same-day fix
+        # attempt here validated cis_shares_outstanding (company_info_sec.shares_outstanding)
+        # against yfinance before allowing FPIs through - live-tested against a real loader
+        # run and found ineffective: cis_shares_outstanding (a domestic-forms-only field,
+        # see sec_valuations_shares.py's own company_info_sec-tier comment) is NULL for BP
+        # and, by the same reasoning, for most of this exact FPI population - the very
+        # reason SharesOutstandingResolutionMixin gates every SEC-sourced shares_out tier
+        # off for FPIs and falls through to a live yfinance fetch instead. Deriving EPS
+        # from a raw, frequently-empty field here (even with a validation check bolted on)
+        # was solving the wrong variable. The FPI case is now handled entirely in
+        # fetch_incremental, AFTER shares_out is fully resolved (see the comment there) -
+        # for a true FPI, shares_out at that point can only be a value the shares-
+        # resolution cascade itself already vetted (live yfinance fetch or an individually
+        # curated override), so no second cross-check is needed or added here. This tier
+        # stays domestic-only, as originally built.
         if (
             ttm_eps_basic is None
+            and not is_foreign_private_issuer
             and _ttm_net_income is not None
-            and eps_shares_basis is not None
-            and eps_shares_basis > 0
+            and cis_shares_outstanding is not None
+            and cis_shares_outstanding > 0
         ):
-            ttm_eps_basic = float(_ttm_net_income) / float(eps_shares_basis)
+            ttm_eps_basic = float(_ttm_net_income) / float(cis_shares_outstanding)
 
         # FIXED 2026-08-18: operating_income/pretax_income suffer the identical anchor-row
         # stub gap as revenue and earnings_per_share above. Live-confirmed HG (Hamilton
