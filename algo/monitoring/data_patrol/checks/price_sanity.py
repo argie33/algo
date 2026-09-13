@@ -22,6 +22,7 @@ class PriceSanityChecker(BaseCheck):
         self.check_price_moves(cur)
         self.check_corporate_actions(cur)
         self.check_sequence_continuity(cur)
+        self.check_isolated_spike_corruption(cur)
 
         return self.results
 
@@ -221,3 +222,96 @@ class PriceSanityChecker(BaseCheck):
                 )
         except (ValueError, ZeroDivisionError, TypeError) as e:
             self.log("sequence", ERROR, "price_daily", f"Check failed: {e}", None)
+
+    # Isolated-spike batch-corruption signature (volume<=0-10, data_source='yfinance',
+    # >100x away from a real bracketing neighbor). Root-caused to a pre-2026-08-26
+    # PriceTransformer bug (fixed in 8f8537816) that let historical-backfill batches skip
+    # sequence/gap/split-ratio validation entirely; 38,311 already-corrupted rows across 161
+    # symbols were cleaned up in a one-off forensic pass (see memory:
+    # price_daily_retroactive_corruption_never_cleaned_up_20260913) using a standalone script
+    # that was never wired into any recurring check - promoted here so a regression (a new
+    # backfill path bypassing the ingestion fix, or the fix itself regressing) surfaces on the
+    # next DataPatrol run instead of requiring another ad-hoc dig.
+    _ISOLATED_SPIKE_RATIO = 100.0
+    _SPIKE_VOLUME_THRESHOLD = 10
+
+    def check_isolated_spike_corruption(self, cur: Any) -> None:
+        try:
+            cur.execute(
+                """
+                SELECT DISTINCT symbol FROM price_daily
+                WHERE volume <= %(threshold)s AND data_source = 'yfinance'
+                """,
+                {"threshold": self._SPIKE_VOLUME_THRESHOLD},
+            )
+            candidate_symbols = [r[0] if not isinstance(r, dict) else r["symbol"] for r in cur.fetchall()]
+
+            confirmed: list[dict[str, Any]] = []
+            for symbol in candidate_symbols:
+                cur.execute(
+                    "SELECT date, close, volume, data_source FROM price_daily WHERE symbol = %(symbol)s ORDER BY date",
+                    {"symbol": symbol},
+                )
+                rows = cur.fetchall()
+                is_batch = [
+                    (r[2] if not isinstance(r, dict) else r["volume"]) is not None
+                    and (r[2] if not isinstance(r, dict) else r["volume"]) <= self._SPIKE_VOLUME_THRESHOLD
+                    and (r[3] if not isinstance(r, dict) else r["data_source"]) == "yfinance"
+                    for r in rows
+                ]
+
+                def _close(r: Any) -> float:
+                    return float(r[1] if not isinstance(r, dict) else r["close"])
+
+                def _date(r: Any) -> Any:
+                    return r[0] if not isinstance(r, dict) else r["date"]
+
+                i, n = 0, len(rows)
+                while i < n:
+                    if not is_batch[i]:
+                        i += 1
+                        continue
+                    j = i
+                    while j < n and is_batch[j]:
+                        j += 1
+                    run = rows[i:j]
+                    prev_close = _close(rows[i - 1]) if i > 0 else None
+                    next_close = _close(rows[j]) if j < n else None
+                    run_min = min(_close(r) for r in run)
+
+                    confirmed_bad = (
+                        prev_close and prev_close > 0 and run_min / prev_close > self._ISOLATED_SPIKE_RATIO
+                    ) or (next_close and next_close > 0 and run_min / next_close > self._ISOLATED_SPIKE_RATIO)
+                    if confirmed_bad:
+                        confirmed.append(
+                            {
+                                "symbol": symbol,
+                                "start": str(_date(run[0])),
+                                "end": str(_date(run[-1])),
+                                "rows": len(run),
+                            }
+                        )
+                    i = j
+
+            if confirmed:
+                total_rows = sum(r["rows"] for r in confirmed)
+                self.log(
+                    "isolated_spike_corruption",
+                    ERROR,
+                    "price_daily",
+                    f"{total_rows} confirmed-corrupted row(s) across {len(confirmed)} symbol(s) "
+                    f"(batch-tagged volume<={self._SPIKE_VOLUME_THRESHOLD} run bracketed by a real "
+                    f">{self._ISOLATED_SPIKE_RATIO:.0f}x-away neighbor) - see "
+                    "scripts/check_price_daily_isolated_spikes.py for detail/remediation",
+                    {"count": total_rows, "symbols": len(confirmed), "samples": confirmed[:10]},
+                )
+            else:
+                self.log(
+                    "isolated_spike_corruption",
+                    INFO,
+                    "price_daily",
+                    "No isolated-spike batch corruption detected",
+                    None,
+                )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, ZeroDivisionError, TypeError) as e:
+            self.log("isolated_spike_corruption", ERROR, "price_daily", f"Check failed: {e}", None)

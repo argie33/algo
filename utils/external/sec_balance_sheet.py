@@ -927,6 +927,18 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # tags a sibling concept (RedeemableNoncontrollingInterestEquityOtherCarryingAmount,
         # not this one) so its own gap is NOT expected to fully close from this alone.
         "TemporaryEquityCarryingAmountAttributableToParent",
+        # ADDED 2026-09-13 (goal session: check_balance_sheet_identity 512-symbol/year WARN
+        # bucket triage): PROK's own residual ($1,311,990,000) exactly equals its own tagged
+        # RedeemableNoncontrollingInterestEquityOtherCarryingAmount - live-confirmed via real
+        # SEC companyfacts JSON (PROK FY2025 10-K, period end 2025-12-31):
+        # Assets($335,574,000) == Liabilities($34,781,000) +
+        # RedeemableNoncontrollingInterestEquityOtherCarryingAmount($1,311,990,000) +
+        # StockholdersEquity(-$1,011,197,000), exact to the dollar. Same mezzanine-equity
+        # semantic as TemporaryEquityCarryingAmountAttributableToParent immediately above
+        # (sits between liabilities and permanent stockholders_equity on a classified balance
+        # sheet), just a different filing-agent's naming choice for it - not fallback-only,
+        # single directly-tagged concept, same convention as that concept.
+        "RedeemableNoncontrollingInterestEquityOtherCarryingAmount",
         # ADDED 2026-09-11 (goal: "SEC/XBRL missing data under 200" push, PS/Pershing Square
         # Inc. live-confirmed): partnership/Up-C-structured filers' NCI equivalent of
         # "MinorityInterest" above - live-confirmed via real SEC companyfacts JSON (CIK

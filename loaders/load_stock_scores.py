@@ -1287,9 +1287,20 @@ class StockScoresLoader(
         # tables), THEN run the audit - a coverage problem should still fail the run for
         # visibility, but must not collaterally block an unrelated, Phase-7-critical step.
         #
+        # Risk absolute z-score pass (2026-09-13, same /goal session, immediately preceding
+        # Momentum's pass below - see update_risk_absolute_zscore_scores()'s own docstring for
+        # the full evidence trail: `_vol_curve_score`/`_max_drawdown_curve_score`'s fixed
+        # breakpoints were live-checked against the real universe distribution and found badly
+        # miscalibrated, and a pre-ship dry run of the naive fix caught a real regression
+        # (brand-new IPOs topping the corrected risk_score off partial-history max_drawdown_1y -
+        # fixed via MIN_TRADING_DAYS_FOR_DRAWDOWN). Placed FIRST of all the batch passes, ahead
+        # of Momentum's own pass, so Momentum's composite_score recompute (and every pass after
+        # it) sees the CORRECTED risk_score, not Pass 1's miscalibrated one - same "later pass
+        # sees earlier pass's finalized pillar" ordering principle as everything below it.
+        self.update_risk_absolute_zscore_scores()
         # Momentum sector-neutral z-score pass (2026-09-13, /goal scoring-methodology session -
         # see update_momentum_sector_neutral_scores()'s own docstring for the full evidence
-        # trail). Placed FIRST, ahead of update_rs_percentiles(), so rs_percentile ranks off the
+        # trail). Placed ahead of update_rs_percentiles(), so rs_percentile ranks off the
         # CORRECTED momentum_score rather than Pass 1's provisional one, and ahead of
         # update_value_multiples_percentiles()/update_growth_sector_neutral_scores() so their own
         # composite_score recomputes see momentum_score already finalized, not provisional -

@@ -36,7 +36,8 @@ Usage:
     --start-date DATE       Earliest month-end price to pull (default: 2014-01-01, gives a
                              24-month warmup before the first usable regression month)
     --end-date DATE         Latest month-end price to pull (default: today)
-    --min-cross-section N   Minimum symbols in a month's cross-section to use it (default: 100)
+    --min-cross-section N   Minimum symbols in a month's cross-section to use it (default: 100
+                             whole-universe, auto-scaled down for a small --industries group)
     --beta-window N         Trailing months for beta regression (default: 24)
     --vol-window N          Trailing months for vol/downside-vol/max-drawdown (default: 12)
 """
@@ -44,6 +45,7 @@ Usage:
 import argparse
 import logging
 from datetime import datetime
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -170,9 +172,56 @@ def build_monthly_cross_sections(
     return records
 
 
-def _fama_macbeth(records: list[tuple[pd.Timestamp, pd.DataFrame]], cols: list[str]) -> dict[str, tuple[float, float]]:
+def newey_west_se(x: np.ndarray[Any, Any], lags: int) -> float:
+    """Newey-West HAC (Bartlett kernel) standard error of the sample mean of a time series.
+
+    Extracted 2026-09-13 (goal: "check the accuracy of all our inputs" session) from
+    `momentum_residual_univariate_isolation_check.py`'s own `_newey_west_tstat` (that file's
+    private, one-off copy predates this shared home - not touched here beyond adding this
+    shared version; existing call site is unaffected). `lags=0` is close to but not identical
+    to the plain `std(ddof=1)/sqrt(n)` formula `_fama_macbeth` uses when `hac_lags=None` (this
+    uses a population-variance convention, ddof=0, vs. that formula's sample-variance ddof=1 -
+    the two converge as n grows but differ slightly for small n), so `hac_lags=None` (unchanged
+    default behavior) rather than `hac_lags=0` is what preserves every existing call site's
+    exact historical output.
+    """
+    n = len(x)
+    mean = x.mean()
+    demeaned = x - mean
+    gamma0 = float(np.sum(demeaned * demeaned)) / n
+    var = gamma0
+    for lag in range(1, lags + 1):
+        w = 1.0 - lag / (lags + 1)
+        gamma_l = float(np.sum(demeaned[lag:] * demeaned[: n - lag])) / n
+        var += 2.0 * w * gamma_l
+    return float(np.sqrt(max(var, 0.0) / n))
+
+
+def _fama_macbeth(
+    records: list[tuple[pd.Timestamp, pd.DataFrame]], cols: list[str], hac_lags: int | None = None
+) -> dict[str, tuple[float, float]]:
     """Run one cross-sectional OLS per month on `cols` (plus intercept), average the
-    coefficient time series, and return {name: (mean_coef, t_stat)}."""
+    coefficient time series, and return {name: (mean_coef, t_stat)}.
+
+    `hac_lags` (added 2026-09-13, goal: "check the accuracy of all our inputs" session):
+    optional Newey-West HAC lag count for the t-stat's standard error, instead of the plain
+    `std(ddof=1)/sqrt(n)` this function has always used. Defaults to None (unchanged behavior -
+    every existing call site and every conclusion already drawn from this function's t-stats
+    stays exactly as computed) because the naive SE assumes the monthly coefficient series has
+    no serial correlation, which is optimistic in two known ways real callers hit: (1) any
+    horizon_months>1 caller (e.g. fama_macbeth_growth_factors.py's `run(horizon_months=N)`)
+    uses OVERLAPPING forward-return windows by construction - consecutive months share
+    horizon_months-1 months of the same realized return, which is textbook Newey-West territory
+    (the standard rule of thumb is lags=horizon_months-1); (2) even at horizon_months=1,
+    persistent factor premia (a value/quality/momentum regime that runs hot or cold for several
+    months in a row, not just one) can autocorrelate the coefficient series itself -
+    `momentum_residual_univariate_isolation_check.py` already found this worth checking
+    (Newey-West 3-lag) for one momentum-family isolation check; this makes that same check
+    available to every other factor-validation script in this family instead of it being a
+    one-off. Pass an explicit lag count (commonly horizon_months-1, or a small fixed count like
+    3 as a general robustness cross-check) on any NEW analysis where serial correlation is a
+    live concern - this does not retroactively change any already-documented conclusion.
+    """
     coef_hist: dict[str, list[float]] = {c: [] for c in ["const", *cols]}
     for _month, frame in records:
         x = np.column_stack([np.ones(len(frame))] + [frame[c].values for c in cols])
@@ -185,7 +234,7 @@ def _fama_macbeth(records: list[tuple[pd.Timestamp, pd.DataFrame]], cols: list[s
     for name, series in coef_hist.items():
         arr = np.array(series)
         mean = arr.mean()
-        se = arr.std(ddof=1) / np.sqrt(len(arr))
+        se = newey_west_se(arr, hac_lags) if hac_lags is not None else arr.std(ddof=1) / np.sqrt(len(arr))
         results[name] = (mean, mean / se if se > 0 else float("nan"))
     return results
 
@@ -223,6 +272,85 @@ def benjamini_hochberg_fdr(t_stats: dict[str, float], n_months: int, q: float = 
     below = np.where(sorted_p <= thresholds)[0]
     cutoff_p = sorted_p[below.max()] if len(below) else -1.0
     return {name: bool(cutoff_p >= 0 and pvals[i] <= cutoff_p) for i, name in enumerate(names)}
+
+
+def variance_inflation_factors(records: list[tuple[pd.Timestamp, pd.DataFrame]], cols: list[str]) -> dict[str, float]:
+    """Average per-month VIF for each factor in `cols` (regress each factor on the others
+    within each month's cross-section, average 1/(1-R^2) across months).
+
+    Built 2026-09-13 - direct response to vol/max_dd/beta producing era-split results that
+    flipped BOTH which era was strong and the sign of the effect between two independently
+    written test scripts (see risk_momentum_price_factor_validity_fresh_run_postcleanup_20260913
+    vs algo-3b's contradicting run, in memory). A single 50/50 split can't distinguish "real,
+    unstable-over-time factor" from "collinear factor whose multivariate coefficient is
+    underdetermined" - VIF answers the second question directly. Loosely: VIF>5 means a
+    factor's multivariate sign/magnitude should not be trusted on its own; VIF>10 is severe.
+    Check this BEFORE shipping any weight change based on a multivariate coefficient's sign.
+    """
+    per_month: dict[str, list[float]] = {c: [] for c in cols}
+    for _month, frame in records:
+        for target in cols:
+            others = [c for c in cols if c != target]
+            x = np.column_stack([np.ones(len(frame))] + [frame[c].values for c in others])
+            y = frame[target].values
+            coefs, *_ = np.linalg.lstsq(x, y, rcond=None)
+            pred = x @ coefs
+            ss_res = np.sum((y - pred) ** 2)
+            ss_tot = np.sum((y - y.mean()) ** 2)
+            r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+            per_month[target].append(1.0 / (1.0 - r2) if r2 < 0.999 else float("inf"))
+    return {c: float(np.mean(v)) for c, v in per_month.items()}
+
+
+class EraRobustness(NamedTuple):
+    t_stats: list[float]
+    sign_agrees_across_blocks: bool
+    blocks_clearing_1_5: int
+    n_blocks: int
+
+
+def multi_split_era_robustness(
+    records: list[tuple[pd.Timestamp, pd.DataFrame]], cols: list[str], n_splits: int = 4
+) -> dict[str, EraRobustness]:
+    """Split the sample chronologically into `n_splits` contiguous, roughly-equal blocks - not
+    just one 50/50 split - and run a univariate Fama-MacBeth per factor within each block.
+
+    Built 2026-09-13, same motivation as `variance_inflation_factors` above. A single
+    split_date answers "is this factor stronger in the first half or second half" - one draw,
+    entirely dependent on exactly where the split falls, which is how two honest sessions can
+    get opposite-era-strength answers on the same (clean, post-price_daily-cleanup) data. This
+    reports the full block-by-block distribution instead: how many of the n_splits blocks agree
+    in sign, and how many independently clear a block-level bar of |t|>=1.5 (loosened from the
+    usual 2.0 since each block has ~1/n_splits the months of a single-split half). A factor
+    whose sign flips across blocks, or clears the bar in only one, is exactly the
+    noise/instability signature this exists to catch - do not make a weight decision off a
+    single split_date result for any factor without also checking this.
+    """
+    n = len(records)
+    edges = [round(i * n / n_splits) for i in range(n_splits + 1)]
+    blocks = [records[edges[i] : edges[i + 1]] for i in range(n_splits)]
+
+    out: dict[str, EraRobustness] = {}
+    for c in cols:
+        t_stats: list[float] = []
+        signs: list[int] = []
+        for block in blocks:
+            if len(block) < 3:
+                t_stats.append(float("nan"))
+                signs.append(0)
+                continue
+            _mean, t = _fama_macbeth(block, [c])[c]
+            t_stats.append(t)
+            signs.append(int(np.sign(t)) if not np.isnan(t) else 0)
+        valid = [t for t in t_stats if not np.isnan(t)]
+        nonzero_signs = {s for s in signs if s != 0}
+        out[c] = EraRobustness(
+            t_stats=t_stats,
+            sign_agrees_across_blocks=len(nonzero_signs) <= 1 and bool(nonzero_signs),
+            blocks_clearing_1_5=sum(1 for t in valid if abs(t) >= 1.5),
+            n_blocks=n_splits,
+        )
+    return out
 
 
 SURVIVORSHIP_BIAS_CAVEAT = (
@@ -264,7 +392,7 @@ def fetch_symbols_for_industries(industries: frozenset[str]) -> set[str]:
 def run(
     start_date: str,
     end_date: str,
-    min_cross_section: int,
+    min_cross_section: int | None,
     beta_window: int,
     vol_window: int,
     industry_group: str | None = None,
@@ -274,11 +402,20 @@ def run(
     df = fetch_month_end_prices(start_date, end_date)
     logger.info(f"{len(df)} symbol-month rows fetched")
 
+    symbols: set[str] | None = None
     if industry_group is not None:
         symbols = fetch_symbols_for_industries(INDUSTRY_GROUPS[industry_group]) | {"SPY"}
         logger.info(f"--industries {industry_group}: {len(symbols) - 1} symbols in company_profile (+SPY)")
         df = df[df["symbol"].isin(symbols)]
         logger.info(f"{len(df)} symbol-month rows after industry filter")
+
+    if min_cross_section is None:
+        # Small industry groups (e.g. insurers, ~95 symbols) never clear the whole-universe
+        # default of 100/month even at full membership - auto-scale down instead of a silent
+        # zero-usable-months RuntimeError (live-hit 2026-09-12 running --industries insurers).
+        # Only applies when the caller didn't pass an explicit --min-cross-section.
+        min_cross_section = 100 if symbols is None else max(10, int(0.5 * (len(symbols) - 1)))
+        logger.info(f"--min-cross-section not set, using {min_cross_section}")
 
     px = df.pivot(index="month", columns="symbol", values="px").sort_index()
     ret = px.pct_change(fill_method=None)
@@ -308,12 +445,39 @@ def run(
         verdict = "PASS" if fdr[c] else "fail"
         print(f"{c:14s} {uni_mean[c]:10.5f} {uni_t[c]:8.2f} {verdict:>12s}")
 
+    print("\n=== Multicollinearity check (VIF - check before trusting any multivariate sign) ===")
+    vif = variance_inflation_factors(records, FACTOR_COLS)
+    for c in FACTOR_COLS:
+        flag = (
+            "  <- HIGH: multivariate coef for this factor is unstable, don't trust its sign alone" if vif[c] > 5 else ""
+        )
+        print(f"{c:14s} VIF={vif[c]:6.2f}{flag}")
+
+    n_splits = 4
+    print(f"\n=== Multi-split era robustness ({n_splits}-block chronological split, not a single 50/50) ===")
+    robustness = multi_split_era_robustness(records, FACTOR_COLS, n_splits=n_splits)
+    for c in FACTOR_COLS:
+        r = robustness[c]
+        t_str = "  ".join(f"{t:6.2f}" if not np.isnan(t) else "   nan" for t in r.t_stats)
+        robust = r.sign_agrees_across_blocks and r.blocks_clearing_1_5 >= n_splits - 1
+        verdict = "ROBUST" if robust else "unstable/inconclusive"
+        print(
+            f"{c:14s} block t-stats: [{t_str}]  sign_agrees={r.sign_agrees_across_blocks}  "
+            f"clears|t|>=1.5 in {r.blocks_clearing_1_5}/{r.n_blocks}  -> {verdict}"
+        )
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--start-date", default="2014-01-01")
     parser.add_argument("--end-date", default=datetime.now(tz=None).date().isoformat())
-    parser.add_argument("--min-cross-section", type=int, default=100)
+    parser.add_argument(
+        "--min-cross-section",
+        type=int,
+        default=None,
+        help="Minimum symbols in a month's cross-section to use it (default: 100 whole-universe, "
+        "auto-scaled down for a small --industries group).",
+    )
     parser.add_argument("--beta-window", type=int, default=24)
     parser.add_argument("--vol-window", type=int, default=12)
     parser.add_argument(
