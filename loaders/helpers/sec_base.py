@@ -27,6 +27,10 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, cast
 
+from loaders.helpers.sec_reit_exclusive_scale_guard import (
+    reject_reit_exclusive_scale_mismatch,
+    should_skip_reit_only_fallback_field,
+)
 from loaders.helpers.sec_revenue_total_resolution import resolve_revenue_total_candidate
 from loaders.helpers.sec_statement_field_bookkeeping import is_bookkeeping_key
 from loaders.timeout_config import configure_socket_timeout
@@ -1498,64 +1502,28 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     continue
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and db_field in row:
                     continue  # A higher-priority concept already populated this field
+                # See should_skip_reit_only_fallback_field's own docstring
+                # (sec_reit_exclusive_scale_guard.py) for the REIT/insurance/depository-
+                # institution/CLDT-magnitude-guard history this mechanically preserves.
+                # Cheap fields checked first (unchanged short-circuit behavior) so the
+                # self._get_*_symbols() DB-backed lookups below are never called at all
+                # for the overwhelming majority of sec_field/db_field combos that don't
+                # even reach this fallback tier.
                 if (
                     sec_field in getattr(self, "_reit_only_fallback_fields", frozenset())
                     and db_field in row
-                    and (
-                        r.get("symbol") in self._get_reit_symbols()
-                        or r.get("symbol") in self._get_insurance_symbols()
-                        # FIXED 2026-08-22 (goal session: real-money-readiness audit,
-                        # following the AROW/community-bank revenue-gap investigation):
-                        # same failure shape as the REIT/insurance cases above, bank/thrift
-                        # trigger this time. Depository institutions' real total revenue
-                        # (net interest income + noninterest income) is out of ASC 606's
-                        # scope, so their ASC-606 contract-revenue tag - when present at
-                        # all - is a minor ancillary fee-income line (deposit/wealth-
-                        # management fees), never the total. Live-confirmed via WAFDP
-                        # (Washington Federal, SIC 6035): real interest_and_dividend_
-                        # income_operating FY2018=$607.1M/FY2019=$671.5M (growing,
-                        # consistent with real net_income) vs. revenue_from_contract_
-                        # with_customer_excluding_assessed_tax FY2018=$25.9M/FY2019=
-                        # $24.9M (a minor fee line) was clobbering it - stored "revenue"
-                        # was the $25.9M figure, a ~23x understatement. A DB-wide scan
-                        # (bank/thrift SIC codes, revenue < 80% of net_income) found 40
-                        # more rows with the same signature (ALLY, AMTB, AUBN, and
-                        # others).
-                        or r.get("symbol") in self._get_depository_institution_symbols()
-                    )
-                    # WIDENED 2026-09-01 (recovered from the growth-multi-input-blend
-                    # worktree, found stranded off main): this skip used to be unconditional
-                    # once "revenue" held ANY value, on the assumption whatever got there
-                    # first for a confirmed REIT/insurer/bank is always more authoritative
-                    # than the ASC-606 fallback. Live-confirmed false via CLDT (Chatham
-                    # Lodging Trust, a real hotel REIT, SIC 7011): reports no lease-income
-                    # concept at all (hotel revenue isn't tenant lease income), only a real
-                    # ASC-606 total ($295,871,000 for FY2016) and an unrelated, tiny
-                    # investment_income_interest_and_dividend fact ($51,000, interest on
-                    # cash) that happens to sit earlier in `r`'s insertion order (that
-                    # concept isn't reit-only-fallback, so the sort above never defers it) -
-                    # the unconditional skip let the $51,000 figure permanently block the
-                    # real $295,871,000 total, same failure shape as the CPT case this
-                    # block's own history already fixed once, just via a different pair of
-                    # concepts. A magnitude check (only protect the existing value if it
-                    # isn't already SMALLER than the ASC-606 candidate) fixes CLDT without
-                    # touching the WAFDP/AMTB bank case above - there the existing value
-                    # (interest income, $607.1M) is already larger than the ASC-606 fee
-                    # ($25.9M), so the magnitude check still protects it exactly as before.
-                    and not (
-                        isinstance(row[db_field], (int, float, Decimal))
-                        and isinstance(value, (int, float, Decimal))
-                        and float(row[db_field]) < float(value)
+                    and should_skip_reit_only_fallback_field(
+                        sec_field,
+                        db_field,
+                        value,
+                        row,
+                        r,
+                        getattr(self, "_reit_only_fallback_fields", frozenset()),
+                        self._get_reit_symbols(),
+                        self._get_insurance_symbols(),
+                        self._get_depository_institution_symbols(),
                     )
                 ):
-                    # REIT filer: real lease revenue already populated this field.
-                    # Insurance filer (2026-08-22 fix): real "Revenues" (premiums + investment
-                    # income) already populated this field - see _get_insurance_symbols's
-                    # docstring for why ASC 606's contract-revenue concept must not supersede
-                    # it, same reasoning as the REIT case, different XBRL concept trigger.
-                    # Depository institution (2026-08-22 fix): real interest-income-derived
-                    # revenue already populated this field - see this branch's own comment
-                    # above for the live-verified WAFDP case.
                     continue
                 # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage
                 # audit): the REIT/insurance/depository gate above assumes "IncludingAssessedTax
@@ -1639,6 +1607,12 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 # (skip if already populated) for symbols that are.
                 if sec_field in getattr(self, "_reit_exclusive_fields", frozenset()):
                     if r.get("symbol") not in self._get_reit_symbols() or db_field in row:
+                        continue
+                    # Scale-sanity check - see sec_reit_exclusive_scale_guard.py (MKZR case).
+                    value = reject_reit_exclusive_scale_mismatch(
+                        self.table_name, sec_field, value, db_field, r, field_mapping, logger
+                    )
+                    if value is None:
                         continue
                 if db_field not in self._schema_cols:
                     raise RuntimeError(
