@@ -413,7 +413,32 @@ class StalenessChecker(BaseCheck):
         # WARN only, same reasoning as every other frozen-subpopulation check in this file: a
         # residual handful of symbols with a real per-symbol data ceiling is expected, this is
         # a signal to investigate WHY a population is stuck/missing, not an automatic halt.
-        for pillar_table in ("growth_metrics", "momentum_metrics", "value_metrics", "quality_metrics"):
+        #
+        # EXTENDED (same session, immediately after landing the four above): the "generalized"
+        # fix above was itself still pointwise - stability_metrics (loaders/
+        # load_risk_metrics_daily.py's secondary output, ON CONFLICT (symbol) - confirmed via
+        # `grep -oE "FROM [a-z_]+" loaders/load_stock_scores.py`, it's a real, current Risk-
+        # pillar scoring input) is the exact same shape and was left off this list.
+        # Live-confirmed before adding: 133 active symbols with zero stability_metrics row at
+        # all. positioning_metrics (loaders/load_positioning_metrics.py, also ON CONFLICT
+        # (symbol)) is included too even though it was explicitly REMOVED as a stock_scores
+        # scoring dependency 2026-08-27 (see load_stock_scores.py's own comments at that date) -
+        # it's still a real, currently-populated table surfaced directly via the scores API's
+        # positioning_inputs field (load_stock_scores.py:1044/1170), so silent staleness there
+        # degrades what the API/dashboard shows even though it no longer feeds a pillar score.
+        # Live-confirmed: 37 active symbols frozen >7d behind AND 101 with zero row at all.
+        # Lesson: a "generalized" fix built by reasoning from one bug's evidence trail can still
+        # miss same-shape siblings that weren't part of that trail - checked
+        # `grep -oE "FROM [a-z_]+" loaders/load_stock_scores.py` afterward to confirm no further
+        # ON CONFLICT (symbol) sibling was still missing from this list.
+        for pillar_table in (
+            "growth_metrics",
+            "momentum_metrics",
+            "value_metrics",
+            "quality_metrics",
+            "stability_metrics",
+            "positioning_metrics",
+        ):
             self._check_frozen_pillar_metrics_symbols(cur, pillar_table)
 
         # Alert on stale critical signals
