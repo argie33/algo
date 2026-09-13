@@ -68,6 +68,18 @@ INDUSTRY_GROUPS = {
     "reits": REIT_INDUSTRIES,
 }
 
+# Whole-GICS-sector groups (company_profile.sector), a coarser grouping than the industry-level
+# INDUSTRY_GROUPS above - added 2026-09-13 (/goal session Item 3) to test Materials' newly-
+# measured leaderboard overweight (2.79x in top-50, see
+# leaderboard_concentration_post_universe_fix_20260913 in memory) the same non-circular way
+# banks/insurers/reits were already tested, instead of assuming either "deserved" or "artifact".
+# No existing per-industry list fits Materials (it spans chemicals/mining/metals/construction
+# materials industries with no single narrow SIC-style bucket), so this filters by the broad
+# sector column directly rather than adding a synthetic industries frozenset to vqg_shared.py.
+SECTOR_GROUPS = {
+    "materials": "Materials",
+}
+
 
 def fetch_month_end_prices(start_date: str, end_date: str) -> pd.DataFrame:
     """Pull one row per (symbol, month) = the last trading day's price that month.
@@ -389,6 +401,15 @@ def fetch_symbols_for_industries(industries: frozenset[str]) -> set[str]:
         return {row[0] for row in cur.fetchall()}
 
 
+def fetch_symbols_for_sector(sector: str) -> set[str]:
+    """Symbols whose company_profile.sector matches `sector` exactly - see SECTOR_GROUPS'
+    own comment for why a whole-sector filter is needed alongside the narrower
+    fetch_symbols_for_industries() above."""
+    with DatabaseContext("read") as cur:
+        cur.execute("SELECT symbol FROM company_profile WHERE sector = %s", (sector,))
+        return {row[0] for row in cur.fetchall()}
+
+
 def run(
     start_date: str,
     end_date: str,
@@ -404,7 +425,10 @@ def run(
 
     symbols: set[str] | None = None
     if industry_group is not None:
-        symbols = fetch_symbols_for_industries(INDUSTRY_GROUPS[industry_group]) | {"SPY"}
+        if industry_group in SECTOR_GROUPS:
+            symbols = fetch_symbols_for_sector(SECTOR_GROUPS[industry_group]) | {"SPY"}
+        else:
+            symbols = fetch_symbols_for_industries(INDUSTRY_GROUPS[industry_group]) | {"SPY"}
         logger.info(f"--industries {industry_group}: {len(symbols) - 1} symbols in company_profile (+SPY)")
         df = df[df["symbol"].isin(symbols)]
         logger.info(f"{len(df)} symbol-month rows after industry filter")
@@ -482,9 +506,10 @@ def main() -> None:
     parser.add_argument("--vol-window", type=int, default=12)
     parser.add_argument(
         "--industries",
-        choices=sorted(INDUSTRY_GROUPS),
+        choices=sorted(set(INDUSTRY_GROUPS) | set(SECTOR_GROUPS)),
         default=None,
-        help="Restrict the panel to one industry group (see INDUSTRY_GROUPS) instead of the whole universe.",
+        help="Restrict the panel to one industry/sector group (see INDUSTRY_GROUPS/SECTOR_GROUPS) "
+        "instead of the whole universe.",
     )
     args = parser.parse_args()
 
