@@ -36,7 +36,8 @@ Usage:
     --start-date DATE       Earliest month-end price to pull (default: 2014-01-01, gives a
                              24-month warmup before the first usable regression month)
     --end-date DATE         Latest month-end price to pull (default: today)
-    --min-cross-section N   Minimum symbols in a month's cross-section to use it (default: 100)
+    --min-cross-section N   Minimum symbols in a month's cross-section to use it (default: 100
+                             whole-universe, auto-scaled down for a small --industries group)
     --beta-window N         Trailing months for beta regression (default: 24)
     --vol-window N          Trailing months for vol/downside-vol/max-drawdown (default: 12)
 """
@@ -391,7 +392,7 @@ def fetch_symbols_for_industries(industries: frozenset[str]) -> set[str]:
 def run(
     start_date: str,
     end_date: str,
-    min_cross_section: int,
+    min_cross_section: int | None,
     beta_window: int,
     vol_window: int,
     industry_group: str | None = None,
@@ -401,11 +402,20 @@ def run(
     df = fetch_month_end_prices(start_date, end_date)
     logger.info(f"{len(df)} symbol-month rows fetched")
 
+    symbols: set[str] | None = None
     if industry_group is not None:
         symbols = fetch_symbols_for_industries(INDUSTRY_GROUPS[industry_group]) | {"SPY"}
         logger.info(f"--industries {industry_group}: {len(symbols) - 1} symbols in company_profile (+SPY)")
         df = df[df["symbol"].isin(symbols)]
         logger.info(f"{len(df)} symbol-month rows after industry filter")
+
+    if min_cross_section is None:
+        # Small industry groups (e.g. insurers, ~95 symbols) never clear the whole-universe
+        # default of 100/month even at full membership - auto-scale down instead of a silent
+        # zero-usable-months RuntimeError (live-hit 2026-09-12 running --industries insurers).
+        # Only applies when the caller didn't pass an explicit --min-cross-section.
+        min_cross_section = 100 if symbols is None else max(10, int(0.5 * (len(symbols) - 1)))
+        logger.info(f"--min-cross-section not set, using {min_cross_section}")
 
     px = df.pivot(index="month", columns="symbol", values="px").sort_index()
     ret = px.pct_change(fill_method=None)
@@ -461,7 +471,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--start-date", default="2014-01-01")
     parser.add_argument("--end-date", default=datetime.now(tz=None).date().isoformat())
-    parser.add_argument("--min-cross-section", type=int, default=100)
+    parser.add_argument(
+        "--min-cross-section",
+        type=int,
+        default=None,
+        help="Minimum symbols in a month's cross-section to use it (default: 100 whole-universe, "
+        "auto-scaled down for a small --industries group).",
+    )
     parser.add_argument("--beta-window", type=int, default=24)
     parser.add_argument("--vol-window", type=int, default=12)
     parser.add_argument(
