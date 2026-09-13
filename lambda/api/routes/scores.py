@@ -126,7 +126,23 @@ def handle(
             sp500_only = extract_param(params, "sp500Only") or "false"
             symbol = extract_param(params, "symbol")
             min_market_cap_param = extract_param(params, "minMarketCap")
-            min_market_cap: float | None = None
+            # DEFAULT INVESTABILITY FLOOR (2026-09-12, /goal: make the leaderboard look like a
+            # real industry factor list, not a raw unfiltered universe scan). This param existed
+            # since 2026-08-31 (see stock_scores.py's own longer comment on the join) but only as
+            # an opt-in nobody actually called - live-verified same session: the DEFAULT (no
+            # param) leaderboard was dominated by nano/micro-caps and thin foreign ADRs (Quality
+            # top-15 had zero of the mega-cap compounders every real Quality index is built from;
+            # Composite top-20 was mostly shipping/mining/EM micro-caps), because Size was
+            # retired as a scoring PILLAR with nothing left to floor small-cap-favoring percentile
+            # scoring. $300M is the standard micro-cap/small-cap boundary widely used by index
+            # providers (Russell 2000's practical lower bound, and the point below which
+            # analyst coverage/data quality drops sharply) - not a fitted or invented number.
+            # Matches the same $300M threshold already live on the TUI dashboard's own
+            # /api/algo/scores endpoint (routes/algo_handlers/dashboard/scores.py, 2026-09-07),
+            # bringing this general-purpose endpoint in line with it instead of a fresh number.
+            # Explicit ?minMarketCap=0 still disables it entirely for callers who want the raw
+            # universe (internal tooling, tests).
+            min_market_cap: float | None = 300_000_000.0
             if min_market_cap_param:
                 try:
                     min_market_cap = float(min_market_cap_param)

@@ -1287,26 +1287,24 @@ class StockScoresLoader(
         # tables), THEN run the audit - a coverage problem should still fail the run for
         # visibility, but must not collaterally block an unrelated, Phase-7-critical step.
         #
-        # Risk absolute z-score pass (2026-09-13, same /goal session, immediately preceding
-        # Momentum's pass below - see update_risk_absolute_zscore_scores()'s own docstring for
-        # the full evidence trail: `_vol_curve_score`/`_max_drawdown_curve_score`'s fixed
-        # breakpoints were live-checked against the real universe distribution and found badly
-        # miscalibrated, and a pre-ship dry run of the naive fix caught a real regression
+        # Risk absolute z-score pass (2026-09-13, see update_risk_absolute_zscore_scores()'s own
+        # docstring for the full evidence trail: `_vol_curve_score`/`_max_drawdown_curve_score`'s
+        # fixed breakpoints were live-checked against the real universe distribution and found
+        # badly miscalibrated, and a pre-ship dry run of the naive fix caught a real regression
         # (brand-new IPOs topping the corrected risk_score off partial-history max_drawdown_1y -
-        # fixed via MIN_TRADING_DAYS_FOR_DRAWDOWN). Placed FIRST of all the batch passes, ahead
-        # of Momentum's own pass, so Momentum's composite_score recompute (and every pass after
-        # it) sees the CORRECTED risk_score, not Pass 1's miscalibrated one - same "later pass
-        # sees earlier pass's finalized pillar" ordering principle as everything below it.
+        # fixed via MIN_TRADING_DAYS_FOR_DRAWDOWN). Placed FIRST of all the batch passes so every
+        # pass after it sees the CORRECTED risk_score, not Pass 1's miscalibrated one - same
+        # "later pass sees earlier pass's finalized pillar" ordering principle as everything
+        # below it.
         self.update_risk_absolute_zscore_scores()
-        # Momentum sector-neutral z-score pass (2026-09-13, /goal scoring-methodology session -
-        # see update_momentum_sector_neutral_scores()'s own docstring for the full evidence
-        # trail). Placed ahead of update_rs_percentiles(), so rs_percentile ranks off the
-        # CORRECTED momentum_score rather than Pass 1's provisional one, and ahead of
-        # update_value_multiples_percentiles()/update_growth_sector_neutral_scores() so their own
-        # composite_score recomputes see momentum_score already finalized, not provisional -
-        # same "later pass sees earlier pass's finalized pillar" ordering principle Growth's own
-        # placement after Value already established, just one step earlier in the chain.
-        self.update_momentum_sector_neutral_scores()
+        # NOTE (reverted 2026-09-13): commit cc4030f8a briefly added an equivalent
+        # sector-neutral pass for Momentum here, citing "Barra sector-neutralizes momentum" -
+        # reverted because this repo's own 2026-09-11 Fama-MacBeth/IC test already found
+        # universe-wide beats sector-relative for mom_12_1 on every measure, both eras (memory:
+        # momentum_pillar_sector_relative_mom_12_1_rejected_20260911), matching the validated
+        # Barra-style design (pillar_scoring_matches_barra_style_multifactor_design_validated_
+        # 20260911: Momentum stays raw because cross-sector rotation is real signal). Don't
+        # re-add without a new test beating that result, not just the general Barra citation.
         self.update_rs_percentiles()
         # Must run before snapshot_score_history() so the history snapshot captures the
         # CORRECTED value_score/composite_score, not Pass 1's provisional fixed-curve values -

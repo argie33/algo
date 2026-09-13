@@ -12,10 +12,10 @@ Mixed into StockScoresLoader alongside the other stock_scores/*.py pillar mixins
 defines it. No database access here, so no `_owner()` indirection is needed (unlike
 value_metrics.py/momentum_scoring.py).
 
-DELIBERATELY NOT given a SECTOR-neutral z-score batch pass (2026-09-13, /goal "question the
-scoring methodology" session, same session that added Momentum's equivalent pass -
-`momentum_scoring.py`'s `update_momentum_sector_neutral_scores()`). Investigated directly
-before deciding, not assumed: this pillar's live sector averages DO diverge (Real Estate/
+DELIBERATELY NOT given a SECTOR-neutral z-score batch pass (2026-09-13: a same-day Momentum
+equivalent, `momentum_scoring.py`'s `update_momentum_sector_neutral_scores()`, was added then
+reverted per a pre-existing FM/IC rejection - see load_stock_scores.py's post_run() NOTE).
+Investigated directly before deciding, not assumed: this pillar's live sector averages DO diverge (Real Estate/
 Utilities score safest ~60/59, Technology least-safe ~36, per that session's live DB check) -
 the same shape of divergence that justified Momentum's rewrite. The difference is what the
 divergence MEANS. Momentum's raw inputs are classic cross-sectional relative-strength measures
