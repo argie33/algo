@@ -30,7 +30,25 @@ CONFIG_DEFAULTS_DATA_QUALITY: dict[str, tuple[Any, ...]] = {
         "Data age (days) on non-Monday to be considered stale",
         "Data Staleness",
     ),
-    # Data Patrol Staleness Thresholds (days; see data_patrol_config.py for usage)
+    # DEAD CONFIG (confirmed 2026-09-13, systematic seeded-vs-enforced sweep): every
+    # patrol_staleness_* key in this file (both this block and the "per-table granularity"
+    # block below) is seeded, schema-validated, and editable via the generic
+    # /api/algo/config endpoint (lambda/api/routes/algo_handlers/config.py's _get_algo_config
+    # does a blind `SELECT * FROM algo_config`), but is READ BY NOTHING - grepped for every
+    # exact key literal across the whole repo (excluding this file/config_schema.py/tests/
+    # migrations) with zero hits. DataPatrolConfig.get_staleness_windows() (the only real
+    # consumer of "staleness windows") exclusively calls utils/validation/freshness_config.py's
+    # get_freshness_rule() - its own docstring says "Do NOT hardcode separate thresholds here -
+    # always reference freshness_config", i.e. freshness_config.FRESHNESS_RULES (hardcoded
+    # Python, not DB config) is the actual single source of truth, and these DB rows predate
+    # that consolidation. An operator editing e.g. patrol_staleness_price via the dashboard/API
+    # sees no error and no effect - tests/test_end_to_end_integration.py's "Issue #3" check only
+    # verifies the row EXISTS in algo_config, not that anything reads it, so it can't catch this.
+    # patrol_staleness_price (7d) and patrol_staleness_price_daily (2d) below are even a
+    # duplicate/conflicting pair for the same table. Left seeded rather than deleted (schema
+    # migration risk, no functional difference either way) - do not add new consumers of these
+    # keys; use freshness_config.py instead, and do not treat their presence as proof staleness
+    # detection is DB-configurable.
     "patrol_staleness_price": ("7", "int", "Days before price_daily considered stale", "Data Patrol Configuration"),
     "patrol_staleness_technical_data": (
         "7",
@@ -145,7 +163,8 @@ CONFIG_DEFAULTS_DATA_QUALITY: dict[str, tuple[Any, ...]] = {
         "Min % of active universe that must have data",
         "Data Patrol Configuration",
     ),
-    # Data Patrol Staleness Thresholds (per-table granularity)
+    # Data Patrol Staleness Thresholds (per-table granularity) - DEAD, see the "DEAD CONFIG"
+    # note above this same key family's other block earlier in this file; not read anywhere.
     "patrol_staleness_price_daily": ("2", "int", "Max staleness days for price_daily", "Data Patrol Configuration"),
     "patrol_staleness_technical_daily": (
         "2",

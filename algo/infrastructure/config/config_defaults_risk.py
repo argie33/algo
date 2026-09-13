@@ -265,7 +265,19 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
         "Min trading days of price history (IPO age gate - Minervini avoids stocks <1yr post-IPO)",
         "Liquidity Requirements",
     ),
+    # min_daily_volume_shares: DEAD/SUPERSEDED (confirmed 2026-09-13, systematic
+    # seeded-vs-enforced sweep via scripts/audit_unenforced_config.py) - only ever referenced
+    # by trading_config.py's dead get_stock_filter_config() dict-builder, never read by real
+    # code. min_adv_shares below is the actually-enforced share-volume floor
+    # (LiquidityChecks._check_adv, algo/risk/liquidity_checks.py) - this key looks like an
+    # older/duplicate version of that same concept that predates it, not an independent gap.
     "min_daily_volume_shares": ("500000", "int", "Minimum daily volume shares", "Liquidity Requirements"),
+    # max_spread_pct / min_float_millions: genuinely unimplemented, NOT superseded by
+    # anything - see [[liquidity_checks_short_interest_enforced_20260913]] in MEMORY.md for
+    # why (max_spread_pct needs a live bid/ask quote at entry time, not just a stored value;
+    # min_float_millions needs a float-shares data source the schema doesn't have). Real
+    # future work, not a quick wiring fix like max_short_interest_pct (fixed 2026-09-13,
+    # commit 74d261c32) was.
     "max_spread_pct": ("0.5", "float", "Maximum bid-ask spread %", "Liquidity Requirements"),
     "min_market_cap_millions": ("300.0", "float", "Minimum market cap $M", "Liquidity Requirements"),
     "min_float_millions": ("50.0", "float", "Minimum float shares $M", "Liquidity Requirements"),
