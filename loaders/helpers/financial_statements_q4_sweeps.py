@@ -120,7 +120,117 @@ class Q4DerivationSweepMixin:
                     "operating_cash_flow row(s) as FY_annual - 9mo_YTD (Q4 is never "
                     "separately filed by any US GAAP domestic filer)."
                 )
+        self._sweep_correct_cumulative_stock_based_compensation()
         self._sweep_derive_missing_q4_cash_flow_remaining_fields()
+
+    def _sweep_correct_cumulative_stock_based_compensation(self) -> None:
+        """Correct Q2/Q3 quarterly_cash_flow.stock_based_compensation for filers that never
+        file a true discrete-quarter XBRL fact for this concept - only year-to-date cumulative
+        ones (`start` = fiscal-year start on every instance) - before
+        `_sweep_derive_missing_q4_cash_flow_remaining_fields()`'s FY-minus-9mo Q4 derivation
+        runs on top of them.
+
+        FOUND 2026-09-13 (goal session: data-quarantine architecture audit, RITM's own
+        DataPatrol-flagged negative-Q4-SBC finding). Live-confirmed against RITM's real cached
+        SEC companyfacts JSON (CIK 0001556593): every `AllocatedShareBasedCompensationExpense`
+        instance has `start` = that fiscal year's January 1st, e.g. FY2018 Q2 (start=2018-01-01
+        end=2018-06-30, val=1,019,000) and Q3 (start=2018-01-01 end=2018-09-30, val=1,019,000 -
+        IDENTICAL to Q2, meaning zero real incremental Q3 spend, not a data error) - a genuine
+        cumulative-only reporter, not a sign-flip or extraction-layer bug. The extraction layer
+        correctly stores whatever fact it finds, but stores the raw cumulative value as if it
+        were the discrete quarter - so Q1 (whose cumulative-to-date always equals its own
+        discrete value) is fine, but Q2/Q3 are inflated, and the existing Q4 = FY - (Q1+Q2+Q3)
+        sweep then double/triple-subtracts the cumulative overlap, producing a deeply negative
+        Q4 "plug" (RITM FY2018: 1,020,000 - (420,000+1,019,000+1,019,000) = -1,438,000, exactly
+        matching the corrupted value live in the DB before this fix).
+
+        Detection is the exact-duplicate fingerprint verified against RITM's real source data:
+        Q2 == Q3 (bit-for-bit) AND Q1 < Q2 AND Q2 > 0. This is a conservative, low-false-positive
+        signal - a coincidental exact-dollar match between two genuinely-discrete quarters is
+        implausible at real SBC magnitudes, and requiring Q1 strictly less than Q2 rules out an
+        all-flat-zero coincidence. Once matched, the true discrete values telescope cleanly:
+        true_Q2 = stored_Q2 - stored_Q1, true_Q3 = stored_Q3 - stored_Q2 (always 0 in the
+        exact-duplicate case, consistent with "no incremental Q3 spend"). Q1 is left unchanged.
+        Marked with a distinct `data_source` so this correction never re-fires on its own
+        already-corrected output (a corrected Q2/Q3 pair essentially never independently
+        satisfies the same cumulative fingerprint again).
+
+        SCOPE: stock_based_compensation only, the one field individually source-verified here.
+        Live scan (2026-09-13) found the identical statistical signature (exact Q2==Q3 dollar
+        match) across common_stock_repurchased (1,841 distinct symbols), capex (716),
+        financing_cash_flow (671), investing_cash_flow (507), dividends_paid (628), and
+        operating_cash_flow (88) - likely the same underlying cause, but NOT individually
+        verified against each field's own real SEC source data the way stock_based_compensation
+        was here, so deliberately not corrected yet. See
+        quarterly_cashflow_cumulative_ytd_stored_as_discrete_20260913 in memory for the full
+        scope and the case for extending this same fix field-by-field with the same
+        verification discipline, rather than generalizing this correction across fields
+        unverified.
+        """
+        with _database_context()("write") as cur:
+            cur.execute(
+                """
+                UPDATE quarterly_cash_flow q3
+                   SET stock_based_compensation = q3.stock_based_compensation - src.q2_val,
+                       data_source = 'derived_ytd_split'
+                  FROM (
+                        SELECT q1.symbol, q1.fiscal_year,
+                               q1.stock_based_compensation AS q1_val,
+                               q2.stock_based_compensation AS q2_val,
+                               q3x.stock_based_compensation AS q3_val
+                          FROM quarterly_cash_flow q1
+                          JOIN quarterly_cash_flow q2
+                            ON q2.symbol = q1.symbol AND q2.fiscal_year = q1.fiscal_year AND q2.fiscal_quarter = 2
+                          JOIN quarterly_cash_flow q3x
+                            ON q3x.symbol = q1.symbol AND q3x.fiscal_year = q1.fiscal_year AND q3x.fiscal_quarter = 3
+                         WHERE q1.fiscal_quarter = 1
+                           AND q1.data_unavailable = FALSE AND q2.data_unavailable = FALSE AND q3x.data_unavailable = FALSE
+                           AND q1.stock_based_compensation IS NOT NULL
+                           AND q2.stock_based_compensation IS NOT NULL
+                           AND q3x.stock_based_compensation IS NOT NULL
+                           AND q2.stock_based_compensation = q3x.stock_based_compensation
+                           AND q1.stock_based_compensation < q2.stock_based_compensation
+                           AND q2.stock_based_compensation > 0
+                           AND q2.data_source IS DISTINCT FROM 'derived_ytd_split'
+                           AND q3x.data_source IS DISTINCT FROM 'derived_ytd_split'
+                       ) AS src
+                 WHERE q3.symbol = src.symbol AND q3.fiscal_year = src.fiscal_year AND q3.fiscal_quarter = 3
+                """
+            )
+            q3_fixed = cur.rowcount
+            cur.execute(
+                """
+                UPDATE quarterly_cash_flow q2
+                   SET stock_based_compensation = q2.stock_based_compensation - src.q1_val,
+                       data_source = 'derived_ytd_split'
+                  FROM (
+                        SELECT q1.symbol, q1.fiscal_year,
+                               q1.stock_based_compensation AS q1_val,
+                               q2x.stock_based_compensation AS q2_val,
+                               q3.stock_based_compensation AS q3_val
+                          FROM quarterly_cash_flow q1
+                          JOIN quarterly_cash_flow q2x
+                            ON q2x.symbol = q1.symbol AND q2x.fiscal_year = q1.fiscal_year AND q2x.fiscal_quarter = 2
+                          JOIN quarterly_cash_flow q3
+                            ON q3.symbol = q1.symbol AND q3.fiscal_year = q1.fiscal_year AND q3.fiscal_quarter = 3
+                         WHERE q1.fiscal_quarter = 1
+                           AND q1.data_unavailable = FALSE AND q2x.data_unavailable = FALSE AND q3.data_unavailable = FALSE
+                           AND q1.stock_based_compensation IS NOT NULL
+                           AND q2x.stock_based_compensation IS NOT NULL
+                           AND q3.stock_based_compensation IS NOT NULL
+                           AND q3.data_source = 'derived_ytd_split'
+                           AND q2x.data_source IS DISTINCT FROM 'derived_ytd_split'
+                       ) AS src
+                 WHERE q2.symbol = src.symbol AND q2.fiscal_year = src.fiscal_year AND q2.fiscal_quarter = 2
+                """
+            )
+            q2_fixed = cur.rowcount
+            if q3_fixed or q2_fixed:
+                logger.warning(
+                    f"[quarterly_cash_flow] post_run(): corrected {q2_fixed} Q2 / {q3_fixed} Q3 "
+                    "stock_based_compensation row(s) from cumulative-YTD to discrete-quarter "
+                    "(exact Q2==Q3 dollar-match fingerprint, RITM-shaped cumulative-only reporter)."
+                )
 
     def _sweep_derive_missing_q4_cash_flow_remaining_fields(self) -> None:
         """Derive financing_cash_flow/investing_cash_flow/dividends_paid/
@@ -155,8 +265,30 @@ class Q4DerivationSweepMixin:
             "common_stock_repurchased",
             "capex",
         )
+        # SELF-HEAL WIDENED 2026-09-13 (same-day sibling of _sweep_derive_missing_q4_cash_flow's
+        # own 2026-09-13 OCF widening): a plain `q4x.{field} IS NULL` guard never revisits a Q4
+        # cell that already holds SOME value, even a stale/wrong one left over from upstream
+        # extraction corruption fixed later - e.g. _sweep_correct_cumulative_stock_based_
+        # compensation() above corrects Q1-Q3, but without this, stock_based_compensation's own
+        # Q4 (already non-NULL, just wrong) would never get re-derived from the now-correct
+        # inputs. Scoped to stock_based_compensation ONLY - the one field individually verified
+        # against real SEC source data here; the other five fields stay on the conservative
+        # fill-only guard until each is independently verified the same way (see
+        # quarterly_cashflow_cumulative_ytd_stored_as_discrete_20260913 in memory).
+        _self_healing_fields = {"stock_based_compensation"}
         with _database_context()("write") as cur:
             for field in fields:
+                q4_guard = (
+                    f"""(
+                                   q4x.{field} IS NULL
+                                   OR q4x.data_unavailable = TRUE
+                                   OR q4x.{field} IS DISTINCT FROM (
+                                        a.{field} - (q1.{field} + q2.{field} + q3.{field})
+                                      )
+                               )"""
+                    if field in _self_healing_fields
+                    else f"q4x.{field} IS NULL"
+                )
                 cur.execute(
                     f"""
                     UPDATE quarterly_cash_flow q4
@@ -175,7 +307,7 @@ class Q4DerivationSweepMixin:
                               JOIN quarterly_cash_flow q3
                                 ON q3.symbol = q4x.symbol AND q3.fiscal_year = q4x.fiscal_year AND q3.fiscal_quarter = 3
                              WHERE q4x.fiscal_quarter = 4
-                               AND q4x.{field} IS NULL
+                               AND {q4_guard}
                                AND a.{field} IS NOT NULL
                                AND q1.{field} IS NOT NULL
                                AND q2.{field} IS NOT NULL
