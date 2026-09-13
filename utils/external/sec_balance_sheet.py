@@ -979,10 +979,14 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         _fill_long_term_debt_from_segment_dimensional_facts(rows, client, symbol)
     _fill_cash_and_restricted_cash_combined(rows, client, symbol, period)
     _fill_cash_and_restricted_cash_combined_from_split(rows, client, symbol, period)
+    # Both NCI-netting passes must run BEFORE _fill_liabilities_from_assets_minus_equity so
+    # that fallback derives liabilities from an already-corrected (parent-only) equity value
+    # for any filer that happens to need both fixes.
+    _net_out_noncontrolling_interest_from_ifrs_equity_total(rows, client, symbol, period)
+    _net_out_noncontrolling_interest_from_gaap_equity_total(rows)
     _fill_liabilities_from_assets_minus_equity(rows, client, symbol, period)
     _fill_liabilities_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
     _fill_assets_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
-    _net_out_noncontrolling_interest_from_ifrs_equity_total(rows, client, symbol, period)
     _fill_assets_from_liabilities_plus_equity(rows)
     return rows
 
@@ -1221,6 +1225,53 @@ def _fill_assets_from_ifrs_current_noncurrent_split(
         if current is None or noncurrent is None:
             continue
         row["assets"] = current + noncurrent
+
+
+_GAAP_EQUITY_INCLUDING_NCI_KEYS = (
+    "stockholders_equity_including_portion_attributable_to_noncontrolling_interest",
+    "partners_capital_including_portion_attributable_to_noncontrolling_interest",
+    "limited_liability_company_llc_members_equity_including_portion_attributable_to_noncontrolling_interest",
+)
+
+
+def _net_out_noncontrolling_interest_from_gaap_equity_total(rows: list[dict[str, Any]]) -> None:
+    """GAAP sibling of _net_out_noncontrolling_interest_from_ifrs_equity_total below - same bug,
+    different concept family. When a filer never tags a parent-only equity concept
+    ("StockholdersEquity"/"PartnersCapital"/"MembersEquity") at all, only the "...Including
+    PortionAttributableToNoncontrollingInterest" fallback, `row["stockholders_equity"]` stays
+    unset at this point (that fallback populates its OWN distinct raw key, not
+    "stockholders_equity" - only later collapsed onto that DB column by
+    financial_statements_balance_config.py's _fallback_only_fields mechanism). If
+    MinorityInterest is ALSO tagged separately, the eventual stockholders_equity value is the
+    NCI-inclusive total, double-counting NCI in the balance-sheet identity - identical symptom
+    to the IFRS case, just a different concept pair.
+
+    ADDED 2026-09-13 (same investigation, TK/Teekay Corp live-confirmed via real companyfacts
+    JSON, CIK 0000911971): FY2023 has ZERO "StockholdersEquity"/"PartnersCapital"/"MembersEquity"
+    facts ever, only StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest
+    ($1,800,346,000) and MinorityInterest ($1,068,068,000) - real, directly-tagged
+    Liabilities ($396,292,000) is NOT itself wrong (a numeric coincidence with the unrelated
+    assets-minus-equity derivation fallback initially looked like the same bug shape - see
+    scripts/fix_balance_sheet_nci_double_count.py's own docstring for how that false positive
+    was caught before any correction was applied). The real fix here is entirely on the equity
+    side: true parent-only equity = 1,800,346,000 - 1,068,068,000 = 732,278,000.
+
+    Fires only when `stockholders_equity` is still unset (a real parent-only concept, if ever
+    tagged for this period, already sailed through untouched via the normal concept-list
+    resolution and this never overwrites it).
+    """
+    for row in rows:
+        if row.get("stockholders_equity") is not None:
+            continue
+        total = None
+        for key in _GAAP_EQUITY_INCLUDING_NCI_KEYS:
+            if row.get(key) is not None:
+                total = row[key]
+                break
+        nci = row.get("minority_interest")
+        if total is None or nci is None:
+            continue
+        row["stockholders_equity"] = total - nci
 
 
 def _net_out_noncontrolling_interest_from_ifrs_equity_total(
