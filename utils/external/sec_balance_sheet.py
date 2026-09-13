@@ -982,6 +982,7 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
     _fill_liabilities_from_assets_minus_equity(rows, client, symbol, period)
     _fill_liabilities_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
     _fill_assets_from_ifrs_current_noncurrent_split(rows, client, symbol, period)
+    _net_out_noncontrolling_interest_from_ifrs_equity_total(rows, client, symbol, period)
     _fill_assets_from_liabilities_plus_equity(rows)
     return rows
 
@@ -1212,6 +1213,61 @@ def _fill_assets_from_ifrs_current_noncurrent_split(
         if current is None or noncurrent is None:
             continue
         row["assets"] = current + noncurrent
+
+
+def _net_out_noncontrolling_interest_from_ifrs_equity_total(
+    rows: list[dict[str, Any]], client: Any, symbol: str, period: str
+) -> None:
+    """Subtract minority_interest out of stockholders_equity when an IFRS filer only ever
+    tags ifrs-full:Equity (total equity INCLUDING noncontrolling interest) for a fiscal
+    period, never EquityAttributableToOwnersOfParent (the parent-only figure).
+
+    ADDED 2026-09-13 (goal: find/fix inaccurate factor-score-input data - balance_sheet_identity
+    confirmed-fresh sweep). _BALANCE_IFRS_ALIASES already lists EquityAttributableToOwnersOfParent
+    after "Equity" so it wins when BOTH are tagged for the same period - but when a filer only
+    ever reports the combined figure, "Equity" is all `stockholders_equity` ever gets, and since
+    NoncontrollingInterests is extracted separately into minority_interest, the balance-sheet
+    identity (assets == liabilities + stockholders_equity + noncontrolling_interest +
+    temporary_equity) then double-counts NCI - live-confirmed via real companyfacts JSON for
+    Adecoagro S.A. (AGRO, CIK 0001499505), Banco de Chile-style filers, and 84 total DB symbols
+    matching this exact signature (residual == -noncontrolling_interest) in a live scan: e.g.
+    AGRO FY2024 liabilities($1,706,787,000) + stockholders_equity($1,408,101,000) already sums
+    EXACTLY to assets($3,114,888,000) on its own - adding the separately-tagged
+    noncontrolling_interest($38,951,000) on top overshoots by precisely that amount.
+
+    Confirms via a real secondary lookup (not inferred) that EquityAttributableToOwnersOfParent
+    has NO value at all for that exact period before touching anything - a period where the
+    parent-only concept IS tagged is left completely untouched, matching the "fallback-only,
+    never overwrites a real signal" discipline every other function in this module follows.
+    """
+    parent_only_rows = _aggregate_concepts(
+        client, symbol, [], period, ifrs_aliases=[("EquityAttributableToOwnersOfParent", "equity_parent_only")]
+    )
+    parent_only_by_key = {
+        (r.get("fiscal_year"), r.get("fiscal_period")): r.get("equity_parent_only") for r in parent_only_rows
+    }
+    equity_total_rows = _aggregate_concepts(client, symbol, [], period, ifrs_aliases=[("Equity", "equity_total")])
+    equity_total_by_key = {
+        (r.get("fiscal_year"), r.get("fiscal_period")): r.get("equity_total") for r in equity_total_rows
+    }
+    for row in rows:
+        key = (row.get("fiscal_year"), row.get("fiscal_period"))
+        parent_only = parent_only_by_key.get(key)
+        if parent_only is not None:
+            # BUG FOUND 2026-09-13 (same investigation): _BALANCE_IFRS_ALIASES lists
+            # EquityAttributableToOwnersOfParent AFTER "Equity" specifically so the parent-only
+            # figure wins per _aggregate_concepts' documented last-listed-wins convention -
+            # live-verified this does NOT actually happen for this concept pair (the total
+            # "Equity" value was still what ended up in stockholders_equity even when the
+            # parent-only concept was also tagged for the exact same period). Force the
+            # correct value directly here rather than depend on that resolution succeeding.
+            row["stockholders_equity"] = parent_only
+            continue
+        equity_total = equity_total_by_key.get(key)
+        nci = row.get("minority_interest")
+        if equity_total is None or nci is None or row.get("stockholders_equity") != equity_total:
+            continue
+        row["stockholders_equity"] = equity_total - nci
 
 
 def _fill_cash_and_restricted_cash_combined(rows: list[dict[str, Any]], client: Any, symbol: str, period: str) -> None:
