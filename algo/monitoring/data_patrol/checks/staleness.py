@@ -354,6 +354,7 @@ class StalenessChecker(BaseCheck):
         # threshold before this addition would have pushed it over.
         self._check_frozen_price_symbols(cur)
         self._check_frozen_technical_symbols(cur)
+        self._check_frozen_trend_template_symbols(cur)
 
         # Alert on stale critical signals
         if stale_critical_signals:
@@ -542,5 +543,87 @@ class StalenessChecker(BaseCheck):
                     f"CRITICAL: RELEASE SAVEPOINT {sp_frozen_technical} failed: {release_err}. Connection corrupted."
                 )
                 raise RuntimeError(
-                    f"Database connection corrupted during frozen-technical check cleanup: {release_err}"
+                    f"Database connection corrupted during frozen-technical-cleanup check: {release_err}"
+                ) from release_err
+
+    def _check_frozen_trend_template_symbols(self, cur: Any) -> None:
+        """PER-SYMBOL FROZEN-TREND-TEMPLATE CHECK (added 2026-09-13, same session as
+        `_check_frozen_technical_symbols` - see that method's own docstring for the full
+        evidence trail this mirrors).
+
+        trend_template_data (computed by loaders/load_trend_analysis.py from price_daily, a
+        separate loader from technical_data_daily though correlated in practice - both
+        derive from the same price input) showed the identical shape live-checked 2026-09-13:
+        40 active symbols with current price_daily but trend_template_data frozen >7 days
+        behind their own price watermark - the same population size as the technical_data_daily
+        gap this session already fixed, consistent with a shared root cause upstream in price
+        data rather than two independent bugs, but this table's own coverage ERROR
+        (technical_data_daily/trend_template_data both flagged 96.0% < 96% in the same run)
+        needs its own per-symbol visibility - coverage.py's aggregate check can't tell which of
+        the two tables (or both) a given frozen symbol belongs to.
+
+        WARN only, matching every other frozen-symbol check in this file.
+        """
+        sp_frozen_trend = "sp_stale_trend_template_data_frozen_symbols"
+        try:
+            cur.execute(f"SAVEPOINT {sp_frozen_trend}")
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM stock_symbols sy
+                JOIN (
+                    SELECT symbol, MAX(date) AS latest_date
+                    FROM price_daily
+                    GROUP BY symbol
+                ) pd ON pd.symbol = sy.symbol
+                LEFT JOIN (
+                    SELECT symbol, MAX(date) AS latest_date
+                    FROM trend_template_data
+                    GROUP BY symbol
+                ) tt ON tt.symbol = sy.symbol
+                WHERE sy.active = true
+                  AND pd.latest_date >= (SELECT MAX(date) - INTERVAL '1 day' FROM price_daily)
+                  AND (tt.latest_date IS NULL OR tt.latest_date < pd.latest_date - INTERVAL '7 days')
+                """
+            )
+            frozen_trend_count = cur.fetchone()[0]
+            if frozen_trend_count > 0:
+                self.log(
+                    "staleness",
+                    WARN,
+                    "trend_template_data",
+                    f"{frozen_trend_count} active symbols have current price_daily data but "
+                    f"trend_template_data rows more than 7 days behind their own price_daily "
+                    f"watermark (or no trend_template_data row at all) - check for a silent "
+                    f"per-symbol loader backlog in load_trend_analysis.py",
+                    {"frozen_trend_template_symbol_count": frozen_trend_count},
+                )
+            else:
+                self.log(
+                    "staleness",
+                    INFO,
+                    "trend_template_data",
+                    "no active symbols with current price_daily frozen on trend_template_data",
+                    {"frozen_trend_template_symbol_count": 0},
+                )
+        except Exception as e:
+            self.log("staleness", ERROR, "trend_template_data", f"Frozen-trend-template check failed: {e}", None)
+            try:
+                cur.execute(f"ROLLBACK TO SAVEPOINT {sp_frozen_trend}")
+            except Exception as rollback_err:
+                logger.error(
+                    f"CRITICAL: ROLLBACK TO SAVEPOINT {sp_frozen_trend} failed: {rollback_err}. Connection corrupted."
+                )
+                raise RuntimeError(
+                    f"Database connection corrupted during frozen-trend-template check rollback: {rollback_err}"
+                ) from rollback_err
+        finally:
+            try:
+                cur.execute(f"RELEASE SAVEPOINT {sp_frozen_trend}")
+            except Exception as release_err:
+                logger.error(
+                    f"CRITICAL: RELEASE SAVEPOINT {sp_frozen_trend} failed: {release_err}. Connection corrupted."
+                )
+                raise RuntimeError(
+                    f"Database connection corrupted during frozen-trend-template check cleanup: {release_err}"
                 ) from release_err
