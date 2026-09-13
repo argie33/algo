@@ -68,7 +68,23 @@ SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 # "missing_sec_data"/"Missing SEC/XBRL data" bucket instead of the correct
 # "etf_trust_no_gaap_financials"/"Legitimate / not applicable" once it's in etf_symbols and
 # the existing RIC/ETF-trust gates (loaders/helpers/vqg_symbol_gates.py) can see it.
-KNOWN_ETF_MISCLASSIFICATIONS = {"JHDV", "JVAL", "BAR"}
+#
+# GRN added 2026-09-13 (goal: keep finding data issues session - live-confirmed via real SEC
+# submissions.json): "iPath Series B Carbon Exchange-Traded Notes" is issued by Barclays Bank
+# PLC (CIK 0000312070) - the upstream feed's ETF column is "N" for it (an ETN is technically a
+# debt note, not a fund, so the official classification is arguably correct on its own terms)
+# AND the `"etf" in name.lower()` name-pattern check below doesn't match either (the security
+# name says "Exchange-Traded Notes", which doesn't contain the substring "etf"). Both gaps
+# together let GRN through as an ordinary common stock, and because its CIK belongs to Barclays
+# (the note ISSUER, a global bank that separately issues DJP/VXX/VXZ/ATMP/JJETF/TAPR/GBUG/BWVTF
+# under the SAME CIK), our SEC extraction pipeline pulled BARCLAYS' OWN real bank-holding-
+# company financials (revenue ~$10-13B/yr, net income ~$3-6B/yr, both very plausible bank-scale
+# numbers - not obviously wrong at a glance) into annual/quarterly income_statement/
+# balance_sheet/cash_flow for symbol GRN, live-confirmed across 6 tables (56 corrected rows)
+# before this fix. An ETN's ticker has no meaningful company-level financial statements of its
+# own - same treatment as a real ETF here (no fundamentals extraction), not full exclusion,
+# since GRN is a real, actively-traded product that still needs its own price series.
+KNOWN_ETF_MISCLASSIFICATIONS = {"JHDV", "JVAL", "BAR", "GRN"}
 
 # GOVERNANCE 2026-08-18 (goal: "missing SEC data"/loader-failure audit): same class of
 # problem as KNOWN_ETF_MISCLASSIFICATIONS above - the upstream NASDAQ/NYSE symbol
