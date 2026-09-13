@@ -303,6 +303,60 @@ class TieOutSharedMixin:
             details: dict[str, Any] | None = None,
         ) -> CheckResult: ...
 
+    def _staleness_split(
+        self, cur: Any, table: str, flagged: list[dict[str, Any]]
+    ) -> tuple[int, int, list[dict[str, Any]]]:
+        """Partition an identity check's already-flagged rows into "confirmed fresh" (the
+        row's own updated_at is on/after the owning table's last successful full-reload
+        watermark, so the current extraction code was already applied to it and it still
+        disagrees - a real finding) vs "unverified/stale" (updated_at predates that watermark -
+        the row hasn't been re-extracted since the watermark, so a since-fixed bug could
+        already explain it without this being a live problem).
+
+        ADDED 2026-09-12 (goal: "data integrity gaps galore ... gaps in our approach" session):
+        every identity check in this file has, individually, hit this exact ambiguity and
+        resolved it by hand - see this file's own despac_current_assets/accounts_payable/
+        cash_le_current_assets/goodwill_le_total_assets comments, each documenting a one-off
+        live re-extraction spot-check to tell "stale row" from "real bug" apart. That manual
+        step doesn't scale (it required fetching real SEC data symbol-by-symbol) and isn't
+        repeatable by whoever triages data_patrol_log next. `data_loader_status.last_success_at`
+        already records, per table, when the last full successful reload completed (see
+        `algo/algo_data_patrol.py`'s CLAUDE.md-documented loader-status machinery) - reusing it
+        here as a cheap, no-network watermark makes every identity check self-annotate this
+        split instead of requiring a fresh manual investigation each time. Each caller must
+        include `"_updated_at"` (the row's own `updated_at` from the query) in every flagged
+        dict; this strips it back out before returning the reportable subset so it never leaks
+        into `details["examples"]` (avoids the datetime-not-JSON-serializable trap PatrolLogger's
+        `json.dumps(details, default=str)` would otherwise silently paper over, and keeps
+        symmetry with every other check's example shape).
+
+        Returns (confirmed_fresh_count, unverified_stale_count, examples_without_updated_at).
+        If this table has no `data_loader_status` row at all (never tracked, or the column
+        is NULL), every flagged row is conservatively treated as unverified/stale - "we don't
+        know when this was last confirmed against current code" is not the same claim as
+        "confirmed still broken".
+        """
+        watermark = None
+        try:
+            cur.execute("SELECT last_success_at FROM data_loader_status WHERE table_name = %s", (table,))
+            row = cur.fetchone()
+            if row is not None:
+                watermark = row["last_success_at"] if isinstance(row, dict) else row[0]
+        except Exception as e:
+            logger.warning(f"[TieOutChecker] _staleness_split: could not read last_success_at for {table}: {e}")
+
+        fresh = 0
+        stale = 0
+        examples = []
+        for f in flagged:
+            row_updated_at = f.get("_updated_at")
+            if watermark is not None and row_updated_at is not None and row_updated_at >= watermark:
+                fresh += 1
+            else:
+                stale += 1
+            examples.append({k: v for k, v in f.items() if k != "_updated_at"})
+        return fresh, stale, examples
+
     def _check_nonnegative_cashflow_field(
         self, cur: Any, *, table: str, field: str, check_name: str, quarterly: bool
     ) -> None:

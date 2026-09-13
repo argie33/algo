@@ -21,6 +21,7 @@ from algo.monitoring.data_patrol.checks import (
     CoverageChecker,
     FinancialStatementFlagDriftChecker,
     NewXbrlConceptChecker,
+    PillarScoreReconciliationChecker,
     PriceSanityChecker,
     QualityChecker,
     ScoreRatioOutlierChecker,
@@ -65,6 +66,7 @@ def _run_patrol_with_results(results_by_checker: dict) -> dict:
         "StatisticalAnomalyChecker": StatisticalAnomalyChecker,
         "ScoreRatioOutlierChecker": ScoreRatioOutlierChecker,
         "CompositeScoreReconciliationChecker": CompositeScoreReconciliationChecker,
+        "PillarScoreReconciliationChecker": PillarScoreReconciliationChecker,
     }
 
     mock_conn = MagicMock()
@@ -171,6 +173,7 @@ class TestDataPatrolNotifyWiring:
             patch.object(StatisticalAnomalyChecker, "run", return_value=[]),
             patch.object(ScoreRatioOutlierChecker, "run", return_value=[]),
             patch.object(CompositeScoreReconciliationChecker, "run", return_value=[]),
+            patch.object(PillarScoreReconciliationChecker, "run", return_value=[]),
         ):
             # Must not raise despite notify() failing internally.
             summary = patrol.run()

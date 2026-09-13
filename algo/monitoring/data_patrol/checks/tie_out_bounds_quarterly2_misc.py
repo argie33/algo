@@ -46,6 +46,10 @@ class TieOutBoundsQuarterly2MiscMixin:
             self, cur: Any, *, table: str, check_name: str, quarterly: bool
         ) -> None: ...
 
+        def _staleness_split(
+            self, cur: Any, table: str, flagged: list[dict[str, Any]]
+        ) -> tuple[int, int, list[dict[str, Any]]]: ...
+
     def check_quarterly_operating_income_upper_bound(self, cur: Any) -> None:
         """operating_income <= gross_profit - operating_expenses (+ tolerance)
         (quarterly_income_statement).
@@ -57,11 +61,10 @@ class TieOutBoundsQuarterly2MiscMixin:
         itself; will find more rows to evaluate once a reload runs.
         """
         try:
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT DISTINCT ON (i.symbol)
                     i.symbol, i.fiscal_year, i.fiscal_quarter,
-                    i.gross_profit, i.operating_expenses, i.operating_income
+                    i.gross_profit, i.operating_expenses, i.operating_income, i.updated_at
                 FROM quarterly_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
@@ -70,8 +73,7 @@ class TieOutBoundsQuarterly2MiscMixin:
                   AND i.operating_income IS NOT NULL
                   AND i.gross_profit != 0
                 ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC
-                """
-            )
+                """)
             flagged = []
             for row in cur.fetchall():
                 gross_profit, operating_expenses, operating_income = (
@@ -96,18 +98,28 @@ class TieOutBoundsQuarterly2MiscMixin:
                             "operating_income": operating_income,
                             "implied_ceiling": implied_ceiling,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "quarterly_income_statement", flagged)
                 self.log(
                     "quarterly_operating_income_upper_bound",
                     WARN,
                     "quarterly_income_statement",
-                    f"{len(flagged)} symbol/quarter(s) fail operating_income <= gross_profit "
-                    f"- operating_expenses beyond max(${_OPERATING_INCOME_BOUND_TOLERANCE_FLOOR:,.0f}, "
-                    f"{_OPERATING_INCOME_BOUND_TOLERANCE_PCT:.0%} of gross_profit)",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    (
+                        f"{len(flagged)} symbol/quarter(s) fail operating_income <= gross_profit "
+                        f"- operating_expenses beyond max(${_OPERATING_INCOME_BOUND_TOLERANCE_FLOOR:,.0f}, "
+                        f"{_OPERATING_INCOME_BOUND_TOLERANCE_PCT:.0%} of gross_profit)"
+                    )
+                    + f" ({fresh} confirmed-fresh since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_operating_income_upper_bound failed: {e}", exc_info=True)
@@ -125,10 +137,9 @@ class TieOutBoundsQuarterly2MiscMixin:
         reuses the annual _GOODWILL_TOLERANCE_PCT unchanged (live-verified 7/3,433).
         """
         try:
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.fiscal_quarter, b.total_assets, b.goodwill
+                    b.symbol, b.fiscal_year, b.fiscal_quarter, b.total_assets, b.goodwill, b.updated_at
                 FROM quarterly_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -136,8 +147,7 @@ class TieOutBoundsQuarterly2MiscMixin:
                   AND b.goodwill IS NOT NULL
                   AND b.total_assets != 0
                 ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
-                """
-            )
+                """)
             flagged = []
             for row in cur.fetchall():
                 total_assets, goodwill = (
@@ -155,17 +165,27 @@ class TieOutBoundsQuarterly2MiscMixin:
                             "total_assets": total_assets,
                             "goodwill": goodwill,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "quarterly_balance_sheet", flagged)
                 self.log(
                     "quarterly_goodwill_le_total_assets",
                     WARN,
                     "quarterly_balance_sheet",
-                    f"{len(flagged)} symbol/quarter(s) fail goodwill <= total_assets beyond "
-                    f"{_GOODWILL_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    (
+                        f"{len(flagged)} symbol/quarter(s) fail goodwill <= total_assets beyond "
+                        f"{_GOODWILL_TOLERANCE_PCT:.1%} slack"
+                    )
+                    + f" ({fresh} confirmed-fresh since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_goodwill_le_total_assets failed: {e}", exc_info=True)
@@ -184,11 +204,10 @@ class TieOutBoundsQuarterly2MiscMixin:
         _ACCOUNTS_PAYABLE_TOLERANCE_PCT unchanged (live-verified 2/3,073).
         """
         try:
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT DISTINCT ON (b.symbol)
                     b.symbol, b.fiscal_year, b.fiscal_quarter,
-                    b.current_liabilities, b.accounts_payable
+                    b.current_liabilities, b.accounts_payable, b.updated_at
                 FROM quarterly_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -196,8 +215,7 @@ class TieOutBoundsQuarterly2MiscMixin:
                   AND b.accounts_payable IS NOT NULL
                   AND b.current_liabilities != 0
                 ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
-                """
-            )
+                """)
             flagged = []
             for row in cur.fetchall():
                 current_liabilities, accounts_payable = (
@@ -215,17 +233,27 @@ class TieOutBoundsQuarterly2MiscMixin:
                             "current_liabilities": current_liabilities,
                             "accounts_payable": accounts_payable,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "quarterly_balance_sheet", flagged)
                 self.log(
                     "quarterly_accounts_payable_le_current_liabilities",
                     WARN,
                     "quarterly_balance_sheet",
-                    f"{len(flagged)} symbol/quarter(s) fail accounts_payable <= "
-                    f"current_liabilities beyond {_ACCOUNTS_PAYABLE_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    (
+                        f"{len(flagged)} symbol/quarter(s) fail accounts_payable <= "
+                        f"current_liabilities beyond {_ACCOUNTS_PAYABLE_TOLERANCE_PCT:.1%} slack"
+                    )
+                    + f" ({fresh} confirmed-fresh since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(
@@ -246,10 +274,9 @@ class TieOutBoundsQuarterly2MiscMixin:
         the annual _CASH_TOLERANCE_PCT unchanged (live-verified 8/4,569).
         """
         try:
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year, b.fiscal_quarter, b.current_assets, b.cash_and_equivalents
+                    b.symbol, b.fiscal_year, b.fiscal_quarter, b.current_assets, b.cash_and_equivalents, b.updated_at
                 FROM quarterly_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -257,8 +284,7 @@ class TieOutBoundsQuarterly2MiscMixin:
                   AND b.cash_and_equivalents IS NOT NULL
                   AND b.current_assets != 0
                 ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
-                """
-            )
+                """)
             flagged = []
             for row in cur.fetchall():
                 current_assets, cash_and_equivalents = (
@@ -276,17 +302,27 @@ class TieOutBoundsQuarterly2MiscMixin:
                             "current_assets": current_assets,
                             "cash_and_equivalents": cash_and_equivalents,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "quarterly_balance_sheet", flagged)
                 self.log(
                     "quarterly_cash_le_current_assets",
                     WARN,
                     "quarterly_balance_sheet",
-                    f"{len(flagged)} symbol/quarter(s) fail cash_and_equivalents <= "
-                    f"current_assets beyond {_CASH_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    (
+                        f"{len(flagged)} symbol/quarter(s) fail cash_and_equivalents <= "
+                        f"current_assets beyond {_CASH_TOLERANCE_PCT:.1%} slack"
+                    )
+                    + f" ({fresh} confirmed-fresh since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_cash_le_current_assets failed: {e}", exc_info=True)
@@ -317,14 +353,12 @@ class TieOutBoundsQuarterly2MiscMixin:
         sweep. Live-checked: 0 violations.
         """
         try:
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT symbol, date, composite_score, quality_score, growth_score,
                        value_score, risk_score, momentum_score, rs_percentile
                 FROM stock_scores
                 WHERE date = (SELECT MAX(date) FROM stock_scores)
-                """
-            )
+                """)
             score_cols = (
                 "composite_score",
                 "quality_score",
@@ -344,12 +378,19 @@ class TieOutBoundsQuarterly2MiscMixin:
                         )
             if flagged:
                 flagged.sort(key=lambda r: abs(r["value"] - 50), reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "stock_scores", flagged)
                 self.log(
                     "stock_scores_bounds",
                     WARN,
                     "stock_scores",
-                    f"{len(flagged)} symbol/field pair(s) have a pillar or composite score outside [0, 100]",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    (f"{len(flagged)} symbol/field pair(s) have a pillar or composite score outside [0, 100]")
+                    + f" ({fresh} confirmed-fresh since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] stock_scores_bounds failed: {e}", exc_info=True)
@@ -451,11 +492,10 @@ class TieOutBoundsQuarterly2MiscMixin:
         tolerance, just read from the quarterly table.
         """
         try:
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT DISTINCT ON (i.symbol)
                     i.symbol, i.fiscal_year, i.fiscal_quarter,
-                    i.shares_outstanding_basic, i.shares_outstanding_diluted
+                    i.shares_outstanding_basic, i.shares_outstanding_diluted, i.updated_at
                 FROM quarterly_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
@@ -463,8 +503,7 @@ class TieOutBoundsQuarterly2MiscMixin:
                   AND i.shares_outstanding_diluted IS NOT NULL
                   AND i.shares_outstanding_basic > 0
                 ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC
-                """
-            )
+                """)
             flagged = []
             for row in cur.fetchall():
                 basic_shares, diluted_shares = (
@@ -482,17 +521,27 @@ class TieOutBoundsQuarterly2MiscMixin:
                             "shares_outstanding_basic": basic_shares,
                             "shares_outstanding_diluted": diluted_shares,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "quarterly_income_statement", flagged)
                 self.log(
                     "quarterly_diluted_ge_basic_shares",
                     WARN,
                     "quarterly_income_statement",
-                    f"{len(flagged)} symbol(s) fail shares_outstanding_diluted >= "
-                    f"shares_outstanding_basic beyond {_SHARE_COUNT_TOLERANCE_PCT:.1%} slack",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    (
+                        f"{len(flagged)} symbol(s) fail shares_outstanding_diluted >= "
+                        f"shares_outstanding_basic beyond {_SHARE_COUNT_TOLERANCE_PCT:.1%} slack"
+                    )
+                    + f" ({fresh} confirmed-fresh since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_diluted_ge_basic_shares failed: {e}", exc_info=True)
@@ -512,18 +561,16 @@ class TieOutBoundsQuarterly2MiscMixin:
         (live-verified 21/4,824).
         """
         try:
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT DISTINCT ON (i.symbol)
-                    i.symbol, i.fiscal_year, i.fiscal_quarter, i.diluted_eps, i.earnings_per_share
+                    i.symbol, i.fiscal_year, i.fiscal_quarter, i.diluted_eps, i.earnings_per_share, i.updated_at
                 FROM quarterly_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
                   AND i.diluted_eps IS NOT NULL
                   AND i.earnings_per_share IS NOT NULL
                 ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC
-                """
-            )
+                """)
             flagged = []
             for row in cur.fetchall():
                 diluted_eps, basic_eps = (
@@ -543,18 +590,28 @@ class TieOutBoundsQuarterly2MiscMixin:
                             "diluted_eps": diluted_eps,
                             "earnings_per_share": basic_eps,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "quarterly_income_statement", flagged)
                 self.log(
                     "quarterly_diluted_eps_le_basic_eps",
                     WARN,
                     "quarterly_income_statement",
-                    f"{len(flagged)} symbol/quarter(s) fail diluted_eps <= earnings_per_share "
-                    f"(ASC 260 antidilution) beyond max(${_DILUTED_LE_BASIC_EPS_TOLERANCE_FLOOR:.2f}, "
-                    f"{_DILUTED_LE_BASIC_EPS_TOLERANCE_PCT:.0%} of basic eps)",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    (
+                        f"{len(flagged)} symbol/quarter(s) fail diluted_eps <= earnings_per_share "
+                        f"(ASC 260 antidilution) beyond max(${_DILUTED_LE_BASIC_EPS_TOLERANCE_FLOOR:.2f}, "
+                        f"{_DILUTED_LE_BASIC_EPS_TOLERANCE_PCT:.0%} of basic eps)"
+                    )
+                    + f" ({fresh} confirmed-fresh since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_diluted_eps_le_basic_eps failed: {e}", exc_info=True)
@@ -574,18 +631,16 @@ class TieOutBoundsQuarterly2MiscMixin:
         feasibility numbers (13/2,964).
         """
         try:
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT DISTINCT ON (i.symbol)
-                    i.symbol, i.fiscal_year, i.diluted_eps, i.earnings_per_share
+                    i.symbol, i.fiscal_year, i.diluted_eps, i.earnings_per_share, i.updated_at
                 FROM annual_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
                   AND i.diluted_eps IS NOT NULL
                   AND i.earnings_per_share IS NOT NULL
                 ORDER BY i.symbol, i.fiscal_year DESC
-                """
-            )
+                """)
             flagged = []
             for row in cur.fetchall():
                 diluted_eps, basic_eps = (
@@ -604,18 +659,28 @@ class TieOutBoundsQuarterly2MiscMixin:
                             "diluted_eps": diluted_eps,
                             "earnings_per_share": basic_eps,
                             "residual": residual,
+                            "_updated_at": row["updated_at"],
                         }
                     )
             if flagged:
                 flagged.sort(key=lambda r: r["residual"], reverse=True)
+                fresh, stale, examples = self._staleness_split(cur, "annual_income_statement", flagged)
                 self.log(
                     "diluted_eps_le_basic_eps",
                     WARN,
                     "annual_income_statement",
-                    f"{len(flagged)} symbol(s) fail diluted_eps <= earnings_per_share "
-                    f"(ASC 260 antidilution) beyond max(${_DILUTED_LE_BASIC_EPS_TOLERANCE_FLOOR:.2f}, "
-                    f"{_DILUTED_LE_BASIC_EPS_TOLERANCE_PCT:.0%} of basic eps)",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    (
+                        f"{len(flagged)} symbol(s) fail diluted_eps <= earnings_per_share "
+                        f"(ASC 260 antidilution) beyond max(${_DILUTED_LE_BASIC_EPS_TOLERANCE_FLOOR:.2f}, "
+                        f"{_DILUTED_LE_BASIC_EPS_TOLERANCE_PCT:.0%} of basic eps)"
+                    )
+                    + f" ({fresh} confirmed-fresh since the last successful reload, {stale} unverified/pending-reload)",
+                    {
+                        "count": len(flagged),
+                        "confirmed_fresh": fresh,
+                        "unverified_stale": stale,
+                        "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                    },
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] diluted_eps_le_basic_eps failed: {e}", exc_info=True)
