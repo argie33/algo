@@ -279,6 +279,21 @@ class Q4DerivationSweepMixin:
         legitimately absorbs large one-time items (annual bonus true-ups, impairments, tax
         adjustments) that don't afflict revenue the same way, so an aggressive magnitude guard
         there would reject far more real results than bad ones.
+
+        WIDENED 2026-09-13 (goal session: quarterly-revenue-identity backlog, QCOM live-
+        confirmed): the original NULL/data_unavailable-only guard never re-fires once a Q4 row
+        already holds SOME non-null, "available" value - even a stale, wrong one. Live-confirmed
+        via QCOM: a stale Q4 row (revenue=$12,252,000,000, an exact duplicate of that year's own
+        Q1 value - a leftover artifact of a since-fixed quarter-labeling bug, not a real Q4
+        result) sat untouched through a full watermark-driven reload of corrected Q1-Q3 data,
+        because it was neither NULL nor data_unavailable=TRUE. Since this method's own docstring
+        already establishes FY-(Q1+Q2+Q3) as an exact accounting identity for these two flow
+        fields (not a heuristic), any existing Q4 value that doesn't match a freshly-computed
+        derivation from now-correct Q1-Q3 is provably wrong and safe to recompute - re-fires
+        whenever the stored revenue is DISTINCT FROM the fresh derivation, not just when it's
+        missing, so a stale Q4 self-heals whenever an upstream quarterly extraction fix
+        (like this session's QCOM/SBUX one) changes Q1-Q3 without anything having to explicitly
+        invalidate the old Q4 value first.
         """
         with _database_context()("write") as cur:
             cur.execute(
@@ -303,7 +318,11 @@ class Q4DerivationSweepMixin:
                           JOIN quarterly_income_statement q3
                             ON q3.symbol = q4x.symbol AND q3.fiscal_year = q4x.fiscal_year AND q3.fiscal_quarter = 3
                          WHERE q4x.fiscal_quarter = 4
-                           AND (q4x.revenue IS NULL OR q4x.data_unavailable = TRUE)
+                           AND (
+                                 q4x.revenue IS NULL
+                                 OR q4x.data_unavailable = TRUE
+                                 OR q4x.revenue IS DISTINCT FROM (a.revenue - (q1.revenue + q2.revenue + q3.revenue))
+                               )
                            AND a.revenue IS NOT NULL AND a.net_income IS NOT NULL
                            AND q1.revenue IS NOT NULL AND q2.revenue IS NOT NULL AND q3.revenue IS NOT NULL
                            AND q1.net_income IS NOT NULL AND q2.net_income IS NOT NULL AND q3.net_income IS NOT NULL
