@@ -91,7 +91,29 @@ class CompositeScoreReconciliationChecker(BaseCheck):
                     f"its own pillar inputs via BASE_PILLAR_WEIGHTS/_value_risk_adjusted_weights "
                     f"beyond a {_WARN_PCT}-point rounding budget (max divergence "
                     f"{flagged[0]['divergence']:.4f})",
-                    {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                    {
+                        "count": len(flagged),
+                        "examples": flagged[:_MAX_REPORTED_PER_CHECK],
+                        # Per-symbol isolable (see quarantine.py's own docstring: an ERROR/CRITICAL
+                        # finding with a non-empty flagged_symbols list gets those specific symbols
+                        # quarantined instead of Phase 1 halting the whole pipeline). quarantine.py
+                        # gates on this finding's single aggregate `severity` above, not a per-symbol
+                        # one - so only symbols whose OWN divergence clears the ERROR bar go here;
+                        # a merely-WARN-level symbol swept in only because some OTHER symbol pushed
+                        # the aggregate severity to ERROR must not be quarantined alongside it.
+                        "flagged_symbols": [
+                            {
+                                "symbol": r["symbol"],
+                                "reason": (
+                                    f"composite_score doesn't reconcile to its own pillar inputs "
+                                    f"(divergence {r['divergence']:.4f} points, beyond the "
+                                    f"{_ERROR_PCT}-point error budget)"
+                                ),
+                            }
+                            for r in flagged
+                            if r["divergence"] > _ERROR_PCT
+                        ],
+                    },
                 )
             else:
                 # Always log even when clean (FIXED 2026-09-10, see pillar_score_reconciliation.py's

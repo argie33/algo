@@ -179,6 +179,31 @@ class PillarScoreReconciliationChecker(BaseCheck):
                         "confirmed_fresh": fresh,
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
+                        # Per-symbol isolable (see quarantine.py's own docstring). Restricted to
+                        # symbols that are BOTH confirmed-fresh (updated_at <= stock_scores' own
+                        # reload watermark - excludes the benign pending-reload-lag case this
+                        # check's own 2026-09-13 fix above already carves out) AND individually
+                        # over the ERROR bar - quarantine.py gates on this finding's single
+                        # aggregate `severity`, so a merely-WARN or unverified-stale symbol swept
+                        # in only because some OTHER symbol pushed severity to ERROR must not be
+                        # quarantined alongside it.
+                        "flagged_symbols": [
+                            {
+                                "symbol": f["symbol"],
+                                "reason": (
+                                    f"stock_scores.quality_score ({f['stock_scores_quality_score']}) doesn't "
+                                    f"match its authoritative source quality_metrics.quality_score "
+                                    f"({f['quality_metrics_quality_score']}) - divergence {f['divergence']:.4f} "
+                                    f"points, beyond the {_ERROR_ABS}-point error budget, confirmed fresh "
+                                    "since the last successful stock_scores reload"
+                                ),
+                            }
+                            for f in flagged
+                            if watermark is not None
+                            and f["_updated_at"] is not None
+                            and f["_updated_at"] <= watermark
+                            and f["divergence"] > _ERROR_ABS
+                        ],
                     },
                 )
             else:

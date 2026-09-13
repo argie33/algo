@@ -1,6 +1,6 @@
 """Regression test for the 2026-09-13 fix (goal session: data-quarantine architecture audit,
 RITM's negative-Q4-stock_based_compensation DataPatrol finding):
-`_sweep_correct_cumulative_stock_based_compensation` in financial_statements_q4_sweeps.py.
+`_sweep_correct_cumulative_ytd_field` in financial_statements_q4_sweeps.py.
 
 Root cause, live-verified against RITM's real cached SEC companyfacts JSON (CIK 0001556593):
 `AllocatedShareBasedCompensationExpense` is filed exclusively as year-to-date cumulative facts
@@ -11,6 +11,18 @@ equals its own discrete value) and the pre-existing Q4 = FY - (Q1+Q2+Q3) sweep t
 double/triple-subtracts the cumulative overlap, producing a deeply negative Q4 "plug" -
 RITM FY2018: 1,020,000 - (420,000+1,019,000+1,019,000) = -1,438,000, matching the real
 corrupted value that was live in the DB before this fix.
+
+WIDENED same day to common_stock_repurchased - live-verified against Agilent's (symbol A,
+CIK 0001090872) real cached SEC companyfacts JSON for `PaymentsForRepurchaseOfCommonStock`,
+FY2017: Q1=111,000,000 (discrete), Q2=Q3=194,000,000 (YTD-cumulative, identical - no
+incremental Q3 repurchases), FY total=194,000,000. The pre-existing Q4 sweep would have
+computed 194,000,000 - (111,000,000+194,000,000+194,000,000) = -305,000,000, the same
+deeply-negative-plug shape as RITM's stock_based_compensation.
+
+WIDENED again same day to capex (verified cross-session by algo-fa) - AAT (CIK 0001500217,
+FY2019, PaymentsToAcquireRealEstate) Q1=20,932,000, Q2=Q3=507,780,000; ABAT (CIK 0001576873,
+non-calendar FY, PaymentsToAcquireMiningAssets) Q2=Q3=8,007,362 - same exact-duplicate
+cumulative shape.
 """
 
 from unittest.mock import MagicMock, patch
@@ -32,7 +44,7 @@ def _mock_write_context(rowcount: int = 1) -> tuple[MagicMock, MagicMock]:
 
 
 class TestSweepCorrectCumulativeStockBasedCompensation:
-    def test_quarterly_cash_flow_run_issues_q3_then_q2_correction(self) -> None:
+    def test_quarterly_cash_flow_run_issues_q3_then_q2_correction_per_field(self) -> None:
         loader = _make_loader(statement_type="cashflow", period="quarterly")
         mock_ctx, mock_cur = _mock_write_context()
 
@@ -40,15 +52,16 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
             loader.post_run()
 
         sqls = [call[0][0] for call in mock_cur.execute.call_args_list]
-        q3_sqls = [s for s in sqls if "q3.stock_based_compensation - src.q2_val" in s]
-        q2_sqls = [s for s in sqls if "q2.stock_based_compensation - src.q1_val" in s]
-        assert len(q3_sqls) == 1
-        assert len(q2_sqls) == 1
-        # Q3's own correction must run before Q2's (Q2's guard depends on Q3 already being
-        # flagged 'derived_ytd_split' this run).
-        assert sqls.index(q3_sqls[0]) < sqls.index(q2_sqls[0])
+        for field in ("stock_based_compensation", "common_stock_repurchased", "capex"):
+            q3_sqls = [s for s in sqls if f"q3.{field} - src.q2_val" in s]
+            q2_sqls = [s for s in sqls if f"q2.{field} - src.q1_val" in s]
+            assert len(q3_sqls) == 1
+            assert len(q2_sqls) == 1
+            # Q3's own correction must run before Q2's (Q2's guard depends on Q3 already
+            # being flagged 'derived_ytd_split' this run).
+            assert sqls.index(q3_sqls[0]) < sqls.index(q2_sqls[0])
 
-    def test_detection_fingerprint_matches_verified_ritm_shape(self) -> None:
+    def test_detection_fingerprint_matches_verified_shapes(self) -> None:
         loader = _make_loader(statement_type="cashflow", period="quarterly")
         mock_ctx, mock_cur = _mock_write_context()
 
@@ -56,15 +69,17 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
             loader.post_run()
 
         sqls = [call[0][0] for call in mock_cur.execute.call_args_list]
-        q3_sql = next(s for s in sqls if "q3.stock_based_compensation - src.q2_val" in s)
         # Exact-duplicate fingerprint: Q2 == Q3, Q1 < Q2, Q2 > 0 - verified against RITM's
-        # real SEC source data (FY2018: Q1=420000, Q2=Q3=1019000).
-        assert "q2.stock_based_compensation = q3x.stock_based_compensation" in q3_sql
-        assert "q1.stock_based_compensation < q2.stock_based_compensation" in q3_sql
-        assert "q2.stock_based_compensation > 0" in q3_sql
-        # Never re-fires on its own prior output.
-        assert "q2.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
-        assert "q3x.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
+        # real SEC source data (FY2018: Q1=420000, Q2=Q3=1019000), Agilent's (FY2017:
+        # Q1=111000000, Q2=Q3=194000000), and AAT/ABAT's (capex).
+        for field in ("stock_based_compensation", "common_stock_repurchased", "capex"):
+            q3_sql = next(s for s in sqls if f"q3.{field} - src.q2_val" in s)
+            assert f"q2.{field} = q3x.{field}" in q3_sql
+            assert f"q1.{field} < q2.{field}" in q3_sql
+            assert f"q2.{field} > 0" in q3_sql
+            # Never re-fires on its own prior output.
+            assert "q2.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
+            assert "q3x.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
 
     def test_q3_correction_runs_before_q4_derivation_from_remaining_fields_sweep(self) -> None:
         loader = _make_loader(statement_type="cashflow", period="quarterly")
@@ -78,12 +93,12 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
         q4_derivation_sql = next(s for s in sqls if "stock_based_compensation = derived.stock_based_compensation" in s)
         assert sqls.index(q3_correction_sql) < sqls.index(q4_derivation_sql)
 
-    def test_q4_stock_based_compensation_self_heals_scoped_to_that_field_only(self) -> None:
+    def test_q4_self_heals_scoped_to_verified_fields_only(self) -> None:
         # 2026-09-13 widening: without this, correcting Q1-Q3 (above) would never propagate
-        # to an already-populated-but-wrong Q4 stock_based_compensation, since the sibling
-        # per-field Q4 derivation loop otherwise only fills a NULL cell. Scoped narrowly -
-        # the other 5 fields in the same loop stay on the conservative fill-only guard until
-        # each is independently source-verified.
+        # to an already-populated-but-wrong Q4 stock_based_compensation/common_stock_repurchased
+        # /capex, since the sibling per-field Q4 derivation loop otherwise only fills a NULL
+        # cell. Scoped narrowly - the other 3 fields in the same loop stay on the conservative
+        # fill-only guard until each is independently source-verified.
         loader = _make_loader(statement_type="cashflow", period="quarterly")
         mock_ctx, mock_cur = _mock_write_context()
 
@@ -99,12 +114,23 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
             "(q1.stock_based_compensation + q2.stock_based_compensation + q3.stock_based_compensation)" in normalized
         )
 
+        csr_sql = " ".join(
+            next(s for s in sqls if "SET common_stock_repurchased = derived.common_stock_repurchased" in s).split()
+        )
+        assert "q4x.data_unavailable = TRUE" in csr_sql
+        assert (
+            "q4x.common_stock_repurchased IS DISTINCT FROM ( a.common_stock_repurchased - "
+            "(q1.common_stock_repurchased + q2.common_stock_repurchased + q3.common_stock_repurchased)" in csr_sql
+        )
+
+        capex_sql = " ".join(next(s for s in sqls if "SET capex = derived.capex" in s).split())
+        assert "q4x.data_unavailable = TRUE" in capex_sql
+        assert "q4x.capex IS DISTINCT FROM ( a.capex - (q1.capex + q2.capex + q3.capex)" in capex_sql
+
         for field in (
             "financing_cash_flow",
             "investing_cash_flow",
             "dividends_paid",
-            "common_stock_repurchased",
-            "capex",
         ):
             field_sql = " ".join(next(s for s in sqls if f"SET {field} = derived.{field}" in s).split())
             assert f"WHERE q4x.fiscal_quarter = 4 AND q4x.{field} IS NULL AND" in field_sql
@@ -119,3 +145,4 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
 
         for call in mock_cur.execute.call_args_list:
             assert "q3.stock_based_compensation - src.q2_val" not in call[0][0]
+            assert "q3.common_stock_repurchased - src.q2_val" not in call[0][0]
