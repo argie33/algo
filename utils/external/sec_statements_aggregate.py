@@ -272,6 +272,37 @@ def _aggregate_concepts(
                         "form": entry.get("form"),
                     },
                 )
+                # BUG FOUND 2026-09-13 (goal session: DataPatrol needs_fix backlog,
+                # finance_lease_liability_le_total_liabilities review, LOVE live-confirmed
+                # via real SEC companyfacts JSON): a non-calendar-fiscal-year filer's
+                # Q1-Q3 10-Q INSTANT fact (no start_date) can compute the SAME period_year
+                # as an unrelated EARLIER fiscal year's own 10-K annual-report-end date -
+                # LOVE's real FY2019 10-K (period end 2019-02-03, fiscal year ends early
+                # Feb) and its FY2020 Q3 10-Q (period end 2019-11-03) both fall in calendar
+                # year 2019, colliding into the same (2019, "FY") row key despite
+                # representing balance-sheet positions ~9 months apart. Only surfaces for a
+                # concept (here FinanceLeaseLiabilityCurrent/Noncurrent) with no 10-K
+                # history of its own to out-rank the mistagged 10-Q instant fact via
+                # _aggregate_concepts_should_replace_entry's primary-form preference below -
+                # concepts with real 10-K history for every fiscal year never hit this,
+                # since the 10-K's own instant fact already occupies the row first (concept
+                # list order: core Assets/Liabilities/StockholdersEquity concepts are always
+                # listed - and therefore processed - before later-appended fallback-only
+                # concepts like these, so `row["period_end"]` is already the real
+                # fiscal-year-end by the time a colliding fallback concept is reached). An
+                # instant fact always represents a balance "as of" its own end date - once a
+                # row's period_end is established, any later instant fact whose own end date
+                # disagrees cannot belong to this row's real fiscal year-end position,
+                # regardless of what period_year its own end date happened to compute to.
+                # Scoped to annual extraction only (quarterly's end-date-derived-fp
+                # correction above already handles the analogous per-quarter collision).
+                # Excludes dei-source facts: those are cover-page "as of latest practicable
+                # date before filing" snapshots that legitimately land weeks/months after
+                # the real fiscal-year-end (see test_sec_statements_dei_fact_uses_own_fy_
+                # not_end_date.py's AAP case) - already correctly bucketed by their own `fy`
+                # field a few lines up, not by end-date proximity to the row's other facts.
+                if period == "annual" and not start_date and source != "dei" and row["period_end"] != end_date:
+                    continue
                 col = target_key
                 # Keep latest filing if multiple for same period, EXCEPT: never let a
                 # non-primary-statement form (DEF 14A, 8-K, S-1, etc.) outrank a primary
