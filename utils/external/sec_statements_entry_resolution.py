@@ -20,11 +20,19 @@ logger = logging.getLogger(__name__)
 
 def _is_power_of_ten_scale_outlier(existing_val: Any, entry_val: Any) -> bool:
     """True if `entry_val` differs from `existing_val` by a ratio suspiciously close to a
-    clean power of 10 (100x/1000x/10000x, within 1%) - the same "filer decimals-tag error,
-    not a real business change" signal already trusted for the instant-fact frame-preference
-    case above (see this function's callers' docstrings for the IPAR/PMT precedent this
-    mirrors). Real restatements essentially never move a balance or income-statement total by
-    an exact round factor of 10.
+    clean power of 10 (100x/1000x/10000x/1000000x, within 1%) - the same "filer decimals-tag
+    error, not a real business change" signal already trusted for the instant-fact frame-
+    preference case above (see this function's callers' docstrings for the IPAR/PMT precedent
+    this mirrors). Real restatements essentially never move a balance or income-statement total
+    by an exact round factor of 10.
+
+    1000000x ADDED 2026-09-13 (goal session: MKZR revenue investigation) - live-confirmed via
+    MacKenzie Realty Capital's own real companyfacts JSON: several OperatingLeaseLeaseIncome
+    facts re-cited as comparatives in later 10-Qs are exactly 1,000,000x the correct value
+    reported for the identical period in an earlier filing (and in a sibling ASC-606 concept
+    in the SAME filing) - a decimals=-6 tagging error, the same bug class as the 100x/1000x
+    cases above just with SEC's "reported to the nearest million" precision code misapplied
+    as a scale multiplier instead of a rounding hint.
     """
     if not (
         isinstance(existing_val, int | float)
@@ -36,7 +44,7 @@ def _is_power_of_ten_scale_outlier(existing_val: Any, entry_val: Any) -> bool:
     ratio = abs(entry_val) / abs(existing_val)
     if ratio < 1:
         ratio = 1 / ratio
-    return any(abs(ratio - power) / power < 0.01 for power in (100, 1000, 10000))
+    return any(abs(ratio - power) / power < 0.01 for power in (100, 1000, 10000, 1_000_000))
 
 
 def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-existing complexity debt extracted from _aggregate_concepts, not new logic
