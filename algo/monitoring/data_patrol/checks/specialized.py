@@ -302,7 +302,13 @@ class SpecializedChecker(BaseCheck):
                         None,
                     )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Fundamental data checks failed: {e}")
+            # FIXED 2026-09-13 (goal: patrol/quarantine comprehensiveness audit): this only did
+            # a plain `logger.warning(...)` - a server log line nobody watches via the API or
+            # dashboard - instead of `self.log(...)` like every sibling check in this class. A
+            # total failure of this check's UNION query (bad table/column, transient DB error)
+            # produced zero data_patrol_log rows and was invisible everywhere except a log file,
+            # for the six fundamental-statement tables this check monitors.
+            self.log("fundamental_data", ERROR, "fundamental_data", f"Check failed: {e}", None)
 
     def check_derived_metrics(self, cur: Any) -> None:
         try:
@@ -568,11 +574,23 @@ class SpecializedChecker(BaseCheck):
                     )
 
                     # Check data freshness (use updated_at if created_at doesn't exist)
-                    # First try created_at, fallback to updated_at
+                    # First try created_at, fallback to updated_at.
+                    # FIXED 2026-09-13 (goal: patrol/quarantine comprehensiveness audit): a
+                    # failed SELECT aborts the whole transaction in Postgres, so without a
+                    # SAVEPOINT the fallback `cur.execute` on updated_at would itself fail with
+                    # "current transaction is aborted" rather than actually falling back -
+                    # unlike every other per-table query in this file, which is careful about
+                    # savepoints (see check_signal_source_alignment etc.). Dormant today
+                    # (algo_trades/algo_positions both currently have created_at), but would
+                    # silently break with a misleading "Check skipped" message if either
+                    # column is ever dropped/renamed.
+                    sp_fresh = f"sp_trf_{tbl}"
+                    cur.execute(f"SAVEPOINT {sp_fresh}")
                     try:
                         cur.execute(f"SELECT COUNT(*) as count, MAX(created_at) as max_updated FROM {tbl_safe}")
                     except psycopg2.DatabaseError:
                         # Fallback to updated_at if created_at doesn't exist
+                        cur.execute(f"ROLLBACK TO SAVEPOINT {sp_fresh}")
                         cur.execute(f"SELECT COUNT(*) as count, MAX(updated_at) as max_updated FROM {tbl_safe}")
                     row = cur.fetchone()
                     # BUG FOUND 2026-08-11: DictRow is dict-LIKE but not a `dict` subclass.
