@@ -146,6 +146,7 @@ SAFE_TABLES = {
     # "not in whitelist" first. See KNOWN_DEPRECATED_TABLES in algo/monitoring/pipeline_health.py.
     "insider_holdings_sec",
     "insider_transaction_velocity",  # Phase 2: Insider buy/sell velocity from SEC Form 4/5
+    "yfinance_supplemental_metrics",  # 2026-09-14: held_percent_insiders (no SEC-XBRL source)
     "current_reports_8k",  # Phase 2: SEC Form 8-K material events (acquisitions, bankruptcies, etc.)
     "dividend_data",  # Phase 2: Dividend ex-dates and payment dates (position management)
     "sec_segment_info",  # Phase 3: SEC XBRL segment disclosure data (ASC 280) - source for diversification metrics

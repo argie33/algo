@@ -213,6 +213,10 @@ def get_loader_timeouts() -> dict[str, int]:
         "aaii_sentiment": 10 * 60,  # Alias for aaii
         "analyst_upgrade_downgrade": 90 * 60,  # Alias for analyst_upgrades (Session 99: 90m)
         "analyst_sentiment_analysis": 120 * 60,  # Alias for analyst_sentiment (Session 99: 120m)
+        # ADDED 2026-09-14: single non-.info yfinance DataFrame call per symbol, same
+        # lightweight profile as analyst_sentiment_analysis's per-symbol calls.
+        "yfinance_supplemental_metrics": 90 * 60,
+        "yfinance_supplemental": 90 * 60,  # Alias matching loader_registry.py's short name
         # BUG FOUND 2026-08-21 (goal session): quality_metrics/growth_metrics status rows are
         # shared by TWO loaders with very different real budgets -
         # load_value_quality_growth_metrics.py (~40min) AND load_enhanced_quality_growth_metrics.py

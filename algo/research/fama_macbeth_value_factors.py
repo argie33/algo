@@ -176,33 +176,53 @@ DCF_MAX_INTRINSIC_PER_SHARE = 1_000_000.0
 # a diagnostic control column (see docstring's Amihud section) - never added back to
 # LIVE_VALUE_FACTOR_COLS.
 SIZE_CONTROL_COL = "size"
-# UPDATED 2026-08-26 (2nd pass, same day): reflects the TRUE current live formula after both
-# passes landed - amihud REMOVED (see AMIHUD ILLIQUIDITY docstring section), dividend_yield
-# REPLACED by net_payout_yield (see MISSING-INPUT CHECK section). This is now exactly the 7
-# inputs load_stock_scores.py._score_value actually weights (12/30/27/7/9/8/7).
-LIVE_VALUE_FACTOR_COLS = ["pe", "pb", "ps", "peg", "fcf_yield", "net_payout_yield", "margin_of_safety"]
+# RECONCILED 2026-09-14 (goal: fresh scores investigation - this script had drifted stale
+# against main's live value_score.py/value_metrics.py formula, same recurring failure mode as
+# fama_macbeth_composite_weights.py's own rebuild history). Live-verified against
+# value_score.py's _score_value docstring (the "UNIFORM EQUAL-WEIGHT (2026-09-11)" section,
+# which supersedes every earlier weight quoted elsewhere in that same docstring): the live
+# formula is PE/PB/PS/Forward P/E/Dividend Yield, flat 20% each - NOT the
+# peg/fcf_yield/net_payout_yield/margin_of_safety 12/30/27/7/9/8/7 split this constant
+# previously described (that mix was removed in stages across 2026-08-28/2026-09-01/2026-09-11
+# and this script was never updated to follow). dividend_yield REPLACED net_payout_yield in the
+# live formula 2026-08-28 (explicit user directive, "we want the dividend yield instead of that
+# payout shit" - see value_score.py's own docstring) - the opposite direction of what this
+# script's old comment claimed. forward_pe is EXCLUDED from this panel (not "not live" - it IS
+# live) because analyst_earnings_estimates only has ~22 trading days of real history as of this
+# reconciliation (per value_score.py:606), too thin for a monthly Fama-MacBeth panel - same
+# "real gap, blocked on time not engineering" shape as institutional_holdings_13f/
+# short_interest_finra elsewhere in this factor-audit effort.
+LIVE_VALUE_FACTOR_COLS = ["pe", "pb", "ps", "dividend_yield"]
 VALUE_FACTOR_COLS = LIVE_VALUE_FACTOR_COLS  # backward-compat alias for existing callers/tests
 # Production weights, same order as LIVE_VALUE_FACTOR_COLS - used by _replicate_live_composite_score
 # below for the composite-score backtest (see run()'s "COMPOSITE SCORE BACKTEST" section).
+# forward_pe (also live, also 0.20) omitted here for the same thin-history reason as above -
+# _replicate_live_composite_score's backtest is therefore a 4-of-5-input approximation of the
+# real composite, not exact.
 LIVE_VALUE_WEIGHTS = {
-    "pe": 0.12,
-    "pb": 0.30,
-    "ps": 0.27,
-    "peg": 0.07,
-    "fcf_yield": 0.09,
-    "net_payout_yield": 0.08,
-    "margin_of_safety": 0.07,
+    "pe": 0.20,
+    "pb": 0.20,
+    "ps": 0.20,
+    "dividend_yield": 0.20,
 }
 
-# CANDIDATE inputs NOT currently live - checked 2026-08-26 (goal: "have we identified every
-# literature-established value input, not just weighted the ones we already have") alongside
-# the Amihud/PEG/MoS work above. net_payout_yield (originally tested here) is now LIVE - see
-# LIVE_VALUE_FACTOR_COLS above - only ocf_yield remains a candidate:
+# CANDIDATE inputs NOT currently live, tested for comparison - RECONCILED 2026-09-14.
+# net_payout_yield/peg/fcf_yield/margin_of_safety were each live at some point in this pillar's
+# history and are kept here as rejected/superseded candidates so a fresh FDR sweep re-confirms
+# (or overturns) those calls on current post-fix data, not stale ones:
+# - net_payout_yield: REPLACED dividend_yield 2026-08-26 on stronger evidence (t=3.05 vs
+#   dividend_yield's 1.55-2.28), then REVERTED back to dividend_yield 2026-08-28 on explicit
+#   user override, not new negative evidence - the live head-to-head comparison this sweep
+#   should re-run.
+# - peg: removed entirely 2026-08-28 (no mainstream Value methodology includes a growth-blended
+#   ratio in a Value factor - a methodological objection, not just weak evidence).
+# - fcf_yield: removed 2026-08-28, robustly wrong-signed in three separate tests.
+# - margin_of_safety: removed 2026-08-28 (intrinsic-value/DCF screening tool by industry
+#   convention, not a systematic Value-factor input).
 # - ocf_yield: operating cash flow / price - O'Shaughnessy's "What Works on Wall Street"
-#   price-to-cash-flow value composite input. Distinct from fcf_yield (OCF minus CapEx) - less
-#   sensitive to one lumpy CapEx year. Flagged (not acted on) - tangled with fcf_yield's own
-#   already-flagged wrong-sign concern, see load_stock_scores.py's _score_value docstring.
-CANDIDATE_COLS = ["ocf_yield"]
+#   price-to-cash-flow value composite input. Never live. Distinct from fcf_yield (OCF minus
+#   CapEx) - less sensitive to one lumpy CapEx year.
+CANDIDATE_COLS = ["net_payout_yield", "peg", "fcf_yield", "margin_of_safety", "ocf_yield"]
 
 
 def fetch_annual_value_fundamentals() -> pd.DataFrame:
@@ -411,35 +431,33 @@ def _ps_score(ps: float) -> float:
     return max(0.0, 30 - (ps - 15.0) * 1.5)
 
 
-def _peg_score(peg: float) -> float:
-    if peg <= 1.0:
-        return 100.0
-    if peg <= 2.0:
-        return 100 - (peg - 1.0) * 40
-    if peg <= 4.0:
-        return 60 - (peg - 2.0) * 20
-    return max(0.0, 20 - (peg - 4.0) * 5)
+# peg/fcf_yield/net_payout_yield/margin_of_safety scoring curves (_peg_score/_fcf_score/
+# _payout_score/_mos_score) were removed 2026-09-14 in this same reconciliation pass - none of
+# the 4 are live-scored inputs anymore (see CANDIDATE_COLS/LIVE_VALUE_FACTOR_COLS docstrings
+# above), and _replicate_live_composite_score/_equal_weighted_composite_score below no longer
+# call them, so they were genuinely dead code (vulture-confirmed), not kept for CANDIDATE_COLS'
+# own univariate Fama-MacBeth tests - those only need the raw factor columns, not a 0-100 score.
 
 
-def _fcf_score(fcf_yield_decimal: float) -> float:
-    fcf_pct = fcf_yield_decimal * 100  # this script's fcf_yield is a decimal fraction; live
-    # sec_valuations.fcf_yield is already stored as a percentage - convert to match production.
-    return min(100.0, fcf_pct * 20)
+# ADDED 2026-09-14 (reconciliation pass): dividend_yield replaced net_payout_yield as the live
+# formula's 4th scored input (see LIVE_VALUE_FACTOR_COLS's docstring above) but this script had
+# no dividend-scoring curve at all. Replicates value_score.py's DIVIDEND_PAYER_BASE_CREDIT
+# (70.0) + DIVIDEND_MAGNITUDE_BONUS_PER_PCT (5.0) Pass-1 placeholder curve - NOT Pass-2's real
+# sector-relative saturating-exponential z-score (value_metrics.py's
+# DIVIDEND_EXTENSIVE_SATURATION_K), which is what's actually persisted to stock_scores.
+# Replicating Pass-2 exactly would require this whole function to sector-neutralize PE/PB/PS
+# too (it currently doesn't - it already only approximates Pass-1's simpler curves), a
+# materially bigger change than this reconciliation pass scopes. Flagged, not fixed - see this
+# module's own docstring for the open items this reconciliation left.
+def _dividend_score(dividend_yield_decimal: float) -> float:
+    if dividend_yield_decimal <= 0:
+        return 0.0
+    yield_pct = dividend_yield_decimal * 100.0
+    return min(100.0, DIVIDEND_PAYER_BASE_CREDIT + yield_pct * DIVIDEND_MAGNITUDE_BONUS_PER_PCT)
 
 
-def _payout_score(net_payout_yield_decimal: float) -> float:
-    payout_pct = min(net_payout_yield_decimal * 100, 10)
-    return min(100.0, payout_pct * 10)
-
-
-def _mos_score(mos: float) -> float:
-    if mos >= 50:
-        return 100.0
-    if mos >= 0:
-        return 60 + mos * 0.8
-    if mos >= -50:
-        return 60 + mos * 1.2
-    return 0.0
+DIVIDEND_PAYER_BASE_CREDIT = 70.0
+DIVIDEND_MAGNITUDE_BONUS_PER_PCT = 5.0
 
 
 def _replicate_live_composite_score(row: "pd.Series[Any]") -> float | None:
@@ -457,8 +475,8 @@ def _replicate_live_composite_score(row: "pd.Series[Any]") -> float | None:
     relationship the whole pillar exists to deliver."""
     weighted_sum = 0.0
     total_weight = 0.0
-    pe, pb, ps, peg = row.get("pe"), row.get("pb"), row.get("ps"), row.get("peg")
-    fcf_yield, payout, mos = row.get("fcf_yield"), row.get("net_payout_yield"), row.get("margin_of_safety")
+    pe, pb, ps = row.get("pe"), row.get("pb"), row.get("ps")
+    dividend_yield = row.get("dividend_yield")
 
     if pe is not None and not np.isnan(pe) and pe > 0:
         weighted_sum += _pe_score(pe) * LIVE_VALUE_WEIGHTS["pe"]
@@ -469,44 +487,33 @@ def _replicate_live_composite_score(row: "pd.Series[Any]") -> float | None:
     if ps is not None and not np.isnan(ps) and ps > 0:
         weighted_sum += _ps_score(ps) * LIVE_VALUE_WEIGHTS["ps"]
         total_weight += LIVE_VALUE_WEIGHTS["ps"]
-    if peg is not None and not np.isnan(peg) and peg > 0:
-        weighted_sum += _peg_score(peg) * LIVE_VALUE_WEIGHTS["peg"]
-        total_weight += LIVE_VALUE_WEIGHTS["peg"]
-    if fcf_yield is not None and not np.isnan(fcf_yield) and fcf_yield > 0:
-        weighted_sum += _fcf_score(fcf_yield) * LIVE_VALUE_WEIGHTS["fcf_yield"]
-        total_weight += LIVE_VALUE_WEIGHTS["fcf_yield"]
-    if payout is not None and not np.isnan(payout) and payout > 0:
-        weighted_sum += _payout_score(payout) * LIVE_VALUE_WEIGHTS["net_payout_yield"]
-        total_weight += LIVE_VALUE_WEIGHTS["net_payout_yield"]
-    if mos is not None and not np.isnan(mos):
-        weighted_sum += _mos_score(mos) * LIVE_VALUE_WEIGHTS["margin_of_safety"]
-        total_weight += LIVE_VALUE_WEIGHTS["margin_of_safety"]
+    if dividend_yield is not None and not np.isnan(dividend_yield):
+        weighted_sum += _dividend_score(dividend_yield) * LIVE_VALUE_WEIGHTS["dividend_yield"]
+        total_weight += LIVE_VALUE_WEIGHTS["dividend_yield"]
 
     return weighted_sum / total_weight if total_weight > 0 else None
 
 
 def _equal_weighted_composite_score(row: "pd.Series[Any]") -> float | None:
-    """Same 7 sub-scores as _replicate_live_composite_score, but equal-weighted (1/7 each) -
-    the standard baseline this file's own composite backtest is checked against: does the
-    reasoned, evidence-informed weighting scheme actually beat naive equal-weighting, or is
-    the ranking doing all the work and the exact percentages barely matter?"""
+    """Same 4 sub-scores as _replicate_live_composite_score (pe/pb/ps/dividend_yield - see that
+    function's docstring for why forward_pe, also live, is excluded from this panel), but
+    equal-weighted (1/4 each) - the standard baseline this file's own composite backtest is
+    checked against: does the reasoned, evidence-informed weighting scheme actually beat naive
+    equal-weighting, or is the ranking doing all the work and the exact percentages barely
+    matter? (Live production is itself already flat-equal-weighted across all 5 real inputs as
+    of 2026-09-11 - this baseline remains useful as a check against the 4-of-5 approximation
+    tested here specifically.)"""
     scores = []
-    pe, pb, ps, peg = row.get("pe"), row.get("pb"), row.get("ps"), row.get("peg")
-    fcf_yield, payout, mos = row.get("fcf_yield"), row.get("net_payout_yield"), row.get("margin_of_safety")
+    pe, pb, ps = row.get("pe"), row.get("pb"), row.get("ps")
+    dividend_yield = row.get("dividend_yield")
     if pe is not None and not np.isnan(pe) and pe > 0:
         scores.append(_pe_score(pe))
     if pb is not None and not np.isnan(pb) and pb > 0:
         scores.append(_pb_score(pb))
     if ps is not None and not np.isnan(ps) and ps > 0:
         scores.append(_ps_score(ps))
-    if peg is not None and not np.isnan(peg) and peg > 0:
-        scores.append(_peg_score(peg))
-    if fcf_yield is not None and not np.isnan(fcf_yield) and fcf_yield > 0:
-        scores.append(_fcf_score(fcf_yield))
-    if payout is not None and not np.isnan(payout) and payout > 0:
-        scores.append(_payout_score(payout))
-    if mos is not None and not np.isnan(mos):
-        scores.append(_mos_score(mos))
+    if dividend_yield is not None and not np.isnan(dividend_yield):
+        scores.append(_dividend_score(dividend_yield))
     return sum(scores) / len(scores) if scores else None
 
 
@@ -697,8 +704,8 @@ def run(  # noqa: C901 -- a research/reporting script's linear sequence of print
     print(f"Usable months: {len(composite_records)}")
 
     for label, col in [
-        ("LIVE weights (12/30/27/7/9/8/7)", "live_composite"),
-        ("Equal weights (1/7 each)", "eq_composite"),
+        ("LIVE weights (20/20/20/20 of pe/pb/ps/dividend_yield; forward_pe excluded)", "live_composite"),
+        ("Equal weights (1/4 each)", "eq_composite"),
     ]:
         print(f"\n--- {label} ---")
         # Quintile spread: rank each month's cross-section into 5 buckets by the RAW composite

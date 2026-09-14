@@ -39,6 +39,10 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         "sector_ranking": 7,  # Sector analysis, warning if >7 days old
         "industry_ranking": 7,  # Industry analysis, warning if >7 days old
         "insider_transactions": 30,  # Insider data, warning if >30 days old
+        # ADDED 2026-09-14: held_percent_insiders moves slowly (Form 4 cadence), matches
+        # analyst_sentiment_analysis's own 30d threshold for a similar low-frequency
+        # yfinance-sourced snapshot field.
+        "yfinance_supplemental_metrics": 30,
         "stock_scores": 7,  # Weekly stock scores, warning if >7 days old
         "aaii_sentiment": 7,  # Weekly sentiment, warning if >7 days old
         "growth_metrics": 30,  # Monthly growth data, warning if >30 days old
