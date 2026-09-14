@@ -717,7 +717,7 @@ def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
     cur.execute(
         """
             SELECT p1.created_at, p1.check_name, p1.severity, p1.target_table, p1.message,
-                   p1.patrol_run_id, r.status AS review_status, r.note AS review_note,
+                   p1.details, p1.patrol_run_id, r.status AS review_status, r.note AS review_note,
                    r.reviewed_at
             FROM data_patrol_log p1
             LEFT JOIN data_patrol_review r
