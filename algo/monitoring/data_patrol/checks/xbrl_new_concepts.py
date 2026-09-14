@@ -41,6 +41,21 @@ logger = logging.getLogger(__name__)
 
 _MIN_COMPANIES = 50
 _MAX_REPORTED = 20
+# ADDED 2026-09-14 (goal session: quarantine-backlog check-quality audit): find_gaps() sorts
+# purely by company count, and this check only ever reports the top _MAX_REPORTED of
+# potentially hundreds of gaps (460 live on this host at audit time) - live-confirmed via
+# SalesRevenueGoodsGross (61 tagging filers, the real gap behind the ARCB-sibling MGPI
+# quarantine fix) and SalesRevenueServicesNet (465 tagging filers, the real gap behind the
+# ARCB quarantine fix, ALSO wrongly dismissed - see xbrl_concept_coverage_dismissed.json's own
+# fix history) never once surfacing in this check's own alert `examples` despite the WARN
+# firing continuously - both were buried below higher-count but lower-value generic footnote/
+# disclosure concepts. A concept whose name suggests it's a financial-statement revenue/sales
+# line item is exactly the highest-value kind of gap this check exists to catch (it's the
+# concrete bug class that produced the quarterly_revenue_sum_vs_annual_extreme DataPatrol
+# quarantine backlog this same goal session worked through), so it must never be silently
+# outranked by a higher-count-but-lower-value noise concept. Guarantees these always have a
+# reporting slot, on top of (not instead of) the existing top-count-overall list.
+_PRIORITY_NAME_SUBSTRINGS = ("revenue", "sales")
 # FIXED 2026-09-08 (goal session: "is the coverage scan catching everything it should" audit):
 # this list previously omitted "ifrs-full" despite this module's own docstring and
 # utils/external/xbrl_concept_coverage.py's header comment both describing it as a supported
@@ -77,9 +92,11 @@ class NewXbrlConceptChecker(BaseCheck):
                     "no untriaged XBRL concepts in the fetch allowlist gap",
                 )
                 return
-            examples = [
-                {"concept": key, "companies": n, "example_filer": filer} for n, key, filer in gaps[:_MAX_REPORTED]
-            ]
+            priority_gaps = [g for g in gaps if any(sub in g[1].lower() for sub in _PRIORITY_NAME_SUBSTRINGS)]
+            remaining_slots = max(_MAX_REPORTED - len(priority_gaps), 0)
+            other_gaps = [g for g in gaps if g not in priority_gaps][:remaining_slots]
+            reported_gaps = priority_gaps[:_MAX_REPORTED] + other_gaps
+            examples = [{"concept": key, "companies": n, "example_filer": filer} for n, key, filer in reported_gaps]
             self.log(
                 "xbrl_new_concepts",
                 WARN,
