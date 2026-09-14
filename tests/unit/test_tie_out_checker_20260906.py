@@ -3436,13 +3436,15 @@ class TestStockBasedCompensationNonnegative:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
+        # FIXED 2026-09-13: this used to DISTINCT ON (b.symbol) to the latest fiscal_year,
+        # which silently missed negative values in any older year - real impact was 991
+        # flagged rows vs. 3 previously reported for the quarterly mirror of this check.
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_stock_based_compensation_nonnegative(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "annual_cash_flow" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -3465,12 +3467,12 @@ class TestQuarterlyStockBasedCompensationNonnegative:
         assert len(checker.results) == 1
         assert checker.results[0].check_name == "quarterly_stock_based_compensation_nonnegative"
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_stock_based_compensation_nonnegative(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_cash_flow" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
