@@ -317,19 +317,31 @@ def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str
             "success": True,
             "data": {"id": row["trade_id"], "trade_id": row["trade_id"]},
         }
-        response = json_response(201, manual_trade_response)
+        # FIX (real-money-readiness audit): json_response() only special-cases code == 200
+        # for its {"statusCode", "data": {...}} success shape (see its own docstring) -
+        # every other code, 201 included, falls into its ELSE branch, which is written for
+        # 4xx/5xx error responses and spreads the dict's own keys at the top level instead
+        # of nesting them under "data" (e.g. {"statusCode": 201, "success": True, "data":
+        # {...}} rather than {"statusCode": 201, "data": {"success": True, "data": {...}}}).
+        # This was the ONLY json_response(201, ...) call anywhere in lambda/api/routes (all
+        # 51 others pass 200) - fixed at this call site rather than widening json_response's
+        # success condition, since that shared helper has 51 other callers whose behavior
+        # must not change. Build the correctly-shaped response directly instead.
+        response = {"statusCode": 201, "data": manual_trade_response}
 
-        is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", manual_trade_response)
-        if not is_valid:
-            logger.error(f"Endpoint response validation failed: {error_msg}")
-            if error_msg:
-                return error_response(500, "response_validation_error", error_msg)
-            else:
-                logger.error("[CRITICAL] Trades stats validation failed but error_msg is None. Bug.")
-                return error_response(
-                    500, "response_validation_error", "Trades stats validation failed (internal error: no message)"
-                )
-
+        # FIX (real-money-readiness audit): this used to run manual_trade_response through
+        # ResponseValidator.validate_endpoint_response("trades", ...) - but "trades" in
+        # DASHBOARD_ENDPOINTS is the GET /api/algo/trades LIST contract (requires an
+        # "items" list field), a completely different shape than this POST's
+        # {"success", "data": {"id", "trade_id"}} creation-confirmation response. Every
+        # successful manual trade insert failed that check and returned a 500
+        # "response_validation_error" AFTER the INSERT had already committed - the admin
+        # saw a failure for a trade that was actually recorded, risking a duplicate
+        # manual entry on retry (idempotency_key mitigates this only when the caller
+        # supplies one). ResponseValidator exists to validate GET responses the dashboard
+        # renders against a published read contract; this POST action-confirmation has no
+        # such contract to check against, so the call never belonged here - same bug class
+        # already fixed for POST /api/position/update.
         if signature:
             _store_idempotent_response(cur, signature, response)
 
