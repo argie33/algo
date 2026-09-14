@@ -371,6 +371,31 @@ class TestWinRateFloorSampleSize:
         executed_sql = mock_cur.execute.call_args_list[0][0][0]
         assert "exit_time DESC NULLS LAST, id DESC" in executed_sql
 
+    def test_no_reset_configured_omits_date_filter(self, mock_config):
+        """win_rate_reset_at unset (the default) -> no exit_date filter, same query as before."""
+        config = dict(mock_config, min_win_rate_pct=40.0)
+        cb = CircuitBreaker(config=config)
+        mock_cur = Mock()
+        mock_cur.fetchone.side_effect = [(3, 7, 0, 10), (15,)]
+        cb._check_win_rate_floor(current_date=None, cur=mock_cur)
+        executed_sql, executed_params = mock_cur.execute.call_args_list[0][0]
+        assert "exit_date >=" not in executed_sql
+        assert len(executed_params) == 6
+
+    def test_reset_configured_filters_to_trades_on_or_after_reset_date(self, mock_config):
+        """win_rate_reset_at set -> trades that exited before it are excluded from the rolling
+        window (2026-09-14: dev-era trades predating real bug fixes shouldn't count against a
+        floor meant to measure current strategy performance)."""
+        config = dict(mock_config, min_win_rate_pct=40.0, win_rate_reset_at="2026-09-14")
+        cb = CircuitBreaker(config=config)
+        mock_cur = Mock()
+        mock_cur.fetchone.side_effect = [(3, 7, 0, 10), (15,)]
+        cb._check_win_rate_floor(current_date=None, cur=mock_cur)
+        executed_sql, executed_params = mock_cur.execute.call_args_list[0][0]
+        assert "exit_date >=" in executed_sql
+        assert executed_params[-1] == "2026-09-14"
+        assert len(executed_params) == 7
+
 
 class TestConsecutiveLossesOrdering:
     def test_query_orders_by_exit_time_not_insertion_id(self, mock_config):

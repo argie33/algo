@@ -194,12 +194,32 @@ class CircuitBreakerTradeSectorMixin:
         forever regardless of how well it was performing recently; loaders/compute_circuit_breakers.py's
         _compute_win_rate already implemented the correct rolling-30 window (for a metrics/display
         table only, never wired into this actual gating check) - mirrored here.
+
+        RESET (2026-09-14, goal: "win rate is the problem, reset it - dev-era trades from bad
+        logic shouldn't count"): optional `win_rate_reset_at` config (a date string, unset by
+        default) excludes trades that exited before that date from this window, same intent as
+        the DATA-QC exit_reason marker above but for "this whole dev period predates real fixes"
+        rather than one specific trade. Non-destructive - no algo_trades rows are touched, the
+        excluded history is still there for audit/backtest use, this only changes what feeds the
+        live gate. Set it via `config.set("win_rate_reset_at", "YYYY-MM-DD", "string")`.
         """
         # CRITICAL FIX: Use only closed trades for win rate. Open positions are managed separately
         # by exit_engine's stop-loss/target checks. Including unrealized P&L here caused false
         # halts due to temporary unrealized losses that would recover or be managed by exit logic.
+        reset_at = self.config.get("win_rate_reset_at")
+        reset_clause = "AND exit_date >= %s" if reset_at else ""
+        params: tuple[Any, ...] = (
+            TradeStatus.CLOSED.value,
+            "%reconciliation%",
+            "%force%close%",
+            "%delisted%",
+            "%DATA-QC%",
+            "%CONCENTRATION%",
+        )
+        if reset_at:
+            params = (*params, reset_at)
         cur.execute(
-            """
+            f"""
             SELECT COUNT(*) FILTER (WHERE pnl_pct > 0) as wins,
                    COUNT(*) FILTER (WHERE pnl_pct < 0) as losses,
                    COUNT(*) FILTER (WHERE pnl_pct = 0) as breakeven,
@@ -219,6 +239,7 @@ class CircuitBreakerTradeSectorMixin:
                       AND exit_reason NOT ILIKE %s
                       AND exit_reason NOT ILIKE %s
                       AND exit_reason NOT ILIKE %s
+                      {reset_clause}
                     -- CRITICAL FIX: exit_time is frequently NULL on this table (several close
                     -- paths didn't set it until this same fix round - see
                     -- _check_consecutive_losses's comment above), so NULLS LAST alone left ties
@@ -230,14 +251,7 @@ class CircuitBreakerTradeSectorMixin:
                 ) recent_closed
             ) all_trades
             """,
-            (
-                TradeStatus.CLOSED.value,
-                "%reconciliation%",
-                "%force%close%",
-                "%delisted%",
-                "%DATA-QC%",
-                "%CONCENTRATION%",
-            ),
+            params,
         )
         row = cur.fetchone()
         if row is None:

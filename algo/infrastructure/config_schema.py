@@ -207,6 +207,9 @@ VALIDATION_SCHEMA = {
     "max_consecutive_losses": ("int", 1, 100, False, 3),  # Live trading
     "paper_mode_max_consecutive_losses": ("int", 1, 100, False, 5),  # Paper trading (more lenient)
     "min_win_rate_pct": ("float", 0.0, 100.0, False, 40.0),
+    # Trades exiting before this date are excluded from the win-rate floor's rolling window -
+    # see circuit_breaker_trade_sector.py's _check_win_rate_floor docstring. Unset by default.
+    "win_rate_reset_at": ("string", None, None, False, None),
     "max_total_risk_pct": ("float", 0.1, 100.0, False, 4.0),
     # Fat-finger backstop (position_sizer.py): hard per-trade dollar ceiling independent of
     # portfolio_value, so a corrupted equity read can't make every percentage cap look
