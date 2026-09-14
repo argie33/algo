@@ -269,6 +269,25 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         "quarterly_income_statement": 5,
         "quarterly_balance_sheet": 5,
         "quarterly_cash_flow": 5,
+        # ADDED (goal session 2026-09-14, systematic "are we covering all we should" sweep:
+        # cross-referenced all 176 real DB tables against data_patrol_log's historical
+        # target_table coverage): vcp_patterns had ZERO DataPatrol coverage of any kind despite
+        # being real, actively-written (load_technical_indicators.py's own
+        # _compute_and_insert_vcp_patterns, same daily run as technical_data_daily), and - unlike
+        # most of this sweep's other candidates (buy_sell_weekly/monthly/_etf variants,
+        # market_cap_computed, price_extremes_52week, fear_greed_index - all already confirmed
+        # genuinely orphaned/deprecated via pipeline_health.py's own KNOWN_DEPRECATED_TABLES or
+        # zero live callers, correctly excluded, not a gap) - ACTIVELY CONSUMED by live trading
+        # signal generation (algo/orchestrator/phase7_signal_generation.py,
+        # loaders/load_signal_quality_scores.py). Live-confirmed real staleness tail: 161 active
+        # symbols with a >5-day-stale row, 37 with zero row at all, out of 10,828 symbols ever
+        # written (fresh MAX(date)=2026-09-11 overall, so the loader itself is running - this is
+        # a per-symbol coverage gap, not a dead loader). Same daily cadence as its sibling
+        # technical_data_daily (also written by load_technical_indicators.py in the same run),
+        # but a 5-day (not 1-day) threshold and INFO (not WARN) severity since this is a
+        # brand-new/uncharacterized check still building its real false-positive rate - same
+        # precedent as value_metrics/quality_metrics/momentum_metrics when they were first added.
+        "vcp_patterns": 5,
     }
 
     # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
@@ -529,6 +548,7 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         ("sec_segment_info", "updated_at", "monthly", staleness_thresholds["sec_segment_info"], INFO),
         ("sec_segment_metrics", "updated_at", "monthly", staleness_thresholds["sec_segment_metrics"], INFO),
         ("sector_performance", "date", "daily", staleness_thresholds["sector_performance"], INFO),
+        ("vcp_patterns", "date", "daily", staleness_thresholds["vcp_patterns"], INFO),
         ("sector_rotation_signal", "date", "daily", staleness_thresholds["sector_rotation_signal"], INFO),
         ("short_interest_finra", "updated_at", "monthly", staleness_thresholds["short_interest_finra"], INFO),
         ("signal_quality_scores", "date", "daily", staleness_thresholds["signal_quality_scores"], INFO),
