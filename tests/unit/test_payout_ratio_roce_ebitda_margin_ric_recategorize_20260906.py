@@ -123,7 +123,7 @@ class TestNewlyWiredFieldsRicRecategorize:
         # total_assets normally (only dividends_paid/operating_income/debt/current-assets-
         # liabilities/gross_profit/interest_expense are structurally absent), so asset_turnover/
         # roa/net_margin compute real values outright and gross_profitability/gross_margin hit
-        # their own earlier "structural_accounting_difference" gate first (same no_gross_profit_concept check
+        # their own earlier "reit_special_entity" gate first (same no_gross_profit_concept check
         # - see test_ric_gross_profitability_hits_reit_gate_first below). All five stay in the
         # actual `_ric_recategorize_fields` fix - they're still needed for the (different) RIC
         # rows that do fall through to missing_sec_data on them.
@@ -150,7 +150,7 @@ class TestNewlyWiredFieldsRicRecategorize:
     def test_ric_gross_profitability_hits_reit_gate_first(self, monkeypatch):
         # This fixture's gross_profit=None trips gross_profitability's own earlier
         # no_gross_profit_concept check before ever reaching missing_sec_data, so it correctly
-        # lands on "structural_accounting_difference" instead of the new RIC reason - both are
+        # lands on "reit_special_entity" instead of the new RIC reason - both are
         # "Legitimate / not applicable" in /api/scores/coverage, just via different specific
         # causes. Recorded so a future session doesn't mistake this for the new fallback
         # failing to fire.
@@ -158,4 +158,4 @@ class TestNewlyWiredFieldsRicRecategorize:
         metrics = loader._compute_quality_metrics("GGN", _quality_row(), ev_metrics=(None, None, None, None))
 
         assert metrics["gross_profitability"] is None
-        assert metrics["gross_profitability_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["gross_profitability_unavailable_reason"] == "reit_special_entity"

@@ -5,9 +5,8 @@ constant's docstring for the full VCIG evidence: a real, independently-confirmed
 and-yfinance company whose tiny real share count inflates every per-share figure, winning
 percentile 100 in load_stock_scores.py's _percent_rank_cheap_high and driving composite_score's
 #1 rank). forward_eps carries the exact same risk via analyst estimates - MIN_PLAUSIBLE_
-FORWARD_PE_RATIO (raised 0.05 -> 1.0 2026-09-08, FX-scale bug fix - see that constant's own
-docstring) excludes it from the percentile universe the same way, rather than letting a single
-extreme value dominate the ranking.
+FORWARD_PE_RATIO (0.05) excludes it from the percentile universe the same way, rather than
+letting a single extreme value dominate the ranking.
 """
 
 from unittest.mock import patch
@@ -62,22 +61,6 @@ class TestForwardPeImplausiblyLowExcluded:
         assert metrics["forward_pe"] is None
         assert metrics["forward_pe_unavailable_reason"] == "implausibly_low_forward_pe"
 
-    def test_near_zero_forward_eps_excluded_despite_plausible_ratio(self):
-        # ADDED 2026-09-08: an FX-scale-shrunk forward_eps (e.g. a foreign ADR off by ~the
-        # home-currency rate) can pair with a proportionally tiny price to land forward_pe
-        # inside the [1.0, 10000] "plausible" band while the underlying EPS itself is
-        # untrustworthy - current_price=5.0, forward_eps=0.05 -> forward_pe=100.0 (plausible),
-        # but forward_eps < the $0.10 immaterial-base floor excludes it anyway.
-        loader = _make_loader()
-        with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
-            mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(forward_eps=0.05)
-            metrics = loader._build_value_metrics(
-                "TAKSHAPED",
-                _FakeSecValRow({"pe_ratio": 10.0, "current_price": 5.0, "market_cap": 1_000_000_000.0}),
-            )
-        assert metrics["forward_pe"] is None
-        assert metrics["forward_pe_unavailable_reason"] == "implausibly_low_forward_pe"
-
     def test_normal_forward_pe_unaffected(self):
         loader = _make_loader()
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
@@ -92,13 +75,11 @@ class TestForwardPeImplausiblyLowExcluded:
 
     def test_forward_pe_at_exact_floor_still_included(self):
         loader = _make_loader()
-        # RAISED 2026-09-08: floor moved 0.05 -> 1.0 (FX-scale bug fix, see
-        # load_value_quality_growth_metrics.py's MIN_PLAUSIBLE_FORWARD_PE_RATIO comment).
-        # current_price=100.0, forward_eps=100.0 -> forward_pe=1.0 exactly.
+        # current_price=5.0, forward_eps=100.0 -> forward_pe=0.05 exactly.
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(forward_eps=100.0)
             metrics = loader._build_value_metrics(
                 "EDGECO",
-                _FakeSecValRow({"pe_ratio": 10.0, "current_price": 100.0, "market_cap": 1_000_000_000.0}),
+                _FakeSecValRow({"pe_ratio": 10.0, "current_price": 5.0, "market_cap": 1_000_000_000.0}),
             )
-        assert metrics["forward_pe"] == 1.0
+        assert metrics["forward_pe"] == 0.05

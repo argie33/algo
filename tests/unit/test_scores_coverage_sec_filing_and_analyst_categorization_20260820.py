@@ -19,7 +19,7 @@ test_scores_coverage_shares_outstanding_scale_mismatch_categorization.py.
 - no_{period}_{statement_type}_data_in_sec_edgar_reit_or_special_entity
   (loaders/helpers/sec_base.py, built dynamically across 6 period x statement_type
   combinations): the same permanent "REIT/special entity has nothing to report" fact as the
-  literal "structural_accounting_difference" reason already in "Legitimate / not applicable".
+  literal "reit_special_entity" reason already in "Legitimate / not applicable".
 """
 
 import importlib

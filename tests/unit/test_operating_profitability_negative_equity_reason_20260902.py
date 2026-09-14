@@ -119,7 +119,7 @@ class TestOperatingProfitabilityNegativeEquityReason:
     def test_negative_equity_wins_over_missing_ebit_input(self, monkeypatch):
         # Negative equity makes the ratio undefined regardless of whether the numerator is also
         # missing - same priority the existing negative_invested_capital check already gives
-        # roic_pct over its own "structural_accounting_difference" structural check.
+        # roic_pct over its own "reit_special_entity" structural check.
         loader = _make_loader(monkeypatch)
         row = _quality_row(
             stockholders_equity=-3_727_000_000.0,

@@ -2,13 +2,13 @@
 broader _get_no_recent_revenue_symbols()/_get_never_tagged_revenue_symbols()/
 _get_blank_check_symbols() gate as "no_revenue_reported" when operating_income_for_margin is
 never tagged at all - not just fall through to generic "missing_sec_data" when
-_get_no_tax_concept_symbols() (the REIT/tonnage-tax structural_accounting_difference gate) doesn't match.
+_get_no_tax_concept_symbols() (the REIT/tonnage-tax reit_special_entity gate) doesn't match.
 
 Found live 2026-09-03 (goal: "Missing SEC/XBRL data" reduction, sibling-left-behind bug class -
 same shape as gross_margin/roic_pct/roce_pct's fix earlier this session): operating_margin's
 total_assets fallback only ever runs when operating_income_for_margin is non-None, so a symbol
 with operating_income_for_margin NEVER tagged in any fiscal year falls straight to
-structural_accounting_difference-or-generic. _get_no_tax_concept_symbols() is scoped to filers that never tag
+reit_special_entity-or-generic. _get_no_tax_concept_symbols() is scoped to filers that never tag
 pretax_income/income_tax_expense (REITs/tonnage-tax shipping) - it doesn't match passive
 commodity/crypto trusts that DO tag real tax lines but structurally have zero revenue and zero
 operating_income. Live-confirmed 23 of 98 universe operating_margin "missing_sec_data" rows
@@ -94,8 +94,8 @@ class TestOperatingMarginNeverTaggedRevenueSiblingGap:
         assert metrics["operating_margin"] is None
         assert metrics["operating_margin_unavailable_reason"] == "no_revenue_reported"
 
-    def test_no_tax_concept_symbol_still_prefers_structural_accounting_difference(self, monkeypatch):
-        # A REIT-shaped symbol in BOTH gates must keep the more specific structural_accounting_difference
+    def test_no_tax_concept_symbol_still_prefers_reit_special_entity(self, monkeypatch):
+        # A REIT-shaped symbol in BOTH gates must keep the more specific reit_special_entity
         # label (checked first in the chain), not be overridden by the newer no_revenue branch.
         loader = _make_loader(
             monkeypatch,
@@ -106,7 +106,7 @@ class TestOperatingMarginNeverTaggedRevenueSiblingGap:
 
         metrics = loader._compute_quality_metrics("REIT", row, ev_metrics=None)
 
-        assert metrics["operating_margin_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["operating_margin_unavailable_reason"] == "reit_special_entity"
 
     def test_symbol_in_no_gate_keeps_generic_reason(self, monkeypatch):
         loader = _make_loader(monkeypatch, never_tagged_revenue_symbols=frozenset({"TRUST"}))

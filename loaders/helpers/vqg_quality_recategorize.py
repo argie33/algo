@@ -41,7 +41,7 @@ class QualityRecategorizeMixin:
         BEFORE _apply_structural_entity_type_exemption_reasons() in _compute_quality_metrics.
         """
         # Recategorize debt/cash/interest/FCF-derived fields these grantor trusts
-        # structurally never report to "structural_accounting_difference" (same label as their
+        # structurally never report to "reit_special_entity" (same label as their
         # current_ratio/quick_ratio/gross_margin siblings) - only when the field is None and
         # already carries one of the reasons this structural gap produces, so real data or
         # an unrelated reason is left untouched.
@@ -105,7 +105,7 @@ class QualityRecategorizeMixin:
             # fcf_margin/fcf_to_net_income/free_cash_flow (all members of
             # _trust_recategorize_fields above) legitimately hit
             # _get_no_recent_capex_symbols() and were landing on "Missing SEC/XBRL data"
-            # instead of this loop's intended "structural_accounting_difference".
+            # instead of this loop's intended "reit_special_entity".
             _trust_source_reasons = {
                 "missing_sec_data",
                 "total_debt_not_itemized",
@@ -129,7 +129,7 @@ class QualityRecategorizeMixin:
             for _field in _trust_recategorize_fields:
                 _reason_key = f"{_field}_unavailable_reason"
                 if metrics.get(_field) is None and metrics.get(_reason_key) in _trust_source_reasons:
-                    metrics[_reason_key] = "structural_accounting_difference"
+                    metrics[_reason_key] = "reit_special_entity"
 
         # Same recategorization pattern as the royalty-trust block above, for physical
         # commodity/currency/crypto trusts (see _get_etf_trust_no_stockholders_equity_
@@ -475,7 +475,7 @@ class QualityRecategorizeMixin:
         REIT/special-entity with zero filings on record. Live-confirmed BIOT/IMC/PSQL/RPGL:
         every annual_balance_sheet row is null, and the most recent row's own `reason` column
         is exactly this marker - same "Legitimate / not applicable" business-model fact as
-        the existing structural_accounting_difference/etf_trust_no_gaap_financials categories elsewhere in
+        the existing reit_special_entity/etf_trust_no_gaap_financials categories elsewhere in
         this file, not an unresolved extraction gap.
         """
         with _database_context()("read") as cur:

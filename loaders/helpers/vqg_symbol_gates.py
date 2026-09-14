@@ -724,7 +724,7 @@ class SymbolGateMixin:
         on file - e.g. DUKB (Duke Energy's 5.625% Junior Subordinated Debentures) shows FY2025
         net_income=$4.968B/EPS=$6.31, both belonging to Duke Energy's COMMON stock - so
         pe_ratio_reason landed on generic "missing_sec_data" instead of "not applicable" (same
-        class as unprofitable_stock/structural_accounting_difference). Deliberately does NOT touch
+        class as unprofitable_stock/reit_special_entity). Deliberately does NOT touch
         dividend_yield: a fixed coupon over market price IS a real yield. Identified via
         stock_symbols.security_name text (SEC's own listing title), not SIC/price level.
         Cached for the life of this loader instance.
@@ -1127,7 +1127,7 @@ class SymbolGateMixin:
         FIXED 2026-09-03 (goal session: "Missing SEC/XBRL data" reduction): operating_margin/
         interest_coverage's reason chains had no gate at all for this case before this fix -
         every check upstream of the generic "missing_sec_data" fallback (implausible_ratio,
-        structural_accounting_difference, operating_income_absent_from_anchor_year, no_revenue_reported) is
+        reit_special_entity, operating_income_absent_from_anchor_year, no_revenue_reported) is
         scoped to a different root cause. Live-confirmed 43 active-universe symbols recovered
         from "missing_sec_data" to this specific reason. Cached for the life of this loader
         instance; this query runs once per pipeline run, not once per symbol.
@@ -1780,7 +1780,7 @@ class SymbolGateMixin:
         merger (trust-account interest income only, no product/service revenue, no
         meaningful invested-capital deployment) - roic_pct/gross_margin/ebitda_margin
         being unavailable for one is a genuine structural fact, same category as
-        structural_accounting_difference, not a loader gap. Live-confirmed: 343 universe symbols
+        reit_special_entity, not a loader gap. Live-confirmed: 343 universe symbols
         carry this exact SIC classification, and 326/270/314 of them respectively were
         mislabeled "missing_sec_data" for those three metrics - reading as a loader
         failure instead of the correct "this entity has no operating business yet".
@@ -1806,7 +1806,7 @@ class SymbolGateMixin:
         "missing_sec_data" rows are this case. A genuine mixed bag (unlike current_ratio's
         bank/REIT-dominated bucket) - pharma (9), REITs (7), utilities (6), investment advice
         (6), real estate (5) - no single entity type dominates, so this gets its own reason
-        string rather than structural_accounting_difference. Same "3 most recent years, not all-time
+        string rather than reit_special_entity. Same "3 most recent years, not all-time
         history" windowing as the sibling checks above. Cached for the life of this loader
         instance; this query runs once per pipeline run, not once per symbol.
 

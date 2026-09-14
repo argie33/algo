@@ -132,11 +132,11 @@ def _run(
 
 
 class TestSecValuationsDcfFcfRoyaltyTrustReason:
-    def test_royalty_trust_symbol_reports_structural_accounting_difference_reason(self) -> None:
+    def test_royalty_trust_symbol_reports_reit_special_entity_reason(self) -> None:
         result = _run("NRT")
 
         row = result[0]
-        assert row["dcf_fcf_unavailable_reason"] == "structural_accounting_difference"
+        assert row["dcf_fcf_unavailable_reason"] == "reit_special_entity"
 
     def test_non_royalty_trust_symbol_keeps_generic_reason(self) -> None:
         result = _run("NORMALCO")

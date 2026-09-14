@@ -149,7 +149,7 @@ class QualityReasonsValuationMixin:
         # Phase 3 Expansion (Session 357+): New metrics - initialize their _unavailable_reason fields
         metrics["gross_margin_unavailable_reason"] = (
             (
-                "structural_accounting_difference"
+                "reit_special_entity"
                 if no_gross_profit_concept
                 else "implausible_ratio"
                 if "gross_margin" in implausible_ratio_metrics
@@ -176,7 +176,7 @@ class QualityReasonsValuationMixin:
                 # + D&A) requires operating_income and stays None when it's absent - same
                 # REIT/tonnage-tax-exempt population no_operating_income_concept identifies,
                 # cascading into ebitda_ev is None here.
-                else "structural_accounting_difference"
+                else "reit_special_entity"
                 if no_operating_income_concept
                 else "no_revenue_reported"
                 if symbol in self._get_no_recent_revenue_symbols()
@@ -229,7 +229,7 @@ class QualityReasonsValuationMixin:
                 if symbol in self._get_blank_check_symbols()
                 or symbol in self._get_no_recent_revenue_symbols()
                 or symbol in self._get_never_tagged_revenue_symbols()
-                else "structural_accounting_difference"
+                else "reit_special_entity"
                 if no_operating_income_concept_roic
                 # invested_capital (this field's own denominator) comes back None whenever
                 # debt_for_roic OR roic_stockholders_equity is None - the
@@ -267,7 +267,7 @@ class QualityReasonsValuationMixin:
                 or symbol in self._get_never_tagged_revenue_symbols()
                 # roce_pct shares roic_operating_income (EBIT numerator) with roic_pct -
                 # same REIT structural gap.
-                else "structural_accounting_difference"
+                else "reit_special_entity"
                 if no_operating_income_concept_roic
                 # capital_employed (this field's own denominator) comes back None whenever
                 # debt_for_roic OR roic_stockholders_equity is None, which
@@ -495,7 +495,7 @@ class QualityReasonsValuationMixin:
                 # ebitda is the same load_sec_valuations.py-derived absolute-dollar value
                 # ebitda_margin's numerator uses - fails structurally for the same
                 # REIT/tonnage-tax-exempt population.
-                "structural_accounting_difference"
+                "reit_special_entity"
                 if no_operating_income_concept
                 # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same
                 # sibling gate operating_profitability/operating_margin/ebitda_margin

@@ -123,7 +123,7 @@ class QualityReasonsProfitabilityMixin:
             (
                 "implausible_ratio"
                 if "gross_profitability" in implausible_ratio_metrics
-                else "structural_accounting_difference"
+                else "reit_special_entity"
                 if no_gross_profit_concept
                 else "no_revenue_reported"
                 if symbol in self._get_blank_check_symbols()
@@ -147,7 +147,7 @@ class QualityReasonsProfitabilityMixin:
                 if "operating_profitability" in implausible_ratio_metrics
                 else "negative_book_value"
                 if operating_profitability_negative_equity
-                else "structural_accounting_difference"
+                else "reit_special_entity"
                 if no_operating_income_concept
                 # Label-only: the anchor year's income statement can lack operating_income
                 # (and its EBIT fallback) even when the symbol reports it in other years.
@@ -383,8 +383,8 @@ class QualityReasonsProfitabilityMixin:
                 if "operating_margin" in implausible_ratio_metrics
                 # Tonnage-tax shipping cos + REITs structurally never tag
                 # pretax_income/income_tax_expense (_get_no_tax_concept_symbols) -
-                # recategorized as structural_accounting_difference, not generic missing_sec_data.
-                else "structural_accounting_difference"
+                # recategorized as reit_special_entity, not generic missing_sec_data.
+                else "reit_special_entity"
                 if no_operating_income_concept
                 # Label-only: anchor year's income statement lacks operating_income even
                 # though the symbol reports it elsewhere.
@@ -458,7 +458,7 @@ class QualityReasonsProfitabilityMixin:
             (
                 "implausible_ratio"
                 if "current_ratio" in implausible_ratio_metrics
-                else "structural_accounting_difference"
+                else "reit_special_entity"
                 if unclassified_balance_sheet
                 # FIXED 2026-09-07 (goal: "SEC/XBRL missing data to zero" sweep): physical
                 # commodity/currency/crypto trusts (BTC/ETH/XRP/GSOL/BSOL-class, see
@@ -498,7 +498,7 @@ class QualityReasonsProfitabilityMixin:
             (
                 "implausible_ratio"
                 if "quick_ratio" in implausible_ratio_metrics
-                else "structural_accounting_difference"
+                else "reit_special_entity"
                 if unclassified_balance_sheet
                 # Same ETF-trust/RIC fix as current_ratio's identical chain just above -
                 # quick_ratio shares current_ratio's structural inputs.
@@ -555,7 +555,7 @@ class QualityReasonsProfitabilityMixin:
                 )
                 else "interest_expense_not_itemized"
                 if no_recent_interest_expense
-                else "structural_accounting_difference"
+                else "reit_special_entity"
                 if no_operating_income_concept_ic
                 # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): same
                 # sibling gate operating_profitability/operating_margin already have for

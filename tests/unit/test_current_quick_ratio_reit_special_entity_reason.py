@@ -3,7 +3,7 @@
 not a data gap) from a genuine SEC extraction gap.
 
 Found live 2026-08-17 (goal: "no SEC data" audit, TRNO dashboard screenshot): the frontend
-(StockScoreAccordion.jsx) already defines a "structural_accounting_difference" reason string with copy
+(StockScoreAccordion.jsx) already defines a "reit_special_entity" reason string with copy
 explaining the accounting difference, but the backend never populated it - every REIT/bank/
 insurer got the generic "missing_sec_data" ("SEC data not available") instead, which reads as a
 loader bug even though the data literally doesn't exist for these filers. A prior commit
@@ -101,9 +101,9 @@ class TestReitBankUnclassifiedBalanceSheet:
         metrics = loader._compute_quality_metrics("TRNO", row, ev_metrics=None)
 
         assert metrics["current_ratio"] is None
-        assert metrics["current_ratio_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["current_ratio_unavailable_reason"] == "reit_special_entity"
         assert metrics["quick_ratio"] is None
-        assert metrics["quick_ratio_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["quick_ratio_unavailable_reason"] == "reit_special_entity"
 
     def test_only_one_field_absent_keeps_generic_reason(self, monkeypatch):
         # Only one of the pair missing (real extraction/timing gap, not a structural
@@ -131,7 +131,7 @@ class TestReitBankUnclassifiedBalanceSheet:
         # with no windowing - a company that reported a classified balance sheet years ago and
         # switched to unclassified since (e.g. ENVA: classified FY2013-2014, unclassified every
         # year FY2015-2026) never satisfied "zero ever", so it fell through to the generic
-        # "missing_sec_data" label instead of "structural_accounting_difference". The fixed query must window
+        # "missing_sec_data" label instead of "reit_special_entity". The fixed query must window
         # to each symbol's most recent fiscal years via ROW_NUMBER()/rn <= 3, not scan all history.
         import loaders.load_value_quality_growth_metrics as mod
 

@@ -511,7 +511,7 @@ class ValueMetricsMixin(SymbolGateMixin):
         # tickers (GLDM/BITW/CPER/USCI-class) stuck on "missing_sec_data"/"ebitda_not_extracted"
         # for ev_ebitda.
         if symbol in self._ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS:
-            ev_ebitda_reason = "structural_accounting_difference"
+            ev_ebitda_reason = "reit_special_entity"
         elif symbol in self._get_registered_investment_company_symbols():
             ev_ebitda_reason = "registered_investment_company_no_xbrl"
         elif symbol in self._get_etf_trust_no_stockholders_equity_symbols():
@@ -597,12 +597,12 @@ class ValueMetricsMixin(SymbolGateMixin):
                 # RIC-gap scan): royalty trusts (_ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS - NRT/
                 # MTR/CRT/PBT/SBR/SJT) are the third member of this "no real cash-flow-statement
                 # concepts" family alongside RIC/ETF-trust, and already get this exact
-                # "structural_accounting_difference" recategorization in quality_metrics' fcf_margin sibling
+                # "reit_special_entity" recategorization in quality_metrics' fcf_margin sibling
                 # chain (vqg_quality.py's royalty-trust block) - but this value_metrics chain
                 # never checked it at all, unlike the RIC/ETF-trust checks just below (added
                 # 2026-09-05). Live-confirmed all 6 active royalty-trust symbols stuck on
                 # "missing_sec_data"/"no_recent_free_cash_flow_reported" for fcf_yield.
-                "structural_accounting_difference"
+                "reit_special_entity"
                 if symbol in self._ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS
                 else "registered_investment_company_no_xbrl"
                 if symbol in self._get_registered_investment_company_symbols()
@@ -715,19 +715,7 @@ class ValueMetricsMixin(SymbolGateMixin):
             forward_eps = fe_row[0] if fe_row else None
             if forward_eps is not None and forward_eps > 0:
                 computed_forward_pe = float(current_price) / float(forward_eps)
-                # A near-zero-but-real forward_eps can still land forward_pe inside the
-                # plausible range (a proportionally tiny price too) while being an unreliable
-                # base - same "near-zero base is unreliable regardless of the magnitude ratio
-                # it produces" principle as pe_ratio/pb_ratio/ps_ratio's own $0.10 floors. No
-                # cross-year fallback (a single forward-looking consensus estimate has no
-                # older year to substitute) - exclude rather than fabricate.
-                if forward_eps < 0.10:
-                    logger.warning(
-                        f"[VALUE_METRICS] {symbol}: forward_eps immaterial (${float(forward_eps):.4f} < $0.10), "
-                        "excluding forward_pe from Value scoring rather than storing a near-zero-base distortion."
-                    )
-                    forward_pe_reason = "implausibly_low_forward_pe"
-                elif self.MIN_PLAUSIBLE_FORWARD_PE_RATIO <= computed_forward_pe <= self.MAX_PLAUSIBLE_FORWARD_PE_RATIO:
+                if self.MIN_PLAUSIBLE_FORWARD_PE_RATIO <= computed_forward_pe <= self.MAX_PLAUSIBLE_FORWARD_PE_RATIO:
                     forward_pe = computed_forward_pe
                 elif computed_forward_pe > self.MAX_PLAUSIBLE_FORWARD_PE_RATIO:
                     logger.warning(
@@ -1002,7 +990,7 @@ class ValueMetricsMixin(SymbolGateMixin):
             # falling to the generic "stockholders_equity_never_tagged_in_filings", live-
             # confirmed on NRT (the one member of this set with genuinely no equity concept
             # tagged; CRT/MTR/SBR/SJT report real equity, PBT's pb is real and computes).
-            pb_ratio_reason = "structural_accounting_difference"
+            pb_ratio_reason = "reit_special_entity"
         elif pb is None:
             with _owner().DatabaseContext("read") as cur:
                 # Must mirror load_sec_valuations.py's real book_value query's `data_unavailable

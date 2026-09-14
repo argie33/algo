@@ -24,6 +24,7 @@ class CoverageChecker(BaseCheck):
         self.check_loader_coverage(cur)
         self.check_loader_contracts(cur)
         self.check_signal_quality_ratio(cur)
+        self.check_buy_sell_daily_signal_anomaly_history(cur)
 
         return self.results
 
@@ -322,5 +323,91 @@ class CoverageChecker(BaseCheck):
                 ERROR,
                 "buy_sell_daily",
                 f"Failed: {e}",
+                None,
+            )
+
+    def check_buy_sell_daily_signal_anomaly_history(self, cur: Any) -> None:
+        """Persist a reviewable record of any recent day with an anomalously low BUY count.
+
+        Added 2026-09-14 (goal session: "if we have data issues we need to know about them
+        and address them"). algo/orchestrator/phase7_signal_generation.py already halts the
+        live pipeline when the single most recent trading day's BUY-signal count falls below
+        a dynamic floor (median_30d/3, min 40) - but that check's own lookback is exactly one
+        day (`_buysell_lookback_start_date`), and a halt carries no persisted record anywhere:
+        once the flagged day is no longer "yesterday" relative to whatever run_date is being
+        evaluated, the same query simply stops seeing it. Live-confirmed 2026-09-14: 2026-09-10
+        genuinely had only 30 BUY signals (vs. a ~80-250/day historical range, technical_data_daily/
+        price_daily both fully populated that day - not an upstream data gap) and halted a
+        same-day test run, but every real production run since has silently stopped checking it
+        - nothing in symbol_quarantine, data_patrol_log, or any dashboard ever recorded that this
+        happened or why, so there is no way to later tell "was this ever looked into" from "did it
+        just age out of the window". This check closes that gap WITHOUT touching Phase 7's actual
+        halt behavior at all (additive-only, no threshold or gating logic changed) - it re-derives
+        the same dynamic floor over a WIDER 10-trading-day lookback and logs a WARN (ERROR if the
+        day was essentially signal-free) finding for any day that trips it, so the finding survives
+        in the normal data_patrol_review triage queue rather than disappearing once the day rolls
+        out of Phase 7's 1-day window. Deliberately WARN not ERROR for a moderate anomaly - this
+        table's BUY/SELL split is legitimately regime-sensitive (BUY requires a breakout AND
+        close > SMA50, SELL only requires breaking support - see load_buy_sell_daily.py's own
+        _generate_signals docstring), so a low BUY day is a real thing to review, not proof of a
+        broken loader; a human/DataPatrol reviewer should judge each one against market breadth
+        for that day, not treat this as an automatic verdict.
+        """
+        try:
+            cur.execute(
+                """
+                SELECT date, COUNT(*) AS signal_count
+                FROM buy_sell_daily
+                WHERE signal = 'BUY' AND date >= CURRENT_DATE - INTERVAL '45 days'
+                GROUP BY date
+                ORDER BY date DESC
+                LIMIT 30
+                """
+            )
+            rows = cur.fetchall()
+            if not rows:
+                return
+
+            daily_counts = [(r[0], int(r[1])) for r in rows]
+            counts_sorted = sorted(c for _, c in daily_counts)
+            n = len(counts_sorted)
+            median = counts_sorted[n // 2] if n % 2 == 1 else (counts_sorted[n // 2 - 1] + counts_sorted[n // 2]) / 2
+            # Same formula as phase7_signal_generation.py's _calculate_dynamic_anomaly_threshold
+            # (median_30d / 3, floor of 40) - kept in sync deliberately, not re-derived
+            # independently, so this check and the live halt agree on what "anomalous" means.
+            threshold = max(40, int(median / 3))
+
+            # Only re-examine the most recent 10 trading days in this 30-day window - older
+            # days are handled by whatever ran at the time and re-flagging them here forever
+            # would just be noise, not new information.
+            for signal_date, count in daily_counts[:10]:
+                if count >= threshold:
+                    continue
+                # WARN ONLY, never ERROR/CRITICAL - deliberately. Phase 1
+                # (algo/orchestrator/phase1_data_freshness.py's _check_data_patrol_results)
+                # halts live trading on ANY CRITICAL/ERROR finding in the latest patrol run.
+                # This check's job is visibility for a day that's already in the past (it
+                # looks back up to 10 trading days, not just "yesterday" like Phase 7's own
+                # halt) - it must never itself become a NEW halt trigger for a day trading
+                # decisions have already moved past. Phase 7's own inline check is still the
+                # one authoritative halt for the CURRENT day's signal generation; this is
+                # purely a durable record for human/DataPatrol review, not a second gate.
+                severity = WARN
+                self.log(
+                    "buy_sell_daily_signal_anomaly",
+                    severity,
+                    "buy_sell_daily",
+                    f"{signal_date}: only {count} BUY signals (< anomaly floor {threshold}, "
+                    f"30d median {median:.0f}/3). Review market breadth (SPY/sector) for that "
+                    f"date before concluding this is a loader defect vs. a genuinely thin "
+                    f"breakout day - see this check's own docstring.",
+                    {"date": str(signal_date), "buy_count": count, "threshold": threshold, "median_30d": median},
+                )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            self.log(
+                "buy_sell_daily_signal_anomaly",
+                ERROR,
+                "buy_sell_daily",
+                f"Check failed: {e}",
                 None,
             )

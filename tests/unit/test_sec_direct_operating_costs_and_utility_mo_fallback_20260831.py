@@ -12,7 +12,7 @@ Live-confirmed via real SEC companyfacts JSON:
   UtilitiesOperatingExpenseMaintenanceAndOperations instead (AWK FY2023 $1.72B/$4.22B
   ~41%). CWT/SJW/ARTNA checked and confirmed to not use this concept - not fixed by this.
 
-Both were previously mislabeled "structural_accounting_difference" (this codebase's generic "no cost
+Both were previously mislabeled "reit_special_entity" (this codebase's generic "no cost
 concept found" label - see load_value_quality_growth_metrics.py's no_gross_profit_concept)
 despite real, current SEC data being on file. Fixed the same way as the DD&A-excluded
 COGS concepts: fallback-only, since both are narrower, business-model-specific cost

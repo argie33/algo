@@ -777,7 +777,7 @@ def get_income_statement(
         # DirectOperatingCosts on file every year through FY2025 (FY2023 $17.29B/$22.75B
         # revenue ~76%, FY2024 $17.33B/$23.16B ~75% - consistent with Live Nation's well-known
         # low-margin, pass-through-heavy concert-promotion economics). gross_profitability/
-        # gross_margin had been silently NULL (mislabeled "structural_accounting_difference", this
+        # gross_margin had been silently NULL (mislabeled "reit_special_entity", this
         # codebase's generic "no cost concept found" label - see
         # load_value_quality_growth_metrics.py) despite decades of otherwise-complete real SEC
         # data on file. Same target column, fallback-only (see _REVENUE_FALLBACK_ONLY_FIELDS)

@@ -96,7 +96,7 @@ def _quality_row(revenue=None, cost_of_revenue=None, gross_profit=None):
 class TestGrossMarginNeverTaggedRevenueSiblingGap:
     def test_never_tagged_only_symbol_gets_no_revenue_reason(self, monkeypatch):
         # $0 revenue/COGS (real SEC data, not absent) so gross_profit_used = 0, not None -
-        # must NOT hit structural_accounting_difference; must fail downstream on the genuine no-revenue cause.
+        # must NOT hit reit_special_entity; must fail downstream on the genuine no-revenue cause.
         loader = _make_loader(monkeypatch, never_tagged_revenue_symbols=frozenset({"THIN"}))
         row = _quality_row(revenue=0.0, cost_of_revenue=0.0, gross_profit=None)
 

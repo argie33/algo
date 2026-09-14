@@ -100,10 +100,10 @@ class TestEvEbitdaEtfTrustRoyaltyTrustRecategorize:
 
         assert result["ev_ebitda_unavailable_reason"] == "etf_trust_no_gaap_financials"
 
-    def test_royalty_trust_symbol_reports_structural_accounting_difference_reason(self, monkeypatch):
+    def test_royalty_trust_symbol_reports_reit_special_entity_reason(self, monkeypatch):
         result = _run(monkeypatch, "SJT", ebitda=None, royalty_trust_symbols=frozenset({"SJT"}))
 
-        assert result["ev_ebitda_unavailable_reason"] == "structural_accounting_difference"
+        assert result["ev_ebitda_unavailable_reason"] == "reit_special_entity"
 
     def test_non_structural_symbol_with_no_ebitda_keeps_generic_reason(self, monkeypatch):
         result = _run(monkeypatch, "NORMALCO", ebitda=None)

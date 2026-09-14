@@ -8,7 +8,7 @@ fiscal years on file. AAPL is the clearest case: it reported real interest_expen
 through FY2023 ($3.9B) but has netted it into "other income/(expense)" since FY2024 - a real,
 large, indebted borrower that simply stopped breaking the line out, not a loader failure. Same
 "3 most recent years, not all-time history" windowing as the current_ratio/quick_ratio
-structural_accounting_difference fix (5cae1c18d) and the dividend-recency fix (7ef77e938), for the same
+reit_special_entity fix (5cae1c18d) and the dividend-recency fix (7ef77e938), for the same
 reason: a company can permanently change what it itemizes partway through its filing history.
 """
 

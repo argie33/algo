@@ -86,7 +86,7 @@ class TestSecValuationsDcfFcfEtfTrustReason:
         loader = _make_loader()
         result = _call(loader, "MFA", sic_code=6798, is_etf_trust=True)
 
-        assert result["dcf_fcf_unavailable_reason"] == "structural_accounting_difference"
+        assert result["dcf_fcf_unavailable_reason"] == "reit_special_entity"
 
     def test_non_etf_trust_symbol_keeps_generic_reason(self):
         loader = _make_loader()

@@ -12,7 +12,7 @@ using the exact same underlying SEC concepts.
 
 2. Mislabeled reason: unlike gross_margin/gross_margin_trend/current_ratio/quick_ratio, which
    all use no_gross_profit_concept/unclassified_balance_sheet to correctly report
-   "structural_accounting_difference" for filers that structurally never report a COGS/gross-profit
+   "reit_special_entity" for filers that structurally never report a COGS/gross-profit
    concept, gross_profitability always reported the generic "missing_sec_data" - reading as a
    fixable loader gap even for banks/REITs/service filers where the concept genuinely doesn't
    exist. Live-confirmed against real SEC companyfacts JSON: REGN ($7.9B FY2026 revenue) and
@@ -120,23 +120,23 @@ class TestGrossProfitabilityReusesGrossMarginsFallback:
         assert metrics["gross_profitability"] == 140_000_000.0 / 700_000_000.0 * 100.0
         assert metrics["gross_profitability_unavailable_reason"] is None
 
-    def test_never_reported_reports_structural_accounting_difference_not_missing_sec_data(self, monkeypatch):
+    def test_never_reported_reports_reit_special_entity_not_missing_sec_data(self, monkeypatch):
         # No current-year data AND no fallback row at all (fetchone always None) - this
         # symbol has never once reported gross_profit/cost_of_revenue, the same structural-
-        # gap class gross_margin already labels "structural_accounting_difference".
+        # gap class gross_margin already labels "reit_special_entity".
         loader = _make_loader(monkeypatch, fallback_row=None)
         row = _quality_row()
 
         metrics = loader._compute_quality_metrics("NOGROSSPROFIT", row, ev_metrics=None)
 
         assert metrics["gross_profitability"] is None
-        assert metrics["gross_profitability_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["gross_profitability_unavailable_reason"] == "reit_special_entity"
         # gross_margin must agree - same underlying signal, same label.
-        assert metrics["gross_margin_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["gross_margin_unavailable_reason"] == "reit_special_entity"
 
     def test_missing_total_assets_still_reports_missing_sec_data(self, monkeypatch):
         # Control: a real gross_profit on hand but no total_assets is a genuine SEC data gap,
-        # not a structural no-COGS-concept case - must NOT be swept into "structural_accounting_difference".
+        # not a structural no-COGS-concept case - must NOT be swept into "reit_special_entity".
         loader = _make_loader(monkeypatch, fallback_row=None)
         row = list(_quality_row(gross_profit=50_000_000.0))
         row[2] = None  # total_assets

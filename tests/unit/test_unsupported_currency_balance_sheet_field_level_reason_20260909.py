@@ -26,7 +26,7 @@ def _partial_quality_row(fiscal_year=2024):
     row[5] = 200.0  # operating_income
     row[8] = fiscal_year
     row[19] = 800.0  # gross_profit - keeps gross_profitability's failure about total_assets,
-    # not the separate no_gross_profit_concept ("structural_accounting_difference") branch.
+    # not the separate no_gross_profit_concept ("reit_special_entity") branch.
     return row
 
 

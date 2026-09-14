@@ -8,7 +8,7 @@ exactly this case). Live-confirmed BIOT/IMC/PSQL/RPGL all showed the stale gener
 despite the balance-sheet loader having already recorded the structural fact. Fixed by checking
 _get_reit_or_special_entity_no_balance_data_symbols() (vqg_quality_recategorize.py) before the
 generic fallback, same "Legitimate / not applicable" bucket as the sibling
-etf_trust_no_gaap_financials/structural_accounting_difference categories.
+etf_trust_no_gaap_financials/reit_special_entity categories.
 """
 
 from loaders.helpers.vqg_shared import compute_quality_row_level_reason
@@ -27,10 +27,10 @@ def test_reit_or_special_entity_gate_wins_over_generic_fallback():
         frozenset(),
         frozenset({"BIOT"}),
     )
-    assert reason == "structural_accounting_difference"
+    assert reason == "reit_special_entity"
 
 
-def test_generic_fallback_still_applies_when_not_structural_accounting_difference():
+def test_generic_fallback_still_applies_when_not_reit_special_entity():
     reason = compute_quality_row_level_reason(
         "ACME",
         None,
