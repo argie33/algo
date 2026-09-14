@@ -210,6 +210,27 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         # tables in the whole pipeline. Daily cadence, same as buy_sell_daily/technical_data_daily
         # which it's derived from.
         "signal_quality_scores": 3,
+        # ADDED (goal session 2026-09-13, follow-up to the market_sentiment/stock_symbols/
+        # signal_quality_scores batch above): the 6 core financial-statement tables
+        # (load_financial_statements.py's real output, per-symbol incremental on each filer's
+        # own filing cadence) had ZERO staleness coverage of any kind despite being the tables
+        # this whole session's quarantine-backlog work revolves around, and despite being
+        # actively written to continuously (36,834 annual_income_statement rows updated on
+        # 2026-09-13 alone). A per-symbol "days since this filer's own last update" threshold
+        # would be wrong here (a company's own quarterly filing being 80 days old between
+        # real filings is normal, not stale - unlike every other table above with a genuine
+        # daily/near-daily per-symbol cadence) - this is instead a coarse, TABLE-LEVEL "is the
+        # loader still running at all" signal, the same role institutional_holdings_13f's
+        # entry above plays for its own irregular SEC-driven cadence. Live-checked: this
+        # table's daily row count never once hit zero over the last 10 days (min 12 rows on
+        # 2026-09-08) even before today's flurry of quarantine-backlog fixes, so a short
+        # threshold has real margin without false-positiving on a normal quiet day.
+        "annual_income_statement": 5,
+        "annual_balance_sheet": 5,
+        "annual_cash_flow": 5,
+        "quarterly_income_statement": 5,
+        "quarterly_balance_sheet": 5,
+        "quarterly_cash_flow": 5,
     }
 
     # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
@@ -421,6 +442,9 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
             INFO,
         ),
         ("algo_metrics_daily", "date", "daily", staleness_thresholds["algo_metrics_daily"], INFO),
+        ("annual_balance_sheet", "updated_at", "daily", staleness_thresholds["annual_balance_sheet"], INFO),
+        ("annual_cash_flow", "updated_at", "daily", staleness_thresholds["annual_cash_flow"], INFO),
+        ("annual_income_statement", "updated_at", "daily", staleness_thresholds["annual_income_statement"], INFO),
         ("capital_routing_daily", "date", "daily", staleness_thresholds["capital_routing_daily"], INFO),
         ("company_info_sec", "updated_at", "monthly", staleness_thresholds["company_info_sec"], INFO),
         ("company_profile", "updated_at", "monthly", staleness_thresholds["company_profile"], INFO),
@@ -441,6 +465,15 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         ("market_exposure_daily", "date", "daily", staleness_thresholds["market_exposure_daily"], INFO),
         ("market_sentiment", "date", "daily", staleness_thresholds["market_sentiment"], INFO),
         ("price_monthly", "date", "monthly", staleness_thresholds["price_monthly"], INFO),
+        ("quarterly_balance_sheet", "updated_at", "daily", staleness_thresholds["quarterly_balance_sheet"], INFO),
+        ("quarterly_cash_flow", "updated_at", "daily", staleness_thresholds["quarterly_cash_flow"], INFO),
+        (
+            "quarterly_income_statement",
+            "updated_at",
+            "daily",
+            staleness_thresholds["quarterly_income_statement"],
+            INFO,
+        ),
         ("sec_segment_info", "updated_at", "monthly", staleness_thresholds["sec_segment_info"], INFO),
         ("sec_segment_metrics", "updated_at", "monthly", staleness_thresholds["sec_segment_metrics"], INFO),
         ("sector_performance", "date", "daily", staleness_thresholds["sector_performance"], INFO),
