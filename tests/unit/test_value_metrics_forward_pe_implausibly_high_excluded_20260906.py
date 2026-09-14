@@ -48,24 +48,26 @@ class _RoutingCursor:
 class TestForwardPeImplausiblyHighExcluded:
     def test_tiny_forward_eps_above_ceiling_excluded(self):
         loader = _make_loader()
-        # current_price=100, forward_eps=0.005 -> forward_pe=20,000, above the 10,000 ceiling.
+        # current_price=2000, forward_eps=0.1 (>= the immaterial-eps floor added 2026-09-08) ->
+        # forward_pe=20,000, above the 10,000 ceiling.
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
-            mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(forward_eps=0.005)
+            mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(forward_eps=0.1)
             metrics = loader._build_value_metrics(
                 "TINYEPS",
-                _FakeSecValRow({"pe_ratio": 0.01, "current_price": 100.0, "market_cap": 1_380_357.0}),
+                _FakeSecValRow({"pe_ratio": 0.01, "current_price": 2000.0, "market_cap": 1_380_357.0}),
             )
         assert metrics["forward_pe"] is None
         assert metrics["forward_pe_unavailable_reason"] == "implausible_ratio"
 
     def test_forward_pe_at_exact_ceiling_still_included(self):
         loader = _make_loader()
-        # current_price=100, forward_eps=0.01 -> forward_pe=10,000 exactly.
+        # current_price=1000, forward_eps=0.1 (>= the immaterial-eps floor) -> forward_pe=10,000
+        # exactly.
         with patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx:
-            mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(forward_eps=0.01)
+            mock_db_ctx.return_value.__enter__.return_value = _RoutingCursor(forward_eps=0.1)
             metrics = loader._build_value_metrics(
                 "EDGECO2",
-                _FakeSecValRow({"pe_ratio": 10.0, "current_price": 100.0, "market_cap": 1_000_000_000.0}),
+                _FakeSecValRow({"pe_ratio": 10.0, "current_price": 1000.0, "market_cap": 1_000_000_000.0}),
             )
         assert metrics["forward_pe"] == 10000.0
 
