@@ -1087,48 +1087,55 @@ const QUALITY_SCHEMA = [
 // UNIFORM EQUAL-WEIGHT 2026-09-11 (see PILLAR_COMPOSITE_WEIGHTS' own comment for the full
 // rationale): flat 25% each of the 4 slots (momentum_3m, mom_12_1, RSI/MACD avg, SMA avg),
 // replacing the prior tuned 20/35/37/8 split.
+// MOM_12_1 RE-EMPHASIZED, TECH_TREND DEMOTED 2026-09-14 (goal session: "get factor scores
+// more in line with industry" - see loaders/stock_scores/momentum_scoring.py's own
+// "MOM_12_1 RE-EMPHASIZED, TECH_TREND DEMOTED" docstring note for the full rationale): every
+// major institutional/academic Momentum factor definition (Jegadeesh & Titman 1993, Carhart's
+// UMD factor, AQR, MSCI Momentum Index, S&P Momentum Index) is a price-return lookback
+// construction, never RSI/MACD/SMA-crossover - mom_12_1 raised 25%->45%, tech_trend (RSI/MACD
+// avg) cut 25%->15%, momentum_3m/SMA-avg landed at 20% each.
 const MOMENTUM_SCHEMA = [
   {
     key: "momentum_3m",
     label: "Momentum (3M)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "25%",
+    weight: "20%",
   },
   {
     key: "momentum_12_1",
     label: "Momentum (12-1, skip-month)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "25%",
+    weight: "45%",
   },
   {
     key: "rsi",
     label: "RSI (14)",
     fmt: (v) => num(v, 1),
     used: true,
-    weight: "25% avg",
+    weight: "15% avg",
   },
   {
     key: "macd",
     label: "MACD Line",
     fmt: (v) => num(v, 3),
     used: true,
-    weight: "25% avg",
+    weight: "15% avg",
   },
   {
     key: "price_vs_sma_50",
     label: "Price vs 50-SMA",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "25% avg",
+    weight: "20% avg",
   },
   {
     key: "price_vs_sma_200",
     label: "Price vs 200-SMA",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "25% avg",
+    weight: "20% avg",
   },
   // TRIMMED BACK 2026-08-28 (user directive: this tab should show ONLY what's actually in
   // the scoring formula, not every computed field - reversing the same-day earlier

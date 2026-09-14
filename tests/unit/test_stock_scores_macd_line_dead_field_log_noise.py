@@ -46,14 +46,21 @@ class TestMacdLineDeadFieldLogNoise:
         marker dict instead of a float, so `bullish > bearish` below raised
         `TypeError: '>' not supported between instances of 'dict' and 'dict'` rather than
         testing MACD sign at all. Giving momentum_3m a real (non-deadzone) return adds its own
-        0.20 weight, clearing the 0.40 floor and restoring a genuine float-vs-float comparison.
+        weight, clearing the 0.40 floor and restoring a genuine float-vs-float comparison.
+
+        UPDATED AGAIN 2026-09-14 (industry-consensus Momentum reweight - see
+        momentum_scoring.py's "MOM_12_1 RE-EMPHASIZED, TECH_TREND DEMOTED" docstring note):
+        tech_trend's own weight dropped 25%->15%, so momentum_3m's 20% alone (0.20+0.15=0.35)
+        no longer clears the 0.40 floor by itself either. momentum_1m/momentum_12m now also
+        get real (non-deadzone) values so mom_12_1 (45% weight, the dominant slot now)
+        contributes too - 0.20+0.45+0.15=0.80, comfortably above the floor.
         """
         loader = StockScoresLoader()
         base = {
-            "momentum_1m": 0.0,
+            "momentum_1m": 2.0,
             "momentum_3m": 10.0,
             "momentum_6m": 0.0,
-            "momentum_12m": 0.0,
+            "momentum_12m": 20.0,
             "rsi_14": 50.0,
         }
         bullish = loader._score_momentum(dict(base, macd=2.0), "BULL")

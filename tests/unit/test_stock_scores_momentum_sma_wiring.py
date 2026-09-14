@@ -52,14 +52,19 @@ class TestMomentumMetricsSmaWiring:
 
     def test_sma_positioning_actually_moves_momentum_score(self):
         """End-to-end: with identical momentum/RSI/MACD inputs, a symbol trading well
-        above its SMAs must score higher than one trading well below - proving the 8%
-        SMA weight is now live, not dead, in _score_momentum."""
+        above its SMAs must score higher than one trading well below - proving the
+        SMA weight is now live, not dead, in _score_momentum. momentum_3m/momentum_12m
+        use a clearly non-weak (>3%) return so those slots aren't skipped as weak
+        momentum (score=None) - since tech_trend+sma_avg's combined weight (15%+20%=35%,
+        2026-09-14 industry-consensus reweight) alone falls below MOMENTUM_MIN_WEIGHT=0.40,
+        a fixture testing SMA in isolation needs the price-return slots to also
+        contribute weight, same as any real symbol with genuine momentum data would."""
         loader = StockScoresLoader()
         base = {
-            "momentum_1m": 0.0,
-            "momentum_3m": 0.0,
-            "momentum_6m": 0.0,
-            "momentum_12m": 0.0,
+            "momentum_1m": 2.0,
+            "momentum_3m": 5.0,
+            "momentum_6m": 10.0,
+            "momentum_12m": 20.0,  # with momentum_1m=2.0, derives a clearly non-weak mom_12_1
             "rsi_14": 50.0,
             "macd": 0.0,
         }

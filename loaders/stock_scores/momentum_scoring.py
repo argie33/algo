@@ -190,12 +190,13 @@ class MomentumScoringMixin:
     def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: Momentum 3m (20%) + 12-1 skip-month momentum (35%) + RSI(14)/
-        MACD-sign technical-trend confirmation (37% combined, averaged - see CONSOLIDATED
-        2026-08-28 note below) + SMA positioning (8%). Normalizes by total weight of
-        available components so partial data doesn't deflate the score. Raw momentum_6m/
-        momentum_12m REPLACED 2026-08-25 by a derived 12-1 construction - see RESOLVED note
-        below.
+        Uses weighted scoring: Momentum 3m (20%) + 12-1 skip-month momentum (45%) + RSI(14)/
+        MACD-sign technical-trend confirmation (15% combined, averaged - see CONSOLIDATED
+        2026-08-28 note below) + SMA positioning (20%) - see "MOM_12_1 RE-EMPHASIZED, TECH_TREND
+        DEMOTED" note below for the 2026-09-14 industry-consensus rationale. Normalizes by total
+        weight of available components so partial data doesn't deflate the score. Raw
+        momentum_6m/momentum_12m REPLACED 2026-08-25 by a derived 12-1 construction - see
+        RESOLVED note below.
 
         CONSOLIDATED 2026-08-28 (goal: momentum/risk factor-interaction review, closing a gap
         this file's own 2026-08-25 audit flagged and never finished - see "OPEN QUESTION
@@ -362,12 +363,51 @@ class MomentumScoringMixin:
         # BASE_PILLAR_WEIGHTS comment for the full rationale): the 20/35/37/8 magnitude-tuned
         # split below traced to the same isolated-backtest/contaminated-FM-data family that
         # forced Growth and Value off similar weighting. All 4 slots (momentum_3m, mom_12_1,
-        # averaged RSI/MACD, averaged SMA50/200) are now flat 25% each - the RSI+MACD and
+        # averaged RSI/MACD, averaged SMA50/200) were flattened to 25% each - the RSI+MACD and
         # SMA50+SMA200 averaging (a redundancy/multicollinearity fix, not a weighting choice)
         # and the mom_12_1 Jegadeesh construction are unchanged. Historical reasoning below is
-        # kept as audit trail, not as justification for today's live weights.
+        # kept as audit trail.
+        #
+        # MOM_12_1 RE-EMPHASIZED, TECH_TREND DEMOTED (2026-09-14, goal session: "get factor
+        # scores more in line with industry"). NOT another internal FM re-derivation of this
+        # pillar's own noisy, severely-collinear panel (that's the exact trap the
+        # "OPEN QUESTION"/"CONFIRMATORY RE-RUN" docstring notes above already warn against -
+        # "extracting weights from an unstable collinear regression would just encode noise").
+        # Grounded instead in real-world convergent evidence, the same evidentiary class
+        # already used for Quality's margin_volatility reweight (loaders/helpers/
+        # vqg_quality_score.py): every major institutional/academic Momentum factor definition
+        # this repo could check - Jegadeesh & Titman (1993), Carhart's UMD factor (1997), AQR's
+        # published momentum series, MSCI Momentum Index, S&P Momentum Index - is constructed
+        # from a price-return lookback window (typically 12-1 or 6-1 month, sometimes
+        # risk-adjusted), NEVER from RSI/MACD/SMA-crossover technical-analysis indicators. This
+        # pillar's own `tech_trend` slot (RSI+MACD averaged) is not a weaker version of the same
+        # factor - by every convergent institutional definition, it isn't the same factor at
+        # all. This distinction is independent of and additional to this file's own already-
+        # documented internal findings on tech_trend specifically: RSI's real (Wilder 1978)
+        # signal is mean-reverting (higher RSI -> weakly LOWER forward return, opposite of this
+        # pillar's trend-following "higher RSI = more bullish" treatment - see "RSI SIGN
+        # QUESTION" docstring note above, decaying but real in 3 of 4 sub-samples), and
+        # macd_sign's coefficient literally flips sign between univariate and multivariate specs
+        # (severe collinearity, see "OPEN QUESTION" note) - the weakest evidentiary standing of
+        # the pillar's 4 slots by this file's own analysis, not just by outside convention.
+        # mom_12_1 raised 25->45 (the industry-standard core construction, and nominally the
+        # strongest of the four return-window factors in this repo's own 2026-08-25 univariate
+        # re-run, t=1.04 vs the others' 0.38-0.88 - suggestive not conclusive alone, but
+        # consistent with rather than contradicting the industry-consensus case). tech_trend cut
+        # 25->15 (weakest standing on both counts above). momentum_3m/sma_avg left closer to
+        # their prior weight (25->20 each) - real trend-following/short-horizon literature
+        # exists for both (Moskowitz/Ooi/Pedersen 2012 time-series momentum for SMA-style
+        # trend-following; AQR's own momentum construction blends multiple horizons), and this
+        # pillar's own IC validation (algo/research/per_component_ic_validation_20260911.py,
+        # re-run 2026-09-14) found sma_avg's holdout t=2.78 - the best of the 3 non-mom_12_1
+        # slots, better than momentum_3m's own 1.52 - so demoting it further than momentum_3m
+        # would contradict this repo's own data, not just outside convention. Conservative
+        # relative to what a literal single-factor Carhart/MSCI definition would imply (100% on
+        # mom_12_1 alone) - this repo's standing practice per pillar_weights.py's governance
+        # policy is to move deliberately, not to the point estimate, matching e.g. margin_
+        # volatility landing at AQR's 25% rather than MSCI's ~33%.
         weights = {
-            "momentum_3m": 0.25,
+            "momentum_3m": 0.20,
         }
 
         weighted_sum = 0.0
@@ -396,8 +436,8 @@ class MomentumScoringMixin:
                 if math.isfinite(mom_12_1):
                     mom_12_1_score = self._pct_to_score(mom_12_1)
                     if mom_12_1_score is not None:  # Skip weak momentum (score=None)
-                        weighted_sum += mom_12_1_score * 0.25
-                        total_weight += 0.25
+                        weighted_sum += mom_12_1_score * 0.45
+                        total_weight += 0.45
 
         # RSI(14) + MACD sign, CONSOLIDATED (see CONSOLIDATED 2026-08-28 docstring note):
         # averaged into one "technical trend confirmation" slot, combined weight 0.37
@@ -432,8 +472,8 @@ class MomentumScoringMixin:
         if macd is not None:
             tech_trend_scores.append(70.0 if macd > 0 else 30.0 if macd < 0 else 50.0)
         if tech_trend_scores:
-            weighted_sum += (sum(tech_trend_scores) / len(tech_trend_scores)) * 0.25
-            total_weight += 0.25
+            weighted_sum += (sum(tech_trend_scores) / len(tech_trend_scores)) * 0.15
+            total_weight += 0.15
 
         # ROC (Rate of Change) composite REMOVED 2026-08-25 (goal: full scoring-architecture
         # audit): roc_20d/60d/120d/252d are literally the same computation as
@@ -458,8 +498,8 @@ class MomentumScoringMixin:
                 sma_score = 50 + (sma_val / 0.2) * 50  # ±20% range maps to 0-100
                 sma_scores.append(min(100, max(0, sma_score)))
         if sma_scores:
-            weighted_sum += (sum(sma_scores) / len(sma_scores)) * 0.25
-            total_weight += 0.25
+            weighted_sum += (sum(sma_scores) / len(sma_scores)) * 0.20
+            total_weight += 0.20
 
         if total_weight >= MOMENTUM_MIN_WEIGHT:
             return weighted_sum / total_weight
