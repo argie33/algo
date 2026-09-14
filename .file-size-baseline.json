@@ -535,6 +535,7 @@
   "loaders/helpers/financial_statements_q4_sweeps.py": 1115,
   "loaders/helpers/financial_statements_share_count_validation.py": 666,
   "loaders/helpers/financial_statements_value_validation.py": 956,
+  "loaders/helpers/market_constituents_name_filters.py": 31,
   "loaders/helpers/price_batch_fetch_retry.py": 557,
   "loaders/helpers/price_loader_reporting.py": 341,
   "loaders/helpers/sec_base.py": 2000,

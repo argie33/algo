@@ -26,6 +26,7 @@ from typing import Any, cast
 import pandas as pd
 import requests
 
+from loaders.helpers.market_constituents_name_filters import is_fund_or_etf_by_name
 from loaders.runner import run_loader
 from utils.db import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
@@ -1557,10 +1558,9 @@ class MarketConstituentsLoader(OptimalLoader):
                     # that NASDAQ-specific flag simply doesn't exist for NYSE/other listings.
                     if schema["has_financial_status"] and r["Financial Status"].strip() == "D":
                         continue
-                    if "etf" in name.lower() or "fund" in name.lower():
+                    if is_fund_or_etf_by_name(name):
                         logger.debug(f"Excluding {sym} ({name}) by security name pattern")
                         continue
-
                     if exchange_field not in r or not r[exchange_field]:
                         logger.warning(f"[MARKET_CONSTITUENTS] Symbol {sym} missing exchange field. Skipping.")
                         continue
