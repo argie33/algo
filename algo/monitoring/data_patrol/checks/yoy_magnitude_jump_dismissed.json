@@ -1,0 +1,3 @@
+{
+  "revenue_yoy_magnitude_jump:QXO:2025": "Genuine real-corporate-event, not a data bug - QXO (Brad Jacobs' building-products distribution roll-up) grew revenue from $56.9M (FY2024) to $6.8422B (FY2025) via a real, publicly-documented acquisition spree (QXO's own stated strategy), not an extraction error. Confirmed live against real SEC annual_income_statement data - a smooth, continuous prior trajectory ($7.49M FY2010 -> $56.9M FY2024) rules out a scale/unit extraction bug, and the jump direction/magnitude matches QXO's own public M&A announcements. See this check's own module docstring (statistical_anomaly.py), which already names this exact case as the original motivating example for treating YoY magnitude jumps as a review queue rather than an automatic bug."
+}
