@@ -1077,10 +1077,10 @@ def reap_stale_running_loaders() -> list[str]:
             age_sec = (now_utc - execution_started).total_seconds()
 
             if age_sec > max_age_sec:
-                max_age_hours_for_log = max_age_sec / 3600
+                age_hours_for_log = age_sec / 3600
                 LoaderStatusManager(table_name).mark_failed(
                     error_message=(
-                        f"[REAPED] Stuck in RUNNING since {execution_started} (>{max_age_hours_for_log:.1f}h ago, "
+                        f"[REAPED] Stuck in RUNNING since {execution_started} ({age_hours_for_log:.1f}h elapsed, "
                         f"exceeds {loader_timeout_sec}s timeout + 25% margin). "
                         "No owning process alive - auto-marked FAILED."
                     )
