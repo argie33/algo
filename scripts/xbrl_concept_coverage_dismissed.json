@@ -1803,7 +1803,6 @@
   "us-gaap:SalesAndExciseTaxPayableCurrent": "AR/AP sub-classification or combined-scope variant (gross/net, trade-only, other, current+noncurrent combined); primary trade AR/AP concepts are already fetched and feed accounts_receivable/accounts_payable.",
   "us-gaap:SalesAndExciseTaxPayableCurrentAndNoncurrent": "Current/noncurrent-scope split of a concept whose primary (current-period, current-only) tag we already fetch; schema tracks one figure per line item, not a current-vs-noncurrent breakdown.",
   "us-gaap:SalesCommissionsAndFees": "Operating-expense sub-category footnote detail (SG&A/marketing/legal/etc breakdown); schema tracks only the aggregate operating_expenses column.",
-  "us-gaap:SalesRevenueServicesNet": "Legacy pre-ASU-2014-09 services-revenue tag; live-confirmed 0/464 tagging filers lack an already-fetched revenue concept (Revenues/SalesRevenueGoodsNet/SalesRevenueNet/RevenueFromContractWithCustomer* family) - fully redundant duplicate, not a gap.",
   "us-gaap:SalesTypeAndDirectFinancingLeasesLeaseReceivable": "Lessor lease-receivable footnote schedule detail, sibling of already-noise FinanceLease/OperatingLease disclosure categories.",
   "us-gaap:SecuredDebtCurrent": "Debt-instrument/credit-facility footnote detail (specific note/facility terms); schema tracks only the aggregate long_term_debt/short_term_debt balance columns.",
   "us-gaap:SecurityDeposit": "Bank-specific deposit/fee/interest-income line item; not applicable to the general-purpose schema used across all sectors.",
