@@ -40,6 +40,7 @@ from typing import Any
 from psycopg2.extensions import cursor
 from routes.utils import error_response, handle_db_error, json_response
 
+from algo.monitoring.data_patrol.checks.staleness import build_staleness_sources
 from loaders.loader_registry import LOADER_TABLES, PSEUDO_LOADER_TABLES
 
 from .coverage_classification import _TABLE_GROUP, _UNSCORED_TABLES
@@ -51,6 +52,17 @@ logger = logging.getLogger(__name__)
 # window would mislabel a check that legitimately only runs a few times a month as "stale".
 _LOOKBACK_DAYS = 30
 _SEVERITIES = ("critical", "error", "warn", "info")
+
+# ADDED 2026-09-13 (goal session follow-up to "what else should the table track" question):
+# reads the SAME (table -> freq) mapping StalenessChecker.run() actually enforces, rather than
+# a second hand-typed copy of these cadences that could silently drift from the real thresholds
+# - the exact bug class ("this table never got a staleness entry") that produced the naaim/
+# value_metrics/quality_metrics/momentum_metrics gaps documented in staleness.py's own comments.
+# Purely descriptive here (labels "daily"/"weekly"/"monthly"/"quarterly" next to a table's
+# days-since-last-checked so a reviewer can tell whether that number is normal for THIS table's
+# own cadence), not a second threshold - a table not covered by staleness.py at all (checked
+# only by tie_out/coverage/etc., or not yet covered by any check) has no entry and reports None.
+_CADENCE_BY_TABLE: dict[str, str] = {tbl: freq for tbl, _col, freq, _max_days, _sev in build_staleness_sources()}
 
 # The two _TABLE_GROUP entries that aren't a pillar INPUT table at all - stock_scores is the
 # scoring OUTPUT, stock_symbols is universe/reference metadata - so they're excluded from this
@@ -179,12 +191,48 @@ def _fetch_recent_findings(cur: cursor, tables: list[str]) -> dict[str, list[dic
     return findings
 
 
+def _fetch_open_quarantine_counts(cur: cursor, tables: list[str]) -> dict[str, int]:
+    """Open (unresolved) symbol_quarantine rows per table, so a "Findings open" row can show
+    the actual actionable backlog size instead of just "something fired recently".
+
+    ADDED 2026-09-13 (goal session follow-up to "what else should the table track" question).
+
+    symbol_quarantine has no target_table column of its own - only check_name. Most checks log
+    to exactly one target_table (live-verified: every check_name currently present in
+    symbol_quarantine - ohlc_sanity/quarterly_revenue_sum_vs_annual_extreme - maps 1:1), but a
+    handful of check_name values in data_patrol_log fan out across many tables (e.g.
+    "staleness" itself logs to 27 different tables, "coverage" to 5) because one checker class
+    iterates a table list internally. Attributing a quarantine row to every table a check_name
+    has EVER logged against would misattribute for any of those multi-table checks, so this only
+    joins check_name -> target_table for check_names that map to exactly one target_table in
+    data_patrol_log - unambiguous today, and safe if a future multi-table check ever starts
+    quarantining (it simply won't get counted here rather than getting counted everywhere)."""
+    cur.execute(
+        """
+        SELECT dpl.target_table, COUNT(*)
+        FROM symbol_quarantine sq
+        JOIN (
+            SELECT check_name, MIN(target_table) AS target_table
+            FROM data_patrol_log
+            GROUP BY check_name
+            HAVING COUNT(DISTINCT target_table) = 1
+        ) dpl ON dpl.check_name = sq.check_name
+        WHERE sq.resolved_at IS NULL
+          AND dpl.target_table = ANY(%s)
+        GROUP BY dpl.target_table
+        """,
+        (tables,),
+    )
+    return {table: int(count) for table, count in cur.fetchall()}
+
+
 def _get_scores_correctness_coverage(cur: cursor) -> Any:
     """Per pillar-input-table DataPatrol execution history - see this module's docstring."""
     try:
         tables = _scored_pillar_tables()
         history = _fetch_table_history(cur, tables)
         findings = _fetch_recent_findings(cur, tables)
+        open_quarantine = _fetch_open_quarantine_counts(cur, tables)
 
         rows: list[dict[str, Any]] = []
         for table in tables:
@@ -205,17 +253,20 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
                     "table": table,
                     "group": _TABLE_GROUP.get(table, table),
                     "status": status,
+                    "cadence": _CADENCE_BY_TABLE.get(table),
                     "last_seen_at": last_seen.isoformat() if last_seen else None,
                     "days_since_last_seen": round(days_since, 1) if days_since is not None else None,
                     "total_findings_ever": h["total_ever"],
                     "recent": h["recent"],
                     "recent_findings": findings.get(table, []),
+                    "open_quarantine_count": open_quarantine.get(table, 0),
                 }
             )
 
         rows.sort(
             key=lambda r: (
                 {"never_logged": 0, "active_findings": 1, "stale": 2, "active_clean": 3}[r["status"]],
+                -r["open_quarantine_count"],
                 r["group"],
                 r["table"],
             )
@@ -241,6 +292,7 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
             "stale": sum(1 for r in rows if r["status"] == "stale"),
             "active_findings": sum(1 for r in rows if r["status"] == "active_findings"),
             "active_clean": sum(1 for r in rows if r["status"] == "active_clean"),
+            "open_quarantine_count": sum(r["open_quarantine_count"] for r in rows),
         }
 
         return json_response(

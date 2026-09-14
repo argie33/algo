@@ -95,6 +95,11 @@ function StatusBadge({ status }) {
   );
 }
 
+// How many days is normal to go between checks for a table with this cadence - lets a reader
+// tell "28d ago" apart for a monthly-cadence table (fine) vs a daily one (a real gap), without
+// having to already know each check's own schedule.
+const CADENCE_HINT = { daily: "~1d", weekly: "~7d", monthly: "~30d", quarterly: "~90d" };
+
 export default function ScoresCorrectnessCoverage({ active }) {
   const { data, loading, error, isFetching, refetch } = useApiQuery(
     ["scores-correctness-coverage"],
@@ -122,6 +127,7 @@ export default function ScoresCorrectnessCoverage({ active }) {
     stale: 0,
     active_findings: 0,
     active_clean: 0,
+    open_quarantine_count: 0,
   };
   const visibleTables = pillarFilter ? tables.filter((t) => t.group === pillarFilter) : tables;
 
@@ -308,7 +314,18 @@ export default function ScoresCorrectnessCoverage({ active }) {
                           </div>
                         </td>
                         <td>
-                          <StatusBadge status={t.status} />
+                          <div className="flex items-center gap-2">
+                            <StatusBadge status={t.status} />
+                            {t.open_quarantine_count > 0 && (
+                              <span
+                                className="badge badge-danger"
+                                style={{ fontSize: "var(--t-2xs)" }}
+                                title={`${t.open_quarantine_count} symbol(s) currently quarantined by a check that targets this table`}
+                              >
+                                {t.open_quarantine_count} quarantined
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="t-xs">
                           {t.last_seen_at ? (
@@ -319,6 +336,11 @@ export default function ScoresCorrectnessCoverage({ active }) {
                             </span>
                           ) : (
                             <span className="faint">never</span>
+                          )}
+                          {t.cadence && (
+                            <span className="faint" style={{ marginLeft: 4 }} title={`Expected cadence: ${t.cadence}`}>
+                              ({CADENCE_HINT[t.cadence] || t.cadence})
+                            </span>
                           )}
                         </td>
                         <td className="t-xs mono">
@@ -360,7 +382,13 @@ export default function ScoresCorrectnessCoverage({ active }) {
             finding of any severity logged against it, which doesn't guarantee every column on
             it is validated. "Never checked" and "Findings open" are the two statuses worth
             acting on first: the former means literally nothing has ever run against this table;
-            the latter means something ran recently and flagged a real issue still open.
+            the latter means something ran recently and flagged a real issue still open. The
+            "(~Nd)" hint next to Last Checked is that table's own expected check cadence (from
+            the same thresholds StalenessChecker enforces) — a table with no hint has no
+            staleness entry at all, a separate gap from whether it's ever been checked for
+            correctness. A "quarantined" badge means real symbols are currently sitting in
+            <code className="mono t-2xs"> symbol_quarantine</code> because of a check that
+            targets this table, not just a logged message.
           </div>
         </>
       )}

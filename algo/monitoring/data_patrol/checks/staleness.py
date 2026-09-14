@@ -15,286 +15,304 @@ from ..config import CRIT, ERROR, INFO, WARN
 logger = logging.getLogger(__name__)
 
 
+def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
+    """Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale).
+
+    Extracted from StalenessChecker.run() (2026-09-13, goal session: table-organizing-fields
+    follow-up) so /api/scores/correctness-coverage can read the SAME per-table cadence
+    (`freq`) this checker actually enforces, instead of a second hand-maintained copy of
+    these thresholds drifting out of sync with this one - exactly the class of gap that
+    produced the naaim/value_metrics/quality_metrics/momentum_metrics blind spots
+    documented in the comments below in the first place. No behavior change: run() calls
+    this same function.
+    """
+    # EXPLICIT FRESHNESS THRESHOLDS: These are operational requirements, not configurable
+    # Based on data load schedules and trading requirements from steering/GOVERNANCE.md's
+    # Schedule section (OPERATIONS.md, referenced here originally, was deleted 2026-07-26
+    # as AWS-only/unused for local dev - see steering/DATA_LOADERS.md's own note on this)
+    staleness_thresholds = {
+        "price_daily": 1,  # Loaded 2:15 AM + 4:05 PM, max 1 day old
+        "technical_data_daily": 1,  # Computed from prices, max 1 day old
+        "buy_sell_daily": 1,  # Generated signals, max 1 day old
+        "trend_template_data": 1,  # Daily calculation, max 1 day old
+        "market_health_daily": 1,  # VIX and market indicators, max 1 day old
+        "sector_ranking": 7,  # Sector analysis, warning if >7 days old
+        "industry_ranking": 7,  # Industry analysis, warning if >7 days old
+        "insider_transactions": 30,  # Insider data, warning if >30 days old
+        "stock_scores": 7,  # Weekly stock scores, warning if >7 days old
+        "aaii_sentiment": 7,  # Weekly sentiment, warning if >7 days old
+        "growth_metrics": 30,  # Monthly growth data, warning if >30 days old
+        "earnings_history": 90,  # Quarterly earnings, warning if >90 days old
+        # ADDED (goal session 2026-09-13, "data integrity gaps galore" meta-gap sweep):
+        # value_metrics/quality_metrics are written by the SAME loader run as
+        # growth_metrics (load_value_quality_growth_metrics.py, one process, one pass -
+        # see that file's INSERT INTO value_metrics/quality_metrics/growth_metrics, all
+        # three ON CONFLICT (symbol) DO UPDATE SET updated_at = EXCLUDED.updated_at) but
+        # had no table-level staleness entry at all - a structural blind spot, not an
+        # oversight in this dict: growth_metrics was added here 2026-08-24 for the exact
+        # same table-level staleness reasoning, its two same-run siblings were simply
+        # never carried along. Same 30-day/INFO treatment as growth_metrics (new/
+        # uncharacterized check, matching that precedent) until a production run
+        # establishes the real false-positive rate.
+        "value_metrics": 30,
+        "quality_metrics": 30,
+        # momentum_metrics is written by load_risk_metrics_daily.py (separate loader,
+        # terraform "stability_metrics" pipeline step) and feeds the Momentum pillar
+        # directly (load_stock_scores.py reads FROM momentum_metrics) - same
+        # never-had-a-staleness-entry gap, independently confirmed live 2026-09-13: 34
+        # active symbols already >7d stale and 92 active symbols with zero row at all.
+        "momentum_metrics": 7,
+        # ADDED (goal session 2026-09-13, closing the gaps the new /api/scores/
+        # correctness-coverage data_patrol_log-backed panel surfaced): these 5 tables are
+        # all real, actively-loaded pillar-input tables (confirmed via LOADER_TABLES/
+        # PSEUDO_LOADER_TABLES membership) that had ZERO data_patrol_log rows EVER - not
+        # just no staleness entry, no DataPatrol check of any kind had ever run against
+        # them. Same "new/uncharacterized check" INFO-severity treatment as value_metrics/
+        # quality_metrics/momentum_metrics above until a production run establishes the
+        # real false-positive rate - not proven-safe enough yet for WARN/ERROR/CRIT.
+        #
+        # analyst_sentiment_analysis: load_analyst_sentiment_analysis.py's own
+        # primary_key=("symbol","date")/watermark_field="date" writes one new row per
+        # active symbol per trading day (same shape as price_daily), so a short
+        # trading-day-aware threshold is safe.
+        "analyst_sentiment_analysis": 3,
+        # dividend_data: primary_key=("symbol","ex_dividend_date") - per-symbol dividend
+        # events are inherently sparse (quarterly/semi-annual), but load_dividend_data.py
+        # writes a new row whenever ANY symbol in the ~4,900-symbol universe goes
+        # ex-dividend, so MAX(ex_dividend_date) across the whole table should stay recent
+        # in aggregate even though no single symbol updates often - live-confirmed 2026-09-13:
+        # 27,708 rows with ex_dividend_date in the last 14 days alone. Calendar-day math
+        # (not trading-day), same as the other non-"daily"-freq entries below.
+        "dividend_data": 14,
+        # earnings_metrics: load_earnings_metrics.py's own watermark_field="updated_at"
+        # (not report_date, part of its primary key but not the refresh signal) - this
+        # loader continuously revises rows as new estimates/actuals arrive, live-confirmed
+        # MAX(updated_at) same-day. Same 30-day/INFO treatment as growth_metrics/
+        # value_metrics/quality_metrics above (siblings written by the same class of
+        # per-symbol upsert loader).
+        "earnings_metrics": 30,
+        # current_reports_8k: load_current_reports_8k.py's own watermark_field=
+        # "filing_date" - real SEC 8-K filings happen across the universe on essentially
+        # every business day (live-confirmed 2026-09-13: 1,266 filings in the last 14 days
+        # alone, latest filing_date 1 day old), so a short threshold is safe.
+        "current_reports_8k": 5,
+        # price_weekly: load_prices.py's own primary_key=("symbol","date")/
+        # watermark_field="date" for weekly bars - same shape as price_daily/
+        # technical_data_daily but weekly cadence. 10 days (not the bare 7 sector_ranking/
+        # industry_ranking use) gives a deliberate buffer over one calendar week so a
+        # single delayed weekly run right after a holiday week doesn't false-positive,
+        # while this is still a brand-new/uncharacterized check (INFO, not WARN).
+        "price_weekly": 10,
+        # ADDED (goal session 2026-09-13, "patrols and checks"/quarantine-backlog audit):
+        # naaim had ZERO staleness coverage at all despite load_naaim.py's own docstring
+        # calling it "CRITICAL for market regime detection" - live-confirmed 46 days stale
+        # (last row 2026-07-29) with data_loader_status still reporting status=COMPLETED,
+        # consecutive_failures=0, invisible to every existing check. Root cause is a
+        # permanent, already-documented condition (see load_naaim.py's own comments):
+        # NAAIM put its Exposure Index behind a paywall 2026-08-01, so the loader
+        # gracefully returns a no-op data_unavailable marker forever instead of erroring -
+        # a real, standing gap operators should see, not a transient blip. WARN (not
+        # INFO) since this is a known-permanent condition worth surfacing on every run
+        # rather than a new/uncharacterized check still building a false-positive track
+        # record - 14 days (double aaii_sentiment's weekly-cadence threshold) to tolerate
+        # NAAIM's normal Wednesday publish cadence without false-positiving on a single
+        # delayed week, back when the feed was still live.
+        "naaim": 14,
+    }
+
+    # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
+    sources = [
+        ("price_daily", "date", "daily", staleness_thresholds["price_daily"], CRIT),
+        (
+            "technical_data_daily",
+            "date",
+            "daily",
+            staleness_thresholds["technical_data_daily"],
+            CRIT,
+        ),
+        (
+            "buy_sell_daily",
+            "date",
+            "daily",
+            staleness_thresholds["buy_sell_daily"],
+            CRIT,
+        ),
+        (
+            "trend_template_data",
+            "date",
+            "daily",
+            staleness_thresholds["trend_template_data"],
+            CRIT,
+        ),
+        (
+            "market_health_daily",
+            "date",
+            "daily",
+            staleness_thresholds["market_health_daily"],
+            ERROR,
+        ),
+        (
+            "sector_ranking",
+            "date",
+            "daily",
+            staleness_thresholds["sector_ranking"],
+            WARN,
+        ),
+        (
+            "industry_ranking",
+            "date_recorded",
+            "daily",
+            staleness_thresholds["industry_ranking"],
+            WARN,
+        ),
+        (
+            # FIXED (real-money-readiness goal session, 2026-08-24): "insider_transactions"
+            # is a real table in the schema (passes assert_safe_table) but has been
+            # permanently empty (0 rows) - live-confirmed. Real insider-transaction data is
+            # written to insider_transaction_velocity by
+            # loaders/load_insider_transaction_velocity.py (21,722 rows, refreshed daily).
+            # This check has therefore never actually verified insider-data freshness -
+            # every run silently logged "EMPTY table insider_transactions" at INFO and
+            # moved on, since the code already handles an empty table gracefully rather
+            # than crashing (which is exactly why this went unnoticed rather than erroring).
+            "insider_transaction_velocity",
+            "updated_at",
+            "daily",
+            staleness_thresholds["insider_transactions"],
+            INFO,
+        ),
+        (
+            # BUG FIX (goal 2026-08-24: "scores stale but loader health OK"
+            # investigation): was "created_at" - stock_scores is one row per symbol,
+            # refreshed via `ON CONFLICT (symbol) DO UPDATE` (loaders/load_stock_scores.py),
+            # which never touches created_at after the initial insert. MAX(created_at)
+            # across the table reflects only when the newest *symbol* was first added,
+            # not when scores were last refreshed - on a stable universe this stays
+            # old indefinitely and would WARN-stale forever regardless of real refresh
+            # recency, or falsely read fresh off one new symbol insert while every other
+            # row is actually stale. Same bug class already fixed for this exact table in
+            # lambda/api/routes/algo_handlers/signals.py:610 ("created_at is a static
+            # one-time insert stamp, not a freshness signal - updated_at is"), just never
+            # applied here. updated_at is written on every refresh - see
+            # load_stock_scores.py's `SET updated_at = CURRENT_TIMESTAMP`.
+            "stock_scores",
+            "updated_at",
+            "weekly",
+            staleness_thresholds["stock_scores"],
+            WARN,
+        ),
+        (
+            "aaii_sentiment",
+            "date",
+            "weekly",
+            staleness_thresholds["aaii_sentiment"],
+            INFO,
+        ),
+        (
+            # BUG FIX (goal 2026-08-24, same pass as stock_scores above): growth_metrics
+            # is also one row per symbol via `ON CONFLICT (symbol) DO UPDATE` (see
+            # loaders/load_value_quality_growth_metrics.py's _insert_growth_metrics -
+            # created_at isn't even in the UPDATE SET list, only updated_at is), so
+            # created_at is the same static insert-time stamp, not a freshness signal.
+            "growth_metrics",
+            "updated_at",
+            "monthly",
+            staleness_thresholds["growth_metrics"],
+            INFO,
+        ),
+        (
+            # FIXED (real-money-readiness goal session, 2026-08-24): same bug class as
+            # insider_transactions above - "earnings_history" is a real, permanently-empty
+            # (0-row) table. Real earnings-calendar data is written to earnings_calendar_sec
+            # by loaders/load_earnings_calendar_sec.py (81,211 rows, refreshed daily; no
+            # earnings_date column exists on this table, filing_date is the real per-row
+            # SEC filing date). This check has never verified earnings-data freshness.
+            "earnings_calendar_sec",
+            "filing_date",
+            "quarterly",
+            staleness_thresholds["earnings_history"],
+            INFO,
+        ),
+        (
+            "value_metrics",
+            "updated_at",
+            "monthly",
+            staleness_thresholds["value_metrics"],
+            INFO,
+        ),
+        (
+            "quality_metrics",
+            "updated_at",
+            "monthly",
+            staleness_thresholds["quality_metrics"],
+            INFO,
+        ),
+        (
+            "momentum_metrics",
+            "updated_at",
+            "weekly",
+            staleness_thresholds["momentum_metrics"],
+            INFO,
+        ),
+        (
+            # "daily" freq (trading-day-aware math, same reasoning as price_daily above) -
+            # a new row per active symbol per trading day, so a plain calendar-day gap over
+            # a 3-day weekend would sit right at this table's 3-day threshold.
+            "analyst_sentiment_analysis",
+            "date",
+            "daily",
+            staleness_thresholds["analyst_sentiment_analysis"],
+            INFO,
+        ),
+        (
+            "dividend_data",
+            "ex_dividend_date",
+            "monthly",
+            staleness_thresholds["dividend_data"],
+            INFO,
+        ),
+        (
+            "earnings_metrics",
+            "updated_at",
+            "monthly",
+            staleness_thresholds["earnings_metrics"],
+            INFO,
+        ),
+        (
+            # "daily" freq - real SEC 8-K filings cluster on business/trading days.
+            "current_reports_8k",
+            "filing_date",
+            "daily",
+            staleness_thresholds["current_reports_8k"],
+            INFO,
+        ),
+        (
+            "price_weekly",
+            "date",
+            "weekly",
+            staleness_thresholds["price_weekly"],
+            INFO,
+        ),
+        (
+            "naaim",
+            "date",
+            "weekly",
+            staleness_thresholds["naaim"],
+            WARN,
+        ),
+    ]
+    return sources
+
+
 class StalenessChecker(BaseCheck):
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute staleness checks."""
         self.results = []
 
-        # EXPLICIT FRESHNESS THRESHOLDS: These are operational requirements, not configurable
-        # Based on data load schedules and trading requirements from steering/GOVERNANCE.md's
-        # Schedule section (OPERATIONS.md, referenced here originally, was deleted 2026-07-26
-        # as AWS-only/unused for local dev - see steering/DATA_LOADERS.md's own note on this)
-        staleness_thresholds = {
-            "price_daily": 1,  # Loaded 2:15 AM + 4:05 PM, max 1 day old
-            "technical_data_daily": 1,  # Computed from prices, max 1 day old
-            "buy_sell_daily": 1,  # Generated signals, max 1 day old
-            "trend_template_data": 1,  # Daily calculation, max 1 day old
-            "market_health_daily": 1,  # VIX and market indicators, max 1 day old
-            "sector_ranking": 7,  # Sector analysis, warning if >7 days old
-            "industry_ranking": 7,  # Industry analysis, warning if >7 days old
-            "insider_transactions": 30,  # Insider data, warning if >30 days old
-            "stock_scores": 7,  # Weekly stock scores, warning if >7 days old
-            "aaii_sentiment": 7,  # Weekly sentiment, warning if >7 days old
-            "growth_metrics": 30,  # Monthly growth data, warning if >30 days old
-            "earnings_history": 90,  # Quarterly earnings, warning if >90 days old
-            # ADDED (goal session 2026-09-13, "data integrity gaps galore" meta-gap sweep):
-            # value_metrics/quality_metrics are written by the SAME loader run as
-            # growth_metrics (load_value_quality_growth_metrics.py, one process, one pass -
-            # see that file's INSERT INTO value_metrics/quality_metrics/growth_metrics, all
-            # three ON CONFLICT (symbol) DO UPDATE SET updated_at = EXCLUDED.updated_at) but
-            # had no table-level staleness entry at all - a structural blind spot, not an
-            # oversight in this dict: growth_metrics was added here 2026-08-24 for the exact
-            # same table-level staleness reasoning, its two same-run siblings were simply
-            # never carried along. Same 30-day/INFO treatment as growth_metrics (new/
-            # uncharacterized check, matching that precedent) until a production run
-            # establishes the real false-positive rate.
-            "value_metrics": 30,
-            "quality_metrics": 30,
-            # momentum_metrics is written by load_risk_metrics_daily.py (separate loader,
-            # terraform "stability_metrics" pipeline step) and feeds the Momentum pillar
-            # directly (load_stock_scores.py reads FROM momentum_metrics) - same
-            # never-had-a-staleness-entry gap, independently confirmed live 2026-09-13: 34
-            # active symbols already >7d stale and 92 active symbols with zero row at all.
-            "momentum_metrics": 7,
-            # ADDED (goal session 2026-09-13, closing the gaps the new /api/scores/
-            # correctness-coverage data_patrol_log-backed panel surfaced): these 5 tables are
-            # all real, actively-loaded pillar-input tables (confirmed via LOADER_TABLES/
-            # PSEUDO_LOADER_TABLES membership) that had ZERO data_patrol_log rows EVER - not
-            # just no staleness entry, no DataPatrol check of any kind had ever run against
-            # them. Same "new/uncharacterized check" INFO-severity treatment as value_metrics/
-            # quality_metrics/momentum_metrics above until a production run establishes the
-            # real false-positive rate - not proven-safe enough yet for WARN/ERROR/CRIT.
-            #
-            # analyst_sentiment_analysis: load_analyst_sentiment_analysis.py's own
-            # primary_key=("symbol","date")/watermark_field="date" writes one new row per
-            # active symbol per trading day (same shape as price_daily), so a short
-            # trading-day-aware threshold is safe.
-            "analyst_sentiment_analysis": 3,
-            # dividend_data: primary_key=("symbol","ex_dividend_date") - per-symbol dividend
-            # events are inherently sparse (quarterly/semi-annual), but load_dividend_data.py
-            # writes a new row whenever ANY symbol in the ~4,900-symbol universe goes
-            # ex-dividend, so MAX(ex_dividend_date) across the whole table should stay recent
-            # in aggregate even though no single symbol updates often - live-confirmed 2026-09-13:
-            # 27,708 rows with ex_dividend_date in the last 14 days alone. Calendar-day math
-            # (not trading-day), same as the other non-"daily"-freq entries below.
-            "dividend_data": 14,
-            # earnings_metrics: load_earnings_metrics.py's own watermark_field="updated_at"
-            # (not report_date, part of its primary key but not the refresh signal) - this
-            # loader continuously revises rows as new estimates/actuals arrive, live-confirmed
-            # MAX(updated_at) same-day. Same 30-day/INFO treatment as growth_metrics/
-            # value_metrics/quality_metrics above (siblings written by the same class of
-            # per-symbol upsert loader).
-            "earnings_metrics": 30,
-            # current_reports_8k: load_current_reports_8k.py's own watermark_field=
-            # "filing_date" - real SEC 8-K filings happen across the universe on essentially
-            # every business day (live-confirmed 2026-09-13: 1,266 filings in the last 14 days
-            # alone, latest filing_date 1 day old), so a short threshold is safe.
-            "current_reports_8k": 5,
-            # price_weekly: load_prices.py's own primary_key=("symbol","date")/
-            # watermark_field="date" for weekly bars - same shape as price_daily/
-            # technical_data_daily but weekly cadence. 10 days (not the bare 7 sector_ranking/
-            # industry_ranking use) gives a deliberate buffer over one calendar week so a
-            # single delayed weekly run right after a holiday week doesn't false-positive,
-            # while this is still a brand-new/uncharacterized check (INFO, not WARN).
-            "price_weekly": 10,
-            # ADDED (goal session 2026-09-13, "patrols and checks"/quarantine-backlog audit):
-            # naaim had ZERO staleness coverage at all despite load_naaim.py's own docstring
-            # calling it "CRITICAL for market regime detection" - live-confirmed 46 days stale
-            # (last row 2026-07-29) with data_loader_status still reporting status=COMPLETED,
-            # consecutive_failures=0, invisible to every existing check. Root cause is a
-            # permanent, already-documented condition (see load_naaim.py's own comments):
-            # NAAIM put its Exposure Index behind a paywall 2026-08-01, so the loader
-            # gracefully returns a no-op data_unavailable marker forever instead of erroring -
-            # a real, standing gap operators should see, not a transient blip. WARN (not
-            # INFO) since this is a known-permanent condition worth surfacing on every run
-            # rather than a new/uncharacterized check still building a false-positive track
-            # record - 14 days (double aaii_sentiment's weekly-cadence threshold) to tolerate
-            # NAAIM's normal Wednesday publish cadence without false-positiving on a single
-            # delayed week, back when the feed was still live.
-            "naaim": 14,
-        }
-
-        # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
-        sources = [
-            ("price_daily", "date", "daily", staleness_thresholds["price_daily"], CRIT),
-            (
-                "technical_data_daily",
-                "date",
-                "daily",
-                staleness_thresholds["technical_data_daily"],
-                CRIT,
-            ),
-            (
-                "buy_sell_daily",
-                "date",
-                "daily",
-                staleness_thresholds["buy_sell_daily"],
-                CRIT,
-            ),
-            (
-                "trend_template_data",
-                "date",
-                "daily",
-                staleness_thresholds["trend_template_data"],
-                CRIT,
-            ),
-            (
-                "market_health_daily",
-                "date",
-                "daily",
-                staleness_thresholds["market_health_daily"],
-                ERROR,
-            ),
-            (
-                "sector_ranking",
-                "date",
-                "daily",
-                staleness_thresholds["sector_ranking"],
-                WARN,
-            ),
-            (
-                "industry_ranking",
-                "date_recorded",
-                "daily",
-                staleness_thresholds["industry_ranking"],
-                WARN,
-            ),
-            (
-                # FIXED (real-money-readiness goal session, 2026-08-24): "insider_transactions"
-                # is a real table in the schema (passes assert_safe_table) but has been
-                # permanently empty (0 rows) - live-confirmed. Real insider-transaction data is
-                # written to insider_transaction_velocity by
-                # loaders/load_insider_transaction_velocity.py (21,722 rows, refreshed daily).
-                # This check has therefore never actually verified insider-data freshness -
-                # every run silently logged "EMPTY table insider_transactions" at INFO and
-                # moved on, since the code already handles an empty table gracefully rather
-                # than crashing (which is exactly why this went unnoticed rather than erroring).
-                "insider_transaction_velocity",
-                "updated_at",
-                "daily",
-                staleness_thresholds["insider_transactions"],
-                INFO,
-            ),
-            (
-                # BUG FIX (goal 2026-08-24: "scores stale but loader health OK"
-                # investigation): was "created_at" - stock_scores is one row per symbol,
-                # refreshed via `ON CONFLICT (symbol) DO UPDATE` (loaders/load_stock_scores.py),
-                # which never touches created_at after the initial insert. MAX(created_at)
-                # across the table reflects only when the newest *symbol* was first added,
-                # not when scores were last refreshed - on a stable universe this stays
-                # old indefinitely and would WARN-stale forever regardless of real refresh
-                # recency, or falsely read fresh off one new symbol insert while every other
-                # row is actually stale. Same bug class already fixed for this exact table in
-                # lambda/api/routes/algo_handlers/signals.py:610 ("created_at is a static
-                # one-time insert stamp, not a freshness signal - updated_at is"), just never
-                # applied here. updated_at is written on every refresh - see
-                # load_stock_scores.py's `SET updated_at = CURRENT_TIMESTAMP`.
-                "stock_scores",
-                "updated_at",
-                "weekly",
-                staleness_thresholds["stock_scores"],
-                WARN,
-            ),
-            (
-                "aaii_sentiment",
-                "date",
-                "weekly",
-                staleness_thresholds["aaii_sentiment"],
-                INFO,
-            ),
-            (
-                # BUG FIX (goal 2026-08-24, same pass as stock_scores above): growth_metrics
-                # is also one row per symbol via `ON CONFLICT (symbol) DO UPDATE` (see
-                # loaders/load_value_quality_growth_metrics.py's _insert_growth_metrics -
-                # created_at isn't even in the UPDATE SET list, only updated_at is), so
-                # created_at is the same static insert-time stamp, not a freshness signal.
-                "growth_metrics",
-                "updated_at",
-                "monthly",
-                staleness_thresholds["growth_metrics"],
-                INFO,
-            ),
-            (
-                # FIXED (real-money-readiness goal session, 2026-08-24): same bug class as
-                # insider_transactions above - "earnings_history" is a real, permanently-empty
-                # (0-row) table. Real earnings-calendar data is written to earnings_calendar_sec
-                # by loaders/load_earnings_calendar_sec.py (81,211 rows, refreshed daily; no
-                # earnings_date column exists on this table, filing_date is the real per-row
-                # SEC filing date). This check has never verified earnings-data freshness.
-                "earnings_calendar_sec",
-                "filing_date",
-                "quarterly",
-                staleness_thresholds["earnings_history"],
-                INFO,
-            ),
-            (
-                "value_metrics",
-                "updated_at",
-                "monthly",
-                staleness_thresholds["value_metrics"],
-                INFO,
-            ),
-            (
-                "quality_metrics",
-                "updated_at",
-                "monthly",
-                staleness_thresholds["quality_metrics"],
-                INFO,
-            ),
-            (
-                "momentum_metrics",
-                "updated_at",
-                "weekly",
-                staleness_thresholds["momentum_metrics"],
-                INFO,
-            ),
-            (
-                # "daily" freq (trading-day-aware math, same reasoning as price_daily above) -
-                # a new row per active symbol per trading day, so a plain calendar-day gap over
-                # a 3-day weekend would sit right at this table's 3-day threshold.
-                "analyst_sentiment_analysis",
-                "date",
-                "daily",
-                staleness_thresholds["analyst_sentiment_analysis"],
-                INFO,
-            ),
-            (
-                "dividend_data",
-                "ex_dividend_date",
-                "monthly",
-                staleness_thresholds["dividend_data"],
-                INFO,
-            ),
-            (
-                "earnings_metrics",
-                "updated_at",
-                "monthly",
-                staleness_thresholds["earnings_metrics"],
-                INFO,
-            ),
-            (
-                # "daily" freq - real SEC 8-K filings cluster on business/trading days.
-                "current_reports_8k",
-                "filing_date",
-                "daily",
-                staleness_thresholds["current_reports_8k"],
-                INFO,
-            ),
-            (
-                "price_weekly",
-                "date",
-                "weekly",
-                staleness_thresholds["price_weekly"],
-                INFO,
-            ),
-            (
-                "naaim",
-                "date",
-                "weekly",
-                staleness_thresholds["naaim"],
-                WARN,
-            ),
-        ]
+        # Table configurations: (table, date_column, freq, max_days_allowed,
+        # severity_on_stale) - see build_staleness_sources() above, the single source of
+        # truth this method and the correctness-coverage API endpoint both read from.
+        sources = build_staleness_sources()
 
         today = _date.today()
         critical_signal_tables = {
