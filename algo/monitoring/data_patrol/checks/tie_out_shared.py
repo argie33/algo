@@ -389,21 +389,28 @@ class TieOutSharedMixin:
         prior 'open' row 'resolved' when a NEW result for that same (check_name, target_table)
         key is logged - a check that goes silent when clean can never supersede/resolve an
         earlier flagged finding, so a fixed bug would show 'open' in data_patrol_log forever.
+
+        FIXED 2026-09-13 (data-patrol thoroughness audit): this scanned only each symbol's
+        LATEST fiscal_year/fiscal_quarter row via `DISTINCT ON (b.symbol)` - the same
+        under-scoping bug class already found and fixed for ohlc_sanity (see
+        ohlc_sanity_and_quarantine_dedup_fixed_20260913 in memory: "scanned only date=MAX(date),
+        missed historical corruption"). Live impact: quarterly_stock_based_compensation_
+        nonnegative reported 3 flagged rows when the real full-history count was 991 (982 via
+        the derived_fy_minus_9m Q4-backfill path); quarterly_common_stock_repurchased_
+        nonnegative reported 3 vs. a real 418. This backs 36 checks (all Round 5 + Round 7
+        nonnegative-magnitude checks), so any of them could have been silently under-reporting
+        the same way. Now scans every row, not just the latest per symbol.
         """
         try:
-            order_cols = (
-                "b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" if quarterly else "b.symbol, b.fiscal_year DESC"
-            )
             quarter_col = ", b.fiscal_quarter" if quarterly else ""
             cur.execute(
                 f"""
-                SELECT DISTINCT ON (b.symbol)
-                    b.symbol, b.fiscal_year{quarter_col}, b.{field}
+                SELECT b.symbol, b.fiscal_year{quarter_col}, b.{field}
                 FROM {table} b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
                   AND b.{field} IS NOT NULL
-                ORDER BY {order_cols}
+                  AND b.{field} < 0
                 """
             )
             flagged = []
