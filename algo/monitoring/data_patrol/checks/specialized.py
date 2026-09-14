@@ -26,6 +26,7 @@ class SpecializedChecker(BaseCheck):
             ("earnings_data", self.check_earnings_data),
             ("fundamental_data", self.check_fundamental_data),
             ("derived_metrics", self.check_derived_metrics),
+            ("momentum_metrics_rsi_bounds", self.check_momentum_metrics_rsi_bounds),
             ("sentiment_aggregate", self.check_sentiment_aggregate),
             ("trade_recorder_columns", self.check_trade_recorder_columns),
         ]
@@ -399,6 +400,63 @@ class SpecializedChecker(BaseCheck):
                 "derived_metrics",
                 ERROR,
                 "technical_data_daily",
+                f"Check failed: {e}",
+                None,
+            )
+
+    def check_momentum_metrics_rsi_bounds(self, cur: Any) -> None:
+        """momentum_metrics.rsi_14 must be in [0, 100] - a strict mathematical guarantee of
+        the RSI formula (100 - 100/(1+RS)), not a business-logic convention with legitimate
+        exceptions.
+
+        ADDED 2026-09-14 (goal: DataPatrol coverage audit - "make sure we are validating all
+        we should"). `technical_data_daily.rsi` already has this exact bounds check
+        (check_derived_metrics above), but `momentum_metrics.rsi_14` is a SEPARATE column
+        computed by a different loader (load_value_quality_growth_metrics.py's momentum
+        pipeline, not load_technical_indicators.py) and had zero coverage of its own - a
+        divergent/buggy momentum_metrics-side RSI computation could go undetected forever
+        even with the technical_data_daily check clean. Live-checked at add time: 4,943 rows
+        with a non-NULL rsi_14, range 0.22-94.68, zero violations - this is a latent-coverage
+        fix, not a live-bug catch, same rationale as the coverage-audit's own goal.
+        """
+        try:
+            cur.execute("""
+                SELECT COUNT(*) FILTER (WHERE rsi_14 < 0 OR rsi_14 > 100) AS bad_rsi,
+                       COUNT(*) AS total
+                FROM momentum_metrics
+                WHERE rsi_14 IS NOT NULL
+            """)
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError("momentum_metrics RSI bounds query returned no results")
+            bad_rsi = row.get("bad_rsi") if hasattr(row, "get") else row[0]
+            total = row.get("total") if hasattr(row, "get") else row[1]
+            if bad_rsi is None or total is None:
+                raise ValueError("COUNT(*) FILTER for momentum_metrics RSI check returned NULL")
+            bad_rsi = int(bad_rsi)
+            total = int(total)
+
+            if bad_rsi > 0:
+                self.log(
+                    "momentum_metrics_rsi_bounds",
+                    ERROR,
+                    "momentum_metrics",
+                    f"{bad_rsi} rows with invalid rsi_14 (<0 or >100)",
+                    {"bad_rsi": bad_rsi, "total": total},
+                )
+            else:
+                self.log(
+                    "momentum_metrics_rsi_bounds",
+                    INFO,
+                    "momentum_metrics",
+                    f"momentum_metrics.rsi_14 bounds valid ({total} rows)",
+                    None,
+                )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError) as e:
+            self.log(
+                "momentum_metrics_rsi_bounds",
+                ERROR,
+                "momentum_metrics",
                 f"Check failed: {e}",
                 None,
             )

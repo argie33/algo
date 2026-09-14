@@ -118,6 +118,34 @@ class TestCheckDerivedMetrics:
         assert checker.results[0].severity == ERROR
 
 
+class TestCheckMomentumMetricsRsiBounds:
+    def test_valid_rsi_logs_info(self) -> None:
+        checker = _specialized_checker()
+        cur = MagicMock()
+        cur.fetchone.return_value = {"bad_rsi": 0, "total": 4943}
+        checker.check_momentum_metrics_rsi_bounds(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == INFO
+        assert checker.results[0].target_table == "momentum_metrics"
+
+    def test_bad_rsi_logs_error(self) -> None:
+        checker = _specialized_checker()
+        cur = MagicMock()
+        cur.fetchone.return_value = {"bad_rsi": 3, "total": 4943}
+        checker.check_momentum_metrics_rsi_bounds(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == ERROR
+        assert checker.results[0].details["bad_rsi"] == 3
+
+    def test_query_failure_logs_error_not_raise(self) -> None:
+        checker = _specialized_checker()
+        cur = MagicMock()
+        cur.execute.side_effect = ValueError("bad query")
+        checker.check_momentum_metrics_rsi_bounds(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == ERROR
+
+
 class TestCheckTradeRecorderColumns:
     def test_valid_structure_and_fresh_data_logs_info(self) -> None:
         checker = _specialized_checker()
