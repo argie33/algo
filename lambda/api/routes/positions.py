@@ -19,8 +19,6 @@ from routes.utils import (
     raise_db_error,
 )
 
-from shared_contracts.response_validator import ResponseValidator
-
 logger = logging.getLogger(__name__)
 
 
@@ -71,13 +69,21 @@ def _update_position(cur: cursor, body: dict[str, Any]) -> Any:
     position_id = req.position_id
 
     try:
-        cur.execute("SELECT id, symbol, entry_price FROM algo_positions WHERE id = %s", (position_id,))
+        cur.execute("SELECT id, symbol, entry_price, trade_ids_arr FROM algo_positions WHERE id = %s", (position_id,))
         position = cur.fetchone()
         if not position:
             raise_api_error(404, "not_found", f"Position {position_id} not found")
 
         symbol = position["symbol"] if hasattr(position, "__getitem__") else position[1]
         db_entry_price = position["entry_price"] if hasattr(position, "__getitem__") else position[2]
+        # .get() (not [...]) for the dict-like case - unlike symbol/entry_price above, older
+        # test doubles/callers may hand back a row dict without this column; treating that as
+        # "no trade linkage known yet" (None) rather than raising is the same defensive
+        # posture the rest of this function already applies to optional fields.
+        if hasattr(position, "get"):
+            trade_ids_arr = position.get("trade_ids_arr")
+        else:
+            trade_ids_arr = position[3]
 
         # SECURITY/DATA-INTEGRITY FIX: the cross-field validators below silently no-op
         # when entry_price/position_type are None, and both were previously optional
@@ -102,12 +108,46 @@ def _update_position(cur: cursor, body: dict[str, Any]) -> Any:
         update_fields: list[str] = []
         update_args: list[Any] = []
 
+        # FIX (real-money-readiness audit): quantity was written to algo_positions.quantity
+        # only - but algo_positions.py's own sync_positions_from_trades() (runs before EVERY
+        # orchestrator invocation, multiple times a day) unconditionally recomputes that same
+        # column as SUM(algo_trades.quantity) across every open trade on the position. An
+        # admin's quantity correction here was silently reverted within one cycle, with the
+        # caller having already received a "status": "success" response. For the common
+        # single-leg case, also correct the underlying algo_trades.quantity so the value
+        # actually survives the next sync. A pyramided (2+ leg) position has no established
+        # per-leg attribution for a manual quantity correction (the same open question fix #8
+        # this session left for multi-leg partial exits) - reject rather than accept an edit
+        # that would silently vanish, or worse, get attributed to the wrong leg.
         if req.quantity is not None:
+            if trade_ids_arr and len(trade_ids_arr) > 1:
+                raise_api_error(
+                    400,
+                    "bad_request",
+                    f"Position {position_id} has {len(trade_ids_arr)} pyramid legs - a manual "
+                    f"quantity correction has no safe per-leg attribution and would be silently "
+                    f"reverted by the next position-sync cycle regardless. Correct the specific "
+                    f"leg's algo_trades.quantity directly instead.",
+                )
             update_fields.append("quantity = %s")
             update_args.append(req.quantity)
+            if trade_ids_arr:
+                cur.execute(
+                    "UPDATE algo_trades SET quantity = %s WHERE trade_id = %s",
+                    (req.quantity, trade_ids_arr[0]),
+                )
 
+        # FIX (real-money-readiness audit): this wrote stop_loss_price - the FROZEN,
+        # entry-time reference column - not current_stop_price, the live/working stop every
+        # real exit-trigger check actually reads (position_monitor.py's own 2026-08-03 fix
+        # comment: "_evaluate_position...used as active_stop for every STOP_LOSS_HIT/
+        # trailing-stop decision" reads current_stop_price, never stop_loss_price). Every
+        # other stop-adjustment code path in this codebase (_raise_stop_only, Phase 6's
+        # tighten_stop, resize_standalone_stop_after_partial_exit) writes current_stop_price
+        # exclusively - an admin's stop-loss correction via this endpoint returned a "200
+        # success" but never actually moved the price any real exit logic would act on.
         if req.stop_loss_price is not None:
-            update_fields.append("stop_loss_price = %s")
+            update_fields.append("current_stop_price = %s")
             update_args.append(req.stop_loss_price)
 
         if req.target_1_price is not None:
@@ -149,6 +189,20 @@ def _update_position(cur: cursor, body: dict[str, Any]) -> Any:
                 404, "not_found", f"Position {position_id} was not found at update time (may have just closed)"
             )
 
+        # Neither field syncs to the broker - the resting bracket/standalone stop order (if
+        # any) keeps whatever price/quantity it already had until the next Phase 9
+        # reconciliation cycle or a real trailing-stop raise resyncs it. Surfacing this
+        # explicitly rather than letting a "200 success" imply the broker-side order also
+        # changed - this endpoint corrects OUR records, it does not itself talk to Alpaca.
+        warnings = []
+        if req.stop_loss_price is not None or req.quantity is not None:
+            warnings.append(
+                "This update changes algo_positions/algo_trades only - it does NOT resync "
+                "the broker's resting stop-loss/bracket order. If one exists, it still "
+                "reflects the pre-update price/quantity until the next reconciliation cycle "
+                "or trailing-stop raise."
+            )
+
         result = {
             "status": "success",
             "message": f"Updated position {position_id} ({symbol})",
@@ -161,11 +215,19 @@ def _update_position(cur: cursor, body: dict[str, Any]) -> Any:
                 "target_2_price": req.target_2_price,
                 "target_3_price": req.target_3_price,
             },
+            "warnings": warnings,
         }
-        is_valid, error_msg = ResponseValidator.validate_endpoint_response("pos", result)
-        if not is_valid:
-            logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+        # FIX (real-money-readiness audit): this used to run this dict through
+        # ResponseValidator.validate_endpoint_response("pos", result) - but "pos" in
+        # DASHBOARD_ENDPOINTS is the GET /api/algo/positions LIST contract (requires an
+        # "items" list field), not this POST update-confirmation response. Every real
+        # update (this dict never has "items") failed that check and returned a 500
+        # "response_validation_error" - meaning this admin tool has never actually
+        # returned success for a real field change, only for the "no valid fields to
+        # update" no-op path above (which returns early, before reaching this call).
+        # ResponseValidator exists to validate GET responses the dashboard renders against
+        # a published read contract; a POST action-confirmation has no such contract to
+        # check against, so this call never belonged here.
         return json_response(200, result)
 
     except (
