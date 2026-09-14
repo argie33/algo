@@ -29,6 +29,15 @@ the whole pytest run, so a live query against these specific real symbols would 
 return empty regardless of correctness. The real symbols were verified directly against the
 actual local dev DB (`stocks`) outside pytest before this fix landed - see this fix's own
 commit message for those results.
+
+EXTENDED TO SIC 6795 (2026-09-14, same goal session - found live while verifying this fix was
+complete against the real DB, not a bug report): SIC 6795 ("Mineral Royalty Traders") has the
+identical mixed-population shape - MSB (Mesabi Trust, a genuine passive iron-ore royalty
+trust) shares the code with RGLD (Royal Gold), SSRM (SSR Mining), SRL (Scully Royalty), VMET
+(Versamet Royalties), and TFPM (Triple Flag Precious Metals) - all real, actively-managed
+royalty/streaming/mining operating companies, none with "Trust" in their name. Same fix, same
+reasoning, live-verified: only MSB fails now, the other 5 (plus TPL/LB/EROK/INV/AAPL) still
+pass.
 """
 
 from algo.signals.investable_universe import investable_universe_conditions
@@ -37,7 +46,7 @@ from algo.signals.investable_universe import investable_universe_conditions
 class TestInvestableUniverseRoyaltyTrustAndSpacGraduation:
     def test_fragment_requires_trust_in_name_for_sic_6792_exclusion(self):
         fragment = investable_universe_conditions("s", "sy")
-        assert "sic_code = 6792" in fragment
+        assert "sic_code IN (6792, 6795)" in fragment
         assert "security_name ~* 'Trust'" in fragment
 
     def test_fragment_requires_no_revenue_for_sic_6770_exclusion(self):
