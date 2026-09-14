@@ -33,6 +33,10 @@ from algo.trading.exceptions import (
     NotificationError,
     TradingError,
 )
+from algo.trading.executor_exit_other_leg_brackets import (
+    cancel_other_leg_brackets_on_full_exit,
+    fetch_other_leg_order_ids,
+)
 from algo.trading.executor_exit_standalone_stop import (
     cancel_standalone_stop_on_full_exit,
     fetch_standalone_stop_order_id,
@@ -936,6 +940,115 @@ class ExitHandler:
                     )
                 except NotificationError as e:
                     logger.warning(f"Failed to send fill-vs-cancel-race exit alert for {symbol}: {e}")
+
+        # See executor_exit_other_leg_brackets.py (real-money-readiness fix): a pyramided
+        # (2+ leg) position's OTHER legs each have their own separate bracket order at the
+        # broker, sized for just that leg's shares - the primary-bracket cancel above only
+        # ever touches trade_ids_arr[0]'s own bracket. Without this, a full exit sold the
+        # ENTIRE position's quantity via one new sell order while leaving every other leg's
+        # stop-loss/take-profit still resting live, able to fire a naked short against a
+        # position the account no longer holds.
+        if full_exit and position_id is not None:
+            other_legs = fetch_other_leg_order_ids(cur, position_id, trade_id)
+            if other_legs:
+                other_leg_cancel_result = cancel_other_leg_brackets_on_full_exit(
+                    self.context._cancel_bracket_orders, other_legs
+                )
+                if not other_leg_cancel_result["success"] and not other_leg_cancel_result.get("filled_qty"):
+                    # Same posture as the primary-bracket cancel-failure guard above: an
+                    # unconfirmed cancel on another leg's bracket in live trading means that
+                    # leg's stop-loss/take-profit may still be resting - submitting a new
+                    # full-quantity sell here would risk a duplicate live sell alongside it.
+                    message = other_leg_cancel_result["message"]
+                    if execution_mode == "auto":
+                        logger.critical(
+                            f"[EXIT_HANDLER CRITICAL] {trade_id} {symbol}: could not confirm "
+                            f"cancellation of one or more other pyramid legs' brackets ({message}) - "
+                            f"aborting the new exit order rather than risk a duplicate live sell "
+                            f"alongside a still-resting leg."
+                        )
+                        try:
+                            notify(
+                                "critical",
+                                title=f"Exit blocked - other-leg bracket cancel unconfirmed: {symbol}",
+                                message=(
+                                    f"Trade {trade_id}: could not confirm one or more other pyramid "
+                                    f"legs' bracket orders were cancelled ({message}). Not submitting "
+                                    f"a new sell order to avoid oversell/short risk. Needs manual "
+                                    f"reconciliation to close the position cleanly."
+                                ),
+                                strict=True,
+                            )
+                        except NotificationError as e:
+                            raise RuntimeError(
+                                f"CRITICAL: Failed to send exit-blocked alert for {symbol} "
+                                f"(other-leg bracket cancel unconfirmed): {e}. Trader was NOT notified."
+                            ) from e
+                        return {
+                            "success": False,
+                            "trade_id": trade_id,
+                            "shares_exited": 0,
+                            "profit_loss_dollars": None,
+                            "profit_loss_pct": None,
+                            "r_multiple": None,
+                            "full_exit": False,
+                            "is_estimated_price": False,
+                            "message": (
+                                f"Other-leg bracket cancellation unconfirmed ({message}) - exit "
+                                f"aborted to avoid a duplicate sell"
+                            ),
+                        }
+                    logger.warning(
+                        f"[EXIT_HANDLER] {trade_id} {symbol}: could not confirm cancellation of "
+                        f"one or more other pyramid legs' brackets ({message}) - proceeding "
+                        f"anyway (not execution_mode=auto)."
+                    )
+                # FILL-VS-CANCEL RACE: mirrors the primary-bracket and standalone-stop race
+                # handling immediately above/below - another leg's own stop-loss/take-profit
+                # can fill the instant its cancel request lands.
+                raw_other_leg_raced_qty = other_leg_cancel_result.get("filled_qty")
+                if raw_other_leg_raced_qty:
+                    other_leg_raced_fill_price = other_leg_cancel_result.get("filled_avg_price")
+                    if other_leg_raced_fill_price is None:
+                        raise RuntimeError(
+                            f"[EXIT_HANDLER CRITICAL] {trade_id} {symbol}: {raw_other_leg_raced_qty} "
+                            f"shares filled during another leg's bracket-cancel race but no fill "
+                            f"price was available - cannot safely determine the remaining exit "
+                            f"quantity."
+                        )
+                    other_leg_raced_qty = float(raw_other_leg_raced_qty)
+                    raced_fill_price = other_leg_raced_fill_price
+                    if other_leg_raced_qty >= shares_to_exit:
+                        raced_fill_closed_position = True
+                        logger.warning(
+                            f"[EXIT_HANDLER] {trade_id} {symbol}: another pyramid leg's bracket "
+                            f"fully filled ({other_leg_raced_qty}sh @ ${other_leg_raced_fill_price}) "
+                            f"during the cancel race - position already closed at the broker. "
+                            f"Recording that fill instead of submitting a new exit order (would "
+                            f"have oversold/shorted)."
+                        )
+                    else:
+                        logger.warning(
+                            f"[EXIT_HANDLER] {trade_id} {symbol}: another pyramid leg's bracket "
+                            f"partially filled {other_leg_raced_qty}sh @ ${other_leg_raced_fill_price} "
+                            f"during the cancel race - reducing the new exit order from "
+                            f"{shares_to_exit}sh to {shares_to_exit - other_leg_raced_qty}sh to "
+                            f"avoid double-selling the already-filled portion."
+                        )
+                        shares_to_exit = shares_to_exit - other_leg_raced_qty
+                    raced_filled_qty = (raced_filled_qty or 0) + other_leg_raced_qty
+                    try:
+                        notify(
+                            "critical",
+                            title=f"Fill-vs-cancel race on exit (other pyramid leg): {symbol}",
+                            message=(
+                                f"Trade {trade_id}: another pyramid leg's bracket filled "
+                                f"{other_leg_raced_qty}sh @ ${other_leg_raced_fill_price} during a "
+                                f"full-exit cancel race - verify no duplicate/oversold quantity."
+                            ),
+                        )
+                    except NotificationError as e:
+                        logger.warning(f"Failed to send fill-vs-cancel-race exit alert for {symbol}: {e}")
 
         # See executor_exit_standalone_stop.py (2026-09-05 real-money-readiness fix).
         if full_exit:
