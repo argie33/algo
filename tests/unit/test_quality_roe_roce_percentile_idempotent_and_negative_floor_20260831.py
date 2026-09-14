@@ -131,9 +131,9 @@ class TestNegativeRoeRoceFloor:
         instead of being omitted entirely (total_weight=0, no update issued).
 
         Both rows also carry identical margin_volatility/asset_turnover/gross_profitability
-        values (weight roe 10.71 + roa 10.71 + margin_vol 25.0 + asset_turnover 10.71 +
-        gross_prof 10.71 = 67.84, under the 2026-09-13 margin_volatility reweight - see
-        vqg_quality_score.py's "MARGIN_VOLATILITY REWEIGHTED" comment - clears the 40.0
+        values (weight roe 11.54 + roa 11.54 + margin_vol 25.0 + asset_turnover 5.77 +
+        gross_prof 11.54 = 65.39, under the 2026-09-14 asset_turnover demotion - see
+        vqg_quality_score.py's "ASSET_TURNOVER DEMOTED" comment - clears the 40.0
         completeness floor) so an update actually fires - with matching values across both rows,
         those three components pool as ties and z-score to neutral percentile 50.0 for both
         symbols.
@@ -154,7 +154,8 @@ class TestNegativeRoeRoceFloor:
         # ROE floors to 0 for both (sign-flip guard, roa<0); roa is continuous and WORST_NEG's
         # more deeply negative roa scores a lower percentile than MID_NEG's; the other 3 tied
         # components z-score to neutral 50.0 each. Exact values pinned via the real
-        # sector_neutral_zscore/zscore_to_percentile_scale computation (2-element residual pool).
-        assert updates.get("WORST_NEG") == 36.72
-        assert updates.get("MID_NEG") == 47.5
+        # sector_neutral_zscore/zscore_to_percentile_scale computation (2-element residual pool),
+        # recomputed 2026-09-14 for the asset_turnover demotion's new weights.
+        assert updates.get("WORST_NEG") == 35.15
+        assert updates.get("MID_NEG") == 47.2
         assert updates["WORST_NEG"] < updates["MID_NEG"]

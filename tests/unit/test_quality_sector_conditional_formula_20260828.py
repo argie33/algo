@@ -28,9 +28,12 @@ test should fail, not silently keep matching.
 
 UNIFORM EQUAL-WEIGHT 2026-09-11 (see loaders/stock_scores/pillar_weights.py's
 BASE_PILLAR_WEIGHTS comment), then MARGIN_VOLATILITY REWEIGHTED 2026-09-13 (see
-vqg_quality_score.py's "MARGIN_VOLATILITY REWEIGHTED" comment): margin_volatility is now 25.0,
-the other 7 components flat 10.71 each (nominal total ~100) - expected values and
-completeness-floor outcomes below updated accordingly.
+vqg_quality_score.py's "MARGIN_VOLATILITY REWEIGHTED" comment), then ASSET_TURNOVER DEMOTED
+2026-09-14 (see vqg_quality_score.py's "ASSET_TURNOVER DEMOTED" comment - per-component IC
+validation found it's the only Quality component failing this repo's own bar in both eras):
+margin_volatility is 25.0, asset_turnover is 5.77, the other 6 components flat 11.54 each
+(nominal total ~100) - expected values and completeness-floor outcomes below updated
+accordingly.
 """
 
 from unittest.mock import MagicMock, patch
@@ -167,16 +170,16 @@ class TestMarginVolatilityScoreActuallyWired:
         at_curve = L._margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
 
         weighted_sum = (
-            roe_curve * 10.71
-            + roa_curve * 10.71
-            + roce_curve * 10.71
-            + fcf_curve * 10.71
-            + d2e_score * 10.71
+            roe_curve * 11.54
+            + roa_curve * 11.54
+            + roce_curve * 11.54
+            + fcf_curve * 11.54
+            + d2e_score * 11.54
             + mv_score * 25.0
-            + at_curve * 10.71
-            + gp_curve * 10.71
+            + at_curve * 5.77
+            + gp_curve * 11.54
         )
-        expected = weighted_sum / (10.71 * 7 + 25.0)
+        expected = weighted_sum / (11.54 * 6 + 5.77 + 25.0)
 
         metrics = loader._compute_quality_metrics("TECHCO", _row(), ev_metrics=_EV_METRICS, margin_volatility=10.0)
 
@@ -205,16 +208,16 @@ class TestUniformFormulaAcrossSectors:
         at_curve = L._margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
 
         weighted_sum = (
-            roe_curve * 10.71
-            + roa_curve * 10.71
-            + roce_curve * 10.71
-            + fcf_curve * 10.71
-            + d2e_score * 10.71
+            roe_curve * 11.54
+            + roa_curve * 11.54
+            + roce_curve * 11.54
+            + fcf_curve * 11.54
+            + d2e_score * 11.54
             + mv_score * 25.0
-            + at_curve * 10.71
-            + gp_curve * 10.71
+            + at_curve * 5.77
+            + gp_curve * 11.54
         )
-        return weighted_sum / (10.71 * 7 + 25.0)
+        return weighted_sum / (11.54 * 6 + 5.77 + 25.0)
 
     def test_real_estate_uses_the_same_universal_formula_as_technology(self):
         loader = _make_loader()
@@ -270,8 +273,10 @@ class TestUniformFormulaAcrossSectors:
         fcf_curve = L._margin_curve(8.0, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
         at_curve = L._margin_curve(133.33333333333331, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
         gp_curve = L._margin_curve(53.333333333333336, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
-        # 5 components x 12.5 each = 62.5, well above the 40.0 floor.
-        expected = (roe_curve + roa_curve + fcf_curve + at_curve + gp_curve) / 5.0
+        # 4 components x 11.54 + asset_turnover x 5.77 (demoted 2026-09-14), well above the 40.0
+        # floor. No longer a simple average - asset_turnover carries half the weight of its peers.
+        weighted_sum = roe_curve * 11.54 + roa_curve * 11.54 + fcf_curve * 11.54 + at_curve * 5.77 + gp_curve * 11.54
+        expected = weighted_sum / (11.54 * 4 + 5.77)
 
         assert metrics["quality_score"] == pytest.approx(expected)
         assert metrics["quality_score_unavailable_reason"] is None
@@ -302,10 +307,12 @@ class TestUniformFormulaAcrossSectors:
         # independent of all three, it comes from stockholders_equity/debt_for_roic/cash via
         # invested_capital, untouched here). Under the original 2026-09-11 equal weighting, 3
         # components x 12.5 = 37.5, BELOW the 40.0 floor. MARGIN_VOLATILITY REWEIGHTED 2026-09-13
-        # (10.71/10.71/25.0 for this trio) moves the same 3 components to 46.42, now ABOVE the
+        # (10.71/10.71/25.0 for this trio) moved the same 3 components to 46.42, now ABOVE the
         # floor - an intended consequence of weighting stability higher, not a regression: this
         # trio (debt-to-equity, margin stability, ROCE) is no longer a "thin 3-of-8" sample once
-        # one of the three carries 25% of the pillar's own weight on its own.
+        # one of the three carries 25% of the pillar's own weight on its own. ASSET_TURNOVER
+        # DEMOTED 2026-09-14 bumps d2e/roce from 10.71 to 11.54 each (asset_turnover isn't part
+        # of this trio, so the freed weight redistributes here too).
         loader = _make_loader()
         loader._get_symbol_sector = lambda symbol: "Financial Services"
         row = _row(net_income=None, total_assets=None, revenue=None)
@@ -323,8 +330,8 @@ class TestUniformFormulaAcrossSectors:
         d2e_score = max(0.0, min(100.0, 100.0 - (0.2 / 2.0) * 100.0))
         mv_score = 100.0 - L._margin_curve(10.0, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
         roce_curve = L._margin_curve(15.0, [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)])
-        weighted_sum = d2e_score * 10.71 + mv_score * 25.0 + roce_curve * 10.71
-        expected = weighted_sum / (10.71 + 25.0 + 10.71)
+        weighted_sum = d2e_score * 11.54 + mv_score * 25.0 + roce_curve * 11.54
+        expected = weighted_sum / (11.54 + 25.0 + 11.54)
 
         assert metrics["quality_score"] == pytest.approx(expected)
         assert metrics["quality_score_unavailable_reason"] is None

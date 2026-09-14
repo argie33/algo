@@ -545,15 +545,39 @@ class QualityScoreMixin:
         # JNJ's during the 2026 gold bull run) and the coverage check that kept the minimum at 3.
         # Pass-2's sector-neutral overwrite (vqg_quality_batch.py) mirrors this exact scheme - keep
         # both in sync if either changes.
+        #
+        # ASSET_TURNOVER DEMOTED 10.71->5.77 (2026-09-14, goal session - "get factor scores more
+        # in line with industry"). Unlike the margin_volatility promotion above, this IS a fresh
+        # internal test - but the non-circular, non-contaminated kind the WEIGHT-REVISION
+        # GOVERNANCE POLICY (this module's own pillar_weights.py) actually calls for: per-COMPONENT
+        # univariate Spearman IC on the same real point-in-time panel the fama_macbeth_*.py family
+        # already uses (build_pillar_proxy_records()'s underlying panels, not the contaminated
+        # top-level imputed/complete-case composite regression the 2026-09-11 uniform-equal-weight
+        # directive was reacting to), fit 2017-2021 vs holdout 2022-2026
+        # (algo/research/per_component_ic_validation_20260911.py, re-run fresh 2026-09-14, 111
+        # months through 2026-08). Of Quality's 8 components, asset_turnover is the ONLY one that
+        # fails this repo's own |t|>=2-both-eras bar in BOTH eras (fit_t=1.91, hold_t=1.24) - the
+        # other 7 (including margin_volatility) all clear it outright (hold_t 3.13-5.76). This is
+        # a materially different failure shape than Risk's beta/max_drawdown or Value's P/E/P/B,
+        # which are fit-era-weak but HOLDOUT-STRONG (t>5) - those stay at equal weight per this
+        # file's own "no basis to demote a standard literature-grounded descriptor" precedent,
+        # since a genuinely predictive component that's merely thin in the shorter fit window is
+        # not the same finding as one that's weak in both. Halved (not zeroed) rather than
+        # dropped - still same-signed, a real Sloan-accruals-family measure, same treatment this
+        # file already gives other same-signed-but-weak legs elsewhere (e.g. Value's margin_of_
+        # safety/dividend_yield). The other 6 non-margin_volatility components renormalized up
+        # from 10.71 to 11.54 each (75/6.5) to keep the 75-point non-margin_volatility pool exactly
+        # matching its own already-decided total. Pass-2's sector-neutral overwrite
+        # (vqg_quality_batch.py) mirrors this exact scheme - keep both in sync if either changes.
         quality_components = [
-            (roe_score, 10.71),
-            (roa_score, 10.71),
-            (roce_score, 10.71),
-            (fcf_margin_score, 10.71),
-            (debt_to_equity_score, 10.71),
+            (roe_score, 11.54),
+            (roa_score, 11.54),
+            (roce_score, 11.54),
+            (fcf_margin_score, 11.54),
+            (debt_to_equity_score, 11.54),
             (margin_volatility_score, 25.0),
-            (asset_turnover_score, 10.71),
-            (gross_profitability_score, 10.71),
+            (asset_turnover_score, 5.77),
+            (gross_profitability_score, 11.54),
         ]
         # COMPLETENESS FLOOR: without it, renormalizing over 1-3 available components lets
         # a single extreme raw ratio (e.g. an oil/gas royalty trust's ROA of 700%+) drive
