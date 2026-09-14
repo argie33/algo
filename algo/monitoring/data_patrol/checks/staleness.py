@@ -190,6 +190,26 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         # (twice a month) - a threshold under the ~15-day cadence would false-positive
         # every cycle.
         "short_interest_finra": 20,
+        # ADDED (goal session 2026-09-13, staleness-coverage re-audit follow-up to the naaim/
+        # 19-table batch above): fresh diff of every loader_registry.py LOADER_TABLES entry
+        # against build_staleness_sources() found 3 more real, actively-loaded tables with
+        # zero staleness coverage. All live-confirmed fresh as of 2026-09-13 before adding.
+        # market_sentiment: written by load_market_status_daily.py alongside
+        # market_health_daily/market_exposure_daily/capital_routing_daily/sector_rotation_signal
+        # - all four siblings already have a staleness entry above, this one was missed.
+        "market_sentiment": 3,
+        # stock_symbols: universe membership table, same loader (load_market_constituents.py)
+        # and same slow-changing shape as its sibling etf_symbols above, which already has a
+        # staleness entry - this one was missed.
+        "stock_symbols": 30,
+        # signal_quality_scores: "Required by Phase 1 data freshness check as tier-2 gate for
+        # filtering" per its own loader docstring - already freshness-gated by
+        # phase1_data_completeness.py directly, but never checked via DataPatrol/
+        # data_patrol_log, so it showed as a false "never checked" gap on the
+        # correctness-coverage panel despite being one of the most operationally load-bearing
+        # tables in the whole pipeline. Daily cadence, same as buy_sell_daily/technical_data_daily
+        # which it's derived from.
+        "signal_quality_scores": 3,
     }
 
     # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
@@ -419,12 +439,15 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
             INFO,
         ),
         ("market_exposure_daily", "date", "daily", staleness_thresholds["market_exposure_daily"], INFO),
+        ("market_sentiment", "date", "daily", staleness_thresholds["market_sentiment"], INFO),
         ("price_monthly", "date", "monthly", staleness_thresholds["price_monthly"], INFO),
         ("sec_segment_info", "updated_at", "monthly", staleness_thresholds["sec_segment_info"], INFO),
         ("sec_segment_metrics", "updated_at", "monthly", staleness_thresholds["sec_segment_metrics"], INFO),
         ("sector_performance", "date", "daily", staleness_thresholds["sector_performance"], INFO),
         ("sector_rotation_signal", "date", "daily", staleness_thresholds["sector_rotation_signal"], INFO),
         ("short_interest_finra", "updated_at", "monthly", staleness_thresholds["short_interest_finra"], INFO),
+        ("signal_quality_scores", "date", "daily", staleness_thresholds["signal_quality_scores"], INFO),
+        ("stock_symbols", "updated_at", "monthly", staleness_thresholds["stock_symbols"], INFO),
     ]
     return sources
 
