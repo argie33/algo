@@ -242,8 +242,9 @@ class AlignmentChecker(BaseCheck):
             orphaned = cur.fetchall()
 
             if orphaned:
-                sample_trades = []
-                for r in orphaned[:5]:
+                sample_trades: list[dict[str, Any]] = []
+                symbols_by_trade: dict[Any, str] = {}
+                for r in orphaned:
                     if hasattr(r, "keys"):
                         trade_id = r.get("trade_id")
                         symbol = r.get("symbol")
@@ -252,7 +253,17 @@ class AlignmentChecker(BaseCheck):
                         trade_id = r[0] if len(r) > 0 else None
                         symbol = r[1] if len(r) > 1 else None
                         fill_date = r[2] if len(r) > 2 else None
-                    sample_trades.append({"trade_id": trade_id, "symbol": symbol, "fill_date": str(fill_date)})
+                    if len(sample_trades) < 5:
+                        sample_trades.append({"trade_id": trade_id, "symbol": symbol, "fill_date": str(fill_date)})
+                    if symbol is not None:
+                        symbols_by_trade[symbol] = str(fill_date)
+                # ADDED 2026-09-13 (goal: quarantine-coverage audit - this finding already
+                # names every orphaned trade's symbol, but never wired that into
+                # flagged_symbols, so an orphaned-trade hit halted the whole pipeline instead
+                # of quarantining just the affected symbols - same class as
+                # isolated_spike_corruption's own 2026-09-13 fix, see that check's comment in
+                # price_sanity.py). Every distinct symbol across `orphaned` goes here, not
+                # just the 5-trade log-message sample.
                 self.log(
                     "trade_alignment",
                     ERROR,
@@ -261,6 +272,13 @@ class AlignmentChecker(BaseCheck):
                     {
                         "orphaned_trades": len(orphaned),
                         "sample": sample_trades,
+                        "flagged_symbols": [
+                            {
+                                "symbol": s,
+                                "reason": f"filled trade (fill_date {fill_date}) has no price_daily history",
+                            }
+                            for s, fill_date in sorted(symbols_by_trade.items())
+                        ],
                     },
                 )
             else:
