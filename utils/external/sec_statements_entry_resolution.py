@@ -665,6 +665,27 @@ def _aggregate_concepts_should_replace_entry(
                     # by an exact round factor of 10. Only overrides the frame-preference in
                     # this narrow, high-confidence shape; every other frame-vs-no-frame case
                     # (the overwhelming majority) is unaffected.
+                    #
+                    # FIXED 2026-09-13 (goal session: keep-finding-data-issues audit, live-
+                    # confirmed via CCU/PAGS): the guard above only ever blocked the frame-
+                    # tagged replacement outright, implicitly assuming the EXISTING (arrived-
+                    # first) value is always the correct one and a later power-of-10-scaled
+                    # entry is always the corruption - true for IPAR/UPC (where the correct
+                    # value happened to arrive first with no frame, and a LATER filing
+                    # introduced the corruption), but backwards for a filer whose FIRST
+                    # ("home") filing is itself the one with the typo, later silently self-
+                    # corrected in a subsequent filing's own frame-tagged comparative column.
+                    # PAGS's real FY2023 20-F mistagged WeightedAverageShares with 3 extra
+                    # zeros (321,806,480,000); PagSeguro's own NEXT 20-F re-cites the same
+                    # period as 321,806,480 (correct) WITH a frame - the unconditional block
+                    # above silently kept the wrong value forever, live-confirmed via
+                    # get_income_statement() actually rejecting PAGS's own correction. Every
+                    # documented instance of this bug class in this codebase (IPAR/UPC/MKZR/
+                    # CCU/PAGS) has the SMALLER of the two values be the correct one - a
+                    # filer/filing-agent decimals-tag error manifests as spurious zeros being
+                    # ADDED, never removed - so preferring the smaller magnitude (whichever
+                    # side it's on) generalizes correctly to both temporal orderings instead of
+                    # assuming the existing value is always right.
                     if entry_has_frame and col in row:
                         _existing_val = row.get(col)
                         _entry_val = entry.get("val")
@@ -678,14 +699,17 @@ def _aggregate_concepts_should_replace_entry(
                             if _ratio < 1:
                                 _ratio = 1 / _ratio
                             if any(abs(_ratio - _power) / _power < 0.01 for _power in (100, 1000, 10000)):
+                                _entry_is_smaller = abs(_entry_val) < abs(_existing_val)
                                 logger.warning(
-                                    f"[frame_magnitude_scale_guard] Rejecting frame-tagged "
-                                    f"replacement for {col} (accn {entry.get('accn')}): "
+                                    f"[frame_magnitude_scale_guard] {'Accepting' if _entry_is_smaller else 'Rejecting'} "
+                                    f"frame-tagged replacement for {col} (accn {entry.get('accn')}): "
                                     f"{_entry_val} is a {_ratio:.0f}x-scaled outlier vs the "
                                     f"already-agreed {_existing_val} - likely a filer decimals-"
-                                    f"tag error, not a real restatement."
+                                    f"tag error, not a real restatement. Preferring the smaller "
+                                    "magnitude value (extra zeros are always ADDED by this bug "
+                                    "class, never removed)."
                                 )
-                                should_replace = False
+                                should_replace = _entry_is_smaller
                 else:
                     should_replace = row_filed is None or entry_filed > row_filed
         elif period == "quarterly":
@@ -766,13 +790,36 @@ def _aggregate_concepts_should_replace_entry(
                 # new value is a suspiciously-exact power-of-10 multiple of unanimous prior
                 # agreement.
                 if entry_has_frame and col in row and _is_power_of_ten_scale_outlier(row.get(col), entry.get("val")):
-                    logger.warning(
-                        f"[frame_magnitude_scale_guard] Rejecting frame-tagged duration-fact "
-                        f"replacement for {col} (accn {entry.get('accn')}): {entry.get('val')} "
-                        f"is a magnitude-scale outlier vs the already-agreed {row.get(col)} - "
-                        f"likely a filer decimals-tag error, not a real restatement."
+                    # FIXED 2026-09-13 (goal session: keep-finding-data-issues audit, live-
+                    # confirmed via PAGS/PagSeguro): the block above assumed the EXISTING
+                    # (arrived-first) value is always correct and a later power-of-10-scaled
+                    # entry is always the corruption - true for UPC (correct value arrived
+                    # first with no frame), but backwards when a filer's own FIRST ("home")
+                    # filing has the typo, later silently self-corrected in a subsequent
+                    # filing's own frame-tagged comparative column. PAGS's real FY2023 20-F
+                    # mistagged WeightedAverageShares with 3 extra zeros (321,806,480,000);
+                    # PagSeguro's own NEXT 20-F re-cites the same period as 321,806,480
+                    # (correct) WITH a frame - the unconditional block silently kept the wrong
+                    # value forever. Every documented instance of this bug class in this
+                    # codebase (IPAR/UPC/MKZR/CCU/PAGS) has the SMALLER of the two values be
+                    # correct - extra zeros are always ADDED, never removed - so preferring the
+                    # smaller magnitude generalizes correctly to both temporal orderings.
+                    _entry_val = entry.get("val")
+                    _existing_val = row.get(col)
+                    _entry_is_smaller = (
+                        isinstance(_entry_val, int | float)
+                        and isinstance(_existing_val, int | float)
+                        and abs(_entry_val) < abs(_existing_val)
                     )
-                    should_replace = False
+                    logger.warning(
+                        f"[frame_magnitude_scale_guard] {'Accepting' if _entry_is_smaller else 'Rejecting'} "
+                        f"frame-tagged duration-fact replacement for {col} (accn {entry.get('accn')}): "
+                        f"{_entry_val} is a magnitude-scale outlier vs the already-agreed "
+                        f"{_existing_val} - likely a filer decimals-tag error, not a real "
+                        "restatement. Preferring the smaller magnitude value (extra zeros are "
+                        "always ADDED by this bug class, never removed)."
+                    )
+                    should_replace = _entry_is_smaller
             else:
                 should_replace = row_filed is None or entry_filed > row_filed
 
