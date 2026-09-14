@@ -9,7 +9,7 @@ concepts) and "ffd" (5 concepts), zero "us-gaap"/"ifrs-full". Every one of the "
 20 concepts was inspected live: all are N-2 prospectus fee-table data (ManagementFeesPercent,
 ExpenseExampleYears1to10, ...), none is a dividend/distribution amount. This is a genuine,
 permanent structural absence (SEC has no machine-readable distribution data for these filers at
-all), same class as reit_special_entity elsewhere in this codebase - not a loader gap that
+all), same class as structural_accounting_difference elsewhere in this codebase - not a loader gap that
 trying harder XBRL concepts could ever close, so it must not keep reading as "no_us_gaap_facts"
 (which sounds like our own extraction failed).
 """

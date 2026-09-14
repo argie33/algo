@@ -461,7 +461,7 @@ class IncomeStatementContextMixin:
             # (stock_symbols.etf = 'true') genuinely has zero annual_income_statement rows -
             # it files N-1A/N-CSR under the Investment Company Act, not a 10-K, so there is no
             # SEC "income statement" concept to extract at all. Same "Legitimate / not
-            # applicable" business-model fact as reit_special_entity/etf_trust_no_gaap_
+            # applicable" business-model fact as structural_accounting_difference/etf_trust_no_gaap_
             # financials elsewhere in this codebase, not a missing-SEC-data gap. Live-confirmed
             # SPY (SPDR S&P 500 ETF Trust): zero rows in both annual_income_statement and
             # sec_valuations itself.

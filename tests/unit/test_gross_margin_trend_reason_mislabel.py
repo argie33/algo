@@ -5,7 +5,7 @@ the real cause was something else entirely.
 
 Live-confirmed against this DB via a user-reported HIG dashboard screenshot: HIG (an insurer)
 never reports cost_of_revenue/gross_profit in any fiscal year on file (same structural
-"unclassified accounting" case already correctly labeled "reit_special_entity" for the base
+"unclassified accounting" case already correctly labeled "structural_accounting_difference" for the base
 gross_margin field), yet gross_margin_trend_unavailable_reason still said
 "insufficient_prior_year_data". Universe-wide, 1397 of 2183 (64%) of growth_metrics'
 gross_margin_trend "insufficient_prior_year_data" rows are this same structural case.
@@ -94,7 +94,7 @@ def _make_loader(monkeypatch):
     return ValueQualityGrowthMetricsLoader.__new__(ValueQualityGrowthMetricsLoader)
 
 
-def test_never_reports_cogs_gets_reit_special_entity_not_generic_reason(monkeypatch):
+def test_never_reports_cogs_gets_structural_accounting_difference_not_generic_reason(monkeypatch):
     loader = _make_loader(monkeypatch)
     row = _quality_row(
         revenue=1_506_000_000.0, cost_of_revenue=None, gross_profit=None, prior_year_revenue=1_458_000_000.0
@@ -103,7 +103,7 @@ def test_never_reports_cogs_gets_reit_special_entity_not_generic_reason(monkeypa
     metrics = loader._compute_quality_metrics("HIG", row, ev_metrics=None)
 
     assert metrics["gross_margin_trend"] is None
-    assert metrics["gross_margin_trend_unavailable_reason"] == "reit_special_entity"
+    assert metrics["gross_margin_trend_unavailable_reason"] == "structural_accounting_difference"
 
 
 def test_implausible_margin_gets_implausible_ratio_not_generic_reason(monkeypatch):
@@ -127,7 +127,7 @@ def test_implausible_margin_gets_implausible_ratio_not_generic_reason(monkeypatc
 def test_gross_profit_present_without_cost_of_revenue_computes_trend(monkeypatch):
     # FIXED 2026-08-18: live-confirmed via ENVA (Enova International) - gross_profit is present
     # every fiscal year on file (2021-2025) but cost_of_revenue is NULL every year (ENVA never
-    # tags a separate CostOfRevenue concept). This is NOT the reit_special_entity case
+    # tags a separate CostOfRevenue concept). This is NOT the structural_accounting_difference case
     # (gross_profit concept IS reported, just not cost_of_revenue) and not an implausible-ratio
     # rejection either - the trend is fully computable from gross_profit/prior_year_gross_profit
     # directly, the same source the base gross_margin metric already falls back to.

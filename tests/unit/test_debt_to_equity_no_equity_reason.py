@@ -5,7 +5,7 @@ Found live 2026-08-18 (goal: "no SEC data" audit, continuation of the current_ra
 ebitda_margin fixes): 156 of 1,048 universe debt_to_equity "missing_sec_data" rows have zero
 stockholders_equity across their 3 most recent fiscal years on file. A genuine mixed bag (pharma,
 REITs, utilities, investment advice, real estate - no single entity type dominates), so this gets
-its own reason string (stockholders_equity_not_reported) rather than reit_special_entity. Same "3
+its own reason string (stockholders_equity_not_reported) rather than structural_accounting_difference. Same "3
 most recent years, not all-time history" windowing as the sibling fixes.
 """
 

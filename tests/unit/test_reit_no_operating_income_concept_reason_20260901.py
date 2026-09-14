@@ -9,7 +9,7 @@ operating_income_for_margin (or roic_operating_income, its ROIC/ROCE-side siblin
 None, because the existing _get_no_tax_concept_symbols() structural check
 (test_roic_pct_structural_tax_exempt_reason.py) was only ever wired into roic_pct's
 effective_tax_rate=0.0 branch, not into these fields' "no EBIT input at all" case. Fixed by
-reusing that same already-tested helper to recategorize these fields to "reit_special_entity"
+reusing that same already-tested helper to recategorize these fields to "structural_accounting_difference"
 once their EBIT-chain input is confirmed unrecoverable - the raw values stay None either way
 (no fabricated numbers), only the label changes from "fixable XBRL gap" to "structural, not
 applicable".
@@ -109,7 +109,7 @@ def _quality_row(
 
 
 class TestReitNoOperatingIncomeConceptReason:
-    def test_reit_structural_symbol_gets_reit_special_entity_not_missing_sec_data(self, monkeypatch):
+    def test_reit_structural_symbol_gets_structural_accounting_difference_not_missing_sec_data(self, monkeypatch):
         loader = _make_loader(monkeypatch, no_tax_concept_symbols=frozenset({"AGNC"}))
         row = _quality_row(
             stockholders_equity=12_181_000_000.0,
@@ -133,13 +133,13 @@ class TestReitNoOperatingIncomeConceptReason:
         assert metrics.get("ebitda_margin") is None
 
         # But the label changes from "fixable XBRL gap" to "structural, not applicable".
-        assert metrics["operating_profitability_unavailable_reason"] == "reit_special_entity"
-        assert metrics["roic_pct_unavailable_reason"] == "reit_special_entity"
-        assert metrics["roce_pct_unavailable_reason"] == "reit_special_entity"
-        assert metrics["interest_coverage_unavailable_reason"] == "reit_special_entity"
-        assert metrics["operating_margin_unavailable_reason"] == "reit_special_entity"
-        assert metrics["ebitda_unavailable_reason"] == "reit_special_entity"
-        assert metrics["ebitda_margin_unavailable_reason"] == "reit_special_entity"
+        assert metrics["operating_profitability_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["roic_pct_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["roce_pct_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["interest_coverage_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["operating_margin_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["ebitda_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["ebitda_margin_unavailable_reason"] == "structural_accounting_difference"
 
     def test_symbol_not_in_structural_set_still_reports_missing_sec_data(self, monkeypatch):
         # Control: identical missing operating_income/pretax_income/income_tax_expense inputs,

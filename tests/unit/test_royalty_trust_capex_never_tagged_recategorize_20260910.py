@@ -63,14 +63,14 @@ def _make_loader(monkeypatch, no_recent_capex_symbols=frozenset()):
 
 
 class TestRoyaltyTrustCapexNeverTaggedRecategorize:
-    def test_trust_symbol_matching_capex_gate_gets_reit_special_entity(self, monkeypatch):
+    def test_trust_symbol_matching_capex_gate_gets_structural_accounting_difference(self, monkeypatch):
         # PBT is a real member of _ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS.
         loader = _make_loader(monkeypatch, no_recent_capex_symbols=frozenset({"PBT"}))
         metrics = loader._compute_quality_metrics("PBT", _quality_row(), ev_metrics=(None, None, None, None))
 
         for field in ("fcf_margin", "fcf_to_net_income", "free_cash_flow"):
             assert metrics[field] is None
-            assert metrics[f"{field}_unavailable_reason"] == "reit_special_entity", (
+            assert metrics[f"{field}_unavailable_reason"] == "structural_accounting_difference", (
                 f"{field}_unavailable_reason was {metrics[f'{field}_unavailable_reason']!r}, "
                 "expected the recategorize loop to override capex_never_tagged_in_recent_filings"
             )

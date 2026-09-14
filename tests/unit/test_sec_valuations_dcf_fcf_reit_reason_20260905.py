@@ -2,7 +2,7 @@
 sec_valuations.dcf_fcf_unavailable_reason never distinguished a REIT (SIC 6798) or insurance
 carrier (SIC 6311/6321/6331/6351/6361/6399) - which structurally never tags a meaningful capex
 figure the way an operating company does - from a generic missing-cash-flow-data gap. Same
-real business-model fact already recognized for quality_metrics' own "reit_special_entity"
+real business-model fact already recognized for quality_metrics' own "structural_accounting_difference"
 label throughout vqg_quality.py, and the same "SecValuationYieldDcfMixin has no access to the
 gate helper's class hierarchy" shape as the sibling RIC fix
 (test_sec_valuations_dcf_fcf_ric_reason_20260905.py) - fixed via a small inline SIC-code query
@@ -44,7 +44,7 @@ class _SicCodeCursor:
 
 
 class TestSecValuationsDcfFcfReitReason:
-    def test_reit_symbol_reports_reit_special_entity_reason(self):
+    def test_reit_symbol_reports_structural_accounting_difference_reason(self):
         loader = _make_loader()
         with patch("loaders.helpers.sec_valuations_yield_dcf.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = _SicCodeCursor(sic_code=6798)
@@ -72,9 +72,9 @@ class TestSecValuationsDcfFcfReitReason:
                 common_stock_repurchased=None,
             )
 
-        assert result["dcf_fcf_unavailable_reason"] == "reit_special_entity"
+        assert result["dcf_fcf_unavailable_reason"] == "structural_accounting_difference"
 
-    def test_insurance_symbol_reports_reit_special_entity_reason(self):
+    def test_insurance_symbol_reports_structural_accounting_difference_reason(self):
         loader = _make_loader()
         with patch("loaders.helpers.sec_valuations_yield_dcf.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = _SicCodeCursor(sic_code=6331)
@@ -102,7 +102,7 @@ class TestSecValuationsDcfFcfReitReason:
                 common_stock_repurchased=None,
             )
 
-        assert result["dcf_fcf_unavailable_reason"] == "reit_special_entity"
+        assert result["dcf_fcf_unavailable_reason"] == "structural_accounting_difference"
 
     def test_non_reit_symbol_keeps_generic_reason(self):
         loader = _make_loader()

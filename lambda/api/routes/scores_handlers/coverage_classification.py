@@ -349,7 +349,7 @@ def _categorize_reason(reason: str) -> str:
     # f"no_{period}_{statement_type}_data_in_sec_edgar_reit_or_special_entity" (6 period x
     # statement_type combinations) for REITs/SPAC-shells/other entities SEC EDGAR
     # structurally has no income-statement/balance-sheet/cash-flow data for - the same
-    # permanent, non-fixable fact as the literal "reit_special_entity" reason already in
+    # permanent, non-fixable fact as the literal "structural_accounting_difference" reason already in
     # "Legitimate / not applicable" below, just per-statement-type instead of a single
     # flag. A set literal can't match every combination, hence the suffix check here.
     if reason.endswith("_data_in_sec_edgar_reit_or_special_entity"):

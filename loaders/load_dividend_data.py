@@ -772,7 +772,7 @@ class DividendDataLoader(SecLoaderBase):
         table data (ManagementFeesPercent, ExpenseExampleYears1to10, ...), not
         periodic financial-statement facts. This is a genuine, permanent structural
         absence (SEC simply has no machine-readable distribution data for these
-        filers), same class as reit_special_entity elsewhere in this codebase - not
+        filers), same class as structural_accounting_difference elsewhere in this codebase - not
         a loader gap our own extraction could ever close by trying harder concepts.
         Distinguishing it from the generic "no_us_gaap_facts" (which reads as an SEC
         extraction failure) so it doesn't keep showing up as a "loader is broken"

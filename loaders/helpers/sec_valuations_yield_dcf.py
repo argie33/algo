@@ -462,7 +462,7 @@ class SecValuationYieldDcfMixin:
                 # 6798) or insurance carrier (SIC 6311/6321/6331/6351/6361/6399) structurally
                 # never tags a meaningful capex figure the way an operating company does -
                 # same real business-model fact already recognized for quality_metrics' own
-                # "reit_special_entity" label throughout vqg_quality.py (see sec_base.py's
+                # "structural_accounting_difference" label throughout vqg_quality.py (see sec_base.py's
                 # _get_reit_symbols/_get_insurance_symbols for the identical SIC-code
                 # rationale) - this DCF ground-truth reason never checked for it, so these
                 # fell to the generic "missing_cash_flow_data" instead of the same
@@ -508,7 +508,7 @@ class SecValuationYieldDcfMixin:
                         is_etf_trust = cur.fetchone() is not None
                 sic_code = sic_row[0] if sic_row else None
                 result["dcf_fcf_unavailable_reason"] = (
-                    "reit_special_entity"
+                    "structural_accounting_difference"
                     if sic_code in (6798, 6311, 6321, 6331, 6351, 6361, 6399)
                     else "etf_trust_no_gaap_financials"
                     if is_etf_trust

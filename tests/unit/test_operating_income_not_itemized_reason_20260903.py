@@ -4,7 +4,7 @@ subtotal) from the generic "missing_sec_data" fallback.
 
 Bug (confirmed live 2026-09-03): neither operating_margin_unavailable_reason nor
 interest_coverage_unavailable_reason had any gate for this case - every existing check upstream
-of the generic fallback (implausible_ratio, reit_special_entity, operating_income_absent_from_
+of the generic fallback (implausible_ratio, structural_accounting_difference, operating_income_absent_from_
 anchor_year, no_revenue_reported) is scoped to a different root cause. Live-confirmed 43
 active-universe symbols were mislabeled "missing_sec_data" for this reason.
 """

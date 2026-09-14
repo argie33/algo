@@ -9,7 +9,7 @@ components across their 3 most recent fiscal years on file. Unlike current_ratio
 (dominated by banks/REITs), this bucket is a mixed bag - SPACs ("Blank Checks", 127), pre-
 revenue pharma/biotech (90), small tech/services companies (~70), and a smaller bank/REIT
 contingent (~40) - so it gets its own reason string (total_debt_not_itemized) rather than
-reit_special_entity, which would misdescribe most of these symbols. Same "3 most recent years,
+structural_accounting_difference, which would misdescribe most of these symbols. Same "3 most recent years,
 not all-time history" windowing as _get_unclassified_balance_sheet_symbols() /
 _get_no_recent_interest_expense_symbols().
 """

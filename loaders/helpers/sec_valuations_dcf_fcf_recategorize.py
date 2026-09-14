@@ -122,7 +122,7 @@ class SecValuationDcfFcfRecategorizeMixin:
                 valuation_row["dcf_fcf_unavailable_reason"] = "unsupported_currency_no_fx_rate"
 
     def _recategorize_royalty_trust_dcf_fcf_reason(self, symbol: str, valuation_row: dict[str, Any]) -> None:
-        """Overrides a generic dcf_fcf_unavailable_reason with "reit_special_entity" for an oil
+        """Overrides a generic dcf_fcf_unavailable_reason with "structural_accounting_difference" for an oil
         royalty trust. Mutates `valuation_row` in place.
 
         ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, comprehensive RIC-gap
@@ -132,7 +132,7 @@ class SecValuationDcfFcfRecategorizeMixin:
         loaders/helpers/vqg_quality.py and vqg_value.py - this dcf_fcf ground-truth reason
         never checked it either. Live-confirmed all 6 active royalty-trust symbols (NRT, MTR,
         CRT, PBT, SBR, SJT) stuck on the generic "missing_cash_flow_data". Reuses
-        "reit_special_entity" (not a new label) - same "Legitimate / not applicable" bucket
+        "structural_accounting_difference" (not a new label) - same "Legitimate / not applicable" bucket
         already used for this exact business-model fact throughout the codebase (see
         sec_valuations_yield_dcf.py's own REIT/insurance SIC-code branch, which sits alongside
         this same reason string for the identical entity-type rationale).
@@ -140,7 +140,7 @@ class SecValuationDcfFcfRecategorizeMixin:
         if valuation_row.get("dcf_fcf_unavailable_reason") != "missing_cash_flow_data":
             return
         if symbol in self._ROYALTY_TRUST_SYMBOLS_FOR_DCF:
-            valuation_row["dcf_fcf_unavailable_reason"] = "reit_special_entity"
+            valuation_row["dcf_fcf_unavailable_reason"] = "structural_accounting_difference"
             return
         # Chained here (not a separate load_sec_valuations.py call site) because that file
         # sits at the 2000-line hard ceiling (.file-size-baseline.json/check_file_size_
