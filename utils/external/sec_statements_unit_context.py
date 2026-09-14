@@ -132,6 +132,7 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
     # in March); SWK's do not (Dec/Dec/Jan), so this new check correctly stays silent for
     # SWK and leaves it to the existing January-crossing special case elsewhere in this
     # file, unchanged.
+    _fye_conflicting_evidence = False
     if _fye_month is None:
         _fy_duration_months = {
             int(_e["end"][5:7])
@@ -140,6 +141,25 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
         }
         if len(_fy_duration_months) == 1:
             _fye_month = next(iter(_fy_duration_months))
+        elif len(_fy_duration_months) > 1:
+            # ADDED 2026-09-13 (goal session: quarantine-backlog empirical verification, ABVC
+            # live-confirmed via real SEC companyfacts JSON): a filer that genuinely changed
+            # its fiscal year end mid-history (ABVC/ABVC BioPharma: real FYE September 30
+            # through FY2015, changed to December 31 from FY2018 onward) has MULTIPLE real,
+            # direct FY-duration-fact months on file - unlike SWK's 52/53-week Dec/Jan wobble
+            # (a single fiscal year end that merely drifts a few days across the New Year
+            # boundary), this is proof the concept has no single stable answer at all, ever.
+            # Before this fix, that ambiguity fell through to the quarterly self-consistency
+            # guess below - live-confirmed via ABVC: the guess was independently, coincidentally
+            # satisfied by a genuine quarterly fact, flipping has_december_fiscal_year_end to
+            # True and wrongly rejecting ABVC's own real September-ending "Revenues" facts via
+            # the AMZN-rolling-window guard, leaving "revenue" NULL where a correct extraction
+            # (before this regression was introduced) had it right. Explicit conflicting direct
+            # evidence must never be second-guessed by the indirect, unreliable quarterly guess
+            # either - same principle as the unanimous-agreement case just above, just the
+            # opposite conclusion (we know for certain there's no single answer, instead of
+            # inferring one). See test_sec_statements_conflicting_fye_evidence_not_guessed_20260913.py.
+            _fye_conflicting_evidence = True
     has_december_fiscal_year_end = _fye_month == 12
     # RESTORED 2026-09-02 (goal session: "missing SEC/XBRL data" audit) - this block
     # was part of `fd1c8a99f` (OFRM comparative-fp-aliasing fix) but that commit only
@@ -231,7 +251,13 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
     # this concept's real fiscal-year-end month - December or otherwise - that
     # first-party evidence must never be second-guessed by this indirect quarterly
     # coincidence-based guess. Only run the guess when there's no direct signal at all.
-    if _fye_month is None:
+    #
+    # ALSO gated on `not _fye_conflicting_evidence` (2026-09-13, ABVC fix - see that
+    # flag's own comment above): explicit proof of a genuine historical fiscal-year-end
+    # change is just as much a "don't second-guess this" signal as unanimous agreement -
+    # it tells us definitively there is no single stable answer, so guessing one is
+    # never safe.
+    if _fye_month is None and not _fye_conflicting_evidence:
         _q_from_month = {"03": "Q1", "06": "Q2", "09": "Q3", "12": "Q4"}
         for _e in entries:
             _e_fp = _e.get("fp")
