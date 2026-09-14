@@ -293,6 +293,79 @@ Register-ScheduledTask `
 
 Write-Host "[OK] Reference task scheduled for 11:30 PM ET (MON-FRI)"
 
+# Task 4b: Full DataPatrol run, 3x/day (4:00 AM / 10:00 AM / 2:00 PM ET, MON-FRI)
+Write-Host ""
+Write-Host "Task 4b: DataPatrol Full Run (4:00 AM / 10:00 AM / 2:00 PM ET, MON-FRI)"
+Write-Host "  - Runs algo/algo_data_patrol.py's full 16-checker suite (staleness, tie-out, coverage, etc.)"
+
+# ADDED 2026-09-14 (goal: "algo keeps halting and failing, fix root causes, no bypasses"):
+# algo/orchestrator/phase1_data_freshness.py's _check_data_patrol_results halts Phase 1 if
+# the most recent data_patrol_log row (by created_at, across ALL patrol_run_id values) is
+# more than 8h old. Locally, NOTHING ever ran that produces such a row on a recurring
+# schedule - not this file, historically. The only automated writers were the narrow
+# "second opinion" layers (xbrl-second-opinion 11:50 PM, xbrl-segment-sum-monthly,
+# score-realized-ic-monitor 11:55 PM) and one-off manual verification scripts (patrol_run_id
+# like "manual-<slug>-<hash>") from ad-hoc debugging sessions - never the full 16-checker
+# suite (StalenessChecker/TieOutChecker/StatisticalAnomalyChecker/etc. in
+# algo/monitoring/data_patrol/base.py) that this gate's docstring and terraform's pipeline
+# comment both describe as the thing actually being gated on. Live-confirmed 2026-09-14: the
+# real \algo\* task list on this machine has zero task running algo/algo_data_patrol.py, and
+# by any time after ~7:55 AM ET the newest data_patrol_log row (last night's second-opinion
+# layers) is already past the 8h window - meaning every AlgoTrading_Orchestrator_* trigger
+# (9:30 AM/1 PM/3 PM/5:30 PM ET) halts on "stale_patrol_data" every single day unless a human
+# happens to run algo_data_patrol.py by hand first. CLAUDE.md documents the halt as
+# "intentional, not a bug" (correct - trading without a fresh quality check is the real
+# risk) but never actually automated the fix production itself needed for the identical
+# problem (see this gate's own docstring "CORRECTION (2026-09-08...)" section about
+# production's originally-1x/day patrol cadence leaving the exact same gap before terraform
+# added 3 daily ECS DataPatrol invocations). This closes the equivalent gap locally: 3
+# runs/day timed so every orchestrator trigger has a patrol run within 8h -
+# 9:30 AM - 4:00 AM = 5.5h, 1 PM - 10:00 AM = 3h, 3 PM - 10:00 AM = 5h, 5:30 PM - 2:00 PM =
+# 3.5h, all comfortably under the 8h ceiling with margin for a slow run.
+$dataPatrolTimes = @(
+    (Convert-EasternTimeToLocal -Hour 4 -Minute 0),
+    (Convert-EasternTimeToLocal -Hour 10 -Minute 0),
+    (Convert-EasternTimeToLocal -Hour 14 -Minute 0)
+)
+Write-Host "[INFO] ET 04:00/10:00/14:00 -> local $($dataPatrolTimes -join ' / ')"
+
+$dataPatrolAction = New-ScheduledTaskAction `
+    -Execute $pythonExe `
+    -Argument "algo/algo_data_patrol.py" `
+    -WorkingDirectory $algoPath
+
+$dataPatrolTriggers = $dataPatrolTimes | ForEach-Object {
+    New-ScheduledTaskTrigger -Weekly -At $_ -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
+}
+
+$dataPatrolSettings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries:$true `
+    -DontStopIfGoingOnBatteries `
+    -Compatibility Win8 `
+    -MultipleInstances IgnoreNew `
+    -WakeToRun `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 20)
+
+if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "data-patrol-full" -ErrorAction SilentlyContinue) {
+    Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "data-patrol-full" -Confirm:$false
+    Write-Host "[OK] Replaced existing data-patrol-full task"
+} else {
+    Write-Host "[INFO] No existing data-patrol-full task found"
+}
+
+Register-ScheduledTask `
+    -TaskName "data-patrol-full" `
+    -TaskPath $taskFolder `
+    -Action $dataPatrolAction `
+    -Trigger $dataPatrolTriggers `
+    -Settings $dataPatrolSettings `
+    -Principal $taskPrincipal `
+    -Description "Full DataPatrol check suite (algo/algo_data_patrol.py) - keeps Phase 1's data_patrol_log freshness/blocking gate fed locally, same reason production runs it 3x/day" `
+    -ErrorAction Stop | Out-Null
+
+Write-Host "[OK] data-patrol-full task scheduled for 4:00 AM / 10:00 AM / 2:00 PM ET (MON-FRI)"
+
 # Task 5: XBRL second-opinion layers 4/5/6 (11:50 PM ET, MON-FRI)
 Write-Host ""
 Write-Host "Task 5: XBRL Second-Opinion (11:50 PM ET, MON-FRI)"

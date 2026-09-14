@@ -26,6 +26,7 @@ $expectedTasks = @(
     @{ Path = "\algo\"; Name = "afternoon-pipeline" }
     @{ Path = "\algo\"; Name = "evening-pipeline" }
     @{ Path = "\algo\"; Name = "reference-pipeline" }
+    @{ Path = "\algo\"; Name = "data-patrol-full" }
     @{ Path = "\algo\"; Name = "xbrl-second-opinion" }
     @{ Path = "\algo\"; Name = "xbrl-segment-sum-monthly" }
     @{ Path = "\algo\"; Name = "score-realized-ic-monitor" }

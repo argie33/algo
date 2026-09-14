@@ -60,6 +60,33 @@ DataPatrol ECS step immediately before triggering the orchestrator), but
 only; forced off in `execution_mode="auto"` regardless, same as `ALLOW_OUTSIDE_MARKET_HOURS`)
 to downgrade a missing/stale patrol run to a warning instead of a halt.
 
+**This was the real, root cause of the orchestrator "always halting" locally (FIXED
+2026-09-14, goal: "algo keeps halting and failing").** Live-confirmed: this dev machine's
+`\algo\*`/`\AlgoTrading\*` Task Scheduler tasks had zero task running
+`algo/algo_data_patrol.py` (the full 16-checker suite this gate actually reads) on any
+schedule — the only automated writers into `data_patrol_log` were the narrow nightly
+second-opinion layers (`xbrl-second-opinion` 11:50 PM, `score-realized-ic-monitor` 11:55 PM)
+plus one-off manual verification scripts (`patrol_run_id` like `manual-<slug>-<hash>`), none
+of which are the full suite. Since the gate's freshness check looks at the single newest
+`data_patrol_log` row by timestamp regardless of which script wrote it, every row from those
+nightly runs aged past the 8h window by ~8 AM ET — meaning every one of the four
+`AlgoTrading_Orchestrator_*` triggers (9:30 AM/1 PM/3 PM/5:30 PM ET) halted on
+`stale_patrol_data` every single day unless a human happened to run `algo_data_patrol.py` by
+hand first that day. `ALLOW_MISSING_DATA_PATROL=true` would have "fixed" this but is a
+bypass, not a fix — it downgrades a real, currently-true "no fresh quality check ran" halt to
+a warning instead of making that statement false. **Real fix: `scripts/setup_windows_schedule.ps1`
+now registers a `\algo\data-patrol-full` task (3x/day: 4:00 AM/10:00 AM/2:00 PM ET, same
+S4U/battery-safe/retry settings as every other task it registers) that runs
+`algo/algo_data_patrol.py` itself, timed so every orchestrator trigger has a patrol run
+within 8h — mirroring the fix production's terraform already applied for the identical
+problem (see this gate's own docstring). `scripts/verify_windows_schedule.ps1` checks it for
+the same LogonType/battery-setting drift it checks every other task for. Needs an ELEVATED
+re-run of `setup_windows_schedule.ps1` to actually register on this machine — not yet applied
+as of this fix landing (script change only); see
+[[score_realized_ic_monitor_scheduled_20260914]] for the other pending elevated re-run this
+machine also needs (`morning-pipeline`/`score-realized-ic-monitor` were accidentally deleted
+by an earlier un-elevated run and still need restoring in that same elevated pass).**
+
 **Troubleshooting data issues:**
 ```bash
 python scripts/monitor_data_staleness.py               # Check freshness
