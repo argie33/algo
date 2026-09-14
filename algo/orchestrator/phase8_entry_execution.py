@@ -2040,20 +2040,17 @@ def run(
         try:
             tier_max_conc_val = float(exposure_constraints["max_concentration_pct"])
 
-            # ENTRY-SIDE SECTOR CONCENTRATION GATE (2026-09-08): phase6_exit_execution.py's
-            # _check_sector_concentration() already enforces max_positions_per_sector, but only
-            # by force-exiting existing positions AFTER a sector is already over the limit -
-            # nothing on the entry side stops a new position from creating that overload in the
-            # first place. This closes that gap using the same config key and the same "count of
-            # open algo_positions per company_profile.sector" definition phase6 already uses, so
-            # the two enforcement points agree on what "over the limit" means. Fails OPEN (gate
-            # disabled, not entries halted) if the config or the position-count query is
-            # unavailable - this is a diversification control, not a capital-safety gate, and
-            # phase6's exit-side check remains as a backstop either way.
+            # ENTRY-SIDE SECTOR CONCENTRATION GATE (2026-09-08, same "open algo_positions per
+            # company_profile.sector" definition phase6's exit-side force-exit check uses).
+            # FAIL-CLOSED on a count-query failure (2026-09-14 fix, was fail-open): live DB
+            # evidence showed Financial Services ran 6-7 vs this config's limit of 5 for 3
+            # straight days (2026-08-26/27/28), feeding the win-rate-breaching stop-loss
+            # cluster - phase6's exit-side "backstop" has 0 force-exits ever, not actually safe.
             max_positions_per_sector_val = config.get("max_positions_per_sector")
             sector_gate_enabled = max_positions_per_sector_val is not None
             sector_position_counts: dict[str, int] = {}
             max_positions_per_sector = 0
+            sector_counts_unavailable = False
             if sector_gate_enabled:
                 max_positions_per_sector = int(max_positions_per_sector_val)
                 try:
@@ -2069,11 +2066,11 @@ def run(
                         )
                         sector_position_counts = {row[0]: int(row[1]) for row in cur.fetchall() if row[0]}
                 except Exception as e:
-                    logger.warning(
-                        f"[PHASE 8 SECTOR_GATE] Failed to load current sector position counts: {e}. "
-                        "Disabling entry-side sector gate for this run (fail open)."
+                    logger.error(
+                        f"[PHASE 8 SECTOR_GATE] Failed to load sector position counts: {e}. "
+                        "Failing CLOSED - rejecting every sector-gated candidate this run."
                     )
-                    sector_gate_enabled = False
+                    sector_counts_unavailable = True
                     sector_position_counts = {}
             else:
                 logger.warning(
@@ -2081,10 +2078,7 @@ def run(
                     "sector concentration gate disabled for this run."
                 )
 
-            # Instead of all-or-nothing rejection, intelligently rank signals by quality
-            # and enter as many as fit within concentration limit
-            # This prevents wasting high-quality signals when some would fit
-
+            # Rank signals by quality and enter as many as fit, rather than all-or-nothing.
             # Sort signals by composite_score descending (best first)
             sorted_signals = sorted(qualified_trades, key=lambda s: float(s.get("composite_score", 0)), reverse=True)
 
@@ -2326,21 +2320,27 @@ def run(
                     )
                     conc_pct = float((position_value / portfolio_value_dec) * Decimal(100))
 
-                    # SECTOR CONCENTRATION GATE: unlike the $ concentration cascade below, a
-                    # sector-limit rejection only disqualifies this one candidate, not every
-                    # remaining candidate - a lower-ranked signal in a different sector may still
-                    # fit, so this continues to the next signal instead of breaking the loop.
+                    # SECTOR CONCENTRATION GATE: only disqualifies this one candidate (unlike
+                    # the $ cascade below). sector_counts_unavailable (fail-closed, see above)
+                    # is treated as already-at-limit rather than silently admitted.
                     signal_sector = signal.get("sector")
                     if sector_gate_enabled and signal_sector:
-                        current_sector_count = sector_position_counts.get(signal_sector, 0)
+                        current_sector_count = (
+                            max_positions_per_sector
+                            if sector_counts_unavailable
+                            else sector_position_counts.get(signal_sector, 0)
+                        )
                         if current_sector_count >= max_positions_per_sector:
-                            skipped_reason_counts["sector_concentration_limit"] = (
-                                skipped_reason_counts.get("sector_concentration_limit", 0) + 1
+                            reason_key = (
+                                "sector_counts_unavailable"
+                                if sector_counts_unavailable
+                                else "sector_concentration_limit"
                             )
+                            skipped_reason_counts[reason_key] = skipped_reason_counts.get(reason_key, 0) + 1
                             _log_signal_rejection(
                                 symbol,
                                 "concentration_prefilter",
-                                f"sector_concentration_limit: {signal_sector} at {current_sector_count} "
+                                f"{reason_key}: {signal_sector} at {current_sector_count} "
                                 f"positions (limit {max_positions_per_sector})",
                                 run_date,
                                 entry_price,

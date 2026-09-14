@@ -71,6 +71,46 @@ def test_candidates_within_sector_limit_all_admitted():
     assert result.data["entered"] == 2
 
 
+def _cursor_with_sector_count_query_failure(base_cursor: _FakeCursor) -> None:
+    """Patches fetchall() to raise when the sector-counts GROUP BY query runs, everything
+    else unchanged - simulates a transient DB error on that one query."""
+    real_fetchall = _FakeCursor.fetchall
+
+    def _fetchall():
+        sql = base_cursor._last_sql.upper()
+        if "GROUP BY CS.SECTOR" in sql:
+            raise RuntimeError("simulated transient DB error")
+        return real_fetchall(base_cursor)
+
+    base_cursor.fetchall = _fetchall
+
+
+def test_sector_count_query_failure_fails_closed_not_open():
+    """FIX 2026-09-14 (goal: "algo keeps halting and failing, fix root causes, no
+    bypasses"): a failure loading current sector position counts used to disable the whole
+    gate (fail open, every candidate admitted) - live DB evidence showed this let Financial
+    Services run 6-7 concurrent positions against a configured limit of 5 for three straight
+    days, directly feeding a correlated stop-loss cluster, while phase6's exit-side
+    "backstop" never once force-exited anything in this system's entire trade history. Now a
+    query failure rejects every sector-gated candidate this run instead of silently
+    admitting all of them.
+    """
+    same_sector_a = _make_signal("BANKA", sector="Financial Services", composite_score=90.0)
+    same_sector_b = _make_signal("BANKB", sector="Financial Services", composite_score=80.0)
+    executor_result = {"success": True, "trade_id": 1, "alpaca_order_id": "o1", "status": "filled"}
+
+    with Phase8Deps(executor_result=executor_result) as deps:
+        _cursor_with_sector_count_query_failure(deps.fake_cursor)
+        with patch("algo.orchestrator.phase8_entry_execution._log_signal_rejection") as mock_log_rejection:
+            result = run(**_run_kwargs([same_sector_a, same_sector_b], max_positions_per_sector=5))
+
+    assert deps.mock_trade_executor.execute_trade.call_count == 0
+    assert result.data["entered"] == 0
+
+    unavailable_rejections = [c for c in mock_log_rejection.call_args_list if "sector_counts_unavailable" in c.args[2]]
+    assert len(unavailable_rejections) == 2
+
+
 def test_missing_config_fails_open_not_closed():
     """max_positions_per_sector missing from config -> gate disabled, entries proceed instead
     of every candidate being blocked (this is a diversification control, not a capital-safety
