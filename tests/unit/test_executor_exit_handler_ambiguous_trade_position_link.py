@@ -24,7 +24,7 @@ from algo.trading.executor_exit_handler import ExitHandler
 
 def _row(position_id, status):
     # (symbol, entry_price, entry_qty, stop_loss_price, alpaca_order_id,
-    #  position_id, quantity, target_levels_hit, status)
+    #  position_id, quantity, target_levels_hit, status, leg_quantity)
     return (
         "GEN",
         29.17,
@@ -35,6 +35,7 @@ def _row(position_id, status):
         73.0,
         0,
         status,
+        73.0,
     )
 
 

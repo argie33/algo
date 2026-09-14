@@ -29,7 +29,7 @@ def _partial_exit_resize_block(source: str) -> str:
     start = source.index(_RESIZE_MARKER)
     # Window covers the resize guard through the logger.critical call - enough to check
     # ordering/content without depending on exact wording.
-    return source[start : start + 1100]
+    return source[start : start + 1500]
 
 
 def test_resize_only_attempted_on_a_true_partial_not_a_full_exit():
@@ -40,11 +40,15 @@ def test_resize_only_attempted_on_a_true_partial_not_a_full_exit():
     )
 
 
-def test_resize_passes_current_quantity_and_effective_stop():
+def test_resize_passes_leg_quantity_and_effective_stop():
+    """FIX (real-money-readiness audit): must pass leg_new_qty (THIS leg's own remaining
+    shares), not new_qty (the position-wide total across every leg) - see
+    executor_exit_handler.py's own comment for why the position-wide total corrupts a
+    multi-leg position's resize."""
     block = _partial_exit_resize_block(SOURCE)
-    assert "_sync_bracket_stop_loss(alpaca_order_id, effective_stop, new_qty)" in block, (
-        "the resize call must pass the just-computed remaining share count (new_qty) "
-        "and the effective stop price, not stale values"
+    assert "_sync_bracket_stop_loss(alpaca_order_id, effective_stop, leg_new_qty)" in block, (
+        "the resize call must pass the just-computed remaining LEG share count "
+        "(leg_new_qty) and the effective stop price, not the position-wide new_qty"
     )
 
 

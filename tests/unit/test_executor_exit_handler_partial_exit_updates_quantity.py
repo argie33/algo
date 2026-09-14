@@ -51,15 +51,22 @@ def test_partial_exit_update_sets_quantity():
 
 def test_new_qty_partial_computed_before_the_update():
     """The new_qty_partial variable referenced in the UPDATE's params must actually be
-    computed as current_qty - shares_to_exit (the remaining shares), not left as some
-    other value (e.g. accidentally reusing shares_to_exit itself, which would zero out
-    quantity instead of reducing it)."""
+    computed as leg_quantity - shares_to_exit (THIS leg's own remaining shares), not
+    current_qty (the position-wide total across every leg of a pyramided position) - see
+    executor_exit_handler.py's own "FIX (real-money-readiness audit)" comment for why using
+    the position-wide total here corrupts per-leg accounting on a multi-leg position."""
     match = re.search(
-        r"new_qty_partial\s*=\s*float\(Decimal\(str\(current_qty\)\)\s*-\s*Decimal\(str\(shares_to_exit\)\)\)",
+        r"leg_new_qty\s*=\s*float\(Decimal\(str\(leg_quantity\)\)\s*-\s*Decimal\(str\(shares_to_exit\)\)\)",
         SOURCE,
     )
     assert match, (
-        "expected new_qty_partial = current_qty - shares_to_exit (as Decimals, for exact "
+        "expected leg_new_qty = leg_quantity - shares_to_exit (as Decimals, for exact "
         "arithmetic) immediately before the partial-exit UPDATE - if this expression "
-        "changed, verify the replacement still computes the correct remaining share count"
+        "changed, verify the replacement still computes the correct remaining share count "
+        "scoped to this leg, not the whole position"
+    )
+    assign_idx = match.end()
+    assert "new_qty_partial = leg_new_qty" in SOURCE[assign_idx : assign_idx + 2000], (
+        "leg_new_qty must be what actually gets written to algo_trades.quantity via "
+        "new_qty_partial, not silently discarded"
     )

@@ -37,6 +37,7 @@ def _patch_trade_data(handler, entry_price, stop_loss_price, current_qty=10.0):
             current_qty,  # current_qty
             0,  # target_hits
             "open",  # position_status
+            current_qty,  # leg_quantity
         )
     )
 

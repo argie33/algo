@@ -475,7 +475,7 @@ class ExitHandler:
 
         Returns:
             Tuple of (symbol, entry_price, entry_qty, stop_loss_price, alpaca_order_id,
-                     position_id, current_qty, target_hits, position_status)
+                     position_id, current_qty, target_hits, position_status, leg_quantity)
 
         Raises:
             RuntimeError: If trade not found in database
@@ -507,11 +507,17 @@ class ExitHandler:
         # directly into algo_trades.profit_loss_dollars/exit_r_multiple. p.avg_entry_price is
         # already correctly quantity-weighted on every entry add (executor_entry_handler.py),
         # so prefer it over the single-leg t.entry_price whenever a position row exists.
+        # FIX (real-money-readiness audit): t.quantity (this leg's own current share count,
+        # the same column position_sync.py SUMs across every leg to derive p.quantity) is
+        # selected alongside p.quantity so a partial exit's bookkeeping can be scoped to
+        # THIS leg specifically - see the "leg_quantity" usage in _execute_exit's partial-
+        # exit branch for why using p.quantity (position-wide) there instead corrupted
+        # per-leg accounting for pyramided positions.
         cur.execute(
             """SELECT t.symbol, COALESCE(p.avg_entry_price, t.entry_price) AS entry_price,
                        t.entry_quantity, t.stop_loss_price,
                        t.alpaca_order_id,
-                       p.position_id, p.quantity, p.target_levels_hit, p.status
+                       p.position_id, p.quantity, p.target_levels_hit, p.status, t.quantity
                 FROM algo_trades t
                 LEFT JOIN algo_positions p ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
                 WHERE t.trade_id = %s
@@ -541,7 +547,7 @@ class ExitHandler:
 
     def _validate_and_convert_trade_data(
         self, cur: PsycopgCursor[Any], trade_id: int, row: tuple[Any, ...]
-    ) -> tuple[str, float, float, float, str, int | None, float, int, str]:
+    ) -> tuple[str, float, float, float, str, int | None, float, int, str, float]:
         """Validate and type-convert fetched trade data.
 
         Args:
@@ -551,7 +557,7 @@ class ExitHandler:
 
         Returns:
             Tuple of (symbol, entry_price, entry_qty, stop_loss_price, alpaca_order_id,
-                     position_id, current_qty, target_hits, position_status)
+                     position_id, current_qty, target_hits, position_status, leg_quantity)
 
         Raises:
             DataUnavailableError: If position quantity unavailable
@@ -566,6 +572,7 @@ class ExitHandler:
             current_qty,
             target_hits,
             position_status,
+            leg_quantity,
         ) = row
 
         # Lock algo_positions separately now that we have the position_id
@@ -591,6 +598,10 @@ class ExitHandler:
                 f"Cannot execute exit without known current position size."
             )
         current_qty_f = float(current_qty)  # float preserves fractional shares
+        # Falls back to the position-wide current_qty when there's no position row yet
+        # (matching entry_price's own COALESCE fallback above) - t.quantity is only ever
+        # NULL in that same no-position-row case, never for an open, tracked position.
+        leg_quantity_f = float(leg_quantity) if leg_quantity is not None else current_qty_f
 
         return (
             symbol,
@@ -602,6 +613,7 @@ class ExitHandler:
             current_qty_f,
             target_hits,
             position_status,
+            leg_quantity_f,
         )
 
     # Ordered (checked top-down) prefix match against exit_engine.py's actual reason strings
@@ -789,6 +801,7 @@ class ExitHandler:
             current_qty,
             _target_hits,
             position_status,
+            leg_quantity,
         ) = self._validate_and_convert_trade_data(cur, trade_id, row)
 
         # GUARD 3: Check position status
@@ -1543,7 +1556,63 @@ class ExitHandler:
             # profit_loss_dollars recorded -$85.25 when the true realized total across
             # both legs was -$69.52 (11sh's final-leg P&L was double-counted against the
             # full 22sh instead of the 11 actually remaining).
-            new_qty_partial = float(Decimal(str(current_qty)) - Decimal(str(shares_to_exit)))
+            # FIX (real-money-readiness audit): the line above used to subtract shares_to_exit
+            # from `current_qty` - p.quantity, the SUM across every leg of a pyramided (2+ leg)
+            # position - and write the result into THIS leg's (trade_id's) own algo_trades.
+            # quantity column. Since position_sync.py's sync_positions_from_trades() re-derives
+            # algo_positions.quantity as SUM(algo_trades.quantity) across every leg on the very
+            # next run, writing a position-wide value into one leg's own column corrupts that
+            # invariant for any position with 2+ legs: e.g. leg0=100/leg2=50 (total 150), a 30sh
+            # partial exit writes 150-30=120 into leg0's own row (which only ever held 100) while
+            # leg2's row stays untouched at 50 - the next SUM reads 170, not the true 120, a
+            # phantom 50-share overstatement compounding on every further partial exit. The
+            # bracket/standalone-stop resize below reused the same wrong value, also risking an
+            # oversized resting sell order (this leg's own bracket resized to MORE shares than
+            # this leg ever held). Use leg_quantity (t.quantity - THIS leg's own current share
+            # count) instead - a no-op fix for the overwhelming majority of single-leg positions,
+            # where leg_quantity == current_qty by construction.
+            #
+            # shares_to_exit is bounded by current_qty (position-wide), not by any one leg's own
+            # size, so a partial-exit fraction large enough to exceed this leg's own remaining
+            # shares is possible (e.g. leg0=30/leg2=120, a 50%-of-position exit sells 75sh - more
+            # than leg0's own 30). There is no established convention in this codebase for which
+            # leg's shares a partial exit actually draws from across multiple legs (unlike a full
+            # exit, which closes every leg at once - see executor_exit_other_leg_brackets.py).
+            # Clamp at 0 rather than write a nonsensical negative quantity, and alert loudly:
+            # the real shares were already sold for real money by this point (the broker order
+            # submission happens earlier in this function) - accounting attribution across legs
+            # needs a human, but this must never crash or fail to record a fill that already
+            # happened.
+            leg_new_qty = float(Decimal(str(leg_quantity)) - Decimal(str(shares_to_exit)))
+            if leg_new_qty < 0:
+                logger.critical(
+                    f"[EXIT_HANDLER CRITICAL] {trade_id} {symbol}: partial exit of {shares_to_exit}sh "
+                    f"exceeds this leg's own {leg_quantity}sh - this position has multiple pyramid "
+                    f"legs and the exit fraction drew from more than this leg alone. Clamping this "
+                    f"leg's own recorded quantity to 0 rather than a negative value; the other "
+                    f"leg(s)' own algo_trades.quantity may now overstate their true remaining "
+                    f"shares. Needs manual per-leg reconciliation."
+                )
+                try:
+                    notify(
+                        "critical",
+                        title=f"Multi-leg partial exit exceeded one leg's shares: {symbol}",
+                        message=(
+                            f"Trade {trade_id}: a {shares_to_exit}sh partial exit exceeded this "
+                            f"leg's own {leg_quantity}sh on a multi-leg (pyramided) position. "
+                            f"Per-leg quantity accounting needs manual reconciliation - the "
+                            f"position's total quantity is still correct, but its per-leg split "
+                            f"may not be."
+                        ),
+                        strict=True,
+                    )
+                except NotificationError as e:
+                    raise RuntimeError(
+                        f"CRITICAL: Failed to send multi-leg partial-exit alert for {symbol}: {e}. "
+                        f"Trader was NOT notified of a per-leg accounting gap."
+                    ) from e
+                leg_new_qty = 0.0
+            new_qty_partial = leg_new_qty
             cur.execute(
                 """UPDATE algo_trades
                     SET partial_exits_log = COALESCE(partial_exits_log, '') ||
@@ -1594,7 +1663,11 @@ class ExitHandler:
         # either sync path - mirror it here instead of always trying the bracket path first.
         standalone_stop_order_id = fetch_standalone_stop_order_id(cur, position_id)
         if not (full_exit or new_qty <= 0) and alpaca_order_id and not standalone_stop_order_id:
-            resize_result = self.context._sync_bracket_stop_loss(alpaca_order_id, effective_stop, new_qty)
+            # leg_new_qty (this leg's own remaining shares), not new_qty (the position-wide
+            # total) - see the "FIX (real-money-readiness audit)" comment above new_qty_partial
+            # for why resizing THIS leg's own resting order to the position-wide total is wrong
+            # for a multi-leg position.
+            resize_result = self.context._sync_bracket_stop_loss(alpaca_order_id, effective_stop, leg_new_qty)
             if not resize_result.get("success"):
                 # REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): this was logger.error,
                 # invisible to any monitoring tier that only watches CRITICAL-level logs (the
@@ -1605,7 +1678,7 @@ class ExitHandler:
                 # resting stop-loss leg is stale/oversized relative to the actual position.
                 logger.critical(
                     f"[EXIT_HANDLER CRITICAL] {symbol}: partial exit succeeded but failed to resize the "
-                    f"resting bracket stop-loss leg to {new_qty} shares @ ${effective_stop:.2f} - "
+                    f"resting bracket stop-loss leg to {leg_new_qty} shares @ ${effective_stop:.2f} - "
                     f"{resize_result.get('message')}. The broker's stop-loss order may still be "
                     f"sized for the pre-partial-exit quantity until the next Phase 9 cycle corrects it."
                 )
@@ -1622,7 +1695,7 @@ class ExitHandler:
                         message=(
                             f"Trade {trade_id}: partial exit succeeded but the resting bracket "
                             f"stop-loss leg (order {alpaca_order_id}) could not be resized to "
-                            f"{new_qty} shares @ ${effective_stop:.2f} - {resize_result.get('message')}. "
+                            f"{leg_new_qty} shares @ ${effective_stop:.2f} - {resize_result.get('message')}. "
                             f"The broker-side stop may still be sized for the pre-partial-exit "
                             f"quantity until the next Phase 9 cycle corrects it. Investigate now."
                         ),
@@ -1638,6 +1711,9 @@ class ExitHandler:
         # see executor_exit_standalone_stop.py's resize_standalone_stop_after_partial_exit
         # docstring for the gap this closes (2026-09-05 real-money-readiness follow-up).
         if not (full_exit or new_qty <= 0):
+            # leg_new_qty, not new_qty - same reasoning as the bracket resize above: a
+            # standalone stop (Phase 9 auto-repair) is sized for THIS leg's own shares, not
+            # the position-wide total.
             resize_standalone_stop_after_partial_exit(
                 self.context._sync_standalone_stop,
                 cur,
@@ -1645,7 +1721,7 @@ class ExitHandler:
                 position_id,
                 standalone_stop_order_id,
                 effective_stop,
-                new_qty,
+                leg_new_qty,
             )
 
         # When closing a position, pass P&L values to be persisted in algo_positions
