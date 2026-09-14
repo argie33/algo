@@ -61,6 +61,7 @@ def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-exis
     _max_plausible_fiscal_year: int,
     symbol: str,
     concept: str,
+    fye_month: int | None = None,
 ) -> tuple[Any, Any, Any, Any] | None:
     """Resolve a single fact entry's (fp, fiscal_year, start_date, end_date), or None to skip it.
 
@@ -373,6 +374,45 @@ def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-exis
     # separates current-year data from the multi-year comparison tables.
     end_date = entry.get("end", "")
     period_year = int(end_date[:4]) if end_date and len(end_date) >= 4 else entry.get("fy")
+
+    # FIXED 2026-09-13/14 (goal session: quarantine-backlog audit, ARWR/NB live-confirmed via
+    # real SEC companyfacts JSON): the "use period end year as the fiscal year key" rule just
+    # above is only correct for a December fiscal-year-end filer. For any OTHER fiscal-year-end
+    # month, the quarter immediately following the fiscal year start (e.g. Oct-Dec for a
+    # September FYE, Jul-Sep for a June FYE) ends in a calendar year that is ONE LESS than the
+    # real fiscal year it belongs to - annual_income_statement labels a fiscal year by the
+    # calendar year it ENDS in (e.g. ARWR's real FY2017 = Oct2016-Sep2017, labeled 2017), but
+    # this quarter's own end date falls in the PRIOR calendar year (Oct-Dec 2016 ends in
+    # calendar 2016), so without this correction it silently collides with the true FY2016's
+    # own quarters instead. Live-confirmed via ARWR (real FYE September 30): real FY2017 Q1
+    # (period 2016-10-01/2016-12-31, $4,365,000) was stored as fiscal_year=2016/Q1 - not just
+    # wrong once, but pushing every OTHER non-December-FYE filer's quarterly fiscal_year/
+    # fiscal_quarter keys one quarter out of alignment with their own annual bucket's
+    # convention. Silent for most filers (a swapped Q1 between two adjacent, similarly-sized
+    # fiscal years doesn't trip any magnitude check), which is why this went undetected until
+    # a filer with dramatic YoY growth (ARWR: $158K FY2016 -> $31.4M FY2017) made the
+    # mislabeled quarter's mismatch big enough to flag `quarterly_revenue_sum_vs_annual_extreme`.
+    #
+    # Only corrects QUARTERLY entries (annual entries already use the correct fiscal-year-end
+    # convention by construction - the fact IS the fiscal year end) and only when `fye_month`
+    # is known with confidence (see _aggregate_concepts_build_unit_context's own unanimous-
+    # agreement/conflicting-evidence gating for what "known" means here) - a filer with no
+    # direct fiscal-year-end evidence, or genuinely conflicting evidence (a real historical FYE
+    # change), is left on the pre-fix end-date-year behavior rather than guessing.
+    if (
+        period == "quarterly"
+        and fye_month is not None
+        and fye_month != 12
+        and isinstance(period_year, int)
+        and end_date
+        and len(end_date) >= 7
+    ):
+        try:
+            end_month = int(end_date[5:7])
+        except ValueError:
+            end_month = None
+        if end_month is not None and end_month > fye_month:
+            period_year += 1
 
     # FIXED 2026-08-16: 52/53-week fiscal calendars (common among retail/
     # industrial filers, e.g. SWK) can end a few days into January instead

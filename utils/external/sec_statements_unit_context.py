@@ -19,12 +19,13 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
     dict[str, str],
     dict[str, set[Any]],
     dict[tuple[str, str, Any], tuple[int, str]],
+    int | None,
 ]:
     """Precompute per-(concept, unit) context used to resolve each entry's real period.
 
     Extracted from _aggregate_concepts (mechanical extraction, no behavior change).
     Returns (has_annual_report_form, max_annual_report_end, has_december_fiscal_year_end,
-    max_end_by_accn, short_span_val_by_accn, fy_by_start_end_val).
+    max_end_by_accn, short_span_val_by_accn, fy_by_start_end_val, fye_month).
     """
     # FIXED 2026-08-18 (no-SEC-data audit continuation): live-confirmed via GM and
     # DIS - both file normal 10-Ks every year, yet annual_balance_sheet had a
@@ -134,10 +135,35 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
     # file, unchanged.
     _fye_conflicting_evidence = False
     if _fye_month is None:
+
+        def _is_genuine_fy_span(_e: dict[str, Any]) -> bool:
+            # FIXED 2026-09-13/14 (ARWR live-confirmed via real SEC companyfacts JSON): SEC's
+            # own fp="FY" tag isn't reliable for this purpose on its own - a filing tags EVERY
+            # comparative-period fact it includes with the FILING's own fp (see the "Use
+            # period end year..." comment in sec_statements_entry_resolution.py for the
+            # identical issue with the `fy` field), so a 10-K/10-Q can carry short, genuinely
+            # QUARTERLY-length facts mistagged fp="FY" alongside its real annual fact. Without
+            # a span check, ARWR's real ~year-long FY facts (unanimously ending in September)
+            # got diluted by several 3-month fp="FY"-mistagged facts ending in other months,
+            # making `_fy_duration_months` spuriously multi-valued and leaving `_fye_month`
+            # None for a filer whose real fiscal-year-end is actually completely unambiguous.
+            # 350-380 days covers both a normal 365/366-day year and a 52/53-week fiscal
+            # calendar's occasional 371/372-day long year (same tolerance reasoning as this
+            # file's own January-crossing 52/53-week handling above).
+            try:
+                _span = (datetime.date.fromisoformat(_e["end"]) - datetime.date.fromisoformat(_e["start"])).days
+            except ValueError:
+                return False
+            return 350 <= _span <= 380
+
         _fy_duration_months = {
             int(_e["end"][5:7])
             for _e in entries
-            if _e.get("fp") == "FY" and _e.get("start") and _e.get("end") and len(_e["end"]) >= 7
+            if _e.get("fp") == "FY"
+            and _e.get("start")
+            and _e.get("end")
+            and len(_e["end"]) >= 7
+            and _is_genuine_fy_span(_e)
         }
         if len(_fy_duration_months) == 1:
             _fye_month = next(iter(_fy_duration_months))
@@ -284,6 +310,7 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
             if not (0 <= _filed_gap_days <= 120):
                 continue
             has_december_fiscal_year_end = True
+            _fye_month = 12
             break
     # BUG FOUND 2026-08-22 (goal session: quarterly balance-sheet comparative-period
     # contamination): a single filing (one accession number, "accn") typically tags
@@ -417,4 +444,5 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
         _max_end_by_accn,
         _short_span_val_by_accn,
         _fy_by_start_end_val,
+        _fye_month,
     )
