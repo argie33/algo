@@ -92,6 +92,26 @@ _KNOWN_BDC_ENTITY_TYPE_OPERATING_SYMBOLS: frozenset[str] = frozenset(
 # boundaries) - see that module's own _NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE for the
 # sibling copy. If this exclusion is ever refined again (a new carve-out, etc.), grep for
 # NON_OPERATING_COMPANY_EXCLUSION_SQL to find every copy that needs the same update.
+#
+# ROYALTY-TRUST/BLANK-CHECK-SPAC CONDITIONS ADDED (goal: "our scores don't look like industry
+# lists" audit, live-confirmed via direct DB query): this template gates the SCORING z-score
+# peer-group population (this function's own per-symbol fetch, plus every batch pass listed
+# above) - a SEPARATE, narrower exclusion list than algo/signals/investable_universe.py's
+# investable_universe_conditions(), which only gates the leaderboard/live-trading-candidate
+# DISPLAY layer. Before this fix, a genuine pass-through royalty trust like CRT (Cross Timbers
+# Royalty Trust, real SEC 10-K filer, entity_type='operating', so it isn't caught by the
+# zero-SIC/other-entity-type check above) still got a real quality_score computed AND counted
+# in the Energy sector's z-score peer group, live-confirmed topping the Quality leaderboard at
+# quality_score=90.96 off roe=208%/roa=104%/roce=205%/asset_turnover=133% - a near-zero
+# invested-capital balance sheet mechanically produces triple-digit ratios no real operating
+# company could match, which also skews the z-score mean/stdev for every genuine Energy
+# company sharing that peer group, not just the trust's own (harmless, since it's later hidden
+# from every display) score. Same for SIC-6770 blank-check SPACs with no completed merger.
+# Mirrors investable_universe_conditions()'s already-vetted, self-updating conditions exactly
+# (SIC 6792/6795 + "Trust" in the name only - TPL/LB/EROK/RGLD/SSRM/SRL/VMET/TFPM, the real
+# operating companies sharing those legacy SIC codes, correctly stay included; SIC 6770 + zero
+# reported annual revenue only - a completed de-SPAC like INV stays included) rather than
+# re-deriving new logic.
 NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE = (
     """
     {symbols_alias}.active = true
@@ -103,6 +123,16 @@ NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE = (
           COALESCE({company_info_alias}.sic_code, 0) = 0
           AND COALESCE({company_info_alias}.entity_type, 'operating') IN ('other', 'investment')
           AND {symbols_alias}.symbol != 'OZK'
+    )
+    AND NOT (
+          {symbols_alias}.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code IN (6792, 6795))
+          AND {symbols_alias}.security_name ~* 'Trust'
+    )
+    AND NOT (
+          {symbols_alias}.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6770)
+          AND {symbols_alias}.symbol NOT IN (
+              SELECT symbol FROM annual_income_statement WHERE revenue > 0
+          )
     )
     AND {symbols_alias}.symbol NOT IN ('TVC', 'TVE', 'SCE$L', 'GRN')
     AND {symbols_alias}.symbol NOT IN ("""
@@ -391,12 +421,31 @@ def get_active_symbols(
                         # exclude_non_operating=False and skip straight past it, since these are
                         # real tradable securities that need price data regardless of whether
                         # they file normal operating financials. See this function's docstring.
+                        #
+                        # ROYALTY-TRUST/BLANK-CHECK-SPAC CONDITIONS ADDED (goal: "our scores
+                        # don't look like industry lists" audit): see
+                        # NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE's own comment above for
+                        # the full live-evidence trail (a genuine pass-through royalty trust
+                        # topped the live Quality leaderboard off triple-digit roe/roa/roce/
+                        # asset_turnover ratios its near-zero invested-capital balance sheet
+                        # mechanically produces) - same self-updating conditions as
+                        # investable_universe_conditions().
                         non_operating_exclusion_sql = (
                             """
                               AND NOT (
                                     COALESCE(c.sic_code, 0) = 0
                                     AND COALESCE(c.entity_type, 'operating') IN ('other', 'investment')
                                     AND s.symbol != 'OZK'
+                              )
+                              AND NOT (
+                                    s.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code IN (6792, 6795))
+                                    AND s.security_name ~* 'Trust'
+                              )
+                              AND NOT (
+                                    s.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6770)
+                                    AND s.symbol NOT IN (
+                                        SELECT symbol FROM annual_income_statement WHERE revenue > 0
+                                    )
                               )
                               AND s.symbol NOT IN ('TVC', 'TVE', 'SCE$L')
                               AND s.symbol NOT IN ({bdc_symbols})
