@@ -67,6 +67,18 @@ class QualityChecker(BaseCheck):
             null_pct = today_nulls / today_total * 100
 
             if null_pct > max_null_pct:
+                # ADDED 2026-09-14 (goal: DataPatrol coverage audit follow-up - this only ever
+                # computed an aggregate today_nulls/today_total percentage, never identifying
+                # WHICH symbols carry the NULL close, so an ERROR finding here halted the whole
+                # pipeline (quarantine.py's deliberate fail-safe for findings with no
+                # flagged_symbols) instead of quarantining just the affected symbols. A NULL
+                # close on the latest date is unambiguously attributable to its own symbol's row.
+                cur.execute("""
+                    SELECT symbol FROM price_daily
+                    WHERE date = (SELECT MAX(date) FROM price_daily) AND close IS NULL
+                    ORDER BY symbol
+                """)
+                null_close_symbols = [r.get("symbol") if hasattr(r, "get") else r[0] for r in cur.fetchall()]
                 self.log(
                     "null_anomaly",
                     ERROR,
@@ -76,6 +88,11 @@ class QualityChecker(BaseCheck):
                         "today_nulls": today_nulls,
                         "today_total": today_total,
                         "threshold_pct": max_null_pct,
+                        "flagged_symbols": [
+                            {"symbol": s, "reason": "NULL close on the latest trading date"}
+                            for s in null_close_symbols
+                            if s
+                        ],
                     },
                 )
             else:

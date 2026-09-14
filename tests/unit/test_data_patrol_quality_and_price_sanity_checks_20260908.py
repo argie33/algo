@@ -32,10 +32,26 @@ class TestCheckNullAnomalies:
         checker = _quality_checker()
         cur = MagicMock()
         cur.fetchone.return_value = {"today_nulls": 500, "today_total": 5000}
+        cur.fetchall.return_value = [{"symbol": "AAA"}, {"symbol": "BBB"}]
         checker.check_null_anomalies(cur)
         assert len(checker.results) == 1
         assert checker.results[0].severity == ERROR
         assert checker.results[0].details["today_nulls"] == 500
+
+    def test_null_pct_above_threshold_wires_flagged_symbols(self) -> None:
+        # ADDED 2026-09-14 (goal: DataPatrol coverage audit follow-up) - this check only ever
+        # computed an aggregate percentage, never identifying which symbols carry the NULL
+        # close, so quarantine.py's fail-safe (an ERROR finding needs flagged_symbols to be
+        # quarantinable) meant a real hit here halted the whole pipeline instead of excluding
+        # just the affected symbols.
+        checker = _quality_checker()
+        cur = MagicMock()
+        cur.fetchone.return_value = {"today_nulls": 500, "today_total": 5000}
+        cur.fetchall.return_value = [{"symbol": "AAA"}, {"symbol": "BBB"}]
+        checker.check_null_anomalies(cur)
+        flagged = checker.results[0].details["flagged_symbols"]
+        assert {f["symbol"] for f in flagged} == {"AAA", "BBB"}
+        assert all(f["reason"] == "NULL close on the latest trading date" for f in flagged)
 
     def test_zero_total_today_skips_silently(self) -> None:
         checker = _quality_checker()
