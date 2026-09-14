@@ -934,7 +934,23 @@ class QualityMetricsMixin(
                 # interest_expense floor. Folded into the existing >1000 branch (rather than a
                 # separate gate) so it gets the identical treatment: try the cross-year
                 # fallback first, only fail as implausible_ratio if that also comes up empty.
-                if abs(computed_roic_pct) > 1000 or invested_capital < 0.01 * abs(nopat):
+                #
+                # ADDED 2026-09-13 (live-caught via ScoreRatioOutlierChecker's roic_pct batch:
+                # DCBO/IBKR/NTNX/MANH/INDV all 396-879%, none excluded): the nopat-relative floor
+                # above misses a second shape - a large, real balance sheet (e.g. DCBO's $74M
+                # equity funded almost entirely by cash) where equity+debt-minus-cash nets down
+                # to a near-zero invested_capital ($54K for DCBO) that is STILL >1% of nopat,
+                # because nopat is proportionally small too. That $54K is ~0.07% of DCBO's real
+                # $74M capital base - an economically meaningless denominator wearing a
+                # plausible-looking absolute size. Add a second floor comparing invested_capital
+                # to the GROSS pre-cash-netting base (equity + debt) directly, catching the cases
+                # the nopat-relative floor can't see.
+                gross_capital_base = roic_stockholders_equity + debt_for_roic
+                if (
+                    abs(computed_roic_pct) > 1000
+                    or invested_capital < 0.01 * abs(nopat)
+                    or (gross_capital_base > 0 and invested_capital < 0.01 * gross_capital_base)
+                ):
                     roic_fallback = self._find_plausible_cross_year_roic_ratio(symbol, "roic_pct")
                     if roic_fallback is not None:
                         metrics["roic_pct"] = roic_fallback
