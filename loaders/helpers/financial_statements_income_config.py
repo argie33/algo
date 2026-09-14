@@ -78,6 +78,11 @@ _INCOME_FIELD_MAPPING = {
     # comment on InterestIncomeOperating for why InterestIncomeExpenseNet (which goes negative
     # in real years) was rejected in favor of this gross, always-positive figure.
     "interest_income_operating": "revenue",
+    # ADDED 2026-09-14 (quarantine-backlog continuation, GTE/Gran Tierra Energy live-
+    # confirmed): pre-ASC-606 oil & gas exploration/production filers' real total-revenue
+    # concept - see sec_statements.py's comment on OilAndGasSalesRevenue for the full
+    # rationale. Same target column as every other revenue fallback above.
+    "oil_and_gas_sales_revenue": "revenue",
     # FIXED 2026-08-03: community banks/thrifts (FNWB, AMAL, OCFC, and others - live-confirmed
     # via real SEC companyfacts JSON for all three) report neither standard revenue concepts
     # nor RevenuesNetOfInterestExpense (that one's used by larger banks like MS/WFC) - their
@@ -367,6 +372,11 @@ _INCOME_FIELD_MAPPING = {
 _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
     {
         "interest_income_operating",
+        # ADDED 2026-09-14 (quarantine-backlog continuation, GTE live-confirmed): fallback-
+        # only so a real ASC-606/legacy-sales concept a filer reports for a later fiscal year
+        # (once it adopts one) always wins over this earlier-era, sector-specific tag - see
+        # sec_statements.py's comment on OilAndGasSalesRevenue for the full rationale.
+        "oil_and_gas_sales_revenue",
         "interest_and_dividend_income_operating",
         # FIXED 2026-08-22: same fallback-only reasoning as interest_and_dividend_income_
         # operating just above - see sec_statements.py's comment on
