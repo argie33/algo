@@ -603,22 +603,6 @@ def get_income_statement(
         # is the correct analog instead. Listed after InterestAndDividendIncomeOperating (see
         # that concept's own comment above for why) so it only wins under fallback-only
         # semantics for filers with nothing more complete.
-        # ADDED 2026-09-14 (quarantine-backlog continuation, GTE/Gran Tierra Energy live-
-        # confirmed): pre-ASC-606 (pre-2018-ish) oil & gas producers tag their real total
-        # revenue under this exploration-and-production-specific concept, not any of the
-        # ASC-606/legacy-sales concepts above. GTE's real "Revenues" concept was never
-        # tagged at all for its FY2009-2011 filings - only OilAndGasSalesRevenue
-        # ($262.629M/$373.286M/$596.191M for FY2009-2011, live-confirmed via real SEC
-        # companyfacts JSON, roughly consistent with GTE's own quarterly-reported figures
-        # for the same years) - so a tiny, unrelated InterestIncomeOperating fact
-        # ($1,216,000 FY2011) was winning "revenue" by default via this same fallback-of-
-        # last-resort mechanism, same bug class as the ARCB/MGPI/ETR missing-concept-
-        # mapping fixes earlier this session. Listed BEFORE InterestIncomeOperating (not
-        # after) so a real oil & gas producer's actual revenue always outranks the mortgage-
-        # REIT interest-income fallback under fallback-only "first written wins" semantics -
-        # the two filer types are mutually exclusive in practice (no real filer tags both
-        # concepts with a material, non-zero value for the same fiscal year).
-        "OilAndGasSalesRevenue",
         "InterestIncomeOperating",
         # FIXED 2026-08-22 (goal session: real-money-readiness audit, "Insufficient
         # history" bucket sample): a small number of community banks (AROW/Arrow
