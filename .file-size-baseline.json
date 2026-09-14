@@ -268,7 +268,7 @@
   "algo/trading/executor.py": 1081,
   "algo/trading/executor_entry_handler.py": 1928,
   "algo/trading/executor_exit_handler.py": 1796,
-  "algo/trading/executor_exit_other_leg_brackets.py": 115,
+  "algo/trading/executor_exit_other_leg_brackets.py": 117,
   "algo/trading/executor_exit_standalone_stop.py": 170,
   "algo/trading/executor_strategies.py": 217,
   "algo/trading/exit_engine.py": 1928,
