@@ -88,3 +88,47 @@ class TestDepositoryInstitutionInterestIncomeOverridesAsc606Fee:
         transformed = loader.transform([row])
 
         assert transformed[0]["revenue"] == 700_000_000.0
+
+    def _make_reit_loader(self, reit_symbols=frozenset({"ABR"})):
+        loader = self._make_loader(depository_symbols=frozenset())
+        loader._reit_symbols = reit_symbols
+        loader._field_mapping = {
+            **loader._field_mapping,
+            "interest_income_operating": "revenue",
+        }
+        loader._fallback_only_fields = frozenset({"interest_income_operating"})
+        return loader
+
+    def test_mortgage_reit_real_interest_income_wins_over_small_asc606_fee_concept(self):
+        """WIDENED 2026-09-13 (ABR/Arbor Realty Trust live-confirmed): a mortgage REIT has
+        the identical failure shape as a bank - real revenue is interest income on its own
+        loan portfolio, not a typical ASC-606 contract-revenue concept. ABR's real FY2021
+        revenue (InterestIncomeOperating) is $466,087,000 vs. $185,000 stored under the
+        ASC-606 concept."""
+        loader = self._make_reit_loader()
+        row = {
+            "symbol": "ABR",
+            "fiscal_year": 2021,
+            "revenue_from_contract_with_customer_excluding_assessed_tax": 185_000.0,
+            "interest_income_operating": 466_087_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["revenue"] == 466_087_000.0
+
+    def test_equity_reit_unaffected_not_in_reit_interest_income_population(self):
+        """An equity REIT with no real interest-income business (empty reit_symbols here,
+        same as a non-bank filer) must not have its real ASC-606 revenue overwritten by an
+        unrelated small interest-income side-line fact."""
+        loader = self._make_reit_loader(reit_symbols=frozenset())
+        row = {
+            "symbol": "SPG",
+            "fiscal_year": 2021,
+            "revenue_from_contract_with_customer_excluding_assessed_tax": 5_000_000_000.0,
+            "interest_income_operating": 1_200_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["revenue"] == 5_000_000_000.0

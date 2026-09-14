@@ -123,10 +123,10 @@ def should_override_fallback_field_for_depository_institution(
     r: dict[str, Any],
     depository_institution_symbols: frozenset[str],
 ) -> bool:
-    """True if a bank/depository-institution's real interest-income revenue concept -
-    processed as plain fallback-only, LATE in sec_income_statement.py's concept list -
-    should be allowed to OVERWRITE an already-populated "revenue" set earlier by a
-    smaller concept (typically an ASC-606 contract-revenue concept, but not exclusively -
+    """True if a bank/depository-institution's (or a mortgage REIT's) real interest-income
+    revenue concept - processed as plain fallback-only, LATE in sec_income_statement.py's
+    concept list - should be allowed to OVERWRITE an already-populated "revenue" set earlier
+    by a smaller concept (typically an ASC-606 contract-revenue concept, but not exclusively -
     magnitude-gated regardless of which field wrote first).
 
     FIXED 2026-09-13 (goal session: "patrols and checks" comprehensiveness audit, AX/Axos
@@ -146,6 +146,18 @@ def should_override_fallback_field_for_depository_institution(
     Magnitude-gated (only overrides when genuinely larger) so this cannot regress a
     depository institution that legitimately has a larger, complete revenue figure of its
     own under whichever concept happened to be processed first.
+
+    WIDENED 2026-09-13 (same goal session, ABR/TRTX live-confirmed via real SEC
+    companyfacts JSON): mortgage REITs have the IDENTICAL failure shape as a bank - real
+    revenue is interest income on their own loan/mortgage portfolio (InterestIncomeOperating),
+    which ASC-606 excludes from scope, so RevenueFromContractWithCustomer* only ever captures
+    a minor fee-income line for these filers too. ABR's real FY2021 revenue is $466,087,000
+    vs. $185,000 stored under the ASC-606 concept (matches quarterly sums exactly); TRTX's
+    real FY2023 is $362,550,000 vs. $6,339,000 stored. Caller now passes the UNION of
+    depository-institution and REIT (SIC 6798) symbols as `depository_institution_symbols` -
+    an equity REIT has no meaningful interest-income business, so this is a safe no-op for
+    the overwhelming majority of that population; the magnitude gate below still requires
+    the interest-income candidate be genuinely larger before it can ever fire.
     """
     if sec_field not in ("interest_and_dividend_income_operating", "interest_income_operating"):
         return False
