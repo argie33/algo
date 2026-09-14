@@ -451,6 +451,59 @@ Register-ScheduledTask `
 
 Write-Host "[OK] xbrl-segment-sum-monthly task scheduled for the 2nd of each month, 06:00 ET"
 
+# Task 7: Score realized-IC monitor - daily, the live scoring-quality feedback loop
+Write-Host ""
+Write-Host "Task 7: Score Realized-IC Monitor (MON-FRI, 11:55 PM ET)"
+Write-Host "  - the only live feedback loop answering whether scoring is still predicting anything"
+
+# ADDED 2026-09-14 (goal: "make sure we are tracking all we should" follow-up):
+# scripts/score_realized_ic_monitor.py (added 2026-09-12) was 100% dependent on a human
+# remembering to run it by hand - exactly the failure mode every other task in this file
+# already exists to close (same reasoning as the xbrl-second-opinion task above). Scheduled
+# 5 minutes after xbrl-second-opinion (11:50 PM ET) so it never competes with it or the
+# reference-pipeline loader (11:30 PM ET) for anything - this script needs no algo-
+# scheduler.lock either, it only reads price_daily/stock_scores_history already in the DB.
+$scoreIcLocalTime = Convert-EasternTimeToLocal -Hour 23 -Minute 55
+Write-Host "[INFO] ET 23:55 -> local $scoreIcLocalTime"
+
+$scoreIcAction = New-ScheduledTaskAction `
+    -Execute $pythonExe `
+    -Argument "scripts/score_realized_ic_monitor.py" `
+    -WorkingDirectory $algoPath
+
+$scoreIcTrigger = New-ScheduledTaskTrigger `
+    -Weekly `
+    -At $scoreIcLocalTime `
+    -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
+
+$scoreIcSettings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries:$true `
+    -DontStopIfGoingOnBatteries `
+    -Compatibility Win8 `
+    -MultipleInstances IgnoreNew `
+    -WakeToRun `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 20)
+
+if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "score-realized-ic-monitor" -ErrorAction SilentlyContinue) {
+    Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "score-realized-ic-monitor" -Confirm:$false
+    Write-Host "[OK] Replaced existing score-realized-ic-monitor task"
+} else {
+    Write-Host "[INFO] No existing score-realized-ic-monitor task found"
+}
+
+Register-ScheduledTask `
+    -TaskName "score-realized-ic-monitor" `
+    -TaskPath $taskFolder `
+    -Action $scoreIcAction `
+    -Trigger $scoreIcTrigger `
+    -Settings $scoreIcSettings `
+    -Principal $taskPrincipal `
+    -Description "Live realized-IC monitor: is the scoring methodology still predicting anything in the current universe" `
+    -ErrorAction Stop | Out-Null
+
+Write-Host "[OK] score-realized-ic-monitor task scheduled for 11:55 PM ET (MON-FRI)"
+
 # BUG FIX (2026-08-17): the actual trading orchestrator's own scheduled tasks
 # (AlgoTrading_Orchestrator_930AM/1PM/3PM, under \AlgoTrading\ - registered separately from
 # this script, no repo script ever managed them) were live-confirmed to have the exact same
@@ -543,6 +596,7 @@ Write-Host ""
 Write-Host "[SUCCESS] Task Scheduler setup complete!"
 Write-Host "The loaders will run automatically on MON-FRI at 2:00 AM, 4:05 PM, 7:00 PM, and 11:30 PM ET"
 Write-Host "XBRL data-quality layers 4/5/6 (second-opinion) run MON-FRI at 11:50 PM ET; layer 7 (segment-sum) runs monthly on the 2nd at 6:00 AM ET"
+Write-Host "Score realized-IC monitor (live scoring-quality feedback loop) runs MON-FRI at 11:55 PM ET"
 Write-Host "The trading orchestrator will run automatically on MON-FRI at 9:30 AM, 1:00 PM, 3:00 PM (all real orders), and 5:30 PM ET (monitor-only)"
 Write-Host ""
 Write-Host "To view/manage tasks, open Task Scheduler (Win+R > taskschd.msc)"
