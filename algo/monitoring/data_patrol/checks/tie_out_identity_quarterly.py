@@ -9,7 +9,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..base import CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 from .tie_out_shared import (
     _FREE_CASH_FLOW_TOLERANCE_FLOOR,
     _FREE_CASH_FLOW_TOLERANCE_PCT,
@@ -102,6 +102,13 @@ class TieOutIdentityQuarterlyMixin:
                     f"{_FREE_CASH_FLOW_TOLERANCE_PCT:.0%} of free_cash_flow)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
                 )
+            else:
+                self.log(
+                    "free_cash_flow_identity",
+                    INFO,
+                    "annual_cash_flow",
+                    "no free_cash_flow_identity violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] free_cash_flow_identity failed: {e}", exc_info=True)
             self.log(
@@ -174,6 +181,13 @@ class TieOutIdentityQuarterlyMixin:
                     f"max(${_NET_CHANGE_CASH_TOLERANCE_FLOOR:,.0f}, "
                     f"{_NET_CHANGE_CASH_TOLERANCE_PCT:.0%} of net_change_cash)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+            else:
+                self.log(
+                    "cashflow_activities_sum_to_net_change",
+                    INFO,
+                    "annual_cash_flow",
+                    "no cashflow_activities_sum_to_net_change violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] cashflow_activities_sum_to_net_change failed: {e}", exc_info=True)
@@ -252,6 +266,13 @@ class TieOutIdentityQuarterlyMixin:
                     f"{_GROSS_PROFIT_TOLERANCE_PCT:.0%} of revenue)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
                 )
+            else:
+                self.log(
+                    "quarterly_gross_profit_identity",
+                    INFO,
+                    "quarterly_income_statement",
+                    "no quarterly_gross_profit_identity violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_gross_profit_identity failed: {e}", exc_info=True)
             self.log(
@@ -315,6 +336,13 @@ class TieOutIdentityQuarterlyMixin:
                     f"beyond max(${_FREE_CASH_FLOW_TOLERANCE_FLOOR:,.0f}, "
                     f"{_FREE_CASH_FLOW_TOLERANCE_PCT:.0%} of free_cash_flow)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+            else:
+                self.log(
+                    "quarterly_free_cash_flow_identity",
+                    INFO,
+                    "quarterly_cash_flow",
+                    "no quarterly_free_cash_flow_identity violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_free_cash_flow_identity failed: {e}", exc_info=True)
@@ -384,6 +412,13 @@ class TieOutIdentityQuarterlyMixin:
                     "of net_income)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
                 )
+            else:
+                self.log(
+                    "quarterly_eps_reconciliation",
+                    INFO,
+                    "quarterly_income_statement",
+                    "no quarterly_eps_reconciliation violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_eps_reconciliation failed: {e}", exc_info=True)
             self.log(
@@ -450,6 +485,13 @@ class TieOutIdentityQuarterlyMixin:
                     f"max(${_QUARTERLY_EPS_TOLERANCE_FLOOR:,.0f}, {_QUARTERLY_EPS_TOLERANCE_PCT:.0%} "
                     "of net_income)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+            else:
+                self.log(
+                    "quarterly_basic_eps_reconciliation",
+                    INFO,
+                    "quarterly_income_statement",
+                    "no quarterly_basic_eps_reconciliation violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_basic_eps_reconciliation failed: {e}", exc_info=True)
@@ -522,6 +564,13 @@ class TieOutIdentityQuarterlyMixin:
                     f"{_QUARTERLY_PRETAX_NET_INCOME_TOLERANCE_PCT:.0%} of net_income)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
                 )
+            else:
+                self.log(
+                    "quarterly_pretax_to_net_income",
+                    INFO,
+                    "quarterly_income_statement",
+                    "no quarterly_pretax_to_net_income violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_pretax_to_net_income failed: {e}", exc_info=True)
             self.log(
@@ -592,6 +641,13 @@ class TieOutIdentityQuarterlyMixin:
                     f"net_change_cash beyond max(${_QUARTERLY_NET_CHANGE_CASH_TOLERANCE_FLOOR:,.0f}, "
                     f"{_QUARTERLY_NET_CHANGE_CASH_TOLERANCE_PCT:.0%} of net_change_cash)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+            else:
+                self.log(
+                    "quarterly_cashflow_activities_sum_to_net_change",
+                    INFO,
+                    "quarterly_cash_flow",
+                    "no quarterly_cashflow_activities_sum_to_net_change violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_cashflow_activities_sum_to_net_change failed: {e}", exc_info=True)
@@ -688,6 +744,13 @@ class TieOutIdentityQuarterlyMixin:
                     f"equal to the full annual revenue (duration-context extraction bug, "
                     f"not a real quarterly figure)",
                     {"count": len(flagged), "examples": flagged[:_MAX_REPORTED_PER_CHECK]},
+                )
+            else:
+                self.log(
+                    "quarterly_revenue_annual_duplicate",
+                    INFO,
+                    "quarterly_income_statement",
+                    "no quarterly_revenue_annual_duplicate violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_revenue_annual_duplicate failed: {e}", exc_info=True)
