@@ -218,8 +218,22 @@ class ExitHandler:
 
         def _raise_stop(cursor: PsycopgCursor[Any]) -> dict[str, Any]:
             # Validate position has existing stop price (cannot raise NULL stop)
+            # REAL-MONEY-READINESS FIX (stop-loss/pyramiding audit): the broker-sync qty
+            # below used to be p.quantity - the SUM across every leg of a pyramided
+            # (2+ leg) position (max_reentries_per_name=2 by default, a live, reachable
+            # config). `trade_id` here only ever resolves ONE leg's own bracket/standalone
+            # stop order (t.alpaca_order_id / p.standalone_stop_order_id are per-position
+            # fields but the sync call targets THIS leg's specific resting order) - passing
+            # the position-wide total resized that one leg's stop-loss/take-profit to cover
+            # the WHOLE position while every other leg's own stop order stays separately
+            # resting for its own shares, leaving MORE resting protective sell quantity at
+            # the broker than the account actually holds. Same failure mode already fixed
+            # in phase9_stop_loss_repair.py for the auto-repair path - this is the identical
+            # bug on the trailing-stop-raise path, which was missed by that earlier fix.
+            # Use t.quantity (this leg's own share count - equal to p.quantity by
+            # construction for the overwhelming majority of single-leg positions) instead.
             cursor.execute(
-                """SELECT p.current_stop_price, t.alpaca_order_id, p.quantity,
+                """SELECT p.current_stop_price, t.alpaca_order_id, t.quantity,
                           p.standalone_stop_order_id, p.position_id
                    FROM algo_positions p
                    JOIN algo_trades t ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
