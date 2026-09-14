@@ -97,6 +97,21 @@ class StalenessChecker(BaseCheck):
             # single delayed weekly run right after a holiday week doesn't false-positive,
             # while this is still a brand-new/uncharacterized check (INFO, not WARN).
             "price_weekly": 10,
+            # ADDED (goal session 2026-09-13, "patrols and checks"/quarantine-backlog audit):
+            # naaim had ZERO staleness coverage at all despite load_naaim.py's own docstring
+            # calling it "CRITICAL for market regime detection" - live-confirmed 46 days stale
+            # (last row 2026-07-29) with data_loader_status still reporting status=COMPLETED,
+            # consecutive_failures=0, invisible to every existing check. Root cause is a
+            # permanent, already-documented condition (see load_naaim.py's own comments):
+            # NAAIM put its Exposure Index behind a paywall 2026-08-01, so the loader
+            # gracefully returns a no-op data_unavailable marker forever instead of erroring -
+            # a real, standing gap operators should see, not a transient blip. WARN (not
+            # INFO) since this is a known-permanent condition worth surfacing on every run
+            # rather than a new/uncharacterized check still building a false-positive track
+            # record - 14 days (double aaii_sentiment's weekly-cadence threshold) to tolerate
+            # NAAIM's normal Wednesday publish cadence without false-positiving on a single
+            # delayed week, back when the feed was still live.
+            "naaim": 14,
         }
 
         # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
@@ -271,6 +286,13 @@ class StalenessChecker(BaseCheck):
                 "weekly",
                 staleness_thresholds["price_weekly"],
                 INFO,
+            ),
+            (
+                "naaim",
+                "date",
+                "weekly",
+                staleness_thresholds["naaim"],
+                WARN,
             ),
         ]
 
