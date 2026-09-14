@@ -88,3 +88,38 @@ def test_field_mapping_routes_utility_concept_to_revenue_column():
     transformed = loader.transform([row])
 
     assert transformed[0]["revenue"] == 14_669_000_000.0
+
+
+def test_etr_utility_revenue_third_variant_recovered_after_revenues_goes_silent():
+    """ADDED 2026-09-13 (quarantine-backlog empirical verification): ETR/Entergy uses a
+    THIRD utility-revenue concept variant, "UtilityRevenue" - same bug class, different
+    concept name. Real "Revenues" goes silent after FY2012; "UtilityRevenue" takes over
+    with real, continuous figures FY2013-2017 before ETR moves to
+    RevenueFromContractWithCustomerExcludingAssessedTax for FY2018+."""
+    facts = {
+        "us-gaap": {
+            "Revenues": {
+                "units": {
+                    "USD": [
+                        _entry("2012-01-01", "2012-12-31", 10_302_079_000.0, "2013-02-27", fy=2012),
+                    ]
+                }
+            },
+            "UtilityRevenue": {
+                "units": {
+                    "USD": [
+                        _entry("2013-01-01", "2013-12-31", 11_390_947_000.0, "2014-02-27", fy=2013),
+                        _entry("2014-01-01", "2014-12-31", 12_494_921_000.0, "2015-02-26", fy=2014),
+                    ]
+                }
+            },
+        },
+        "ifrs-full": {},
+    }
+    client = _FakeClient(facts)
+
+    rows = get_income_statement(client, "ETR", period="annual")
+    by_year = {r["fiscal_year"]: r for r in rows}
+
+    assert by_year[2013]["utility_revenue"] == 11_390_947_000.0
+    assert by_year[2014]["utility_revenue"] == 12_494_921_000.0
