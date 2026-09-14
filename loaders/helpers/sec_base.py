@@ -1523,7 +1523,9 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     if revenue_total_source.get(db_field) == sec_field:
                         _revenue_source_sec_field = sec_field
                     continue
-                if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and db_field in row:
+                if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and (
+                    db_field in row or revenue_total_source.get(db_field) == "negative_total_rejected"
+                ):
                     # See should_override_fallback_field_for_depository_institution's docstring.
                     if not should_override_fallback_field_for_depository_institution(
                         sec_field, db_field, value, row, r, _eligible_interest_income_symbols
