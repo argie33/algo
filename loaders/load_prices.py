@@ -2788,11 +2788,45 @@ class PriceLoader(OptimalLoader, BatchFetchRetryMixin):
                 self._stats["symbols_processed"] += 1
                 continue
 
+            # BUG FIX (2026-09-14, price_daily frozen-yfinance-fallback investigation):
+            # a symbol whose primary source (Alpaca) has a genuine external gap AND whose
+            # yfinance residual fallback returns nothing but flat/zero-volume placeholder
+            # rows (rejected by _validate_row above) can still reach here with a NON-EMPTY
+            # `rows` list - the 1-day overlap window kept by the WRITE TRIM block above for
+            # cross-checking. Those overlap rows are already in the DB, so
+            # watermark_from_rows(rows) computes the SAME date as the symbol's existing
+            # watermark - zero real progress - yet this fell through to the success path
+            # below every single day: advance_watermarks_bulk() resets error_count to 0 and
+            # bumps last_run_at/last_success_at, permanently masking the stall from both the
+            # fail-rate gate and the watermark_age_days-driven escalation (retry -> 30-day
+            # confirm -> permanent-unavailable) that already exists for the `if not rows`
+            # case just above. Live-confirmed on EA/WBS (loader_watermarks: error_count=0,
+            # rows_loaded=2, watermark stuck 24-40 days behind despite running successfully
+            # every day - see memory price_daily_frozen_yfinance_fallback_193_symbols_20260913).
+            # Route a non-advancing watermark on an already-stale symbol through the SAME
+            # failure path as an empty fetch, instead of a new one, so it benefits from the
+            # existing escalation logic unchanged.
+            new_watermark = self.watermark_from_rows(rows)
+            if sym_wm is not None and new_watermark <= sym_wm:
+                stall_today = datetime.now(EASTERN_TZ).date()
+                stall_age_days = (stall_today - sym_wm).days
+                stall_threshold = 1 if self._is_eod_pipeline else 2
+                if stall_age_days >= stall_threshold:
+                    logger.error(
+                        f"[{self.table_name}] {symbol}: fetch returned {len(rows)} row(s) but none "
+                        f"advance past the existing watermark {sym_wm} ({stall_age_days}d stale) - "
+                        "only already-loaded overlap/cross-check rows survived validation. "
+                        "Not a genuine success - marking as failed to trigger retry/escalation."
+                    )
+                    self._stats["symbols_failed"] += 1
+                    self._stats["symbols_processed"] += 1
+                    continue
+
             # Stage this symbol's rows; the whole batch is written in one chunked
             # bulk_insert below (was: one staging-table cycle per symbol).
             pending_rows.extend(rows)
             pending_symbol_rowcounts[symbol] = len(rows)
-            pending_watermarks[symbol] = (self.watermark_from_rows(rows), len(rows))
+            pending_watermarks[symbol] = (new_watermark, len(rows))
 
         # ---- Batch write: one chunked insert for all symbols, then watermarks ----
         if pending_rows:
