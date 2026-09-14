@@ -113,3 +113,47 @@ def reject_reit_exclusive_scale_mismatch(
             )
             return None
     return value
+
+
+def should_override_fallback_field_for_depository_institution(
+    sec_field: str,
+    db_field: str,
+    value: Any,
+    row: dict[str, Any],
+    r: dict[str, Any],
+    depository_institution_symbols: frozenset[str],
+) -> bool:
+    """True if a bank/depository-institution's real interest-income revenue concept -
+    processed as plain fallback-only, LATE in sec_income_statement.py's concept list -
+    should be allowed to OVERWRITE an already-populated "revenue" set earlier by a
+    smaller concept (typically an ASC-606 contract-revenue concept, but not exclusively -
+    magnitude-gated regardless of which field wrote first).
+
+    FIXED 2026-09-13 (goal session: "patrols and checks" comprehensiveness audit, AX/Axos
+    Financial live-confirmed via real SEC companyfacts JSON): ASC 606 explicitly excludes
+    interest income from its scope, so for a bank/thrift/depository institution,
+    RevenueFromContractWithCustomer(Including|Excluding)AssessedTax only ever captures a
+    minor non-interest fee-income line, never the real total - same conceptual failure as
+    the already-fixed REIT/insurance/depository case in should_skip_reit_only_fallback_field
+    above, but the REVERSE processing order: that guard protects a real total found FIRST
+    from a smaller ASC-606 concept found later; here, the ASC-606 concept (or, for FBNC's
+    shape, a small "Revenues" tag) is found FIRST and wins "revenue" via the ordinary
+    priority chain before the real, larger interest-income concept is ever reached - which
+    then just defers, being plain fallback-only with no magnitude check. AX's real FY2022
+    revenue (InterestAndDividendIncomeOperating) is $659,728,000 vs. $59,434,000 under
+    RevenueFromContractWithCustomerExcludingAssessedTax - understating annual revenue ~11x
+    for 9 straight fiscal years (2018-2026) with no data_unavailable/reason flag anywhere.
+    Magnitude-gated (only overrides when genuinely larger) so this cannot regress a
+    depository institution that legitimately has a larger, complete revenue figure of its
+    own under whichever concept happened to be processed first.
+    """
+    if sec_field not in ("interest_and_dividend_income_operating", "interest_income_operating"):
+        return False
+    if r.get("symbol") not in depository_institution_symbols:
+        return False
+    existing = row.get(db_field)
+    if not (
+        isinstance(existing, (int, float, Decimal)) and isinstance(value, (int, float, Decimal)) and float(value) > 0
+    ):
+        return False
+    return float(value) > float(existing)

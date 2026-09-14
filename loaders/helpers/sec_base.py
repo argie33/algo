@@ -29,6 +29,7 @@ from typing import Any, cast
 
 from loaders.helpers.sec_reit_exclusive_scale_guard import (
     reject_reit_exclusive_scale_mismatch,
+    should_override_fallback_field_for_depository_institution,
     should_skip_reit_only_fallback_field,
 )
 from loaders.helpers.sec_revenue_total_resolution import (
@@ -1520,7 +1521,14 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         _revenue_source_sec_field = sec_field
                     continue
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and db_field in row:
-                    continue  # A higher-priority concept already populated this field
+                    # See should_override_fallback_field_for_depository_institution's own
+                    # docstring (AX/Axos live-confirmed case) - a bank's real interest-income
+                    # concept, found late/fallback-only, must still be able to correct a
+                    # smaller concept found first.
+                    if not should_override_fallback_field_for_depository_institution(
+                        sec_field, db_field, value, row, r, self._get_depository_institution_symbols()
+                    ):
+                        continue  # A higher-priority concept already populated this field
                 # See should_skip_reit_only_fallback_field's own docstring
                 # (sec_reit_exclusive_scale_guard.py) for the REIT/insurance/depository-
                 # institution/CLDT-magnitude-guard history this mechanically preserves.
