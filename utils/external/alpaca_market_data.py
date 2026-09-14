@@ -189,7 +189,110 @@ class AlpacaMarketData:
         for chunk_start in range(0, len(tradable), self.symbols_per_request):
             chunk = tradable[chunk_start : chunk_start + self.symbols_per_request]
             self._fetch_chunk(chunk, start, end, results)
+
+        # ADJ_CLOSE FIX (2026-09-14, /goal scores-data-completeness sweep): `close` above is
+        # deliberately raw (self.adjustment defaults to "raw", matching yfinance's Close per
+        # this class's own docstring) - PRICE_HISTORY_PROTECTED_AFTER_DAYS in load_prices.py
+        # depends on `close` being the permanent, never-retroactively-adjusted historical fact.
+        # But nothing ever populated a distinct `adj_close` for Alpaca-sourced rows (unlike the
+        # yfinance path, which has 3 separate "Adj Close" handlers) - every row's `adj_close`
+        # key was simply absent, so the generic schema-driven upsert wrote NULL for it. Live-
+        # confirmed 2026-09-14: this is why price_daily's adj_close NULL rate jumped from a
+        # negligible historical baseline (<0.1%) to 35-58% starting 2021 (when Alpaca became
+        # the primary price source) - every Fama-MacBeth/factor test this session ran computed
+        # forward returns off `COALESCE(adj_close, close)`, i.e. off RAW close, for the whole
+        # Alpaca-sourced era - split/dividend events in that window produce fake return spikes
+        # instead of the real underlying return. Alpaca's API can return true split+dividend-
+        # adjusted closes directly (adjustment="all") without any local back-adjustment math -
+        # fetch that once per chunk, keyed by (symbol, date), and merge it in. Falls back to the
+        # raw close (matching the established yfinance-path convention) only if the adjusted
+        # fetch is missing a specific (symbol, date) - e.g. a symbol Alpaca returned in the raw
+        # pass but that 400s/omits in the adjusted pass.
+        try:
+            adjusted_close = self._fetch_adjusted_close(tradable, start, end)
+        except Exception:
+            logger.warning(
+                "[ALPACA_DATA] Adjusted-close fetch failed - all rows in this batch fall back "
+                "to raw close for adj_close (same as the pre-fix NULL behavior, not worse)",
+                exc_info=True,
+            )
+            adjusted_close = {}
+        for symbol, rows in results.items():
+            for row in rows:
+                row["adj_close"] = adjusted_close.get((symbol, row["date"]), row["close"])
         return results
+
+    def _fetch_adjusted_close(self, symbols: list[str], start: date, end: date) -> dict[tuple[str, str], float]:
+        """Split+dividend-adjusted close per (symbol, ISO date), via a second `adjustment=all`
+        pass. Same chunking/pagination/rate-limit machinery as `_fetch_chunk`, but only the
+        close price is needed here - `results` is keyed by (symbol, date) rather than
+        symbol -> row list to keep the merge in `fetch_daily_bars` a cheap dict lookup.
+        """
+        out: dict[tuple[str, str], float] = {}
+        for chunk_start in range(0, len(symbols), self.symbols_per_request):
+            chunk = symbols[chunk_start : chunk_start + self.symbols_per_request]
+            url = f"{get_alpaca_data_url()}/v2/stocks/bars"
+            params: dict[str, Any] = {
+                "symbols": ",".join(chunk),
+                "timeframe": "1Day",
+                "start": start.isoformat(),
+                "end": self._sip_safe_end(end),
+                "adjustment": "all",
+                "feed": self.feed,
+                "limit": 10000,
+            }
+            page_token: str | None = None
+            pages = 0
+            while True:
+                if page_token:
+                    params["page_token"] = page_token
+                elif "page_token" in params:
+                    del params["page_token"]
+
+                self._bucket.acquire()
+                resp = self._session.get(url, headers=self._get_headers(), params=params, timeout=self.timeout_sec)
+                if resp.status_code == 429:
+                    logger.warning("[ALPACA_DATA] 429 on adjusted-close pass - backing off 5s")
+                    time.sleep(5.0)
+                    continue
+                if resp.status_code == 400 and "invalid symbol" in resp.text.lower():
+                    bad = resp.json().get("message", "").split(":")[-1].strip()
+                    remaining = [s for s in chunk if s != bad]
+                    if bad and len(remaining) < len(chunk):
+                        logger.warning(f"[ALPACA_DATA] Dropping invalid symbol {bad!r} from adjusted-close pass")
+                        if remaining:
+                            out.update(self._fetch_adjusted_close(remaining, start, end))
+                        break
+                    raise AlpacaDataError(f"Alpaca bars API 400 (adjusted-close pass): {resp.text[:300]}")
+                if resp.status_code != 200:
+                    raise AlpacaDataError(
+                        f"Alpaca bars API error {resp.status_code} (adjusted-close pass): {resp.text[:300]}"
+                    )
+
+                payload = resp.json()
+                bars_by_symbol = payload.get("bars")
+                if bars_by_symbol is None:
+                    raise AlpacaDataError(
+                        f"Alpaca bars API returned 200 but missing 'bars' key (adjusted-close pass). "
+                        f"Response keys: {list(payload.keys())}."
+                    )
+                for symbol, bars in bars_by_symbol.items():
+                    for bar in bars:
+                        ts = bar.get("t")
+                        if not ts:
+                            continue
+                        out[(symbol, str(ts)[:10])] = float(bar["c"])
+
+                pages += 1
+                page_token = payload.get("next_page_token")
+                if not page_token:
+                    break
+                if pages > 500:
+                    raise AlpacaDataError(
+                        f"Alpaca pagination runaway: >500 pages for a {len(chunk)}-symbol "
+                        f"adjusted-close chunk ({start}..{end}) - aborting to avoid an infinite loop."
+                    )
+        return out
 
     def _fetch_chunk(
         self,

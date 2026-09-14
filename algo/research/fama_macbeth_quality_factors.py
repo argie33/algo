@@ -129,7 +129,23 @@ ROIC_CANDIDATE_COLS = ["roic_pct"]
 #   doesn't score it either - see quality_pillar_work_landed... note on the CLEANUP 2026-08-16
 #   move of debt/liquidity fields out of Stability/Risk display and into quality_inputs display,
 #   without ever wiring them into either composite).
-NEW_CANDIDATE_COLS = ["roce", "fcf_margin", "debt_to_equity", "current_ratio"]
+# - asset_turnover: revenue / total_assets. ADDED 2026-09-14 (scores-investigation follow-up -
+#   this is one of the 8 live-scored quality_score components (loaders/helpers/vqg_quality_score.py,
+#   10.71% weight, _margin_curve breakpoints [(30,40),(80,75),(150,100)] on a 0-100+ scale that
+#   doesn't match this harness's raw-ratio units) that had NEVER been run through this harness at
+#   all, unlike every other live component - a real gap, not a deliberate exclusion.
+NEW_CANDIDATE_COLS = ["roce", "fcf_margin", "debt_to_equity", "current_ratio", "asset_turnover"]
+
+# RD_CANDIDATE_COLS (added 2026-09-14, scores-investigation follow-up): R&D intensity
+# (research_development_expense / revenue) as a candidate Quality/Growth input - real SEC-XBRL
+# data already extracted into annual_income_statement.research_development_expense but never
+# scored by ANY pillar today (grep-confirmed zero references in loaders/stock_scores/*.py or
+# loaders/helpers/vqg_*.py). Isolated own pass: R&D coverage (~38% of firm-years, most
+# non-tech/non-biotech firms report zero or don't disclose separately - a real "not applicable"
+# gap, not a data-quality problem) is much lower and structurally different (many genuine zeros,
+# not just missing) than every other candidate in this file, so it gets its own dropna scope
+# rather than risking poisoning any other candidate list's cross-section.
+RD_CANDIDATE_COLS = ["rd_intensity"]
 
 # CASH_QUALITY_CANDIDATE_COLS (2026-08-26, user-prompted cash-vs-earnings-quality follow-up) -
 # own isolated pass, same dropna-poisoning reasoning as every other candidate list above.
@@ -145,7 +161,7 @@ def fetch_annual_quality_fundamentals() -> pd.DataFrame:
         SELECT i.symbol, i.fiscal_year,
                i.revenue, i.operating_income, i.net_income, i.interest_expense, i.cost_of_revenue,
                i.shares_outstanding_diluted, i.pretax_income, i.income_tax_expense,
-               i.depreciation_expense, i.amortization_expense,
+               i.depreciation_expense, i.amortization_expense, i.research_development_expense,
                b.stockholders_equity, b.total_assets, b.long_term_debt, b.short_term_debt,
                b.current_assets, b.current_liabilities, b.total_liabilities, b.retained_earnings,
                b.cash_and_equivalents,
@@ -173,6 +189,7 @@ def fetch_annual_quality_fundamentals() -> pd.DataFrame:
         "income_tax_expense",
         "depreciation_expense",
         "amortization_expense",
+        "research_development_expense",
         "stockholders_equity",
         "total_assets",
         "long_term_debt",
@@ -290,6 +307,15 @@ def build_quality_panel(fund: pd.DataFrame) -> pd.DataFrame:
     out["current_ratio"] = np.where(
         fund["current_liabilities"] > 0, fund["current_assets"] / fund["current_liabilities"], np.nan
     )
+    # Asset Turnover: revenue / total_assets - see NEW_CANDIDATE_COLS' own comment (added
+    # 2026-09-14, live-scored Quality component that had never been tested).
+    out["asset_turnover"] = np.where(fund["total_assets"] > 0, fund["revenue"] / fund["total_assets"], np.nan)
+
+    # R&D Intensity: research_development_expense / revenue - see RD_CANDIDATE_COLS' own
+    # comment. Left NaN (not 0) when research_development_expense itself is NaN (not reported) -
+    # a genuine 0 value (reported-and-zero R&D) is kept distinct from "not disclosed" instead of
+    # being conflated, same "missing != zero" convention this module uses for every other field.
+    out["rd_intensity"] = np.where(fund["revenue"] > 0, fund["research_development_expense"] / fund["revenue"], np.nan)
 
     # --- CASH_QUALITY_CANDIDATE_COLS (2026-08-26, user-prompted: "earnings can be a stage
     # actor's applause, FCF is the money they take home" - does the market actually reward
@@ -503,16 +529,17 @@ def run(
     mean, t = roic_uni["roic_pct"]
     print(f"{'roic_pct':22s} {mean:10.5f} {t:8.2f}")
 
-    # NEW_CANDIDATE_COLS: roce, fcf_margin, debt_to_equity, current_ratio - see that constant's
-    # own comment for why each was proposed and why they're batched into one isolated pass.
+    # NEW_CANDIDATE_COLS: roce, fcf_margin, debt_to_equity, current_ratio, asset_turnover - see
+    # that constant's own comment for why each was proposed and why they're batched into one
+    # isolated pass.
     new_records = _build_records(months, px, quality_panel, NEW_CANDIDATE_COLS, horizon_months, min_cross_section)
     if not new_records:
-        print("\n(no usable cross-sectional months for roce/fcf_margin/debt_to_equity/current_ratio)")
+        print("\n(no usable cross-sectional months for roce/fcf_margin/debt_to_equity/current_ratio/asset_turnover)")
         return
     new_sizes = [len(f) for _, f in new_records]
     print(
-        f"\n=== New candidates (roce/fcf_margin/debt_to_equity/current_ratio): {len(new_records)} "
-        f"usable months ({new_records[0][0]} to {new_records[-1][0]}), "
+        f"\n=== New candidates (roce/fcf_margin/debt_to_equity/current_ratio/asset_turnover): "
+        f"{len(new_records)} usable months ({new_records[0][0]} to {new_records[-1][0]}), "
         f"median cross-section {int(np.median(new_sizes))} ==="
     )
     print("\n=== Univariate Fama-MacBeth (each new candidate alone) ===")
@@ -571,6 +598,34 @@ def run(
 
     for c in CASH_QUALITY_CANDIDATE_COLS:
         print(f"{c} point-in-time panel coverage: {quality_panel[c].notna().mean():.1%}")
+
+    # RD_CANDIDATE_COLS: R&D intensity - see that constant's own comment. Own isolated pass,
+    # same dropna-poisoning reasoning as every other candidate list above. Extracted to its own
+    # function (2026-09-14) to keep run()'s own branch count under the C901 complexity gate.
+    _run_rd_intensity_pass(months, px, quality_panel, horizon_months, min_cross_section)
+
+
+def _run_rd_intensity_pass(
+    months: pd.DatetimeIndex,
+    px: pd.DataFrame,
+    quality_panel: pd.DataFrame,
+    horizon_months: int,
+    min_cross_section: int,
+) -> None:
+    """RD_CANDIDATE_COLS's own isolated Fama-MacBeth pass - see that constant's own comment."""
+    rd_records = _build_records(months, px, quality_panel, RD_CANDIDATE_COLS, horizon_months, min_cross_section)
+    if not rd_records:
+        print("\n(no usable cross-sectional months for rd_intensity - coverage too sparse)")
+        return
+    rd_sizes = [len(f) for _, f in rd_records]
+    print(
+        f"\n=== R&D intensity: {len(rd_records)} usable months "
+        f"({rd_records[0][0]} to {rd_records[-1][0]}), median cross-section {int(np.median(rd_sizes))} ==="
+    )
+    rd_uni = _fama_macbeth(rd_records, RD_CANDIDATE_COLS)
+    mean, t = rd_uni["rd_intensity"]
+    print(f"{'rd_intensity':22s} {mean:10.5f} {t:8.2f}")
+    print(f"rd_intensity point-in-time panel coverage: {quality_panel['rd_intensity'].notna().mean():.1%}")
 
 
 def main() -> None:

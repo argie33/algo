@@ -84,6 +84,22 @@ _RATIO_FIELDS: list[tuple[str, str, str]] = [
     # bug class (see this session's fix in loaders/helpers/vqg_quality.py) but was never
     # added here even though roce_pct - its closest sibling, same numerator convention - was.
     ("quality_metrics", "roic_pct", "high"),
+    # ADDED 2026-09-14 (Yahoo-metric coverage sweep): ev_ebitda/ev_revenue share pe_ratio/
+    # ps_ratio's exact same cheap-is-good "low" convention and same SOAR/LX/ROC/MSB-shaped
+    # bug class - an immaterial-denominator (near-zero EBITDA/revenue) blows the ratio to a
+    # false #1 rank the same way an immaterial PE/PS denominator did - but neither was ever
+    # added here despite both being live-scored Value inputs. Excludes non-positive values
+    # from the "low" reference calc/flagged set, same as pe/pb/ps (a negative EV/EBITDA means
+    # negative EBITDA - a different situation entirely, not "extremely cheap").
+    ("value_metrics", "ev_ebitda", "low"),
+    ("value_metrics", "ev_revenue", "low"),
+    # dividend_yield/net_payout_yield are both live-scored Value inputs with the same
+    # higher-is-good-until-implausible shape as fcf_yield/roe. net_payout_yield can be
+    # legitimately negative (a net share ISSUER, not a distributor) the same way
+    # interest_coverage can be legitimately negative - so it needs the symmetric "abs_high"
+    # direction, not "high".
+    ("value_metrics", "dividend_yield", "high"),
+    ("value_metrics", "net_payout_yield", "abs_high"),
 ]
 
 

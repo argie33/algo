@@ -104,6 +104,9 @@ LOADER_TABLES: dict[str, list[str]] = {
     # SEC data loaders (Phase 6: material events, insider velocity, segment disclosures)
     "load_current_reports_8k.py": ["current_reports_8k"],
     "load_insider_transaction_velocity.py": ["insider_transaction_velocity"],
+    # ADDED 2026-09-14 (goal: data-completeness sweep vs Yahoo's real metric set):
+    # held_percent_insiders has no SEC-XBRL source, yfinance-only via a non-.info endpoint.
+    "load_yfinance_supplemental_metrics.py": ["yfinance_supplemental_metrics"],
     "load_dividend_data.py": ["dividend_data"],
     "load_sec_segment_info.py": ["sec_segment_info"],
     "load_sec_segment_metrics.py": ["sec_segment_metrics"],
@@ -251,6 +254,7 @@ SHORTHAND_TO_FILENAME: dict[str, str] = {
     "institutional": "load_institutional_holdings_13f.py",
     "short_interest": "load_short_interest_finra.py",
     "insider_velocity": "load_insider_transaction_velocity.py",
+    "yfinance_supplemental": "load_yfinance_supplemental_metrics.py",
     # Earnings calendar & SEC data
     "earnings_calendar": "load_earnings_calendar.py",
     "earnings_sec": "load_earnings_calendar_sec.py",
