@@ -41,6 +41,10 @@ _INCOME_FIELD_MAPPING = {
     # comment on SalesRevenueGoodsNet for the live-verified AGCO case this recovers.
     "sales_revenue_goods_net": "revenue",
     "sales_revenue_net": "revenue",
+    # ADDED 2026-09-13: services-sector sibling of sales_revenue_goods_net - see
+    # sec_income_statement.py's concepts-list comment on SalesRevenueServicesNet for the
+    # live-verified ARCB (ArcBest) case this recovers.
+    "sales_revenue_services_net": "revenue",
     "revenue_from_contract_with_customer_including_assessed_tax": "revenue",
     "revenue_from_contract_with_customer_excluding_assessed_tax": "revenue",
     # FIXED 2026-08-19: equity REITs' ASC 842 lease-revenue tag - see sec_statements.py's
@@ -382,6 +386,9 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # without the magnitude comparison.
         "sales_revenue_net",
         "sales_revenue_goods_net",
+        # ADDED 2026-09-13: same dual-membership precedent as its two siblings above - see
+        # sec_base.py's _REVENUE_TOTAL_CANDIDATE_FIELDS comment (ARCB case).
+        "sales_revenue_services_net",
         # FIXED 2026-08-17 (goal: "no SEC data" audit continuation): "cost_of_goods_and_
         # services_sold" (added e1a3ae3b9 as a plain, always-overwrite mapping so retail/
         # product filers that never tag CostOfRevenue/CostOfSales at all - AMZN et al -
