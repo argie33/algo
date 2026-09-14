@@ -3,6 +3,19 @@ extraction - no behavior change). Methods moved verbatim; mixed into TieOutCheck
 via multiple inheritance in tie_out.py - every `self.` call here (self.results,
 self.config, and any shared private helper from TieOutSharedMixin) resolves
 normally through the instance regardless of which mixin file defines it.
+
+FIXED 2026-09-13 (data-patrol thoroughness audit): the structural bound checks in
+this file (quarterly_operating_income_upper_bound, quarterly_goodwill_le_total_
+assets, quarterly_accounts_payable_le_current_liabilities, quarterly_cash_le_
+current_assets, quarterly_diluted_ge_basic_shares, quarterly_diluted_eps_le_basic_
+eps, diluted_eps_le_basic_eps) used `SELECT DISTINCT ON (symbol) ... ORDER BY
+fiscal_year [, fiscal_quarter] DESC` - checking only each symbol's latest fiscal
+period. Same under-scoping bug class fixed the same session in tie_out_bounds_
+annual1.py and tie_out_bounds_annual2_quarterly1.py (see tie_out_bounds_annual1.py's
+module docstring for the live-impact numbers). The nonnegative checks below
+(_check_nonnegative_cashflow_field callers) already went through the same fix via
+tie_out_shared.py. All checks here now scan every row, not just the latest per
+symbol.
 """
 
 import logging
@@ -70,7 +83,7 @@ class TieOutBoundsQuarterly2MiscMixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (i.symbol)
+                SELECT
                     i.symbol, i.fiscal_year, i.fiscal_quarter,
                     i.gross_profit, i.operating_expenses, i.operating_income, i.updated_at
                 FROM quarterly_income_statement i
@@ -80,7 +93,6 @@ class TieOutBoundsQuarterly2MiscMixin:
                   AND i.operating_expenses IS NOT NULL
                   AND i.operating_income IS NOT NULL
                   AND i.gross_profit != 0
-                ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -153,7 +165,7 @@ class TieOutBoundsQuarterly2MiscMixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter, b.total_assets, b.goodwill, b.updated_at
                 FROM quarterly_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -161,7 +173,6 @@ class TieOutBoundsQuarterly2MiscMixin:
                   AND b.total_assets IS NOT NULL
                   AND b.goodwill IS NOT NULL
                   AND b.total_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -227,7 +238,7 @@ class TieOutBoundsQuarterly2MiscMixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter,
                     b.current_liabilities, b.accounts_payable, b.updated_at
                 FROM quarterly_balance_sheet b
@@ -236,7 +247,6 @@ class TieOutBoundsQuarterly2MiscMixin:
                   AND b.current_liabilities IS NOT NULL
                   AND b.accounts_payable IS NOT NULL
                   AND b.current_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -304,7 +314,7 @@ class TieOutBoundsQuarterly2MiscMixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter, b.current_assets, b.cash_and_equivalents, b.updated_at
                 FROM quarterly_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -312,7 +322,6 @@ class TieOutBoundsQuarterly2MiscMixin:
                   AND b.current_assets IS NOT NULL
                   AND b.cash_and_equivalents IS NOT NULL
                   AND b.current_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -536,7 +545,7 @@ class TieOutBoundsQuarterly2MiscMixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (i.symbol)
+                SELECT
                     i.symbol, i.fiscal_year, i.fiscal_quarter,
                     i.shares_outstanding_basic, i.shares_outstanding_diluted, i.updated_at
                 FROM quarterly_income_statement i
@@ -545,7 +554,6 @@ class TieOutBoundsQuarterly2MiscMixin:
                   AND i.shares_outstanding_basic IS NOT NULL
                   AND i.shares_outstanding_diluted IS NOT NULL
                   AND i.shares_outstanding_basic > 0
-                ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -612,14 +620,13 @@ class TieOutBoundsQuarterly2MiscMixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (i.symbol)
+                SELECT
                     i.symbol, i.fiscal_year, i.fiscal_quarter, i.diluted_eps, i.earnings_per_share, i.updated_at
                 FROM quarterly_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
                   AND i.diluted_eps IS NOT NULL
                   AND i.earnings_per_share IS NOT NULL
-                ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -689,14 +696,13 @@ class TieOutBoundsQuarterly2MiscMixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (i.symbol)
+                SELECT
                     i.symbol, i.fiscal_year, i.diluted_eps, i.earnings_per_share, i.updated_at
                 FROM annual_income_statement i
                 JOIN stock_symbols s ON s.symbol = i.symbol AND s.active = true
                 WHERE i.data_unavailable = FALSE
                   AND i.diluted_eps IS NOT NULL
                   AND i.earnings_per_share IS NOT NULL
-                ORDER BY i.symbol, i.fiscal_year DESC
                 """)
             flagged = []
             for row in cur.fetchall():

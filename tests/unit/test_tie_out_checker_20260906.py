@@ -689,13 +689,12 @@ class TestDilutedGeBasicShares:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_diluted_ge_basic_shares(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (i.symbol)" in executed_sql
-        assert "ORDER BY i.symbol, i.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
@@ -1021,13 +1020,12 @@ class TestCurrentAssetsLeTotalAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_current_assets_le_total_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
@@ -1078,13 +1076,12 @@ class TestCurrentLiabilitiesLeTotalLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_current_liabilities_le_total_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
@@ -1153,13 +1150,12 @@ class TestLongTermDebtLeTotalLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_long_term_debt_le_total_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
@@ -1214,13 +1210,12 @@ class TestOperatingIncomeUpperBound:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_operating_income_upper_bound(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (i.symbol)" in executed_sql
-        assert "ORDER BY i.symbol, i.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
@@ -1289,13 +1284,12 @@ class TestGoodwillLeTotalAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_goodwill_le_total_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
@@ -1364,13 +1358,12 @@ class TestAccountsPayableLeCurrentLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_accounts_payable_le_current_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
@@ -1439,13 +1432,12 @@ class TestCashLeCurrentAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_cash_le_current_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
@@ -1569,13 +1561,12 @@ class TestInventoryLeCurrentAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_inventory_le_current_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
@@ -1828,13 +1819,12 @@ class TestQuarterlyDilutedGeBasicShares:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_diluted_ge_basic_shares(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (i.symbol)" in executed_sql
-        assert "ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_income_statement" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -1888,13 +1878,12 @@ class TestQuarterlyInventoryLeCurrentAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_inventory_le_current_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -1948,13 +1937,12 @@ class TestQuarterlyAccountsReceivableLeCurrentAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_accounts_receivable_le_current_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -2008,13 +1996,12 @@ class TestQuarterlyPpeNetLeTotalAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_ppe_net_le_total_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -2068,13 +2055,12 @@ class TestQuarterlyShortTermDebtLeCurrentLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_short_term_debt_le_current_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -2128,13 +2114,12 @@ class TestQuarterlyOperatingLeaseLiabilityLeTotalLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_operating_lease_liability_le_total_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -2188,13 +2173,12 @@ class TestQuarterlyFinanceLeaseLiabilityLeTotalLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_finance_lease_liability_le_total_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -2270,13 +2254,12 @@ class TestQuarterlyDilutedEpsLeBasicEps:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_diluted_eps_le_basic_eps(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (i.symbol)" in executed_sql
-        assert "ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_income_statement" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -2346,13 +2329,12 @@ class TestAccountsReceivableLeCurrentAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_accounts_receivable_le_current_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "annual_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -2422,13 +2404,12 @@ class TestPpeNetLeTotalAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_ppe_net_le_total_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "annual_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -2498,13 +2479,12 @@ class TestShortTermDebtLeCurrentLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_short_term_debt_le_current_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "annual_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -2574,13 +2554,12 @@ class TestOperatingLeaseLiabilityLeTotalLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_operating_lease_liability_le_total_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "annual_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -2650,13 +2629,12 @@ class TestFinanceLeaseLiabilityLeTotalLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_finance_lease_liability_le_total_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "annual_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -2745,13 +2723,12 @@ class TestDilutedEpsLeBasicEps:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year(self) -> None:
+    def test_query_scans_full_history_not_just_latest_year(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_diluted_eps_le_basic_eps(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (i.symbol)" in executed_sql
-        assert "ORDER BY i.symbol, i.fiscal_year DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "annual_income_statement" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -3070,13 +3047,12 @@ class TestQuarterlyCurrentAssetsLeTotalAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_current_assets_le_total_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -3149,13 +3125,12 @@ class TestQuarterlyCurrentLiabilitiesLeTotalLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_current_liabilities_le_total_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -3228,13 +3203,12 @@ class TestQuarterlyLongTermDebtLeTotalLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_long_term_debt_le_total_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -3291,13 +3265,12 @@ class TestQuarterlyOperatingIncomeUpperBound:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_operating_income_upper_bound(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (i.symbol)" in executed_sql
-        assert "ORDER BY i.symbol, i.fiscal_year DESC, i.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_income_statement" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -3370,13 +3343,12 @@ class TestQuarterlyGoodwillLeTotalAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_goodwill_le_total_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -3449,13 +3421,12 @@ class TestQuarterlyAccountsPayableLeCurrentLiabilities:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_accounts_payable_le_current_liabilities(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:
@@ -3528,13 +3499,12 @@ class TestQuarterlyCashLeCurrentAssets:
         assert len(checker.results) == 1
         assert checker.results[0].severity == INFO
 
-    def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
+    def test_query_scans_full_history_not_just_latest_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
         checker = _checker()
         checker.check_quarterly_cash_le_current_assets(cur)
         executed_sql = cur.execute.call_args[0][0]
-        assert "DISTINCT ON (b.symbol)" in executed_sql
-        assert "ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC" in executed_sql
+        assert "DISTINCT ON" not in executed_sql
         assert "quarterly_balance_sheet" in executed_sql
 
     def test_exception_is_caught_not_raised(self) -> None:

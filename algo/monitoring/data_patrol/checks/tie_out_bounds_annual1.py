@@ -3,6 +3,23 @@ extraction - no behavior change). Methods moved verbatim; mixed into TieOutCheck
 via multiple inheritance in tie_out.py - every `self.` call here (self.results,
 self.config, and any shared private helper from TieOutSharedMixin) resolves
 normally through the instance regardless of which mixin file defines it.
+
+FIXED 2026-09-13 (data-patrol thoroughness audit): every structural subset/category
+bound check in this file (current_assets_le_total_assets, current_liabilities_le_
+total_liabilities, long_term_debt_le_total_liabilities, operating_income_upper_bound,
+goodwill_le_total_assets, accounts_payable_le_current_liabilities, cash_le_current_
+assets, inventory_le_current_assets, accounts_receivable_le_current_assets,
+ppe_net_le_total_assets, diluted_ge_basic_shares) used `SELECT DISTINCT ON (symbol)
+... ORDER BY fiscal_year DESC` - checking only each symbol's latest fiscal year, same
+under-scoping bug class as the already-fixed ohlc_sanity check (see
+ohlc_sanity_and_quarantine_dedup_fixed_20260913 in memory). Unlike the tie_out_
+identity_*.py checks (deliberately latest-only by design - see those files' own
+tests), these are strict structural GAAP inequalities with no legitimate exception,
+so a historical violation is just as real a bug as a latest-year one. Live impact
+was severe: current_liabilities_le_total_liabilities's own docstring claimed
+8/4,171 violations (from the buggy latest-only scan) - the real full-history count
+is 166. diluted_ge_basic_shares was assumed near-zero; the real count is 532. All
+11 checks here now scan every row, not just the latest per symbol.
 """
 
 import logging
@@ -125,7 +142,7 @@ class TieOutBoundsAnnual1Mixin:
         try:
             cur.execute(
                 """
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.total_assets, b.current_assets, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -133,7 +150,6 @@ class TieOutBoundsAnnual1Mixin:
                   AND b.total_assets IS NOT NULL
                   AND b.current_assets IS NOT NULL
                   AND b.total_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """
             )
             flagged = []
@@ -200,7 +216,7 @@ class TieOutBoundsAnnual1Mixin:
         try:
             cur.execute(
                 """
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.total_liabilities, b.current_liabilities, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -208,7 +224,6 @@ class TieOutBoundsAnnual1Mixin:
                   AND b.total_liabilities IS NOT NULL
                   AND b.current_liabilities IS NOT NULL
                   AND b.total_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """
             )
             flagged = []
@@ -276,7 +291,7 @@ class TieOutBoundsAnnual1Mixin:
         try:
             cur.execute(
                 """
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.total_liabilities, b.long_term_debt, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -284,7 +299,6 @@ class TieOutBoundsAnnual1Mixin:
                   AND b.total_liabilities IS NOT NULL
                   AND b.long_term_debt IS NOT NULL
                   AND b.total_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """
             )
             flagged = []
@@ -360,7 +374,7 @@ class TieOutBoundsAnnual1Mixin:
         try:
             cur.execute(
                 """
-                SELECT DISTINCT ON (i.symbol)
+                SELECT
                     i.symbol, i.fiscal_year, i.gross_profit, i.operating_expenses, i.operating_income,
                     i.updated_at
                 FROM annual_income_statement i
@@ -370,7 +384,6 @@ class TieOutBoundsAnnual1Mixin:
                   AND i.operating_expenses IS NOT NULL
                   AND i.operating_income IS NOT NULL
                   AND i.gross_profit != 0
-                ORDER BY i.symbol, i.fiscal_year DESC
                 """
             )
             flagged = []
@@ -447,7 +460,7 @@ class TieOutBoundsAnnual1Mixin:
         try:
             cur.execute(
                 """
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.total_assets, b.goodwill, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -455,7 +468,6 @@ class TieOutBoundsAnnual1Mixin:
                   AND b.total_assets IS NOT NULL
                   AND b.goodwill IS NOT NULL
                   AND b.total_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """
             )
             flagged = []
@@ -521,7 +533,7 @@ class TieOutBoundsAnnual1Mixin:
         try:
             cur.execute(
                 """
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.current_liabilities, b.accounts_payable, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -529,7 +541,6 @@ class TieOutBoundsAnnual1Mixin:
                   AND b.current_liabilities IS NOT NULL
                   AND b.accounts_payable IS NOT NULL
                   AND b.current_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """
             )
             flagged = []
@@ -598,7 +609,7 @@ class TieOutBoundsAnnual1Mixin:
         try:
             cur.execute(
                 """
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.current_assets, b.cash_and_equivalents, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -606,7 +617,6 @@ class TieOutBoundsAnnual1Mixin:
                   AND b.current_assets IS NOT NULL
                   AND b.cash_and_equivalents IS NOT NULL
                   AND b.current_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """
             )
             flagged = []
@@ -672,7 +682,7 @@ class TieOutBoundsAnnual1Mixin:
         try:
             cur.execute(
                 """
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.current_assets, b.inventory, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -680,7 +690,6 @@ class TieOutBoundsAnnual1Mixin:
                   AND b.current_assets IS NOT NULL
                   AND b.inventory IS NOT NULL
                   AND b.current_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """
             )
             flagged = []
@@ -748,7 +757,7 @@ class TieOutBoundsAnnual1Mixin:
         try:
             cur.execute(
                 """
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.current_assets, b.accounts_receivable, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -756,7 +765,6 @@ class TieOutBoundsAnnual1Mixin:
                   AND b.current_assets IS NOT NULL
                   AND b.accounts_receivable IS NOT NULL
                   AND b.current_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """
             )
             flagged = []
@@ -823,7 +831,7 @@ class TieOutBoundsAnnual1Mixin:
         try:
             cur.execute(
                 """
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.total_assets, b.ppe_net, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -831,7 +839,6 @@ class TieOutBoundsAnnual1Mixin:
                   AND b.total_assets IS NOT NULL
                   AND b.ppe_net IS NOT NULL
                   AND b.total_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """
             )
             flagged = []
@@ -902,7 +909,7 @@ class TieOutBoundsAnnual1Mixin:
         try:
             cur.execute(
                 """
-                SELECT DISTINCT ON (i.symbol)
+                SELECT
                     i.symbol, i.fiscal_year, i.shares_outstanding_basic, i.shares_outstanding_diluted,
                     i.updated_at
                 FROM annual_income_statement i
@@ -911,7 +918,6 @@ class TieOutBoundsAnnual1Mixin:
                   AND i.shares_outstanding_basic IS NOT NULL
                   AND i.shares_outstanding_diluted IS NOT NULL
                   AND i.shares_outstanding_basic > 0
-                ORDER BY i.symbol, i.fiscal_year DESC
                 """
             )
             flagged = []

@@ -3,6 +3,14 @@ extraction - no behavior change). Methods moved verbatim; mixed into TieOutCheck
 via multiple inheritance in tie_out.py - every `self.` call here (self.results,
 self.config, and any shared private helper from TieOutSharedMixin) resolves
 normally through the instance regardless of which mixin file defines it.
+
+FIXED 2026-09-13 (data-patrol thoroughness audit): every structural subset/category
+bound check in this file used `SELECT DISTINCT ON (symbol) ... ORDER BY fiscal_year
+[, fiscal_quarter] DESC` - checking only each symbol's latest fiscal period. Same
+under-scoping bug class fixed the same session in tie_out_bounds_annual1.py and
+tie_out_bounds_quarterly2_misc.py (see tie_out_bounds_annual1.py's module docstring
+for the live-impact numbers that motivated this). All checks here now scan every
+row, not just the latest per symbol.
 """
 
 import logging
@@ -53,7 +61,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.current_liabilities, b.short_term_debt, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -61,7 +69,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.current_liabilities IS NOT NULL
                   AND b.short_term_debt IS NOT NULL
                   AND b.current_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -129,7 +136,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.total_liabilities, b.operating_lease_liability, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -137,7 +144,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.total_liabilities IS NOT NULL
                   AND b.operating_lease_liability IS NOT NULL
                   AND b.total_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -204,7 +210,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.total_liabilities, b.finance_lease_liability, b.updated_at
                 FROM annual_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -212,7 +218,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.total_liabilities IS NOT NULL
                   AND b.finance_lease_liability IS NOT NULL
                   AND b.total_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -276,7 +281,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter, b.current_assets, b.inventory, b.updated_at
                 FROM quarterly_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -284,7 +289,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.current_assets IS NOT NULL
                   AND b.inventory IS NOT NULL
                   AND b.current_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -350,7 +354,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter,
                     b.current_assets, b.accounts_receivable, b.updated_at
                 FROM quarterly_balance_sheet b
@@ -359,7 +363,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.current_assets IS NOT NULL
                   AND b.accounts_receivable IS NOT NULL
                   AND b.current_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -424,7 +427,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter, b.total_assets, b.ppe_net, b.updated_at
                 FROM quarterly_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -432,7 +435,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.total_assets IS NOT NULL
                   AND b.ppe_net IS NOT NULL
                   AND b.total_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -500,7 +502,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter,
                     b.current_liabilities, b.short_term_debt, b.updated_at
                 FROM quarterly_balance_sheet b
@@ -509,7 +511,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.current_liabilities IS NOT NULL
                   AND b.short_term_debt IS NOT NULL
                   AND b.current_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -575,7 +576,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter,
                     b.total_liabilities, b.operating_lease_liability, b.updated_at
                 FROM quarterly_balance_sheet b
@@ -584,7 +585,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.total_liabilities IS NOT NULL
                   AND b.operating_lease_liability IS NOT NULL
                   AND b.total_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -652,7 +652,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter,
                     b.total_liabilities, b.finance_lease_liability, b.updated_at
                 FROM quarterly_balance_sheet b
@@ -661,7 +661,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.total_liabilities IS NOT NULL
                   AND b.finance_lease_liability IS NOT NULL
                   AND b.total_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -729,7 +728,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter, b.total_assets, b.current_assets, b.updated_at
                 FROM quarterly_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -737,7 +736,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.total_assets IS NOT NULL
                   AND b.current_assets IS NOT NULL
                   AND b.total_assets != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -803,7 +801,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter,
                     b.total_liabilities, b.current_liabilities, b.updated_at
                 FROM quarterly_balance_sheet b
@@ -812,7 +810,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.total_liabilities IS NOT NULL
                   AND b.current_liabilities IS NOT NULL
                   AND b.total_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
@@ -881,7 +878,7 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
         """
         try:
             cur.execute("""
-                SELECT DISTINCT ON (b.symbol)
+                SELECT
                     b.symbol, b.fiscal_year, b.fiscal_quarter, b.total_liabilities, b.long_term_debt, b.updated_at
                 FROM quarterly_balance_sheet b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
@@ -889,7 +886,6 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                   AND b.total_liabilities IS NOT NULL
                   AND b.long_term_debt IS NOT NULL
                   AND b.total_liabilities != 0
-                ORDER BY b.symbol, b.fiscal_year DESC, b.fiscal_quarter DESC
                 """)
             flagged = []
             for row in cur.fetchall():
