@@ -25,15 +25,22 @@ def _make_monitor() -> PositionMonitor:
 def _patch_broker_reconcile_success():
     """The 2026-09-06 fix added a broker-order-cancel step (_reconcile_broker_orders_after_split)
     after every split adjustment - tests of the DB-side rescale logic itself should mock this
-    out deterministically rather than exercising real credential resolution/network code."""
+    out deterministically rather than exercising real credential resolution/network code.
+
+    Mocks cancel_bracket_orders (not cancel_all_open_orders_for_symbol - see the real-money-
+    readiness fix in _reconcile_broker_orders_after_split's own docstring for why this
+    function now cancels specific known order ids rather than every order for the symbol)."""
     return patch(
         "algo.trading.order_manager.OrderManager",
-        return_value=MagicMock(
-            cancel_all_open_orders_for_symbol=MagicMock(
-                return_value={"success": True, "cancelled_order_ids": ["ord-1"], "message": "ok"}
-            )
-        ),
+        return_value=MagicMock(cancel_bracket_orders=MagicMock(return_value={"success": True, "message": "ok"})),
     )
+
+
+def _empty_order_id_lookups(cur: MagicMock) -> None:
+    """No other-leg/standalone order ids to cancel - the DB-side rescale tests don't care
+    about broker-cancel specifics, just that the step runs without crashing."""
+    cur.fetchall.return_value = []
+    cur.fetchone.return_value = None
 
 
 def _stub_creds(monitor: PositionMonitor) -> None:
@@ -49,6 +56,7 @@ class TestSplitAdjustmentRescalesTradePrices:
         _stub_creds(monitor)
         cur = MagicMock()
         adjustments: list = []
+        _empty_order_id_lookups(cur)
 
         with _patch_broker_reconcile_success():
             monitor._apply_split_adjustment(
@@ -85,6 +93,7 @@ class TestSplitAdjustmentRescalesTradePrices:
         _stub_creds(monitor)
         cur = MagicMock()
         adjustments: list = []
+        _empty_order_id_lookups(cur)
 
         with _patch_broker_reconcile_success():
             monitor._apply_split_adjustment(
@@ -132,6 +141,7 @@ class TestSplitAdjustmentRescalesTradePrices:
         _stub_creds(monitor)
         cur = MagicMock()
         adjustments: list = []
+        _empty_order_id_lookups(cur)
 
         with _patch_broker_reconcile_success():
             monitor._apply_split_adjustment(
@@ -169,6 +179,7 @@ class TestSplitAdjustmentRescalesTradePrices:
         _stub_creds(monitor)
         cur = MagicMock()
         adjustments: list = []
+        _empty_order_id_lookups(cur)
 
         with _patch_broker_reconcile_success(), patch("algo.reporting.notify") as mock_notify:
             monitor._apply_split_adjustment(
@@ -210,6 +221,7 @@ class TestSplitAdjustmentRescalesTradePrices:
         _stub_creds(monitor)
         cur = MagicMock()
         adjustments: list = []
+        _empty_order_id_lookups(cur)
 
         with _patch_broker_reconcile_success(), patch("algo.reporting.notify") as mock_notify:
             monitor._apply_split_adjustment(
@@ -246,9 +258,15 @@ class TestSplitBrokerReconcile:
         monitor = _make_monitor()
         _stub_creds(monitor)
         cur = MagicMock()
+        # First fetchall() call is the trade_ids_arr -> alpaca_order_id lookup, then
+        # fetchone() is the standalone_stop_order_id lookup.
+        cur.fetchall.return_value = [("ord-1",)]
+        cur.fetchone.return_value = ("standalone-1",)
 
         with _patch_broker_reconcile_success(), patch("algo.reporting.notify") as mock_notify:
-            monitor._reconcile_broker_orders_after_split(cur, pos_id=42, symbol="TEST", new_stop=45.0)
+            monitor._reconcile_broker_orders_after_split(
+                cur, pos_id=42, symbol="TEST", new_stop=45.0, trade_ids_arr=[501]
+            )
 
         mock_notify.assert_not_called()
 
@@ -271,19 +289,21 @@ class TestSplitBrokerReconcile:
         monitor = _make_monitor()
         _stub_creds(monitor)
         cur = MagicMock()
+        cur.fetchall.return_value = [("ord-1",)]
+        cur.fetchone.return_value = ("standalone-1",)
 
         with (
             patch(
                 "algo.trading.order_manager.OrderManager",
                 return_value=MagicMock(
-                    cancel_all_open_orders_for_symbol=MagicMock(
-                        return_value={"success": False, "cancelled_order_ids": [], "message": "broker unreachable"}
-                    )
+                    cancel_bracket_orders=MagicMock(return_value={"success": False, "message": "broker unreachable"})
                 ),
             ),
             patch("algo.reporting.notify") as mock_notify,
         ):
-            monitor._reconcile_broker_orders_after_split(cur, pos_id=42, symbol="TEST", new_stop=45.0)
+            monitor._reconcile_broker_orders_after_split(
+                cur, pos_id=42, symbol="TEST", new_stop=45.0, trade_ids_arr=[501]
+            )
 
         mock_notify.assert_called_once()
         assert mock_notify.call_args.args[0] == "CRITICAL"
@@ -295,3 +315,38 @@ class TestSplitBrokerReconcile:
         ]
         assert len(audit_calls) == 1
         assert audit_calls[0].args[1][-1] == "CRITICAL"
+
+    def test_cancels_only_this_positions_own_orders_not_every_order_for_symbol(self) -> None:
+        """BUG FOUND (real-money-readiness audit): this used to call
+        cancel_all_open_orders_for_symbol(symbol), which cancels EVERY open order Alpaca
+        reports for the symbol - including a still-unfilled pyramid-add entry bracket for
+        the SAME symbol that has nothing to do with the split. Must instead cancel only
+        the specific alpaca_order_id(s) belonging to this position's own trade_ids_arr plus
+        its own standalone_stop_order_id, and never call the by-symbol method at all."""
+        monitor = _make_monitor()
+        _stub_creds(monitor)
+        cur = MagicMock()
+        cur.fetchall.return_value = [("ord-leg-501",), ("ord-leg-502",)]
+        cur.fetchone.return_value = ("standalone-1",)
+
+        mock_order_mgr = MagicMock(cancel_bracket_orders=MagicMock(return_value={"success": True, "message": "ok"}))
+        with (
+            patch("algo.trading.order_manager.OrderManager", return_value=mock_order_mgr),
+            patch("algo.reporting.notify"),
+        ):
+            monitor._reconcile_broker_orders_after_split(
+                cur, pos_id=42, symbol="TEST", new_stop=45.0, trade_ids_arr=[501, 502]
+            )
+
+        assert not mock_order_mgr.cancel_all_open_orders_for_symbol.called, (
+            "must never cancel by symbol - that would hit an unrelated pyramid-add order too"
+        )
+
+        cancelled_order_ids = [c.args[0] for c in mock_order_mgr.cancel_bracket_orders.call_args_list]
+        assert set(cancelled_order_ids) == {"ord-leg-501", "ord-leg-502", "standalone-1"}
+
+        trades_lookup_calls = [
+            c for c in cur.execute.call_args_list if "SELECT alpaca_order_id FROM algo_trades" in c.args[0]
+        ]
+        assert len(trades_lookup_calls) == 1
+        assert trades_lookup_calls[0].args[1] == ([501, 502],)

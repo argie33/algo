@@ -597,10 +597,15 @@ class CorporateActionsMixin:
             }
         )
 
-        self._reconcile_broker_orders_after_split(cur, pos_id, symbol, new_stop)
+        self._reconcile_broker_orders_after_split(cur, pos_id, symbol, new_stop, trade_ids_arr)
 
     def _reconcile_broker_orders_after_split(
-        self, cur: PsycopgCursor[Any], pos_id: int, symbol: str, new_stop: float
+        self,
+        cur: PsycopgCursor[Any],
+        pos_id: int,
+        symbol: str,
+        new_stop: float,
+        trade_ids_arr: list[int] | None,
     ) -> None:
         """CRITICAL FIX (2026-09-06 real-money-readiness audit): _apply_split_adjustment above
         only ever rescaled DB price columns. The live protective stop-loss (and take-profit)
@@ -612,23 +617,65 @@ class CorporateActionsMixin:
         nonsensically; a reverse split leaves it far too low - never fires, unbounded downside
         exposure). Whether Alpaca itself auto-adjusts a resting order's price on a split is not
         something this codebase can assume or verify from here, so treat every resting order
-        for this symbol as stale and force a real re-verification rather than trust it.
+        THIS POSITION owns as stale and force a real re-verification rather than trust it.
 
-        Fix: cancel every open order resting at the broker for this symbol (the stale-priced
-        bracket/standalone legs) and clear standalone_stop_order_id, so phase9's normal
-        check_stop_loss_leg_live/is_order_still_live checks correctly see "no live stop" on
-        the next cycle and submit a fresh standalone protective stop at the just-rescaled
-        new_stop price - reusing the existing, already-tested repair path instead of
-        duplicating order-submission logic here. With enable_stop_loss_guardian now on (see
-        prod.tfvars), that next cycle is at most ~15 minutes away, not the once-daily
-        orchestrator run.
+        BUG FOUND (real-money-readiness audit): this used to call
+        order_mgr.cancel_all_open_orders_for_symbol(symbol), which cancels EVERY open order
+        Alpaca reports for the symbol with no regard for which position owns it - the exact
+        failure mode halt_flag_manager.py's cancel_pending_entry_order was already fixed for
+        (2026-09-07) in a different call path. Pyramiding (max_reentries_per_name) means a
+        still-unfilled NEW pyramid-add entry bracket can legitimately be resting for this same
+        symbol at the exact moment a split is detected on the existing filled leg(s) - a
+        by-symbol cancel would silently kill that unrelated pending entry along with the
+        actually-stale legs, with nothing distinguishing the two in the resulting alert.
+
+        Fix: cancel only the specific alpaca_order_id(s) this position's OWN trades
+        (trade_ids_arr - already rescaled by _apply_split_adjustment above) and its own
+        standalone_stop_order_id reference, never touching any other order resting for the
+        symbol. Clears standalone_stop_order_id so phase9's normal check_stop_loss_leg_live/
+        is_order_still_live checks correctly see "no live stop" on the next cycle and submit
+        a fresh standalone protective stop at the just-rescaled new_stop price - reusing the
+        existing, already-tested repair path instead of duplicating order-submission logic
+        here. With enable_stop_loss_guardian now on (see prod.tfvars), that next cycle is at
+        most ~15 minutes away, not the once-daily orchestrator run.
         """
         from algo.trading.order_manager import OrderManager
+
+        order_ids_to_cancel: list[str] = []
+        if trade_ids_arr:
+            cur.execute(
+                "SELECT alpaca_order_id FROM algo_trades WHERE trade_id = ANY(%s) AND alpaca_order_id IS NOT NULL",
+                (list(trade_ids_arr),),
+            )
+            order_ids_to_cancel.extend(row[0] for row in cur.fetchall())
+        cur.execute("SELECT standalone_stop_order_id FROM algo_positions WHERE id = %s", (pos_id,))
+        standalone_row = cur.fetchone()
+        if standalone_row and standalone_row[0]:
+            order_ids_to_cancel.append(standalone_row[0])
 
         try:
             alpaca_base_url, alpaca_key, alpaca_secret = self._get_alpaca_creds()
             order_mgr = OrderManager(alpaca_key, alpaca_secret, alpaca_base_url)
-            cancel_result = order_mgr.cancel_all_open_orders_for_symbol(symbol)
+            cancelled_ids: list[str] = []
+            failures: list[str] = []
+            for order_id in order_ids_to_cancel:
+                try:
+                    one_result = order_mgr.cancel_bracket_orders(order_id)
+                except Exception as e:
+                    failures.append(f"{order_id}: {e}")
+                    continue
+                if one_result.get("success"):
+                    cancelled_ids.append(order_id)
+                else:
+                    failures.append(f"{order_id}: {one_result.get('message')}")
+            cancel_result: dict[str, Any] = {
+                "success": not failures,
+                "cancelled_order_ids": cancelled_ids,
+                "message": (
+                    f"Cancelled {len(cancelled_ids)} order(s) owned by this position for {symbol}"
+                    + (f"; {len(failures)} failed: {'; '.join(failures)}" if failures else "")
+                ),
+            }
         except Exception as e:
             cancel_result = {"success": False, "cancelled_order_ids": [], "message": str(e)}
 
