@@ -46,7 +46,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..base import CheckResult
-from ..config import WARN
+from ..config import INFO, WARN
 from .tie_out_shared import _MAX_REPORTED_PER_CHECK
 
 logger = logging.getLogger(__name__)
@@ -117,6 +117,23 @@ class TieOutCashflowCumulativeQuartersMixin:
 
     def _log_cumulative_duplicate_findings(self, field: str, rows: Any) -> None:
         if not rows:
+            # FIXED 2026-09-14 (goal: quarantine backlog session, same bug class as
+            # tie_out_identity_quarterly.py's quarterly_revenue_sum_vs_annual_extreme):
+            # this used to just `return` with no log call at all on a clean pass, so once a
+            # flagged symbol's cumulative-duplicate signature got fixed, this check_name never
+            # appeared in a patrol run's results again - and quarantine.py's
+            # apply_symbol_quarantine only resolves a check_name's prior open symbol_quarantine
+            # rows when that check_name is present in the CURRENT run's results (see
+            # logger.py's log_results). Net effect: a symbol quarantined under
+            # quarterly_cashflow_cumulative_duplicate_{field} stayed stuck "open" forever even
+            # after its data was reloaded/fixed. Logging INFO unconditionally here mirrors every
+            # other quarantine-eligible check in this package.
+            self.log(
+                f"quarterly_cashflow_cumulative_duplicate_{field}",
+                INFO,
+                "quarterly_cash_flow",
+                f"no quarterly_cashflow_cumulative_duplicate_{field} violations found",
+            )
             return
         flagged = [
             {
