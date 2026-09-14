@@ -226,6 +226,58 @@ def _fetch_open_quarantine_counts(cur: cursor, tables: list[str]) -> dict[str, i
     return {table: int(count) for table, count in cur.fetchall()}
 
 
+# Capped per table - this panel is a triage overview, not a full quarantine browser
+# (SymbolQuarantinePanel, rendered right below this panel on the same page, already lists
+# every open row with full detail/resolve actions). A handful of examples here is enough to
+# tell a reviewer WHY a table is quarantined and WHEN without leaving this row.
+_MAX_QUARANTINE_EXAMPLES_PER_TABLE = 5
+
+
+def _fetch_open_quarantine_symbols(cur: cursor, tables: list[str]) -> dict[str, list[dict[str, Any]]]:
+    """Per-table sample of the actual open symbol_quarantine rows (symbol/reason/age), not just
+    the aggregate count _fetch_open_quarantine_counts returns - added 2026-09-13 (goal session:
+    "is a count enough, or do we need to track anything else to organize this table" follow-up).
+    A count alone tells you a table has a problem; it doesn't tell you which symbols or why
+    without a separate trip to symbol_quarantine/SymbolQuarantinePanel. Same check_name ->
+    single-target_table join restriction as _fetch_open_quarantine_counts, for the same reason
+    (unambiguous attribution only)."""
+    cur.execute(
+        f"""
+        SELECT * FROM (
+            SELECT dpl.target_table, sq.symbol, sq.reason, sq.severity, sq.detected_at,
+                   EXTRACT(EPOCH FROM (now() - sq.detected_at)) / 86400 AS days_open,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY dpl.target_table ORDER BY sq.detected_at DESC
+                   ) AS rn
+            FROM symbol_quarantine sq
+            JOIN (
+                SELECT check_name, MIN(target_table) AS target_table
+                FROM data_patrol_log
+                GROUP BY check_name
+                HAVING COUNT(DISTINCT target_table) = 1
+            ) dpl ON dpl.check_name = sq.check_name
+            WHERE sq.resolved_at IS NULL
+              AND dpl.target_table = ANY(%s)
+        ) ranked
+        WHERE rn <= {_MAX_QUARANTINE_EXAMPLES_PER_TABLE}
+        ORDER BY target_table, rn
+        """,
+        (tables,),
+    )
+    out: dict[str, list[dict[str, Any]]] = {}
+    for table, symbol, reason, severity, detected_at, days_open, _rn in cur.fetchall():
+        out.setdefault(table, []).append(
+            {
+                "symbol": symbol,
+                "reason": reason,
+                "severity": severity,
+                "detected_at": detected_at.isoformat() if detected_at else None,
+                "days_open": round(float(days_open), 1) if days_open is not None else None,
+            }
+        )
+    return out
+
+
 def _get_scores_correctness_coverage(cur: cursor) -> Any:
     """Per pillar-input-table DataPatrol execution history - see this module's docstring."""
     try:
@@ -233,6 +285,7 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
         history = _fetch_table_history(cur, tables)
         findings = _fetch_recent_findings(cur, tables)
         open_quarantine = _fetch_open_quarantine_counts(cur, tables)
+        open_quarantine_symbols = _fetch_open_quarantine_symbols(cur, tables)
 
         rows: list[dict[str, Any]] = []
         for table in tables:
@@ -260,6 +313,7 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
                     "recent": h["recent"],
                     "recent_findings": findings.get(table, []),
                     "open_quarantine_count": open_quarantine.get(table, 0),
+                    "open_quarantine_symbols": open_quarantine_symbols.get(table, []),
                 }
             )
 

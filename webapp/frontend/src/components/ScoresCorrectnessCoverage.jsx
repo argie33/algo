@@ -320,7 +320,17 @@ export default function ScoresCorrectnessCoverage({ active }) {
                               <span
                                 className="badge badge-danger"
                                 style={{ fontSize: "var(--t-2xs)" }}
-                                title={`${t.open_quarantine_count} symbol(s) currently quarantined by a check that targets this table`}
+                                title={
+                                  (t.open_quarantine_symbols || [])
+                                    .map(
+                                      (q) =>
+                                        `${q.symbol}: ${q.reason || "—"}${
+                                          typeof q.days_open === "number" ? ` (${q.days_open}d open)` : ""
+                                        }`
+                                    )
+                                    .join("\n") ||
+                                  `${t.open_quarantine_count} symbol(s) currently quarantined by a check that targets this table`
+                                }
                               >
                                 {t.open_quarantine_count} quarantined
                               </span>

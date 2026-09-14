@@ -33,6 +33,7 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import ScoresDataCoverage from "../components/ScoresDataCoverage";
 import ScoresCorrectnessCoverage from "../components/ScoresCorrectnessCoverage";
 import SymbolQuarantinePanel from "../components/SymbolQuarantinePanel";
+import FindingExamples from "../components/DataPatrolFindingExamples";
 
 const CHART_TOOLTIP_STYLE = {
   background: "var(--surface)",
@@ -996,20 +997,6 @@ export default function ServiceHealth() {
   );
 }
 
-// A finding's `details.examples` entry shape varies per check (whatever that check's own
-// self.log(...) call happened to build) - usually {"symbol": "...", <flagged fields>} but
-// sometimes a bare string/number. Render generically instead of assuming one shape. Mirrors
-// ScoresCorrectnessCoverage.jsx's formatExample/FindingDetail for the same data_patrol_log
-// finding shape.
-function formatFindingExample(ex) {
-  if (ex === null || typeof ex !== "object") return String(ex);
-  const { symbol, ...rest } = ex;
-  const restStr = Object.entries(rest)
-    .map(([k, v]) => `${k}=${typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 4 }) : v}`)
-    .join(", ");
-  return symbol ? `${symbol}${restStr ? ` (${restStr})` : ""}` : restStr;
-}
-
 function FindingRow({ finding }) {
   const sev = (finding.severity || "").toUpperCase();
   const variant =
@@ -1067,17 +1054,7 @@ function FindingRow({ finding }) {
       <div className="t-sm" style={{ marginTop: 4, color: "var(--text-2)" }}>
         {finding.message}
       </div>
-      {Array.isArray(finding.details?.examples) && finding.details.examples.length > 0 && (
-        <div className="t-2xs faint mono" style={{ marginTop: 4 }}>
-          {finding.details.examples.slice(0, 5).map((ex, i) => (
-            <div key={i}>{formatFindingExample(ex)}</div>
-          ))}
-          {typeof finding.details.count === "number" &&
-            finding.details.count > finding.details.examples.length && (
-              <div>+{finding.details.count - finding.details.examples.length} more</div>
-            )}
-        </div>
-      )}
+      <FindingExamples details={finding.details} />
       {finding.review_status && finding.review_note && (
         <div
           className="t-xs faint"
