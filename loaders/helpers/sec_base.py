@@ -561,13 +561,15 @@ class SecEdgarStatementLoader(SecLoaderBase):
         Same SIC code scores.py already uses for CEF/trust filtering (see
         lambda/api/routes/scores.py's sic_code exclusion comment).
         """
-        if self._reit_symbols is None:
+        # getattr: same defensive pattern as _get_depository_institution_symbols above.
+        cached: frozenset[str] | None = getattr(self, "_reit_symbols", None)
+        if cached is None:
             from utils.db.context import DatabaseContext
 
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT symbol FROM company_info_sec WHERE sic_code = 6798")
-                self._reit_symbols = frozenset(row[0] for row in cur.fetchall())
-        return self._reit_symbols
+                cached = self._reit_symbols = frozenset(row[0] for row in cur.fetchall())
+        return cached
 
     def _no_data_reason(self, symbol: str) -> str:
         """Reason for a symbol with zero usable rows from SEC EDGAR for this statement type.
@@ -1401,6 +1403,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
         transformed = []
         skipped_invalid_fields = 0
         unmapped_fields_per_symbol: dict[str, set[str]] = {}
+        _eligible_interest_income_symbols = self._get_depository_institution_symbols() | self._get_reit_symbols()
 
         for r in rows:
             row: dict[str, Any] = {}
@@ -1521,12 +1524,9 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         _revenue_source_sec_field = sec_field
                     continue
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and db_field in row:
-                    # See should_override_fallback_field_for_depository_institution's own
-                    # docstring (AX/Axos live-confirmed case) - a bank's real interest-income
-                    # concept, found late/fallback-only, must still be able to correct a
-                    # smaller concept found first.
+                    # See should_override_fallback_field_for_depository_institution's docstring.
                     if not should_override_fallback_field_for_depository_institution(
-                        sec_field, db_field, value, row, r, self._get_depository_institution_symbols()
+                        sec_field, db_field, value, row, r, _eligible_interest_income_symbols
                     ):
                         continue  # A higher-priority concept already populated this field
                 # See should_skip_reit_only_fallback_field's own docstring
