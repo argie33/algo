@@ -38,13 +38,44 @@ same threshold, same floor, no new query pattern. The prior 2-field scope wasn't
 design choice, just what got built first.
 """
 
+import json
 import logging
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
 
 logger = logging.getLogger(__name__)
+
+# ADDED 2026-09-14 (goal session: dismiss-list coverage sweep - the "triage once, persist the
+# verdict" pattern already proven for quarterly_revenue_sum_vs_annual_extreme, see
+# tie_out_shared.py's load_revenue_extreme_dismissed, extended here): this checker's own module
+# docstring above already names QXO's real $56.9M->$6.8422B FY2025 revenue jump (a genuine
+# roll-up acquisition, not a bug) as the ORIGINAL motivating example for treating YoY magnitude
+# jumps as a review queue - yet nothing before this fix ever recorded that verdict anywhere, so
+# every single patrol run re-flags the same already-reviewed case forever, exactly the "AD
+# cycled quarantined/resolved every 2-8 minutes" noise class that dismiss list was built to
+# stop. Keyed by "check_name:SYMBOL:fiscal_year" (unlike the revenue-extreme file's bare
+# "SYMBOL:fiscal_year") since the same symbol/year can be a genuine event for one field
+# (revenue) and a real bug for another (e.g. total_assets) in the same fiscal year - the
+# check_name prefix keeps those independent.
+YOY_MAGNITUDE_JUMP_DISMISSED_FILE = Path(__file__).resolve().parent / "yoy_magnitude_jump_dismissed.json"
+
+
+def load_yoy_magnitude_jump_dismissed() -> dict[str, str]:
+    # No dismissed-entries file yet is not an error - nothing has been reviewed/dismissed so far.
+    if not YOY_MAGNITUDE_JUMP_DISMISSED_FILE.exists():
+        return {}
+    try:
+        return cast(dict[str, str], json.loads(YOY_MAGNITUDE_JUMP_DISMISSED_FILE.read_text(encoding="utf-8")))
+    except (json.JSONDecodeError, OSError):
+        # A corrupt/unreadable cache file is already logged above - not an error worth failing
+        # the whole patrol run over, since this is an optional dismiss-list optimization, not
+        # a data-integrity source of truth (no candidates are silently lost, just re-reviewed).
+        logger.warning("Failed to load %s - treating as empty", YOY_MAGNITUDE_JUMP_DISMISSED_FILE)
+        return {}
+
 
 # Live feasibility check against the local DB (2026-09-07): p50/p90/p95/p99 of the YoY
 # abs-value ratio for both revenue and total_assets is 1.05-2.2x/8-12x/well under 20x - a 20x
@@ -103,12 +134,15 @@ class StatisticalAnomalyChecker(BaseCheck):
                   AND b.data_unavailable = FALSE AND b.{field} IS NOT NULL AND b.{field} != 0
                 """
             )
+            dismissed = load_yoy_magnitude_jump_dismissed()
             flagged = []
             for row in cur.fetchall():
                 curr_value, prior_value = float(row["curr_value"]), float(row["prior_value"])
                 if max(abs(curr_value), abs(prior_value)) < _MAGNITUDE_JUMP_FLOOR:
                     continue
                 ratio = abs(curr_value) / abs(prior_value)
+                if f"{check_name}:{row['symbol']}:{row['fiscal_year']}" in dismissed:
+                    continue
                 if ratio > _MAGNITUDE_JUMP_RATIO or ratio < (1.0 / _MAGNITUDE_JUMP_RATIO):
                     flagged.append(
                         {
