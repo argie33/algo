@@ -120,6 +120,10 @@ _INCOME_FIELD_MAPPING = {
     # confirmed via real SEC companyfacts JSON), before ETR moves again to
     # RevenueFromContractWithCustomerExcludingAssessedTax from FY2018 onward (post ASC-606).
     "utility_revenue": "revenue",
+    # ADDED 2026-09-13 (GROW/US Global Investors live-confirmed): investment-management-
+    # industry revenue tag - see sec_income_statement.py's concepts-list comment on
+    # InvestmentAdvisoryManagementAndAdministrativeFees for the case this recovers.
+    "investment_advisory_management_and_administrative_fees": "revenue",
     # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit): identity key
     # ConsolidatedFinancialStatementsLoader.fetch_incremental() sets directly on rows for
     # symbols in utils/external/sec_custom_xbrl_concepts.py's CUSTOM_REVENUE_CONCEPTS -

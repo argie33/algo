@@ -570,6 +570,17 @@ def get_income_statement(
         # resolution (sec_base.py's _REVENUE_TOTAL_CANDIDATE_FIELDS) is a safe no-op here,
         # same precedent as the OGS/XEL cases above.
         "UtilityRevenue",
+        # ADDED 2026-09-13 (goal session: quarantine-backlog empirical verification, GROW/
+        # US Global Investors live-confirmed via real SEC companyfacts JSON): an investment-
+        # management-industry-specific revenue concept - GROW has no "Revenues"/
+        # "SalesRevenueNet"/ASC-606 concept at all, only this one, with real, consistent,
+        # FY-tagged figures ($17.318M FY2013, $11.439M/$8.534M FY2014, $9.371M/$7.333M
+        # FY2015, down to $6.763M FY2017 - a real, plausible declining-AUM trajectory for a
+        # small investment adviser). A tiny, unrelated InterestIncomeAndDividend fallback
+        # fact ($188,000) was winning "revenue" by default because this concept was never
+        # mapped at all - same missing-concept-mapping bug class as ARCB/MGPI/ETR, just
+        # without "revenue"/"sales" in the concept's own name.
+        "InvestmentAdvisoryManagementAndAdministrativeFees",
         # FIXED 2026-08-03: community banks/thrifts (FNWB, AMAL, OCFC live-confirmed via real
         # companyfacts JSON) have neither the concepts above nor RevenuesNetOfInterestExpense
         # (that one's for larger banks).
