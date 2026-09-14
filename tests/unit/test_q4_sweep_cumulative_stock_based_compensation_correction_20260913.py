@@ -12,17 +12,18 @@ double/triple-subtracts the cumulative overlap, producing a deeply negative Q4 "
 RITM FY2018: 1,020,000 - (420,000+1,019,000+1,019,000) = -1,438,000, matching the real
 corrupted value that was live in the DB before this fix.
 
-WIDENED same day to common_stock_repurchased - live-verified against Agilent's (symbol A,
-CIK 0001090872) real cached SEC companyfacts JSON for `PaymentsForRepurchaseOfCommonStock`,
-FY2017: Q1=111,000,000 (discrete), Q2=Q3=194,000,000 (YTD-cumulative, identical - no
-incremental Q3 repurchases), FY total=194,000,000. The pre-existing Q4 sweep would have
-computed 194,000,000 - (111,000,000+194,000,000+194,000,000) = -305,000,000, the same
-deeply-negative-plug shape as RITM's stock_based_compensation.
+WIDENED same day to common_stock_repurchased/capex/dividends_paid/financing_cash_flow/
+investing_cash_flow - see the method's own docstring for the individual per-field
+real-SEC-source verification (RITM/Agilent/AAT/ABAT/ACN/ABEO).
 
-WIDENED again same day to capex (verified cross-session by algo-fa) - AAT (CIK 0001500217,
-FY2019, PaymentsToAcquireRealEstate) Q1=20,932,000, Q2=Q3=507,780,000; ABAT (CIK 0001576873,
-non-calendar FY, PaymentsToAcquireMiningAssets) Q2=Q3=8,007,362 - same exact-duplicate
-cumulative shape.
+FIXED again same day (temp-table + annual-overshoot guard): `data_source` is a single
+per-ROW column shared by every cash-flow field, so correcting one field falsely blocked a
+different field's correction on the same symbol/year - fixed via a per-call temp table
+instead of relying on the shared column. Also added an annual-reconciliation check
+(quarters must actually overshoot the annual total) after live-confirming 8 real symbol/
+years (MA/APTV/ZTS/AGNC/AMC/DTM/RICK) have Q2==Q3 by genuine flat-accrual coincidence with
+data that's already correct - the bare Q2==Q3 fingerprint alone would have wrongly
+"corrected" (corrupted) them.
 """
 
 from unittest.mock import MagicMock, patch
@@ -53,32 +54,37 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
 
         sqls = [call[0][0] for call in mock_cur.execute.call_args_list]
         for field in (
+            "stock_based_compensation",
+            "common_stock_repurchased",
             "capex",
             "dividends_paid",
             "financing_cash_flow",
             "investing_cash_flow",
         ):
-            q3_sqls = [s for s in sqls if f"q3.{field} - src.q2_val" in s]
-            q2_sqls = [s for s in sqls if f"q2.{field} - src.q1_val" in s]
+            # Q3's own text (`q3.{field} - c.q2_val`) is unique to this sweep, but its Q2 text
+            # (`c.q2_val - c.q1_val`) is byte-identical to the monotonic sweep's own Q2 SQL for
+            # stock_based_compensation/common_stock_repurchased - disambiguate via the FROM
+            # clause table name (_cum_ytd_split_candidates is this sweep's own temp table).
+            q3_sqls = [s for s in sqls if f"SET {field} = q3.{field} - c.q2_val" in s]
+            q2_sqls = [
+                s for s in sqls if f"SET {field} = c.q2_val - c.q1_val" in s and "_cum_ytd_split_candidates" in s
+            ]
             assert len(q3_sqls) == 1
             assert len(q2_sqls) == 1
-            # Q3's own correction must run before Q2's (Q2's guard depends on Q3 already
-            # being flagged 'derived_ytd_split' this run).
+            # Q3's own correction must run before Q2's.
             assert sqls.index(q3_sqls[0]) < sqls.index(q2_sqls[0])
 
-        # stock_based_compensation/common_stock_repurchased each have TWO independent Q3/Q2
-        # correction passes since 2026-09-13: the exact-duplicate (Q2==Q3) fingerprint above,
-        # plus the monotonic (Q1<=Q2<=Q3, never equal) fingerprint added by
-        # _sweep_correct_cumulative_ytd_field_monotonic - see that method's own docstring
-        # (AAPL/META/UNH/MA-shaped, not caught by the exact-duplicate check at all).
+        # stock_based_compensation/common_stock_repurchased ALSO get the monotonic sweep's
+        # own independent Q3/Q2 pass (see _sweep_correct_cumulative_ytd_field_monotonic).
         for field in ("stock_based_compensation", "common_stock_repurchased"):
-            # The exact-duplicate sweep's own Q3/Q2 SQL (above this loop's field list already
-            # excludes these two fields from that assertion; here just confirm the monotonic
-            # sweep's SQL exists once per field, using its own temp-table-based shape).
-            q3_sqls = [s for s in sqls if f"SET {field} = c.q3_val - c.q2_val" in s]
-            q2_sqls = [s for s in sqls if f"SET {field} = c.q2_val - c.q1_val" in s]
-            assert len(q3_sqls) == 1
-            assert len(q2_sqls) == 1
+            mono_q3_sqls = [
+                s for s in sqls if f"SET {field} = c.q3_val - c.q2_val" in s and "_cum_ytd_mono_candidates" in s
+            ]
+            mono_q2_sqls = [
+                s for s in sqls if f"SET {field} = c.q2_val - c.q1_val" in s and "_cum_ytd_mono_candidates" in s
+            ]
+            assert len(mono_q3_sqls) == 1
+            assert len(mono_q2_sqls) == 1
 
     def test_detection_fingerprint_matches_verified_shapes(self) -> None:
         loader = _make_loader(statement_type="cashflow", period="quarterly")
@@ -88,17 +94,18 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
             loader.post_run()
 
         sqls = [call[0][0] for call in mock_cur.execute.call_args_list]
-        # Exact-duplicate fingerprint: Q2 == Q3, Q1 < Q2, Q2 > 0 - verified against RITM's
-        # real SEC source data (FY2018: Q1=420000, Q2=Q3=1019000), Agilent's (FY2017:
-        # Q1=111000000, Q2=Q3=194000000), and AAT/ABAT's (capex).
+        # Exact-duplicate fingerprint: Q2 == Q3, Q1 < Q2, Q2 > 0, AND quarters overshoot the
+        # annual total (the 2026-09-13 false-positive fix) - verified against RITM's real SEC
+        # source data (FY2018: Q1=420000, Q2=Q3=1019000), Agilent's (FY2017: Q1=111000000,
+        # Q2=Q3=194000000), and AAT/ABAT's (capex).
         for field in ("stock_based_compensation", "common_stock_repurchased", "capex", "dividends_paid"):
-            q3_sql = next(s for s in sqls if f"q3.{field} - src.q2_val" in s)
-            assert f"q2.{field} = q3x.{field}" in q3_sql
-            assert f"q1.{field} < q2.{field}" in q3_sql
-            assert f"q2.{field} > 0" in q3_sql
-            # Never re-fires on its own prior output.
-            assert "q2.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
-            assert "q3x.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
+            insert_sql = next(s for s in sqls if "INSERT INTO _cum_ytd_split_candidates" in s and f"q1.{field}" in s)
+            normalized = " ".join(insert_sql.split())
+            assert f"q2.{field} = q3x.{field}" in normalized
+            assert f"q1.{field} < q2.{field}" in normalized
+            assert f"q2.{field} > 0" in normalized
+            # Quarters must actually overshoot the annual total.
+            assert f"(q1.{field} + q2.{field} + q3x.{field}) > a.{field}" in normalized
 
         # financing_cash_flow/investing_cash_flow are net flows that can legitimately be
         # negative, so they use sign_scoped=False: Q1 != Q2 == Q3, no sign requirement -
@@ -106,11 +113,11 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
         # FY2012 investing_cash_flow), same distinction tie_out_cashflow_cumulative_
         # quarters.py already makes for these two fields.
         for field in ("financing_cash_flow", "investing_cash_flow"):
-            q3_sql = next(s for s in sqls if f"q3.{field} - src.q2_val" in s)
-            assert f"q2.{field} = q3x.{field}" in q3_sql
-            assert f"q1.{field} != q2.{field}" in q3_sql
-            assert "q2.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
-            assert "q3x.data_source IS DISTINCT FROM 'derived_ytd_split'" in q3_sql
+            insert_sql = next(s for s in sqls if "INSERT INTO _cum_ytd_split_candidates" in s and f"q1.{field}" in s)
+            normalized = " ".join(insert_sql.split())
+            assert f"q2.{field} = q3x.{field}" in normalized
+            assert f"q1.{field} != q2.{field}" in normalized
+            assert f"(q1.{field} + q2.{field} + q3x.{field}) > a.{field}" in normalized
 
     def test_q3_correction_runs_before_q4_derivation_from_remaining_fields_sweep(self) -> None:
         loader = _make_loader(statement_type="cashflow", period="quarterly")
@@ -120,7 +127,9 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
             loader.post_run()
 
         sqls = [call[0][0] for call in mock_cur.execute.call_args_list]
-        q3_correction_sql = next(s for s in sqls if "q3.stock_based_compensation - src.q2_val" in s)
+        q3_correction_sql = next(
+            s for s in sqls if "SET stock_based_compensation = q3.stock_based_compensation - c.q2_val" in s
+        )
         q4_derivation_sql = next(s for s in sqls if "stock_based_compensation = derived.stock_based_compensation" in s)
         assert sqls.index(q3_correction_sql) < sqls.index(q4_derivation_sql)
 
@@ -179,5 +188,5 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
             loader.post_run()
 
         for call in mock_cur.execute.call_args_list:
-            assert "q3.stock_based_compensation - src.q2_val" not in call[0][0]
-            assert "q3.common_stock_repurchased - src.q2_val" not in call[0][0]
+            assert "_cum_ytd_split_candidates" not in call[0][0]
+            assert "_cum_ytd_mono_candidates" not in call[0][0]

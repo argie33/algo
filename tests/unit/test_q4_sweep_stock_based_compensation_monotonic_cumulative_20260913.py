@@ -69,8 +69,15 @@ class TestSweepCorrectCumulativeYtdFieldMonotonic:
 
         sqls = [call[0][0] for call in mock_cur.execute.call_args_list]
         for field in ("stock_based_compensation", "common_stock_repurchased"):
-            q3_sql = next(s for s in sqls if f"SET {field} = c.q3_val - c.q2_val" in s)
-            q2_sql = next(s for s in sqls if f"SET {field} = c.q2_val - c.q1_val" in s)
+            # Both this sweep's Q2 step and the flat exact-duplicate sweep's Q2 step share
+            # the identical `SET {field} = c.q2_val - c.q1_val` text (only the FROM table
+            # differs), so disambiguate via the FROM clause naming _cum_ytd_mono_candidates.
+            q3_sql = next(
+                s for s in sqls if f"SET {field} = c.q3_val - c.q2_val" in s and "_cum_ytd_mono_candidates" in s
+            )
+            q2_sql = next(
+                s for s in sqls if f"SET {field} = c.q2_val - c.q1_val" in s and "_cum_ytd_mono_candidates" in s
+            )
             q4_derivation_sql = next(s for s in sqls if f"{field} = derived.{field}" in s)
             assert sqls.index(q3_sql) < sqls.index(q2_sql) < sqls.index(q4_derivation_sql)
 

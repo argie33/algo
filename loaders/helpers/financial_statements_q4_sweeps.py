@@ -213,66 +213,87 @@ class Q4DerivationSweepMixin:
         SCOPE: all 6 fields from the original investigation now individually source-verified
         and corrected by this sweep. See quarterly_cashflow_cumulative_ytd_stored_as_discrete_
         20260913 in memory for the full history.
+
+        FIXED 2026-09-13 (same-day follow-up, live-caught while widening the monotonic sibling
+        sweep - see `_sweep_correct_cumulative_ytd_field_monotonic`'s own docstring for the
+        general cross-field bug this shares): two real problems fixed together here.
+
+        (1) Cross-field `data_source` collision: `data_source` is a single per-ROW column on
+        quarterly_cash_flow shared by every cash-flow field. The old design used
+        `data_source = 'derived_ytd_split'` as an idempotency/correlation guard, so correcting
+        one field's Q2/Q3 stamped the row, which then falsely told a DIFFERENT field's
+        detection on the SAME symbol/year that it was "already processed" - permanently
+        blocking that field's real correction if it happened to need one on the same row.
+        Fixed the same way as the monotonic sweep: a per-call TEMP TABLE snapshot instead of
+        the shared column.
+
+        (2) Missing annual-reconciliation check: this detection never joined annual_cash_flow
+        or verified the quarters actually overshoot the annual total - it fired purely on
+        Q2 == Q3 AND Q1 < Q2 (Q1 != Q2 for the two net-flow fields), which the docstring above
+        called "a conservative, low-false-positive signal". Live-confirmed 2026-09-13 that's
+        not quite true: 8 real symbol/years (MA/APTV/ZTS/AGNC/AMC/DTM/RICK) have Q2 == Q3 by
+        genuine flat-accrual coincidence with data that's ALREADY CORRECT (Q1+Q2+Q3+Q4 already
+        sums exactly to annual) - applying this sweep's telescoping to them would have
+        corrupted currently-good data by wrongly subtracting Q1 from an already-right Q2/Q3.
+        They were only accidentally spared because the monotonic sweep's marker happened to
+        already occupy the shared data_source column on those same rows - not real protection.
+        Added the same `annual >= q3` overshoot guard the monotonic sweep uses (verified
+        against this sweep's own documented true positives: RITM's and Agilent's real
+        pre-fix corrupted values both genuinely overshoot their annual totals).
         """
         sign_clause = "AND q1.{f} >= 0 AND q2.{f} > 0 AND q1.{f} < q2.{f}" if sign_scoped else "AND q1.{f} != q2.{f}"
         sign_clause = sign_clause.format(f=field)
         with _database_context()("write") as cur:
             cur.execute(
+                """
+                CREATE TEMP TABLE IF NOT EXISTS _cum_ytd_split_candidates (
+                    symbol text, fiscal_year int, q1_val numeric, q2_val numeric
+                ) ON COMMIT DROP
+                """
+            )
+            cur.execute("TRUNCATE _cum_ytd_split_candidates")
+            cur.execute(
+                f"""
+                INSERT INTO _cum_ytd_split_candidates (symbol, fiscal_year, q1_val, q2_val)
+                SELECT q1.symbol, q1.fiscal_year, q1.{field}, q2.{field}
+                  FROM quarterly_cash_flow q1
+                  JOIN quarterly_cash_flow q2
+                    ON q2.symbol = q1.symbol AND q2.fiscal_year = q1.fiscal_year AND q2.fiscal_quarter = 2
+                  JOIN quarterly_cash_flow q3x
+                    ON q3x.symbol = q1.symbol AND q3x.fiscal_year = q1.fiscal_year AND q3x.fiscal_quarter = 3
+                  JOIN annual_cash_flow a
+                    ON a.symbol = q1.symbol AND a.fiscal_year = q1.fiscal_year
+                 WHERE q1.fiscal_quarter = 1
+                   AND q1.data_unavailable = FALSE AND q2.data_unavailable = FALSE
+                   AND q3x.data_unavailable = FALSE AND a.data_unavailable = FALSE
+                   AND q1.{field} IS NOT NULL AND q2.{field} IS NOT NULL
+                   AND q3x.{field} IS NOT NULL AND a.{field} IS NOT NULL
+                   AND q2.{field} = q3x.{field}
+                   {sign_clause}
+                   AND (q1.{field} + q2.{field} + q3x.{field}) > a.{field}
+                """
+            )
+            cur.execute(
                 f"""
                 UPDATE quarterly_cash_flow q3
-                   SET {field} = q3.{field} - src.q2_val,
+                   SET {field} = q3.{field} - c.q2_val,
                        data_source = 'derived_ytd_split'
-                  FROM (
-                        SELECT q1.symbol, q1.fiscal_year,
-                               q1.{field} AS q1_val,
-                               q2.{field} AS q2_val,
-                               q3x.{field} AS q3_val
-                          FROM quarterly_cash_flow q1
-                          JOIN quarterly_cash_flow q2
-                            ON q2.symbol = q1.symbol AND q2.fiscal_year = q1.fiscal_year AND q2.fiscal_quarter = 2
-                          JOIN quarterly_cash_flow q3x
-                            ON q3x.symbol = q1.symbol AND q3x.fiscal_year = q1.fiscal_year AND q3x.fiscal_quarter = 3
-                         WHERE q1.fiscal_quarter = 1
-                           AND q1.data_unavailable = FALSE AND q2.data_unavailable = FALSE AND q3x.data_unavailable = FALSE
-                           AND q1.{field} IS NOT NULL
-                           AND q2.{field} IS NOT NULL
-                           AND q3x.{field} IS NOT NULL
-                           AND q2.{field} = q3x.{field}
-                           {sign_clause}
-                           AND q2.data_source IS DISTINCT FROM 'derived_ytd_split'
-                           AND q3x.data_source IS DISTINCT FROM 'derived_ytd_split'
-                       ) AS src
-                 WHERE q3.symbol = src.symbol AND q3.fiscal_year = src.fiscal_year AND q3.fiscal_quarter = 3
+                  FROM _cum_ytd_split_candidates c
+                 WHERE q3.symbol = c.symbol AND q3.fiscal_year = c.fiscal_year AND q3.fiscal_quarter = 3
                 """
             )
             q3_fixed = cur.rowcount
             cur.execute(
                 f"""
                 UPDATE quarterly_cash_flow q2
-                   SET {field} = q2.{field} - src.q1_val,
+                   SET {field} = c.q2_val - c.q1_val,
                        data_source = 'derived_ytd_split'
-                  FROM (
-                        SELECT q1.symbol, q1.fiscal_year,
-                               q1.{field} AS q1_val,
-                               q2x.{field} AS q2_val,
-                               q3.{field} AS q3_val
-                          FROM quarterly_cash_flow q1
-                          JOIN quarterly_cash_flow q2x
-                            ON q2x.symbol = q1.symbol AND q2x.fiscal_year = q1.fiscal_year AND q2x.fiscal_quarter = 2
-                          JOIN quarterly_cash_flow q3
-                            ON q3.symbol = q1.symbol AND q3.fiscal_year = q1.fiscal_year AND q3.fiscal_quarter = 3
-                         WHERE q1.fiscal_quarter = 1
-                           AND q1.data_unavailable = FALSE AND q2x.data_unavailable = FALSE AND q3.data_unavailable = FALSE
-                           AND q1.{field} IS NOT NULL
-                           AND q2x.{field} IS NOT NULL
-                           AND q3.{field} IS NOT NULL
-                           AND q3.data_source = 'derived_ytd_split'
-                           AND q2x.data_source IS DISTINCT FROM 'derived_ytd_split'
-                       ) AS src
-                 WHERE q2.symbol = src.symbol AND q2.fiscal_year = src.fiscal_year AND q2.fiscal_quarter = 2
+                  FROM _cum_ytd_split_candidates c
+                 WHERE q2.symbol = c.symbol AND q2.fiscal_year = c.fiscal_year AND q2.fiscal_quarter = 2
                 """
             )
             q2_fixed = cur.rowcount
+            cur.execute("DROP TABLE _cum_ytd_split_candidates")
             if q3_fixed or q2_fixed:
                 logger.warning(
                     f"[quarterly_cash_flow] post_run(): corrected {q2_fixed} Q2 / {q3_fixed} Q3 "
