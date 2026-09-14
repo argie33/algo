@@ -32,7 +32,7 @@ import logging
 from typing import Any
 
 from ..base import BaseCheck, CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,13 @@ class FinancialStatementFlagDriftChecker(BaseCheck):
                         "(available-but-empty) - see "
                         "scripts/fix_stuck_available_but_null_financial_statement_flags.py",
                         {"row_count": row_count, "symbol_count": symbol_count},
+                    )
+                else:
+                    self.log(
+                        "financial_statement_flag_drift",
+                        INFO,
+                        table,
+                        "no stuck available-but-null rows found",
                     )
             except Exception as e:
                 logger.error(f"[FinancialStatementFlagDriftChecker] {table} check failed: {e}", exc_info=True)
