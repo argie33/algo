@@ -250,7 +250,7 @@
   "algo/signals/base_type_strategy.py": 173,
   "algo/signals/buy_signal_generator.py": 828,
   "algo/signals/filter_registry.py": 328,
-  "algo/signals/investable_universe.py": 122,
+  "algo/signals/investable_universe.py": 171,
   "algo/signals/sector_rotation.py": 440,
   "algo/signals/signal_api.py": 90,
   "algo/signals/signal_base.py": 70,
