@@ -63,6 +63,17 @@ class TieOutNonnegativeMagnitudesMixin:
             quarterly=True,
         )
 
+    # ADDED `materiality_floor_pct=0.01` 2026-09-14 (goal session: DB-wide nonnegative-check
+    # sweep follow-up, SOS/TW root-cause): total_liabilities/current_liabilities are DERIVED
+    # PLUG values (total_assets - stockholders_equity), so a tiny negative can be pure
+    # rounding noise between two independently-filed real numbers, not a real bug -
+    # live-confirmed SOS FY2021 Q2 (-$91,000 vs $559,695,000 assets, 0.016%). 1% comfortably
+    # separates that from every genuine sign-typo fixed this session (smallest real one, ETR,
+    # was 9.6% of assets - a ~600x margin) while never suppressing TW's real, if bizarre,
+    # pre-IPO-shell case (-$4,597,978,900 against $100 assets - unboundedly over any % floor).
+    # See _check_nonnegative_cashflow_field's own docstring for the full rationale.
+    _LIABILITIES_MATERIALITY_FLOOR_PCT = 0.01
+
     def check_total_liabilities_nonnegative(self, cur: Any) -> None:
         self._check_nonnegative_cashflow_field(  # type: ignore[attr-defined]
             cur,
@@ -70,6 +81,7 @@ class TieOutNonnegativeMagnitudesMixin:
             field="total_liabilities",
             check_name="total_liabilities_nonnegative",
             quarterly=False,
+            materiality_floor_pct=self._LIABILITIES_MATERIALITY_FLOOR_PCT,
         )
 
     def check_quarterly_total_liabilities_nonnegative(self, cur: Any) -> None:
@@ -79,6 +91,7 @@ class TieOutNonnegativeMagnitudesMixin:
             field="total_liabilities",
             check_name="quarterly_total_liabilities_nonnegative",
             quarterly=True,
+            materiality_floor_pct=self._LIABILITIES_MATERIALITY_FLOOR_PCT,
         )
 
     def check_current_liabilities_nonnegative(self, cur: Any) -> None:
@@ -88,6 +101,7 @@ class TieOutNonnegativeMagnitudesMixin:
             field="current_liabilities",
             check_name="current_liabilities_nonnegative",
             quarterly=False,
+            materiality_floor_pct=self._LIABILITIES_MATERIALITY_FLOOR_PCT,
         )
 
     def check_quarterly_current_liabilities_nonnegative(self, cur: Any) -> None:
@@ -97,6 +111,7 @@ class TieOutNonnegativeMagnitudesMixin:
             field="current_liabilities",
             check_name="quarterly_current_liabilities_nonnegative",
             quarterly=True,
+            materiality_floor_pct=self._LIABILITIES_MATERIALITY_FLOOR_PCT,
         )
 
     def check_inventory_nonnegative(self, cur: Any) -> None:

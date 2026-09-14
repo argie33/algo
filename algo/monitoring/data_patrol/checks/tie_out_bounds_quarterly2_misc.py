@@ -39,7 +39,14 @@ class TieOutBoundsQuarterly2MiscMixin:
         ) -> CheckResult: ...
 
         def _check_nonnegative_cashflow_field(
-            self, cur: Any, *, table: str, field: str, check_name: str, quarterly: bool
+            self,
+            cur: Any,
+            *,
+            table: str,
+            field: str,
+            check_name: str,
+            quarterly: bool,
+            materiality_floor_pct: float | None = None,
         ) -> None: ...
 
         def _check_shares_outstanding_dei_plausible_scale(

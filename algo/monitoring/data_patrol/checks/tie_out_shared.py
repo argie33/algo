@@ -404,7 +404,14 @@ class TieOutSharedMixin:
         return fresh, stale, examples
 
     def _check_nonnegative_cashflow_field(
-        self, cur: Any, *, table: str, field: str, check_name: str, quarterly: bool
+        self,
+        cur: Any,
+        *,
+        table: str,
+        field: str,
+        check_name: str,
+        quarterly: bool,
+        materiality_floor_pct: float | None = None,
     ) -> None:
         """Shared implementation for the Round 5 sign-flip guard checks and Round 7's
         balance-sheet nonnegative-magnitude checks (tie_out_nonnegative_magnitudes.py) -
@@ -431,12 +438,30 @@ class TieOutSharedMixin:
         nonnegative reported 3 vs. a real 418. This backs 36 checks (all Round 5 + Round 7
         nonnegative-magnitude checks), so any of them could have been silently under-reporting
         the same way. Now scans every row, not just the latest per symbol.
+
+        ADDED `materiality_floor_pct` 2026-09-14 (goal session: DB-wide nonnegative-check sweep
+        follow-up): `total_liabilities`/`current_liabilities` are DERIVED PLUG values in this
+        schema (`total_assets - stockholders_equity`, not a directly-extracted XBRL fact), so a
+        tiny negative can be pure rounding noise between two independently-filed real numbers
+        rather than a real bug - live-confirmed SOS FY2021 Q2 (-$91,000 vs $559,695,000 total
+        assets, 0.016%) was exactly this shape, while TW FY2019 Q1 (-$4,597,978,900 against a
+        real but nominal $100 total_assets, a genuine pre-IPO shell-entity balance sheet) is a
+        real, if bizarre, filed value that a floor should NOT suppress since |value| still
+        vastly exceeds any reasonable fraction of assets. A flat dollar floor was rejected
+        (this dataset's total_liabilities spans micro-caps in the hundreds of thousands to
+        ETR's tens of billions - BOC's own genuine, already-fixed -$63,789 sign-typo is smaller
+        than a flat `$100,000` floor would have been, which would have masked it) - this is
+        relative-to-total_assets instead, joining `total_assets` from the same row so the floor
+        scales with each symbol's own balance sheet size. `None` (the default) preserves the
+        original unconditional `< 0` behavior for the other 34 dependent checks this helper
+        backs - zero behavior change for anything that doesn't opt in.
         """
         try:
             quarter_col = ", b.fiscal_quarter" if quarterly else ""
+            assets_col = ", b.total_assets" if materiality_floor_pct is not None else ""
             cur.execute(
                 f"""
-                SELECT b.symbol, b.fiscal_year{quarter_col}, b.{field}
+                SELECT b.symbol, b.fiscal_year{quarter_col}, b.{field}{assets_col}
                 FROM {table} b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
                 WHERE b.data_unavailable = FALSE
@@ -447,11 +472,16 @@ class TieOutSharedMixin:
             flagged = []
             for row in cur.fetchall():
                 value = float(row[field])
-                if value < 0:
-                    example = {"symbol": row["symbol"], "fiscal_year": row["fiscal_year"], field: value}
-                    if quarterly:
-                        example["fiscal_quarter"] = row["fiscal_quarter"]
-                    flagged.append(example)
+                if value >= 0:
+                    continue
+                if materiality_floor_pct is not None:
+                    total_assets = row["total_assets"]
+                    if total_assets is not None and abs(value) < materiality_floor_pct * float(total_assets):
+                        continue
+                example = {"symbol": row["symbol"], "fiscal_year": row["fiscal_year"], field: value}
+                if quarterly:
+                    example["fiscal_quarter"] = row["fiscal_quarter"]
+                flagged.append(example)
             if flagged:
                 flagged.sort(key=lambda r: r[field])
                 unit = "symbol/quarter(s)" if quarterly else "symbol(s)"
