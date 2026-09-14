@@ -205,6 +205,19 @@ DEFAULT_USER_AGENT = os.getenv("SEC_USER_AGENT", "algo-trading argeropolos@gmail
 # Same self-healing caveat as the entries above: safe to remove once SEC's own ticker
 # snapshot catches up with each rename/uplisting.
 CIK_OVERRIDES: dict[str, str] = {
+    # PARA: found 2026-09-14 (goal session: quarterly_inventory_le_current_assets sweep,
+    # live-caught via an absurd $1.492B inventory vs $411,244 current_assets residual). SEC's
+    # OWN submissions.json for CIK 0001826011 (Banzai International, Inc., formerly the SPAC
+    # "7GC & Co. Holdings Inc.") lists tickers=['PARA','PARAW'] - a genuine SEC-side ticker
+    # collision/stale entry, not a bug in our own cache-building logic. Real "PARA" is
+    # Paramount Global (now Paramount Skydance Corp post-merger), CIK 0000813828 -
+    # live-confirmed AssetsCurrent=$13,524,000,000 for 2022-09-30 (the exact period our old
+    # resolution showed $411,244 for, a >30,000x understatement) via real SEC companyfacts
+    # JSON. The DB's own historical current_assets/inventory both show a clean transition
+    # from real Paramount-scale billions (2008-2019/2022 respectively) to Banzai-scale
+    # single-digit millions starting 2020/2023 - confirming the wrong-CIK resolution has been
+    # live and silently corrupting this symbol's data for years, not a one-off glitch.
+    "PARA": "0000813828",  # Paramount Global / Paramount Skydance Corp (real 10-K/10-Q filer)
     "XOM": "0000034088",  # EXXON MOBIL CORP (real 10-K filer) - see comment above
     "DMC": "0001047340",  # DEL MONTE CORP (NYSE) - see DMC/SHOE/GRSD comment above
     "SHOE": "0000895447",  # SHOE STATION GROUP INC (Nasdaq) - see comment above

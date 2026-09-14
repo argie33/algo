@@ -94,6 +94,22 @@ class TestCikOverrides:
         assert cache.symbol_to_cik("FTRK") == "0002027262"
         assert cache.symbol_to_cik("SGRX") == "0001735556"
 
+    def test_para_overridden_to_the_real_paramount_10k_filer(self):
+        # Added 2026-09-14 (goal session: quarterly_inventory_le_current_assets sweep,
+        # live-caught via an absurd $1.492B inventory vs $411,244 current_assets residual).
+        # SEC's own submissions.json for CIK 1826011 (Banzai International, Inc., formerly
+        # the SPAC "7GC & Co. Holdings Inc.") self-reports tickers=["PARA","PARAW"] - a
+        # genuine SEC-side stale/collision entry, not a bug in our cache-building logic. Real
+        # "PARA" is Paramount Global (now Paramount Skydance Corp), CIK 813828 - live-
+        # confirmed AssetsCurrent=$13,524,000,000 for 2022-09-30 via real SEC companyfacts
+        # JSON, the exact period the wrong resolution showed $411,244 for (>30,000x off).
+        cache = TickerCache.__new__(TickerCache)
+        cache._ticker_cache = {}  # would raise ValueError if the override didn't short-circuit
+        cache._ticker_cache_time = 0.0
+        cache._cache_ttl = 86400
+
+        assert cache.symbol_to_cik("PARA") == "0000813828"
+
     def test_override_does_not_affect_unrelated_symbols(self):
         cache = TickerCache.__new__(TickerCache)
         cache._ticker_cache = {"AAPL": "0000320193"}
