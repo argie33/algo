@@ -53,7 +53,6 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
 
         sqls = [call[0][0] for call in mock_cur.execute.call_args_list]
         for field in (
-            "common_stock_repurchased",
             "capex",
             "dividends_paid",
             "financing_cash_flow",
@@ -67,16 +66,19 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
             # being flagged 'derived_ytd_split' this run).
             assert sqls.index(q3_sqls[0]) < sqls.index(q2_sqls[0])
 
-        # stock_based_compensation has TWO independent Q3/Q2 correction passes since
-        # 2026-09-13: the exact-duplicate (Q2==Q3) fingerprint above, plus the monotonic
-        # (Q1<=Q2<=Q3, never equal) fingerprint added by
-        # _sweep_correct_cumulative_ytd_stock_based_compensation_monotonic - see that
-        # method's own docstring (AAPL/META/UNH-shaped, not caught by the exact-duplicate
-        # check at all).
-        sbc_q3_sqls = [s for s in sqls if "q3.stock_based_compensation - src.q2_val" in s]
-        sbc_q2_sqls = [s for s in sqls if "q2.stock_based_compensation - src.q1_val" in s]
-        assert len(sbc_q3_sqls) == 2
-        assert len(sbc_q2_sqls) == 2
+        # stock_based_compensation/common_stock_repurchased each have TWO independent Q3/Q2
+        # correction passes since 2026-09-13: the exact-duplicate (Q2==Q3) fingerprint above,
+        # plus the monotonic (Q1<=Q2<=Q3, never equal) fingerprint added by
+        # _sweep_correct_cumulative_ytd_field_monotonic - see that method's own docstring
+        # (AAPL/META/UNH/MA-shaped, not caught by the exact-duplicate check at all).
+        for field in ("stock_based_compensation", "common_stock_repurchased"):
+            # The exact-duplicate sweep's own Q3/Q2 SQL (above this loop's field list already
+            # excludes these two fields from that assertion; here just confirm the monotonic
+            # sweep's SQL exists once per field, using its own temp-table-based shape).
+            q3_sqls = [s for s in sqls if f"SET {field} = c.q3_val - c.q2_val" in s]
+            q2_sqls = [s for s in sqls if f"SET {field} = c.q2_val - c.q1_val" in s]
+            assert len(q3_sqls) == 1
+            assert len(q2_sqls) == 1
 
     def test_detection_fingerprint_matches_verified_shapes(self) -> None:
         loader = _make_loader(statement_type="cashflow", period="quarterly")

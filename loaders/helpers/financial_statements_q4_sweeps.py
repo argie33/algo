@@ -121,8 +121,9 @@ class Q4DerivationSweepMixin:
                     "separately filed by any US GAAP domestic filer)."
                 )
         self._sweep_correct_cumulative_ytd_field("stock_based_compensation")
-        self._sweep_correct_cumulative_ytd_stock_based_compensation_monotonic()
+        self._sweep_correct_cumulative_ytd_field_monotonic("stock_based_compensation")
         self._sweep_correct_cumulative_ytd_field("common_stock_repurchased")
+        self._sweep_correct_cumulative_ytd_field_monotonic("common_stock_repurchased")
         self._sweep_correct_cumulative_ytd_field("capex")
         self._sweep_correct_cumulative_ytd_field("dividends_paid")
         self._sweep_correct_cumulative_ytd_field("financing_cash_flow", sign_scoped=False)
@@ -279,98 +280,126 @@ class Q4DerivationSweepMixin:
                     "(exact Q2==Q3 dollar-match fingerprint, cumulative-only reporter)."
                 )
 
-    def _sweep_correct_cumulative_ytd_stock_based_compensation_monotonic(self) -> None:
-        """Correct Q2/Q3 quarterly_cash_flow.stock_based_compensation for filers whose
-        cumulative-YTD facts have real incremental activity every quarter (Q1 < Q2 < Q3,
-        never equal) - the general case `_sweep_correct_cumulative_ytd_field`'s Q2==Q3
-        exact-duplicate fingerprint can't see, since it requires two quarters to be
-        byte-identical.
+    def _sweep_correct_cumulative_ytd_field_monotonic(self, field: str) -> None:
+        """Correct Q2/Q3 quarterly_cash_flow.{field} for filers whose cumulative-YTD facts
+        have real incremental activity every quarter (Q1 < Q2 < Q3, never equal) - the
+        general case `_sweep_correct_cumulative_ytd_field`'s Q2==Q3 exact-duplicate
+        fingerprint can't see, since it requires two quarters to be byte-identical.
 
         FOUND 2026-09-13 (goal session: DataPatrol WARN-backlog audit,
         quarterly_stock_based_compensation_nonnegative). AAPL/META/UNH all live-confirmed
-        against this exact shape: e.g. META FY2024 stored Q1/Q2/Q3 = $3,562M/$8,178M/
-        $12,428M (monotonically increasing, never equal - each is that quarter's real
-        cumulative YTD total, not a discrete amount), so `_sweep_derive_missing_q4_cash_flow_
-        remaining_fields`'s existing FY-minus-9mo Q4 derivation computes annual($16,690M) -
-        stored_Q3($12,428M) = a deeply wrong NEGATIVE Q4 whenever stored_Q1+Q2+Q3 exceeds the
-        real annual total - impossible for a genuinely-discrete, GAAP-non-negative,
-        additive-across-a-year field. Telescoping (true_Qn = stored_Qn - stored_Q(n-1))
-        reconciles META/UNH exactly to their audited annual totals.
+        against this exact shape for stock_based_compensation: e.g. META FY2024 stored
+        Q1/Q2/Q3 = $3,562M/$8,178M/$12,428M (monotonically increasing, never equal - each is
+        that quarter's real cumulative YTD total, not a discrete amount), so
+        `_sweep_derive_missing_q4_cash_flow_remaining_fields`'s existing FY-minus-9mo Q4
+        derivation computes annual($16,690M) - stored_Q3($12,428M) = a deeply wrong NEGATIVE
+        Q4 whenever stored_Q1+Q2+Q3 exceeds the real annual total - impossible for a
+        genuinely-discrete, GAAP-non-negative, additive-across-a-year field. Telescoping
+        (true_Qn = stored_Qn - stored_Q(n-1)) reconciles META/UNH exactly to their audited
+        annual totals.
+
+        WIDENED same day to common_stock_repurchased - same shape live-confirmed via
+        Mastercard (MA) FY2018: stored Q1/Q2/Q3 = $1,352M/$2,881M/$4,045M (monotonically
+        increasing), annual = $4,933M; telescopes to true_Q2=$1,529M/true_Q3=$1,164M/
+        true_Q4=$888M, all plausible quarterly buyback amounts.
 
         Detection is deliberately narrow and conservative rather than the broad "any
         monotonic-increasing + sum-exceeds-annual" shape (that broader condition alone
-        matched 24,412 rows read-only, of which 919 would still telescope to at least one
-        negative quarter - a real false-positive signal, not just noise): scoped to rows
-        where the field's OWN already-computed Q4 is currently negative (an unambiguous,
-        already-proven-wrong value per this field's own non-negative-by-GAAP invariant) AND
-        Q1 <= Q2 <= Q3 (monotonic, rules out unrelated corruption shapes) AND annual >= Q3
-        (the exact algebraic condition under which telescoping produces a fully non-negative
-        Q2/Q3/Q4 - true_Q4 = annual - Q3 >= 0 iff annual >= Q3, and true_Q2/true_Q3 are
-        non-negative for free once Q1<=Q2<=Q3 holds). Live-confirmed 733 rows match this
-        tight condition (791 have a currently-negative Q4 and are monotonic, but only 733
-        also satisfy annual >= Q3 - the other 58 are left untouched as ambiguous, possibly a
-        genuine SBC reversal rather than this bug).
+        matched 24,412 stock_based_compensation rows read-only, of which 919 would still
+        telescope to at least one negative quarter - a real false-positive signal, not just
+        noise): scoped to rows where the field's OWN already-computed Q4 is currently
+        negative (an unambiguous, already-proven-wrong value per this field's own
+        non-negative-by-GAAP invariant) AND Q1 <= Q2 <= Q3 (monotonic, rules out unrelated
+        corruption shapes) AND annual >= Q3 (the exact algebraic condition under which
+        telescoping produces a fully non-negative Q2/Q3/Q4 - true_Q4 = annual - Q3 >= 0 iff
+        annual >= Q3, and true_Q2/true_Q3 are non-negative for free once Q1<=Q2<=Q3 holds).
+        Live-confirmed 733 stock_based_compensation rows / 277 common_stock_repurchased rows
+        match this tight condition (58 stock_based_compensation rows with a negative Q4 that
+        doesn't also satisfy annual >= Q3 are left untouched as ambiguous, possibly a genuine
+        reversal rather than this bug - same reasoning applies to whatever residual
+        common_stock_repurchased rows don't match either).
+
+        Scoped to the two fields independently source-verified above (not capex/
+        dividends_paid/financing_cash_flow/investing_cash_flow - same "don't guess a bound
+        you can't verify" discipline as `_sweep_correct_cumulative_ytd_field`'s own scoping).
 
         Q3/Q2 corrected here the same telescoping formula as `_sweep_correct_cumulative_ytd_
         field`; Q4 is NOT touched directly - `_sweep_derive_missing_q4_cash_flow_remaining_
         fields`'s existing self-heal re-derives it from the now-correct Q1-Q3 the next time
         it runs in this same post_run() sequence (it always runs after this method).
+
+        FIXED 2026-09-13 (same-day follow-up, live-caught via Mastercard/MA FY2018 common_
+        stock_repurchased): `data_source` is a single per-ROW column on quarterly_cash_flow,
+        shared by every cash-flow field, not one column per field. The original design (and
+        `_sweep_correct_cumulative_ytd_field`'s own pre-existing 'derived_ytd_split' marker)
+        used `data_source = '<marker>'` as an idempotency guard against re-matching an
+        already-corrected row on a later run - but since the SAME column is shared, correcting
+        one field (e.g. stock_based_compensation) stamps the row's data_source, which then
+        falsely tells a DIFFERENT field's sweep (e.g. common_stock_repurchased) on the SAME
+        symbol/year that it was "already processed", permanently blocking that field's real
+        correction. Live-reproduced: MA FY2018's stock_based_compensation sweep left
+        data_source='derived_ytd_mono' on its Q2/Q3 rows, which then made this method's OWN
+        common_stock_repurchased pass skip MA entirely (0 rows changed) despite MA cleanly
+        matching every detection condition. Fixed by snapshotting candidates into a temp table
+        BEFORE either UPDATE runs (avoids the read-your-own-write problem across the two-step
+        Q3-then-Q2 correction) and correlating both UPDATEs against that snapshot instead of
+        against the shared data_source column - no per-field marker needed at all, since the
+        primary detection condition (q4.{field} < 0) is already self-limiting: a row this sweep
+        corrects will no longer match on a future run once Q4 is self-healed to non-negative.
         """
-        field = "stock_based_compensation"
         with _database_context()("write") as cur:
+            cur.execute(
+                """
+                CREATE TEMP TABLE IF NOT EXISTS _cum_ytd_mono_candidates (
+                    symbol text, fiscal_year int, q1_val numeric, q2_val numeric, q3_val numeric
+                ) ON COMMIT DROP
+                """
+            )
+            cur.execute("TRUNCATE _cum_ytd_mono_candidates")
+            cur.execute(
+                f"""
+                INSERT INTO _cum_ytd_mono_candidates (symbol, fiscal_year, q1_val, q2_val, q3_val)
+                SELECT q1.symbol, q1.fiscal_year, q1.{field}, q2.{field}, q3x.{field}
+                  FROM quarterly_cash_flow q1
+                  JOIN quarterly_cash_flow q2
+                    ON q2.symbol = q1.symbol AND q2.fiscal_year = q1.fiscal_year AND q2.fiscal_quarter = 2
+                  JOIN quarterly_cash_flow q3x
+                    ON q3x.symbol = q1.symbol AND q3x.fiscal_year = q1.fiscal_year AND q3x.fiscal_quarter = 3
+                  JOIN quarterly_cash_flow q4x
+                    ON q4x.symbol = q1.symbol AND q4x.fiscal_year = q1.fiscal_year AND q4x.fiscal_quarter = 4
+                  JOIN annual_cash_flow a
+                    ON a.symbol = q1.symbol AND a.fiscal_year = q1.fiscal_year
+                 WHERE q1.fiscal_quarter = 1
+                   AND q1.data_unavailable = FALSE AND q2.data_unavailable = FALSE
+                   AND q3x.data_unavailable = FALSE AND q4x.data_unavailable = FALSE AND a.data_unavailable = FALSE
+                   AND q1.{field} IS NOT NULL AND q2.{field} IS NOT NULL
+                   AND q3x.{field} IS NOT NULL AND q4x.{field} IS NOT NULL AND a.{field} IS NOT NULL
+                   AND q4x.{field} < 0
+                   AND q1.{field} >= 0 AND q1.{field} <= q2.{field} AND q2.{field} <= q3x.{field}
+                   AND a.{field} >= q3x.{field}
+                """
+            )
             cur.execute(
                 f"""
                 UPDATE quarterly_cash_flow q3
-                   SET {field} = q3.{field} - src.q2_val,
+                   SET {field} = c.q3_val - c.q2_val,
                        data_source = 'derived_ytd_mono'
-                  FROM (
-                        SELECT q1.symbol, q1.fiscal_year, q1.{field} AS q1_val, q2.{field} AS q2_val
-                          FROM quarterly_cash_flow q1
-                          JOIN quarterly_cash_flow q2
-                            ON q2.symbol = q1.symbol AND q2.fiscal_year = q1.fiscal_year AND q2.fiscal_quarter = 2
-                          JOIN quarterly_cash_flow q3x
-                            ON q3x.symbol = q1.symbol AND q3x.fiscal_year = q1.fiscal_year AND q3x.fiscal_quarter = 3
-                          JOIN quarterly_cash_flow q4x
-                            ON q4x.symbol = q1.symbol AND q4x.fiscal_year = q1.fiscal_year AND q4x.fiscal_quarter = 4
-                          JOIN annual_cash_flow a
-                            ON a.symbol = q1.symbol AND a.fiscal_year = q1.fiscal_year
-                         WHERE q1.fiscal_quarter = 1
-                           AND q1.data_unavailable = FALSE AND q2.data_unavailable = FALSE
-                           AND q3x.data_unavailable = FALSE AND q4x.data_unavailable = FALSE AND a.data_unavailable = FALSE
-                           AND q1.{field} IS NOT NULL AND q2.{field} IS NOT NULL
-                           AND q3x.{field} IS NOT NULL AND q4x.{field} IS NOT NULL AND a.{field} IS NOT NULL
-                           AND q4x.{field} < 0
-                           AND q1.{field} >= 0 AND q1.{field} <= q2.{field} AND q2.{field} <= q3x.{field}
-                           AND a.{field} >= q3x.{field}
-                           AND q2.data_source IS DISTINCT FROM 'derived_ytd_mono'
-                           AND q3x.data_source IS DISTINCT FROM 'derived_ytd_mono'
-                       ) AS src
-                 WHERE q3.symbol = src.symbol AND q3.fiscal_year = src.fiscal_year AND q3.fiscal_quarter = 3
+                  FROM _cum_ytd_mono_candidates c
+                 WHERE q3.symbol = c.symbol AND q3.fiscal_year = c.fiscal_year AND q3.fiscal_quarter = 3
                 """
             )
             q3_fixed = cur.rowcount
             cur.execute(
                 f"""
                 UPDATE quarterly_cash_flow q2
-                   SET {field} = q2.{field} - src.q1_val,
+                   SET {field} = c.q2_val - c.q1_val,
                        data_source = 'derived_ytd_mono'
-                  FROM (
-                        SELECT q1.symbol, q1.fiscal_year, q1.{field} AS q1_val
-                          FROM quarterly_cash_flow q1
-                          JOIN quarterly_cash_flow q2x
-                            ON q2x.symbol = q1.symbol AND q2x.fiscal_year = q1.fiscal_year AND q2x.fiscal_quarter = 2
-                          JOIN quarterly_cash_flow q3
-                            ON q3.symbol = q1.symbol AND q3.fiscal_year = q1.fiscal_year AND q3.fiscal_quarter = 3
-                         WHERE q1.fiscal_quarter = 1
-                           AND q1.data_unavailable = FALSE AND q2x.data_unavailable = FALSE AND q3.data_unavailable = FALSE
-                           AND q1.{field} IS NOT NULL AND q2x.{field} IS NOT NULL AND q3.{field} IS NOT NULL
-                           AND q3.data_source = 'derived_ytd_mono'
-                           AND q2x.data_source IS DISTINCT FROM 'derived_ytd_mono'
-                       ) AS src
-                 WHERE q2.symbol = src.symbol AND q2.fiscal_year = src.fiscal_year AND q2.fiscal_quarter = 2
+                  FROM _cum_ytd_mono_candidates c
+                 WHERE q2.symbol = c.symbol AND q2.fiscal_year = c.fiscal_year AND q2.fiscal_quarter = 2
                 """
             )
             q2_fixed = cur.rowcount
+            cur.execute("DROP TABLE _cum_ytd_mono_candidates")
             if q3_fixed or q2_fixed:
                 logger.warning(
                     f"[quarterly_cash_flow] post_run(): corrected {q2_fixed} Q2 / {q3_fixed} Q3 "
