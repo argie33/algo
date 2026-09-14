@@ -118,31 +118,6 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         # NAAIM's normal Wednesday publish cadence without false-positiving on a single
         # delayed week, back when the feed was still live.
         "naaim": 14,
-        # ADDED (goal session 2026-09-14, quarterly_revenue_sum_vs_annual_extreme quarantine-
-        # backlog continuation, cross-referencing /api/scores/correctness-coverage's
-        # _TABLE_GROUP pillar-input list against data_patrol_log): yfinance_snapshot had ZERO
-        # DataPatrol coverage of any kind despite being a real, still-actively-READ pillar-
-        # input table - live-confirmed 4,683 rows, MAX(updated_at) 2026-07-12 (~64 days stale
-        # as of this fix). Same "known-permanent condition worth surfacing on every run" shape
-        # as naaim above: `loaders/loader_registry.py`'s own module docstring cites
-        # `load_yfinance_snapshot.py` as an example of a loader DELETED (Session 295) after
-        # being deprecated (Session 275, "SEC data now primary") - this table's writer is gone
-        # by design, not broken, and nobody is going to bring it back to life; it can only get
-        # staler from here, never fresher. Its remaining live readers (`load_sec_valuations.py`
-        # reads market_cap/pe_ratio as a sanity-check baseline + FPI/large-cap fallback,
-        # `load_company_profile.py` reads sector as a classification override) already have
-        # their OWN documented awareness of this staleness and live-fetch workarounds for the
-        # volatile columns (see load_sec_valuations.py's own "39 days stale" 2026-08-20/
-        # 2026-08-30 comments) - this entry's only job is making the KNOWN condition visible to
-        # data_patrol_log/the correctness-coverage panel instead of it silently reading
-        # "never_logged" there, same visibility gap naaim had before its own fix. WARN (not
-        # INFO) for the same reason naaim uses WARN: this is an already-characterized,
-        # permanent condition, not a new/uncertain check still building a false-positive
-        # record. 30 days (matching company_info_sec/company_profile's "slow-changing
-        # per-symbol metadata" precedent, the closest semantic sibling) rather than a shorter
-        # threshold, since the exact number is moot once a table's writer is permanently gone -
-        # it will never come back under any threshold.
-        "yfinance_snapshot": 30,
         # ADDED (goal session 2026-09-13, follow-up to the naaim fix above - closing the
         # remaining 4 tables the correctness-coverage panel's new `cadence` field surfaced as
         # None): stability_metrics/sec_valuations/analyst_upgrade_downgrade/
@@ -436,13 +411,6 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
             "date",
             "weekly",
             staleness_thresholds["naaim"],
-            WARN,
-        ),
-        (
-            "yfinance_snapshot",
-            "updated_at",
-            "monthly",
-            staleness_thresholds["yfinance_snapshot"],
             WARN,
         ),
         (

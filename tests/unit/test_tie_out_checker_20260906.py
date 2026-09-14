@@ -65,8 +65,7 @@ class TestBalanceSheetIdentity:
         )
         checker = _checker()
         checker.check_balance_sheet_identity(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_noncontrolling_interest_closes_identity(self) -> None:
         """FIXED 2026-09-07 (migration 1265): a row that would otherwise fail by exactly its
@@ -88,8 +87,7 @@ class TestBalanceSheetIdentity:
         )
         checker = _checker()
         checker.check_balance_sheet_identity(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_temporary_equity_closes_identity(self) -> None:
         """FIXED 2026-09-09 (migration 1274): a row that would otherwise fail by exactly its
@@ -112,8 +110,7 @@ class TestBalanceSheetIdentity:
         )
         checker = _checker()
         checker.check_balance_sheet_identity(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_per_symbol(self) -> None:
         """The SQL itself must select DISTINCT ON (symbol) ordered by fiscal_year DESC -
@@ -186,8 +183,7 @@ class TestQuarterlyBalanceSheetIdentity:
         )
         checker = _checker()
         checker.check_quarterly_balance_sheet_identity(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_noncontrolling_interest_closes_identity(self) -> None:
         cur = _mock_cursor(
@@ -208,8 +204,7 @@ class TestQuarterlyBalanceSheetIdentity:
         )
         checker = _checker()
         checker.check_quarterly_balance_sheet_identity(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_period_per_symbol(self) -> None:
         cur = _mock_cursor([[]])
@@ -252,8 +247,7 @@ class TestCashflowReconciliation:
         checker.check_cashflow_reconciliation(cur)
         # $40 residual is under the $1M floor - must NOT flag despite being a real mismatch,
         # since the floor exists to suppress rounding/immateriality noise.
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_flags_row_beyond_floor(self) -> None:
         cur = _mock_cursor(
@@ -308,8 +302,7 @@ class TestCashflowReconciliation:
         )
         checker = _checker()
         checker.check_cashflow_reconciliation(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_combined_basis_still_used_when_both_years_have_it(self) -> None:
         """ADP-shape (migration 1267) must still reconcile on the combined basis when both
@@ -334,8 +327,7 @@ class TestCashflowReconciliation:
         )
         checker = _checker()
         checker.check_cashflow_reconciliation(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_excludes_depository_institutions(self) -> None:
         cur = _mock_cursor([[]])
@@ -430,8 +422,7 @@ class TestEpsReconciliation:
         )
         checker = _checker()
         checker.check_eps_reconciliation(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_excludes_zero_denominators_and_dedups(self) -> None:
         cur = _mock_cursor([[]])
@@ -496,8 +487,7 @@ class TestBasicEpsReconciliation:
         )
         checker = _checker()
         checker.check_basic_eps_reconciliation(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_excludes_zero_denominators_and_dedups(self) -> None:
         cur = _mock_cursor([[]])
@@ -555,8 +545,7 @@ class TestGrossProfitIdentity:
         )
         checker = _checker()
         checker.check_gross_profit_identity(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -612,8 +601,7 @@ class TestPretaxToNetIncome:
         )
         checker = _checker()
         checker.check_pretax_to_net_income(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -668,8 +656,7 @@ class TestDilutedGeBasicShares:
         )
         checker = _checker()
         checker.check_diluted_ge_basic_shares(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_diluted_above_basic(self) -> None:
         cur = _mock_cursor(
@@ -686,8 +673,7 @@ class TestDilutedGeBasicShares:
         )
         checker = _checker()
         checker.check_diluted_ge_basic_shares(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -747,8 +733,7 @@ class TestRetainedEarningsRollforward:
         )
         checker = _checker()
         checker.check_retained_earnings_rollforward(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_null_dividends_paid_treated_as_zero(self) -> None:
         cur = _mock_cursor(
@@ -768,8 +753,7 @@ class TestRetainedEarningsRollforward:
         )
         checker = _checker()
         checker.check_retained_earnings_rollforward(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -800,8 +784,7 @@ class TestRetainedEarningsRollforward:
         )
         checker = _checker()
         checker.check_retained_earnings_rollforward(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_buyback_present_but_gap_still_unexplained_still_flagged(self) -> None:
         """A buyback figure that DOESN'T close the gap must still flag - OR-logic, not a blind
@@ -875,8 +858,7 @@ class TestCashflowActivitiesSumToNetChange:
         )
         checker = _checker()
         checker.check_cashflow_activities_sum_to_net_change(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -934,8 +916,7 @@ class TestQuickRatioLeCurrentRatio:
         )
         checker = _checker()
         checker.check_quick_ratio_le_current_ratio(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_ratios(self) -> None:
         cur = _mock_cursor(
@@ -951,8 +932,7 @@ class TestQuickRatioLeCurrentRatio:
         )
         checker = _checker()
         checker.check_quick_ratio_le_current_ratio(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_exception_is_caught_not_raised(self) -> None:
         cur = MagicMock()
@@ -1000,8 +980,7 @@ class TestCurrentAssetsLeTotalAssets:
         )
         checker = _checker()
         checker.check_current_assets_le_total_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_current_assets_equal_total_assets(self) -> None:
         cur = _mock_cursor(
@@ -1018,8 +997,7 @@ class TestCurrentAssetsLeTotalAssets:
         )
         checker = _checker()
         checker.check_current_assets_le_total_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -1075,8 +1053,7 @@ class TestCurrentLiabilitiesLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_current_liabilities_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -1132,8 +1109,7 @@ class TestLongTermDebtLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_long_term_debt_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_long_term_debt_equal_total_liabilities(self) -> None:
         cur = _mock_cursor(
@@ -1150,8 +1126,7 @@ class TestLongTermDebtLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_long_term_debt_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -1211,8 +1186,7 @@ class TestOperatingIncomeUpperBound:
         )
         checker = _checker()
         checker.check_operating_income_upper_bound(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -1268,8 +1242,7 @@ class TestGoodwillLeTotalAssets:
         )
         checker = _checker()
         checker.check_goodwill_le_total_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_goodwill_equal_total_assets(self) -> None:
         cur = _mock_cursor(
@@ -1286,8 +1259,7 @@ class TestGoodwillLeTotalAssets:
         )
         checker = _checker()
         checker.check_goodwill_le_total_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -1343,8 +1315,7 @@ class TestAccountsPayableLeCurrentLiabilities:
         )
         checker = _checker()
         checker.check_accounts_payable_le_current_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_accounts_payable_equal_current_liabilities(self) -> None:
         cur = _mock_cursor(
@@ -1361,8 +1332,7 @@ class TestAccountsPayableLeCurrentLiabilities:
         )
         checker = _checker()
         checker.check_accounts_payable_le_current_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -1418,8 +1388,7 @@ class TestCashLeCurrentAssets:
         )
         checker = _checker()
         checker.check_cash_le_current_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_cash_equal_current_assets(self) -> None:
         cur = _mock_cursor(
@@ -1436,8 +1405,7 @@ class TestCashLeCurrentAssets:
         )
         checker = _checker()
         checker.check_cash_le_current_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -1493,8 +1461,7 @@ class TestInventoryLeCurrentAssets:
         )
         checker = _checker()
         checker.check_inventory_le_current_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_inventory_equal_current_assets(self) -> None:
         cur = _mock_cursor(
@@ -1511,8 +1478,7 @@ class TestInventoryLeCurrentAssets:
         )
         checker = _checker()
         checker.check_inventory_le_current_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -1571,8 +1537,7 @@ class TestQuarterlyGrossProfitIdentity:
         )
         checker = _checker()
         checker.check_quarterly_gross_profit_identity(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -1630,8 +1595,7 @@ class TestFreeCashFlowIdentity:
         )
         checker = _checker()
         checker.check_free_cash_flow_identity(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -1691,8 +1655,7 @@ class TestQuarterlyFreeCashFlowIdentity:
         )
         checker = _checker()
         checker.check_quarterly_free_cash_flow_identity(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -1751,8 +1714,7 @@ class TestQuarterlyDilutedGeBasicShares:
         )
         checker = _checker()
         checker.check_quarterly_diluted_ge_basic_shares(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_counts(self) -> None:
         cur = _mock_cursor(
@@ -1770,8 +1732,7 @@ class TestQuarterlyDilutedGeBasicShares:
         )
         checker = _checker()
         checker.check_quarterly_diluted_ge_basic_shares(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -1830,8 +1791,7 @@ class TestQuarterlyInventoryLeCurrentAssets:
         )
         checker = _checker()
         checker.check_quarterly_inventory_le_current_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -1890,8 +1850,7 @@ class TestQuarterlyAccountsReceivableLeCurrentAssets:
         )
         checker = _checker()
         checker.check_quarterly_accounts_receivable_le_current_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -1950,8 +1909,7 @@ class TestQuarterlyPpeNetLeTotalAssets:
         )
         checker = _checker()
         checker.check_quarterly_ppe_net_le_total_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -2010,8 +1968,7 @@ class TestQuarterlyShortTermDebtLeCurrentLiabilities:
         )
         checker = _checker()
         checker.check_quarterly_short_term_debt_le_current_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -2070,8 +2027,7 @@ class TestQuarterlyOperatingLeaseLiabilityLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_quarterly_operating_lease_liability_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -2130,8 +2086,7 @@ class TestQuarterlyFinanceLeaseLiabilityLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_quarterly_finance_lease_liability_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -2212,8 +2167,7 @@ class TestQuarterlyDilutedEpsLeBasicEps:
         )
         checker = _checker()
         checker.check_quarterly_diluted_eps_le_basic_eps(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -2270,8 +2224,7 @@ class TestAccountsReceivableLeCurrentAssets:
         )
         checker = _checker()
         checker.check_accounts_receivable_le_current_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_values(self) -> None:
         cur = _mock_cursor(
@@ -2288,8 +2241,7 @@ class TestAccountsReceivableLeCurrentAssets:
         )
         checker = _checker()
         checker.check_accounts_receivable_le_current_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -2346,8 +2298,7 @@ class TestPpeNetLeTotalAssets:
         )
         checker = _checker()
         checker.check_ppe_net_le_total_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_values(self) -> None:
         cur = _mock_cursor(
@@ -2364,8 +2315,7 @@ class TestPpeNetLeTotalAssets:
         )
         checker = _checker()
         checker.check_ppe_net_le_total_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -2422,8 +2372,7 @@ class TestShortTermDebtLeCurrentLiabilities:
         )
         checker = _checker()
         checker.check_short_term_debt_le_current_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_values(self) -> None:
         cur = _mock_cursor(
@@ -2440,8 +2389,7 @@ class TestShortTermDebtLeCurrentLiabilities:
         )
         checker = _checker()
         checker.check_short_term_debt_le_current_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -2498,8 +2446,7 @@ class TestOperatingLeaseLiabilityLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_operating_lease_liability_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_values(self) -> None:
         cur = _mock_cursor(
@@ -2516,8 +2463,7 @@ class TestOperatingLeaseLiabilityLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_operating_lease_liability_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -2574,8 +2520,7 @@ class TestFinanceLeaseLiabilityLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_finance_lease_liability_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_values(self) -> None:
         cur = _mock_cursor(
@@ -2592,8 +2537,7 @@ class TestFinanceLeaseLiabilityLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_finance_lease_liability_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -2669,8 +2613,7 @@ class TestDilutedEpsLeBasicEps:
         )
         checker = _checker()
         checker.check_diluted_eps_le_basic_eps(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_eps(self) -> None:
         cur = _mock_cursor(
@@ -2687,8 +2630,7 @@ class TestDilutedEpsLeBasicEps:
         )
         checker = _checker()
         checker.check_diluted_eps_le_basic_eps(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -2748,8 +2690,7 @@ class TestQuarterlyEpsReconciliation:
         )
         checker = _checker()
         checker.check_quarterly_eps_reconciliation(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -2809,8 +2750,7 @@ class TestQuarterlyBasicEpsReconciliation:
         )
         checker = _checker()
         checker.check_quarterly_basic_eps_reconciliation(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -2870,8 +2810,7 @@ class TestQuarterlyPretaxToNetIncome:
         )
         checker = _checker()
         checker.check_quarterly_pretax_to_net_income(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -2933,8 +2872,7 @@ class TestQuarterlyCashflowActivitiesSumToNetChange:
         )
         checker = _checker()
         checker.check_quarterly_cashflow_activities_sum_to_net_change(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -2993,8 +2931,7 @@ class TestQuarterlyCurrentAssetsLeTotalAssets:
         )
         checker = _checker()
         checker.check_quarterly_current_assets_le_total_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_values(self) -> None:
         cur = _mock_cursor(
@@ -3012,8 +2949,7 @@ class TestQuarterlyCurrentAssetsLeTotalAssets:
         )
         checker = _checker()
         checker.check_quarterly_current_assets_le_total_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -3072,8 +3008,7 @@ class TestQuarterlyCurrentLiabilitiesLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_quarterly_current_liabilities_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_values(self) -> None:
         cur = _mock_cursor(
@@ -3091,8 +3026,7 @@ class TestQuarterlyCurrentLiabilitiesLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_quarterly_current_liabilities_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -3151,8 +3085,7 @@ class TestQuarterlyLongTermDebtLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_quarterly_long_term_debt_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_values(self) -> None:
         cur = _mock_cursor(
@@ -3170,8 +3103,7 @@ class TestQuarterlyLongTermDebtLeTotalLiabilities:
         )
         checker = _checker()
         checker.check_quarterly_long_term_debt_le_total_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -3233,8 +3165,7 @@ class TestQuarterlyOperatingIncomeUpperBound:
         )
         checker = _checker()
         checker.check_quarterly_operating_income_upper_bound(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -3293,8 +3224,7 @@ class TestQuarterlyGoodwillLeTotalAssets:
         )
         checker = _checker()
         checker.check_quarterly_goodwill_le_total_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_values(self) -> None:
         cur = _mock_cursor(
@@ -3312,8 +3242,7 @@ class TestQuarterlyGoodwillLeTotalAssets:
         )
         checker = _checker()
         checker.check_quarterly_goodwill_le_total_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -3372,8 +3301,7 @@ class TestQuarterlyAccountsPayableLeCurrentLiabilities:
         )
         checker = _checker()
         checker.check_quarterly_accounts_payable_le_current_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_values(self) -> None:
         cur = _mock_cursor(
@@ -3391,8 +3319,7 @@ class TestQuarterlyAccountsPayableLeCurrentLiabilities:
         )
         checker = _checker()
         checker.check_quarterly_accounts_payable_le_current_liabilities(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -3451,8 +3378,7 @@ class TestQuarterlyCashLeCurrentAssets:
         )
         checker = _checker()
         checker.check_quarterly_cash_le_current_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_equal_values(self) -> None:
         cur = _mock_cursor(
@@ -3470,8 +3396,7 @@ class TestQuarterlyCashLeCurrentAssets:
         )
         checker = _checker()
         checker.check_quarterly_cash_le_current_assets(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year_and_quarter(self) -> None:
         cur = _mock_cursor([[]])
@@ -3634,8 +3559,7 @@ class TestSharesOutstandingDeiPlausibleScale:
         cur = _mock_cursor([[{"symbol": "PJT", "fiscal_year": 2020, "shares_outstanding_dei": 28_000_000.0}]])
         checker = _checker()
         checker.check_shares_outstanding_dei_plausible_scale(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_dedups_to_latest_fiscal_year(self) -> None:
         cur = _mock_cursor([[]])
@@ -3759,8 +3683,7 @@ class TestStockScoresBounds:
         )
         checker = _checker()
         checker.check_stock_scores_bounds(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_does_not_flag_null_scores(self) -> None:
         cur = _mock_cursor(
@@ -3782,8 +3705,7 @@ class TestStockScoresBounds:
         )
         checker = _checker()
         checker.check_stock_scores_bounds(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_uses_latest_date(self) -> None:
         cur = _mock_cursor([[]])
@@ -3846,8 +3768,7 @@ class TestQuarterlyRevenueAnnualDuplicate:
         )
         checker = _checker()
         checker.check_quarterly_revenue_annual_duplicate(cur)
-        assert len(checker.results) == 1
-        assert checker.results[0].severity == INFO
+        assert checker.results == []
 
     def test_query_filters_to_four_identical_nonzero_quarters(self) -> None:
         cur = _mock_cursor([[]])
