@@ -118,6 +118,46 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         # NAAIM's normal Wednesday publish cadence without false-positiving on a single
         # delayed week, back when the feed was still live.
         "naaim": 14,
+        # ADDED (goal session 2026-09-13, follow-up to the naaim fix above - closing the
+        # remaining 4 tables the correctness-coverage panel's new `cadence` field surfaced as
+        # None): stability_metrics/sec_valuations/analyst_upgrade_downgrade/
+        # analyst_earnings_estimates are all real, actively-loaded pillar-input tables with no
+        # staleness entry at all - same structural blind spot as value_metrics/quality_metrics/
+        # momentum_metrics above, just not caught until the cadence field made "no entry" visible
+        # in the UI instead of only in this file's own history.
+        #
+        # stability_metrics: written by the SAME loader run as momentum_metrics
+        # (loaders/load_risk_metrics_daily.py's RiskMetricsLoader, output_tables =
+        # ["momentum_metrics", "stability_metrics"], one process, one pass - see that file's
+        # `ON CONFLICT (symbol) DO UPDATE SET ... updated_at = CURRENT_TIMESTAMP`, refreshed on
+        # every run same as its sibling). Same weekly/7-day/INFO treatment as momentum_metrics
+        # for the exact same reason: a same-run sibling of an already-covered table, not a
+        # separately-characterized check. Live-confirmed 2026-09-13: MAX(updated_at) is today,
+        # 5148/5152 rows updated in the last 3 days.
+        "stability_metrics": 7,
+        # sec_valuations: loaders/load_sec_valuations.py's own primary_key=("symbol",)/
+        # watermark_field="computed_at" (a plain date, set to date.today() on every write, not
+        # a static insert stamp - same "use the loader's own declared watermark, not whichever
+        # generic timestamp column happens to exist" reasoning as the stock_scores/
+        # growth_metrics fixes above). Live-confirmed 2026-09-13: MAX(computed_at) is today,
+        # 5029/5336 rows recomputed in the last 3 days - a near-universe-wide daily recompute,
+        # so a short threshold is safe. "daily" freq (trading-day-aware), matching
+        # analyst_sentiment_analysis's reasoning below rather than the bare calendar-day
+        # sector_ranking/industry_ranking entries.
+        "sec_valuations": 3,
+        # analyst_upgrade_downgrade: loaders/load_analyst_upgrade_downgrade.py's own
+        # primary_key=("symbol","action_date","firm")/watermark_field="action_date" - real
+        # analyst rating actions happen across the ~4,900-symbol universe on essentially every
+        # business day (live-confirmed 2026-09-13: 10,809 rows with action_date in the last 14
+        # days alone), same shape as current_reports_8k's real-SEC-filing-cadence reasoning
+        # above. "daily" freq (trading-day-aware).
+        "analyst_upgrade_downgrade": 5,
+        # analyst_earnings_estimates: loaders/load_analyst_earnings_estimates.py's own
+        # primary_key=("symbol","date")/watermark_field="date" - continuously revised as new
+        # forward estimates arrive, live-confirmed 2026-09-13: MAX(date) is today, 122,075 rows
+        # (essentially universe-wide) with date in the last 30 days. "daily" freq
+        # (trading-day-aware), same shape as analyst_sentiment_analysis below.
+        "analyst_earnings_estimates": 3,
     }
 
     # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
@@ -299,6 +339,34 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
             "weekly",
             staleness_thresholds["naaim"],
             WARN,
+        ),
+        (
+            "stability_metrics",
+            "updated_at",
+            "weekly",
+            staleness_thresholds["stability_metrics"],
+            INFO,
+        ),
+        (
+            "sec_valuations",
+            "computed_at",
+            "daily",
+            staleness_thresholds["sec_valuations"],
+            INFO,
+        ),
+        (
+            "analyst_upgrade_downgrade",
+            "action_date",
+            "daily",
+            staleness_thresholds["analyst_upgrade_downgrade"],
+            INFO,
+        ),
+        (
+            "analyst_earnings_estimates",
+            "date",
+            "daily",
+            staleness_thresholds["analyst_earnings_estimates"],
+            INFO,
         ),
     ]
     return sources
