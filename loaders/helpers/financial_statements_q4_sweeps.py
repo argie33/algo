@@ -121,6 +121,7 @@ class Q4DerivationSweepMixin:
                     "separately filed by any US GAAP domestic filer)."
                 )
         self._sweep_correct_cumulative_ytd_field("stock_based_compensation")
+        self._sweep_correct_cumulative_ytd_stock_based_compensation_monotonic()
         self._sweep_correct_cumulative_ytd_field("common_stock_repurchased")
         self._sweep_correct_cumulative_ytd_field("capex")
         self._sweep_correct_cumulative_ytd_field("dividends_paid")
@@ -276,6 +277,106 @@ class Q4DerivationSweepMixin:
                     f"[quarterly_cash_flow] post_run(): corrected {q2_fixed} Q2 / {q3_fixed} Q3 "
                     f"{field} row(s) from cumulative-YTD to discrete-quarter "
                     "(exact Q2==Q3 dollar-match fingerprint, cumulative-only reporter)."
+                )
+
+    def _sweep_correct_cumulative_ytd_stock_based_compensation_monotonic(self) -> None:
+        """Correct Q2/Q3 quarterly_cash_flow.stock_based_compensation for filers whose
+        cumulative-YTD facts have real incremental activity every quarter (Q1 < Q2 < Q3,
+        never equal) - the general case `_sweep_correct_cumulative_ytd_field`'s Q2==Q3
+        exact-duplicate fingerprint can't see, since it requires two quarters to be
+        byte-identical.
+
+        FOUND 2026-09-13 (goal session: DataPatrol WARN-backlog audit,
+        quarterly_stock_based_compensation_nonnegative). AAPL/META/UNH all live-confirmed
+        against this exact shape: e.g. META FY2024 stored Q1/Q2/Q3 = $3,562M/$8,178M/
+        $12,428M (monotonically increasing, never equal - each is that quarter's real
+        cumulative YTD total, not a discrete amount), so `_sweep_derive_missing_q4_cash_flow_
+        remaining_fields`'s existing FY-minus-9mo Q4 derivation computes annual($16,690M) -
+        stored_Q3($12,428M) = a deeply wrong NEGATIVE Q4 whenever stored_Q1+Q2+Q3 exceeds the
+        real annual total - impossible for a genuinely-discrete, GAAP-non-negative,
+        additive-across-a-year field. Telescoping (true_Qn = stored_Qn - stored_Q(n-1))
+        reconciles META/UNH exactly to their audited annual totals.
+
+        Detection is deliberately narrow and conservative rather than the broad "any
+        monotonic-increasing + sum-exceeds-annual" shape (that broader condition alone
+        matched 24,412 rows read-only, of which 919 would still telescope to at least one
+        negative quarter - a real false-positive signal, not just noise): scoped to rows
+        where the field's OWN already-computed Q4 is currently negative (an unambiguous,
+        already-proven-wrong value per this field's own non-negative-by-GAAP invariant) AND
+        Q1 <= Q2 <= Q3 (monotonic, rules out unrelated corruption shapes) AND annual >= Q3
+        (the exact algebraic condition under which telescoping produces a fully non-negative
+        Q2/Q3/Q4 - true_Q4 = annual - Q3 >= 0 iff annual >= Q3, and true_Q2/true_Q3 are
+        non-negative for free once Q1<=Q2<=Q3 holds). Live-confirmed 733 rows match this
+        tight condition (791 have a currently-negative Q4 and are monotonic, but only 733
+        also satisfy annual >= Q3 - the other 58 are left untouched as ambiguous, possibly a
+        genuine SBC reversal rather than this bug).
+
+        Q3/Q2 corrected here the same telescoping formula as `_sweep_correct_cumulative_ytd_
+        field`; Q4 is NOT touched directly - `_sweep_derive_missing_q4_cash_flow_remaining_
+        fields`'s existing self-heal re-derives it from the now-correct Q1-Q3 the next time
+        it runs in this same post_run() sequence (it always runs after this method).
+        """
+        field = "stock_based_compensation"
+        with _database_context()("write") as cur:
+            cur.execute(
+                f"""
+                UPDATE quarterly_cash_flow q3
+                   SET {field} = q3.{field} - src.q2_val,
+                       data_source = 'derived_ytd_mono'
+                  FROM (
+                        SELECT q1.symbol, q1.fiscal_year, q1.{field} AS q1_val, q2.{field} AS q2_val
+                          FROM quarterly_cash_flow q1
+                          JOIN quarterly_cash_flow q2
+                            ON q2.symbol = q1.symbol AND q2.fiscal_year = q1.fiscal_year AND q2.fiscal_quarter = 2
+                          JOIN quarterly_cash_flow q3x
+                            ON q3x.symbol = q1.symbol AND q3x.fiscal_year = q1.fiscal_year AND q3x.fiscal_quarter = 3
+                          JOIN quarterly_cash_flow q4x
+                            ON q4x.symbol = q1.symbol AND q4x.fiscal_year = q1.fiscal_year AND q4x.fiscal_quarter = 4
+                          JOIN annual_cash_flow a
+                            ON a.symbol = q1.symbol AND a.fiscal_year = q1.fiscal_year
+                         WHERE q1.fiscal_quarter = 1
+                           AND q1.data_unavailable = FALSE AND q2.data_unavailable = FALSE
+                           AND q3x.data_unavailable = FALSE AND q4x.data_unavailable = FALSE AND a.data_unavailable = FALSE
+                           AND q1.{field} IS NOT NULL AND q2.{field} IS NOT NULL
+                           AND q3x.{field} IS NOT NULL AND q4x.{field} IS NOT NULL AND a.{field} IS NOT NULL
+                           AND q4x.{field} < 0
+                           AND q1.{field} >= 0 AND q1.{field} <= q2.{field} AND q2.{field} <= q3x.{field}
+                           AND a.{field} >= q3x.{field}
+                           AND q2.data_source IS DISTINCT FROM 'derived_ytd_mono'
+                           AND q3x.data_source IS DISTINCT FROM 'derived_ytd_mono'
+                       ) AS src
+                 WHERE q3.symbol = src.symbol AND q3.fiscal_year = src.fiscal_year AND q3.fiscal_quarter = 3
+                """
+            )
+            q3_fixed = cur.rowcount
+            cur.execute(
+                f"""
+                UPDATE quarterly_cash_flow q2
+                   SET {field} = q2.{field} - src.q1_val,
+                       data_source = 'derived_ytd_mono'
+                  FROM (
+                        SELECT q1.symbol, q1.fiscal_year, q1.{field} AS q1_val
+                          FROM quarterly_cash_flow q1
+                          JOIN quarterly_cash_flow q2x
+                            ON q2x.symbol = q1.symbol AND q2x.fiscal_year = q1.fiscal_year AND q2x.fiscal_quarter = 2
+                          JOIN quarterly_cash_flow q3
+                            ON q3.symbol = q1.symbol AND q3.fiscal_year = q1.fiscal_year AND q3.fiscal_quarter = 3
+                         WHERE q1.fiscal_quarter = 1
+                           AND q1.data_unavailable = FALSE AND q2x.data_unavailable = FALSE AND q3.data_unavailable = FALSE
+                           AND q1.{field} IS NOT NULL AND q2x.{field} IS NOT NULL AND q3.{field} IS NOT NULL
+                           AND q3.data_source = 'derived_ytd_mono'
+                           AND q2x.data_source IS DISTINCT FROM 'derived_ytd_mono'
+                       ) AS src
+                 WHERE q2.symbol = src.symbol AND q2.fiscal_year = src.fiscal_year AND q2.fiscal_quarter = 2
+                """
+            )
+            q2_fixed = cur.rowcount
+            if q3_fixed or q2_fixed:
+                logger.warning(
+                    f"[quarterly_cash_flow] post_run(): corrected {q2_fixed} Q2 / {q3_fixed} Q3 "
+                    f"{field} row(s) from cumulative-YTD to discrete-quarter "
+                    "(monotonic Q1<=Q2<=Q3 + currently-negative-Q4 fingerprint, real "
+                    "incremental activity every quarter - not the flat Q2==Q3 case)."
                 )
 
     def _sweep_derive_missing_q4_cash_flow_remaining_fields(self) -> None:

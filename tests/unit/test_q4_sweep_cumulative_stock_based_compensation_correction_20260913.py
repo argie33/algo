@@ -53,7 +53,6 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
 
         sqls = [call[0][0] for call in mock_cur.execute.call_args_list]
         for field in (
-            "stock_based_compensation",
             "common_stock_repurchased",
             "capex",
             "dividends_paid",
@@ -67,6 +66,17 @@ class TestSweepCorrectCumulativeStockBasedCompensation:
             # Q3's own correction must run before Q2's (Q2's guard depends on Q3 already
             # being flagged 'derived_ytd_split' this run).
             assert sqls.index(q3_sqls[0]) < sqls.index(q2_sqls[0])
+
+        # stock_based_compensation has TWO independent Q3/Q2 correction passes since
+        # 2026-09-13: the exact-duplicate (Q2==Q3) fingerprint above, plus the monotonic
+        # (Q1<=Q2<=Q3, never equal) fingerprint added by
+        # _sweep_correct_cumulative_ytd_stock_based_compensation_monotonic - see that
+        # method's own docstring (AAPL/META/UNH-shaped, not caught by the exact-duplicate
+        # check at all).
+        sbc_q3_sqls = [s for s in sqls if "q3.stock_based_compensation - src.q2_val" in s]
+        sbc_q2_sqls = [s for s in sqls if "q2.stock_based_compensation - src.q1_val" in s]
+        assert len(sbc_q3_sqls) == 2
+        assert len(sbc_q2_sqls) == 2
 
     def test_detection_fingerprint_matches_verified_shapes(self) -> None:
         loader = _make_loader(statement_type="cashflow", period="quarterly")
