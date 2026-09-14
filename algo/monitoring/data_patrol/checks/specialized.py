@@ -340,12 +340,34 @@ class SpecializedChecker(BaseCheck):
             null_rsi = int(null_rsi)
 
             if bad_rsi > 0:
+                # ADDED 2026-09-14 (goal: quarantine-coverage audit, same class as
+                # isolated_spike_corruption's/momentum_metrics-RSI's own flagged_symbols fix):
+                # this only ever computed an aggregate COUNT(*), never identifying WHICH
+                # symbols carry the out-of-bounds RSI - an ERROR finding with no
+                # flagged_symbols halts the whole pipeline (quarantine.py's deliberate
+                # fail-safe) instead of quarantining just the corrupted symbols. RSI's [0,100]
+                # range is a mathematical guarantee, so any violating row is unambiguously
+                # attributable to its own symbol.
+                cur.execute(f"""
+                    SELECT DISTINCT symbol FROM technical_data_daily
+                    WHERE date >= CURRENT_DATE - {interval_7d} AND (rsi < 0 OR rsi > 100)
+                    ORDER BY symbol
+                """)
+                bad_rsi_symbols = [r.get("symbol") if hasattr(r, "get") else r[0] for r in cur.fetchall()]
                 self.log(
                     "derived_metrics",
                     ERROR,
                     "technical_data_daily",
                     f"{bad_rsi} rows with invalid RSI (<0 or >100)",
-                    {"bad_rsi": bad_rsi, "total": total},
+                    {
+                        "bad_rsi": bad_rsi,
+                        "total": total,
+                        "flagged_symbols": [
+                            {"symbol": s, "reason": "RSI outside valid [0,100] range in the last 7 days"}
+                            for s in bad_rsi_symbols
+                            if s
+                        ],
+                    },
                 )
             else:
                 self.log(
@@ -374,12 +396,30 @@ class SpecializedChecker(BaseCheck):
             bad_rsi_nan = int(bad_rsi_nan)
 
             if bad_atr > 0 or bad_rsi_nan > 0:
+                # ADDED 2026-09-14: same flagged_symbols gap/fix as the RSI-bounds check above -
+                # a NaN/Infinity computation error is unambiguously attributable to its own
+                # symbol's row.
+                cur.execute(f"""
+                    SELECT DISTINCT symbol FROM technical_data_daily
+                    WHERE date >= CURRENT_DATE - {interval_7d}
+                      AND (atr = 'NaN' OR atr = 'Infinity' OR atr = '-Infinity'
+                           OR rsi = 'NaN' OR rsi = 'Infinity')
+                    ORDER BY symbol
+                """)
+                bad_nan_symbols = [r.get("symbol") if hasattr(r, "get") else r[0] for r in cur.fetchall()]
                 self.log(
                     "derived_metrics",
                     ERROR,
                     "technical_data_daily",
                     f"{bad_atr} NaN ATR, {bad_rsi_nan} NaN RSI (computation error)",
-                    {"nan_count": bad_atr + bad_rsi_nan},
+                    {
+                        "nan_count": bad_atr + bad_rsi_nan,
+                        "flagged_symbols": [
+                            {"symbol": s, "reason": "NaN/Infinity ATR or RSI value in the last 7 days"}
+                            for s in bad_nan_symbols
+                            if s
+                        ],
+                    },
                 )
             else:
                 self.log(

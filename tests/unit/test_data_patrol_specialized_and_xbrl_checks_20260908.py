@@ -86,28 +86,43 @@ class TestCheckDerivedMetrics:
         assert all(r.severity == INFO for r in checker.results)
 
     def test_bad_rsi_logs_error(self) -> None:
+        # ADDED 2026-09-14 (quarantine-coverage audit): bad-RSI rows must name the specific
+        # symbols responsible via flagged_symbols, not just an aggregate count - see
+        # specialized.py's own comment on this fix for why (quarantine.py's fail-safe: an
+        # ERROR with no flagged_symbols halts the whole pipeline instead of quarantining just
+        # the affected symbols).
         checker = _specialized_checker()
         cur = MagicMock()
         cur.fetchone.side_effect = [
-            {"bad_rsi": 7, "null_rsi": 0, "total": 1000},
+            {"bad_rsi": 2, "null_rsi": 0, "total": 1000},
             {"bad_atr": 0, "bad_rsi_nan": 0},
         ]
+        cur.fetchall.return_value = [{"symbol": "AAPL"}, {"symbol": "MSFT"}]
         checker.check_derived_metrics(cur)
         rsi_result = checker.results[0]
         assert rsi_result.severity == ERROR
-        assert rsi_result.details["bad_rsi"] == 7
+        assert rsi_result.details["bad_rsi"] == 2
+        assert rsi_result.details["flagged_symbols"] == [
+            {"symbol": "AAPL", "reason": "RSI outside valid [0,100] range in the last 7 days"},
+            {"symbol": "MSFT", "reason": "RSI outside valid [0,100] range in the last 7 days"},
+        ]
 
     def test_nan_values_log_error(self) -> None:
+        # ADDED 2026-09-14: same flagged_symbols coverage fix as test_bad_rsi_logs_error above.
         checker = _specialized_checker()
         cur = MagicMock()
         cur.fetchone.side_effect = [
             {"bad_rsi": 0, "null_rsi": 0, "total": 1000},
             {"bad_atr": 2, "bad_rsi_nan": 1},
         ]
+        cur.fetchall.return_value = [{"symbol": "TSLA"}]
         checker.check_derived_metrics(cur)
         nan_result = checker.results[1]
         assert nan_result.severity == ERROR
         assert nan_result.details["nan_count"] == 3
+        assert nan_result.details["flagged_symbols"] == [
+            {"symbol": "TSLA", "reason": "NaN/Infinity ATR or RSI value in the last 7 days"}
+        ]
 
     def test_query_failure_logs_error_not_raise(self) -> None:
         checker = _specialized_checker()
