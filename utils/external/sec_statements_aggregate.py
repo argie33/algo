@@ -227,6 +227,7 @@ def _aggregate_concepts(
                 _max_end_by_accn,
                 _short_span_val_by_accn,
                 _fy_by_start_end_val,
+                _fye_month,
             ) = _aggregate_concepts_build_unit_context(entries)
 
             # Widen to the alias-group's confirmed annual-report history (see this
@@ -252,6 +253,7 @@ def _aggregate_concepts(
                     _max_plausible_fiscal_year,
                     symbol,
                     concept,
+                    _fye_month,
                 )
                 if resolved is None:
                     continue
