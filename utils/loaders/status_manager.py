@@ -1036,6 +1036,21 @@ def reap_stale_running_loaders() -> list[str]:
     found via test_reap_stale_running_loaders.py drift - the tests still asserted the old
     scoped-query/flat-max_age contract this docstring already said was gone).
 
+    HEARTBEAT-AWARE FIX (2026-09-14, goal: "algo keeps halting and failing"): a per-loader
+    timeout is sized for a *typical* run, not the slower end of a real full-universe pass -
+    live-confirmed the same evening this was found: `financial_statements` ran 7.5h+ (well
+    past any single loader's configured timeout) while genuinely healthy and actively
+    advancing (`symbols_loaded`/`completion_pct` moving every poll, `last_updated` refreshing
+    throughout). Age-since-start alone can't tell that apart from a loader that started once
+    and then silently died - both look identical by that measure once elapsed time crosses
+    the threshold. Now requires BOTH execution_started AND last_updated to be older than the
+    per-loader timeout+margin before reaping: a loader still calling update_progress()
+    (refreshing last_updated) is proven alive regardless of total elapsed time, while one
+    whose last_updated has gone stale - whether frozen at 0% from the start or frozen
+    partway through after real progress - is correctly still caught. Loaders that never call
+    update_progress() at all still behave exactly as before (last_updated only moves at
+    mark_running(), so it goes stale in lockstep with execution_started).
+
     Returns:
         Table names that were reaped (previously RUNNING, now marked FAILED).
     """
@@ -1047,7 +1062,7 @@ def reap_stale_running_loaders() -> list[str]:
             # Query all stuck loaders
             cur.execute(
                 """
-                SELECT table_name, execution_started
+                SELECT table_name, execution_started, last_updated
                 FROM data_loader_status
                 WHERE status = %s
                   AND execution_started IS NOT NULL
@@ -1066,7 +1081,7 @@ def reap_stale_running_loaders() -> list[str]:
 
     from datetime import datetime, timezone
 
-    for table_name, execution_started in all_stuck:
+    for table_name, execution_started, last_updated in all_stuck:
         try:
             # CRITICAL SESSION 106 FIX: Use per-loader timeout, not longest_timeout * 1.5
             loader_timeout_sec = get_loader_timeout(table_name, default_seconds=3600)
@@ -1076,18 +1091,24 @@ def reap_stale_running_loaders() -> list[str]:
                 execution_started = execution_started.replace(tzinfo=timezone.utc)
             age_sec = (now_utc - execution_started).total_seconds()
 
-            if age_sec > max_age_sec:
+            if last_updated is not None and last_updated.tzinfo is None:
+                last_updated = last_updated.replace(tzinfo=timezone.utc)
+            heartbeat_stale_sec = (now_utc - last_updated).total_seconds() if last_updated is not None else age_sec
+
+            if age_sec > max_age_sec and heartbeat_stale_sec > max_age_sec:
                 age_hours_for_log = age_sec / 3600
                 LoaderStatusManager(table_name).mark_failed(
                     error_message=(
                         f"[REAPED] Stuck in RUNNING since {execution_started} ({age_hours_for_log:.1f}h elapsed, "
+                        f"no progress update in {heartbeat_stale_sec / 3600:.1f}h, "
                         f"exceeds {loader_timeout_sec}s timeout + 25% margin). "
                         "No owning process alive - auto-marked FAILED."
                     )
                 )
                 logger.warning(
                     f"[STATUS_MANAGER] Reaped stale RUNNING loader: {table_name} "
-                    f"(started {execution_started}, {age_sec:.0f}s > {max_age_sec:.0f}s threshold)"
+                    f"(started {execution_started}, {age_sec:.0f}s > {max_age_sec:.0f}s threshold, "
+                    f"heartbeat stale {heartbeat_stale_sec:.0f}s)"
                 )
                 reaped.append(table_name)
         except Exception as e:
