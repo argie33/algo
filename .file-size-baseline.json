@@ -82,7 +82,7 @@
   "algo/monitoring/data_patrol/checks/reverse_merger_shell.py": 181,
   "algo/monitoring/data_patrol/checks/score_ratio_outliers.py": 187,
   "algo/monitoring/data_patrol/checks/specialized.py": 634,
-  "algo/monitoring/data_patrol/checks/staleness.py": 1093,
+  "algo/monitoring/data_patrol/checks/staleness.py": 1125,
   "algo/monitoring/data_patrol/checks/statistical_anomaly.py": 185,
   "algo/monitoring/data_patrol/checks/tie_out.py": 315,
   "algo/monitoring/data_patrol/checks/tie_out_bounds_annual1.py": 968,
