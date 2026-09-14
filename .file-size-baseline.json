@@ -454,7 +454,7 @@
   "lambda/api/routes/openapi_spec.py": 135,
   "lambda/api/routes/options.py": 123,
   "lambda/api/routes/param_validators.py": 242,
-  "lambda/api/routes/positions.py": 179,
+  "lambda/api/routes/positions.py": 240,
   "lambda/api/routes/prices.py": 408,
   "lambda/api/routes/research.py": 138,
   "lambda/api/routes/risk_dashboard.py": 710,
