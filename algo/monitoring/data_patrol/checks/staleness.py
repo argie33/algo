@@ -158,6 +158,38 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         # (essentially universe-wide) with date in the last 30 days. "daily" freq
         # (trading-day-aware), same shape as analyst_sentiment_analysis below.
         "analyst_earnings_estimates": 3,
+        # ADDED (goal session 2026-09-13, "patrols and checks" comprehensiveness audit):
+        # systematic diff of every loaders/loader_registry.py LOADER_TABLES entry against
+        # every DataPatrol checker's covered-table set (staleness/coverage/quality/tie-out/
+        # everything) found 19 more real, actively-loaded tables with ZERO coverage of any
+        # kind - not just no staleness entry, no check at all. All live-confirmed fresh as
+        # of 2026-09-13 before adding. Same "new/uncharacterized check" INFO-severity
+        # treatment as every batch above until a production run establishes the real
+        # false-positive rate.
+        "algo_metrics_daily": 3,  # daily capital-routing input, same cadence as market_health_daily
+        "capital_routing_daily": 3,  # daily, same reasoning
+        "company_info_sec": 30,  # per-symbol SEC company master data, slow-changing
+        "company_profile": 30,  # per-symbol company metadata, slow-changing
+        "earnings_calendar": 5,  # real analyst-estimate earnings dates, updated most business days
+        "economic_calendar": 10,  # macro calendar events, sparse but real cadence
+        "economic_data": 5,  # daily macro series (rates/inflation/etc.)
+        "etf_price_daily": 3,  # daily ETF bars, same shape as price_daily but lower criticality
+        "etf_price_monthly": 45,  # monthly bars, generous buffer over 30
+        "etf_price_weekly": 10,  # weekly bars, same buffer reasoning as price_weekly
+        "etf_symbols": 30,  # ETF universe membership/metadata, slow-changing
+        # institutional_holdings_13f: 13F filings are quarterly with a 45-day SEC deadline
+        # after quarter-end - same order-of-magnitude threshold as earnings_history.
+        "institutional_holdings_13f": 100,
+        "market_exposure_daily": 3,  # daily risk-exposure input
+        "price_monthly": 45,  # monthly bars, same buffer as etf_price_monthly
+        "sec_segment_info": 30,  # SEC XBRL segment disclosures, filed alongside financials
+        "sec_segment_metrics": 30,  # derived from sec_segment_info, same cadence
+        "sector_performance": 5,  # daily sector return series
+        "sector_rotation_signal": 3,  # daily signal input
+        # short_interest_finra: FINRA short-interest settlement dates publish bi-monthly
+        # (twice a month) - a threshold under the ~15-day cadence would false-positive
+        # every cycle.
+        "short_interest_finra": 20,
     }
 
     # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
@@ -368,6 +400,31 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
             staleness_thresholds["analyst_earnings_estimates"],
             INFO,
         ),
+        ("algo_metrics_daily", "date", "daily", staleness_thresholds["algo_metrics_daily"], INFO),
+        ("capital_routing_daily", "date", "daily", staleness_thresholds["capital_routing_daily"], INFO),
+        ("company_info_sec", "updated_at", "monthly", staleness_thresholds["company_info_sec"], INFO),
+        ("company_profile", "updated_at", "monthly", staleness_thresholds["company_profile"], INFO),
+        ("earnings_calendar", "updated_at", "daily", staleness_thresholds["earnings_calendar"], INFO),
+        ("economic_calendar", "updated_at", "weekly", staleness_thresholds["economic_calendar"], INFO),
+        ("economic_data", "date", "daily", staleness_thresholds["economic_data"], INFO),
+        ("etf_price_daily", "date", "daily", staleness_thresholds["etf_price_daily"], INFO),
+        ("etf_price_monthly", "date", "monthly", staleness_thresholds["etf_price_monthly"], INFO),
+        ("etf_price_weekly", "date", "weekly", staleness_thresholds["etf_price_weekly"], INFO),
+        ("etf_symbols", "updated_at", "monthly", staleness_thresholds["etf_symbols"], INFO),
+        (
+            "institutional_holdings_13f",
+            "updated_at",
+            "quarterly",
+            staleness_thresholds["institutional_holdings_13f"],
+            INFO,
+        ),
+        ("market_exposure_daily", "date", "daily", staleness_thresholds["market_exposure_daily"], INFO),
+        ("price_monthly", "date", "monthly", staleness_thresholds["price_monthly"], INFO),
+        ("sec_segment_info", "updated_at", "monthly", staleness_thresholds["sec_segment_info"], INFO),
+        ("sec_segment_metrics", "updated_at", "monthly", staleness_thresholds["sec_segment_metrics"], INFO),
+        ("sector_performance", "date", "daily", staleness_thresholds["sector_performance"], INFO),
+        ("sector_rotation_signal", "date", "daily", staleness_thresholds["sector_rotation_signal"], INFO),
+        ("short_interest_finra", "updated_at", "monthly", staleness_thresholds["short_interest_finra"], INFO),
     ]
     return sources
 
