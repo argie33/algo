@@ -8,6 +8,7 @@ from typing import Any
 
 from algo.infrastructure.market_calendar import MarketCalendar
 from utils.db import assert_safe_column, assert_safe_table, safe_select_count
+from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 
 from ..base import BaseCheck, CheckResult
 from ..config import CRIT, ERROR, INFO, WARN
@@ -824,6 +825,30 @@ class StalenessChecker(BaseCheck):
         # miss same-shape siblings that weren't part of that trail - checked
         # `grep -oE "FROM [a-z_]+" loaders/load_stock_scores.py` afterward to confirm no further
         # ON CONFLICT (symbol) sibling was still missing from this list.
+        # FIXED 2026-09-14 (goal: "fix the data issues we still have" comprehensive sweep):
+        # this loop compared each pillar table against the full active stock_symbols
+        # population, but growth_metrics/momentum_metrics/value_metrics/quality_metrics/
+        # stability_metrics are all populated by loaders that deliberately EXCLUDE non-
+        # operating companies (ETFs, BDCs, closed-end funds/trusts, blank-check SPACs) via
+        # NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE - see loaders/stock_scores/
+        # growth_scoring.py, momentum_scoring.py, risk_scoring.py, value_metrics.py,
+        # loaders/helpers/vqg_quality_batch.py. Live-confirmed: the 73 (growth/quality/
+        # value_metrics) / 8 (stability_metrics) "missing row" symbols this check was
+        # flagging today are exactly that excluded population (QQQ/SPY/EFA ETFs, BlackRock/
+        # Gabelli/Royce/Franklin/Invesco closed-end funds, BDCs like MAIN/HTGC/FSK/GAIN,
+        # shell/SPAC names like IBAC/BOT/PWRL/DXYZ) - they will NEVER get a row, no backfill
+        # can close this, same false-positive shape as
+        # royalty_trust_scoring_population_exclusion_gap_20260914 but in monitoring instead
+        # of scoring. positioning_metrics has no such exclusion (loaders/
+        # load_positioning_metrics.py scores every active symbol including funds/ETFs), so
+        # it's intentionally left off the excluded-tables set below.
+        pillar_tables_excluding_non_operating = {
+            "growth_metrics",
+            "momentum_metrics",
+            "value_metrics",
+            "quality_metrics",
+            "stability_metrics",
+        }
         for pillar_table in (
             "growth_metrics",
             "momentum_metrics",
@@ -832,7 +857,11 @@ class StalenessChecker(BaseCheck):
             "stability_metrics",
             "positioning_metrics",
         ):
-            self._check_frozen_pillar_metrics_symbols(cur, pillar_table)
+            self._check_frozen_pillar_metrics_symbols(
+                cur,
+                pillar_table,
+                exclude_non_operating=pillar_table in pillar_tables_excluding_non_operating,
+            )
 
         # Alert on stale critical signals
         if stale_critical_signals:
@@ -1114,7 +1143,7 @@ class StalenessChecker(BaseCheck):
                     f"Database connection corrupted during frozen-trend-template check cleanup: {release_err}"
                 ) from release_err
 
-    def _check_frozen_pillar_metrics_symbols(self, cur: Any, table: str) -> None:
+    def _check_frozen_pillar_metrics_symbols(self, cur: Any, table: str, exclude_non_operating: bool = False) -> None:
         """Generalized frozen/missing-row check for single-row-per-symbol pillar tables.
 
         See the call site's comment in run() for the full evidence trail (2026-09-13). Covers
@@ -1123,9 +1152,22 @@ class StalenessChecker(BaseCheck):
         (frozen), and a symbol with no row at all (missing) - the latter is invisible to a
         pure MAX(updated_at)-per-symbol frozen check and wasn't caught by CoverageChecker
         either (its coverage query requires a `date` column these tables don't have).
+
+        exclude_non_operating (added 2026-09-14): when True, applies the identical
+        NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE the scoring loaders for this table use,
+        so a symbol that's deliberately never scored (ETF/BDC/CEF/blank-check SPAC) doesn't
+        perpetually count as "missing" - see call site comment for the live evidence trail.
         """
         table_safe = assert_safe_table(table)
         sp = f"sp_stale_{table_safe}_frozen_symbols"
+        non_operating_join = "LEFT JOIN company_info_sec c ON c.symbol = sy.symbol" if exclude_non_operating else ""
+        non_operating_clause = (
+            "AND ("
+            + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="sy", company_info_alias="c")
+            + ")"
+            if exclude_non_operating
+            else ""
+        )
         try:
             cur.execute(f"SAVEPOINT {sp}")
             cur.execute(
@@ -1137,10 +1179,12 @@ class StalenessChecker(BaseCheck):
                     COUNT(*) FILTER (WHERE t.symbol IS NULL) AS missing_count
                 FROM stock_symbols sy
                 LEFT JOIN {table_safe} t ON t.symbol = sy.symbol
+                {non_operating_join}
                 WHERE sy.active = true
                   -- FIXED 2026-09-14: same data_unavailable gap as the price_daily frozen
                   -- check above - a triaged/flagged symbol kept re-alarming here forever.
                   AND COALESCE(sy.data_unavailable, false) = false
+                  {non_operating_clause}
                 """
             )
             row = cur.fetchone()
