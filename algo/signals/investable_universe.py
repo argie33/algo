@@ -99,16 +99,6 @@ def investable_universe_conditions(scores_alias: str, symbols_alias: str) -> str
     gamed by a light balance sheet the way ROE/ROCE-heavy Quality is) would permanently block
     real trading opportunities for a reason that shouldn't reach that far.
 
-    EXTENDED TO SIC 6795 (2026-09-14, same goal session - found via a live query while auditing
-    whether the fix above was complete, not a bug report): SIC 6795 ("Mineral Royalty Traders")
-    has the IDENTICAL mixed-population shape - MSB (Mesabi Trust, a genuine passive iron-ore
-    royalty trust, live-confirmed roe=399.84% off a near-zero balance sheet the same way as the
-    SIC-6792 trusts above) shares the code with RGLD (Royal Gold), SSRM (SSR Mining), SRL
-    (Scully Royalty), VMET (Versamet Royalties), and TFPM (Triple Flag Precious Metals) - all
-    real, actively-managed royalty/streaming/mining operating companies, none with "Trust" in
-    their name. Same fix, same reasoning: SIC-6795-alone would wrongly exclude 5 real companies
-    to catch 1 real trust; requiring the "Trust" name match again narrows it to exactly MSB.
-
     SIC-CODE STRUCTURED-NOTE FILTERING (2026-08-03): trust-preferred/structured-note
     certificates (GJH/GJO/GJP/GJR/GJS/GJT "STRATS", KTN "CorTS", PYT "PPlus Trust") have
     their own SIC 6189 ("Asset-Backed Securities"). Entergy's First Mortgage Bonds tickers
@@ -156,7 +146,7 @@ def investable_universe_conditions(scores_alias: str, symbols_alias: str) -> str
         AND {symbols_alias}.symbol NOT IN (SELECT symbol FROM etf_symbols)
         AND {symbols_alias}.symbol NOT IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6189)
         AND NOT (
-            {symbols_alias}.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code IN (6792, 6795))
+            {symbols_alias}.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6792)
             AND {symbols_alias}.security_name ~* 'Trust'
         )
         AND NOT (

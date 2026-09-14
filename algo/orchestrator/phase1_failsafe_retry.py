@@ -1220,21 +1220,38 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
                                     )
 
                                 status_reason = retry_result["status_reason"]
-                                if status_reason not in ("timeout", "failed"):
+                                # BUG FOUND (real-money-readiness audit): monitor_loader_retry()'s own
+                                # docstring documents "stalled" (0% completion for 5+ min, subprocess
+                                # likely hung/deadlocked) as a legitimate status_reason it returns - and
+                                # its code really does return it (see that function's SESSION 103 FIX
+                                # block) - but this check only ever accepted "timeout"/"failed", so a
+                                # genuinely-stalled critical loader raised a misleading "Loader retry
+                                # infrastructure may have changed" CRITICAL alert instead of the accurate
+                                # "stalled" diagnosis. The end result (halt_required=True, re-raised to
+                                # halt Phase 1) was the same either way for a critical loader - this
+                                # never let a stalled loader through - but it sent whoever's paged
+                                # chasing an "infrastructure broken" red herring instead of the real
+                                # "subprocess hung" cause monitor_loader_retry had already diagnosed.
+                                if status_reason not in ("timeout", "failed", "stalled"):
                                     logger.critical(
                                         f"[PHASE 1 FAILSAFE CRITICAL] Loader retry result has unexpected status_reason: {status_reason!r}. "
-                                        f"Expected 'timeout' or 'failed'. Result keys: {list(retry_result.keys())}. "
+                                        f"Expected 'timeout', 'failed', or 'stalled'. Result keys: {list(retry_result.keys())}. "
                                         f"Loader retry infrastructure may have changed. Check invoke_loader_retry() implementation."
                                     )
                                     raise ValueError(
                                         f"[PHASE 1] Loader retry result has unexpected status_reason: {status_reason!r}. "
-                                        "Expected 'timeout' or 'failed'."
+                                        "Expected 'timeout', 'failed', or 'stalled'."
                                     )
 
                                 if status_reason == "timeout":
                                     reason_msg = (
                                         f"not yet confirmed recovered after {RETRY_MONITOR_TIMEOUT_SECONDS}s poll "
                                         "(ECS task still running in background - next scheduled run will re-check)"
+                                    )
+                                elif status_reason == "stalled":
+                                    reason_msg = (
+                                        "subprocess stalled at 0% completion for 5+ minutes during retry monitoring "
+                                        "(likely hung or deadlocked, not merely slow)"
                                     )
                                 else:  # status_reason == "failed"
                                     reason_msg = f"failed (completed with {pct_str} completion)"
@@ -1342,7 +1359,7 @@ def retry_loader(loader_name: str, symbols_missing: int, is_critical: bool) -> d
             "retried": bool,        # True if retry was triggered
             "recovered": bool,      # True if loader reached its configured min completion threshold
             "final_completion_pct": float | None,  # None if status unknown
-            "status_reason": str,   # 'success', 'timeout' (still running), or 'failed'
+            "status_reason": str,   # 'success', 'timeout' (still running), 'stalled' (0% for 5+ min), or 'failed'
         }
 
     Raises:

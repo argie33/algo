@@ -52,13 +52,6 @@ logger = logging.getLogger(__name__)
 # copy needs the same update - grep both files for NON_OPERATING_COMPANY_EXCLUSION_SQL to find
 # both copies. Lives here (used only by _get_scores_coverage below) - scores.py re-exports the
 # name (see its own NOTE comment) since tests reach it via that module.
-# ROYALTY-TRUST/BLANK-CHECK-SPAC CONDITIONS ADDED (goal: "our scores don't look like industry
-# lists" audit) - mirrors the same fix in utils/loaders/helpers.py's canonical copy (see that
-# constant's own comment for the full live-evidence trail: a genuine pass-through royalty
-# trust like CRT topped the live Quality leaderboard at quality_score=90.96 off triple-digit
-# roe/roa/roce/asset_turnover ratios a near-zero invested-capital balance sheet mechanically
-# produces). Same self-updating conditions as investable_universe_conditions() - SIC 6792 +
-# "Trust" in the name only, SIC 6770 + zero reported annual revenue only.
 _NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE = """
     (
         ({symbols_alias}.etf IS NULL OR {symbols_alias}.etf != 'true')
@@ -68,16 +61,6 @@ _NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE = """
               COALESCE({company_info_alias}.sic_code, 0) = 0
               AND COALESCE({company_info_alias}.entity_type, 'operating') IN ('other', 'investment')
               AND {symbols_alias}.symbol != 'OZK'
-        )
-        AND NOT (
-              {symbols_alias}.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code IN (6792, 6795))
-              AND {symbols_alias}.security_name ~* 'Trust'
-        )
-        AND NOT (
-              {symbols_alias}.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6770)
-              AND {symbols_alias}.symbol NOT IN (
-                  SELECT symbol FROM annual_income_statement WHERE revenue > 0
-              )
         )
         AND {symbols_alias}.symbol NOT IN ('TVC', 'TVE', 'SCE$L')
         -- FIXED 2026-09-03: mirrors utils/loaders/helpers.py's
