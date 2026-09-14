@@ -179,6 +179,41 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                     else:
                         existing_id, existing_status = None, None
 
+                    # DATA-INTEGRITY GUARD (real-money-readiness audit): trade_position_id
+                    # (above) comes from a SYMBOL-ONLY lookup on algo_trades; existing_id
+                    # comes from a SEPARATE symbol-only lookup on algo_positions. Both are
+                    # expected to name the same position for a normal single-position-per-
+                    # symbol history, but nothing here previously verified that - the update
+                    # branch below blindly used trade_position_id to pull trade_ids_arr/
+                    # stop_loss_price/targets and wrote them onto existing_id's row via
+                    # UPDATE ... WHERE position_id = existing_id. If a symbol ever has
+                    # algo_trades rows spanning two different position_id values that both
+                    # look "currently open" by each query's own criteria - the exact
+                    # corruption class already seen once in production (GEN/TRD-D9501EE6A4,
+                    # a live trade_id ending up in BOTH a closed position's trade_ids_arr and
+                    # the real open position's - see executor_exit_handler.py's
+                    # _fetch_and_lock_trade_data for the downstream symptom this was
+                    # previously only patched around) - this would splice one position's
+                    # trades/stop-loss/targets onto a DIFFERENT position's row, which is the
+                    # actual corruption MECHANISM, not just a symptom of it. Refuse and
+                    # surface for manual reconciliation instead of silently merging.
+                    if (
+                        existing_id is not None
+                        and trade_position_id is not None
+                        and str(trade_position_id) != str(existing_id)
+                    ):
+                        error_reason = (
+                            f"position_id mismatch: symbol-based trade lookup resolved to "
+                            f"position_id={trade_position_id}, symbol-based position lookup "
+                            f"resolved to a DIFFERENT position_id={existing_id} "
+                            f"(status={existing_status}) - refusing to merge, needs manual "
+                            f"reconciliation"
+                        )
+                        logger.critical(f"[POSITION_SYNC DATA_INTEGRITY] {symbol}: {error_reason}")
+                        errors += 1
+                        error_details.append({"symbol": symbol, "reason": error_reason})
+                        continue
+
                     if existing_id:
                         # Fetch trade_ids for this SPECIFIC position to sync with existing record
                         # CRITICAL: Must filter by position_id (UUID), not symbol, to avoid pulling trades from other positions
