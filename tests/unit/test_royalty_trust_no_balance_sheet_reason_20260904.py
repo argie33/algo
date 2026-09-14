@@ -1,10 +1,10 @@
 """Regression test: total_debt/debt_to_equity/interest_coverage/cash/FCF-derived
 quality_metrics fields for pure oil/gas grantor royalty trusts (NRT/MTR/CRT/PBT/SBR/SJT) must
-report "reit_special_entity", not the generic "missing_sec_data"/"total_debt_not_itemized"/
+report "structural_accounting_difference", not the generic "missing_sec_data"/"total_debt_not_itemized"/
 "no_recent_cash_reported"/"interest_expense_not_itemized" reasons.
 
 Found live 2026-09-04 (goal session: "Missing SEC/XBRL data" headline reduction sweep): these 6
-symbols already get "reit_special_entity" for current_ratio/quick_ratio/gross_margin/
+symbols already get "structural_accounting_difference" for current_ratio/quick_ratio/gross_margin/
 gross_profitability (their unclassified-balance-sheet structure is recognized there), but the
 debt/cash/interest/FCF-derived fields fell through to generic reasons instead - the same
 structural gap (a grantor trust distributing royalty proceeds has no debt, cash, or operating-
@@ -19,7 +19,7 @@ from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsL
 
 
 def _quality_row(**overrides):
-    # Same 34-column shape as test_current_quick_ratio_reit_special_entity_reason.py's fixture.
+    # Same 34-column shape as test_current_quick_ratio_structural_accounting_difference_reason.py's fixture.
     base = [
         None,  # 0 stockholders_equity
         None,  # 1 total_liabilities
@@ -86,23 +86,23 @@ def _make_loader(monkeypatch):
 
 
 class TestRoyaltyTrustNoBalanceSheetReason:
-    def test_trust_symbol_gets_reit_special_entity_for_debt_and_cash_fields(self, monkeypatch):
+    def test_trust_symbol_gets_structural_accounting_difference_for_debt_and_cash_fields(self, monkeypatch):
         loader = _make_loader(monkeypatch)
         metrics = loader._compute_quality_metrics("PBT", _quality_row(), ev_metrics=(None, None, None, None))
 
         assert metrics["total_debt"] is None
-        assert metrics["total_debt_unavailable_reason"] == "reit_special_entity"
+        assert metrics["total_debt_unavailable_reason"] == "structural_accounting_difference"
         assert metrics["total_cash"] is None
-        assert metrics["total_cash_unavailable_reason"] == "reit_special_entity"
-        assert metrics["free_cash_flow_unavailable_reason"] == "reit_special_entity"
-        assert metrics["operating_cash_flow_unavailable_reason"] == "reit_special_entity"
+        assert metrics["total_cash_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["free_cash_flow_unavailable_reason"] == "structural_accounting_difference"
+        assert metrics["operating_cash_flow_unavailable_reason"] == "structural_accounting_difference"
 
     def test_non_trust_symbol_keeps_generic_reason(self, monkeypatch):
         loader = _make_loader(monkeypatch)
         metrics = loader._compute_quality_metrics("NORMALCO", _quality_row(), ev_metrics=(None, None, None, None))
 
-        assert metrics["total_debt_unavailable_reason"] != "reit_special_entity"
-        assert metrics["total_cash_unavailable_reason"] != "reit_special_entity"
+        assert metrics["total_debt_unavailable_reason"] != "structural_accounting_difference"
+        assert metrics["total_cash_unavailable_reason"] != "structural_accounting_difference"
 
     def test_trust_symbol_with_real_debt_value_is_untouched(self, monkeypatch):
         # A trust symbol that DOES have a real value for a field (shouldn't happen for these 6
@@ -113,7 +113,7 @@ class TestRoyaltyTrustNoBalanceSheetReason:
         assert metrics["total_debt"] == 5_000_000.0
         assert metrics.get("total_debt_unavailable_reason") is None
 
-    def test_trust_symbol_gets_reit_special_entity_for_asset_turnover(self, monkeypatch):
+    def test_trust_symbol_gets_structural_accounting_difference_for_asset_turnover(self, monkeypatch):
         # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, same-day follow-up):
         # asset_turnover (revenue/total_assets) was never added to _trust_recategorize_fields
         # despite this fixture's revenue=None already producing a "missing_sec_data"-shaped
@@ -123,9 +123,9 @@ class TestRoyaltyTrustNoBalanceSheetReason:
         metrics = loader._compute_quality_metrics("PBT", _quality_row(), ev_metrics=(None, None, None, None))
 
         assert metrics["asset_turnover"] is None
-        assert metrics["asset_turnover_unavailable_reason"] == "reit_special_entity"
+        assert metrics["asset_turnover_unavailable_reason"] == "structural_accounting_difference"
 
-    def test_trust_symbol_gets_reit_special_entity_for_roe_and_sgr(self, monkeypatch):
+    def test_trust_symbol_gets_structural_accounting_difference_for_roe_and_sgr(self, monkeypatch):
         # FIXED 2026-09-10 (goal: "under 300" missing-XBRL push): roe and
         # sustainable_growth_rate both derive from the same None stockholders_equity as
         # roa/debt_to_equity/roic_pct above but were never added to
@@ -136,6 +136,6 @@ class TestRoyaltyTrustNoBalanceSheetReason:
         metrics = loader._compute_quality_metrics("PBT", _quality_row(), ev_metrics=(None, None, None, None))
 
         assert metrics["roe"] is None
-        assert metrics["roe_unavailable_reason"] == "reit_special_entity"
+        assert metrics["roe_unavailable_reason"] == "structural_accounting_difference"
         assert metrics["sustainable_growth_rate"] is None
-        assert metrics["sustainable_growth_rate_unavailable_reason"] == "reit_special_entity"
+        assert metrics["sustainable_growth_rate_unavailable_reason"] == "structural_accounting_difference"

@@ -201,7 +201,7 @@ def compute_quality_row_level_reason(
 
     "no_recent_balance_sheet_data_reported": genuine "never tagged, real extraction gap".
 
-    "reit_special_entity" (FIXED 2026-09-10, goal: "under 500" missing-XBRL push): checked
+    "structural_accounting_difference" (FIXED 2026-09-10, goal: "under 500" missing-XBRL push): checked
     BEFORE the generic no_recent_balance_sheet_data_reported fallback whenever the balance-
     sheet loader itself already recorded zero SEC filings for this symbol as a REIT/special-
     entity structural fact (see _get_reit_or_special_entity_no_balance_data_symbols's
@@ -210,7 +210,7 @@ def compute_quality_row_level_reason(
     "zero_total_assets_reported_shell_entity" (FIXED 2026-09-05): a real reported $0.00
     total_assets/stockholders_equity (blank-check/shell pre-merger, e.g. OBX) trips the same
     `all(... is None)` check via division-by-zero-shaped ratios, not a data gap - a known
-    business fact, same "Legitimate / not applicable" class as reit_special_entity.
+    business fact, same "Legitimate / not applicable" class as structural_accounting_difference.
 
     Callers must NOT apply this reason to _QUARTERLY_DERIVED_TREND_FIELDS - those fields'
     unavailability (if any) comes from a completely different input (quarterly income
@@ -224,7 +224,7 @@ def compute_quality_row_level_reason(
     if stockholders_equity is None and symbol in unsupported_currency_symbols:
         return "unsupported_currency_no_fx_rate"
     if stockholders_equity is None and symbol in reit_or_special_entity_no_balance_data_symbols:
-        return "reit_special_entity"
+        return "structural_accounting_difference"
     if stockholders_equity is None and (symbol in no_recent_equity_symbols or symbol in never_tagged_equity_symbols):
         return "no_recent_balance_sheet_data_reported"
     if (

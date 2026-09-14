@@ -304,7 +304,7 @@ class QualityMetricsMixin(
                 operating_income_for_margin = pretax_income + (interest_expense or 0)
             # Some REIT/tonnage-tax filers (AGNC/ARE/AMH-class) never tag OperatingIncomeLoss OR
             # pretax_income/income_tax_expense at all - a permanent different-accounting-model
-            # gap, not an XBRL extraction failure, so recategorize as "reit_special_entity"
+            # gap, not an XBRL extraction failure, so recategorize as "structural_accounting_difference"
             # rather than "missing_sec_data" once confirmed unrecoverable (reuses the same
             # _get_no_tax_concept_symbols() 3-consecutive-year check as roic_pct's
             # effective_tax_rate=0.0 branch). Deliberately does not attempt a numeric
@@ -1736,7 +1736,7 @@ class QualityMetricsMixin(
             ):
                 if metrics.get(_trend_field) is None:
                     if _trend_field == "gross_margin_trend" and no_gross_profit_concept:
-                        metrics[f"{_trend_field}_unavailable_reason"] = "reit_special_entity"
+                        metrics[f"{_trend_field}_unavailable_reason"] = "structural_accounting_difference"
                     elif _trend_field in sign_change_yoy_metrics:
                         metrics[f"{_trend_field}_unavailable_reason"] = "growth_undefined_sign_change"
                     elif _trend_field in immaterial_base_yoy_metrics:

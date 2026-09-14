@@ -98,7 +98,7 @@ def test_ebitda_margin_absent_from_anchor_year_when_real_revenue_exists_elsewher
 
     assert metrics["ebitda_margin_unavailable_reason"] in (
         "revenue_absent_from_anchor_year",
-        "reit_special_entity",
+        "structural_accounting_difference",
         "implausible_ratio",
         None,
     )
@@ -114,7 +114,7 @@ def test_gross_margin_absent_from_anchor_year_when_real_revenue_exists_elsewhere
     of the 2026-09-02 anchor-year fix alongside ebitda_margin/asset_turnover, but the branch was
     never actually wired for it - it kept falling to generic "missing_sec_data" ever since."""
     loader = _make_loader(monkeypatch, revenue_available_elsewhere=frozenset({"OBX"}))
-    # Real gross_profit present (so no_gross_profit_concept is False / not reit_special_entity),
+    # Real gross_profit present (so no_gross_profit_concept is False / not structural_accounting_difference),
     # revenue absent from the anchor row (so gross_profit_revenue can't resolve).
     row = _quality_row(revenue=None, cost_of_revenue=40_000_000.0, gross_profit=60_000_000.0)
 

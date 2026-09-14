@@ -146,7 +146,7 @@ class ValueQualityGrowthMetricsLoader(
     # Pure oil/gas grantor royalty trusts (SIC 6792/6795) pass through royalty proceeds and
     # file a trust-basis balance sheet with no debt/cash/equity/operating-income concepts in
     # the GAAP-operating-company sense - same structural gap current_ratio/quick_ratio/
-    # gross_margin already recognize via "reit_special_entity", extended here to the
+    # gross_margin already recognize via "structural_accounting_difference", extended here to the
     # debt/cash/interest/FCF-derived fields so it isn't miscounted as a recoverable gap.
     # Curated by hand, not a SIC-code rule: 6792/6795 also covers real operating companies
     # (RGLD/SSRM/TFPM/TPL/EROK/LB) that report normal financials and must not be swept in.

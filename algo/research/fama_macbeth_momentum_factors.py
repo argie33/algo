@@ -56,6 +56,15 @@ MOMENTUM_FACTOR_COLS = [
 
 
 def fetch_daily_prices(start_date: str, end_date: str, symbols: set[str] | None = None) -> pd.DataFrame:
+    # PERF FIX (2026-09-11, FM/IC harness plumbing repair): the full-universe/multi-year range
+    # this feeds (e.g. 2015-present x ~5,000 symbols x ~252 trading days/year = tens of millions
+    # of rows) used to accumulate as one giant Python list of raw (str, date, float) tuples
+    # before ever becoming a DataFrame - live-observed 5.5GB+ RSS and still climbing after ~9
+    # minutes. A list of Python tuples is far heavier per row than columnar numpy storage (each
+    # row re-pays full object overhead for its own copy of the symbol string), and doubles again
+    # briefly when pd.DataFrame(rows, ...) converts it. Building small per-batch DataFrames with
+    # a `category` dtype for `symbol` (interning the ~5,000 distinct symbol strings once instead
+    # of once per row) and concatenating those avoids both blow-ups.
     sql = """
         SELECT symbol, date, COALESCE(adj_close, close) AS px
         FROM price_daily
@@ -68,16 +77,21 @@ def fetch_daily_prices(start_date: str, end_date: str, symbols: set[str] | None 
         sql += " AND symbol = ANY(%s)"
         params.append(list(symbols))
     sql += " ORDER BY symbol, date"
-    rows: list[tuple[str, object, float]] = []
+    chunks: list[pd.DataFrame] = []
     with DatabaseContext("read") as cur:
         cur.execute(sql, params)
         while True:
             batch = cur.fetchmany(50000)
             if not batch:
                 break
-            rows.extend(batch)
-    df = pd.DataFrame(rows, columns=["symbol", "date", "px"])
-    df["px"] = df["px"].astype(float)
+            chunk = pd.DataFrame(batch, columns=["symbol", "date", "px"])
+            chunk["symbol"] = chunk["symbol"].astype("category")
+            chunk["px"] = chunk["px"].astype("float64")
+            chunks.append(chunk)
+    if not chunks:
+        return pd.DataFrame(columns=["symbol", "date", "px"])
+    df = pd.concat(chunks, ignore_index=True)
+    df["symbol"] = df["symbol"].astype("category")
     df["date"] = pd.to_datetime(df["date"])
     return df
 
@@ -85,13 +99,21 @@ def fetch_daily_prices(start_date: str, end_date: str, symbols: set[str] | None 
 def compute_daily_indicators(daily: pd.DataFrame) -> pd.DataFrame:
     """Compute RSI(14), MACD sign, and price-vs-SMA(50/200) per symbol."""
     daily = daily.sort_values(["symbol", "date"])
-    g = daily.groupby("symbol")["px"]
+    # observed=True: `symbol` is now a `category` dtype (see fetch_daily_prices's memory fix) -
+    # without it pandas groups over every category ever seen across the full fetch, not just
+    # the ones present in this frame, which is both wrong (phantom empty groups) and the
+    # deprecated default going forward.
+    g = daily.groupby("symbol", observed=True)["px"]
 
     delta = g.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
-    avg_gain = gain.groupby(daily["symbol"]).transform(lambda s: s.ewm(alpha=1 / 14, adjust=False).mean())
-    avg_loss = loss.groupby(daily["symbol"]).transform(lambda s: s.ewm(alpha=1 / 14, adjust=False).mean())
+    avg_gain = gain.groupby(daily["symbol"], observed=True).transform(
+        lambda s: s.ewm(alpha=1 / 14, adjust=False).mean()
+    )
+    avg_loss = loss.groupby(daily["symbol"], observed=True).transform(
+        lambda s: s.ewm(alpha=1 / 14, adjust=False).mean()
+    )
     rs = avg_gain / avg_loss.replace(0, np.nan)
     daily["rsi_14"] = 100 - (100 / (1 + rs))
     daily.loc[avg_loss == 0, "rsi_14"] = 100.0
@@ -114,7 +136,7 @@ def build_month_end_panel(daily_with_indicators: pd.DataFrame) -> tuple[pd.DataF
     is month x symbol for each of rsi_14/macd_sign/price_vs_sma_50/price_vs_sma_200."""
     d = daily_with_indicators.copy()
     d["month"] = d["date"].values.astype("datetime64[M]")
-    d = d.sort_values("date").groupby(["symbol", "month"], as_index=False).last()
+    d = d.sort_values("date").groupby(["symbol", "month"], as_index=False, observed=True).last()
 
     px = d.pivot(index="month", columns="symbol", values="px").sort_index()
     indicators = {

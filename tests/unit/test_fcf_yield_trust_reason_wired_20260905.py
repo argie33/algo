@@ -122,7 +122,7 @@ class TestFcfYieldTrustReasonWired:
         assert result["fcf_yield_unavailable_reason"] != "etf_trust_no_gaap_financials"
         assert result["fcf_yield_unavailable_reason"] != "registered_investment_company_no_xbrl"
 
-    def test_royalty_trust_symbol_gets_reit_special_entity_reason(self, monkeypatch):
+    def test_royalty_trust_symbol_gets_structural_accounting_difference_reason(self, monkeypatch):
         # FIXED 2026-09-06 (same-day follow-up, comprehensive RIC-gap scan): royalty trusts
         # (_ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS - NRT/MTR/CRT/PBT/SBR/SJT) are the third
         # member of this "no real cash-flow-statement concepts" family, already recategorized
@@ -140,9 +140,9 @@ class TestFcfYieldTrustReasonWired:
             market_cap=1_100_000_000.0,
         )
 
-        assert result["fcf_yield_unavailable_reason"] == "reit_special_entity"
-        assert result["intrinsic_value_unavailable_reason"] == "reit_special_entity"
-        assert result["margin_of_safety_unavailable_reason"] == "reit_special_entity"
+        assert result["fcf_yield_unavailable_reason"] == "structural_accounting_difference"
+        assert result["intrinsic_value_unavailable_reason"] == "structural_accounting_difference"
+        assert result["margin_of_safety_unavailable_reason"] == "structural_accounting_difference"
 
     def test_unsupported_currency_ocf_symbol_gets_specific_reason(self, monkeypatch):
         # ADDED 2026-09-06 (same-day follow-up, comprehensive RIC-gap scan): a foreign private

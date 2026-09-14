@@ -130,7 +130,7 @@ class TestBlankCheckSpacNoRevenueReason:
     def test_gross_margin_gets_no_revenue_reported_for_blank_check_symbol(self, monkeypatch):
         # A SPAC that explicitly tags $0 revenue and $0 COGS (real SEC data, not absent) -
         # gross_profit_used = 0 - 0 = 0 (not None), so this must NOT hit the
-        # reit_special_entity ("no gross profit concept at all") branch; it fails downstream
+        # structural_accounting_difference ("no gross profit concept at all") branch; it fails downstream
         # because revenue itself is 0, which is the genuine blank-check case.
         loader = _make_loader(monkeypatch, blank_check_symbols=frozenset({"SPACX"}))
         row = _quality_row(revenue=0.0, cost_of_revenue=0.0, gross_profit=None)

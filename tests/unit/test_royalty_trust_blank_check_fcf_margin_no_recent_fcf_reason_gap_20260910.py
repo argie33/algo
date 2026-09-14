@@ -106,7 +106,7 @@ class TestNoRecentFreeCashFlowReasonRecategorizeGap:
         metrics = loader._compute_quality_metrics("NRT", _quality_row(), ev_metrics=(None, None, None, None))
 
         assert metrics["fcf_margin"] is None
-        assert metrics["fcf_margin_unavailable_reason"] == "reit_special_entity"
+        assert metrics["fcf_margin_unavailable_reason"] == "structural_accounting_difference"
 
     def test_blank_check_symbol_recategorizes_fcf_margin(self, monkeypatch):
         loader = _make_loader(

@@ -3,7 +3,7 @@ SecValuationsLoader.fetch_incremental's "no annual_income_statement rows at all"
 always used the generic "no_income_statement" reason, even for a confirmed ETF
 (stock_symbols.etf = 'true') - which files N-1A/N-CSR under the Investment Company Act, not a
 10-K, so it structurally has zero income-statement rows to find. Same "Legitimate / not
-applicable" business-model fact as reit_special_entity/etf_trust_no_gaap_financials elsewhere
+applicable" business-model fact as structural_accounting_difference/etf_trust_no_gaap_financials elsewhere
 in this codebase, not a missing-SEC-data gap.
 
 Live-confirmed SPY/QQQ/IWM - the universe's only active `etf = 'true'` symbols, all with zero

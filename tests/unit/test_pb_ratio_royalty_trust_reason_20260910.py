@@ -1,5 +1,5 @@
 """Regression test (2026-09-10, goal: "under 300" missing-XBRL push): value_metrics.
-pb_ratio_unavailable_reason must report "reit_special_entity" for a pure oil/gas grantor
+pb_ratio_unavailable_reason must report "structural_accounting_difference" for a pure oil/gas grantor
 royalty trust with no StockholdersEquity concept at all, not the generic
 "stockholders_equity_never_tagged_in_filings".
 
@@ -11,7 +11,7 @@ test_royalty_trust_no_balance_sheet_reason_20260904.py) already cover this same 
 fact for their own fields. Live-confirmed NRT (the one member of
 _ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS with genuinely no equity concept tagged) stuck on
 the generic reason for pb_ratio despite total_debt/roa/roe/current_ratio/fcf_yield all
-already correctly resolving to "reit_special_entity".
+already correctly resolving to "structural_accounting_difference".
 """
 
 from unittest.mock import patch
@@ -70,7 +70,7 @@ def _run(monkeypatch, symbol, **sec_val_fields):
 
 
 class TestPbRatioRoyaltyTrustReason:
-    def test_royalty_trust_symbol_gets_reit_special_entity_reason(self, monkeypatch):
+    def test_royalty_trust_symbol_gets_structural_accounting_difference_reason(self, monkeypatch):
         result = _run(
             monkeypatch,
             "NRT",
@@ -84,7 +84,7 @@ class TestPbRatioRoyaltyTrustReason:
             market_cap=1_100_000_000.0,
         )
 
-        assert result["pb_ratio_unavailable_reason"] == "reit_special_entity"
+        assert result["pb_ratio_unavailable_reason"] == "structural_accounting_difference"
 
     def test_non_trust_symbol_keeps_generic_reason(self, monkeypatch):
         result = _run(
@@ -100,4 +100,4 @@ class TestPbRatioRoyaltyTrustReason:
             market_cap=1_100_000_000.0,
         )
 
-        assert result["pb_ratio_unavailable_reason"] != "reit_special_entity"
+        assert result["pb_ratio_unavailable_reason"] != "structural_accounting_difference"

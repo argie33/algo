@@ -511,7 +511,7 @@ class ValueMetricsMixin(SymbolGateMixin):
         # tickers (GLDM/BITW/CPER/USCI-class) stuck on "missing_sec_data"/"ebitda_not_extracted"
         # for ev_ebitda.
         if symbol in self._ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS:
-            ev_ebitda_reason = "reit_special_entity"
+            ev_ebitda_reason = "structural_accounting_difference"
         elif symbol in self._get_registered_investment_company_symbols():
             ev_ebitda_reason = "registered_investment_company_no_xbrl"
         elif symbol in self._get_etf_trust_no_stockholders_equity_symbols():
@@ -597,12 +597,12 @@ class ValueMetricsMixin(SymbolGateMixin):
                 # RIC-gap scan): royalty trusts (_ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS - NRT/
                 # MTR/CRT/PBT/SBR/SJT) are the third member of this "no real cash-flow-statement
                 # concepts" family alongside RIC/ETF-trust, and already get this exact
-                # "reit_special_entity" recategorization in quality_metrics' fcf_margin sibling
+                # "structural_accounting_difference" recategorization in quality_metrics' fcf_margin sibling
                 # chain (vqg_quality.py's royalty-trust block) - but this value_metrics chain
                 # never checked it at all, unlike the RIC/ETF-trust checks just below (added
                 # 2026-09-05). Live-confirmed all 6 active royalty-trust symbols stuck on
                 # "missing_sec_data"/"no_recent_free_cash_flow_reported" for fcf_yield.
-                "reit_special_entity"
+                "structural_accounting_difference"
                 if symbol in self._ROYALTY_TRUST_NO_BALANCE_SHEET_SYMBOLS
                 else "registered_investment_company_no_xbrl"
                 if symbol in self._get_registered_investment_company_symbols()
@@ -990,7 +990,7 @@ class ValueMetricsMixin(SymbolGateMixin):
             # falling to the generic "stockholders_equity_never_tagged_in_filings", live-
             # confirmed on NRT (the one member of this set with genuinely no equity concept
             # tagged; CRT/MTR/SBR/SJT report real equity, PBT's pb is real and computes).
-            pb_ratio_reason = "reit_special_entity"
+            pb_ratio_reason = "structural_accounting_difference"
         elif pb is None:
             with _owner().DatabaseContext("read") as cur:
                 # Must mirror load_sec_valuations.py's real book_value query's `data_unavailable
