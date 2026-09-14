@@ -131,7 +131,13 @@ class ValueQualityGrowthMetricsLoader(
     # every per-share figure would otherwise win percentile 100 in Value's
     # _percent_rank_cheap_high, same class of bug as pe/pb/ps ratios elsewhere. Excludes from
     # the percentile universe rather than forcing a floor/ceiling score.
-    MIN_PLAUSIBLE_FORWARD_PE_RATIO = 0.05
+    # RAISED 0.05 -> 1.0 (goal: "our scores don't look like industry lists" audit, recovered
+    # from a stale never-landed worktree, pe-ratio-distortion-categorization, dated
+    # 2026-09-08): 0.05 missed an FX-scale bug - foreign ADRs' yfinance forward_eps can be off
+    # by ~the home-currency FX rate (e.g. TAK ~400x), which still produces a forward_pe inside
+    # a 0.05-1.0 "plausible" band despite the underlying EPS being untrustworthy. No FX
+    # correction exists here, so exclude rather than fabricate a fix.
+    MIN_PLAUSIBLE_FORWARD_PE_RATIO = 1.0
 
     # Same ceiling load_sec_valuations.py's own pe_ratio/pb_ratio/ps_ratio all use - forward_pe
     # got the equivalent FLOOR (above) but was missing this equivalent CEILING, so a tiny

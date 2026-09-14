@@ -715,7 +715,19 @@ class ValueMetricsMixin(SymbolGateMixin):
             forward_eps = fe_row[0] if fe_row else None
             if forward_eps is not None and forward_eps > 0:
                 computed_forward_pe = float(current_price) / float(forward_eps)
-                if self.MIN_PLAUSIBLE_FORWARD_PE_RATIO <= computed_forward_pe <= self.MAX_PLAUSIBLE_FORWARD_PE_RATIO:
+                # A near-zero-but-real forward_eps can still land forward_pe inside the
+                # plausible range (a proportionally tiny price too) while being an unreliable
+                # base - same "near-zero base is unreliable regardless of the magnitude ratio
+                # it produces" principle as pe_ratio/pb_ratio/ps_ratio's own $0.10 floors. No
+                # cross-year fallback (a single forward-looking consensus estimate has no
+                # older year to substitute) - exclude rather than fabricate.
+                if forward_eps < 0.10:
+                    logger.warning(
+                        f"[VALUE_METRICS] {symbol}: forward_eps immaterial (${float(forward_eps):.4f} < $0.10), "
+                        "excluding forward_pe from Value scoring rather than storing a near-zero-base distortion."
+                    )
+                    forward_pe_reason = "implausibly_low_forward_pe"
+                elif self.MIN_PLAUSIBLE_FORWARD_PE_RATIO <= computed_forward_pe <= self.MAX_PLAUSIBLE_FORWARD_PE_RATIO:
                     forward_pe = computed_forward_pe
                 elif computed_forward_pe > self.MAX_PLAUSIBLE_FORWARD_PE_RATIO:
                     logger.warning(
