@@ -89,6 +89,14 @@ class PositioningMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "updated_at"
     exclude_etfs_from_symbols = True
+    # exclude_non_operating_from_symbols (see runner.py comment and
+    # frozen_subpopulation_real_root_cause_and_live_gap_20260913 in memory): without this,
+    # exclude_etfs_from_symbols=True implicitly also excludes BDCs/CEFs/trusts via
+    # get_active_symbols()'s default coupling. 13F institutional holdings and FINRA short
+    # interest are reported for BDCs/CEFs same as any other tradeable security (unlike
+    # Quality/Growth/Value's financial-statement dependencies), so they should get real
+    # positioning_metrics rows, not be silently dropped from the universe.
+    exclude_non_operating_from_symbols = False
 
     def _compute_ad_rating(self, symbol: str) -> tuple[float | None, str | None]:
         """Calculate A/D Rating (0-100 score) from Accumulation/Distribution analysis.
