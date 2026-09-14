@@ -773,7 +773,7 @@
   "utils/external/sec_statements_entry_resolution.py": 868,
   "utils/external/sec_statements_fy_stub_period_guard.py": 70,
   "utils/external/sec_statements_shared.py": 129,
-  "utils/external/sec_statements_unit_context.py": 394,
+  "utils/external/sec_statements_unit_context.py": 420,
   "utils/external/sec_ticker_cache.py": 759,
   "utils/external/sec_xbrl_instance_document.py": 188,
   "utils/external/sec_xbrl_segment_revenue.py": 702,
