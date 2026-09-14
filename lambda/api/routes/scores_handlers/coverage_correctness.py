@@ -94,18 +94,40 @@ def _scored_pillar_tables() -> list[str]:
     return sorted(t for t in _TABLE_GROUP if t not in _UNSCORED_TABLES and t not in _NON_FACTOR_TABLES and t in active)
 
 
-def _classify_status(total_ever: int, days_since_last: float | None, recent: dict[str, int]) -> str:
+def _classify_status(total_ever: int, days_since_last: float | None, currently_open: dict[str, int]) -> str:
+    """`currently_open` must reflect CURRENT state (data_patrol_log.status = 'open'), not a
+    trailing-window occurrence count - see the FIXED note on `_fetch_table_history` below for
+    why a 30-day-window count was wrong here."""
     if total_ever == 0:
         return "never_logged"
     if days_since_last is not None and days_since_last > _LOOKBACK_DAYS:
         return "stale"
-    if recent["critical"] or recent["error"] or recent["warn"]:
+    if currently_open["critical"] or currently_open["error"] or currently_open["warn"]:
         return "active_findings"
     return "active_clean"
 
 
 def _fetch_table_history(cur: cursor, tables: list[str]) -> dict[str, dict[str, Any]]:
-    """One aggregate query for every table's ever/recent counts and last-seen timestamp."""
+    """One aggregate query for every table's ever/recent/currently-open counts and last-seen
+    timestamp.
+
+    FIXED 2026-09-14 (goal session: "fix the data issues we still have" - live-caught while
+    verifying the dashboard was actually showing already-resolved findings, e.g. dividend_data/
+    market_health_daily/sec_valuations, as still "Findings open" hours after a patrol run had
+    already logged them clean). The `active_findings` classification used to be driven by
+    `recent_warn`/`recent_error`/`recent_critical` - a COUNT OF OCCURRENCES within the trailing
+    `_LOOKBACK_DAYS` window, not current state. `logger.py`'s PatrolLogger.log_results already
+    maintains exactly the right signal for "is this still a problem RIGHT NOW" - it marks the
+    prior 'open' row(s) for a (check_name, target_table) 'resolved' before inserting the new
+    run's row(s) as 'open', so `status = 'open'` always reflects the latest run's outcome. A
+    check that WARNed at 9am and came back clean at 6pm still counted toward `recent_warn` for
+    the rest of the 30-day window under the old logic, permanently mislabeling an already-fixed
+    table as having open findings until the window rolled past it - the exact discrepancy this
+    session's live DB check surfaced. Now counts severities among `status = 'open'` rows only
+    (current state), while still reporting the old trailing-window counts as `recent` for the
+    panel's separate "how much has fired in the last 30 days" history display - that field's
+    use is descriptive volume, not the open/resolved determination.
+    """
     # days_since_last_seen computed IN SQL (EXTRACT(EPOCH ...) on a plain interval), not by
     # subtracting a fetched `now()` from `last_seen` in Python - live-found 2026-09-13:
     # data_patrol_log.created_at is `timestamptz`, but this DB session's own `now()` came back
@@ -125,7 +147,11 @@ def _fetch_table_history(cur: cursor, tables: list[str]) -> dict[str, dict[str, 
                COUNT(*) FILTER (WHERE created_at >= now() - interval '{_LOOKBACK_DAYS} days'
                                  AND severity = 'warn') AS recent_warn,
                COUNT(*) FILTER (WHERE created_at >= now() - interval '{_LOOKBACK_DAYS} days'
-                                 AND severity = 'info') AS recent_info
+                                 AND severity = 'info') AS recent_info,
+               COUNT(*) FILTER (WHERE status = 'open' AND severity = 'critical') AS open_critical,
+               COUNT(*) FILTER (WHERE status = 'open' AND severity = 'error') AS open_error,
+               COUNT(*) FILTER (WHERE status = 'open' AND severity = 'warn') AS open_warn,
+               COUNT(*) FILTER (WHERE status = 'open' AND severity = 'info') AS open_info
         FROM data_patrol_log
         WHERE target_table = ANY(%s)
         GROUP BY target_table
@@ -134,12 +160,31 @@ def _fetch_table_history(cur: cursor, tables: list[str]) -> dict[str, dict[str, 
     )
     out: dict[str, dict[str, Any]] = {}
     for row in cur.fetchall():
-        table, last_seen, days_since, total_ever, crit, err, warn, info = row
+        (
+            table,
+            last_seen,
+            days_since,
+            total_ever,
+            crit,
+            err,
+            warn,
+            info,
+            open_crit,
+            open_err,
+            open_warn,
+            open_info,
+        ) = row
         out[table] = {
             "last_seen": last_seen,
             "days_since_last_seen": float(days_since) if days_since is not None else None,
             "total_ever": int(total_ever),
             "recent": {"critical": int(crit), "error": int(err), "warn": int(warn), "info": int(info)},
+            "currently_open": {
+                "critical": int(open_crit),
+                "error": int(open_err),
+                "warn": int(open_warn),
+                "info": int(open_info),
+            },
         }
     return out
 
@@ -319,11 +364,12 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
                     "days_since_last_seen": None,
                     "total_ever": 0,
                     "recent": dict.fromkeys(_SEVERITIES, 0),
+                    "currently_open": dict.fromkeys(_SEVERITIES, 0),
                 },
             )
             last_seen = h["last_seen"]
             days_since = h["days_since_last_seen"]
-            status = _classify_status(h["total_ever"], days_since, h["recent"])
+            status = _classify_status(h["total_ever"], days_since, h["currently_open"])
             rows.append(
                 {
                     "table": table,
@@ -334,6 +380,7 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
                     "days_since_last_seen": round(days_since, 1) if days_since is not None else None,
                     "total_findings_ever": h["total_ever"],
                     "recent": h["recent"],
+                    "currently_open": h["currently_open"],
                     "recent_findings": findings.get(table, []),
                     "checks": checking_checks.get(table, []),
                     "open_quarantine_count": open_quarantine.get(table, 0),
