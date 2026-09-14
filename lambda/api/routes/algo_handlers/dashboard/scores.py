@@ -24,6 +24,8 @@ from routes.utils import (
     validate_api_response,
 )
 
+from algo.signals.investable_universe import investable_universe_conditions
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,13 +90,15 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             filtered_scores AS (
                 SELECT s.*, COALESCE(c.short_name, s.symbol) as company_name, c.sector
                 FROM stock_scores s
+                JOIN stock_symbols sy ON sy.symbol = s.symbol
                 LEFT JOIN company_profile c ON s.symbol = c.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = s.symbol
                 LEFT JOIN liquidity liq ON liq.symbol = s.symbol
-                WHERE s.composite_score > 0
+                WHERE """
+            + investable_universe_conditions("s", "sy")
+            + """
                 AND s.data_completeness >= 70
                 AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
-                AND s.symbol NOT IN (SELECT symbol FROM etf_symbols)
                 AND COALESCE(vm.market_cap, 0) >= %s
                 AND COALESCE(liq.avg_dollar_volume_20d, 0) >= %s
                 ORDER BY s.composite_score DESC

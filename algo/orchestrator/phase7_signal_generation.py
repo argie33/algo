@@ -131,6 +131,7 @@ from algo.orchestrator.phase_data_contract import ExposureConstraints, validate_
 from algo.orchestrator.phase_result import PhaseResult
 from algo.orchestrator.validation_thresholds import BUY_SELL_DAILY_ANOMALY_THRESHOLD
 from algo.risk import LiquidityChecks
+from algo.signals.investable_universe import investable_universe_conditions
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -807,6 +808,7 @@ def _get_candidates_from_buysell(
                         WHERE tr IS NOT NULL AND rn <= 14
                     ) atr_calc ON TRUE
                     LEFT JOIN company_profile cp ON cp.symbol = bsd.symbol
+                    JOIN stock_symbols sy ON sy.symbol = bsd.symbol
                     WHERE ss.composite_score >= %s
                       AND ss.data_completeness >= %s
                       AND (ss.data_unavailable = false OR ss.data_unavailable IS NULL)
@@ -814,7 +816,9 @@ def _get_candidates_from_buysell(
                       AND p.high > p.low
                       AND ((p.close - p.low) / (p.high - p.low)) > %s
                       AND bsd.strength IS NOT NULL
-                      AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
+                      AND """
+                + investable_universe_conditions("ss", "sy")
+                + """
                       AND bsd.symbol NOT IN (SELECT symbol FROM algo_positions WHERE status = 'open')
                 )
                 -- BUG FOUND 2026-09-01 (/goal session, fringe-case sweep): ordering by
