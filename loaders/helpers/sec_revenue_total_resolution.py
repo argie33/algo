@@ -87,7 +87,23 @@ def resolve_revenue_total_candidate(
     # clobber a real, larger, already-correct total, only fill a genuine zero-revenue gap
     # that used to be permanently unfixable. See
     # tests/unit/test_sec_revenue_total_candidate_accepts_genuine_zero_20260913.py.
-    if not isinstance(value, (int, float, Decimal)) or float(value) < 0:
+    if not isinstance(value, (int, float, Decimal)):
+        return
+    if float(value) < 0:
+        # BENF FIX (2026-09-14, quarantine-backlog continuation): mark that a REAL total-
+        # revenue concept was seen but rejected for being negative (revenue is never negative
+        # in this schema's convention, per the comment above) - so sec_base.py's fallback-only
+        # single-line concepts (InterestIncomeOperating/InterestAndDividendIncomeOperating)
+        # know a genuine total already exists for this filer/year and must not silently
+        # substitute their own much-smaller positive sub-line as if it were the total.
+        # Live-confirmed via Beneficient (BENF), a trust-structure filer whose real annual
+        # "Revenues" legitimately goes negative from fair-value losses (-$98.696M FY2024): that
+        # negative fact was silently discarded here before this fix, and
+        # InterestIncomeOperating's tiny, unrelated $457,000 interest-income sub-line won
+        # "revenue" by default instead, understating a real ~$99M loss as if BENF had almost no
+        # revenue at all. This string is a private contract with sec_base.py's fallback-only
+        # check - see that file's own comment at the read site for the other half of this fix.
+        revenue_total_source[db_field] = "negative_total_rejected"
         return
 
     fvalue = float(value)
