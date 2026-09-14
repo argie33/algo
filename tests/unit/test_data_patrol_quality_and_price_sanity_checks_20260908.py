@@ -67,11 +67,13 @@ class TestCheckOhlcSanity:
     def test_negative_prices_logs_critical_with_flagged_symbols(self) -> None:
         checker = _quality_checker()
         cur = MagicMock()
-        # (symbol, negative, bad_high, bad_low) - matches check_ohlc_sanity's tuple query shape
+        # (symbol, date, negative, bad_high, bad_low) - matches check_ohlc_sanity's tuple
+        # query shape (widened 2026-09-13 to scan full history, not just the latest date -
+        # see that check's own module comment)
         cur.fetchall.return_value = [
-            ("AAA", True, False, False),
-            ("BBB", True, False, False),
-            ("CCC", True, False, False),
+            ("AAA", "2026-09-01", True, False, False),
+            ("BBB", "2026-09-01", True, False, False),
+            ("CCC", "2026-09-01", True, False, False),
         ]
         checker.check_ohlc_sanity(cur)
         assert len(checker.results) == 1
@@ -85,8 +87,8 @@ class TestCheckOhlcSanity:
         checker = _quality_checker()
         cur = MagicMock()
         cur.fetchall.return_value = [
-            ("XXX", False, True, False),
-            ("YYY", False, False, True),
+            ("XXX", "2026-09-01", False, True, False),
+            ("YYY", "2026-09-01", False, False, True),
         ]
         checker.check_ohlc_sanity(cur)
         assert len(checker.results) == 1
