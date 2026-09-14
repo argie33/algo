@@ -889,6 +889,25 @@ class TieOutIdentityQuarterlyMixin:
                     f"individually confirmed against an external source (see docstring)",
                     {"count": len(warn_flagged), "examples": warn_flagged[:_MAX_REPORTED_PER_CHECK]},
                 )
+            if not error_flagged:
+                # FIXED 2026-09-14 (goal: quarantine backlog session): this check only ever
+                # called self.log() for the ERROR tier when error_flagged was non-empty, so a
+                # symbol that got fixed (or dismissed) never saw its check_name re-logged on a
+                # clean run - and logger.py's per-run quarantine resolve step
+                # (apply_symbol_quarantine) only fires for check_names that appear in THIS
+                # run's results, per its own 2026-09-13 fix. Net effect: PARA/SOWG/SMMT/NEO/
+                # EDVA all got their underlying data corrected (or dismissed) this session but
+                # stayed stuck "open" in symbol_quarantine forever, since the ERROR-tier
+                # check_name never logged anything once it had nothing left to flag. Mirrors
+                # every sibling check in this module (e.g. check_quarterly_revenue_annual_
+                # duplicate's own "no violations found" INFO log) that already logs
+                # unconditionally for exactly this reason.
+                self.log(
+                    "quarterly_revenue_sum_vs_annual_extreme",
+                    INFO,
+                    "annual_income_statement",
+                    "no quarterly_revenue_sum_vs_annual_extreme violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_revenue_sum_vs_annual failed: {e}", exc_info=True)
             self.log(
