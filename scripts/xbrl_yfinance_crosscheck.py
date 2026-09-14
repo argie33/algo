@@ -35,9 +35,11 @@ runs rather than trying to cover everyone in one pass.
 Findings are WARN severity (review queue, not a confirmed bug - same posture as
 statistical_anomaly.py: a real divergence can be a genuine restatement, non-GAAP
 reclassification, or fiscal-period misalignment, not necessarily an extraction bug) and flow
-into the same data_patrol_log / data_patrol_review triage + symbol_quarantine machinery as
-every other DataPatrol check - no new review path, no new schema for "did anyone look at
-this".
+into the same data_patrol_log / data_patrol_review triage workflow as every other DataPatrol
+check - no new review path, no new schema for "did anyone look at this". NOTE: WARN-severity
+findings never reach symbol_quarantine (quarantine.apply_symbol_quarantine only fires on
+error/critical + flagged_symbols, verified 2026-09-13) - a real divergence here still requires
+a human to act on it via the review queue, it does not auto-quarantine the symbol.
 
 Usage:
     python scripts/xbrl_yfinance_crosscheck.py                  # sample 25 symbols, write findings
