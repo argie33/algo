@@ -72,6 +72,7 @@
   "algo/monitoring/data_patrol/base.py": 284,
   "algo/monitoring/data_patrol/checks/__init__.py": 38,
   "algo/monitoring/data_patrol/checks/alignment.py": 470,
+  "algo/monitoring/data_patrol/checks/cik_shared_issuer_financials_leak.py": 171,
   "algo/monitoring/data_patrol/checks/composite_score_reconciliation.py": 137,
   "algo/monitoring/data_patrol/checks/coverage.py": 326,
   "algo/monitoring/data_patrol/checks/financial_statement_flag_drift.py": 104,

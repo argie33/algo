@@ -124,6 +124,7 @@ class DataPatrol:
 
         from .checks import (
             AlignmentChecker,
+            CikSharedIssuerFinancialsLeakChecker,
             CompositeScoreReconciliationChecker,
             CoverageChecker,
             FinancialStatementFlagDriftChecker,
@@ -165,6 +166,7 @@ class DataPatrol:
                 ReverseMergerShellChecker(self.config),
                 CompositeScoreReconciliationChecker(self.config),
                 PillarScoreReconciliationChecker(self.config),
+                CikSharedIssuerFinancialsLeakChecker(self.config),
             ]
 
             for checker in checkers:
