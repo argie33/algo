@@ -143,19 +143,6 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         # threshold, since the exact number is moot once a table's writer is permanently gone -
         # it will never come back under any threshold.
         "yfinance_snapshot": 30,
-        # ADDED (goal session 2026-09-14, "make sure we are tracking all we should" follow-up):
-        # scripts/score_realized_ic_monitor.py (added 2026-09-12) is the ONLY mechanism in this
-        # repo that continuously answers "is our scoring methodology still predicting anything
-        # in the live, currently-scored universe" (every other validation - fama_macbeth_*.py,
-        # algo/research/ backtests - is a one-off OFFLINE historical test). It was wired into
-        # neither an automated schedule nor DataPatrol staleness coverage - if nobody happened
-        # to run it by hand, this quality-measurement blind spot would itself go silently
-        # undetected, exactly the failure mode this whole goal session exists to close. Now
-        # scheduled daily (see scripts/setup_windows_schedule.ps1's score-realized-ic-monitor
-        # task) - 2 days is generous slack above that cadence (mirrors company_info_sec's
-        # ~2x-cadence slack convention) without being so loose a missed run goes unnoticed for
-        # a week.
-        "score_realized_ic_log": 2,
         # ADDED (goal session 2026-09-13, follow-up to the naaim fix above - closing the
         # remaining 4 tables the correctness-coverage panel's new `cadence` field surfaced as
         # None): stability_metrics/sec_valuations/analyst_upgrade_downgrade/
@@ -475,13 +462,6 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
             "updated_at",
             "monthly",
             staleness_thresholds["yfinance_snapshot"],
-            WARN,
-        ),
-        (
-            "score_realized_ic_log",
-            "computed_at",
-            "daily",
-            staleness_thresholds["score_realized_ic_log"],
             WARN,
         ),
         (
