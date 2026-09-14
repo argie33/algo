@@ -277,6 +277,22 @@ CIK_OVERRIDES: dict[str, str] = {
     # RevenueFromContractWithCustomerExcludingAssessedTax $138,724,000/$97,728,000, each
     # consistent across 2 independent 10-K filings).
     "GORO": "0001160791",  # Gold Resource Corporation (real CIK) - see comment above, ticker cache resolves to the wrong company (Goldgroup Mining Inc.)
+    # TWO: found 2026-09-14 (goal: "patrols and checks" comprehensiveness audit,
+    # quarterly_revenue_sum_vs_annual_extreme backlog investigation). "TWO" is entirely
+    # absent from our ticker cache (raises cik_not_found) because CIK 0001465740's own
+    # submissions.json `tickers` array only lists its preferred-share sub-tickers
+    # (['TWO-PC', 'TWO-PB', 'TWO-PA', 'TWOD']) - the plain common-stock ticker "TWO" itself
+    # is missing from SEC's own EDGAR ticker registry for this filer, an EDGAR data gap,
+    # not a rename/reuse case. Confirmed via SEC's own browse-edgar company-name search
+    # (conformed-name "TWO HARBORS INVESTMENT CORP.", SIC 6798 REIT) - exact match to our
+    # own tracked `stock_symbols.security_name` ("Two Harbors Investment Corp") for this
+    # ticker, and real recent activity (8-K filed 2026-09-10) confirms a live,
+    # actively-reporting entity, not defunct. The existing browse-edgar CIK fallback
+    # already finds this same CIK but correctly rejects it under the ticker-self-match
+    # safety check (see that check's own log message) since the ticker genuinely isn't in
+    # the submissions.json array - this override is the safe way to accept a real,
+    # independently-verified match that fallback's generic safety check can't.
+    "TWO": "0001465740",  # Two Harbors Investment Corp. (real CIK, common ticker missing from SEC's own ticker registry) - see comment above
 }
 
 # FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push, dividend_data/
