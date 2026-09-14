@@ -204,7 +204,22 @@ class OrchestratorRunLoopMixin(_Base):
         # 5:30 PM ET, after MARKET_CLOSE_TIME. Only widen the UPPER bound for it; the lower
         # bound (MARKET_OPEN_TIME) stays identical for every run type, so this does not
         # reopen the pre-market incident (2026-08-07, 05:03 ET) this guard exists to prevent.
-        window_close = MONITOR_WINDOW_CLOSE_TIME if self.dry_run else MARKET_CLOSE_TIME
+        #
+        # BUG FIX (real-money-readiness pass): the live-trading branch used the constant
+        # MARKET_CLOSE_TIME (4:00 PM) with no early-close awareness, unlike every other
+        # market-hours check in this codebase (phase1_data_freshness.py, phase8_entry_execution.py,
+        # phase8_guards.py all already special-case NYSE/NASDAQ early-close days: day before
+        # July 4th, day after Thanksgiving, Christmas Eve, real close 1:00 PM ET). Phase 6
+        # (portfolio-rotation force-close) and Phase 9 (broker reconciliation/position-sync)
+        # have NO independent market-hours check of their own and rely entirely on this one
+        # guard (see SAFETY HARDENING comment above) - so on an early-close day, the 1:00 PM
+        # and 3:00 PM scheduled orchestrator runs would sail through this guard thinking the
+        # market was open until 4 PM, and Phase 6 could submit real force-close orders to the
+        # broker 2-3 hours after the market had actually closed.
+        from datetime import time as _time
+
+        market_close_today = _time(13, 0) if MarketCalendar.is_early_close(self.run_date) else MARKET_CLOSE_TIME
+        window_close = MONITOR_WINDOW_CLOSE_TIME if self.dry_run else market_close_today
         logger.info(
             f"[MARKET_HOURS_GUARD] Checking: allow_outside_hours={allow_outside_hours}, now_et={now_et}, market_open={MARKET_OPEN_TIME}, window_close={window_close}"
         )
