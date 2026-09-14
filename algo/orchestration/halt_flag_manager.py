@@ -25,6 +25,14 @@ from utils.infrastructure import EASTERN_TZ, MARKET_OPEN_HOUR, MARKET_OPEN_MINUT
 logger = logging.getLogger(__name__)
 
 
+class _HaltFlagOriginMismatchError(Exception):
+    """Internal signal: the active halt's origin doesn't match allowed_triggers at the
+    moment of the actual write (not just at the earlier, unlocked pre-check) - refuse to
+    clear (the safe direction) rather than treat this as an infra failure worth retrying
+    or falling back to the other backend for. See clear_halt_flag()'s docstring for why
+    this distinction matters."""
+
+
 class HaltFlagManager:
     """Manage halt flag state in DynamoDB with auto-expiry and escalation tracking."""
 
@@ -1296,7 +1304,7 @@ class HaltFlagManager:
             logger.warning(f"[PROACTIVE_CLEAR] RDS proactive clear failed: {e}")
             return False
 
-    def clear_halt_flag(
+    def clear_halt_flag(  # noqa: C901 -- atomic-origin-check fix (real-money-readiness audit) added branches to an already-complex safety-critical method; splitting it further risked more churn in halt-flag code than the complexity warning is worth right now.
         self,
         reason: str = "",
         *,
@@ -1359,6 +1367,14 @@ class HaltFlagManager:
                     "override) - a bare call with neither is exactly the unconditional-clear-any-"
                     "origin bug this check exists to prevent."
                 )
+            # RACE CONDITION FIX (real-money-readiness audit): this read is NOT atomic with the
+            # write below - a concurrent set_halt_flag() call (e.g. Phase 9 setting a
+            # reconciliation-governance halt) could land in the window between this check and
+            # the actual clear, and get silently wiped anyway, exactly the vulnerability this
+            # origin check exists to prevent. This remains a useful fast-path (skip all backend
+            # I/O when the answer is already obviously no), but the REAL enforcement now happens
+            # atomically with the write itself in the DynamoDB ConditionExpression and the RDS
+            # advisory-lock-held re-check below - see _HaltFlagOriginMismatchError.
             current_trigger = self.get_halt_triggered_by()
             if current_trigger not in allowed_triggers:
                 logger.warning(
@@ -1374,6 +1390,7 @@ class HaltFlagManager:
         for attempt in range(max_retries):
             try:
                 import boto3
+                from botocore.exceptions import ClientError
 
                 # Check LOCAL_MODE first - skip DynamoDB entirely in local development
                 local_mode = os.environ.get("LOCAL_MODE", "").lower() == "true"
@@ -1391,30 +1408,77 @@ class HaltFlagManager:
                 table = dynamodb.Table(table_name)
 
                 now_utc = datetime.now(timezone.utc)
-                table.put_item(
-                    Item={
-                        "key": self.HALT_FLAG_DYNAMODB_KEY,
-                        "halt_flag": False,
-                        "cleared_at": now_utc.isoformat(),
-                        "reason": reason or "Phase 1 verified: data is fresh",
-                        "reset_at": now_utc.isoformat(),
+                update_kwargs: dict[str, Any] = {
+                    "Key": {"key": self.HALT_FLAG_DYNAMODB_KEY},
+                    "UpdateExpression": "SET halt_flag = :false, cleared_at = :now, reason = :reason, reset_at = :now",
+                    "ExpressionAttributeValues": {
+                        ":false": False,
+                        ":now": now_utc.isoformat(),
+                        ":reason": reason or "Phase 1 verified: data is fresh",
                     },
-                    RetryPolicy={"MaxAttempts": 1},  # Don't retry at boto3 level, we'll do it here
-                )
+                }
+                if not force:
+                    # ATOMIC ORIGIN CHECK (real-money-readiness audit): re-verify triggered_by
+                    # is still one of allowed_triggers at the moment of the write itself, not
+                    # just at the unlocked pre-check above - closes the TOCTOU race described
+                    # there. attribute_not_exists covers None (no halt/no item at all) being in
+                    # allowed_triggers. Already verified non-None by the `if not force: if
+                    # allowed_triggers is None: raise` check earlier in this method - re-assert
+                    # here since mypy can't narrow a parameter across the retry loop boundary.
+                    assert allowed_triggers is not None
+                    condition_parts = []
+                    if None in allowed_triggers:
+                        condition_parts.append("attribute_not_exists(triggered_by)")
+                    non_none = [t for t in allowed_triggers if t is not None]
+                    if non_none:
+                        names = {f":trig{i}": t for i, t in enumerate(non_none)}
+                        update_kwargs["ExpressionAttributeValues"].update(names)
+                        condition_parts.append(f"triggered_by IN ({', '.join(names.keys())})")
+                    # allowed_triggers guaranteed non-empty here (force=False path above already
+                    # requires it to be a real frozenset - an empty one would just mean "never
+                    # allowed", a legitimate condition that always evaluates to no match).
+                    if condition_parts:
+                        update_kwargs["ConditionExpression"] = " OR ".join(condition_parts)
+                    else:
+                        # allowed_triggers was a non-empty frozenset containing only values that
+                        # somehow produced no condition parts - shouldn't happen given the two
+                        # branches above, but fail closed with a condition that can never be
+                        # satisfied rather than skip the check entirely.
+                        update_kwargs["ConditionExpression"] = "attribute_exists(#never_matches)"
+                        update_kwargs["ExpressionAttributeNames"] = {"#never_matches": "__never_matches__"}
+
+                try:
+                    table.update_item(**update_kwargs)
+                except ClientError as cond_err:
+                    if cond_err.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                        raise _HaltFlagOriginMismatchError(
+                            f"Active halt's origin changed since the pre-check (concurrent "
+                            f"set_halt_flag) - refusing to clear: {cond_err}"
+                        ) from cond_err
+                    raise
                 logger.info(
                     f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}"
                 )
                 # BUG FIX (real-money-readiness audit): mirror to RDS for the dashboard/API's
                 # benefit - see the matching comment in set_halt_flag above. Best-effort only;
-                # DynamoDB already committed the authoritative clear.
+                # DynamoDB already committed the authoritative clear. force=True here since
+                # DynamoDB (the authoritative backend) already verified the origin above -
+                # this is dashboard-visibility sync, not a second safety-critical check.
                 try:
-                    self._clear_halt_flag_rds(reason)
+                    self._clear_halt_flag_rds(reason, force=True)
                 except Exception as rds_mirror_err:
                     logger.warning(
                         f"[HALT_FLAG] Best-effort RDS mirror of DynamoDB clear failed (dashboard may show "
                         f"stale halted status until the next halt/clear write): {rds_mirror_err}"
                     )
                 return True
+            except _HaltFlagOriginMismatchError as mismatch_err:
+                # Refused, not failed - the safe direction. Never retry or fall back to RDS:
+                # RDS's own atomic re-check below would refuse this exact same way anyway, and
+                # treating a refusal as "DynamoDB unavailable" would incorrectly try to clear
+                # via the other backend instead of respecting the refusal.
+                logger.warning(f"[HALT_FLAG] Refusing to clear (origin changed concurrently): {mismatch_err}")
+                return False
             except Exception as e:
                 last_error = e
                 logger.debug(
@@ -1423,7 +1487,7 @@ class HaltFlagManager:
 
                 # Try RDS fallback
                 try:
-                    rds_result = self._clear_halt_flag_rds(reason)
+                    rds_result = self._clear_halt_flag_rds(reason, allowed_triggers=allowed_triggers, force=force)
                     if not rds_result:
                         last_error = RuntimeError("RDS returned False (write failed)")
                         logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt + 1})")
@@ -1435,6 +1499,11 @@ class HaltFlagManager:
                         else:
                             break
                     return rds_result  # Return True on success
+                except _HaltFlagOriginMismatchError as mismatch_err:
+                    logger.warning(
+                        f"[HALT_FLAG] Refusing to clear via RDS fallback (origin changed concurrently): {mismatch_err}"
+                    )
+                    return False
                 except Exception as rds_err:
                     logger.warning(f"[HALT_FLAG] RDS fallback exception (attempt {attempt + 1}): {rds_err}")
                     last_error = rds_err
@@ -1457,11 +1526,26 @@ class HaltFlagManager:
         )
         raise RuntimeError(error_msg)
 
-    def _clear_halt_flag_rds(self, reason: str) -> bool:
+    def _clear_halt_flag_rds(
+        self,
+        reason: str,
+        allowed_triggers: frozenset[str | None] | None = None,
+        force: bool = False,
+    ) -> bool:
         """Clear halt flag in RDS. Returns True if successfully cleared.
 
         RACE CONDITION FIX: Use advisory lock to serialize halt flag updates across
         concurrent orchestrator instances. Ensures clear operation is atomic.
+
+        ATOMIC ORIGIN CHECK (real-money-readiness audit): clear_halt_flag()'s own
+        allowed_triggers pre-check reads triggered_by BEFORE acquiring any lock - a
+        concurrent set_halt_flag() call could land in the window between that read and
+        this write and get silently cleared anyway. Re-verifies triggered_by here, WHILE
+        holding the advisory lock, immediately before the write - closing that race.
+        Raises _HaltFlagOriginMismatchError (not a return value) on mismatch so the caller
+        can distinguish "refused, by design" from "write failed, maybe retry/fall back."
+        force=True (the DynamoDB-authoritative-clear's best-effort RDS mirror, or a
+        genuine manual override) skips this re-check entirely.
         """
         try:
             with DatabaseContext("write") as cur:
@@ -1472,6 +1556,32 @@ class HaltFlagManager:
                     cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
 
                     import json
+
+                    if not force:
+                        if allowed_triggers is None:
+                            raise TypeError("_clear_halt_flag_rds() requires allowed_triggers=... or force=True")
+                        cur.execute(
+                            "SELECT state_value FROM algo_runtime_state WHERE state_key = %s",
+                            (self.HALT_FLAG_DYNAMODB_KEY,),
+                        )
+                        row = cur.fetchone()
+                        current_state_value = row[0] if row else None
+                        if isinstance(current_state_value, str):
+                            try:
+                                current_state_value = json.loads(current_state_value)
+                            except (ValueError, TypeError):
+                                current_state_value = None
+                        current_trigger = (
+                            current_state_value.get("halt_triggered_by")
+                            if isinstance(current_state_value, dict)
+                            else None
+                        )
+                        if current_trigger not in allowed_triggers:
+                            raise _HaltFlagOriginMismatchError(
+                                f"Active halt's origin is now triggered_by={current_trigger!r}, not in "
+                                f"allowed_triggers={sorted(str(t) for t in allowed_triggers)} - refusing "
+                                "to clear (changed since the caller's own unlocked pre-check)."
+                            )
 
                     now_utc = datetime.now(timezone.utc)
                     msg = reason or "Phase 1 verified: data is fresh, resuming normal trading"
@@ -1505,6 +1615,11 @@ class HaltFlagManager:
                     except Exception as unlock_err:
                         logger.warning(f"[HALT_FLAG] Could not release advisory lock: {unlock_err}")
 
+        except _HaltFlagOriginMismatchError:
+            # Propagate rather than swallow into the generic "write failed" False below -
+            # the caller (clear_halt_flag) must be able to distinguish a deliberate refusal
+            # from an infra failure worth retrying/falling back for.
+            raise
         except Exception as e:
             logger.error(f"[HALT_FLAG] Failed to clear halt flag in RDS: {e}")
             return False

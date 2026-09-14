@@ -112,7 +112,7 @@
   "algo/orchestration/_orchestrator_protocol.py": 87,
   "algo/orchestration/database_health_monitor.py": 300,
   "algo/orchestration/execution_tracker.py": 87,
-  "algo/orchestration/halt_flag_manager.py": 1626,
+  "algo/orchestration/halt_flag_manager.py": 1625,
   "algo/orchestration/orchestrator.py": 446,
   "algo/orchestration/orchestrator_final_report.py": 330,
   "algo/orchestration/orchestrator_loader_health.py": 734,

@@ -39,7 +39,7 @@ def test_mismatched_trigger_refuses_to_clear_without_raising(monkeypatch):
 def test_force_bypasses_the_check_entirely(monkeypatch):
     manager = _manager()
     monkeypatch.setattr(manager, "get_halt_triggered_by", lambda: "phase9_reconciliation_governance")
-    monkeypatch.setattr(manager, "_clear_halt_flag_rds", lambda reason: True)
+    monkeypatch.setattr(manager, "_clear_halt_flag_rds", lambda reason, allowed_triggers=None, force=False: True)
     monkeypatch.setenv("LOCAL_MODE", "true")
     result = manager.clear_halt_flag("manual override", force=True)
     assert result is True
@@ -48,7 +48,7 @@ def test_force_bypasses_the_check_entirely(monkeypatch):
 def test_matching_trigger_proceeds_to_clear(monkeypatch):
     manager = _manager()
     monkeypatch.setattr(manager, "get_halt_triggered_by", lambda: "phase1_data_freshness")
-    monkeypatch.setattr(manager, "_clear_halt_flag_rds", lambda reason: True)
+    monkeypatch.setattr(manager, "_clear_halt_flag_rds", lambda reason, allowed_triggers=None, force=False: True)
     monkeypatch.setenv("LOCAL_MODE", "true")
     result = manager.clear_halt_flag("reason", allowed_triggers=frozenset({"phase1_data_freshness", None}))
     assert result is True
