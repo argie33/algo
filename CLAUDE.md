@@ -225,6 +225,31 @@ non-dimensional consolidated revenue total, logging >10% divergences as WARN.
 deliberately not folded into the daily `xbrl-second-opinion` task since this dataset only
 updates monthly and a daily run would just re-check the same snapshot).
 
+**Live realized-IC scoring-quality monitor (added 2026-09-12, scheduled 2026-09-14 — not a
+bug-report-driven thing, this is the feedback loop itself):**
+```bash
+python scripts/score_realized_ic_monitor.py                  # compute + log all new IC points
+python scripts/score_realized_ic_monitor.py --horizons 5,10   # only these horizons (trading days)
+python scripts/score_realized_ic_monitor.py --dry-run         # print, don't write anywhere
+```
+Every other validation of the composite/pillar scores (`fama_macbeth_*.py`, the backtest
+scripts under `algo/research/`) is a one-off OFFLINE test against historical data — none of
+them answer whether a score is still predicting anything on an ongoing basis in the real,
+currently-scored universe. This script does: for each `stock_scores_history` snapshot old
+enough that `horizon_trading_days` have since elapsed, it computes the Spearman rank
+correlation ("Information Coefficient") between each score column and each symbol's actual
+subsequent return, accumulating results in `score_realized_ic_log`. Cheap and local-only (only
+reads `price_daily`/`stock_scores_history` already in the DB, no network calls, no rate limit) —
+`stock_scores_history` only goes back to 2026-08-24, so early runs are instrumentation coming
+online, not a verdict.
+**Now wired into a local daily Windows Task Scheduler task (added 2026-09-14, same day the
+gap — a live quality-measurement tool with zero automation and zero staleness coverage of its
+own — was found and closed):** `scripts/setup_windows_schedule.ps1` registers
+`\algo\score-realized-ic-monitor` (MON-FRI, 11:55 PM ET — 5 minutes after `xbrl-second-opinion`,
+needing neither the scheduler lock nor network access). `algo/monitoring/data_patrol/checks/
+staleness.py` also now carries a `score_realized_ic_log` entry (2-day threshold) so a broken
+schedule surfaces in DataPatrol instead of silently going dark again.
+
 `monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use
 **different freshness methodologies** — a table can show FRESH in the monitor and still halt
 Phase 1 minutes later:

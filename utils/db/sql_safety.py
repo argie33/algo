@@ -69,6 +69,8 @@ SAFE_TABLES = {
     "industry_performance",
     # Stock data
     "stock_scores",
+    "stock_scores_history",
+    "score_realized_ic_log",
     "stock_symbols",
     "stock_fundamentals",
     "stock_ownership",
