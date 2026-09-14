@@ -138,9 +138,9 @@ def _fetch_recent_findings(cur: cursor, tables: list[str]) -> dict[str, list[dic
     leaving this panel."""
     cur.execute(
         f"""
-        SELECT target_table, severity, check_name, message, created_at
+        SELECT target_table, severity, check_name, message, details, created_at
         FROM (
-            SELECT target_table, severity, check_name, message, created_at,
+            SELECT target_table, severity, check_name, message, details, created_at,
                    ROW_NUMBER() OVER (
                        PARTITION BY target_table
                        ORDER BY CASE severity
@@ -161,12 +161,18 @@ def _fetch_recent_findings(cur: cursor, tables: list[str]) -> dict[str, list[dic
         (tables,),
     )
     findings: dict[str, list[dict[str, Any]]] = {}
-    for table, severity, check_name, message, created_at in cur.fetchall():
+    for table, severity, check_name, message, details, created_at in cur.fetchall():
+        # `details` is the same JSONB payload each check's self.log(...) call builds -
+        # typically {"count": N, "examples": [{"symbol": ..., <the specific flagged
+        # values>}, ...]} - the actual symbols/inputs behind the finding, not just the
+        # summary message. Passed through as-is so the frontend can render whatever shape
+        # a given check happened to log, rather than this endpoint guessing a common schema.
         findings.setdefault(table, []).append(
             {
                 "severity": severity,
                 "check": check_name,
                 "message": message,
+                "details": details,
                 "created_at": created_at.isoformat() if created_at else None,
             }
         )

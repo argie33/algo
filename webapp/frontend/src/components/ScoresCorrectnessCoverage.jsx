@@ -53,6 +53,34 @@ const STATUS_META = {
   },
 };
 
+// A finding's `details.examples` entry shape varies per check (whatever that check's own
+// self.log(...) call happened to build) - usually {"symbol": "...", <flagged fields>} but
+// sometimes a bare string/number. Render generically instead of assuming one shape.
+function formatExample(ex) {
+  if (ex === null || typeof ex !== "object") return String(ex);
+  const { symbol, ...rest } = ex;
+  const restStr = Object.entries(rest)
+    .map(([k, v]) => `${k}=${typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 4 }) : v}`)
+    .join(", ");
+  return symbol ? `${symbol}${restStr ? ` (${restStr})` : ""}` : restStr;
+}
+
+function FindingDetail({ finding }) {
+  const examples = finding?.details?.examples;
+  if (!Array.isArray(examples) || examples.length === 0) return null;
+  const count = finding.details.count;
+  return (
+    <div className="t-2xs faint mono" style={{ marginTop: 2 }}>
+      {examples.slice(0, 5).map((ex, i) => (
+        <div key={i}>{formatExample(ex)}</div>
+      ))}
+      {typeof count === "number" && count > examples.length && (
+        <div>+{count - examples.length} more</div>
+      )}
+    </div>
+  );
+}
+
 function StatusBadge({ status }) {
   const meta = STATUS_META[status] || STATUS_META.stale;
   const Icon = meta.icon;
@@ -266,7 +294,7 @@ export default function ScoresCorrectnessCoverage({ active }) {
                 </thead>
                 <tbody>
                   {visibleTables.map((t) => {
-                    const top = t.recent_findings[0];
+                    const top = t.recent_findings?.[0];
                     return (
                       <tr key={t.table}>
                         <td>
@@ -305,9 +333,12 @@ export default function ScoresCorrectnessCoverage({ active }) {
                         </td>
                         <td className="t-2xs" style={{ maxWidth: 420 }}>
                           {top ? (
-                            <span title={t.recent_findings.map((f) => f.message).join("\n")}>
-                              <span className="mono faint">[{top.check}]</span> {top.message}
-                            </span>
+                            <>
+                              <span title={(t.recent_findings || []).map((f) => f.message).join("\n")}>
+                                <span className="mono faint">[{top.check}]</span> {top.message}
+                              </span>
+                              <FindingDetail finding={top} />
+                            </>
                           ) : (
                             <span className="faint">
                               {t.status === "never_logged"
