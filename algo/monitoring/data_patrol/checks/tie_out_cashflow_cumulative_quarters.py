@@ -29,6 +29,17 @@ negative throughout - so those two use Q1 != Q2 == Q3 instead, dropping the sign
 entirely; requiring Q1 != Q2 alone (regardless of sign) is still enough to rule out a
 genuinely-flat year, since a real quarter-over-quarter change of exactly zero for 3 straight
 quarters is the same implausible-coincidence argument as above.
+
+FIXED 2026-09-13 (same-day follow-up, applied first to the auto-correcting sweep this check
+pairs with - loaders/helpers/financial_statements_q4_sweeps.py's
+`_sweep_correct_cumulative_ytd_field` - see that commit for the full story): this check never
+joined annual_cash_flow or verified the quarters actually overshoot the annual total, so it
+fired purely on the Q2==Q3 fingerprint above. Live-confirmed 8 real symbol/years (MA/APTV/
+AGNC/ZTS and others, stock_based_compensation) have Q2==Q3 by genuine flat-accrual
+coincidence with data that already reconciles exactly to the annual total - not a bug, just
+flat quarter-over-quarter activity. Added the same `(q1+q2+q3) > annual` overshoot guard the
+sweep uses, verified it still catches the check's own documented true positives (RITM/
+Agilent's real pre-fix values both genuinely overshoot).
 """
 
 import logging
@@ -86,12 +97,17 @@ class TieOutCashflowCumulativeQuartersMixin:
                     ON q2.symbol = q1.symbol AND q2.fiscal_year = q1.fiscal_year AND q2.fiscal_quarter = 2
                 JOIN quarterly_cash_flow q3
                     ON q3.symbol = q1.symbol AND q3.fiscal_year = q1.fiscal_year AND q3.fiscal_quarter = 3
+                JOIN annual_cash_flow a
+                    ON a.symbol = q1.symbol AND a.fiscal_year = q1.fiscal_year
                 JOIN stock_symbols s ON s.symbol = q1.symbol AND s.active = true
                 WHERE q1.fiscal_quarter = 1
                   AND q1.data_unavailable = FALSE AND q2.data_unavailable = FALSE AND q3.data_unavailable = FALSE
+                  AND a.data_unavailable = FALSE
                   AND q1.{field} IS NOT NULL AND q2.{field} IS NOT NULL AND q3.{field} IS NOT NULL
+                  AND a.{field} IS NOT NULL
                   {sign_clause.format(f=field)}
                   AND q2.{field} = q3.{field}
+                  AND (q1.{field} + q2.{field} + q3.{field}) > a.{field}
                 """
             )
             rows = cur.fetchall()
