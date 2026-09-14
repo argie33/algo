@@ -9,7 +9,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..base import CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 from .tie_out_shared import (
     _ACCOUNTS_PAYABLE_TOLERANCE_PCT,
     _CASH_TOLERANCE_PCT,
@@ -121,6 +121,13 @@ class TieOutBoundsQuarterly2MiscMixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "quarterly_operating_income_upper_bound",
+                    INFO,
+                    "quarterly_income_statement",
+                    "no quarterly_operating_income_upper_bound violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_operating_income_upper_bound failed: {e}", exc_info=True)
             self.log(
@@ -186,6 +193,13 @@ class TieOutBoundsQuarterly2MiscMixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "quarterly_goodwill_le_total_assets",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_goodwill_le_total_assets violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_goodwill_le_total_assets failed: {e}", exc_info=True)
@@ -254,6 +268,13 @@ class TieOutBoundsQuarterly2MiscMixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "quarterly_accounts_payable_le_current_liabilities",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_accounts_payable_le_current_liabilities violations found",
                 )
         except Exception as e:
             logger.error(
@@ -324,6 +345,13 @@ class TieOutBoundsQuarterly2MiscMixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "quarterly_cash_le_current_assets",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_cash_le_current_assets violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_cash_le_current_assets failed: {e}", exc_info=True)
             self.log(
@@ -391,6 +419,13 @@ class TieOutBoundsQuarterly2MiscMixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "stock_scores_bounds",
+                    INFO,
+                    "stock_scores",
+                    "no stock_scores_bounds violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] stock_scores_bounds failed: {e}", exc_info=True)
@@ -543,6 +578,13 @@ class TieOutBoundsQuarterly2MiscMixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "quarterly_diluted_ge_basic_shares",
+                    INFO,
+                    "quarterly_income_statement",
+                    "no quarterly_diluted_ge_basic_shares violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_diluted_ge_basic_shares failed: {e}", exc_info=True)
             self.log(
@@ -613,6 +655,13 @@ class TieOutBoundsQuarterly2MiscMixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "quarterly_diluted_eps_le_basic_eps",
+                    INFO,
+                    "quarterly_income_statement",
+                    "no quarterly_diluted_eps_le_basic_eps violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_diluted_eps_le_basic_eps failed: {e}", exc_info=True)
             self.log(
@@ -681,6 +730,13 @@ class TieOutBoundsQuarterly2MiscMixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "diluted_eps_le_basic_eps",
+                    INFO,
+                    "annual_income_statement",
+                    "no diluted_eps_le_basic_eps violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] diluted_eps_le_basic_eps failed: {e}", exc_info=True)
