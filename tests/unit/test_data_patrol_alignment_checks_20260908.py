@@ -131,6 +131,23 @@ class TestTradeAlignment:
         assert checker.results[0].details["orphaned_trades"] == 2
         assert checker.results[0].details["sample"][0]["symbol"] == "ABC"
 
+    def test_orphaned_trades_wired_to_flagged_symbols(self) -> None:
+        """FIXED 2026-09-13 (goal: quarantine-coverage audit): this finding always knew
+        exactly which symbols had orphaned trades but never wired flagged_symbols, so it
+        halted the WHOLE pipeline (per quarantine.py's opt-in contract) instead of
+        quarantining just the affected symbols."""
+        cur = MagicMock()
+        cur.fetchall.return_value = [
+            {"trade_id": 1, "symbol": "ABC", "fill_date": date(2026, 9, 1)},
+            {"trade_id": 2, "symbol": "XYZ", "fill_date": date(2026, 9, 2)},
+            {"trade_id": 3, "symbol": "ABC", "fill_date": date(2026, 9, 1)},  # dup symbol
+        ]
+        checker = _checker()
+        checker.check_trade_alignment(cur)
+        flagged = checker.results[0].details["flagged_symbols"]
+        assert {f["symbol"] for f in flagged} == {"ABC", "XYZ"}
+        assert all("reason" in f for f in flagged)
+
     def test_missing_table_is_skipped_not_crashed(self) -> None:
         import psycopg2
 

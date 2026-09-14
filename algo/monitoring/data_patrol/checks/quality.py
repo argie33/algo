@@ -150,6 +150,13 @@ class QualityChecker(BaseCheck):
             recurring_zeros = today_zero_symbols & yesterday_zero_symbols
 
             if len(new_zeros) > new_zeros_error:
+                # ADDED 2026-09-13 (goal: quarantine-coverage audit - this finding already
+                # names every newly-zero symbol in `new_zeros`, but never wired that into
+                # flagged_symbols, so a batch of new zero-volume symbols halted the whole
+                # pipeline instead of quarantining just the affected symbols - same class as
+                # isolated_spike_corruption's own 2026-09-13 fix, see that check's comment in
+                # price_sanity.py). Every symbol in `new_zeros` goes here, not just the
+                # 5-symbol log-message sample.
                 self.log(
                     "zero_data",
                     ERROR,
@@ -161,6 +168,13 @@ class QualityChecker(BaseCheck):
                         "recurring": len(recurring_zeros),
                         "threshold": new_zeros_error,
                         "sample_new": sorted(new_zeros)[:5],
+                        "flagged_symbols": [
+                            {
+                                "symbol": s,
+                                "reason": f"new zero OHLC/volume on {max_date} (not zero on {prev_trading_day})",
+                            }
+                            for s in sorted(new_zeros)
+                        ],
                     },
                 )
             elif len(new_zeros) > new_zeros_warn:
