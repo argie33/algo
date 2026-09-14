@@ -105,8 +105,12 @@ class DataPatrol:
         """Run all data patrol checks and return summary.
 
         Args:
-            quick: Run only critical checks if True
-            validate_alpaca: Cross-validate against Alpaca if True
+            quick: accepted for CLI/API compatibility - currently a no-op, every checker
+                below always runs regardless of this flag (verified 2026-09-13; no
+                registered checker is filtered on it)
+            validate_alpaca: accepted for CLI/API compatibility - currently a no-op, no
+                Alpaca cross-validation exists anywhere in this codebase (verified
+                2026-09-13)
 
         Returns:
             dict with keys: ready (bool), findings (list), errors (int), warnings (int)

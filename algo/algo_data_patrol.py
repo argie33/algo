@@ -27,11 +27,15 @@ if __name__ == "__main__":
     try:
         with ExecutionTimeout(max_seconds=EXECUTION_TIMEOUT_SEC, label="data_patrol"):
             parser = argparse.ArgumentParser(description="Data integrity patrol")
-            parser.add_argument("--quick", action="store_true", help="Critical checks only")
+            parser.add_argument(
+                "--quick",
+                action="store_true",
+                help="Accepted for CLI compatibility - currently a no-op, all checkers always run (verified 2026-09-13)",
+            )
             parser.add_argument(
                 "--validate-alpaca",
                 action="store_true",
-                help="Cross-validate vs Alpaca",
+                help="Accepted for CLI compatibility - currently a no-op, no Alpaca cross-validation exists (verified 2026-09-13)",
             )
             parser.add_argument("--json", action="store_true", help="JSON output")
             args = parser.parse_args()
