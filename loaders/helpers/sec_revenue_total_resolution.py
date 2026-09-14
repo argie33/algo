@@ -71,7 +71,23 @@ def resolve_revenue_total_candidate(
         if isinstance(existing, (int, float, Decimal)):
             revenue_total_best[db_field] = float(existing)
 
-    if not (isinstance(value, (int, float, Decimal)) and float(value) > 0):
+    # WIDENED 2026-09-13 (goal session: quarantine-backlog empirical verification, FENC
+    # live-confirmed via real SEC companyfacts JSON): this used to reject ANY value <= 0,
+    # including a genuinely correct revenue of exactly $0 (FENC, a pre-revenue biotech,
+    # FY2020 Q1-Q3: real reported revenue is $0). Because 0 never reached `row[db_field]`,
+    # a stale, wrong, non-zero value already sitting in the DB from an earlier bad
+    # extraction could never be corrected by ANY later reload - the correct value was
+    # filtered out before it ever had a chance to overwrite anything, permanently masking
+    # the bug instead of fixing it. Now accepts 0 (a real, valid revenue total) while still
+    # rejecting negative values (revenue is never negative in this schema's convention).
+    # Safe for every existing candidate in this group: the seed step above and the
+    # net-of-interest override below both already require a POSITIVE existing/candidate
+    # value before acting, so a 0 candidate can only ever win when nothing better (no
+    # larger positive candidate) is present for that fiscal year - it can never silently
+    # clobber a real, larger, already-correct total, only fill a genuine zero-revenue gap
+    # that used to be permanently unfixable. See
+    # tests/unit/test_sec_revenue_total_candidate_accepts_genuine_zero_20260913.py.
+    if not isinstance(value, (int, float, Decimal)) or float(value) < 0:
         return
 
     fvalue = float(value)
