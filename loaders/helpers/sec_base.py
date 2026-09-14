@@ -101,6 +101,12 @@ _REVENUE_TOTAL_CANDIDATE_FIELDS = frozenset(
         "interest_revenue_expense",
         "sales_revenue_net",
         "sales_revenue_goods_net",
+        # ADDED 2026-09-13 (goal session: "patrols and checks"/quarantine-backlog audit,
+        # MGPI live-confirmed): see sec_income_statement.py's comment on
+        # SalesRevenueGoodsGross for the case this recovers - same magnitude-resolved
+        # membership as sales_revenue_goods_net just above, since a tiny "revenues" fact
+        # can coexist with this concept the same way it does for that field.
+        "sales_revenue_goods_gross",
         # ADDED 2026-09-13 (goal session: quarantine-backlog empirical verification): the
         # services-sector sibling of sales_revenue_goods_net - see this module's own
         # ARCB/ArcBest comment in sec_income_statement.py's concepts list for the live-

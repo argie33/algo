@@ -443,6 +443,22 @@ def get_income_statement(
         # fixed earlier today, different root cause (missing concept mapping, not a
         # priority-chain or duration-check bug). Listed before SalesRevenueNet since it's
         # the older/narrower of the two - SalesRevenueNet should win when both are present.
+        # ADDED 2026-09-13 (goal session: "patrols and checks"/quarantine-backlog audit,
+        # MGPI live-confirmed): the GROSS-basis sibling of SalesRevenueGoodsNet - MGP
+        # Ingredients (MGPI, SIC 2085) tagged this instead of any NET variant for FY2013/
+        # 2014 10-Ks, before switching to SalesRevenueNet starting its FY2015 filing. Real,
+        # current, quarter-consistent value on file the whole time (FY2014 $338,352,000,
+        # matching the sum of MGPI's own real discrete quarterly revenue $84.582M+$85.903M+
+        # $83.966M+ Q4) but left completely unmapped, so a tiny, unrelated "Revenues" fact
+        # ($16,306,000 - a royalty/JV distribution line, not a revenue total) won "revenue"
+        # by default via the magnitude-resolved candidate group in loaders/helpers/
+        # sec_base.py's _REVENUE_TOTAL_CANDIDATE_FIELDS - added there too so the real, much
+        # larger figure wins on magnitude instead of needing a special-cased priority rule.
+        # Listed before SalesRevenueGoodsNet/SalesRevenueNet (gross should defer to a net
+        # figure when both are present, same as every other gross/net pair in this list)
+        # though in practice this only ever wins via the magnitude group above, not list
+        # order.
+        "SalesRevenueGoodsGross",
         "SalesRevenueGoodsNet",
         "SalesRevenueNet",
         # ADDED 2026-09-13 (goal session: quarantine-backlog empirical verification, ARCB

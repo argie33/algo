@@ -40,6 +40,10 @@ _INCOME_FIELD_MAPPING = {
     # instead of "Revenues"/"SalesRevenueNet" - see sec_statements.py's concepts-list
     # comment on SalesRevenueGoodsNet for the live-verified AGCO case this recovers.
     "sales_revenue_goods_net": "revenue",
+    # ADDED 2026-09-13: gross-basis sibling of sales_revenue_goods_net - see
+    # sec_income_statement.py's comment on SalesRevenueGoodsGross for the live-verified
+    # MGPI case this recovers.
+    "sales_revenue_goods_gross": "revenue",
     "sales_revenue_net": "revenue",
     # ADDED 2026-09-13: services-sector sibling of sales_revenue_goods_net - see
     # sec_income_statement.py's concepts-list comment on SalesRevenueServicesNet for the
