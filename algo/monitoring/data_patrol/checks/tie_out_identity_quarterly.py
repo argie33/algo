@@ -26,6 +26,7 @@ from .tie_out_shared import (
     _QUARTERLY_PRETAX_NET_INCOME_TOLERANCE_PCT,
     _QUARTERLY_REVENUE_ANNUAL_EXTREME_OVERSHOOT,
     _QUARTERLY_REVENUE_ANNUAL_OVERSHOOT_TOLERANCE,
+    load_revenue_extreme_dismissed,
 )
 
 logger = logging.getLogger(__name__)
@@ -796,7 +797,15 @@ class TieOutIdentityQuarterlyMixin:
         1.35x floor). Only sampled, not exhaustively confirmed against an external source beyond
         QCOM - treat WARN findings here as a review queue, not an auto-confirmed bug list, until
         a broader sample is cross-checked the same way QCOM was.
+
+        A symbol/fiscal_year individually reviewed and confirmed NOT a bug (e.g. a genuine GAAP
+        discontinued-operations restatement, same shape as AD) is permanently excluded via
+        tie_out_shared.REVENUE_EXTREME_DISMISSED_FILE ("SYMBOL:fiscal_year" -> reason) instead of
+        re-flagging/re-quarantining it every single run forever - see that file's own module
+        comment for why this exists. To dismiss a newly-confirmed false positive, add an entry
+        to algo/monitoring/data_patrol/checks/quarterly_revenue_extreme_dismissed.json.
         """
+        dismissed = load_revenue_extreme_dismissed()
         try:
             cur.execute(
                 """
@@ -816,6 +825,8 @@ class TieOutIdentityQuarterlyMixin:
             )
             warn_flagged, error_flagged = [], []
             for row in cur.fetchall():
+                if f"{row['symbol']}:{row['fiscal_year']}" in dismissed:
+                    continue
                 quarters_sum, annual_revenue = float(row["quarters_sum"]), float(row["annual_revenue"])
                 overshoot_ratio = quarters_sum / annual_revenue
                 if overshoot_ratio <= _QUARTERLY_REVENUE_ANNUAL_OVERSHOOT_TOLERANCE:

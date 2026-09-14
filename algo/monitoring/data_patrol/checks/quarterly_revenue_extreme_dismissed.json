@@ -1,0 +1,3 @@
+{
+  "AD:2025": "Genuine ASC 205-20 discontinued-operations restatement (real GAAP event, not a data bug) - a later 10-K restates FY2025 comparative annual revenue to exclude a divested segment, so the un-restated quarterly figures (which still include it) legitimately sum higher than the restated annual total. Confirmed live against real SEC filing data (see memory quarterly_check_false_positive_discontinued_operations_20260913) and re-confirmed repeatedly across concurrent sessions before this dismiss list existed."
+}

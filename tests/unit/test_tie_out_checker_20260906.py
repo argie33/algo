@@ -3854,6 +3854,40 @@ class TestQuarterlyRevenueSumVsAnnualTotal:
         assert flagged[0]["symbol"] == "AAA"
         assert "2023" in flagged[0]["reason"] and "2024" in flagged[0]["reason"]
 
+    def test_dismissed_symbol_fiscal_year_is_excluded(self, monkeypatch) -> None:
+        # A symbol/year individually reviewed and confirmed a genuine GAAP event (e.g. AD's
+        # real discontinued-operations restatement) must not keep re-quarantining forever -
+        # see tie_out_shared.REVENUE_EXTREME_DISMISSED_FILE's own module comment.
+        monkeypatch.setattr(
+            "algo.monitoring.data_patrol.checks.tie_out_identity_quarterly.load_revenue_extreme_dismissed",
+            lambda: {"AD:2025": "confirmed genuine GAAP discontinued-ops restatement"},
+        )
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "AD",
+                        "fiscal_year": 2025,
+                        "quarters_sum": 100_000_000.0,
+                        "n_quarters": 4,
+                        "annual_revenue": 1_000_000.0,
+                    },
+                    {
+                        "symbol": "QCOM",
+                        "fiscal_year": 2025,
+                        "quarters_sum": 66_609_000_000.0,
+                        "n_quarters": 4,
+                        "annual_revenue": 639_000_000.0,
+                    },
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_quarterly_revenue_sum_vs_annual_total(cur)
+        assert len(checker.results) == 1
+        flagged = checker.results[0].details["flagged_symbols"]
+        assert [f["symbol"] for f in flagged] == ["QCOM"]
+
     def test_flags_moderate_overshoot_as_warn(self) -> None:
         # A year's quarters summed moderately exceed the annual total (1.35x-10x) - most likely
         # a single quarter carrying a multi-month cumulative figure, annual total still trusted.

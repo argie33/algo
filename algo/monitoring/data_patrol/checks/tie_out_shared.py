@@ -5,13 +5,40 @@ check lives here so every split-out check file can import exactly what it needs.
 TieOutSharedMixin holds the 2 private helpers shared across multiple check methods.
 """
 
+import json
 import logging
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
 
 from ..base import CheckResult
 from ..config import ERROR, INFO, WARN
 
 logger = logging.getLogger(__name__)
+
+# ADDED 2026-09-14 (quarantine-backlog continuation): AD and similar confirmed-genuine-GAAP-
+# restatement symbol/years were re-detected and re-quarantined (with a stock_scores.data_
+# unavailable flap on every single toggle - see quarantine.py's _sync_stock_scores_exclusion)
+# on EVERY patrol run, forever, because check_quarterly_revenue_sum_vs_annual_total had no way
+# to remember a symbol/year was already individually reviewed and confirmed NOT a bug - live-
+# observed: AD cycled quarantined/resolved roughly every 2-8 minutes for hours straight across
+# concurrent sessions independently re-confirming the same finding. Same "triage once, persist
+# the verdict" pattern already established for XBRL concepts (see
+# scripts/xbrl_concept_coverage_dismissed.json / utils/external/xbrl_concept_coverage.py's
+# load_dismissed/save_dismissed) - mirrored here instead of inventing a new convention. Keyed
+# by "SYMBOL:fiscal_year" (unlike the XBRL file's bare concept-name keys) since the same symbol
+# can have one fiscal year that's a genuine restatement and another that's a real bug.
+REVENUE_EXTREME_DISMISSED_FILE = Path(__file__).resolve().parent / "quarterly_revenue_extreme_dismissed.json"
+
+
+def load_revenue_extreme_dismissed() -> dict[str, str]:
+    if not REVENUE_EXTREME_DISMISSED_FILE.exists():
+        return {}
+    try:
+        return cast(dict[str, str], json.loads(REVENUE_EXTREME_DISMISSED_FILE.read_text(encoding="utf-8")))
+    except (json.JSONDecodeError, OSError):
+        logger.warning("Failed to load %s - treating as empty", REVENUE_EXTREME_DISMISSED_FILE)
+        return {}
+
 
 _BALANCE_SHEET_TOLERANCE_PCT = 0.01  # 1% of total_assets - fixed contract, not configurable
 _CASHFLOW_TOLERANCE_PCT = 0.10  # 10% of |ending cash| - no FX-effect concept tracked in this schema

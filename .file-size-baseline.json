@@ -93,7 +93,7 @@
   "algo/monitoring/data_patrol/checks/tie_out_identity_quarterly.py": 899,
   "algo/monitoring/data_patrol/checks/tie_out_implausible_magnitude.py": 154,
   "algo/monitoring/data_patrol/checks/tie_out_nonnegative_magnitudes.py": 298,
-  "algo/monitoring/data_patrol/checks/tie_out_shared.py": 602,
+  "algo/monitoring/data_patrol/checks/tie_out_shared.py": 600,
   "algo/monitoring/data_patrol/checks/xbrl_concept_continuity.py": 85,
   "algo/monitoring/data_patrol/checks/xbrl_new_concepts.py": 115,
   "algo/monitoring/data_patrol/config.py": 67,
