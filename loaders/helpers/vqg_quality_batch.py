@@ -266,13 +266,15 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
             asset_turnover_raw = _nonneg_raw(9)
             gross_prof_raw = _nonneg_raw(10)
 
-            roe_pct = zscore_to_percentile_scale(sector_neutral_zscore(roe_raw, sectors))
+            roe_pct = zscore_to_percentile_scale(sector_neutral_zscore(roe_raw, d2e_roa_roce_sectors))
             roa_pct = zscore_to_percentile_scale(sector_neutral_zscore(roa_raw, d2e_roa_roce_sectors))
             roce_pct = zscore_to_percentile_scale(sector_neutral_zscore(roce_raw, d2e_roa_roce_sectors))
             fcf_margin_pct = zscore_to_percentile_scale(sector_neutral_zscore(fcf_margin_raw, sectors))
             d2e_pct = zscore_to_percentile_scale(sector_neutral_zscore(d2e_raw, d2e_roa_roce_sectors))
             margin_vol_pct = zscore_to_percentile_scale(sector_neutral_zscore(margin_vol_raw, sectors))
-            asset_turnover_pct = zscore_to_percentile_scale(sector_neutral_zscore(asset_turnover_raw, sectors))
+            asset_turnover_pct = zscore_to_percentile_scale(
+                sector_neutral_zscore(asset_turnover_raw, d2e_roa_roce_sectors)
+            )
             gross_prof_pct = zscore_to_percentile_scale(sector_neutral_zscore(gross_prof_raw, sectors))
             logger.info(
                 f"[QUALITY_METRICS] sector-neutral z-score universe: roe={len(roe_pct)} roa={len(roa_pct)} "
