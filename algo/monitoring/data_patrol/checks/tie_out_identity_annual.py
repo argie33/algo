@@ -9,7 +9,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..base import CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 from .tie_out_shared import (
     _BALANCE_SHEET_TOLERANCE_PCT,
     _CASHFLOW_INTERMEDIARY_SYMBOL_ALLOWLIST,
@@ -169,6 +169,13 @@ class TieOutIdentityAnnualMixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "balance_sheet_identity",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no balance_sheet_identity violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] balance_sheet_identity failed: {e}", exc_info=True)
             self.log(
@@ -263,6 +270,13 @@ class TieOutIdentityAnnualMixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "quarterly_balance_sheet_identity",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_balance_sheet_identity violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_balance_sheet_identity failed: {e}", exc_info=True)
@@ -398,6 +412,13 @@ class TieOutIdentityAnnualMixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "cashflow_reconciliation",
+                    INFO,
+                    "annual_cash_flow",
+                    "no cashflow_reconciliation violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] cashflow_reconciliation failed: {e}", exc_info=True)
             self.log(
@@ -470,6 +491,13 @@ class TieOutIdentityAnnualMixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "eps_reconciliation",
+                    INFO,
+                    "annual_income_statement",
+                    "no eps_reconciliation violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] eps_reconciliation failed: {e}", exc_info=True)
@@ -566,6 +594,13 @@ class TieOutIdentityAnnualMixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "basic_eps_reconciliation",
+                    INFO,
+                    "annual_income_statement",
+                    "no basic_eps_reconciliation violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] basic_eps_reconciliation failed: {e}", exc_info=True)
             self.log(
@@ -639,6 +674,13 @@ class TieOutIdentityAnnualMixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "gross_profit_identity",
+                    INFO,
+                    "annual_income_statement",
+                    "no gross_profit_identity violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] gross_profit_identity failed: {e}", exc_info=True)
             self.log(
@@ -711,6 +753,13 @@ class TieOutIdentityAnnualMixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "pretax_to_net_income",
+                    INFO,
+                    "annual_income_statement",
+                    "no pretax_to_net_income violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] pretax_to_net_income failed: {e}", exc_info=True)
@@ -847,6 +896,13 @@ class TieOutIdentityAnnualMixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "retained_earnings_rollforward",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no retained_earnings_rollforward violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] retained_earnings_rollforward failed: {e}", exc_info=True)
