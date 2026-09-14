@@ -350,7 +350,10 @@ class ValueMetricsMixin:
 
     @classmethod
     def _percent_rank_cheap_high_sector_relative(
-        cls, values: dict[str, float], sector_map: dict[str, str]
+        cls,
+        values: dict[str, float],
+        sector_map: dict[str, str],
+        is_foreign_private_issuer: dict[str, bool] | None = None,
     ) -> dict[str, float]:
         """Sector-relative counterpart to `_percent_rank_cheap_high` - same "lowest raw value ->
         highest percentile" convention, but each symbol is ranked ONLY against same-sector peers
@@ -365,10 +368,25 @@ class ValueMetricsMixin:
         this method's caller, `update_value_multiples_percentiles()`, for the full evidence
         trail and citations). Ties/single-sector/empty-input edge cases all delegate to
         `_percent_rank_cheap_high`'s own already-tested handling, per sector group.
+
+        FPI PEER-GROUP SPLIT (added 2026-09-14) - same fix, same rationale, as
+        `sector_neutral_zscore`'s own docstring in factor_normalization.py (this is Value's
+        percentile-rank analog of that z-score primitive, and suffered the identical defect):
+        a Foreign Private Issuer's P/E, P/B, P/S structurally run lower than US GICS-sector
+        peers for country/currency-risk-discount reasons that have nothing to do with genuine
+        relative cheapness - live-verified before this fix, FPIs were 44-52% of Value's own
+        top-25 lists across every cap band despite being ~15-19% of the underlying universe.
+        FPIs are pooled into one global cross-sector group (not dropped, not excluded from
+        scoring) exactly as that z-score function's own FPI pool works.
         """
+        fpi = is_foreign_private_issuer or {}
         groups: dict[str, list[str]] = {}
         residual: dict[str, float] = {}
+        fpi_pool: dict[str, float] = {}
         for symbol, val in values.items():
+            if fpi.get(symbol):
+                fpi_pool[symbol] = val
+                continue
             sector = sector_map.get(symbol)
             if sector is None:
                 residual[symbol] = val
@@ -384,6 +402,8 @@ class ValueMetricsMixin:
             sector_values = {symbol: values[symbol] for symbol in symbols}
             result.update(cls._percent_rank_cheap_high(cls._winsorize_group_values(sector_values)))
 
+        if fpi_pool:
+            result.update(cls._percent_rank_cheap_high(cls._winsorize_group_values(fpi_pool)))
         if residual:
             result.update(cls._percent_rank_cheap_high(cls._winsorize_group_values(residual)))
         return result
@@ -644,7 +664,8 @@ class ValueMetricsMixin:
                            vm.pe_ratio_unavailable_reason, vm.forward_pe_unavailable_reason,
                            vm.pb_ratio_unavailable_reason,
                            ss.components, cp.sector, ss.data_completeness, ss.data_unavailable,
-                           ss.unavailable_metrics, vm.ps_ratio_unavailable_reason
+                           ss.unavailable_metrics, vm.ps_ratio_unavailable_reason,
+                           COALESCE(cis.is_foreign_private_issuer, false)
                     FROM stock_scores ss
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
@@ -706,6 +727,7 @@ class ValueMetricsMixin:
             negative_book_value_symbols: set[str] = set()
             no_revenue_ps_symbols: set[str] = set()
             sector_map: dict[str, str] = {}
+            is_fpi: dict[str, bool] = {}
             for row in rows:
                 symbol, pe, pb, ps, fwd_pe = row[0], row[7], row[8], row[9], row[10]
                 dividend_yield_raw = row[11]
@@ -715,6 +737,12 @@ class ValueMetricsMixin:
                 sector = apply_mortgage_reit_sector_override(symbol, row[17])
                 if sector is not None:
                     sector_map[symbol] = sector
+                # FPI peer-group split (2026-09-14, goal-session "fix z-scoring issues"
+                # directive - see sector_neutral_zscore's own docstring in
+                # factor_normalization.py). row[22] is
+                # COALESCE(cis.is_foreign_private_issuer, false) per this query's SELECT above.
+                if len(row) > 22:
+                    is_fpi[symbol] = bool(row[22])
                 if pe is not None and float(pe) > 0:
                     pe_raw[symbol] = float(pe)
                 elif pe_reason == "unprofitable_stock":
@@ -736,11 +764,13 @@ class ValueMetricsMixin:
                     effective_yield = dy * _dividend_sustainability_factor(dy, fcf_yield_raw)
                     div_effective_raw[symbol] = _dividend_extensive_transform(effective_yield)
 
-            pe_pct = self._percent_rank_cheap_high_sector_relative(pe_raw, sector_map)
-            pb_pct = self._percent_rank_cheap_high_sector_relative(pb_raw, sector_map)
-            ps_pct = self._percent_rank_cheap_high_sector_relative(ps_raw, sector_map)
-            fwd_pe_pct = self._percent_rank_cheap_high_sector_relative(fwd_pe_raw, sector_map)
-            div_pct = zscore_to_percentile_scale(sector_neutral_zscore(div_effective_raw, sector_map))
+            pe_pct = self._percent_rank_cheap_high_sector_relative(pe_raw, sector_map, is_fpi)
+            pb_pct = self._percent_rank_cheap_high_sector_relative(pb_raw, sector_map, is_fpi)
+            ps_pct = self._percent_rank_cheap_high_sector_relative(ps_raw, sector_map, is_fpi)
+            fwd_pe_pct = self._percent_rank_cheap_high_sector_relative(fwd_pe_raw, sector_map, is_fpi)
+            div_pct = zscore_to_percentile_scale(
+                sector_neutral_zscore(div_effective_raw, sector_map, is_foreign_private_issuer=is_fpi)
+            )
             for symbol in unprofitable_symbols:
                 pe_pct[symbol] = 0.0
             for symbol in negative_fwd_symbols:

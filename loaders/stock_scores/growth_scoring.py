@@ -659,7 +659,7 @@ class GrowthScoringMixin:
                            gm.revenue_growth_5y, gm.eps_growth_5y, gm.forward_eps_growth_current_fy,
                            gm.forward_eps_growth_next_fy, gm.forward_revenue_growth_next_fy,
                            gm.sustainable_growth_rate, gm.quarterly_growth_momentum, gm.earnings_growth_4q_avg,
-                           cp.sector
+                           cp.sector, COALESCE(cis.is_foreign_private_issuer, false)
                     FROM stock_scores ss
                     JOIN growth_metrics gm ON gm.symbol = ss.symbol
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
@@ -702,6 +702,11 @@ class GrowthScoringMixin:
                 if sector is not None:
                     sector_map[row[0]] = sector
 
+            # FPI peer-group split (2026-09-14, goal-session "fix z-scoring issues" directive -
+            # see sector_neutral_zscore's own docstring in factor_normalization.py). row[23] is
+            # COALESCE(cis.is_foreign_private_issuer, false) per this query's own SELECT above.
+            is_fpi: dict[str, bool] = {row[0]: bool(row[23]) for row in rows if len(row) > 23}
+
             raw_by_field: dict[str, dict[str, float]] = {field: {} for field in GROWTH_SCORE_FIELDS}
             for row in rows:
                 symbol = row[0]
@@ -718,7 +723,9 @@ class GrowthScoringMixin:
                     raw_by_field[field][symbol] = val_f
 
             pct_by_field: dict[str, dict[str, float]] = {
-                field: zscore_to_percentile_scale(sector_neutral_zscore(values, sector_map))
+                field: zscore_to_percentile_scale(
+                    sector_neutral_zscore(values, sector_map, is_foreign_private_issuer=is_fpi)
+                )
                 for field, values in raw_by_field.items()
             }
             logger.info(

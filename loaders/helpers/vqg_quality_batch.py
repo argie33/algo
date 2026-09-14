@@ -154,7 +154,7 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                     """
                     SELECT qm.symbol, cp.sector, cp.industry, qm.roe, qm.roa, qm.roce_pct, qm.fcf_margin,
                            qm.debt_to_equity, qm.margin_volatility, qm.asset_turnover, qm.gross_profitability,
-                           qm.quality_score
+                           qm.quality_score, COALESCE(cis.is_foreign_private_issuer, false)
                     FROM quality_metrics qm
                     JOIN value_metrics vm ON vm.symbol = qm.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = qm.symbol
@@ -188,23 +188,44 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                 row[0]: (apply_mortgage_reit_sector_override(row[0], row[1]) or row[1]) for row in rows if row[1]
             }
 
-            # D2E/ROA/ROCE-only peer-group refinement (2026-09-08, quality_value_sector_
-            # neutral_zscore_rewrite follow-up): the single "Financial Services" GICS sector
-            # z-score bucket mixes deposit-funded banks, reserve-funded insurers, and
-            # unregulated other-FS (asset managers, payment networks, brokers) whose leverage
-            # and capital-efficiency profiles aren't comparable - same underlying economics
+            # FPI peer-group split (2026-09-14, goal-session "fix z-scoring issues" directive -
+            # see sector_neutral_zscore's own docstring in factor_normalization.py for the full
+            # rationale/evidence). row[12] is COALESCE(cis.is_foreign_private_issuer, false) per
+            # this query's own SELECT above - len(row) guard keeps pre-existing shorter unit-test
+            # fixture rows passing unchanged (same fail-open convention `industries` above uses).
+            is_fpi: dict[str, bool] = {row[0]: bool(row[12]) for row in rows if len(row) > 12}
+
+            # D2E/ROA/ROCE/ROE/asset_turnover peer-group refinement (2026-09-08, quality_value_
+            # sector_neutral_zscore_rewrite follow-up; extended 2026-09-11 - see
+            # roe_asset_turnover_fs_coarse_peer_group_bias_20260911): the single "Financial
+            # Services" GICS sector z-score bucket mixes deposit-funded banks, reserve-funded
+            # insurers, and unregulated other-FS (asset managers, payment networks, brokers)
+            # whose leverage and capital-efficiency profiles aren't comparable -
             # DEPOSITORY_BANK_INDUSTRIES/INSURANCE_UNDERWRITER_INDUSTRIES already carve out for
             # the Pass-1 curves in vqg_quality.py (banks/insurers understate leverage against
-            # total_liabilities the same way against each other's capital structure). Scoped to
-            # just these 3 metrics per that memory - roe/fcf_margin/margin_volatility/
-            # asset_turnover/gross_profitability aren't flagged and keep the coarser sector.
+            # total_liabilities the same way against each other's capital structure).
+            # ROE was originally left on the coarse sector alongside fcf_margin/margin_
+            # volatility/gross_profitability, but it's the MOST leverage-sensitive of the group
+            # (ROE = ROA x leverage multiplier) - live-measured 2026-09-11: coarse-FS-grouped
+            # bank ROE averaged the 36.6th percentile (vs the split group's neutral 49.9th) and
+            # asset_turnover showed the same 4-5x median gap between banks (structurally huge
+            # balance sheets relative to revenue) and "Other FS" that originally justified the
+            # ROA/ROCE/D2E split - both moved onto the same split peer group here. fcf_margin
+            # doesn't need this: banks/insurers are excluded from its z-score population
+            # entirely (see _fcf_excluded_industries below). margin_volatility/gross_
+            # profitability's cross-bucket gap was weaker (outlier-driven, not median-driven)
+            # and gross_profitability's tiny per-bucket bank/insurer sample (n=11/13) would fall
+            # under sector_neutral_zscore's own min_sector_size=15 floor and residual-pool right
+            # back out anyway - left on the coarse sector, not flagged.
             _fs_industry_peer_group: dict[str, str] = {
                 symbol: (
                     "Financial Services - Banks"
                     if industry in _owner().DEPOSITORY_BANK_INDUSTRIES
-                    else "Financial Services - Insurance"
-                    if industry in _owner().INSURANCE_UNDERWRITER_INDUSTRIES
-                    else "Financial Services - Other"
+                    else (
+                        "Financial Services - Insurance"
+                        if industry in _owner().INSURANCE_UNDERWRITER_INDUSTRIES
+                        else "Financial Services - Other"
+                    )
                 )
                 for symbol, sector, industry, *_ in rows
                 if sector == "Financial Services"
@@ -266,16 +287,30 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
             asset_turnover_raw = _nonneg_raw(9)
             gross_prof_raw = _nonneg_raw(10)
 
-            roe_pct = zscore_to_percentile_scale(sector_neutral_zscore(roe_raw, d2e_roa_roce_sectors))
-            roa_pct = zscore_to_percentile_scale(sector_neutral_zscore(roa_raw, d2e_roa_roce_sectors))
-            roce_pct = zscore_to_percentile_scale(sector_neutral_zscore(roce_raw, d2e_roa_roce_sectors))
-            fcf_margin_pct = zscore_to_percentile_scale(sector_neutral_zscore(fcf_margin_raw, sectors))
-            d2e_pct = zscore_to_percentile_scale(sector_neutral_zscore(d2e_raw, d2e_roa_roce_sectors))
-            margin_vol_pct = zscore_to_percentile_scale(sector_neutral_zscore(margin_vol_raw, sectors))
-            asset_turnover_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(asset_turnover_raw, d2e_roa_roce_sectors)
+            roe_pct = zscore_to_percentile_scale(
+                sector_neutral_zscore(roe_raw, d2e_roa_roce_sectors, is_foreign_private_issuer=is_fpi)
             )
-            gross_prof_pct = zscore_to_percentile_scale(sector_neutral_zscore(gross_prof_raw, sectors))
+            roa_pct = zscore_to_percentile_scale(
+                sector_neutral_zscore(roa_raw, d2e_roa_roce_sectors, is_foreign_private_issuer=is_fpi)
+            )
+            roce_pct = zscore_to_percentile_scale(
+                sector_neutral_zscore(roce_raw, d2e_roa_roce_sectors, is_foreign_private_issuer=is_fpi)
+            )
+            fcf_margin_pct = zscore_to_percentile_scale(
+                sector_neutral_zscore(fcf_margin_raw, sectors, is_foreign_private_issuer=is_fpi)
+            )
+            d2e_pct = zscore_to_percentile_scale(
+                sector_neutral_zscore(d2e_raw, d2e_roa_roce_sectors, is_foreign_private_issuer=is_fpi)
+            )
+            margin_vol_pct = zscore_to_percentile_scale(
+                sector_neutral_zscore(margin_vol_raw, sectors, is_foreign_private_issuer=is_fpi)
+            )
+            asset_turnover_pct = zscore_to_percentile_scale(
+                sector_neutral_zscore(asset_turnover_raw, d2e_roa_roce_sectors, is_foreign_private_issuer=is_fpi)
+            )
+            gross_prof_pct = zscore_to_percentile_scale(
+                sector_neutral_zscore(gross_prof_raw, sectors, is_foreign_private_issuer=is_fpi)
+            )
             logger.info(
                 f"[QUALITY_METRICS] sector-neutral z-score universe: roe={len(roe_pct)} roa={len(roa_pct)} "
                 f"roce={len(roce_pct)} fcf_margin={len(fcf_margin_pct)} debt_to_equity={len(d2e_pct)} "

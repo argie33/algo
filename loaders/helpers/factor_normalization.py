@@ -57,7 +57,10 @@ def _zscore_group(values: dict[str, float]) -> dict[str, float]:
 
 
 def sector_neutral_zscore(
-    values: dict[str, float], sectors: dict[str, str], min_sector_size: int = 15
+    values: dict[str, float],
+    sectors: dict[str, str],
+    min_sector_size: int = 15,
+    is_foreign_private_issuer: dict[str, bool] | None = None,
 ) -> dict[str, float]:
     """Winsorize to [1st, 99th] percentile WITHIN each sector, then z-score WITHIN each sector.
 
@@ -70,10 +73,41 @@ def sector_neutral_zscore(
     among `values`, is pooled into one residual group and z-scored against that pool instead -
     never dropped, mirroring `_percent_rank_cheap_high_sector_relative`'s own residual-pool
     fallback (same repo, same "too few peers to trust a sector-only score" reasoning).
+
+    FPI PEER-GROUP SPLIT (added 2026-09-14, goal-session "fix z-scoring issues" directive,
+    direct follow-up to that session's live-verified finding: Foreign Private Issuers are
+    ~19.8% of the universe by base rate but were 32-52% of our own top-25 lists across every
+    cap band for Momentum/Value - vs 0-8% for Quality, whose FPI inputs are already gated by
+    separate missing-quarterly-filing/unsupported-currency data checks). Before this fix, an
+    FPI with no `is_foreign_private_issuer` signal passed to this function was pooled into the
+    SAME sector group as its US GICS peers - a Korean bank's ROE/margin ratios standardized
+    against Wells Fargo/JPM's, a Japanese industrial's against Caterpillar's. Real institutional
+    multi-factor products (MSCI USA Momentum/Quality/Value, S&P/Nasdaq factor indices) never
+    face this because their eligible universe excludes FPIs entirely at construction time -
+    that's a fact about how THEIR index is built, not license to exclude FPIs from OUR scoring
+    (they're real, legitimately-tradeable companies). The actual defect being fixed here is
+    narrower and more defensible: an FPI's fundamentals ratios reflect real, structural
+    differences from US GAAP filers (country/currency risk discount baked into valuation
+    multiples, IFRS-vs-GAAP recognition differences, EM liquidity/governance discounts) that
+    have nothing to do with the metric itself being genuinely better or worse - comparing an
+    FPI only against OTHER FPIs (rather than dropping the distinction, which would put them
+    back in the contaminated sector pool, or excluding them, which the standing "fix don't
+    exclude" directive forbids) removes that structural mismatch while keeping every FPI fully
+    scored. FPIs are pooled into ONE global group across all sectors (not split further into
+    per-sector-and-FPI cells) because most sectors don't have anywhere near
+    `min_sector_size` FPI members individually - same "too few peers to trust a narrower cell"
+    reasoning this function already applies to the domestic per-sector/residual split, just
+    applied one level earlier so a thin per-sector FPI count doesn't fall back into contaminated
+    domestic peer groups instead of its own honest residual pool.
     """
+    fpi = is_foreign_private_issuer or {}
     groups: dict[str, list[str]] = {}
     residual: dict[str, float] = {}
+    fpi_pool: dict[str, float] = {}
     for symbol, val in values.items():
+        if fpi.get(symbol):
+            fpi_pool[symbol] = val
+            continue
         sector = sectors.get(symbol)
         if sector is None:
             residual[symbol] = val
@@ -89,6 +123,8 @@ def sector_neutral_zscore(
         sector_values = {symbol: values[symbol] for symbol in symbols}
         result.update(_zscore_group(_winsorize_group(sector_values)))
 
+    if fpi_pool:
+        result.update(_zscore_group(_winsorize_group(fpi_pool)))
     if residual:
         result.update(_zscore_group(_winsorize_group(residual)))
     return result

@@ -78,6 +78,46 @@ class TestSectorNeutralZscore:
         assert set(result.keys()) == {"X", "Y"}
 
 
+class TestSectorNeutralZscoreFpiPeerGroupSplit:
+    """FPI peer-group split (added 2026-09-14) - an FPI must never be scored against its
+    domestic GICS-sector peers; it goes into one global cross-sector FPI pool instead."""
+
+    def test_fpi_pooled_globally_not_scored_against_domestic_sector(self) -> None:
+        sectors = {}
+        values = {}
+        fpi = {}
+        for i in range(15):
+            sym = f"US{i}"
+            sectors[sym] = "Financial Services"
+            values[sym] = 1.0 + i * 0.1  # tight low range
+            fpi[sym] = False
+        # FPI value would be a deep outlier against the domestic bank sector's tight range,
+        # but sits mid-pack among other FPIs.
+        for i in range(15):
+            sym = f"FPI{i}"
+            sectors[sym] = "Financial Services"
+            values[sym] = 20.0 + i
+            fpi[sym] = True
+
+        result = sector_neutral_zscore(values, sectors, min_sector_size=15, is_foreign_private_issuer=fpi)
+        assert abs(result["FPI7"]) < 0.5  # mid-pack among FPI peers, not a domestic outlier
+        assert abs(result["US7"]) < 0.5
+
+    def test_fpi_flag_defaults_to_no_split_when_omitted(self) -> None:
+        sectors = {"A": "Financial Services", "B": "Financial Services"}
+        values = {"A": 1.0, "B": 2.0}
+        assert sector_neutral_zscore(values, sectors) == sector_neutral_zscore(
+            values, sectors, is_foreign_private_issuer=None
+        )
+
+    def test_all_fpi_still_scored_none_dropped(self) -> None:
+        sectors = {"A": "Financial Services", "B": "Technology"}
+        values = {"A": 1.0, "B": 2.0}
+        fpi = {"A": True, "B": True}
+        result = sector_neutral_zscore(values, sectors, is_foreign_private_issuer=fpi)
+        assert set(result.keys()) == {"A", "B"}
+
+
 class TestZscoreToPercentileScale:
     def test_zero_zscore_maps_to_fifty(self) -> None:
         result = zscore_to_percentile_scale({"A": 0.0})

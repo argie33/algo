@@ -778,7 +778,7 @@ class RiskScoringMixin:
                        ss.data_completeness, ss.data_unavailable,
                        sm.volatility_60d, sm.volatility_252d, sm.beta, sm.max_drawdown_1y,
                        liq.avg_dollar_volume_20d, COALESCE(hist.trading_days_history, 0),
-                       cp.sector
+                       cp.sector, COALESCE(cis.is_foreign_private_issuer, false)
                 FROM stock_scores ss
                 JOIN stability_metrics sm ON sm.symbol = ss.symbol
                 JOIN value_metrics vm ON vm.symbol = ss.symbol
@@ -850,6 +850,7 @@ class RiskScoringMixin:
         raw_vol252: dict[str, float] = {}
         raw_drawdown: dict[str, float] = {}
         sectors: dict[str, str] = {}
+        is_fpi: dict[str, bool] = {}
 
         for row in rows:
             symbol = row[0]
@@ -864,6 +865,11 @@ class RiskScoringMixin:
             )
             if sector is not None:
                 sectors[symbol] = sector
+            # FPI peer-group split (2026-09-14, goal-session "fix z-scoring issues" directive -
+            # see sector_neutral_zscore's own docstring in factor_normalization.py). row[17] is
+            # COALESCE(cis.is_foreign_private_issuer, false) per this query's own SELECT above.
+            if len(row) > 17:
+                is_fpi[symbol] = bool(row[17])
             price_stats_unreliable = adv20 is not None and 0 <= float(adv20) < NEAR_ZERO_LIQUIDITY_THRESHOLD
             if not price_stats_unreliable:
                 if vol_60d is not None:
@@ -878,9 +884,15 @@ class RiskScoringMixin:
                 raw_drawdown[symbol] = -abs(float(max_drawdown_1y))
 
         return {
-            "vol_60d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol60, sectors)),
-            "vol_252d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol252, sectors)),
-            "max_drawdown": zscore_to_percentile_scale(sector_neutral_zscore(raw_drawdown, sectors)),
+            "vol_60d": zscore_to_percentile_scale(
+                sector_neutral_zscore(raw_vol60, sectors, is_foreign_private_issuer=is_fpi)
+            ),
+            "vol_252d": zscore_to_percentile_scale(
+                sector_neutral_zscore(raw_vol252, sectors, is_foreign_private_issuer=is_fpi)
+            ),
+            "max_drawdown": zscore_to_percentile_scale(
+                sector_neutral_zscore(raw_drawdown, sectors, is_foreign_private_issuer=is_fpi)
+            ),
         }
 
     def _recompute_risk_row(
