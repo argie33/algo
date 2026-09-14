@@ -178,6 +178,14 @@ CONFIG_DEFAULTS_RISK: dict[str, tuple[Any, ...]] = {
     "max_consecutive_losses": ("3", "int", "Max consecutive losing trades (live)", "Risk Limits"),
     "paper_mode_max_consecutive_losses": ("5", "int", "Max consecutive losing trades (paper mode)", "Risk Limits"),
     "min_win_rate_pct": ("40.0", "float", "Min win rate % to trade", "Risk Limits"),
+    # Trades exiting before this date are excluded from the win-rate floor's rolling window -
+    # see circuit_breaker_trade_sector.py's _check_win_rate_floor docstring. Unset by default.
+    "win_rate_reset_at": (
+        "",
+        "string",
+        "Exclude trades exiting before this date (YYYY-MM-DD) from win-rate floor",
+        "Risk Limits",
+    ),
     "min_live_sharpe_ratio": (
         "0.0",
         "float",

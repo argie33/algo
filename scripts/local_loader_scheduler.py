@@ -419,6 +419,10 @@ PIPELINES = {
         # analyst_upgrade_downgrade and analyst_sentiment_analysis tables used by signals
         "analyst_upgrades",
         "analyst_sentiment",
+        # ADDED 2026-09-14: same low-frequency yfinance-only shape as analyst_sentiment
+        # (see load_yfinance_supplemental_metrics.py/loader_registry.py's own comments) -
+        # needed a pipeline slot or --now yfinance_supplemental could never reach it locally.
+        "yfinance_supplemental",
         "positioning",  # FIXED 2026-08-10: was "positioning_metrics" (not in registry)
         "stability_metrics",
         # ADDED 2026-08-19 (goal: "no SEC data" audit): earnings_metrics had no loader
