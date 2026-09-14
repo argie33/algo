@@ -194,6 +194,7 @@
   "algo/research/growth_reinvestment_book_value_candidates.py": 212,
   "algo/research/momentum_52wk_industry_residual_reversal_candidates.py": 207,
   "algo/research/momentum_residual_univariate_isolation_check.py": 111,
+  "algo/research/momentum_risk_adjusted_ic_test_20260914.py": 250,
   "algo/research/momentum_risk_interaction_effects_20260828.py": 225,
   "algo/research/pillar_weight_reallocation_test_20260907.py": 142,
   "algo/research/quality_asset_turnover_piotroski_candidates.py": 202,
