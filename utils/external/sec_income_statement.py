@@ -520,6 +520,21 @@ def get_income_statement(
         # real-estate rental revenue at all is implausible, so this never touches "revenue"
         # outside a confirmed REIT.
         "RealEstateRevenueNet",
+        # ADDED 2026-09-14 (goal: data-coverage sweep, ratio-jump scan): hotel REITs
+        # (Chatham Lodging Trust/CLDT, SIC 6798, live-confirmed via real companyfacts JSON)
+        # use this hotel-specific real-estate revenue tag instead of RealEstateRevenueNet/
+        # OperatingLeaseLeaseIncome - neither of which this filer ever tagged at all. FY2010
+        # real "RevenueFromLeasedAndOwnedHotels"=$25,470,000 (confirmed identically across two
+        # 10-Ks), growing to $276,950,000 by FY2015 - all real, as-filed SEC facts, with no
+        # "Revenues"/other REIT concept present for these years to compete with. Before this
+        # fix, revenue fell back to a tiny, unrelated fact (~$22K-$264K, a ~1000x+
+        # understatement across all 6 affected fiscal years, 2010-2015) with no
+        # data_unavailable/reason flag anywhere. Same REIT-exclusive wiring as
+        # RealEstateRevenueNet/OperatingLeaseLeaseIncome above (see
+        # load_financial_statements.py's _REIT_EXCLUSIVE_FIELDS) - a non-hotel-REIT filer
+        # tagging hotel-specific revenue at all is implausible, so this never touches
+        # "revenue" outside a confirmed REIT.
+        "RevenueFromLeasedAndOwnedHotels",
         # FIXED 2026-08-01: RevenuesNetOfInterestExpense for financial services companies.
         # Banks (MS, WFC, etc.) switched from reporting "Revenues" (2007-2019) to
         # "RevenuesNetOfInterestExpense" (2013+) as their primary revenue metric in 2020+.

@@ -63,6 +63,10 @@ _INCOME_FIELD_MAPPING = {
     # the live-verified ARE case. Same _REIT_EXCLUSIVE_FIELDS wiring as
     # operating_lease_lease_income below (never touches "revenue" outside a confirmed REIT).
     "real_estate_revenue_net": "revenue",
+    # ADDED 2026-09-14: hotel REITs' real revenue tag - see sec_income_statement.py's comment
+    # on RevenueFromLeasedAndOwnedHotels for the live-verified CLDT (Chatham Lodging Trust)
+    # case this recovers. Same _REIT_EXCLUSIVE_FIELDS wiring as real_estate_revenue_net above.
+    "revenue_from_leased_and_owned_hotels": "revenue",
     # FIXED 2026-08-01: RevenuesNetOfInterestExpense for banks (2020+ data).
     # Maps to same "revenue" column - this is the standard revenue metric for
     # financial services companies since 2020. Ordering in sec_statements.py
@@ -530,6 +534,7 @@ _REIT_EXCLUSIVE_FIELDS = frozenset(
     {
         "operating_lease_lease_income",
         "real_estate_revenue_net",
+        "revenue_from_leased_and_owned_hotels",
     }
 )
 
