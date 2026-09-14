@@ -101,6 +101,13 @@ _REVENUE_TOTAL_CANDIDATE_FIELDS = frozenset(
         "interest_revenue_expense",
         "sales_revenue_net",
         "sales_revenue_goods_net",
+        # ADDED 2026-09-13 (goal session: quarantine-backlog empirical verification): the
+        # services-sector sibling of sales_revenue_goods_net - see this module's own
+        # ARCB/ArcBest comment in sec_income_statement.py's concepts list for the live-
+        # confirmed case (real annual FY2011 revenue $1.9076B under this concept, vs. a
+        # $1,069,000 InvestmentIncomeInterestAndDividend fallback fact that was winning
+        # "revenue" by default because this concept was never mapped at all).
+        "sales_revenue_services_net",
         # WIDENED 2026-09-01 (recovered from the growth-multi-input-blend worktree, orig.
         # commit 11f1e0269, found stranded off main despite MEMORY.md citing it as fixed):
         # regulated_operating_revenue/regulated_and_unregulated_operating_revenue - designed

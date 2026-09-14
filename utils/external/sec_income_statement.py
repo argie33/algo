@@ -445,6 +445,22 @@ def get_income_statement(
         # the older/narrower of the two - SalesRevenueNet should win when both are present.
         "SalesRevenueGoodsNet",
         "SalesRevenueNet",
+        # ADDED 2026-09-13 (goal session: quarantine-backlog empirical verification, ARCB
+        # live-confirmed): the services-sector sibling of "SalesRevenueGoodsNet" above - a
+        # legacy pre-ASC-606 tag some services companies (ArcBest Corporation, a trucking/
+        # logistics carrier, SIC 4213) use as their real total-revenue concept, with neither
+        # "Revenues" nor "SalesRevenueNet" ever tagged at all. Left completely unmapped
+        # before this fix: ARCB's real, current, quarter-consistent annual revenue
+        # ($1.9076B/$2.066B/$2.2995B for FY2011-2013, matching the sum of ARCB's own real,
+        # discrete, promptly-filed quarterly "Revenues" facts) was silently discarded, and a
+        # tiny, unrelated InvestmentIncomeInterestAndDividend fact ($1,069,000 FY2011) won
+        # "revenue" by default via the same fallback-of-last-resort mechanism the AGCO fix
+        # above describes - identical bug class (missing concept mapping), different filer/
+        # concept. Listed in sec_base.py's _REVENUE_TOTAL_CANDIDATE_FIELDS (magnitude-
+        # resolved group) alongside its goods-specific sibling, so it naturally outranks the
+        # much smaller InvestmentIncomeInterestAndDividend fallback without needing its own
+        # special-cased priority rule.
+        "SalesRevenueServicesNet",
         # Post-ASC 606 (post-2018) revenue concepts used by most large-cap companies.
         # IncludingAssessedTax must be listed BEFORE ExcludingAssessedTax: both map to
         # the same "revenue" output column (see load_financial_statements.py's
