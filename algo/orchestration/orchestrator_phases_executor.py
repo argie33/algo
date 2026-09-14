@@ -275,14 +275,39 @@ class OrchestratorPhasesMixin(_Base):
     def phase_3_position_monitor(self) -> bool:
         """Thin delegation to phase3_position_monitor module."""
         self.log_phase_start(3, "POSITION MONITOR")
-        result = _owner().run_phase3(
-            self.config,
-            self.run_date,
-            self.dry_run,
-            self.alerts,
-            self.verbose,
-            self.log_phase_result,
-        )
+        try:
+            result = _owner().run_phase3(
+                self.config,
+                self.run_date,
+                self.dry_run,
+                self.alerts,
+                self.verbose,
+                self.log_phase_result,
+            )
+        except Exception as e:
+            # REAL-MONEY-READINESS FIX (found during an 11th-pass audit fork's full read of
+            # this file): every sibling phase method (1/2/4/5/6/8/9) wraps its run_phaseN()
+            # call in exactly this try/except - in fact Phase 5's own copy of this comment
+            # already claimed "same bug class as Phase 1/2/3/4/6/9's identical fixes" - but
+            # Phase 3 itself never actually had the wrapper applied, despite that comment.
+            # An unhandled exception in run_phase3() used to propagate to phase_executor.py's
+            # generic Exception handler (which returns ok=False but never touches the shared
+            # halt flag) instead of reaching the halted-status branch below that calls
+            # set_halt_flag(). Phase 4 depends on Phase 3 but Phase 5/7/8 never look at
+            # Phase 3's own result - they only check self.halt_manager's shared flag - so
+            # Phase 8 could still submit brand-new entry orders in the same run despite
+            # position monitoring having crashed entirely.
+            halt_reason = f"Phase 3 crashed: {type(e).__name__}: {e}"
+            logger.error(f"[PHASE 3] {halt_reason}", exc_info=True)
+            halt_set_result = self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase3_position_monitor")
+            if not halt_set_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set after Phase 3 crashed. "
+                    "This is a critical safety failure - we can no longer safely monitor open "
+                    "positions but can't stop new entries. Orchestrator MUST fail. Check "
+                    "database connectivity (RDS and DynamoDB) and AWS credentials."
+                ) from e
+            raise
         self._phase3_result = result
         if not result.ok:
             if result.halted:
