@@ -745,6 +745,50 @@ def _aggregate_concepts_should_replace_entry(
                 should_replace = entry_span < row_span
             else:
                 should_replace = row_filed is None or entry_filed > row_filed
+                # ADDED 2026-09-13 (goal session: quarantine-backlog audit, DYAI/FENC
+                # live-confirmed via real SEC companyfacts JSON): the annual (>=330-day)
+                # and instant-fact branches both already guard a frame-tagged replacement
+                # against a filer-side decimals-tag error on a re-cited comparative period
+                # (see frame_magnitude_scale_guard above) - this quarterly branch never got
+                # the same guard, so a later-filed comparative-period quarterly fact that's
+                # scale-corrupted always wins the plain filed-date tiebreak once span alone
+                # can't distinguish it (same ~89-92 day span as the genuine fact it's
+                # replacing). Live-confirmed via DYAI (Dyadic International)
+                # RevenueFromContractWithCustomerExcludingAssessedTax Q1 2021: the
+                # ORIGINAL 2021 Q1 10-Q (accn 0001437749-21-012046, filed 2021-05-13)
+                # correctly reports $460,520 with no frame; DYAI's own FY2022 Q1 10-Q
+                # re-cites the SAME period as a comparative column at $460,520,000 (accn
+                # 0001437749-22-012148, filed 2022-05-12, frame="CY2021Q1") - exactly
+                # 1000x, a filer-side decimals-tag error on the re-citation, not a real
+                # restatement - and the plain filed-date tiebreak confidently replaced the
+                # correct value with it, inflating DYAI's quarterly revenue sum ~192x
+                # above its own audited annual total and feeding the
+                # quarterly_revenue_sum_vs_annual_extreme DataPatrol quarantine. Same
+                # class independently reconfirmed via FENC's Q3 2020
+                # (200,000 -> 200,000,000, 1000x). Identical guard logic to the annual
+                # branch above: only overrides the tiebreak in this narrow,
+                # high-confidence shape (frame-tagged incoming replacement, clean
+                # power-of-10 ratio vs the already-agreed value), preferring the smaller
+                # magnitude regardless of which side arrived first - every documented
+                # instance of this bug class (IPAR/UPC/MKZR/CCU/PAGS/DYAI/FENC) has the
+                # smaller value be correct.
+                if entry.get("frame") and col in row and _is_power_of_ten_scale_outlier(row.get(col), entry.get("val")):
+                    _entry_val = entry.get("val")
+                    _existing_val = row.get(col)
+                    _entry_is_smaller = (
+                        isinstance(_entry_val, int | float)
+                        and isinstance(_existing_val, int | float)
+                        and abs(_entry_val) < abs(_existing_val)
+                    )
+                    logger.warning(
+                        f"[frame_magnitude_scale_guard] {'Accepting' if _entry_is_smaller else 'Rejecting'} "
+                        f"frame-tagged quarterly-fact replacement for {col} (accn {entry.get('accn')}): "
+                        f"{_entry_val} is a magnitude-scale outlier vs the already-agreed "
+                        f"{_existing_val} - likely a filer decimals-tag error, not a real "
+                        "restatement. Preferring the smaller magnitude value (extra zeros are "
+                        "always ADDED by this bug class, never removed)."
+                    )
+                    should_replace = _entry_is_smaller
         else:
             # FIX 2026-08-31 (/goal pre-real-money audit, live-verified TKR):
             # two genuine annual-length (>=330-day) duration facts for the SAME
