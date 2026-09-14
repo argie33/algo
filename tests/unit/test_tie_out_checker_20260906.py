@@ -3985,10 +3985,16 @@ class TestQuarterlyRevenueSumVsAnnualTotal:
         )
         checker = _checker()
         checker.check_quarterly_revenue_sum_vs_annual_total(cur)
-        assert len(checker.results) == 1
+        # FIXED 2026-09-14 (same class as test_suite_stale_assertions_after_always_log_fix_
+        # 20260914 in memory): no error-tier symbols here, so the check now also logs an
+        # unconditional clean-run INFO for quarterly_revenue_sum_vs_annual_extreme (see
+        # commit 591973aba) alongside the WARN - 2 results, not 1.
+        assert len(checker.results) == 2
         assert checker.results[0].check_name == "quarterly_revenue_sum_vs_annual"
         assert checker.results[0].severity == WARN
         assert checker.results[0].details["examples"][0]["symbol"] == "SBUX"
+        assert checker.results[1].check_name == "quarterly_revenue_sum_vs_annual_extreme"
+        assert checker.results[1].severity == INFO
 
     def test_does_not_flag_within_tolerance(self) -> None:
         cur = _mock_cursor(
@@ -4006,7 +4012,12 @@ class TestQuarterlyRevenueSumVsAnnualTotal:
         )
         checker = _checker()
         checker.check_quarterly_revenue_sum_vs_annual_total(cur)
-        assert checker.results == []
+        # FIXED 2026-09-14: nothing flagged at either tier now logs one unconditional clean-
+        # run INFO for quarterly_revenue_sum_vs_annual_extreme (commit 591973aba) instead of
+        # staying silent - see this class's test_flags_moderate_overshoot_as_warn comment.
+        assert len(checker.results) == 1
+        assert checker.results[0].check_name == "quarterly_revenue_sum_vs_annual_extreme"
+        assert checker.results[0].severity == INFO
 
     def test_query_requires_at_least_two_quarters_and_positive_annual_revenue(self) -> None:
         cur = _mock_cursor([[]])

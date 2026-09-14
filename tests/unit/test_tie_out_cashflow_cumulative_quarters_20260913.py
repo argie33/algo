@@ -60,19 +60,34 @@ class TestQuarterlyCashflowCumulativeDuplicate:
 
         checker.check_quarterly_cashflow_cumulative_duplicate(cur)
 
-        assert len(checker.results) == 2
-        assert {r.details["field"] for r in checker.results} == {"financing_cash_flow", "investing_cash_flow"}
-        for result in checker.results:
+        # FIXED 2026-09-14 (goal: quarantine backlog session): the 4 clean non-negative-field
+        # calls now ALSO log an unconditional INFO on their clean pass (see
+        # tie_out_cashflow_cumulative_quarters.py's _log_cumulative_duplicate_findings fix,
+        # same class as commit 591973aba) instead of logging nothing, so this is 4 INFO + the
+        # 2 real WARN findings, not just the 2.
+        flagged = [r for r in checker.results if r.severity != INFO]
+        clean = [r for r in checker.results if r.severity == INFO]
+        assert len(checker.results) == 6
+        assert len(clean) == 4
+        assert len(flagged) == 2
+        assert {r.details["field"] for r in flagged} == {"financing_cash_flow", "investing_cash_flow"}
+        for result in flagged:
             assert result.details["examples"][0]["q1"] == -13_000.0
             assert result.details["examples"][0]["q2_eq_q3"] == -15_000.0
 
-    def test_no_rows_logs_nothing(self) -> None:
+    def test_no_rows_logs_clean_info_per_field(self) -> None:
+        # FIXED 2026-09-14: renamed from test_no_rows_logs_nothing - a clean pass now logs an
+        # unconditional INFO per field (one per the 6 cash-flow fields this check covers)
+        # instead of staying silent, so quarantine.py's apply_symbol_quarantine can resolve a
+        # previously-flagged symbol once its data is fixed (see this check's own fix comment).
         checker = _checker()
         cur = _mock_cursor([])
 
         checker.check_quarterly_cashflow_cumulative_duplicate(cur)
 
-        assert checker.results == []
+        assert len(checker.results) == 6
+        assert all(r.severity == INFO for r in checker.results)
+        assert all("no quarterly_cashflow_cumulative_duplicate_" in r.message for r in checker.results)
 
     def test_clean_symbol_with_genuine_growth_not_flagged(self) -> None:
         """Sanity: the mock cursor stands in for the real SQL WHERE clause (Q1 < Q2 == Q3) -
