@@ -477,7 +477,7 @@
   "lambda/api/routes/signals.py": 341,
   "lambda/api/routes/stocks.py": 430,
   "lambda/api/routes/sync_stock_scores.py": 112,
-  "lambda/api/routes/trades.py": 345,
+  "lambda/api/routes/trades.py": 357,
   "lambda/api/routes/user_isolation.py": 281,
   "lambda/api/routes/utils.py": 1186,
   "lambda/api/schema_manager.py": 68,
