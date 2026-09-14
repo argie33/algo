@@ -259,6 +259,13 @@ SAFE_COLUMNS = {
     # data_patrol_log-backed /api/scores/correctness-coverage panel surfaced); live-caught the
     # same first-run "not in whitelist" gap as report_date/filing_date above.
     "ex_dividend_date",
+    # sec_valuations.computed_at (watermark_field, loaders/load_sec_valuations.py) - added
+    # 2026-09-13 alongside staleness.py's new sec_valuations entry (closing a gap the
+    # data_patrol_log-backed /api/scores/correctness-coverage panel's `cadence` field surfaced
+    # as None); same first-run "not in whitelist" gap as ex_dividend_date/report_date above,
+    # live-caught the same way (staleness check logged an ERROR instead of a real freshness
+    # result the moment this entry was added, before it ever shipped).
+    "computed_at",
     # Common columns
     "symbol",
     "count",

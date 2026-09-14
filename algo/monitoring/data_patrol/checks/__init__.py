@@ -2,6 +2,7 @@
 """Data patrol check modules."""
 
 from .alignment import AlignmentChecker
+from .cik_shared_issuer_financials_leak import CikSharedIssuerFinancialsLeakChecker
 from .composite_score_reconciliation import CompositeScoreReconciliationChecker
 from .coverage import CoverageChecker
 from .financial_statement_flag_drift import FinancialStatementFlagDriftChecker
@@ -19,6 +20,7 @@ from .xbrl_new_concepts import NewXbrlConceptChecker
 
 __all__ = [
     "AlignmentChecker",
+    "CikSharedIssuerFinancialsLeakChecker",
     "CompositeScoreReconciliationChecker",
     "CoverageChecker",
     "FinancialStatementFlagDriftChecker",
