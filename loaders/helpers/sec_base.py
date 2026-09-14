@@ -125,6 +125,9 @@ _REVENUE_TOTAL_CANDIDATE_FIELDS = frozenset(
         # resolution is a no-op there.
         "regulated_operating_revenue",
         "regulated_and_unregulated_operating_revenue",
+        # ADDED 2026-09-13 (ETR/Entergy live-confirmed) - a third utility-revenue concept
+        # variant, same magnitude-safe reasoning as its two siblings above.
+        "utility_revenue",
     }
 )
 

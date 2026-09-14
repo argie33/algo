@@ -103,6 +103,14 @@ _INCOME_FIELD_MAPPING = {
     # continuing to file real, current 10-Ks).
     "regulated_operating_revenue": "revenue",
     "regulated_and_unregulated_operating_revenue": "revenue",
+    # ADDED 2026-09-13 (quarantine-backlog empirical verification, ETR/Entergy live-
+    # confirmed): a THIRD utility revenue concept variant, same "revenue concept silently
+    # re-tagged" bug class as its two siblings above - ETR's real "Revenues" concept goes
+    # silent after FY2012 ($10.302B), "UtilityRevenue" takes over with real, continuous,
+    # current figures FY2013-2017 ($11.391B/$12.495B/$11.513B/$10.846B/$11.074B, live-
+    # confirmed via real SEC companyfacts JSON), before ETR moves again to
+    # RevenueFromContractWithCustomerExcludingAssessedTax from FY2018 onward (post ASC-606).
+    "utility_revenue": "revenue",
     # FIX 2026-09-02 (goal: "SEC/XBRL missing data" audit): identity key
     # ConsolidatedFinancialStatementsLoader.fetch_incremental() sets directly on rows for
     # symbols in utils/external/sec_custom_xbrl_concepts.py's CUSTOM_REVENUE_CONCEPTS -

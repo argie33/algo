@@ -542,6 +542,18 @@ def get_income_statement(
         # combined figure, not this narrower one.
         "RegulatedOperatingRevenue",
         "RegulatedAndUnregulatedOperatingRevenue",
+        # ADDED 2026-09-13 (goal session: quarantine-backlog empirical verification, ETR/
+        # Entergy live-confirmed via real SEC companyfacts JSON): a THIRD utility-revenue
+        # concept variant, same "revenue concept silently re-tagged" bug class as the two
+        # above. ETR's real "Revenues" concept goes silent after FY2012 ($10.302B);
+        # "UtilityRevenue" takes over with real, continuous, current figures FY2013-2017
+        # ($11.391B/$12.495B/$11.513B/$10.846B/$11.074B), before ETR moves again to
+        # RevenueFromContractWithCustomerExcludingAssessedTax from FY2018 onward (post
+        # ASC-606) - three different concepts across three eras for the same real company,
+        # none of them ever coexisting with real data for the same fiscal year, so magnitude
+        # resolution (sec_base.py's _REVENUE_TOTAL_CANDIDATE_FIELDS) is a safe no-op here,
+        # same precedent as the OGS/XEL cases above.
+        "UtilityRevenue",
         # FIXED 2026-08-03: community banks/thrifts (FNWB, AMAL, OCFC live-confirmed via real
         # companyfacts JSON) have neither the concepts above nor RevenuesNetOfInterestExpense
         # (that one's for larger banks).
