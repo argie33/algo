@@ -34,6 +34,12 @@ def check_and_repair_one_position(
     Returns "skipped" for cases that don't count toward the cycle's checked total at
     all (no resolvable trade/order, or a paper/local-mode order - nothing to verify
     against a real broker either way).
+
+    `quantity` (algo_positions.quantity, the total across every leg) is deliberately
+    NOT used for the actual check/repair math below anymore - see the 2026-09-08
+    comment further down for why trade_ids_arr[0]'s OWN algo_trades.quantity is the
+    correct number instead. Kept in the signature (unused) only for call-site/test
+    compatibility - callers still read it off the same batch SELECT as before.
     """
     # A prior cycle may have already repaired this position with a standalone stop
     # that's still resting live - skip re-checking the (now-irrelevant) original
@@ -69,10 +75,38 @@ def check_and_repair_one_position(
     if trade_id is None:
         return "skipped"
 
+    # REAL-MONEY-READINESS FIX (stop-loss/pyramiding audit): this function only ever
+    # checks/repairs trade_ids_arr[0]'s OWN bracket order - the established convention
+    # everywhere else in this codebase (position_monitor.py, exit_engine.py's own comment on
+    # this exact point). But `quantity`/`current_stop_price` were the caller's POSITION-level
+    # values (algo_positions.quantity/current_stop_price - the sum across every leg for a
+    # pyramided position, max_reentries_per_name=2 by default so this is a live, reachable
+    # config, not hypothetical). trade_ids_arr[0]'s bracket only ever covers ITS OWN leg's
+    # shares - a second pyramid leg gets its own separate bracket order with its own
+    # stop-loss leg (see phase6_exit_execution.py's "loop over all of them" comment, which
+    # only makes sense if each leg really does rest as an independent broker order).
+    # Comparing leg[0]'s own resting stop qty against the TOTAL position quantity meant this
+    # function misfired on EVERY pyramided position, every cycle: (1) the qty-mismatch branch
+    # below would "repair" a perfectly correct leg[0] stop by resizing it UP to cover the
+    # whole position - while leg 2's own stop-loss order is still separately resting for its
+    # own shares, so the broker now has MORE resting protective sell quantity than the
+    # account holds (leg[0] resized to 150 + leg[1]'s untouched 50 on a 150-share position) -
+    # exactly the oversell/short risk class this codebase treats as critical everywhere else
+    # it's found; (2) the missing-leg auto-repair path would submit a standalone stop sized
+    # for the FULL position instead of just leg[0]'s share of it, doubling up with any other
+    # leg's still-live stop the same way. Use trade_ids_arr[0]'s OWN algo_trades.quantity
+    # (single-leg positions - the overwhelming majority - keep this equal to
+    # algo_positions.quantity by construction, so this is a no-op there) rather than the
+    # position-wide total, so every repair this function makes stays scoped to the one leg
+    # it actually checked. NOTE: this does not extend monitoring to trade_ids_arr[1:] - a
+    # pyramided position's later legs still have no independent Phase 9 liveness check of
+    # their own; that remains an open gap needing a broader per-leg repair loop, not
+    # something this fix alone closes.
     with DatabaseContext("read") as cur:
-        cur.execute("SELECT alpaca_order_id FROM algo_trades WHERE trade_id = %s", (trade_id,))
+        cur.execute("SELECT alpaca_order_id, quantity FROM algo_trades WHERE trade_id = %s", (trade_id,))
         row = cur.fetchone()
     alpaca_order_id = row[0] if row else None
+    leg_quantity = float(row[1]) if row and row[1] is not None else None
 
     try:
         result = order_mgr.check_stop_loss_leg_live(alpaca_order_id)
@@ -96,25 +130,26 @@ def check_and_repair_one_position(
         # sized larger than the current position would try to sell shares the account
         # no longer holds if it ever fires; resize it in place here rather than
         # reporting "protected" on presence alone.
-        if leg_qty is not None and quantity is not None and abs(leg_qty - float(quantity)) > 1e-6:
+        if leg_qty is not None and leg_quantity is not None and abs(leg_qty - leg_quantity) > 1e-6:
             if not current_stop_price:
                 logger.critical(
                     f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}): stop leg qty mismatch "
-                    f"(leg={leg_qty}, position={quantity}) but no current_stop_price to resize with"
+                    f"(leg={leg_qty}, trade {trade_id}'s own qty={leg_quantity}) but no "
+                    f"current_stop_price to resize with"
                 )
                 return "unrepairable"
-            resize = order_mgr.sync_bracket_stop_loss(
-                alpaca_order_id, float(current_stop_price), new_qty=float(quantity)
-            )
+            resize = order_mgr.sync_bracket_stop_loss(alpaca_order_id, float(current_stop_price), new_qty=leg_quantity)
             if not resize.get("success"):
                 logger.critical(
                     f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}): stop leg qty mismatch "
-                    f"(leg={leg_qty}, position={quantity}) - resize FAILED: {resize.get('message')}"
+                    f"(leg={leg_qty}, trade {trade_id}'s own qty={leg_quantity}) - resize FAILED: "
+                    f"{resize.get('message')}"
                 )
                 return "unrepairable"
             logger.warning(
                 f"[PHASE 9] {symbol} (position {pos_id}): resized stop leg from {leg_qty} to "
-                f"{quantity} shares after a stale partial-exit mismatch"
+                f"{leg_quantity} shares (trade {trade_id}'s own quantity) after a stale "
+                f"partial-exit mismatch"
             )
             return "repaired"
         return "protected"
@@ -124,48 +159,58 @@ def check_and_repair_one_position(
         "- attempting auto-repair"
     )
 
-    if not current_stop_price or not quantity:
+    if not current_stop_price or not leg_quantity:
         logger.critical(
             f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}): cannot auto-repair - "
-            f"missing quantity/current_stop_price in algo_positions (qty={quantity}, stop={current_stop_price})"
+            f"missing trade {trade_id}'s own quantity/current_stop_price "
+            f"(qty={leg_quantity}, stop={current_stop_price})"
         )
         return "unrepairable"
 
-    # REAL-MONEY-READINESS FIX (2026-09-05 audit): `quantity`/`current_stop_price` are
-    # whatever the caller's batch SELECT read at the START of this whole reconciliation
-    # cycle - by this point, several live Alpaca round-trips (each with its own
-    # retry/backoff, up to a few seconds) have already happened in
-    # check_stop_loss_leg_live above. A concurrent execute_exit (full or partial) closing
-    # or resizing this exact position in that window would otherwise submit a brand-new
-    # standalone GTC sell-stop sized off STALE data - for a full exit, a naked resting
-    # sell order on a symbol the account no longer holds, able to fire later against a
-    # completely unrelated future position in the same symbol (the same failure class the
-    # take-profit-leg-cancel fix below this function already guards against, from a
-    # different direction). Re-read immediately before submission - the narrowest window
-    # achievable without holding a lock across the entire check-and-repair call.
-    with DatabaseContext("read") as fresh_cur:
-        fresh_cur.execute(
-            "SELECT status, quantity, current_stop_price FROM algo_positions WHERE id = %s",
+    # REAL-MONEY-READINESS FIX (2026-09-05 audit): `current_stop_price` is whatever the
+    # caller's batch SELECT read at the START of this whole reconciliation cycle - by this
+    # point, several live Alpaca round-trips (each with its own retry/backoff, up to a few
+    # seconds) have already happened in check_stop_loss_leg_live above. A concurrent
+    # execute_exit (full or partial) closing or resizing this exact position in that window
+    # would otherwise submit a brand-new standalone GTC sell-stop sized off STALE data - for
+    # a full exit, a naked resting sell order on a symbol the account no longer holds, able
+    # to fire later against a completely unrelated future position in the same symbol (the
+    # same failure class the take-profit-leg-cancel fix below this function already guards
+    # against, from a different direction). Re-read immediately before submission - the
+    # narrowest window achievable without holding a lock across the entire check-and-repair
+    # call.
+    #
+    # FIX (stop-loss/pyramiding audit): re-read trade_ids_arr[0]'s OWN algo_trades.quantity
+    # here too, not just algo_positions.quantity/current_stop_price - see this function's
+    # own leading comment on why the position-wide total is the wrong number for a
+    # pyramided (2+ leg) position's repair.
+    with DatabaseContext("read") as fresh_pos_cur:
+        fresh_pos_cur.execute(
+            "SELECT status, current_stop_price FROM algo_positions WHERE id = %s",
             (pos_id,),
         )
-        fresh_row = fresh_cur.fetchone()
-    if fresh_row is None or fresh_row[0] != "open" or not fresh_row[1] or fresh_row[1] <= 0:
+        fresh_pos_row = fresh_pos_cur.fetchone()
+    with DatabaseContext("read") as fresh_trade_cur:
+        fresh_trade_cur.execute("SELECT quantity FROM algo_trades WHERE trade_id = %s", (trade_id,))
+        fresh_trade_row = fresh_trade_cur.fetchone()
+    fresh_leg_quantity = float(fresh_trade_row[0]) if fresh_trade_row and fresh_trade_row[0] is not None else None
+    if fresh_pos_row is None or fresh_pos_row[0] != "open" or not fresh_leg_quantity or fresh_leg_quantity <= 0:
         logger.warning(
             f"[PHASE 9] {symbol} (position {pos_id}): position closed or emptied since this "
             f"cycle's batch read - skipping stale-data repair, nothing to protect."
         )
         return "skipped"
-    if fresh_row[1] != quantity or fresh_row[2] != current_stop_price:
+    if fresh_leg_quantity != leg_quantity or fresh_pos_row[1] != current_stop_price:
         logger.warning(
             f"[PHASE 9] {symbol} (position {pos_id}): quantity/stop changed since this cycle's "
-            f"batch read (qty {quantity}->{fresh_row[1]}, stop {current_stop_price}->{fresh_row[2]}) "
-            f"- using the fresh values for repair."
+            f"batch read (qty {leg_quantity}->{fresh_leg_quantity}, "
+            f"stop {current_stop_price}->{fresh_pos_row[1]}) - using the fresh values for repair."
         )
-    quantity, current_stop_price = fresh_row[1], fresh_row[2]
+    leg_quantity, current_stop_price = fresh_leg_quantity, fresh_pos_row[1]
     if not current_stop_price:
         logger.critical(
             f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}): cannot auto-repair - "
-            f"fresh re-read has no current_stop_price (qty={quantity})"
+            f"fresh re-read has no current_stop_price (qty={leg_quantity})"
         )
         return "unrepairable"
 
@@ -183,7 +228,7 @@ def check_and_repair_one_position(
     client_order_id = f"stoprepair-{pos_id}-{uuid.uuid4().hex[:12]}"
     try:
         repair = order_mgr.submit_standalone_protective_stop(
-            symbol, float(quantity), float(current_stop_price), client_order_id=client_order_id, pos_id=pos_id
+            symbol, float(leg_quantity), float(current_stop_price), client_order_id=client_order_id, pos_id=pos_id
         )
     except Exception as e:
         repair = {"success": False, "message": f"Exception during repair submission: {e}"}

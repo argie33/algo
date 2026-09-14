@@ -21,18 +21,23 @@ from algo.orchestrator.phase9_stop_loss_repair import check_and_repair_one_posit
 
 
 def _patch_db(quantity, stop_price):
-    """Queues DatabaseContext results for the two reads check_and_repair_one_position makes
-    on the repair path: (1) the alpaca_order_id lookup for the trade, (2) the 2026-09-05
-    fresh re-check of position status/quantity/stop immediately before submitting a repair
-    (added to close a TOCTOU window - see phase9_stop_loss_repair.py's own comment). Both
-    hit the real test DB otherwise, which has no seeded row for these synthetic pos_ids."""
-    contexts = [MagicMock(), MagicMock(), MagicMock()]
-    contexts[0].__enter__.return_value.fetchone.return_value = ("order-abc",)
+    """Queues DatabaseContext results for the reads check_and_repair_one_position makes on
+    the repair path: (1) the alpaca_order_id/quantity lookup for trade_ids_arr[0]'s own
+    trade row, (2) the fresh re-check of algo_positions.status/current_stop_price
+    immediately before submitting a repair (added to close a TOCTOU window - see
+    phase9_stop_loss_repair.py's own comment), (3) the matching fresh re-check of
+    trade_ids_arr[0]'s own algo_trades.quantity (pyramiding fix - the position-wide total
+    is the wrong number for a multi-leg position's repair). All hit the real test DB
+    otherwise, which has no seeded row for these synthetic pos_ids."""
+    contexts = [MagicMock(), MagicMock(), MagicMock(), MagicMock()]
+    contexts[0].__enter__.return_value.fetchone.return_value = ("order-abc", quantity)
     contexts[0].__exit__.return_value = False
-    contexts[1].__enter__.return_value.fetchone.return_value = ("open", quantity, stop_price)
+    contexts[1].__enter__.return_value.fetchone.return_value = ("open", stop_price)
     contexts[1].__exit__.return_value = False
-    contexts[2].__enter__.return_value = MagicMock()  # the post-repair UPDATE write
+    contexts[2].__enter__.return_value.fetchone.return_value = (quantity,)
     contexts[2].__exit__.return_value = False
+    contexts[3].__enter__.return_value = MagicMock()  # the post-repair UPDATE write
+    contexts[3].__exit__.return_value = False
     return patch(
         "algo.orchestrator.phase9_stop_loss_repair.DatabaseContext",
         side_effect=list(contexts),

@@ -28,12 +28,18 @@ def _order_mgr():
     return mgr
 
 
-def _patch_db(fresh_row):
-    contexts = [MagicMock(), MagicMock()]
-    contexts[0].__enter__.return_value.fetchone.return_value = ("order-abc",)
+def _patch_db(fresh_pos_row, fresh_trade_row):
+    """Queues DatabaseContext results for the 3 reads on the repair path: (1) the
+    alpaca_order_id/quantity lookup for trade_ids_arr[0]'s own trade row, (2) the fresh
+    re-check of algo_positions.status/current_stop_price, (3) the matching fresh re-check
+    of trade_ids_arr[0]'s own algo_trades.quantity (pyramiding fix)."""
+    contexts = [MagicMock(), MagicMock(), MagicMock()]
+    contexts[0].__enter__.return_value.fetchone.return_value = ("order-abc", 25.0)
     contexts[0].__exit__.return_value = False
-    contexts[1].__enter__.return_value.fetchone.return_value = fresh_row
+    contexts[1].__enter__.return_value.fetchone.return_value = fresh_pos_row
     contexts[1].__exit__.return_value = False
+    contexts[2].__enter__.return_value.fetchone.return_value = fresh_trade_row
+    contexts[2].__exit__.return_value = False
     return patch(
         "algo.orchestrator.phase9_stop_loss_repair.DatabaseContext",
         side_effect=list(contexts),
@@ -46,7 +52,7 @@ def test_position_closed_since_batch_read_is_skipped_not_repaired():
     account no longer holds."""
     order_mgr = _order_mgr()
 
-    with _patch_db(("closed", 25.0, 210.50)):
+    with _patch_db(("closed", 210.50), (25.0,)):
         outcome = check_and_repair_one_position(
             order_mgr,
             pos_id=1,
@@ -66,7 +72,7 @@ def test_position_emptied_since_batch_read_is_skipped_not_repaired():
     naked-order risk, must still refuse to submit."""
     order_mgr = _order_mgr()
 
-    with _patch_db(("open", 0, 210.50)):
+    with _patch_db(("open", 210.50), (0,)):
         outcome = check_and_repair_one_position(
             order_mgr,
             pos_id=1,
@@ -92,13 +98,15 @@ def test_quantity_changed_since_batch_read_uses_fresh_value_for_repair():
     }
     order_mgr.cancel_bracket_orders.return_value = {"success": True}
 
-    contexts = [MagicMock(), MagicMock(), MagicMock()]
-    contexts[0].__enter__.return_value.fetchone.return_value = ("order-abc",)
+    contexts = [MagicMock(), MagicMock(), MagicMock(), MagicMock()]
+    contexts[0].__enter__.return_value.fetchone.return_value = ("order-abc", 25.0)
     contexts[0].__exit__.return_value = False
-    contexts[1].__enter__.return_value.fetchone.return_value = ("open", 10.0, 210.50)
+    contexts[1].__enter__.return_value.fetchone.return_value = ("open", 210.50)
     contexts[1].__exit__.return_value = False
-    contexts[2].__enter__.return_value = MagicMock()
+    contexts[2].__enter__.return_value.fetchone.return_value = (10.0,)
     contexts[2].__exit__.return_value = False
+    contexts[3].__enter__.return_value = MagicMock()
+    contexts[3].__exit__.return_value = False
 
     with patch(
         "algo.orchestrator.phase9_stop_loss_repair.DatabaseContext",

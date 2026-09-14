@@ -41,7 +41,7 @@ def test_check_stop_loss_leg_live_exception_returns_unrepairable_not_skipped(mon
     order_mgr.check_stop_loss_leg_live.side_effect = RuntimeError("Alpaca timeout")
 
     fake_cursor = MagicMock()
-    fake_cursor.fetchone.return_value = ("alpaca-order-1",)
+    fake_cursor.fetchone.return_value = ("alpaca-order-1", 10.0)
     fake_ctx = MagicMock()
     fake_ctx.__enter__.return_value = fake_cursor
     fake_ctx.__exit__.return_value = False

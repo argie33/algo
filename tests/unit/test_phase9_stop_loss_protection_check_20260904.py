@@ -124,7 +124,7 @@ def test_protected_position_does_not_alert_or_repair():
 
     # (id, symbol, trade_ids_arr, quantity, current_stop_price, standalone_stop_order_id)
     open_positions = [(1, "AAPL", ["trade-1"], 10.0, 150.0, None)]
-    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-abc",)])
+    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-abc", 10.0)])
 
     with (
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
@@ -168,7 +168,7 @@ def test_missing_stop_loss_leg_auto_repairs_and_sends_warning_not_critical():
 
     open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, None)]
     fake_db = _make_db_context(
-        fetchall_result=open_positions, fetchone_results=[("order-xyz",), ("open", 25.0, 210.50)]
+        fetchall_result=open_positions, fetchone_results=[("order-xyz", 25.0), ("open", 210.50), (25.0,)]
     )
 
     with (
@@ -215,7 +215,7 @@ def test_auto_repair_failure_triggers_critical_alert():
 
     open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, None)]
     fake_db = _make_db_context(
-        fetchall_result=open_positions, fetchone_results=[("order-xyz",), ("open", 25.0, 210.50)]
+        fetchall_result=open_positions, fetchone_results=[("order-xyz", 25.0), ("open", 210.50), (25.0,)]
     )
 
     with (
@@ -328,7 +328,7 @@ def test_stale_prior_repair_falls_through_to_recheck_original_bracket():
 
     open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, "stale-repair-order")]
     fake_db = _make_db_context(
-        fetchall_result=open_positions, fetchone_results=[("order-xyz",), ("open", 25.0, 210.50)]
+        fetchall_result=open_positions, fetchone_results=[("order-xyz", 25.0), ("open", 210.50), (25.0,)]
     )
 
     with (
@@ -370,7 +370,7 @@ def test_notify_failure_does_not_crash_the_check():
 
     open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, None)]
     fake_db = _make_db_context(
-        fetchall_result=open_positions, fetchone_results=[("order-xyz",), ("open", 25.0, 210.50)]
+        fetchall_result=open_positions, fetchone_results=[("order-xyz", 25.0), ("open", 210.50), (25.0,)]
     )
 
     with (
@@ -431,7 +431,7 @@ def test_live_leg_with_stale_qty_resizes_instead_of_reporting_protected():
 
     # Position now holds only 25 shares after a partial exit, but the resting leg is 50.
     open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, None)]
-    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-xyz",)])
+    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-xyz", 25.0)])
 
     with (
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
@@ -468,7 +468,7 @@ def test_live_leg_with_matching_qty_is_protected_no_resize():
     }
 
     open_positions = [(7, "TSLA", ["trade-99"], 25.0, 210.50, None)]
-    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-xyz",)])
+    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("order-xyz", 25.0)])
 
     with (
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
@@ -503,7 +503,7 @@ def test_unchecked_result_paper_local_order_is_not_counted_as_unprotected():
     }
 
     open_positions = [(9, "PAPERSYM", ["trade-1"], 8.0, 42.0, None)]
-    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("LOCAL-abc123",)])
+    fake_db = _make_db_context(fetchall_result=open_positions, fetchone_results=[("LOCAL-abc123", 8.0)])
 
     with (
         patch("algo.infrastructure.alpaca_sync_manager.AlpacaSyncManager", return_value=mock_sync_mgr),
