@@ -817,7 +817,7 @@
   "utils/loaders/retry_helper.py": 179,
   "utils/loaders/sla_monitor.py": 393,
   "utils/loaders/status_enum.py": 95,
-  "utils/loaders/status_manager.py": 1096,
+  "utils/loaders/status_manager.py": 1117,
   "utils/loaders/timeout_enforcement.py": 122,
   "utils/loaders/transient_errors.py": 17,
   "utils/loaders/unavailable_markers.py": 89,
