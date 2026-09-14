@@ -88,7 +88,13 @@ export default function ScoresCorrectnessCoverage({ active }) {
 
   const tables = data?.tables || [];
   const pillarSummary = data?.pillar_summary || [];
-  const totals = data?.totals;
+  const totals = data?.totals || {
+    total_tables: 0,
+    never_logged: 0,
+    stale: 0,
+    active_findings: 0,
+    active_clean: 0,
+  };
   const visibleTables = pillarFilter ? tables.filter((t) => t.group === pillarFilter) : tables;
 
   return (

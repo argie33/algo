@@ -9,7 +9,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..base import CheckResult
-from ..config import ERROR, WARN
+from ..config import ERROR, INFO, WARN
 from .tie_out_shared import (
     _ACCOUNTS_RECEIVABLE_TOLERANCE_PCT,
     _CURRENT_VS_TOTAL_TOLERANCE_PCT,
@@ -101,6 +101,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "short_term_debt_le_current_liabilities",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no short_term_debt_le_current_liabilities violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] short_term_debt_le_current_liabilities failed: {e}", exc_info=True)
             self.log(
@@ -170,6 +177,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "operating_lease_liability_le_total_liabilities",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no operating_lease_liability_le_total_liabilities violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] operating_lease_liability_le_total_liabilities failed: {e}", exc_info=True)
             self.log(
@@ -238,6 +252,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "finance_lease_liability_le_total_liabilities",
+                    INFO,
+                    "annual_balance_sheet",
+                    "no finance_lease_liability_le_total_liabilities violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] finance_lease_liability_le_total_liabilities failed: {e}", exc_info=True)
             self.log(
@@ -303,6 +324,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "quarterly_inventory_le_current_assets",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_inventory_le_current_assets violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_inventory_le_current_assets failed: {e}", exc_info=True)
@@ -372,6 +400,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "quarterly_accounts_receivable_le_current_assets",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_accounts_receivable_le_current_assets violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_accounts_receivable_le_current_assets failed: {e}", exc_info=True)
             self.log(
@@ -437,6 +472,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "quarterly_ppe_net_le_total_assets",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_ppe_net_le_total_assets violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_ppe_net_le_total_assets failed: {e}", exc_info=True)
@@ -508,6 +550,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "quarterly_short_term_debt_le_current_liabilities",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_short_term_debt_le_current_liabilities violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_short_term_debt_le_current_liabilities failed: {e}", exc_info=True)
             self.log(
@@ -575,6 +624,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "quarterly_operating_lease_liability_le_total_liabilities",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_operating_lease_liability_le_total_liabilities violations found",
                 )
         except Exception as e:
             logger.error(
@@ -646,6 +702,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "quarterly_finance_lease_liability_le_total_liabilities",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_finance_lease_liability_le_total_liabilities violations found",
+                )
         except Exception as e:
             logger.error(
                 f"[TieOutChecker] quarterly_finance_lease_liability_le_total_liabilities failed: {e}", exc_info=True
@@ -715,6 +778,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
                 )
+            else:
+                self.log(
+                    "quarterly_current_assets_le_total_assets",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_current_assets_le_total_assets violations found",
+                )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_current_assets_le_total_assets failed: {e}", exc_info=True)
             self.log(
@@ -782,6 +852,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "quarterly_current_liabilities_le_total_liabilities",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_current_liabilities_le_total_liabilities violations found",
                 )
         except Exception as e:
             logger.error(
@@ -852,6 +929,13 @@ class TieOutBoundsAnnual2Quarterly1Mixin:
                         "unverified_stale": stale,
                         "examples": examples[:_MAX_REPORTED_PER_CHECK],
                     },
+                )
+            else:
+                self.log(
+                    "quarterly_long_term_debt_le_total_liabilities",
+                    INFO,
+                    "quarterly_balance_sheet",
+                    "no quarterly_long_term_debt_le_total_liabilities violations found",
                 )
         except Exception as e:
             logger.error(f"[TieOutChecker] quarterly_long_term_debt_le_total_liabilities failed: {e}", exc_info=True)
