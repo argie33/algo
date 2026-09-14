@@ -356,6 +356,19 @@ class DividendDataLoader(SecLoaderBase):
                     )
                     continue
 
+                # dividend_per_share < 0 is mathematically impossible for a dividend payment -
+                # live-confirmed filer tagging errors (e.g. EDUC's val=-366400, OHI's val=-0.67)
+                # under this same concept, same class of bad fact as the magnitude check above,
+                # just unbounded in the other direction. Caught post-hoc by DataPatrol's
+                # dividend_data_bounds check (metric_bounds.py) but nothing stopped it from
+                # re-entering on every reload until this guard.
+                if value < 0:
+                    logger.warning(
+                        f"[{symbol}] {concept_name}: skipping negative value {value!r} "
+                        "(dividend_per_share < 0 is mathematically impossible) - filer tagging error, not a real per-share amount"
+                    )
+                    continue
+
                 filed_str = fact.get("filed")
                 end_str = fact.get("end")
                 if not filed_str or not end_str:
@@ -513,6 +526,17 @@ class DividendDataLoader(SecLoaderBase):
                     logger.warning(
                         f"[{symbol}] {concept_name}: skipping implausible value {value!r} "
                         "(>= 10**13, would overflow DECIMAL(15,2) column) - filer tagging error"
+                    )
+                    continue
+
+                # total_dividend_amount < 0 is mathematically impossible - same class of
+                # filer-tagging-error as the per-share negative guard above (live-confirmed:
+                # 90 negative rows including VALE at -$2.328B), caught post-hoc by
+                # dividend_data_bounds (metric_bounds.py) but never guarded at ingestion here.
+                if value < 0:
+                    logger.warning(
+                        f"[{symbol}] {concept_name}: skipping negative value {value!r} "
+                        "(total_dividend_amount < 0 is mathematically impossible) - filer tagging error"
                     )
                     continue
 

@@ -336,7 +336,15 @@ class MetricBoundsChecker(BaseCheck):
             )
 
     def check_dividend_data_bounds(self, cur: Any) -> None:
-        """dividend_per_share/dividend_yield_pct < 0 is mathematically impossible (ERROR).
+        """dividend_per_share/dividend_yield_pct/total_dividend_amount < 0 is mathematically
+        impossible (ERROR) - total_dividend_amount added 2026-09-14 after a live sweep found
+        90 negative rows (DB, VALE, BAK, ICL, etc., some in the hundreds of millions) that had
+        NO bounds coverage at all: this check originally validated only dividend_per_share/
+        dividend_yield_pct, leaving the loader's separate total-dollar fallback path
+        (_extract_total_dividends_from_xbrl_concept, populates total_dividend_amount instead
+        of dividend_per_share - see its own docstring) completely unvalidated. Same filer-
+        tagging-error class as the per-share bug (a negative dividend concept value), just a
+        different column.
         dividend_yield_pct > 25% is possible (deep-value/distressed names) but rare enough to
         be worth a review-queue WARN, matching the same "high-yield is a real but reviewable
         case" philosophy score_ratio_outliers.py already uses for fcf_yield."""
@@ -344,7 +352,7 @@ class MetricBoundsChecker(BaseCheck):
         row = cur.fetchone()
         total = int((row.get("total") if hasattr(row, "get") else row[0]) or 0)
 
-        for field in ("dividend_per_share", "dividend_yield_pct"):
+        for field in ("dividend_per_share", "dividend_yield_pct", "total_dividend_amount"):
             cur.execute(f"""
                 SELECT symbol, {field} AS val FROM dividend_data
                 WHERE {field} IS NOT NULL AND {field} < 0 AND COALESCE(data_unavailable, false) = false

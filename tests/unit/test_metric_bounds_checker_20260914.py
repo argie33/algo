@@ -152,20 +152,28 @@ class TestGrowthMetricsForwardFieldMagnitude:
 
 class TestDividendDataBounds:
     def test_all_clean_logs_info(self) -> None:
-        cur = _cursor([{"total": 100}], [[], [], []])
+        cur = _cursor([{"total": 100}], [[], [], [], []])
         checker = _checker()
         checker.check_dividend_data_bounds(cur)
-        assert len(checker.results) == 3
+        assert len(checker.results) == 4
         assert all(r.severity == INFO for r in checker.results)
 
     def test_negative_dividend_per_share_logs_error(self) -> None:
-        cur = _cursor([{"total": 100}], [[{"symbol": "NEGDIV", "val": -1.0}], [], []])
+        cur = _cursor([{"total": 100}], [[{"symbol": "NEGDIV", "val": -1.0}], [], [], []])
         checker = _checker()
         checker.check_dividend_data_bounds(cur)
         assert checker.results[0].severity == ERROR
 
+    def test_negative_total_dividend_amount_logs_error(self) -> None:
+        cur = _cursor([{"total": 100}], [[], [], [{"symbol": "VALE", "val": -2_328_000_000.0}], []])
+        checker = _checker()
+        checker.check_dividend_data_bounds(cur)
+        result = checker.results[2]
+        assert result.severity == ERROR
+        assert result.details["flagged_symbols"][0]["symbol"] == "VALE"
+
     def test_yield_over_25_pct_logs_warn(self) -> None:
-        cur = _cursor([{"total": 100}], [[], [], [{"symbol": "HIGHYIELD", "val": 40.0}]])
+        cur = _cursor([{"total": 100}], [[], [], [], [{"symbol": "HIGHYIELD", "val": 40.0}]])
         checker = _checker()
         checker.check_dividend_data_bounds(cur)
         result = checker.results[-1]
