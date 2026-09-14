@@ -263,6 +263,20 @@ CIK_OVERRIDES: dict[str, str] = {
     # same day as this fix, 2026-09-11) confirms a live, actively-reporting entity, not
     # defunct.
     "NXAT": "0002000756",  # Nexus Advanced Technologies Inc. (formerly K Wave Media Ltd., ticker KWM) - see comment above
+    # GORO: found 2026-09-13 (goal: "patrols and checks" comprehensiveness audit,
+    # quarterly_revenue_sum_vs_annual_extreme backlog investigation). Our ticker cache
+    # resolved "GORO" to CIK 0001515964 - "Goldgroup Mining Inc.", a Canadian foreign
+    # private issuer with ONLY 'ffd' (Canadian forms) facts in its companyfacts JSON, no
+    # us-gaap data at all. The real, actively-traded NYSE American GORO ("Gold Resource
+    # Corporation", SIC 1040 gold/silver ores) is CIK 0001160791, confirmed via SEC's own
+    # browse-edgar company-name search (conformed-name "GOLD RESOURCE CORP", real recent
+    # 10-K/A filed 2026-04-30) - a completely different company than what our cache
+    # resolved to, not a rename/ticker-reuse case. Live-confirmed the wrong-CIK resolution
+    # corrupted `annual_income_statement.revenue` for at least FY2022/2023 (DB had
+    # $552,000/$9,793,000 - implausibly tiny for a real gold miner - vs. real
+    # RevenueFromContractWithCustomerExcludingAssessedTax $138,724,000/$97,728,000, each
+    # consistent across 2 independent 10-K filings).
+    "GORO": "0001160791",  # Gold Resource Corporation (real CIK) - see comment above, ticker cache resolves to the wrong company (Goldgroup Mining Inc.)
 }
 
 # FIXED 2026-09-11 (goal: "SEC/XBRL missing data under 300" push, dividend_data/
