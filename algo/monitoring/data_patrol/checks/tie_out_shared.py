@@ -31,11 +31,15 @@ REVENUE_EXTREME_DISMISSED_FILE = Path(__file__).resolve().parent / "quarterly_re
 
 
 def load_revenue_extreme_dismissed() -> dict[str, str]:
+    # No dismissed-entries file yet is not an error - nothing has been reviewed/dismissed so far.
     if not REVENUE_EXTREME_DISMISSED_FILE.exists():
         return {}
     try:
         return cast(dict[str, str], json.loads(REVENUE_EXTREME_DISMISSED_FILE.read_text(encoding="utf-8")))
     except (json.JSONDecodeError, OSError):
+        # A corrupt/unreadable cache file is already logged above - not an error worth failing
+        # the whole patrol run over, since this is an optional dismiss-list optimization, not
+        # a data-integrity source of truth (no candidates are silently lost, just re-reviewed).
         logger.warning("Failed to load %s - treating as empty", REVENUE_EXTREME_DISMISSED_FILE)
         return {}
 

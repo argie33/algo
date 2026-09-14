@@ -293,6 +293,7 @@ export default function ScoresCorrectnessCoverage({ active }) {
                   <tr>
                     <th>Table</th>
                     <th>Status</th>
+                    <th>Checks</th>
                     <th>Last Checked</th>
                     <th>Recent ({data.window_days}d)</th>
                     <th>Latest Finding</th>
@@ -336,6 +337,17 @@ export default function ScoresCorrectnessCoverage({ active }) {
                               </span>
                             )}
                           </div>
+                        </td>
+                        <td className="t-2xs mono faint" style={{ maxWidth: 160 }}>
+                          {t.checks?.length ? (
+                            <span title={t.checks.join(", ")}>
+                              {t.checks.length === 1
+                                ? t.checks[0]
+                                : `${t.checks.length} checks`}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         <td className="t-xs">
                           {t.last_seen_at ? (

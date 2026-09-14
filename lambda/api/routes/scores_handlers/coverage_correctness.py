@@ -191,6 +191,28 @@ def _fetch_recent_findings(cur: cursor, tables: list[str]) -> dict[str, list[dic
     return findings
 
 
+def _fetch_checking_checks(cur: cursor, tables: list[str]) -> dict[str, list[str]]:
+    """Which distinct check_name(s) have EVER logged against each table - added 2026-09-14
+    (goal session: "organizing the final table differently, anything else worth tracking?"
+    follow-up). Status/Last Checked/Recent/Latest Finding all answer "did checking happen and
+    what did it find", but none of them answer "how many independent checks actually cover
+    this table" - a table watched by 3 different checks with only 1 currently flagging looks
+    identical to a table watched by just that 1 sole check without this. Ordered by most
+    distinct-target_table checks first (a check that only ever logs against one table is more
+    specific/informative for this table than a broad multi-table check like "staleness" or
+    "coverage" that iterates dozens of tables internally)."""
+    cur.execute(
+        """
+        SELECT target_table, array_agg(DISTINCT check_name ORDER BY check_name)
+        FROM data_patrol_log
+        WHERE target_table = ANY(%s)
+        GROUP BY target_table
+        """,
+        (tables,),
+    )
+    return {table: list(checks) for table, checks in cur.fetchall()}
+
+
 def _fetch_open_quarantine_counts(cur: cursor, tables: list[str]) -> dict[str, int]:
     """Open (unresolved) symbol_quarantine rows per table, so a "Findings open" row can show
     the actual actionable backlog size instead of just "something fired recently".
@@ -284,6 +306,7 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
         tables = _scored_pillar_tables()
         history = _fetch_table_history(cur, tables)
         findings = _fetch_recent_findings(cur, tables)
+        checking_checks = _fetch_checking_checks(cur, tables)
         open_quarantine = _fetch_open_quarantine_counts(cur, tables)
         open_quarantine_symbols = _fetch_open_quarantine_symbols(cur, tables)
 
@@ -312,6 +335,7 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
                     "total_findings_ever": h["total_ever"],
                     "recent": h["recent"],
                     "recent_findings": findings.get(table, []),
+                    "checks": checking_checks.get(table, []),
                     "open_quarantine_count": open_quarantine.get(table, 0),
                     "open_quarantine_symbols": open_quarantine_symbols.get(table, []),
                 }
