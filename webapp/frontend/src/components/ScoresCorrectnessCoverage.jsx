@@ -55,30 +55,20 @@ const STATUS_META = {
 
 // A finding's `details.examples` entry shape varies per check (whatever that check's own
 // self.log(...) call happened to build) - usually {"symbol": "...", <flagged fields>} but
-// sometimes a bare string/number. Render generically instead of assuming one shape.
-function formatExample(ex) {
+// sometimes a bare string/number. Split into a Symbol cell and a Value cell so each example
+// lands in the table's own columns as a real line item, instead of one formatted blob.
+function exampleSymbol(ex) {
+  if (ex === null || typeof ex !== "object") return "—";
+  return ex.symbol ?? "—";
+}
+
+function exampleValue(ex) {
   if (ex === null || typeof ex !== "object") return String(ex);
   const { symbol, ...rest } = ex;
   const restStr = Object.entries(rest)
     .map(([k, v]) => `${k}=${typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 4 }) : v}`)
     .join(", ");
-  return symbol ? `${symbol}${restStr ? ` (${restStr})` : ""}` : restStr;
-}
-
-function FindingDetail({ finding }) {
-  const examples = finding?.details?.examples;
-  if (!Array.isArray(examples) || examples.length === 0) return null;
-  const count = finding.details.count;
-  return (
-    <div className="t-2xs faint mono" style={{ marginTop: 2 }}>
-      {examples.slice(0, 5).map((ex, i) => (
-        <div key={i}>{formatExample(ex)}</div>
-      ))}
-      {typeof count === "number" && count > examples.length && (
-        <div>+{count - examples.length} more</div>
-      )}
-    </div>
-  );
+  return restStr || "—";
 }
 
 function StatusBadge({ status }) {
@@ -296,80 +286,111 @@ export default function ScoresCorrectnessCoverage({ active }) {
                     <th>Last Checked</th>
                     <th>Recent ({data.window_days}d)</th>
                     <th>Latest Finding</th>
+                    <th>Symbol</th>
+                    <th>Value</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visibleTables.map((t) => {
                     const top = t.recent_findings?.[0];
+                    const examples = Array.isArray(top?.details?.examples) ? top.details.examples.slice(0, 5) : [];
+                    const count = top?.details?.count;
+                    const moreCount = typeof count === "number" ? count - examples.length : 0;
+                    // Every flagged symbol/value gets its own <tr> with its own Symbol/Value
+                    // cells - a real line item in this same table, not text packed into the
+                    // Latest Finding cell and not a nested table/box inside one cell. The
+                    // columns shared across every example (Table/Status/Last Checked/Recent/
+                    // Latest Finding) are rowSpan'd across all of that finding's line-item rows.
+                    const lineRows = examples.length > 0 ? examples.length : 1;
+                    const rowSpan = lineRows + (moreCount > 0 ? 1 : 0);
+                    const firstExample = examples[0];
                     return (
-                      <tr key={t.table}>
-                        <td>
-                          <div className="dbl">
-                            <span className="dbl-main mono t-sm">{t.table}</span>
-                            <span className="dbl-sub">
-                              <span className="badge badge-neutral" style={{ fontSize: "var(--t-2xs)" }}>
-                                {t.group}
+                      <React.Fragment key={t.table}>
+                        <tr>
+                          <td rowSpan={rowSpan}>
+                            <div className="dbl">
+                              <span className="dbl-main mono t-sm">{t.table}</span>
+                              <span className="dbl-sub">
+                                <span className="badge badge-neutral" style={{ fontSize: "var(--t-2xs)" }}>
+                                  {t.group}
+                                </span>
                               </span>
-                            </span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <StatusBadge status={t.status} />
-                            {t.open_quarantine_count > 0 && (
-                              <span
-                                className="badge badge-danger"
-                                style={{ fontSize: "var(--t-2xs)" }}
-                                title={`${t.open_quarantine_count} symbol(s) currently quarantined by a check that targets this table`}
-                              >
-                                {t.open_quarantine_count} quarantined
+                            </div>
+                          </td>
+                          <td rowSpan={rowSpan}>
+                            <div className="flex items-center gap-2">
+                              <StatusBadge status={t.status} />
+                              {t.open_quarantine_count > 0 && (
+                                <span
+                                  className="badge badge-danger"
+                                  style={{ fontSize: "var(--t-2xs)" }}
+                                  title={`${t.open_quarantine_count} symbol(s) currently quarantined by a check that targets this table`}
+                                >
+                                  {t.open_quarantine_count} quarantined
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td rowSpan={rowSpan} className="t-xs">
+                            {t.last_seen_at ? (
+                              <span title={t.last_seen_at}>
+                                {t.days_since_last_seen < 1
+                                  ? "< 1d ago"
+                                  : `${Math.round(t.days_since_last_seen)}d ago`}
+                              </span>
+                            ) : (
+                              <span className="faint">never</span>
+                            )}
+                            {t.cadence && (
+                              <span className="faint" style={{ marginLeft: 4 }} title={`Expected cadence: ${t.cadence}`}>
+                                ({CADENCE_HINT[t.cadence] || t.cadence})
                               </span>
                             )}
-                          </div>
-                        </td>
-                        <td className="t-xs">
-                          {t.last_seen_at ? (
-                            <span title={t.last_seen_at}>
-                              {t.days_since_last_seen < 1
-                                ? "< 1d ago"
-                                : `${Math.round(t.days_since_last_seen)}d ago`}
-                            </span>
-                          ) : (
-                            <span className="faint">never</span>
-                          )}
-                          {t.cadence && (
-                            <span className="faint" style={{ marginLeft: 4 }} title={`Expected cadence: ${t.cadence}`}>
-                              ({CADENCE_HINT[t.cadence] || t.cadence})
-                            </span>
-                          )}
-                        </td>
-                        <td className="t-xs mono">
-                          {t.recent.critical ? `${t.recent.critical} crit ` : ""}
-                          {t.recent.error ? `${t.recent.error} err ` : ""}
-                          {t.recent.warn ? `${t.recent.warn} warn ` : ""}
-                          {!t.recent.critical && !t.recent.error && !t.recent.warn
-                            ? t.recent.info
-                              ? `${t.recent.info} info`
-                              : "—"
-                            : ""}
-                        </td>
-                        <td className="t-2xs" style={{ maxWidth: 420 }}>
-                          {top ? (
-                            <>
+                          </td>
+                          <td rowSpan={rowSpan} className="t-xs mono">
+                            {t.recent.critical ? `${t.recent.critical} crit ` : ""}
+                            {t.recent.error ? `${t.recent.error} err ` : ""}
+                            {t.recent.warn ? `${t.recent.warn} warn ` : ""}
+                            {!t.recent.critical && !t.recent.error && !t.recent.warn
+                              ? t.recent.info
+                                ? `${t.recent.info} info`
+                                : "—"
+                              : ""}
+                          </td>
+                          <td rowSpan={rowSpan} className="t-2xs" style={{ maxWidth: 360 }}>
+                            {top ? (
                               <span title={(t.recent_findings || []).map((f) => f.message).join("\n")}>
                                 <span className="mono faint">[{top.check}]</span> {top.message}
                               </span>
-                              <FindingDetail finding={top} />
-                            </>
-                          ) : (
-                            <span className="faint">
-                              {t.status === "never_logged"
-                                ? "No check has ever targeted this table"
-                                : "No finding in the lookback window"}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
+                            ) : (
+                              <span className="faint">
+                                {t.status === "never_logged"
+                                  ? "No check has ever targeted this table"
+                                  : "No finding in the lookback window"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="t-xs mono">
+                            {firstExample ? exampleSymbol(firstExample) : <span className="faint">—</span>}
+                          </td>
+                          <td className="t-xs mono faint">
+                            {firstExample ? exampleValue(firstExample) : <span className="faint">—</span>}
+                          </td>
+                        </tr>
+                        {examples.slice(1).map((ex, i) => (
+                          <tr key={`${t.table}-ex-${i + 1}`}>
+                            <td className="t-xs mono">{exampleSymbol(ex)}</td>
+                            <td className="t-xs mono faint">{exampleValue(ex)}</td>
+                          </tr>
+                        ))}
+                        {moreCount > 0 && (
+                          <tr key={`${t.table}-more`}>
+                            <td colSpan={2} className="t-xs faint">
+                              +{moreCount} more
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
