@@ -54,11 +54,50 @@ def investable_universe_conditions(scores_alias: str, symbols_alias: str) -> str
     "Iron Dome Acquisition I Corp", "Yorkville International Capital Corp", ...) -
     live-verified all report SIC 6770 ("Blank Checks"), the SEC's own classification for
     pre-merger shells, while real operating companies with similar naming (AAPL, MSFT,
-    FNWB, NREF, OZK) do not.
+    FNWB, NREF, OZK) do not. REVENUE EXEMPTION ADDED 2026-09-14 (same session as the royalty-
+    trust correction below, found by the same adversarial audit): a completed de-SPAC keeps
+    its SIC 6770 classification too, with no code-shape name signal to catch it - live example
+    INV (Innventure, Inc., completed its business combination with Learn CW Investment Corp
+    October 2024, is now a real operating tech-commercialization company with $1.1M/$2.1M real
+    revenue 2023/2025) was silently excluded from the entire tradeable universe by SIC alone.
+    A shell-naming regex can't safely fix this the way it did for the SIC-6792 case above -
+    SPACs routinely rename to the target company's brand mid-merger, before the deal actually
+    closes, so a name that no longer looks like a shell doesn't reliably mean the merger is
+    done (unlike royalty trusts, which don't rename). Real signal instead: has this SIC-6770
+    symbol ever reported positive annual revenue - live-verified $0.00 (not merely absent) for
+    confirmed still-pre-merger shells (CEPO, GIX) vs INV's real $1M+ figures, so "revenue > 0
+    in any fiscal year" cleanly separates a completed, operating business from an empty shell
+    without depending on naming conventions that don't hold up for this SIC code.
 
-    SIC-CODE ROYALTY TRUST FILTERING (2026-08-03): oil/gas royalty trusts (CRT, MTR, PBT,
-    SBR, SJT) have the same "nothing for SEC EDGAR to report" problem, with their own SIC
-    6792 ("Oil Royalty Traders") - live-confirmed distinct from real producers XOM/CVX/OXY.
+    SIC-CODE ROYALTY TRUST FILTERING (2026-08-03): oil/gas royalty trusts carry SIC 6792
+    ("Oil Royalty Traders") - live-confirmed distinct from real producers XOM/CVX/OXY.
+    CORRECTED 2026-09-14 (goal session, adversarial leaderboard audit - user pushback: "I
+    would have wanted to buy TPL when it popped off last year, that doesn't seem right"): the
+    original SIC-6792-alone rule was too broad, and this docstring's "nothing for SEC EDGAR to
+    report" justification was itself false (live-verified `has_annual_report_filing = TRUE`
+    for every SIC-6792 symbol) - this filter's real job is excluding zero-employee
+    pass-through trusts whose near-zero invested-capital balance sheets mechanically produce
+    meaningless ROE/ROCE/asset-turnover ratios (100-200%+), not a missing-data problem. Of the
+    9 symbols carrying SIC 6792 (live-checked), 3 are NOT passive trusts at all: TPL (Texas
+    Pacific Land Corp, converted from trust to corporation in 2021 - real board/management and
+    a genuine, growing Water Services segment), LB (LandBridge Co LLC, $73M/$110M/$199M real
+    and growing revenue 2023-2025), and EROK (EagleRock Land LLC, $17.7M/$141.4M real revenue
+    2024-2025) - all real, actively-managed, execution-dependent operating businesses that
+    happen to share a legacy SIC code with genuine trusts, not passive distribution
+    mechanisms. SEC SIC codes are assigned once and rarely revisited, so this is a real,
+    ongoing classification-lag risk, not a one-time data bug to patch upstream - a blanket
+    SIC-code-alone rule will keep catching future trust-to-corporation conversions the same
+    way. General, self-updating fix instead of one-off ticker carve-outs: every genuine
+    passive trust in this SIC code has the literal word "Trust" in its name (CRT="Cross
+    Timbers Royalty Trust", MTR="Mesa Royalty Trust", PBT="Permian Basin Royalty Trust",
+    SBR="Sabine Royalty Trust", SJT="San Juan Basin Royalty Trust", NRT="North European Oil
+    Royalty Trust") - none of the 3 real operating companies do. Requiring the name match
+    narrows the exclusion back to the 6 genuine trusts and stays correct if a future company
+    converts the same way TPL did, without needing another hand-picked exception. Excluding a
+    real operating company from the entire tradeable universe over a Quality-pillar problem
+    that doesn't even apply to its other pillars (Momentum/Growth/Value/Risk aren't mechanically
+    gamed by a light balance sheet the way ROE/ROCE-heavy Quality is) would permanently block
+    real trading opportunities for a reason that shouldn't reach that far.
 
     SIC-CODE STRUCTURED-NOTE FILTERING (2026-08-03): trust-preferred/structured-note
     certificates (GJH/GJO/GJP/GJR/GJS/GJT "STRATS", KTN "CorTS", PYT "PPlus Trust") have
@@ -105,7 +144,17 @@ def investable_universe_conditions(scores_alias: str, symbols_alias: str) -> str
         {scores_alias}.composite_score > 0
         AND {symbols_alias}.active = true
         AND {symbols_alias}.symbol NOT IN (SELECT symbol FROM etf_symbols)
-        AND {symbols_alias}.symbol NOT IN (SELECT symbol FROM company_info_sec WHERE sic_code IN (6770, 6792, 6189))
+        AND {symbols_alias}.symbol NOT IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6189)
+        AND NOT (
+            {symbols_alias}.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6792)
+            AND {symbols_alias}.security_name ~* 'Trust'
+        )
+        AND NOT (
+            {symbols_alias}.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6770)
+            AND {symbols_alias}.symbol NOT IN (
+                SELECT symbol FROM annual_income_statement WHERE revenue > 0
+            )
+        )
         AND {symbols_alias}.symbol NOT IN (
             SELECT symbol FROM company_info_sec WHERE has_annual_report_filing = FALSE
         )
