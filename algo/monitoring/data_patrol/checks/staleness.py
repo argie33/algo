@@ -732,6 +732,9 @@ class StalenessChecker(BaseCheck):
                 FROM stock_symbols sy
                 JOIN stock_scores ss ON ss.symbol = sy.symbol
                 WHERE sy.active = true
+                  -- FIXED 2026-09-14: same data_unavailable gap as the sibling frozen checks
+                  -- in this file - a triaged/flagged symbol kept re-alarming here forever.
+                  AND COALESCE(sy.data_unavailable, false) = false
                   AND ss.date < (SELECT MAX(date) - INTERVAL '7 days' FROM stock_scores)
                 """
             )
@@ -882,6 +885,12 @@ class StalenessChecker(BaseCheck):
                     GROUP BY symbol
                 ) pd ON pd.symbol = sy.symbol
                 WHERE sy.active = true
+                  -- FIXED 2026-09-14: this check ignored data_unavailable entirely, so a
+                  -- symbol already triaged and flagged data_unavailable (e.g. a broker-
+                  -- inactive-but-not-exchange-delisted or genuinely zero-volume name) kept
+                  -- re-alarming here forever instead of going quiet like every other check
+                  -- in this codebase does via COALESCE(data_unavailable, false) = false.
+                  AND COALESCE(sy.data_unavailable, false) = false
                   AND pd.latest_date < (SELECT MAX(date) - INTERVAL '7 days' FROM price_daily)
                 """
             )
@@ -975,6 +984,7 @@ class StalenessChecker(BaseCheck):
                     GROUP BY symbol
                 ) td ON td.symbol = sy.symbol
                 WHERE sy.active = true
+                  AND COALESCE(sy.data_unavailable, false) = false
                   AND pd.latest_date >= (SELECT MAX(date) - INTERVAL '1 day' FROM price_daily)
                   AND (td.latest_date IS NULL OR td.latest_date < pd.latest_date - INTERVAL '7 days')
                 """
@@ -1057,6 +1067,7 @@ class StalenessChecker(BaseCheck):
                     GROUP BY symbol
                 ) tt ON tt.symbol = sy.symbol
                 WHERE sy.active = true
+                  AND COALESCE(sy.data_unavailable, false) = false
                   AND pd.latest_date >= (SELECT MAX(date) - INTERVAL '1 day' FROM price_daily)
                   AND (tt.latest_date IS NULL OR tt.latest_date < pd.latest_date - INTERVAL '7 days')
                 """
@@ -1127,6 +1138,9 @@ class StalenessChecker(BaseCheck):
                 FROM stock_symbols sy
                 LEFT JOIN {table_safe} t ON t.symbol = sy.symbol
                 WHERE sy.active = true
+                  -- FIXED 2026-09-14: same data_unavailable gap as the price_daily frozen
+                  -- check above - a triaged/flagged symbol kept re-alarming here forever.
+                  AND COALESCE(sy.data_unavailable, false) = false
                 """
             )
             row = cur.fetchone()
