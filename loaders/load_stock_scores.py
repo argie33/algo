@@ -1355,15 +1355,6 @@ class StockScoresLoader(
         # "later pass sees earlier pass's finalized pillar" ordering principle as everything
         # below it.
         self.update_risk_absolute_zscore_scores()
-        # NOTE (reverted 2026-09-13): commit cc4030f8a briefly added an equivalent
-        # sector-neutral pass for Momentum here, citing "Barra sector-neutralizes momentum" -
-        # reverted because this repo's own 2026-09-11 Fama-MacBeth/IC test already found
-        # universe-wide beats sector-relative for mom_12_1 on every measure, both eras (memory:
-        # momentum_pillar_sector_relative_mom_12_1_rejected_20260911), matching the validated
-        # Barra-style design (pillar_scoring_matches_barra_style_multifactor_design_validated_
-        # 20260911: Momentum stays raw because cross-sector rotation is real signal). Don't
-        # re-add without a new test beating that result, not just the general Barra citation.
-        self.update_rs_percentiles()
         # Must run before snapshot_score_history() so the history snapshot captures the
         # CORRECTED value_score/composite_score, not Pass 1's provisional fixed-curve values -
         # see update_value_multiples_percentiles()'s own docstring for the full evidence trail.
@@ -1375,6 +1366,19 @@ class StockScoresLoader(
         # pass second means its own composite recompute sees Value's already-finalized
         # value_score, not Pass 1's provisional one.
         self.update_growth_sector_neutral_scores()
+        # Momentum sector-relative mom_12_1 pass (2026-09-15, TWO-LAYER VALIDATION POLICY - see
+        # pillar_weights.py's own comment block and update_momentum_sector_relative_mom_12_1's
+        # docstring for the full evidence trail). SUPERSEDES the prior NOTE that lived here
+        # (commit cc4030f8a added an equivalent pass 2026-09-13, reverted same day by 6666ff0f4
+        # because mom_12_1's own standalone IC was worse sector-relative - the wrong bar for a
+        # pillar-level construction choice under the new policy; MTUM's real underlying index
+        # sector-relative-z-scores momentum, confirmed via primary-source methodology PDF).
+        # MUST run after update_growth_sector_neutral_scores() (so this pass's own composite
+        # recompute sees Growth's already-finalized growth_score) and BEFORE
+        # update_rs_percentiles() (rs_percentile must rank the FINAL momentum_score, not Pass
+        # 1's provisional one) - same ordering discipline as every pass in this block.
+        self.update_momentum_sector_relative_mom_12_1()
+        self.update_rs_percentiles()
         # update_size_percentiles() REMOVED 2026-08-28 (Size retired as a composite pillar -
         # see BASE_PILLAR_WEIGHTS for the full evidence trail).
         self.snapshot_score_history()

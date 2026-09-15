@@ -299,6 +299,33 @@ from loaders.load_stock_scores and must keep working unchanged.
 # survivorship-bias caveat (`SURVIVORSHIP_BIAS_CAVEAT` in fama_macbeth_price_factors.py) on the
 # result - it limits confidence in every such test, not just weight decisions.
 # ============================================================================================
+# TWO-LAYER VALIDATION POLICY (added 2026-09-15, user directive - supersedes the implicit
+# assumption behind the SECTOR-NEUTRALITY GOVERNANCE POLICY above and every pillar-level
+# Fama-MacBeth/IC rejection in this file's history that used a PILLAR's own forward-return IC
+# as the bar for a PILLAR-level construction choice, e.g.
+# momentum_pillar_sector_relative_mom_12_1_rejected_20260911). Two different questions, two
+# different tests, explicitly stated by the user so this stops being re-litigated ad hoc:
+#
+#   PILLAR level (quality_score/growth_score/value_score/risk_score/momentum_score): the job
+#   is to accurately MEASURE that factor, the same way real institutional single-factor
+#   products/indexes measure it (MSCI/Barra/AQR published methodology - e.g. MTUM's real
+#   underlying index, MSCI USA Momentum SR Variant, z-scores momentum WITHIN each GICS sector,
+#   confirmed via direct primary-source methodology PDF 2026-09-15). Validate a pillar
+#   construction choice against fidelity to the real, sourced factor definition - NOT whether
+#   it individually predicts forward returns. A pillar with zero standalone IC is not
+#   automatically wrong; a pillar that doesn't resemble how the real factor is actually defined
+#   IS wrong, regardless of its own IC.
+#
+#   COMPOSITE level (composite_score): the job is to identify the best actual stock
+#   opportunity. Validate composite-level changes (pillar weights, cross-pillar interactions
+#   like the Value x Risk adjustment below) against forward-return prediction (IC,
+#   Fama-MacBeth) - this is where predictive testing belongs.
+#
+# Practical effect: a pillar-level construction change should still be checked for whether it
+# measurably hurts COMPOSITE-level IC before shipping (the composite is still the thing that
+# has to work), but "this pillar's own solo IC got worse" is no longer by itself a reason to
+# reject a pillar construction that's more faithful to the real factor definition.
+# ============================================================================================
 # UNIFORM EQUAL-WEIGHT PRINCIPLE (2026-09-11, user directive: the backtest/Fama-MacBeth evidence
 # behind every non-Growth pillar's weights is the same contaminated-data family this module's own
 # history above already documents for the composite level (imputed vs. complete-case regimes
