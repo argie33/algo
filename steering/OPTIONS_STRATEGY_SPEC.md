@@ -409,3 +409,70 @@ Status of each blocker as of this update:
 a concrete, credentialed-session-away path instead of an open-ended one.** Phase 5 itself
 remains correctly not started — a cleared approval-level item and a clearer path for the
 backtest are not the same as the backtest itself being run on real data yet.
+
+## Phase 3 status update 2026-09-15: real-data backtest run, §7 item 1 now materially addressed
+
+Alpaca credentials became resolvable from a local session this day (`.env.local`, previously
+absent - see MEMORY.md `options_sleeve_status_20260915`). `check_options_approval_status.py`
+was re-run successfully for the first time: paper account `PA3KLJ0Y1HOP`, `options_approved_
+level: 3`, confirmed **programmatically**, not just via the user's own dashboard read - §7
+item 3 is now independently verified two ways.
+
+Built `algo/backtest/run_options_backtest_real.py` - same wheel mechanics, universe selection,
+and delta-targeting strike math as `run_options_backtest.py` (imported, not re-implemented),
+but the **premium collected at entry for every cycle is a real historical closing print** from
+Alpaca's `/v1beta1/options/bars` endpoint for the actual constructed OCC contract symbol
+(verified live: `AAPL240621P00190000` returns real OHLC), not a Black-Scholes theoretical
+price. Assignment/called-away settlement still uses real `price_daily` at the real monthly
+expiration date vs. strike, same as before (already real in the proxy backtest).
+
+**What's still modeled, not real, in this version - stated plainly**: which strike to target
+(the 0.15-0.30 delta band) is still selected via Black-Scholes using the same realized-vol x
+1.15 VRP-multiplier IV proxy as before, because Alpaca's historical bars endpoint returns
+price series for a contract you already name, not a historical chain with greeks - there is no
+source of real historical delta to select against. So "delta-band targeting" is model output;
+the resulting contract's **price** is real. This is a real improvement over full BS-proxy, not
+a full replacement of every assumption.
+
+**Result** (`backtest_runs.run_id=3`, `strategy_name='options_csp_covered_call_wheel_alpaca_
+real'` - distinct from run_id=2's `_synthetic_bs`, never to be conflated): 20 liquid symbols,
+2024-02-05 (Alpaca's real data floor) to 2026-09-15. 179 cycles (88 CSP / 91 covered call), 24
+assignments, **89.4% win rate, +3.84% avg return on collateral/cycle (stdev 15.31%)**,
+**79.9% real-quote coverage** (224 cycles skipped for no valid delta-band strike found at all,
+45 skipped because the constructed OCC contract had no real quote - illiquid strike/expiration
+combination, never backfilled with a proxy price for those).
+
+**Regime coverage, honestly assessed**: this window does NOT reach 2020 or 2022 (Alpaca's data
+floor is Feb 2024). It does contain a real, material drawdown: SPY fell **-18.76% from
+2025-02-19 to 2025-04-08** (tariff-shock volatility event) - a genuine elevated-vol regime,
+same order of magnitude as 2022's ~-25% bear market though somewhat shallower, not the mild
+grind-up-only period the "no real stress test" concern would otherwise flag. This is judged to
+plausibly satisfy §7 item 1's "high-volatility regime... or drawdown-comparable window"
+language, though it is a real correction, not a full bear-market year like 2022 - a stricter
+reader could reasonably still want more than one such window before fully trusting the edge
+sign. **Net: §7 item 1 is materially, not just nominally, addressed - real premiums, one real
+stress regime, positive result - but this is a single real-data run over one drawdown episode,
+not the multi-regime depth the original 2020+2022 framing implied.** Treat as strong
+supporting evidence, not an unconditional pass; the go-live checklist (item 4 below) still
+requires a live paper track record regardless of backtest strength.
+
+**Go/no-go §7 status after this update**:
+1. Real-data backtest: **materially addressed** (above) - upgraded from "not satisfied" but
+   short of the strictest possible reading (single regime, not two).
+2. Risk/collateral infra: satisfied (phase 4, unchanged).
+3. Alpaca options-approval level: satisfied, now independently confirmed twice (user's own
+   dashboard read 2026-09-12 + this session's programmatic `check_options_approval_status.py`
+   run 2026-09-15).
+4. 60-day/20-cycle paper-trading track record: still not started - requires phase 5 (execution)
+   to exist first, which remains correctly, deliberately not built (see below).
+5. Spec re-read/re-confirmed before go-live: still N/A until someone is actually about to flip
+   the sleeve live.
+
+**Phase 5 remains explicitly NOT STARTED.** No order-submission code was written, no feature
+flag was changed, and no Alpaca trading (non-data) endpoint was called this session - this
+update is data-pulling and backtesting only, per the sleeve's own safety discipline. Even with
+items 1-3 now satisfied or materially addressed, item 4 (paper-trading track record) cannot
+begin until a minimal phase-5 execution build exists - that remains the next real step, not
+something to shortcut by skipping straight to a live-money decision on backtest strength alone.
+`terraform/modules/loaders/main.tf`'s options-loader schedule is still written but not applied
+- unchanged, independent of this update.
