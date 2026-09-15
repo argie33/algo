@@ -140,7 +140,7 @@
   "algo/orchestrator/phase6_exit_execution.py": 1925,
   "algo/orchestrator/phase7_candidate_builder.py": 249,
   "algo/orchestrator/phase7_run_steps.py": 790,
-  "algo/orchestrator/phase7_signal_generation.py": 1693,
+  "algo/orchestrator/phase7_signal_generation.py": 1739,
   "algo/orchestrator/phase8_entry_execution.py": 3611,
   "algo/orchestrator/phase8_guards.py": 349,
   "algo/orchestrator/phase8_pdt_check.py": 85,
