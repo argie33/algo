@@ -111,11 +111,32 @@ const SORT_FIELDS = [
   { value: "risk_score", label: "Safety" },
 ];
 
+// Maps each raw score field to its batch-computed market-cap-tilted weight (2026-09-15,
+// migration 1294 - see loaders/stock_scores/market_cap_tilt.py's own module docstring for
+// the full rationale). The API already returns both alongside each other - this page ranks
+// by the tilted weight (matching real cap-weighted-parent + factor-tilt index construction)
+// while still DISPLAYING the raw 0-100 score in every table cell/badge. Live-caught bug this
+// closes: this page's Rankings table and all 5 Leaders/Laggards tabs sorted purely by the raw
+// field with no cap-weighting at all - the tilt fix that landed on /api/algo/scores earlier
+// the same day never reached this page, because this page calls a different endpoint
+// (/api/scores/stockscores). No formula is duplicated here - both fields are already
+// computed server-side and returned in the same API response; this is just picking which one
+// to sort by.
+const TILTED_WEIGHT_FIELD = {
+  composite_score: "composite_tilted_weight",
+  momentum_score: "momentum_tilted_weight",
+  quality_score: "quality_tilted_weight",
+  value_score: "value_tilted_weight",
+  growth_score: "growth_tilted_weight",
+  risk_score: "risk_tilted_weight",
+};
+
 const FACTORS = [
   {
     key: "quality",
     label: "Quality",
     scoreKey: "quality_score",
+    sortKey: "quality_tilted_weight",
     icon: Star,
     tone: "var(--brand)",
   },
@@ -123,6 +144,7 @@ const FACTORS = [
     key: "momentum",
     label: "Momentum",
     scoreKey: "momentum_score",
+    sortKey: "momentum_tilted_weight",
     icon: Activity,
     tone: "var(--amber)",
   },
@@ -130,6 +152,7 @@ const FACTORS = [
     key: "value",
     label: "Value",
     scoreKey: "value_score",
+    sortKey: "value_tilted_weight",
     icon: DollarSign,
     tone: "var(--cyan)",
   },
@@ -137,6 +160,7 @@ const FACTORS = [
     key: "growth",
     label: "Growth",
     scoreKey: "growth_score",
+    sortKey: "growth_tilted_weight",
     icon: TrendingUp,
     tone: "var(--success)",
   },
@@ -144,6 +168,7 @@ const FACTORS = [
     key: "risk",
     label: "Safety",
     scoreKey: "risk_score",
+    sortKey: "risk_tilted_weight",
     icon: Shield,
     tone: "var(--text-2)",
   },
@@ -256,9 +281,16 @@ function ScoresDashboardPage() {
       }
       return true;
     });
+    // Sort by the market-cap-tilted weight (every SORT_FIELDS option has one - see
+    // TILTED_WEIGHT_FIELD's own comment above). Deliberately NOT falling back to the raw
+    // score for a row missing its tilted weight - the two are different scales (tilted
+    // weight is market-cap-dollars, the raw score is 0-100), so mixing them per-row would
+    // produce a meaningless comparison. A missing tilted weight sorts to the end instead,
+    // same NULLS LAST behavior the backend's own ORDER BY already uses.
+    const rankField = TILTED_WEIGHT_FIELD[sortBy] || sortBy;
     arr.sort((a, b) => {
-      const av = a[sortBy],
-        bv = b[sortBy];
+      const av = a[rankField],
+        bv = b[rankField];
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;
@@ -888,7 +920,7 @@ function LeadersTab({ items, sectorFilter, onClick }) {
         <CategoryTable
           key={f.key}
           factor={f}
-          rows={topBy(items, f.scoreKey, 10, sectorFilter, "desc")}
+          rows={topBy(items, f.sortKey, 10, sectorFilter, "desc")}
           mode="leaders"
           onClick={onClick}
         />
@@ -904,7 +936,7 @@ function LaggardsTab({ items, sectorFilter, onClick }) {
         <CategoryTable
           key={f.key}
           factor={f}
-          rows={topBy(items, f.scoreKey, 10, sectorFilter, "asc")}
+          rows={topBy(items, f.sortKey, 10, sectorFilter, "asc")}
           mode="laggards"
           onClick={onClick}
         />

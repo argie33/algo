@@ -36,16 +36,30 @@ vi.mock("react-router-dom", async () => {
 });
 
 // Two mock stocks for the /api/scores/stockscores endpoint
+// Every mock stock below also carries a *_tilted_weight field per score (2026-09-15 - see
+// TILTED_WEIGHT_FIELD's own comment in ScoresDashboard.jsx): the Rankings table and every
+// Leaders/Laggards tab now rank by these market-cap-tilted weights (already computed
+// server-side, migration 1294), not the raw 0-100 score directly - a row missing its tilted
+// weight is excluded from ranked views the same way a missing raw score already was. Values
+// here are simple placeholders preserving the same relative ordering as the raw scores they
+// mirror (real tilted weights are market-cap-dollar-scale, not 0-100 - the magnitude doesn't
+// matter for these tests, only the relative order does).
 const mockStocks = [
   {
     symbol: "AAPL",
     company_name: "Apple Inc.",
     composite_score: 88.7,
+    composite_tilted_weight: 88.7,
     quality_score: 88.7,
+    quality_tilted_weight: 88.7,
     momentum_score: 85.2,
+    momentum_tilted_weight: 85.2,
     value_score: 78.3,
+    value_tilted_weight: 78.3,
     growth_score: 82.1,
+    growth_tilted_weight: 82.1,
     risk_score: 79.2,
+    risk_tilted_weight: 79.2,
     price: 175.5,
     change_percent: 1.2,
     sector: "Technology",
@@ -55,11 +69,17 @@ const mockStocks = [
     symbol: "MSFT",
     company_name: "Microsoft Corporation",
     composite_score: 91.2,
+    composite_tilted_weight: 91.2,
     quality_score: 91.2,
+    quality_tilted_weight: 91.2,
     momentum_score: 88.5,
+    momentum_tilted_weight: 88.5,
     value_score: 85.1,
+    value_tilted_weight: 85.1,
     growth_score: 89.5,
+    growth_tilted_weight: 89.5,
     risk_score: 82.4,
+    risk_tilted_weight: 82.4,
     price: 420.75,
     change_percent: 2.1,
     sector: "Technology",
@@ -75,11 +95,17 @@ const nanoStock = {
   symbol: "NANO",
   company_name: "Nano Cap Co.",
   composite_score: 95.0,
+  composite_tilted_weight: 95.0,
   quality_score: 95.0,
+  quality_tilted_weight: 95.0,
   momentum_score: 95.0,
+  momentum_tilted_weight: 95.0,
   value_score: 99.0,
+  value_tilted_weight: 99.0,
   growth_score: 95.0,
+  growth_tilted_weight: 95.0,
   risk_score: 95.0,
+  risk_tilted_weight: 95.0,
   price: 1.5,
   change_percent: 0.1,
   sector: "Technology",
@@ -91,15 +117,24 @@ const nanoStock = {
 // because they're actually small - see frozen_subpopulation_real_root_cause_and_live_gap_
 // 20260913). Must pass the market-cap filter regardless of threshold (fail-open on unknown),
 // unlike nanoStock above which has a real, KNOWN sub-floor cap and should still be excluded.
+// market_cap is null here, so per the real batch pass (loaders/stock_scores/market_cap_tilt.py
+// skips any row with a missing/non-positive market_cap) EVERY *_tilted_weight is null too,
+// not just the ones whose raw score is also null.
 const unknownCapStock = {
   symbol: "BDCX",
   company_name: "BDC Co.",
   composite_score: 80.0,
+  composite_tilted_weight: null,
   momentum_score: 80.0,
+  momentum_tilted_weight: null,
   risk_score: 80.0,
+  risk_tilted_weight: null,
   quality_score: null,
+  quality_tilted_weight: null,
   value_score: null,
+  value_tilted_weight: null,
   growth_score: null,
+  growth_tilted_weight: null,
   price: 12.0,
   change_percent: 0.5,
   sector: "Financial Services",
