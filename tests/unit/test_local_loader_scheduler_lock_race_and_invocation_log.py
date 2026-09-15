@@ -652,3 +652,56 @@ class TestSchedulerInvocationLogDatedFilesAndRetention:
             module._cleanup_old_scheduler_logs(tmp_path)  # must not raise
 
         assert stubborn.exists()
+
+
+class TestPerLoaderRunLogRetention:
+    """Regression guard for the 2026-09-15 fix: the per-loader `{loader}_{unix_ts}.log` tee
+    files (one per invocation, see `full_log_path` in run_pipeline) had the exact same
+    "never cleaned up" gap the scheduler_invocations.log had before this same day's fix -
+    live-confirmed 21GB in logs/ with individual load_financial_statements_*.log files up to
+    1.7GB, accumulating since 2026-09-07 with nothing ever deleting one.
+    """
+
+    def test_cleanup_deletes_only_loader_logs_past_retention(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        old = tmp_path / "load_financial_statements_1788781365.log"
+        recent = tmp_path / "load_price_daily_1789461145.log"
+        old.write_text("old loader run\n")
+        recent.write_text("recent loader run\n")
+        old_time = time.time() - (module._SCHEDULER_LOG_RETENTION_DAYS + 1) * 86400
+        os.utime(old, (old_time, old_time))
+
+        module._cleanup_old_loader_run_logs(tmp_path)
+
+        assert not old.exists()
+        assert recent.exists()
+
+    def test_cleanup_never_touches_scheduler_invocation_logs(self, tmp_path: Path) -> None:
+        # Dated/legacy scheduler_invocations logs are that cleanup's own responsibility
+        # (_cleanup_old_scheduler_logs) - this function must ignore them entirely so the two
+        # cleanups never race or double-handle the same file.
+        module = _load_scheduler_module()
+        dated = tmp_path / "scheduler_invocations_20260101.log"
+        legacy = tmp_path / "scheduler_invocations.log"
+        dated.write_text("dated\n")
+        legacy.write_text("legacy\n")
+        old_time = time.time() - (module._SCHEDULER_LOG_RETENTION_DAYS + 1) * 86400
+        os.utime(dated, (old_time, old_time))
+        os.utime(legacy, (old_time, old_time))
+
+        module._cleanup_old_loader_run_logs(tmp_path)
+
+        assert dated.exists()
+        assert legacy.exists()
+
+    def test_cleanup_survives_a_locked_loader_log(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        stubborn = tmp_path / "load_company_info_sec_1788781365.log"
+        stubborn.write_text("locked\n")
+        old_time = time.time() - (module._SCHEDULER_LOG_RETENTION_DAYS + 1) * 86400
+        os.utime(stubborn, (old_time, old_time))
+
+        with patch.object(Path, "unlink", side_effect=OSError("locked")):
+            module._cleanup_old_loader_run_logs(tmp_path)  # must not raise
+
+        assert stubborn.exists()
