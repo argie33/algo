@@ -344,7 +344,19 @@ def run(
         except RuntimeError:
             raise
         except Exception as e:
-            logger.error(f"[PHASE 6] Failed to validate trade-position consistency: {str(e)[:200]}")
+            # FAIL CLOSED (2026-09-14 real-money-readiness audit): this used to log-and-continue,
+            # silently skipping the orphaned-trade/position_id integrity check entirely on any
+            # DB hiccup - the exact class of gap already fixed one block up for orphaned-trade
+            # cleanup (`except Exception` there raises) and one block down for missing
+            # position_recs (raises). A transient failure here left Phase 6 proceeding to exit
+            # execution having NEVER actually verified there's no filled/open trade with a NULL
+            # position_id - indistinguishable, from the trading logic's point of view, from the
+            # check having passed clean. Halt instead, matching this function's own established
+            # convention for every other integrity check in this block.
+            raise RuntimeError(
+                f"[PHASE 6 CRITICAL] Could not verify trade-position consistency: {type(e).__name__}: "
+                f"{str(e)[:200]}. Halting rather than proceeding without this safety check."
+            ) from e
 
         # Detect Phase 3 crash - if position monitor errored, position_recs is []
         # but we may have real open positions. This is a critical data integrity error.
