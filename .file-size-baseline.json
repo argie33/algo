@@ -615,7 +615,7 @@
   "loaders/stock_scores/__init__.py": 0,
   "loaders/stock_scores/growth_scoring.py": 851,
   "loaders/stock_scores/market_cap_tilt.py": 192,
-  "loaders/stock_scores/momentum_scoring.py": 1234,
+  "loaders/stock_scores/momentum_scoring.py": 1353,
   "loaders/stock_scores/pillar_weights.py": 442,
   "loaders/stock_scores/quality_scoring.py": 356,
   "loaders/stock_scores/risk_scoring.py": 1155,
