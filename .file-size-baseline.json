@@ -689,6 +689,7 @@
   "scripts/test_yfinance_parallelism_2.py": 154,
   "scripts/test_yfinance_parallelism_optimization.py": 371,
   "scripts/tiingo_delisted_price_backfill.py": 267,
+  "scripts/tiingo_dual_class_gap_backfill.py": 146,
   "scripts/triage_xbrl_continuity_gaps.py": 208,
   "scripts/validate_loader_systems_sync.py": 214,
   "scripts/validate_loading_system_fixes.py": 265,
