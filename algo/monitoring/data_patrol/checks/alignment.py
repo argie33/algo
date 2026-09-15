@@ -224,6 +224,21 @@ class AlignmentChecker(BaseCheck):
             # actually covers live trades, not just paper/review-mode ones.
             open_statuses = TradeStatus.all_open()
             status_placeholders = ", ".join(["%s"] * len(open_statuses))
+            # CRITICAL FIX (real-money-readiness audit, found+fixed 2026-09-15): this check had
+            # no lower bound on fill_date, so a trade filled TODAY - before today's price_daily
+            # load has even run (that only happens after market close) - always has
+            # price_count=0 and always fired as an ERROR. This finding's details carry
+            # flagged_symbols (see block below), which phase1_data_freshness.py's
+            # _check_data_patrol_results routes through PatrolLogger's per-symbol quarantine
+            # instead of a full-pipeline halt - so the live effect wasn't an orchestrator halt,
+            # it was every symbol with a same-day fill getting auto-quarantined (excluded from
+            # future trading) purely because price_daily for TODAY hadn't loaded yet, a standing
+            # false-positive on every day any trade filled (live-confirmed: 4 same-day
+            # orphaned-entry-race trades, already cleaned up minutes later by
+            # phase6_exit_execution.py's own orphan cleanup, tripped this exact path and would
+            # have quarantined HBT/PFIS/EXPD/SRCE for no real reason). Restrict to trades filled
+            # on a PRIOR day - by the next calendar day, price_daily for the fill date should
+            # genuinely exist, so a miss there is a real signal worth quarantining on.
             cur.execute(
                 f"""
                 SELECT t.trade_id, t.symbol, t.created_at::date as fill_date, COUNT(p.date) as price_count
@@ -234,6 +249,7 @@ class AlignmentChecker(BaseCheck):
                    AND p.date <= CURRENT_DATE
                 WHERE t.status IN ({status_placeholders})
                   AND t.created_at >= CURRENT_DATE - {interval_60d}
+                  AND t.created_at::date < CURRENT_DATE
                 GROUP BY t.trade_id, t.symbol, fill_date
                 HAVING COUNT(p.date) = 0
             """,
