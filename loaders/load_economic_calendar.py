@@ -85,17 +85,18 @@ def fetch_fred_release_dates(api_key: str, release_id: int, start_date: date) ->
         RuntimeError: on any HTTP/API failure (fail-fast, no silent empty-list swallow).
     """
     url = f"{get_fred_url()}/release/dates"
+    params: dict[str, str | int] = {
+        "release_id": release_id,
+        "api_key": api_key,
+        "file_type": "json",
+        "include_release_dates_with_no_data": "true",
+        "sort_order": "asc",
+        "realtime_start": start_date.isoformat(),
+    }
     try:
         response = requests.get(
             url,
-            params={
-                "release_id": release_id,
-                "api_key": api_key,
-                "file_type": "json",
-                "include_release_dates_with_no_data": "true",
-                "sort_order": "asc",
-                "realtime_start": start_date.isoformat(),
-            },
+            params=params,
             timeout=get_http_timeout(),
         )
         response.raise_for_status()

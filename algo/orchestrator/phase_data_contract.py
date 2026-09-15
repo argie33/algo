@@ -268,7 +268,7 @@ def validate_phase_data(phase_num: int | str, data: dict[str, Any]) -> None:
     Raises:
         DataContractError: If validation fails
     """
-    if phase_num not in PHASE_CONTRACTS:
+    if not isinstance(phase_num, int) or phase_num not in PHASE_CONTRACTS:
         logger.debug(f"No schema defined for Phase {phase_num}, skipping validation")
         return
 

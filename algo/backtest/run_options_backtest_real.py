@@ -180,16 +180,17 @@ def _fetch_real_close(
     bar exists - illiquid contract or a wrong OCC construction, both real possibilities."""
     limiter.wait()
     try:
+        params: dict[str, str | int] = {
+            "symbols": occ_symbol,
+            "timeframe": "1Day",
+            "start": target_date.isoformat(),
+            "end": (target_date + timedelta(days=5)).isoformat(),
+            "limit": 5,
+        }
         resp = session.get(
             f"{ALPACA_OPTIONS_DATA_URL}/bars",
             headers=headers,
-            params={
-                "symbols": occ_symbol,
-                "timeframe": "1Day",
-                "start": target_date.isoformat(),
-                "end": (target_date + timedelta(days=5)).isoformat(),
-                "limit": 5,
-            },
+            params=params,
             timeout=15,
         )
     except requests.RequestException as e:

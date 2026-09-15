@@ -153,7 +153,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         try:
             req = PreTradeImpactRequest(**body)
         except ValidationError as e:
-            error_details = e.errors()[0] if e.errors() else {"msg": "Validation error"}
+            error_details: dict[str, Any] = dict(e.errors()[0]) if e.errors() else {"msg": "Validation error"}
             return error_response(
                 400,
                 "bad_request",
@@ -312,7 +312,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
         try:
             req = TradePreviewRequest(**body)
         except ValidationError as e:
-            error_details = e.errors()[0] if e.errors() else {"msg": "Validation error"}
+            error_details: dict[str, Any] = dict(e.errors()[0]) if e.errors() else {"msg": "Validation error"}
             return error_response(
                 400,
                 "bad_request",

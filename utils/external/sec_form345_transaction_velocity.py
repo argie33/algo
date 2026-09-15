@@ -211,8 +211,9 @@ class Form345TransactionVelocityAggregator:
             try:
                 # Set socket timeout on the underlying connection to enforce
                 # deadline on chunk reads, not just the initial request
-                if hasattr(resp.raw, "_connection") and hasattr(resp.raw._connection, "sock"):
-                    resp.raw._connection.sock.settimeout(REQUEST_TIMEOUT_SECONDS)
+                sock = getattr(getattr(resp.raw, "_connection", None), "sock", None)
+                if sock is not None:
+                    sock.settimeout(REQUEST_TIMEOUT_SECONDS)
 
                 zip_bytes = b""
                 for chunk in resp.iter_content(chunk_size=8192, decode_unicode=False):

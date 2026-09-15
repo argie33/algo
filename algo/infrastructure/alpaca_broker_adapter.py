@@ -5,7 +5,7 @@ import json
 import logging
 import math
 import time
-from typing import Any
+from typing import Any, cast
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -77,7 +77,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             try:
                 # Use session method (connection pooling enabled) instead of bare requests
                 req_method = getattr(self._session, method.lower())
-                return req_method(url, **kwargs)
+                return cast(requests.Response, req_method(url, **kwargs))
             except (requests.Timeout, requests.ConnectionError) as e:
                 last_error = e
                 if attempt < max_retries - 1:

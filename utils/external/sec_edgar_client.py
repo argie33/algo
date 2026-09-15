@@ -482,7 +482,7 @@ class SecEdgarClient:
                     last_error.status_code = 404  # type: ignore[attr-defined]
                     continue
                 resp.raise_for_status()
-                return cast(str, resp.text)
+                return resp.text
             except requests.HTTPError as e:
                 last_error = RuntimeError(f"Failed to fetch SEC XML: {url}: {e}")
                 last_error.status_code = e.response.status_code if e.response is not None else None  # type: ignore[attr-defined]
@@ -535,7 +535,7 @@ class SecEdgarClient:
         path_accession = accession_number.replace("-", "")
         cik_number = str(cik).lstrip("0") or "0"
         url = f"https://www.sec.gov/Archives/edgar/data/{cik_number}/{path_accession}/{cal_name}"
-        return cast(str, self._get_with_retry(url, error_label="SEC calculation linkbase").text)
+        return self._get_with_retry(url, error_label="SEC calculation linkbase").text
 
     def get_filing_plaintext(self, cik: str, accession_number: str) -> str:
         """Fetch raw plain-text document from SEC EDGAR filing.
@@ -579,7 +579,7 @@ class SecEdgarClient:
         # into a permanent "unavailable" marker forever, since fetch_incremental()'s
         # watermark advances past it and it's never retried. Reuse the same retry loop
         # _get_json() already has instead of a bare single-shot request.
-        return cast(str, self._get_with_retry(url, error_label="SEC plain-text filing").text)
+        return self._get_with_retry(url, error_label="SEC plain-text filing").text
 
     def _get_with_retry(self, url: str, error_label: str = "SEC API") -> requests.Response:
         """GET url with retry/backoff on transient errors; raises on permanent failure.
