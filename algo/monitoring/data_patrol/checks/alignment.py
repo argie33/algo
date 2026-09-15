@@ -118,9 +118,9 @@ class AlignmentChecker(BaseCheck):
                     coverage_pct = buy_sell_count / sqs_count * 100
                     self.log(
                         "alignment",
-                        WARN,
+                        INFO,
                         "buy_sell_daily",
-                        f"buy_sell_daily coverage {coverage_pct:.1f}% ({buy_sell_count}/{sqs_count} symbols)",
+                        f"buy_sell_daily coverage {coverage_pct:.1f}% ({buy_sell_count}/{sqs_count}), sparse by design",
                         {
                             "buy_sell_count": buy_sell_count,
                             "sqs_count": sqs_count,

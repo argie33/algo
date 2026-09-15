@@ -49,7 +49,13 @@ class TestSignalSourceAlignment:
         assert checker.results[0].severity == "error"
         assert checker.results[0].details["buy_sell_count"] == 0
 
-    def test_buy_sell_partial_coverage_is_warn(self) -> None:
+    def test_buy_sell_partial_coverage_is_info(self) -> None:
+        """FIXED 2026-09-15: buy_sell_daily is sparse by design (only symbols with an active
+        buy/sell classification get a row), so buy_sell_count < sqs_count is the permanent,
+        healthy state, not an anomaly - this used to fire WARN on every single patrol run
+        unconditionally (same bug class already fixed 2026-08-11 for coverage.py's
+        critical_tables and this checker's own check_cross_table_alignment, but missed here).
+        Downgraded to info; still visible, no longer a perpetual false alarm."""
         cur = MagicMock()
         cur.fetchone.side_effect = [
             {"max_date": date(2026, 9, 8)},
@@ -59,7 +65,7 @@ class TestSignalSourceAlignment:
         checker = _checker()
         checker.check_signal_source_alignment(cur)
         assert len(checker.results) == 1
-        assert checker.results[0].severity == "warn"
+        assert checker.results[0].severity == "info"
         assert checker.results[0].details["coverage_pct"] == 20.0
 
     def test_no_sqs_data_yet_logs_info_and_returns(self) -> None:
