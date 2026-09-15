@@ -15,6 +15,15 @@ verbatim.
 Live-confirmed RILY (B. Riley Financial): PE excluded by _pe_earnings_too_volatile, PB missing,
 only PS available (ratio 0.22) - value_score=97.61, #1 in the whole 5,047-symbol universe off a
 single metric with no PE/PB cross-check.
+
+UPDATED 2026-09-15 (MSCI ENHANCED VALUE CONSTRUCTION FIDELITY fix, same file - see that fix's
+own docstring note in update_value_multiples_percentiles()): P/S is no longer a scored Value
+input at all (real MSCI Enhanced Value has no P/S variable) - a symbol with ONLY ps_ratio
+available now has zero scoreable legs and is skipped entirely (no UPDATE emitted), rather than
+being explicitly nulled by the gate below. The single-thin-metric scenario this test exists to
+cover is re-created instead with a lone forward_pe leg (1/3 weight, still below
+VALUE_MIN_WEIGHT) so the gate itself stays covered - see the test's own comment for why
+fcf_yield-alone no longer works for this (the P/B substitution rule pulls it to 2/3 weight).
 """
 
 from typing import Any
@@ -42,26 +51,31 @@ def _make_mock_cursor(rows: list[tuple[Any, ...]]) -> MagicMock:
 
 class TestValueMinWeightGateInPercentilePass:
     def test_single_metric_below_min_weight_is_nulled_not_scored(self) -> None:
-        # THINPS: only ps_ratio available (0.27 weight) - below VALUE_MIN_WEIGHT (0.40). Old
-        # (buggy) behavior: value_score_new = ps_pct alone (could hit 97+ on a single extreme
-        # ratio). Fixed behavior: value_score must come back NULL, same "insufficient data,
-        # don't fabricate a score" treatment Pass 1 already uses.
+        # THINFWDPE: only forward_pe available (0.333 weight, the Earnings/Price leg) - below
+        # VALUE_MIN_WEIGHT (0.40). Must come back NULL, same "insufficient data, don't fabricate
+        # a score" treatment Pass 1 already uses. Deliberately NOT fcf_yield-alone: since a
+        # missing P/B is substituted by the Cash-Earnings/Price leg per MSCI's own stated rule,
+        # an fcf_yield-only row actually clears the gate at 2/3 weight (book leg's substitute +
+        # its own independent leg) - genuinely correct new behavior, just not "thinnest possible"
+        # any more. (Formerly THINPS/ps_ratio alone - no longer possible to construct that
+        # scenario since P/S isn't scored at all post-fidelity-fix; see this file's own module
+        # docstring UPDATED note.)
         assert VALUE_MIN_WEIGHT == 0.40  # pin the constant this test's math depends on
         rows = [
             (
-                "THINPS",
-                97.61,  # value_score_old (the live buggy value)
+                "THINFWDPE",
+                97.61,  # value_score_old (a stale prior value)
                 60.0,  # composite_score_old
                 50.0,  # risk_score
                 50.0,  # quality_score
                 50.0,  # growth_score
                 50.0,  # momentum_score
-                None,  # pe_ratio (excluded upstream, no reason -> contributes 0 weight)
-                None,  # pb_ratio (missing)
-                0.22,  # ps_ratio
-                None,  # forward_pe
+                None,  # pe_ratio (missing)
+                None,  # pb_ratio (missing, no reason -> no substitute pulled in)
+                0.22,  # ps_ratio (no longer scored - present only to confirm it's ignored)
+                12.0,  # forward_pe - the only scoreable leg
                 None,  # dividend_yield
-                None,  # fcf_yield
+                None,  # fcf_yield (missing -> no P/B substitute either)
                 None,  # pe_ratio_unavailable_reason
                 None,  # forward_pe_unavailable_reason
                 None,  # pb_ratio_unavailable_reason (added 2026-09-11)
@@ -91,7 +105,7 @@ class TestValueMinWeightGateInPercentilePass:
             mock_owner.return_value.execute_values.side_effect = _fake_execute_values
             loader.update_value_multiples_percentiles()
 
-        assert "updates" in captured, "expected an UPDATE for THINPS (score changed from 97.61)"
+        assert "updates" in captured, "expected an UPDATE for THINFWDPE (score changed from 97.61)"
         (
             symbol,
             value_score_new,
@@ -102,7 +116,7 @@ class TestValueMinWeightGateInPercentilePass:
             _unavailable_metrics_json,
             _reason_new,
         ) = captured["updates"][0]
-        assert symbol == "THINPS"
+        assert symbol == "THINFWDPE"
         assert value_score_new is None
 
     def test_two_core_multiples_at_min_weight_still_scores(self) -> None:

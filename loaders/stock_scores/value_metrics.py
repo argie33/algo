@@ -718,6 +718,13 @@ class ValueMetricsMixin:
             # non-payer fraction is (live-verified: sector averages 44.3-46.1 post-fix, matching
             # Growth's 48.8-50.4 spread almost exactly, vs percentile-rank's 25-point spread).
             div_effective_raw: dict[str, float] = {}
+            # fcf_yield_raw_map: MSCI Enhanced Value's Cash-Earnings/Price leg proxy (see
+            # "MSCI ENHANCED VALUE CONSTRUCTION FIDELITY" note below) - already computed
+            # (value_metrics.fcf_yield), just newly given a scoring role here.
+            fcf_yield_raw_map: dict[str, float] = {}
+            # earnings_yield_raw: forward P/E when available, else trailing P/E (MSCI's own
+            # stated substitution rule for a missing Fwd P/E - see note below).
+            earnings_yield_raw: dict[str, float] = {}
             # unprofitable_symbols/negative_fwd_symbols: floored at percentile 0.0 directly
             # below (not run through _percent_rank_cheap_high) - see _score_value's
             # "UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28" docstring note for why a floor
@@ -759,6 +766,12 @@ class ValueMetricsMixin:
                     fwd_pe_raw[symbol] = float(fwd_pe)
                 elif fwd_pe_reason == "negative_forward_eps":
                     negative_fwd_symbols.add(symbol)
+                if fwd_pe is not None and float(fwd_pe) > 0:
+                    earnings_yield_raw[symbol] = float(fwd_pe)
+                elif pe is not None and float(pe) > 0:
+                    earnings_yield_raw[symbol] = float(pe)
+                if fcf_yield_raw is not None:
+                    fcf_yield_raw_map[symbol] = float(fcf_yield_raw)
                 if dividend_yield_raw is not None:
                     dy = float(dividend_yield_raw)
                     effective_yield = dy * _dividend_sustainability_factor(dy, fcf_yield_raw)
@@ -768,8 +781,14 @@ class ValueMetricsMixin:
             pb_pct = self._percent_rank_cheap_high_sector_relative(pb_raw, sector_map, is_fpi)
             ps_pct = self._percent_rank_cheap_high_sector_relative(ps_raw, sector_map, is_fpi)
             fwd_pe_pct = self._percent_rank_cheap_high_sector_relative(fwd_pe_raw, sector_map, is_fpi)
+            earnings_pct = self._percent_rank_cheap_high_sector_relative(earnings_yield_raw, sector_map, is_fpi)
             div_pct = zscore_to_percentile_scale(
                 sector_neutral_zscore(div_effective_raw, sector_map, is_foreign_private_issuer=is_fpi)
+            )
+            # Cash-Earnings/Price leg (fcf_yield already yield-form - higher is cheaper/better,
+            # same direction convention as div_pct above, no inversion needed).
+            cash_yield_pct = zscore_to_percentile_scale(
+                sector_neutral_zscore(fcf_yield_raw_map, sector_map, is_foreign_private_issuer=is_fpi)
             )
             for symbol in unprofitable_symbols:
                 pe_pct[symbol] = 0.0
@@ -779,14 +798,20 @@ class ValueMetricsMixin:
                 pb_pct[symbol] = 0.0
             for symbol in no_revenue_ps_symbols:
                 ps_pct[symbol] = 0.0
+            # Both earnings measures unusable (unprofitable trailing AND negative forward
+            # estimate) - genuinely the worst possible Earnings/Price outcome, same floor
+            # convention as pe_pct/fwd_pe_pct above.
+            for symbol in unprofitable_symbols & negative_fwd_symbols:
+                earnings_pct[symbol] = 0.0
             logger.info(
                 f"[STOCK_SCORES] Value multiples percentile universe (sector-relative, "
                 f"{len(sector_map)}/{len(rows)} symbols mapped to a GICS sector): "
                 f"P/E {len(pe_pct)} ({len(unprofitable_symbols)} floored unprofitable), "
                 f"P/B {len(pb_pct)} ({len(negative_book_value_symbols)} floored negative-book-value), "
-                f"P/S {len(ps_pct)} ({len(no_revenue_ps_symbols)} floored no-revenue), "
+                f"P/S {len(ps_pct)} ({len(no_revenue_ps_symbols)} floored no-revenue, computed but unscored), "
                 f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast), "
-                f"Dividend Yield {len(div_pct)} symbols (sector-neutral z-score)"
+                f"Dividend Yield {len(div_pct)} symbols (sector-neutral z-score, computed but unscored), "
+                f"Earnings/Price (scored) {len(earnings_pct)}, Cash-Earnings/Price (scored) {len(cash_yield_pct)}"
             )
 
             # Same configurable completeness gate load_stock_scores.py's Pass 1 uses (default
@@ -813,34 +838,52 @@ class ValueMetricsMixin:
                 value_score_old = float(value_score_old)
                 composite_score_old = float(composite_score_old)
 
-                # Pure recompute of value_score from the raw stored inputs - percentile rank
-                # for PE/PB/PS/forward_pe/dividend_yield (all five now sector-relative, see
-                # "SECTOR-RELATIVE DIVIDEND YIELD" docstring note above) - value_score_old is
-                # read above only to detect whether anything changed, never as an input to the
-                # new value. See "BUG FOUND + FIXED 2026-08-31" docstring note above for why
-                # this replaced the prior additive-delta-on-a-mutable-column design.
-                # UNIFORM EQUAL-WEIGHT (2026-09-11, user directive - see pillar_weights.py's
-                # BASE_PILLAR_WEIGHTS comment for the full rationale, and _score_value's own
-                # matching note). All 5 components (PE/PB/PS/Forward PE/Dividend Yield) are now
-                # flat 20% each - mirrors _score_value's Pass-1 weights exactly. Keep both passes
-                # in sync if either changes.
+                # MSCI ENHANCED VALUE CONSTRUCTION FIDELITY (2026-09-15, TWO-LAYER VALIDATION
+                # POLICY / user directive after live-verified 0/10-0/25 top-10/25 overlap vs
+                # real VLUE holdings - see pillar_weights.py's own "TWO-LAYER VALIDATION POLICY"
+                # comment block, same reasoning already applied to Momentum's mom_12_1 and
+                # Quality's ROCE/asset_turnover removal). Verified against MSCI's own primary
+                # methodology doc (MSCI_Enhanced_Value_Index_Meth_Aug14.pdf,
+                # msci.com/eqb/methodology): "the value investment style characteristics ... are
+                # defined using three variables: Price-to-Book Value, Price-to-Forward Earnings
+                # and Enterprise Value-to-Cash flow from Operations", each an EQUAL 1/3 weight
+                # z-score, WITH TWO STATED SUBSTITUTION RULES for missing data: "If the value
+                # for variable Price-to-Book is missing ... it is substituted by the value of
+                # cash earnings (P/CE)"; "If the value for Fwd P/E is missing ... substituted by
+                # ... trailing price-to-earnings (P/E)". Trailing P/E, P/S, and dividend yield
+                # have NO HOME in this real definition at all - not a retuning of weights on the
+                # inputs we already had, replacing them: P/S/dividend_yield dropped from scoring
+                # entirely (still computed/stored - value_metrics.ps_ratio/dividend_yield - same
+                # "computed but unscored" convention as ev_ebitda/ev_revenue elsewhere in this
+                # file), trailing P/E demoted from an independent input to ONLY the stated
+                # Fwd-P/E substitution role (earnings_pct above), and fcf_yield (already
+                # computed, previously excluded from scoring for correlation/redundancy reasons
+                # under the old IC-based policy - see this file's own 2026-08-25 history above -
+                # promoted to the Cash-Earnings/Price leg (proxy for EV/CFO: both are cash-flow-
+                # based valuation yields, no EV/CFO field exists in this schema) AND, per MSCI's
+                # own stated rule, the missing-P/B substitute.
+                #
+                # UNIFORM EQUAL-WEIGHT (3 legs, not the prior 5) - mirrors the 2026-09-11
+                # "flat weight" precedent for the base construction, just against the corrected
+                # 3-input set. _score_value's Pass-1 provisional curve was NOT updated to match
+                # (still the old 5-input curve) - Pass 1 is always immediately overwritten by
+                # this pass in the same post_run(), same "restart-only, provisional-only"
+                # precedent already documented above; a follow-up pass should still bring it in
+                # sync per this file's own "Keep both passes in sync" convention.
                 components: list[tuple[float, float]] = []
-                if pe is not None and float(pe) > 0:
-                    components.append((pe_pct[symbol], 0.20))
-                elif pe_reason == "unprofitable_stock":
-                    components.append((0.0, 0.20))
                 if pb is not None and float(pb) > 0:
-                    components.append((pb_pct[symbol], 0.20))
+                    components.append((pb_pct[symbol], 1.0 / 3.0))
+                elif symbol in cash_yield_pct:
+                    # MSCI's own stated substitution: missing P/B -> cash earnings (P/CE) leg.
+                    components.append((cash_yield_pct[symbol], 1.0 / 3.0))
                 elif pb_reason == "negative_book_value":
-                    components.append((0.0, 0.20))
-                if ps is not None and float(ps) > 0:
-                    components.append((ps_pct[symbol], 0.20))
-                elif ps_reason in ("no_revenue_reported", "zero_revenue_reported_this_period"):
-                    components.append((0.0, 0.20))
-                if fwd_pe is not None and float(fwd_pe) > 0:
-                    components.append((fwd_pe_pct[symbol], 0.20))
-                elif fwd_pe_reason == "negative_forward_eps":
-                    components.append((0.0, 0.20))
+                    components.append((0.0, 1.0 / 3.0))
+                if symbol in earnings_pct:
+                    components.append((earnings_pct[symbol], 1.0 / 3.0))
+                elif symbol in (unprofitable_symbols & negative_fwd_symbols):
+                    components.append((0.0, 1.0 / 3.0))
+                if symbol in cash_yield_pct:
+                    components.append((cash_yield_pct[symbol], 1.0 / 3.0))
                 # SECTOR-RELATIVE DIVIDEND YIELD (2026-09-11, "figure out everything not done
                 # right per best practices" audit). Previously scored on an ABSOLUTE
                 # magnitude curve (min(yield%,6)*16.7) while every other Value component
