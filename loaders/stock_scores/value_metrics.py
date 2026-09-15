@@ -870,54 +870,48 @@ class ValueMetricsMixin:
                 # this pass in the same post_run(), same "restart-only, provisional-only"
                 # precedent already documented above; a follow-up pass should still bring it in
                 # sync per this file's own "Keep both passes in sync" convention.
+                # BUG FOUND + FIXED 2026-09-15 (algo-fd/algo-f5, cross-session review of
+                # 43a1451ce): cash_yield_pct was being added TWICE for a P/B-missing symbol -
+                # once as the MSCI-stated substitute for the missing Book/Price leg, once again
+                # as its own independent Cash-Earnings/Price leg - giving cash-flow signal 2/3
+                # nominal weight instead of the intended equal thirds. This is a data-limitation
+                # artifact, not faithful to MSCI's real formula: MSCI's stated substitution rule
+                # is for two DIFFERENT variables (missing P/B -> P/CE fills that slot; the
+                # independent third variable is EV/CFO) that happen to collapse onto the same
+                # proxy field here (fcf_yield) because this schema has no separate EV/CFO -
+                # reusing that same number for both slots amplifies cash-flow signal rather than
+                # reproducing MSCI's intended equal-thirds balance. pb_used_cash_substitute
+                # tracks whether this symbol already consumed cash_yield_pct as the P/B
+                # substitute, so the independent leg below is skipped for it.
+                pb_used_cash_substitute = False
                 components: list[tuple[float, float]] = []
                 if pb is not None and float(pb) > 0:
                     components.append((pb_pct[symbol], 1.0 / 3.0))
                 elif symbol in cash_yield_pct:
                     # MSCI's own stated substitution: missing P/B -> cash earnings (P/CE) leg.
                     components.append((cash_yield_pct[symbol], 1.0 / 3.0))
+                    pb_used_cash_substitute = True
                 elif pb_reason == "negative_book_value":
                     components.append((0.0, 1.0 / 3.0))
                 if symbol in earnings_pct:
                     components.append((earnings_pct[symbol], 1.0 / 3.0))
                 elif symbol in (unprofitable_symbols & negative_fwd_symbols):
                     components.append((0.0, 1.0 / 3.0))
-                if symbol in cash_yield_pct:
+                if symbol in cash_yield_pct and not pb_used_cash_substitute:
                     components.append((cash_yield_pct[symbol], 1.0 / 3.0))
-                # SECTOR-RELATIVE DIVIDEND YIELD (2026-09-11, "figure out everything not done
-                # right per best practices" audit). Previously scored on an ABSOLUTE
-                # magnitude curve (min(yield%,6)*16.7) while every other Value component
-                # (PE/PB/PS/Forward P/E) is sector-relative - this was the one live gap
-                # documented but never closed in
-                # quality_rewrite_did_not_fix_leaderboard_concentration_20260908 (memory):
-                # REITs/Financial-Services/Utilities/Energy pay structurally higher dividends
-                # for legal/structural reasons (REITs must distribute ~90% of taxable income)
-                # unrelated to whether they're cheap relative to their own sector peers, so an
-                # absolute yield curve handed those sectors a free Value-score boost that
-                # mechanically fed the same leaderboard sector-concentration this file's other
-                # four components were sector-neutralized specifically to remove (see
-                # "SECTOR-RELATIVE RANKING ADOPTED 2026-09-04" docstring note above).
-                #
-                # Fixed via `sector_neutral_zscore`/`zscore_to_percentile_scale` (the same
-                # primitive Growth/Quality already use, see div_pct's own construction above and
-                # its docstring for why this replaced a first attempt using
-                # `_percent_rank_cheap_high_sector_relative` - that rank-based mechanism badly
-                # inflated dividend_yield's large majority-zero tie block, caught by
-                # re-verifying against real DB data before this ever wrote to stock_scores).
-                # div_effective_raw feeds the raw effective yield (dividend_yield after the FCF
-                # payout-sustainability haircut, zeros included - z-scoring handles a heavy tie
-                # block correctly, no floor/exclusion needed unlike the rank-based mechanism).
-                # _dividend_sustainability_factor (the 2026-09-08 CATO value-trap gate:
-                # penalizes a high yield funded by negative FCF) is applied to the raw yield
-                # BEFORE z-scoring - this still fully removes an unsustainable payout's
-                # advantage over its sector peers, and only changes the "kept at user directive"
-                # WEIGHT/inclusion of dividend_yield (unaffected here) not its magnitude-vs-
-                # sector-relative construction (the actual open question that memory flagged).
-                # The value_metrics.dividend_yield column is real and always populated (0.0 for
-                # non-payers, never NULL - see the FIXED 2026-08-31 precedent this preserves),
-                # so every row with a dividend_yield value gets a z-score, non-payers included.
-                if symbol in div_pct:
-                    components.append((div_pct[symbol], 0.20))
+                # SECTOR-RELATIVE DIVIDEND YIELD (div_pct, computed above) - REMOVED FROM
+                # SCORING 2026-09-15 (MSCI ENHANCED VALUE CONSTRUCTION FIDELITY fix, this
+                # method's own docstring note above): dividend yield has no home in MSCI
+                # Enhanced Value's real 3-variable definition. BUG FOUND + FIXED 2026-09-15
+                # (algo-fd/algo-f5, cross-session review of 43a1451ce): this append survived
+                # that rewrite unchanged - the commit removed the PE/PS 0.20-weight legs above
+                # but missed this one, so dividend_yield was STILL live-scored at 0.20 nominal
+                # weight for nearly every symbol (div_effective_raw is populated for ~the whole
+                # universe - dividend_yield is "never NULL, 0.0 for non-payers" per the FIXED
+                # 2026-08-31 precedent above), diluting the intended 3-equal-thirds construction
+                # to ~1.20 total nominal weight instead of 1.00 for most symbols. div_pct is
+                # still computed above for logging/other consumers - same "computed but
+                # unscored" convention as ps_pct - just no longer fed into value_score itself.
 
                 total_weight = sum(w for _, w in components)
                 if total_weight <= 0:
