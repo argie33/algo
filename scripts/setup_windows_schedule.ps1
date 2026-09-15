@@ -296,7 +296,7 @@ Write-Host "[OK] Reference task scheduled for 11:30 PM ET (MON-FRI)"
 # Task 4b: Full DataPatrol run, 3x/day (4:00 AM / 10:00 AM / 2:00 PM ET, MON-FRI)
 Write-Host ""
 Write-Host "Task 4b: DataPatrol Full Run (4:00 AM / 10:00 AM / 2:00 PM ET, MON-FRI)"
-Write-Host "  - Runs algo/algo_data_patrol.py's full 16-checker suite (staleness, tie-out, coverage, etc.)"
+Write-Host "  - Runs algo/algo_data_patrol.py's full checker suite (staleness, tie-out, coverage, etc. - see algo/monitoring/data_patrol/base.py for the current count)"
 
 # ADDED 2026-09-14 (goal: "algo keeps halting and failing, fix root causes, no bypasses"):
 # algo/orchestrator/phase1_data_freshness.py's _check_data_patrol_results halts Phase 1 if

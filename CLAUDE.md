@@ -63,7 +63,9 @@ to downgrade a missing/stale patrol run to a warning instead of a halt.
 **This was the real, root cause of the orchestrator "always halting" locally (FIXED
 2026-09-14, goal: "algo keeps halting and failing").** Live-confirmed: this dev machine's
 `\algo\*`/`\AlgoTrading\*` Task Scheduler tasks had zero task running
-`algo/algo_data_patrol.py` (the full 16-checker suite this gate actually reads) on any
+`algo/algo_data_patrol.py` (the full checker suite this gate actually reads — 16 checkers as of
+2026-09-14, now 17 after `7741b3f2a` added `CikSharedIssuerFinancialsLeakChecker`; see
+`algo/monitoring/data_patrol/base.py` for the current list) on any
 schedule — the only automated writers into `data_patrol_log` were the narrow nightly
 second-opinion layers (`xbrl-second-opinion` 11:50 PM, `score-realized-ic-monitor` 11:55 PM)
 plus one-off manual verification scripts (`patrol_run_id` like `manual-<slug>-<hash>`), none

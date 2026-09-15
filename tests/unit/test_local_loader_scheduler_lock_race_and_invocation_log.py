@@ -501,8 +501,11 @@ class TestSchedulerInvocationIsDurablyLogged:
             result = module.main()
 
         assert result == 1
-        invocation_log = tmp_path / "logs" / "scheduler_invocations.log"
-        assert invocation_log.exists()
+        # Dated filename (2026-09-15 follow-up fix) - see TestSchedulerInvocationLogRotation
+        # below for why a single shared undated file was replaced.
+        candidates = list((tmp_path / "logs").glob("scheduler_invocations_*.log"))
+        assert len(candidates) == 1
+        invocation_log = candidates[0]
         content = invocation_log.read_text(encoding="utf-8")
         assert "Another scheduler instance is still running" in content
         assert "--now=metrics" in content
@@ -585,3 +588,67 @@ class TestSchedulerInvocationLogRotation:
         module._rotate_scheduler_log_if_oversized(log_path)
 
         assert old_rotated.stat().st_size == module._SCHEDULER_LOG_MAX_BYTES + 1
+
+
+class TestSchedulerInvocationLogDatedFilesAndRetention:
+    """Regression guard for the 2026-09-15 follow-up fix: the size-based rotate-by-rename
+    approach above never actually fires on this dev machine, because Windows refuses to
+    rename a file another process still has open for writing (live-reproduced: attempting the
+    exact same `Path.rename()` while a real scheduler invocation held the file open raised
+    `PermissionError: [WinError 32] The process cannot access the file because it is being
+    used by another process`) - and a scheduler invocation is running here often enough that
+    rotation's own `except OSError` fail-open path was silently swallowing this every time,
+    letting the file grow to 10.98GB despite the "fix". Switching to one dated file per day
+    means nothing ever needs to rename/touch a file a concurrent invocation has open.
+    """
+
+    def test_dated_path_uses_todays_utc_date(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        real_datetime = module.datetime
+        fixed_now = real_datetime(2026, 9, 15, 3, 0, 0, tzinfo=module.timezone.utc)
+        with patch.object(module, "datetime") as mock_dt:
+            mock_dt.now.return_value = fixed_now
+            path = module._dated_scheduler_log_path(tmp_path)
+        assert path == tmp_path / "scheduler_invocations_20260915.log"
+
+    def test_cleanup_deletes_only_files_past_retention(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        old = tmp_path / "scheduler_invocations_20260101.log"
+        recent = tmp_path / "scheduler_invocations_20260914.log"
+        old.write_text("old\n")
+        recent.write_text("recent\n")
+        old_time = time.time() - (module._SCHEDULER_LOG_RETENTION_DAYS + 1) * 86400
+        os.utime(old, (old_time, old_time))
+
+        module._cleanup_old_scheduler_logs(tmp_path)
+
+        assert not old.exists()
+        assert recent.exists()
+
+    def test_cleanup_ignores_undated_legacy_file(self, tmp_path: Path) -> None:
+        # The pre-fix logs/scheduler_invocations.log (no date suffix) is deliberately left
+        # alone by this glob - it may still be open by a long-lived process from before this
+        # fix landed, and deleting/renaming it is exactly the operation that used to fail.
+        module = _load_scheduler_module()
+        legacy = tmp_path / "scheduler_invocations.log"
+        legacy.write_text("legacy, never rotated\n")
+        old_time = time.time() - (module._SCHEDULER_LOG_RETENTION_DAYS + 1) * 86400
+        os.utime(legacy, (old_time, old_time))
+
+        module._cleanup_old_scheduler_logs(tmp_path)
+
+        assert legacy.exists()
+
+    def test_cleanup_survives_a_locked_file(self, tmp_path: Path) -> None:
+        # Best-effort, same fail-open discipline as rotation - one file this process can't
+        # delete (permissions, still open) must never block cleanup of the rest or the run.
+        module = _load_scheduler_module()
+        stubborn = tmp_path / "scheduler_invocations_20260101.log"
+        stubborn.write_text("locked\n")
+        old_time = time.time() - (module._SCHEDULER_LOG_RETENTION_DAYS + 1) * 86400
+        os.utime(stubborn, (old_time, old_time))
+
+        with patch.object(Path, "unlink", side_effect=OSError("locked")):
+            module._cleanup_old_scheduler_logs(tmp_path)  # must not raise
+
+        assert stubborn.exists()
