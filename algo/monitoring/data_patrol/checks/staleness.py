@@ -863,9 +863,11 @@ class StalenessChecker(BaseCheck):
         # shell/SPAC names like IBAC/BOT/PWRL/DXYZ) - they will NEVER get a row, no backfill
         # can close this, same false-positive shape as
         # royalty_trust_scoring_population_exclusion_gap_20260914 but in monitoring instead
-        # of scoring. positioning_metrics has no such exclusion (loaders/
-        # load_positioning_metrics.py scores every active symbol including funds/ETFs), so
-        # it's intentionally left off the excluded-tables set below.
+        # of scoring. positioning_metrics DOES exclude literal ETFs (loaders/
+        # load_positioning_metrics.py: exclude_etfs_from_symbols=True) but deliberately keeps
+        # BDCs/CEFs/trusts (exclude_non_operating_from_symbols=False, commit 417785a10) - it
+        # gets its own narrower exclude_etfs_only mode below rather than the full
+        # exclude_non_operating one (FIXED 2026-09-15, see that param's docstring).
         pillar_tables_excluding_non_operating = {
             "growth_metrics",
             "momentum_metrics",
@@ -885,6 +887,7 @@ class StalenessChecker(BaseCheck):
                 cur,
                 pillar_table,
                 exclude_non_operating=pillar_table in pillar_tables_excluding_non_operating,
+                exclude_etfs_only=pillar_table == "positioning_metrics",
             )
 
         # Alert on stale critical signals
@@ -1167,7 +1170,9 @@ class StalenessChecker(BaseCheck):
                     f"Database connection corrupted during frozen-trend-template check cleanup: {release_err}"
                 ) from release_err
 
-    def _check_frozen_pillar_metrics_symbols(self, cur: Any, table: str, exclude_non_operating: bool = False) -> None:
+    def _check_frozen_pillar_metrics_symbols(
+        self, cur: Any, table: str, exclude_non_operating: bool = False, exclude_etfs_only: bool = False
+    ) -> None:
         """Generalized frozen/missing-row check for single-row-per-symbol pillar tables.
 
         See the call site's comment in run() for the full evidence trail (2026-09-13). Covers
@@ -1181,6 +1186,17 @@ class StalenessChecker(BaseCheck):
         NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE the scoring loaders for this table use,
         so a symbol that's deliberately never scored (ETF/BDC/CEF/blank-check SPAC) doesn't
         perpetually count as "missing" - see call site comment for the live evidence trail.
+
+        exclude_etfs_only (added 2026-09-15): positioning_metrics needs a narrower exclusion
+        than exclude_non_operating - its loader sets exclude_etfs_from_symbols=True but
+        exclude_non_operating_from_symbols=False (commit 417785a10, "positioning_metrics no
+        longer silently excludes BDCs/CEFs/trusts" - 13F/FINRA data is real for those, unlike
+        Quality/Growth/Value's financial-statement dependencies), so it must still count a
+        missing BDC/CEF row as a genuine gap while not counting literal ETFs (QQQ/SPY/IWM/EFA/
+        GRN) as one. Live-confirmed 2026-09-15: this check's own inline comment claiming
+        "load_positioning_metrics.py scores every active symbol including funds/ETFs" was
+        wrong even when written - exclude_etfs_from_symbols=True predates that comment - and
+        was flagging exactly those 5 ETFs as a false "silent loader backlog" every run.
         """
         table_safe = assert_safe_table(table)
         sp = f"sp_stale_{table_safe}_frozen_symbols"
@@ -1190,6 +1206,8 @@ class StalenessChecker(BaseCheck):
             + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="sy", company_info_alias="c")
             + ")"
             if exclude_non_operating
+            else "AND COALESCE(sy.etf, 'N') != 'true'"
+            if exclude_etfs_only
             else ""
         )
         try:
