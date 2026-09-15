@@ -8,6 +8,7 @@ positions.py's module docstring for the full split rationale). This module holds
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 import psycopg2
@@ -27,6 +28,43 @@ from routes.utils import (
 from algo.signals.investable_universe import investable_universe_conditions
 
 logger = logging.getLogger(__name__)
+
+# See SECTOR-WEIGHT DEVIATION BAND comment in _get_dashboard_scores for the full rationale.
+_SECTOR_CAP_MULTIPLIER = 2.0
+_MIN_SECTOR_SLOTS = 3
+
+
+def _apply_sector_weight_cap(
+    rows: list[tuple[Any, ...]],
+    description: Any,
+    sector_caps: dict[str, int],
+    limit: int,
+) -> list[tuple[Any, ...]]:
+    """Filter an already composite_score-DESC-sorted row set down to `limit` rows, skipping
+    rows once their sector hits its cap and backfilling from later (lower-ranked) rows -
+    extracted from _get_dashboard_scores to keep that function's cyclomatic complexity in
+    check (ruff C901). See SECTOR-WEIGHT DEVIATION BAND there for the full rationale.
+    """
+    if not sector_caps or not rows:
+        return rows[:limit]
+
+    sector_idx = next((i for i, col in enumerate(description or []) if col[0] == "sector"), None)
+    if sector_idx is None:
+        return rows[:limit]
+
+    capped_rows = []
+    sector_seen: dict[str, int] = {}
+    for row in rows:
+        sector = row[sector_idx]
+        cap = sector_caps.get(sector) if sector else None
+        if cap is not None:
+            if int(sector_seen.get(sector, 0)) >= cap:
+                continue
+            sector_seen[sector] = sector_seen.get(sector, 0) + 1
+        capped_rows.append(row)
+        if len(capped_rows) >= limit:
+            break
+    return capped_rows
 
 
 @db_route_handler("fetch dashboard scores")
@@ -64,6 +102,59 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             min_adv_dollars = float(config_rows["min_adv_dollars"])
         except (KeyError, TypeError, ValueError):
             min_adv_dollars = 500_000.0
+
+        # SECTOR-WEIGHT DEVIATION BAND (added 2026-09-14, /goal session -
+        # [[sector_weight_cap_missing_vs_realindex_20260914]]). This endpoint's real traded
+        # capital already has a separate sector cap (algo/orchestrator/phase8_entry_execution.py's
+        # `max_positions_per_sector` entry-side gate) - this fix is specifically for the
+        # DISPLAYED leaderboard, which had no equivalent: live-verified ranking by raw
+        # composite_score DESC alone let Healthcare go from 19.4% of the eligible universe to
+        # 34% of the top-100 (Materials 6.5%->15%, driven by 8 gold miners riding 2026's
+        # commodity rally), nothing close to how a real MSCI/AQR factor index's published
+        # holdings list looks even though the underlying per-pillar scores are independently
+        # validated. Real factor indices (MTUM/QUAL/VLUE) solve this with a published sector
+        # weight DEVIATION BAND vs. the parent cap-weighted index at each rebalance, not a
+        # flat count cap - mirrored here as each sector's SHARE of the *eligible universe*
+        # (same investable_universe_conditions/data_completeness/market-cap/liquidity filters
+        # as the main query, computed fresh each call rather than hardcoded) times a fixed
+        # multiplier band, floored so a small real sector isn't rounded to zero slots.
+        cur.execute(
+            """
+            SELECT c.sector, COUNT(*) AS n
+            FROM stock_scores s
+            JOIN stock_symbols sy ON sy.symbol = s.symbol
+            LEFT JOIN company_profile c ON s.symbol = c.symbol
+            LEFT JOIN value_metrics vm ON vm.symbol = s.symbol
+            LEFT JOIN LATERAL (
+                SELECT AVG(volume * close) AS avg_dollar_volume_20d
+                FROM (
+                    SELECT volume, close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                    FROM price_daily
+                    WHERE symbol = s.symbol
+                      AND date >= CURRENT_DATE - INTERVAL '45 days'
+                      AND COALESCE(data_unavailable, false) = false
+                      AND volume IS NOT NULL AND close IS NOT NULL
+                ) ranked
+                WHERE rn <= 20
+            ) liq ON true
+            WHERE """
+            + investable_universe_conditions("s", "sy")
+            + """
+                AND s.data_completeness >= 70
+                AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
+                AND COALESCE(vm.market_cap, 0) >= %s
+                AND COALESCE(liq.avg_dollar_volume_20d, 0) >= %s
+            GROUP BY c.sector
+            """,
+            (min_market_cap_dollars, min_adv_dollars),
+        )
+        sector_universe_counts = {row[0]: int(row[1]) for row in cur.fetchall() if row[0]}
+        universe_total = sum(sector_universe_counts.values())
+        sector_caps: dict[str, int] = {}
+        if universe_total > 0:
+            for sector, n in sector_universe_counts.items():
+                weight = n / universe_total
+                sector_caps[sector] = max(_MIN_SECTOR_SLOTS, math.ceil(weight * limit * _SECTOR_CAP_MULTIPLIER))
 
         # PERFORMANCE: filter/sort/limit in a CTE first, then run per-symbol LATERAL
         # lookups (price_daily/technical_data_daily) only against that small row set -
@@ -136,10 +227,20 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             ) tl ON true
             ORDER BY fs.composite_score DESC
         """,
-            (min_market_cap_dollars, min_adv_dollars, limit),
+            # Fetch a wider candidate pool than the requested `limit` so the sector cap below
+            # has room to skip over-represented names and still backfill from further down the
+            # composite_score ranking, rather than just truncating the display to fewer than
+            # `limit` results whenever a sector is capped. Bounded (not unlimited) because this
+            # CTE's LIMIT gates how many rows pay for the three per-symbol LATERAL joins below -
+            # this endpoint's own prior comment already flags that cost. 6x covers the observed
+            # skew (Healthcare 19%->34% of top-100, well under 2x) without materially changing
+            # the query's LATERAL join volume versus before this fix (was a flat 50).
+            (min_market_cap_dollars, min_adv_dollars, min(limit * 6, 400)),
         )
         rows = cur.fetchall()
         logger.debug(f"[SCORES_DASHBOARD] Query returned {len(rows)} rows for /api/algo/scores endpoint")
+
+        rows = _apply_sector_weight_cap(rows, cur.description, sector_caps, limit)
 
         top_scores = []
         for row in rows:
