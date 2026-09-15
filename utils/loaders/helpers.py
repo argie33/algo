@@ -770,3 +770,35 @@ def create_circuit_breaker(
         recovery_timeout_sec=recovery_timeout_sec,
         importance=importance,
     )
+
+
+def verify_today_utc_rows_or_raise(tables: list[str], attempted: bool, caller_tag: str) -> None:
+    """FAIL-FAST post-write check: raise unless each table has a row dated today (UTC).
+
+    Skips entirely when `attempted` is falsy (e.g. an incremental run's symbol list came back
+    empty because a prior same-day run already covered everything) - that's a legitimate no-op,
+    not a persistence failure, and must not raise (live-confirmed 2026-09-15 on
+    load_value_quality_growth_metrics.py: a 0-symbol re-run just after UTC midnight otherwise
+    false-CRITICAL'd even though the earlier run's data was intact).
+    """
+    from datetime import datetime, timezone
+
+    from utils.db.sql_safety import assert_safe_table
+
+    if not attempted:
+        logger.info(f"[{caller_tag}] No symbols processed - skipping today's-date verification")
+        return
+    utc_today = datetime.now(timezone.utc).date().isoformat()
+    with DatabaseContext("read") as cur:
+        for table in tables:
+            safe_table = assert_safe_table(table)
+            cur.execute(f"SELECT COUNT(*) FROM {safe_table} WHERE updated_at::date = %s", (utc_today,))
+            result = cur.fetchone()
+            today_count = result[0] if result else 0
+            if today_count == 0:
+                raise RuntimeError(
+                    f"[{caller_tag} VERIFICATION FAILED] {table}: 0 rows with today's date "
+                    f"({utc_today} UTC) found after load. Data was NOT persisted. This is a "
+                    f"CRITICAL DATA INTEGRITY issue."
+                )
+            logger.info(f"[{caller_tag} VERIFIED] {table}: {today_count} rows with today's date (UTC)")

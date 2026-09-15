@@ -36,7 +36,7 @@ import itertools
 import logging
 import sys
 import time
-from datetime import date, datetime, timezone
+from datetime import date
 from math import isnan, sqrt
 from typing import Any, cast
 
@@ -66,6 +66,7 @@ from loaders.helpers.vqg_value import ValueMetricsMixin
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
+from utils.loaders.helpers import verify_today_utc_rows_or_raise
 from utils.loaders.status_manager import LoaderStatusManager
 from utils.optimal_loader import OptimalLoader
 from utils.type_conversion import safe_float
@@ -343,22 +344,13 @@ class ValueQualityGrowthMetricsLoader(
                     quality_failed += 1
                     growth_failed += 1
 
-            # VERIFY: Confirm all 3 tables actually have TODAY's data before claiming success
-            # (FAIL-FAST). Must use UTC date, not ET - loader inserts use DB timestamps (UTC).
-            utc_today = datetime.now(timezone.utc).date().isoformat()
-            with DatabaseContext("read") as cur:
-                for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
-                    safe_table = assert_safe_table(table)
-                    cur.execute(f"SELECT COUNT(*) FROM {safe_table} WHERE updated_at::date = %s", (utc_today,))
-                    result = cur.fetchone()
-                    today_count = result[0] if result else 0
-                    if today_count == 0:
-                        raise RuntimeError(
-                            f"[VALUE_QUALITY_GROWTH VERIFICATION FAILED] {table}: "
-                            f"0 rows with today's date ({utc_today} UTC) found after load. "
-                            f"Data was NOT persisted. This is a CRITICAL DATA INTEGRITY issue."
-                        )
-                    logger.info(f"[VALUE_QUALITY_GROWTH VERIFIED] {table}: {today_count} rows with today's date (UTC)")
+            # VERIFY: fail-fast unless all 3 tables have today's (UTC) data - skips (not raises)
+            # when `symbols` is empty, since that's a legit no-op run. See helper docstring.
+            verify_today_utc_rows_or_raise(
+                ["value_metrics", "quality_metrics", "growth_metrics"],
+                attempted=bool(symbols),
+                caller_tag="VALUE_QUALITY_GROWTH",
+            )
 
             # Mark all 3 tables as ok via LoaderStatusManager (uses advisory locks). Per-table
             # dict, not a bare loop variable - each table's own latest_date must reach its own
