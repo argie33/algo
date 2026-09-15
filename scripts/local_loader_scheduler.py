@@ -51,6 +51,43 @@ class _Tee:
         self._stream.flush()
 
 
+# BUG FOUND 2026-09-14 (real-money-readiness audit, goal: "algo keeps halting and failing"):
+# logs/scheduler_invocations.log is opened "a" (append) forever with no size cap or rotation -
+# every invocation since this tee was added 2026-08-16 has accumulated into one file that had
+# grown to 11GB/tens of millions of lines by tonight (mostly the per-row "Unmapped SEC field"
+# spam fixed elsewhere in this session, see loaders/helpers/sec_base.py) - and would keep
+# growing unbounded even after that fix, since nothing here ever caps or rotates it. That's
+# exactly the failure mode that incident already demonstrated: an oversized log file degraded
+# this process's own I/O throughput enough to trip phase1_failsafe_retry.py's stall/timeout
+# detection and false-FAIL otherwise-successful loader runs. Rotate (rename aside, start fresh)
+# whenever the file exceeds a generous cap before every invocation opens it, so a future spam
+# regression is bounded to one rotation's worth of damage instead of growing forever across
+# every run since setup.
+_SCHEDULER_LOG_MAX_BYTES = 200 * 1024 * 1024  # 200MB
+
+
+def _rotate_scheduler_log_if_oversized(log_path: Path) -> None:
+    try:
+        if not log_path.exists() or log_path.stat().st_size <= _SCHEDULER_LOG_MAX_BYTES:
+            return
+        rotated = log_path.with_suffix(log_path.suffix + ".1")
+        # Keep only one rotated backup - this is a debugging trail, not an audit record
+        # (durable audit trail for actual loader runs lives in data_loader_status/
+        # logs/load_*.log per-loader files, untouched by this rotation).
+        if rotated.exists():
+            rotated.unlink()
+        log_path.rename(rotated)
+        print(
+            f"[LOCAL_SCHEDULER] Rotated oversized {log_path.name} (>{_SCHEDULER_LOG_MAX_BYTES // (1024 * 1024)}MB) to {rotated.name}"
+        )
+    except OSError as e:
+        # Best-effort: a rotation failure (e.g. file locked by another concurrent scheduler
+        # invocation still writing to it) must never block this run from starting - fall back
+        # to appending to the oversized file rather than crashing the whole pipeline over a
+        # housekeeping step.
+        print(f"[LOCAL_SCHEDULER] WARNING: Could not rotate {log_path.name}: {e}", file=sys.stderr)
+
+
 # GAP FOUND 2026-08-16: this entry point never loaded .env.local - only
 # scripts/run_local_orchestrator.py and algo/orchestration/orchestrator.py do (both via
 # this same utils.dotenv_loader import). Every loader subprocess this script spawns
@@ -1785,8 +1822,10 @@ def main() -> int:
     # ones that get rejected before run_pipeline() is ever entered.
     logs_dir = Path(__file__).parent.parent / "logs"
     logs_dir.mkdir(exist_ok=True)
-    sys.stdout = _Tee(sys.stdout, logs_dir / "scheduler_invocations.log")
-    sys.stderr = _Tee(sys.stderr, logs_dir / "scheduler_invocations.log")
+    _scheduler_log_path = logs_dir / "scheduler_invocations.log"
+    _rotate_scheduler_log_if_oversized(_scheduler_log_path)
+    sys.stdout = _Tee(sys.stdout, _scheduler_log_path)
+    sys.stderr = _Tee(sys.stderr, _scheduler_log_path)
 
     parser = argparse.ArgumentParser(description="Local loader scheduler")
     parser.add_argument(

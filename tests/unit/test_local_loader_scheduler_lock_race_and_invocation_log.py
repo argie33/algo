@@ -535,3 +535,53 @@ class TestTeeMirrorsToFileAndUnderlyingStream:
 
         # No explicit tee.flush() call - content must already be on disk regardless.
         assert log_path.read_text(encoding="utf-8") == "not flushed by caller\n"
+
+
+class TestSchedulerInvocationLogRotation:
+    """Regression guard for the 2026-09-14 fix: scheduler_invocations.log was opened "a"
+    forever with no size cap, and had actually grown to 11GB live on this dev machine (see
+    _rotate_scheduler_log_if_oversized's own comment) - the exact failure mode a prior
+    per-row logging-spam bug already proved can degrade this process enough to trip
+    phase1_failsafe_retry.py's stall detection and false-FAIL healthy loader runs.
+    """
+
+    def test_rotates_when_oversized(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        log_path = tmp_path / "scheduler_invocations.log"
+        log_path.write_bytes(b"x" * (module._SCHEDULER_LOG_MAX_BYTES + 1))
+
+        module._rotate_scheduler_log_if_oversized(log_path)
+
+        assert not log_path.exists()
+        rotated = tmp_path / "scheduler_invocations.log.1"
+        assert rotated.exists()
+        assert rotated.stat().st_size == module._SCHEDULER_LOG_MAX_BYTES + 1
+
+    def test_leaves_small_file_untouched(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        log_path = tmp_path / "scheduler_invocations.log"
+        log_path.write_text("small\n")
+
+        module._rotate_scheduler_log_if_oversized(log_path)
+
+        assert log_path.read_text(encoding="utf-8") == "small\n"
+        assert not (tmp_path / "scheduler_invocations.log.1").exists()
+
+    def test_missing_file_is_a_noop(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        log_path = tmp_path / "does_not_exist.log"
+
+        module._rotate_scheduler_log_if_oversized(log_path)  # must not raise
+
+        assert not log_path.exists()
+
+    def test_replaces_existing_rotated_backup(self, tmp_path: Path) -> None:
+        module = _load_scheduler_module()
+        log_path = tmp_path / "scheduler_invocations.log"
+        log_path.write_bytes(b"x" * (module._SCHEDULER_LOG_MAX_BYTES + 1))
+        old_rotated = tmp_path / "scheduler_invocations.log.1"
+        old_rotated.write_text("stale previous rotation\n")
+
+        module._rotate_scheduler_log_if_oversized(log_path)
+
+        assert old_rotated.stat().st_size == module._SCHEDULER_LOG_MAX_BYTES + 1
