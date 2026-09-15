@@ -130,13 +130,14 @@ class TestNegativeRoeRoceFloor:
         actually included and its floor-at-0-for-negative-values behavior gets exercised,
         instead of being omitted entirely (total_weight=0, no update issued).
 
-        Both rows also carry identical margin_volatility/asset_turnover/gross_profitability
-        values (weight roe 11.54 + roa 11.54 + margin_vol 25.0 + asset_turnover 5.77 +
-        gross_prof 11.54 = 65.39, under the 2026-09-14 asset_turnover demotion - see
-        vqg_quality_score.py's "ASSET_TURNOVER DEMOTED" comment - clears the 40.0
-        completeness floor) so an update actually fires - with matching values across both rows,
-        those three components pool as ties and z-score to neutral percentile 50.0 for both
-        symbols.
+        Both rows also carry identical margin_volatility/gross_profitability values (weight
+        roe 15.0 + roa 15.0 + margin_vol 25.0 + gross_prof 15.0 = 70.0, under the 2026-09-15
+        asset_turnover+ROCE removal - see vqg_quality_score.py's "ASSET_TURNOVER + ROCE
+        REMOVED ENTIRELY" comment - clears the 40.0 completeness floor) so an update
+        actually fires - with matching values across both rows, those two components (margin_
+        vol/gross_prof) pool as ties and z-score to neutral percentile 50.0 for both symbols.
+        roce_pct is None in both rows below and asset_turnover=50.0 in both, but neither
+        contributes to a component any more either way.
 
         ROE's floor-to-0-for-negative-roa (the sign-flip guard) is unchanged and still
         applies to both rows here. ROA's OWN component floor was REMOVED 2026-09-13 (see
@@ -152,10 +153,11 @@ class TestNegativeRoeRoceFloor:
         ]
         updates = dict(_run_with_mocked_rows(rows))
         # ROE floors to 0 for both (sign-flip guard, roa<0); roa is continuous and WORST_NEG's
-        # more deeply negative roa scores a lower percentile than MID_NEG's; the other 3 tied
-        # components z-score to neutral 50.0 each. Exact values pinned via the real
-        # sector_neutral_zscore/zscore_to_percentile_scale computation (2-element residual pool),
-        # recomputed 2026-09-14 for the asset_turnover demotion's new weights.
-        assert updates.get("WORST_NEG") == 35.15
-        assert updates.get("MID_NEG") == 47.2
+        # more deeply negative roa scores a lower percentile than MID_NEG's; the other 2 tied
+        # components (margin_vol/gross_prof) z-score to neutral 50.0 each. Exact values pinned
+        # via the real sector_neutral_zscore/zscore_to_percentile_scale computation (2-element
+        # residual pool), recomputed 2026-09-15 for the asset_turnover+ROCE removal's new
+        # weights.
+        assert updates.get("WORST_NEG") == 31.97
+        assert updates.get("MID_NEG") == 46.6
         assert updates["WORST_NEG"] < updates["MID_NEG"]

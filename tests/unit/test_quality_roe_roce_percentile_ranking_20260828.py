@@ -83,27 +83,27 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
     def test_negative_metrics_floor_to_zero_not_zscored(self) -> None:
         # roe/asset_turnover/gross_profitability/debt_to_equity all negative - each floors
         # to 0.0 directly (the "if value < 0: floor" convention this pass preserves from
-        # Pass 1's _margin_curve), never entering the z-score population. roa/roce/fcf_margin
+        # Pass 1's _margin_curve), never entering the z-score population. roa/fcf_margin
         # had their OWN component floor REMOVED 2026-09-13 (see vqg_quality_batch.py's
         # "FLOOR REMOVED" docstring note) - each now scores continuously and, as the sole
         # symbol in its own z-score pool (no peer to compare against), lands at neutral 50.0
         # rather than a floored 0.0 (same "singleton pool -> neutral" reasoning as
         # margin_volatility=10.0, which was never floored to begin with).
-        # UNIFORM EQUAL-WEIGHT 2026-09-11, MARGIN_VOLATILITY REWEIGHTED 2026-09-13, ASSET_TURNOVER
-        # DEMOTED 2026-09-14: 6 components flat 11.54 each + margin_volatility at 25.0 +
-        # asset_turnover at 5.77 (nominal total ~100) - see vqg_quality_score.py's
-        # "ASSET_TURNOVER DEMOTED" comment.
+        # UNIFORM EQUAL-WEIGHT 2026-09-11, MARGIN_VOLATILITY REWEIGHTED 2026-09-13,
+        # ASSET_TURNOVER + ROCE REMOVED ENTIRELY 2026-09-15 (see vqg_quality_score.py's
+        # "ASSET_TURNOVER + ROCE REMOVED ENTIRELY" comment - neither maps to a real
+        # institutional Quality definition): 5 components flat 15.0 each + margin_volatility
+        # at 25.0 (nominal total 100). roce_pct in the row below is still read but no longer
+        # contributes to any component.
         row = ("NEG", "Technology", None, -1.0, -1.0, -1.0, -1.0, -1.0, 10.0, -1.0, -1.0, 999.0)
         updates = dict(_run_with_mocked_rows([row]))
         components = [
-            (0.0, 11.54),  # roe: sign-flip-guard floor (roe<0 and roa<0)
-            (50.0, 11.54),  # roa: continuous, singleton pool -> neutral
-            (50.0, 11.54),  # roce: continuous, singleton pool -> neutral
-            (50.0, 11.54),  # fcf_margin: continuous, singleton pool -> neutral
-            (0.0, 11.54),  # debt_to_equity: negative = real distress, still floored
+            (0.0, 15.0),  # roe: sign-flip-guard floor (roe<0 and roa<0)
+            (50.0, 15.0),  # roa: continuous, singleton pool -> neutral
+            (50.0, 15.0),  # fcf_margin: continuous, singleton pool -> neutral
+            (0.0, 15.0),  # debt_to_equity: negative = real distress, still floored
             (50.0, 25.0),  # margin_volatility: not floored, z-scores to neutral
-            (0.0, 5.77),  # asset_turnover (demoted 2026-09-14)
-            (0.0, 11.54),  # gross_profitability
+            (0.0, 15.0),  # gross_profitability
         ]
         expected = round(
             sum(v * w for v, w in components) / sum(w for _, w in components),

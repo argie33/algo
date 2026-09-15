@@ -157,14 +157,15 @@ class TestFcfMarginScoreDepositoryBankExclusion:
         assert metrics["fcf_margin"] < 0
 
         # REWRITE 2026-09-07: Financial Services no longer gets a separate 5-component
-        # profitability-cluster call - every sector uses the same 8-component universal call
-        # [roe, roa, roce, fcf_margin, debt_to_equity, margin_volatility, asset_turnover,
-        # gross_profitability]. fcf_margin_score (index 3) must still be None for a bank - that
-        # exclusion is a metric-composition decision (real cash-flow noise), not curve-shape,
-        # and survives the two-cluster-to-flat collapse unchanged.
-        universal_calls = [c for c in captured_calls if len(c) == 8]
+        # profitability-cluster call - every sector uses the same universal call, now
+        # [roe, roa, fcf_margin, debt_to_equity, margin_volatility, gross_profitability]
+        # (6 components since the 2026-09-15 ASSET_TURNOVER + ROCE REMOVED ENTIRELY change).
+        # fcf_margin_score (index 2) must still be None for a bank - that exclusion is a
+        # metric-composition decision (real cash-flow noise), not curve-shape, and survives
+        # both the two-cluster-to-flat collapse and the asset_turnover/ROCE removal unchanged.
+        universal_calls = [c for c in captured_calls if len(c) == 6]
         assert len(universal_calls) == 1
-        fcf_margin_score = universal_calls[0][3][0]
+        fcf_margin_score = universal_calls[0][2][0]
         assert fcf_margin_score is None
 
     def test_non_bank_fcf_margin_still_scored(self, monkeypatch):
