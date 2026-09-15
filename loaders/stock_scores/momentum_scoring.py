@@ -31,6 +31,54 @@ logger = logging.getLogger("loaders.load_stock_scores")
 # construction, not a fragment of it").
 MOMENTUM_MIN_WEIGHT = 0.40
 
+# RISK-ADJUSTED MOMENTUM (added 2026-09-14, goal-session backtest validation): MSCI's real
+# Momentum Index construction divides each price-return window by realized volatility before
+# combining (a Sharpe-ratio-style risk adjustment), not raw returns - see
+# algo/research/momentum_risk_adjusted_ic_test_20260914.py for the isolated fit(2017-2021)/
+# holdout(2022-2026) backtest that validated this: real, consistent, modest IC improvement in
+# every period tested before this was ported to live scoring (composite IC 0.0130->0.0140 full
+# sample, 0.0058->0.0069 fit, 0.0200->0.0209 holdout).
+#
+# Live scoring has no z-score step to plug a risk-adjusted RATIO into unlike that research
+# script's cross-sectional pipeline - _pct_to_score's curve is calibrated for raw percentage
+# returns (-20%=0, +20%=100), and a risk-adjusted ratio (return/vol, e.g. 0.15/0.30=0.5) is on
+# a completely different numeric scale that would silently miscalibrate the whole curve if fed
+# in directly. MEDIAN_UNIVERSE_VOL_252D (0.5447, live-measured from stability_metrics.
+# volatility_252d across 5,040 real scored symbols, 2026-09-14) is the renormalization anchor:
+# multiplying the risk-adjusted ratio back up by this constant converts it back into
+# "percentage-return-equivalent" units so the EXISTING curve stays valid - an exactly-average-
+# volatility stock's score is unchanged from before this fix, a below-median-vol stock's same
+# raw return now scores HIGHER (cheaper per unit risk), and an above-median-vol stock's same
+# raw return scores LOWER - the intended risk adjustment, without redesigning the curve itself.
+MEDIAN_UNIVERSE_VOL_252D = 0.5447
+# FROZEN-CONSTANT DRIFT (flagged by peer review same day, fixed before shipping): real factor
+# indices recompute this kind of cross-sectional statistic at every rebalance rather than
+# freezing it - a hardcoded snapshot would silently drift stale as the universe's volatility
+# regime shifts (e.g. a broad low-vol stretch would push every symbol's multiplier the same
+# direction, not stay centered). `_get_median_vol_252d` below recomputes this from
+# self._stability_cache (already batch-loaded by _prepare_batch_context) fresh on every scoring
+# run - this constant now only serves as the fallback for contexts where that cache isn't
+# populated (isolated unit tests, or a genuinely empty batch), not as the value live scoring
+# actually uses.
+# Floor on vol_252d before using it as a divisor - guards the same near-zero-volatility
+# measurement-validity concern already documented for Risk's own vol scoring
+# (risk_scoring.py's NEAR_ZERO_LIQUIDITY_THRESHOLD/frozen-price gate): a frozen/near-frozen
+# price would otherwise blow up the risk-adjustment ratio, not reflect a genuinely safer return.
+MIN_VOL_252D_FOR_RISK_ADJUSTMENT = 0.05
+# Cap on the risk-adjustment MULTIPLIER itself (MEDIAN_UNIVERSE_VOL_252D / vol_252d), not just
+# the floor on vol_252d - live-caught 2026-09-14 sanity check BEFORE this shipped: a real
+# low-vol utility (TXNM, vol_252d=0.051, just above the floor) got amplified 10.7x
+# (0.5447/0.051), pushing a modest raw return straight to curve saturation (delta +25.85 on a
+# 0-100 score from one sub-component) - not a genuine risk-adjustment signal, an artifact of
+# dividing by a number close to the floor. Same "winsorize extreme ratios" discipline this
+# codebase already applies everywhere else a peer-relative ratio is computed
+# (_winsorize_group/_winsorize_group_values clip to [1st,99th] percentile) - here a fixed
+# [0.5x, 2.0x] bound serves the same purpose without needing a cross-sectional population to
+# compute a percentile from (this pillar scores one symbol against a fixed curve, not a peer
+# group).
+MAX_RISK_ADJUSTMENT_MULTIPLIER = 2.0
+MIN_RISK_ADJUSTMENT_MULTIPLIER = 0.5
+
 
 def _owner() -> Any:
     """Lazy reference to the owner module, resolved at call time (not import time).
@@ -68,6 +116,8 @@ class MomentumScoringMixin:
     if TYPE_CHECKING:
         _technical_cache: dict[str, tuple[Any, ...]]
         _momentum_cache: dict[str, tuple[Any, ...]]
+        _stability_cache: dict[str, tuple[Any, ...]]
+        _median_vol_252d_cache: float | None
 
     def _get_momentum_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch momentum/RS metrics for symbol from momentum_metrics table.
@@ -131,6 +181,16 @@ class MomentumScoringMixin:
             price_vs_sma_50 = (close - sma_50) / sma_50 if close is not None and sma_50 else None
             price_vs_sma_200 = (close - sma_200) / sma_200 if close is not None and sma_200 else None
 
+            # vol_252d (annualized, decimal fraction e.g. 0.30 = 30%) from stability_metrics,
+            # already batch-loaded onto self._stability_cache by _prepare_batch_context (see
+            # load_stock_scores.py's own SELECT - index 0 of the cached tuple is volatility_252d,
+            # the query's first column after symbol). Used below to risk-adjust mom_3m/mom_12_1 -
+            # see RISK-ADJUSTED MOMENTUM docstring note in _score_momentum for why.
+            stability_row = getattr(self, "_stability_cache", {}).get(symbol)
+            vol_252d = (
+                safe_float(stability_row[0], f"{symbol}.volatility_252d", allow_none=True) if stability_row else None
+            )
+
             row = self._momentum_cache.get(symbol, None)
 
             if row is not None:
@@ -172,6 +232,7 @@ class MomentumScoringMixin:
                     "macd": macd,
                     "price_vs_sma_50": price_vs_sma_50,
                     "price_vs_sma_200": price_vs_sma_200,
+                    "vol_252d": vol_252d,
                 }
 
             return {
@@ -183,6 +244,7 @@ class MomentumScoringMixin:
                 "macd": macd,
                 "price_vs_sma_50": price_vs_sma_50,
                 "price_vs_sma_200": price_vs_sma_200,
+                "vol_252d": vol_252d,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
@@ -410,11 +472,14 @@ class MomentumScoringMixin:
             "momentum_3m": 0.20,
         }
 
+        vol_252d = metrics.get("vol_252d")
+        median_vol_252d = self._get_median_vol_252d()
+
         weighted_sum = 0.0
         total_weight = 0.0
         for key, w in weights.items():
             if metrics.get(key) is not None:
-                score = self._pct_to_score(metrics[key])
+                score = self._pct_to_score(self._risk_adjust_pct(metrics[key], vol_252d, median_vol_252d))
                 if score is not None:  # Skip weak momentum (score=None)
                     weighted_sum += score * w
                     total_weight += w
@@ -434,7 +499,7 @@ class MomentumScoringMixin:
             if abs(denom) > 1e-6:
                 mom_12_1 = ((1.0 + mom_12m_raw / 100.0) / denom - 1.0) * 100.0
                 if math.isfinite(mom_12_1):
-                    mom_12_1_score = self._pct_to_score(mom_12_1)
+                    mom_12_1_score = self._pct_to_score(self._risk_adjust_pct(mom_12_1, vol_252d, median_vol_252d))
                     if mom_12_1_score is not None:  # Skip weak momentum (score=None)
                         weighted_sum += mom_12_1_score * 0.45
                         total_weight += 0.45
@@ -518,6 +583,51 @@ class MomentumScoringMixin:
             f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol}) - no scoreable fields"
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_scores_computed"}
+
+    def _get_median_vol_252d(self) -> float:
+        """Batch-computed median volatility_252d across self._stability_cache (recomputed fresh
+        on every scoring run, not frozen - see MEDIAN_UNIVERSE_VOL_252D's own FROZEN-CONSTANT
+        DRIFT docstring note for why a snapshot constant would go stale). Falls back to that
+        live-measured constant when _stability_cache is empty/unpopulated (isolated unit tests
+        that never run `_prepare_batch_context`, or a genuinely empty batch) - same graceful-
+        degradation convention this pillar already uses everywhere else. Cached on the instance
+        after first computation - the batch doesn't change mid-run, so recomputing per-symbol
+        would be wasted work across thousands of calls.
+        """
+        cached: float | None = getattr(self, "_median_vol_252d_cache", None)
+        if cached is not None:
+            return cached
+        stability_cache = getattr(self, "_stability_cache", None)
+        vols = sorted(
+            float(row[0])
+            for row in (stability_cache or {}).values()
+            if row and row[0] is not None and float(row[0]) > 0
+        )
+        median = vols[len(vols) // 2] if vols else MEDIAN_UNIVERSE_VOL_252D
+        self._median_vol_252d_cache = median
+        return median
+
+    @staticmethod
+    def _risk_adjust_pct(
+        raw_pct: float, vol_252d: float | None, median_vol_252d: float = MEDIAN_UNIVERSE_VOL_252D
+    ) -> float:
+        """Risk-adjust a raw percentage return for feeding into `_pct_to_score` - see
+        RISK-ADJUSTED MOMENTUM module-level docstring for the full rationale. Returns raw_pct
+        unchanged when vol_252d is missing or below MIN_VOL_252D_FOR_RISK_ADJUSTMENT (graceful
+        degradation, same "score what's available" convention as every other input in this
+        pillar - a missing/unreliable volatility reading isn't a reason to withhold the
+        momentum reading itself).
+
+        median_vol_252d defaults to the frozen MEDIAN_UNIVERSE_VOL_252D constant (kept for
+        direct unit testing of this method in isolation) - `_score_momentum` always passes the
+        freshly-computed `_get_median_vol_252d()` value instead, per that constant's own
+        FROZEN-CONSTANT DRIFT docstring note.
+        """
+        if vol_252d is None or vol_252d < MIN_VOL_252D_FOR_RISK_ADJUSTMENT:
+            return raw_pct
+        multiplier = median_vol_252d / vol_252d
+        multiplier = max(MIN_RISK_ADJUSTMENT_MULTIPLIER, min(MAX_RISK_ADJUSTMENT_MULTIPLIER, multiplier))
+        return raw_pct * multiplier
 
     @staticmethod
     def _pct_to_score(pct_return: float) -> float | None:
