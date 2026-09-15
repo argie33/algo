@@ -345,11 +345,40 @@ class AlignmentChecker(BaseCheck):
             )
 
     def check_cross_table_alignment(self, cur: Any) -> None:
-        """Dependent tables cover same symbol universe as price_daily."""
+        """Dependent tables cover same symbol universe as price_daily.
+
+        BUG FOUND 2026-09-14 (same race as coverage.py's check_loader_coverage, fixed the
+        same session: patrol_run_id 7c0d02266a824df3ac1fba984c8f5355 live-reproduced
+        price_daily coverage crashing to 0.2% off a bare MAX(date)): this method's ratio
+        checks are just as exposed, and worse - it compares TWO independently-progressing
+        tables' own bare MAX(date) counts against each other. If price_daily's day is
+        already fully loaded (a large, correct `baseline`) but technical_data_daily's
+        MAX(date) has just flipped to that same brand-new day with only a handful of rows
+        landed so far, `count / baseline` crashes toward zero and fires a false ERROR
+        against technical_data_daily even though its own load simply hasn't finished yet -
+        identical failure shape, different table pair. Both the baseline and the per-table
+        counts below now require IN_PROGRESS_LOAD_FLOOR symbols on a candidate date before
+        trusting it, degrading to the bare MAX(date) (prior behavior) only when no recent
+        date clears that floor.
+        """
         try:
             cur.execute("""
                 SELECT COUNT(DISTINCT symbol) as symbol_count FROM price_daily
-                WHERE date = (SELECT MAX(date) FROM price_daily)
+                WHERE date = COALESCE(
+                    (
+                        SELECT date FROM (
+                            SELECT date, COUNT(DISTINCT symbol) AS c
+                            FROM price_daily
+                            GROUP BY date
+                            ORDER BY date DESC
+                            LIMIT 7
+                        ) recent_dates
+                        WHERE c >= 50
+                        ORDER BY date DESC
+                        LIMIT 1
+                    ),
+                    (SELECT MAX(date) FROM price_daily)
+                )
             """)
             row = cur.fetchone()
             if row is None:
@@ -382,10 +411,28 @@ class AlignmentChecker(BaseCheck):
             )
             return
 
+        def _race_resistant_date_where(table: str) -> str:
+            safe_table = assert_safe_table(table)
+            return f"""date = COALESCE(
+                (
+                    SELECT date FROM (
+                        SELECT date, COUNT(DISTINCT symbol) AS c
+                        FROM {safe_table}
+                        GROUP BY date
+                        ORDER BY date DESC
+                        LIMIT 7
+                    ) recent_dates
+                    WHERE c >= 50
+                    ORDER BY date DESC
+                    LIMIT 1
+                ),
+                (SELECT MAX(date) FROM {safe_table})
+            )"""
+
         checks = [
             (
                 "technical_data_daily",
-                "date = (SELECT MAX(date) FROM technical_data_daily)",
+                _race_resistant_date_where("technical_data_daily"),
                 0.95,
                 ERROR,
             ),
@@ -400,7 +447,7 @@ class AlignmentChecker(BaseCheck):
             # dedicated absolute-row-count contract, patrol_buy_sell_daily_14d_min=800).
             (
                 "trend_template_data",
-                "date = (SELECT MAX(date) FROM trend_template_data)",
+                _race_resistant_date_where("trend_template_data"),
                 0.95,
                 WARN,
             ),
