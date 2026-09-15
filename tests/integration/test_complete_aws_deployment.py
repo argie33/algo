@@ -96,16 +96,22 @@ class TestCompleteAWSDeployment:
             "no growth candidate should be sign-flipped - user directive was growth should not be inverted"
         )
 
-    def test_growth_metrics_marked_enrichment(self):
-        """Verify growth_metrics is enrichment-only (not critical for core trading)."""
+    def test_growth_metrics_marked_critical(self):
+        """Verify growth_metrics is critical, matching Phase 1's halt_tables promotion."""
         from utils.data_tiers import CRITICAL_DATA
 
-        # growth_metrics is an enrichment (Session 221): needed for website display,
-        # not for core trading signals. Phase 1 halts only on price/market regime data.
-        # (utils.data_tiers.CRITICAL_DATA is the set phase1_failsafe_retry.py's is_critical()
-        # actually reads at retry-decision time - see that module's history for a duplicate,
-        # unused set that drifted from this one and was removed 2026-07-21.)
-        assert "growth_metrics" not in CRITICAL_DATA, "growth_metrics should be enrichment-only"
+        # CORRECTED 2026-09-14: the "Session 221 enrichment-only" premise this test used to
+        # assert was overturned on 2026-09-13 (composite-score structural audit) -
+        # phase7_signal_generation.py hard-gates real trades on composite_score, which is
+        # built directly from growth_metrics/quality_metrics/value_metrics/stability_metrics.
+        # phase1_table_freshness.py's halt_tables was updated that same session, but this
+        # CRITICAL_DATA set (which is what phase1_failsafe_retry.py's is_critical() actually
+        # reads at retry-decision time - see that module's history for a duplicate, unused
+        # set that drifted from this one and was removed 2026-07-21) was left stale until
+        # this fix, silently skipping automatic retry for these four tables.
+        assert "growth_metrics" in CRITICAL_DATA, (
+            "growth_metrics must be critical (feeds composite_score, Phase 7 hard-gates on it)"
+        )
 
     def test_growth_score_coverage_requirement(self):
         """Verify stock_scores requires growth_metrics coverage validation."""

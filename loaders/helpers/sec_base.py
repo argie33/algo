@@ -1503,14 +1503,14 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     if sec_field == "fiscal_period" and self.period == "annual":
                         continue
                     symbol = r.get("symbol", "?")
-                    if symbol not in unmapped_fields_per_symbol:
-                        unmapped_fields_per_symbol[symbol] = set()
-                    unmapped_fields_per_symbol[symbol].add(sec_field)
-                    logger.warning(
-                        f"[{self.table_name}] {symbol}: Unmapped SEC field '{sec_field}'. "
-                        f"This field is present in SEC XBRL data but has no database column mapping. "
-                        f"Check if field_mapping in load_financial_statements.py needs updating."
-                    )
+                    seen_fields = unmapped_fields_per_symbol.setdefault(symbol, set())
+                    if sec_field not in seen_fields:  # FIX 2026-09-14: was per-row, not per-(symbol,field)
+                        logger.warning(
+                            f"[{self.table_name}] {symbol}: Unmapped SEC field '{sec_field}'. "
+                            f"This field is present in SEC XBRL data but has no database column mapping. "
+                            f"Check if field_mapping in load_financial_statements.py needs updating."
+                        )
+                    seen_fields.add(sec_field)
                     continue
 
                 db_field = field_mapping[sec_field]

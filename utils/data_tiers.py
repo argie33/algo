@@ -32,6 +32,13 @@ CRITICAL_DATA: set[str] = {
     "market_exposure_daily",
     # Earnings dates: Required for 7-day blackout window gating (Phase 5)
     "earnings_calendar",
+    # FIX 2026-09-14: promoted to halt_tables 2026-09-13 but left off CRITICAL_DATA, so
+    # phase1_failsafe_retry.py's is_critical()-gated auto-retry silently skipped them on
+    # real failures, going straight to a hard halt instead - see commit message.
+    "growth_metrics",
+    "quality_metrics",
+    "value_metrics",
+    "stability_metrics",
 }
 
 # AUXILIARY DATA TIER
@@ -49,8 +56,6 @@ AUXILIARY_DATA: set[str] = {
     "trend_template_data",
     # Positioning: Institutional money flow enrichment (optional)
     "positioning_metrics",
-    # Quality/stability: Risk enrichment (not required for base logic)
-    "stability_metrics",
     # VIX/breadth: Market health enrichment (market_health_daily is critical, these are supplementary)
     "aaii_sentiment",
     "fear_greed_index",
