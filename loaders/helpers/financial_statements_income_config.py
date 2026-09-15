@@ -419,6 +419,21 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # ADDED 2026-09-13: same dual-membership precedent as its two siblings above - see
         # sec_base.py's _REVENUE_TOTAL_CANDIDATE_FIELDS comment (ARCB case).
         "sales_revenue_services_net",
+        # FIXED 2026-09-15 (goal: "fix the data issues we still have" quarantine-backlog
+        # dig, RJF live-confirmed via real SEC EDGAR companyfacts JSON): "investment_
+        # advisory_management_and_administrative_fees" was added 2026-09-13 as a plain,
+        # always-overwrite mapping for GROW (US Global Investors), which has no other
+        # revenue concept at all - correct for GROW, but RJF (Raymond James Financial, a
+        # real wealth-management/broker-dealer filer) tags BOTH this narrower advisory-fees
+        # line item AND the correct "RevenuesNetOfInterestExpense" total for the same
+        # filing, and this concept is listed after it above, so last-listed-wins overwrite
+        # semantics let the fee sub-line win, understating RJF FY2014-2016 revenue by ~13x
+        # and tripping tie_out_identity_quarterly.py's quarterly-sum-vs-annual check into
+        # quarantining RJF. Same "narrow line item added as an always-overwrite concept
+        # clobbers a real total it should only ever fall back to" bug class as the
+        # cost_of_goods_and_services_sold/CAT fix just below - fallback-only here too so
+        # GROW (no other concept) keeps working while RJF's real total wins.
+        "investment_advisory_management_and_administrative_fees",
         # FIXED 2026-08-17 (goal: "no SEC data" audit continuation): "cost_of_goods_and_
         # services_sold" (added e1a3ae3b9 as a plain, always-overwrite mapping so retail/
         # product filers that never tag CostOfRevenue/CostOfSales at all - AMZN et al -
