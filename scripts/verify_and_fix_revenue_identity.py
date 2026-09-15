@@ -133,8 +133,27 @@ def _reload_batch(symbols: list[str]) -> bool:
     """Shells out to the real, unmodified production loader for exactly these symbols.
     Returns True if the subprocess exited 0. A non-zero exit is logged and treated as "no
     reload happened" for this batch (rows stay whatever they were before) - never silently
-    assumed to have worked."""
-    env = {**os.environ, "LOADER_STATEMENT_TYPE": "income", "LOADER_PERIOD": "annual"}
+    assumed to have worked.
+
+    FIXED 2026-09-15 (goal: "fix the data issues we still have" follow-up, NBHC live-
+    confirmed): every flagged fiscal year here is, by definition, an OLD one (already loaded
+    long enough ago to have accumulated a quarters-sum/annual-total mismatch) - exactly the
+    case ConsolidatedFinancialStatementsLoader's incremental watermark is designed to skip.
+    Without BACKFILL_DAYS, this reload was silently filtering out every flagged fiscal year
+    whose watermark had already advanced past it, exiting 0 ("PASS") and leaving
+    annual_income_statement completely unchanged - live-confirmed via NBHC FY2024: the
+    watermark (2025-12-31) filtered the row out on every earlier run this session, so despite
+    dozens of "successful" reload batches the row never budged from its stale, wrong value;
+    passing BACKFILL_DAYS=1825 (the loader's own configured max - see optimal_loader.py's
+    LOADER_MAX_BACKFILL_DAYS check) made the loader actually re-fetch and re-write it,
+    correcting it immediately. Same likely explanation for most of this run's own historical
+    "0 fixed" results - see [[quarterly_revenue_wrong_concept_distinct_bug_lead_20260915]] in
+    memory for the fuller writeup. 1825 (not the 3650 first tried) because the loader
+    hard-caps backfill windows there; this only widens what a single subprocess call fetches,
+    it doesn't touch rate limits or write anything not already gated by the guards this
+    subprocess runs through.
+    """
+    env = {**os.environ, "LOADER_STATEMENT_TYPE": "income", "LOADER_PERIOD": "annual", "BACKFILL_DAYS": "1825"}
     cmd = [sys.executable, "-m", "loaders.load_financial_statements", "--symbols", ",".join(symbols)]
     logger.info(f"[VERIFY_REVENUE] Reloading batch of {len(symbols)} symbol(s): {symbols[0]}..{symbols[-1]}")
     try:
