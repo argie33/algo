@@ -1249,7 +1249,12 @@ def _verify_open_position_stop_loss_protection_step(
     """
     try:
         from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
-        from algo.orchestrator.phase9_stop_loss_repair import check_and_repair_one_position
+        from algo.orchestrator.phase9_stop_loss_repair import (
+            alert_secondary_leg_gaps,
+            alert_unrepairable_positions,
+            check_and_repair_one_position_safely,
+            check_secondary_legs_safely,
+        )
         from algo.trading.order_manager import OrderManager
 
         sync_mgr = AlpacaSyncManager(config)
@@ -1340,6 +1345,7 @@ def _verify_open_position_stop_loss_protection_step(
         repaired: list[str] = []
         unrepairable: list[str] = []
         check_failures: list[str] = []
+        secondary_leg_gaps: list[str] = []
         for pos_id, symbol, trade_ids_arr, quantity, current_stop_price, standalone_stop_order_id in open_positions:
             # REAL-MONEY-READINESS FIX (2026-09-05 audit): check_and_repair_one_position
             # issues its own DB reads/writes outside of any try/except (e.g. the
@@ -1348,16 +1354,10 @@ def _verify_open_position_stop_loss_protection_step(
             # open position for the rest of this cycle with nothing beyond a warning log
             # at the bottom of this function. One symbol's transient DB hiccup must not be
             # able to starve every other position of its stop-loss protection check.
-            try:
-                outcome = check_and_repair_one_position(
-                    order_mgr, pos_id, symbol, trade_ids_arr, quantity, current_stop_price, standalone_stop_order_id
-                )
-            except Exception as per_pos_err:
-                logger.error(
-                    f"[PHASE 9] {symbol} (position {pos_id}): stop-loss protection check raised "
-                    f"unexpectedly, treating as unrepairable and continuing to next position: {per_pos_err}",
-                    exc_info=True,
-                )
+            outcome = check_and_repair_one_position_safely(
+                order_mgr, pos_id, symbol, trade_ids_arr, quantity, current_stop_price, standalone_stop_order_id
+            )
+            if outcome == "check_failure":
                 check_failures.append(symbol)
                 continue
             if outcome == "skipped":
@@ -1367,6 +1367,10 @@ def _verify_open_position_stop_loss_protection_step(
                 repaired.append(symbol)
             elif outcome == "unrepairable":
                 unrepairable.append(symbol)
+
+            gap_desc = check_secondary_legs_safely(order_mgr, pos_id, symbol, trade_ids_arr)
+            if gap_desc:
+                secondary_leg_gaps.append(gap_desc)
         unrepairable = unrepairable + check_failures
 
         if repaired:
@@ -1387,62 +1391,21 @@ def _verify_open_position_stop_loss_protection_step(
                 logger.warning(f"[PHASE 9] Failed to send auto-repair notification for {repaired}: {notify_err}")
 
         if unrepairable:
-            # REAL-MONEY-READINESS FIX (2026-09-05, ported from an unmerged WIP fix found
-            # while checking on flagged real-money-readiness gaps): this is the alert of last
-            # resort for a position confirmed to have NO stop-loss protection - the exact
-            # scenario this whole check was built to catch. It used to call notify() without
-            # strict=True, meaning notify()'s own blanket except (notifications.py) would
-            # swallow a genuine delivery failure (e.g. SMTP down/misconfigured - the only
-            # channel this codebase's notify() actually has, see notifications.py's
-            # _send_notification) and this function's own except below could never
-            # distinguish "delivered" from "silently failed to deliver" - both looked
-            # identical: a log line nobody may ever read. strict=True makes a real delivery
-            # failure raise NotificationError instead, which triggers one immediate retry
-            # (covers a transient SMTP blip) before falling through to the loudest failure
-            # signal available in this function's scope (log_phase_result_fn below still
-            # records "critical" phase-result status regardless, so a dashboard/monitoring
-            # check of phase results is a second, independent trace of this even if both
-            # notify attempts fail outright).
-            from algo.reporting.notifications import notify
-            from algo.trading.exceptions import NotificationError
+            alert_unrepairable_positions(unrepairable)
 
-            alert_title = "Open Position(s) Missing Stop-Loss Protection - AUTO-REPAIR FAILED"
-            alert_message = (
-                f"{len(unrepairable)} open position(s) have NO live stop-loss leg AND "
-                f"automatic repair failed: {', '.join(unrepairable)}. Do not assume these "
-                "positions are protected - investigate and re-arm protection immediately."
-            )
-            try:
-                notify("critical", title=alert_title, message=alert_message, strict=True)
-            except NotificationError as first_err:
-                logger.critical(
-                    f"[PHASE 9 CRITICAL] Alert delivery failed for unrepairable positions "
-                    f"{unrepairable} - retrying once: {first_err}"
-                )
-                try:
-                    notify("critical", title=alert_title, message=alert_message, strict=True)
-                except NotificationError as retry_err:
-                    logger.critical(
-                        f"[PHASE 9 CRITICAL] Alert delivery failed TWICE for unrepairable positions "
-                        f"{unrepairable} - these positions have NO stop-loss protection and NO ALERT "
-                        f"WAS DELIVERED. Manual investigation required immediately: {retry_err}",
-                        exc_info=True,
-                    )
-            except Exception as notify_err:
-                logger.critical(
-                    f"[PHASE 9 CRITICAL] Failed to alert on unrepairable positions {unrepairable}: {notify_err}",
-                    exc_info=True,
-                )
+        if secondary_leg_gaps:
+            alert_secondary_leg_gaps(secondary_leg_gaps)
 
         log_phase_result_fn(
             9,
             "stop_loss_protection_check",
-            "critical" if unrepairable else ("warn" if repaired else "success"),
+            "critical" if (unrepairable or secondary_leg_gaps) else ("warn" if repaired else "success"),
             (
-                f"{len(repaired)} auto-repaired, {len(unrepairable)} unrepairable "
-                f"of {checked} open position(s) checked: repaired={repaired} unrepairable={unrepairable}"
+                f"{len(repaired)} auto-repaired, {len(unrepairable)} unrepairable, "
+                f"{len(secondary_leg_gaps)} secondary-leg gap(s) of {checked} open position(s) checked: "
+                f"repaired={repaired} unrepairable={unrepairable} secondary_leg_gaps={secondary_leg_gaps}"
             )
-            if (repaired or unrepairable)
+            if (repaired or unrepairable or secondary_leg_gaps)
             else f"verified {checked} open position(s) protected",
         )
 

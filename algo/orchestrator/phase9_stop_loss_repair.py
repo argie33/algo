@@ -276,6 +276,218 @@ def check_and_repair_one_position(
     return "repaired"
 
 
+def check_secondary_legs_one_position(
+    order_mgr: Any,
+    pos_id: Any,
+    symbol: str,
+    trade_ids_arr: list[Any] | None,
+) -> list[str]:
+    """Verify each pyramid leg BEYOND trade_ids_arr[0] still has its own live stop-loss
+    order resting at the broker. Detect-and-alert only, deliberately NOT auto-repair.
+
+    check_and_repair_one_position (above) only ever checks/repairs trade_ids_arr[0]'s own
+    bracket - see its own leading comment for why (algo_positions has exactly one
+    standalone_stop_order_id column, position-level, not per-leg - there is nowhere to
+    durably record a second leg's own repair order without a schema change, and
+    submitting one anyway risks a future cycle losing track of it entirely and
+    resubmitting a duplicate every run forever). Until that schema gap is closed, this
+    function closes the narrower, more urgent gap instead: a missing leg 2+ stop
+    currently gets NO check at all, every cycle, forever - this at least surfaces it
+    loudly to a human every cycle it persists, the same "can't self-heal, so alert"
+    fallback check_and_repair_one_position itself uses when repair isn't possible.
+
+    Returns the trade_ids of legs confirmed to have no live stop-loss leg.
+    """
+    if not trade_ids_arr or len(trade_ids_arr) < 2:
+        # Single-leg position (the overwhelming majority) - no secondary legs exist, so
+        # there is no work to do here, not a data gap.
+        return []
+
+    unprotected: list[str] = []
+    for trade_id in trade_ids_arr[1:]:
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT alpaca_order_id FROM algo_trades WHERE trade_id = %s", (trade_id,))
+            row = cur.fetchone()
+        alpaca_order_id = row[0] if row else None
+        if not alpaca_order_id:
+            continue  # nothing resolvable for this leg - same as the primary leg's "skipped"
+
+        try:
+            result = order_mgr.check_stop_loss_leg_live(alpaca_order_id)
+        except Exception as e:
+            logger.critical(
+                f"[PHASE 9] {symbol} (position {pos_id}, leg {trade_id}): could not verify "
+                f"stop-loss leg for order {alpaca_order_id}, cannot confirm protection: {e}"
+            )
+            unprotected.append(str(trade_id))
+            continue
+
+        if not result.get("checked"):
+            continue  # paper/local mode or order no longer resolvable - nothing to verify
+        if not result.get("has_live_stop_loss"):
+            logger.critical(
+                f"[PHASE 9 CRITICAL] {symbol} (position {pos_id}, leg {trade_id}, order "
+                f"{alpaca_order_id}): {result.get('message')} - no auto-repair available for "
+                "secondary legs (see this function's docstring), manual re-protection required"
+            )
+            unprotected.append(str(trade_id))
+
+    return unprotected
+
+
+def check_and_repair_one_position_safely(
+    order_mgr: Any,
+    pos_id: Any,
+    symbol: str,
+    trade_ids_arr: list[Any] | None,
+    quantity: float | None,
+    current_stop_price: float | None,
+    standalone_stop_order_id: str | None,
+) -> str:
+    """Wraps check_and_repair_one_position with per-position exception isolation - split
+    out of phase9_reconciliation.py's _verify_open_position_stop_loss_protection_step to
+    keep that function's cyclomatic complexity under the repo's ruff C901 gate (and,
+    since that file is already past the 2000-line file-size-ratchet ceiling, to avoid
+    growing it further - the same reason this whole module was split out originally).
+
+    REAL-MONEY-READINESS FIX (2026-09-05 audit): check_and_repair_one_position issues its
+    own DB reads/writes outside of any try/except (e.g. the alpaca_order_id lookup) - an
+    unhandled exception there used to propagate out of the caller's loop entirely,
+    silently skipping verification of every remaining open position for the rest of this
+    cycle with nothing beyond a warning log at the bottom of that function. One symbol's
+    transient DB hiccup must not be able to starve every other position of its
+    stop-loss protection check.
+
+    Returns the same Outcome check_and_repair_one_position does, plus "check_failure"
+    for an exception here (distinct from "unrepairable" only so the caller can fold it
+    into unrepairable itself, matching this function's pre-extraction behavior exactly).
+    """
+    try:
+        return check_and_repair_one_position(
+            order_mgr, pos_id, symbol, trade_ids_arr, quantity, current_stop_price, standalone_stop_order_id
+        )
+    except Exception as per_pos_err:
+        logger.error(
+            f"[PHASE 9] {symbol} (position {pos_id}): stop-loss protection check raised "
+            f"unexpectedly, treating as unrepairable and continuing to next position: {per_pos_err}",
+            exc_info=True,
+        )
+        return "check_failure"
+
+
+def check_secondary_legs_safely(
+    order_mgr: Any, pos_id: Any, symbol: str, trade_ids_arr: list[Any] | None
+) -> str | None:
+    """Wraps check_secondary_legs_one_position with the same per-position exception
+    isolation check_and_repair_one_position gets in its own caller loop, and formats a
+    human-readable gap description - split out of phase9_reconciliation.py for the same
+    complexity/file-size reasons as check_and_repair_one_position_safely above.
+    """
+    try:
+        gaps = check_secondary_legs_one_position(order_mgr, pos_id, symbol, trade_ids_arr)
+    except Exception as secondary_err:
+        logger.error(
+            f"[PHASE 9] {symbol} (position {pos_id}): secondary-leg stop-loss check "
+            f"raised unexpectedly, continuing to next position: {secondary_err}",
+            exc_info=True,
+        )
+        return None
+    if not gaps:
+        return None
+    return f"{symbol} (leg trade_id(s) {', '.join(gaps)})"
+
+
+def alert_unrepairable_positions(unrepairable: list[str]) -> None:
+    """Loud, retried critical alert for a position confirmed to have NO stop-loss
+    protection - the exact scenario phase9_reconciliation.py's
+    _verify_open_position_stop_loss_protection_step was built to catch. Split out of
+    that function for the same complexity/file-size reasons as the two functions above.
+
+    REAL-MONEY-READINESS FIX (2026-09-05, ported from an unmerged WIP fix found while
+    checking on flagged real-money-readiness gaps): this used to call notify() without
+    strict=True, meaning notify()'s own blanket except (notifications.py) would swallow
+    a genuine delivery failure (e.g. SMTP down/misconfigured - the only channel this
+    codebase's notify() actually has, see notifications.py's _send_notification) and the
+    caller's own except could never distinguish "delivered" from "silently failed to
+    deliver" - both looked identical: a log line nobody may ever read. strict=True makes
+    a real delivery failure raise NotificationError instead, which triggers one
+    immediate retry (covers a transient SMTP blip) before falling through to the loudest
+    failure signal available in this function's scope (log_phase_result_fn at the
+    caller still records "critical" phase-result status regardless, so a
+    dashboard/monitoring check of phase results is a second, independent trace of this
+    even if both notify attempts fail outright).
+    """
+    from algo.reporting.notifications import notify
+    from algo.trading.exceptions import NotificationError
+
+    alert_title = "Open Position(s) Missing Stop-Loss Protection - AUTO-REPAIR FAILED"
+    alert_message = (
+        f"{len(unrepairable)} open position(s) have NO live stop-loss leg AND "
+        f"automatic repair failed: {', '.join(unrepairable)}. Do not assume these "
+        "positions are protected - investigate and re-arm protection immediately."
+    )
+    try:
+        notify("critical", title=alert_title, message=alert_message, strict=True)
+    except NotificationError as first_err:
+        logger.critical(
+            f"[PHASE 9 CRITICAL] Alert delivery failed for unrepairable positions "
+            f"{unrepairable} - retrying once: {first_err}"
+        )
+        try:
+            notify("critical", title=alert_title, message=alert_message, strict=True)
+        except NotificationError as retry_err:
+            logger.critical(
+                f"[PHASE 9 CRITICAL] Alert delivery failed TWICE for unrepairable positions "
+                f"{unrepairable} - these positions have NO stop-loss protection and NO ALERT "
+                f"WAS DELIVERED. Manual investigation required immediately: {retry_err}",
+                exc_info=True,
+            )
+    except Exception as notify_err:
+        logger.critical(
+            f"[PHASE 9 CRITICAL] Failed to alert on unrepairable positions {unrepairable}: {notify_err}",
+            exc_info=True,
+        )
+
+
+def alert_secondary_leg_gaps(secondary_leg_gaps: list[str]) -> None:
+    """Loud, retried critical alert for pyramid legs beyond trade_ids_arr[0] confirmed to
+    have no live stop-loss order - split out of phase9_reconciliation.py for the same
+    complexity/file-size reasons as the functions above. Same retry-once-then-log
+    pattern as the sibling "unrepairable" alert above.
+    """
+    from algo.reporting.notifications import notify
+    from algo.trading.exceptions import NotificationError
+
+    alert_title = "Pyramid Leg(s) Missing Stop-Loss Protection - No Auto-Repair Available"
+    alert_message = (
+        f"{len(secondary_leg_gaps)} pyramided position(s) have a NON-PRIMARY leg with no "
+        f"live stop-loss order resting at the broker: {'; '.join(secondary_leg_gaps)}. "
+        "Auto-repair only covers each position's primary leg (trade_ids_arr[0]) - these "
+        "legs need manual re-protection."
+    )
+    try:
+        notify("critical", title=alert_title, message=alert_message, strict=True)
+    except NotificationError as first_err:
+        logger.critical(
+            f"[PHASE 9 CRITICAL] Alert delivery failed for secondary-leg gaps "
+            f"{secondary_leg_gaps} - retrying once: {first_err}"
+        )
+        try:
+            notify("critical", title=alert_title, message=alert_message, strict=True)
+        except NotificationError as retry_err:
+            logger.critical(
+                f"[PHASE 9 CRITICAL] Alert delivery failed TWICE for secondary-leg gaps "
+                f"{secondary_leg_gaps} - NO ALERT WAS DELIVERED. Manual investigation "
+                f"required immediately: {retry_err}",
+                exc_info=True,
+            )
+    except Exception as notify_err:
+        logger.critical(
+            f"[PHASE 9 CRITICAL] Failed to alert on secondary-leg gaps {secondary_leg_gaps}: {notify_err}",
+            exc_info=True,
+        )
+
+
 def _cancel_orphaned_standalone_stop_if_take_profit_filled(
     order_mgr: Any,
     symbol: str,
