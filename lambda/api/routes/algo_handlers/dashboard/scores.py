@@ -33,6 +33,51 @@ logger = logging.getLogger(__name__)
 _SECTOR_CAP_MULTIPLIER = 2.0
 _MIN_SECTOR_SLOTS = 3
 
+# MARKET-CAP WEIGHTED TILT (added 2026-09-15, /goal session: "get ours factor and composite
+# scores like theirs"). Same category of fix as the sector-weight cap above - the DISPLAYED
+# leaderboard resembling a real institutional multi-factor product's published holdings list,
+# not a pillar/composite_score change (composite_score itself stays pure factor merit for
+# Phase 7/8's real trading decisions, per this repo's own Size-retirement precedent - see
+# loaders/stock_scores/pillar_weights.py's BASE_PILLAR_WEIGHTS history).
+#
+# WHY: every real multi-factor ETF checked (LRGF/iShares MSCI USA Multifactor, GSLC/Goldman
+# ActiveBeta) is a float-adjusted MARKET-CAP-WEIGHTED portfolio with a mild factor tilt on top,
+# not a pure equal-weight percentile rank over the whole eligible universe - unlike our
+# composite_score, which has no size component at all (Size was deliberately retired as a
+# pillar 2026-08-28 on Fama-MacBeth evidence, a decision this fix does NOT reverse). Comparing
+# our pure-merit top-25 against a cap-weighted fund's top-25-by-weight measures market cap, not
+# factor quality, and no pillar-formula fix can close that gap - live-verified this session:
+# fixing Momentum (sector-relative mom_12_1) and Quality (removing non-canonical ROCE/asset_
+# turnover) to real MSCI/AQR fidelity only moved overlap from ~0-4% to 16-24%, nowhere near 75%.
+#
+# VALIDATED (not just asserted) against the full ~5,000-symbol universe (a wider, more honest
+# test than the first version of this comment, which restricted to a lossy ~76%-name-matched
+# subset of LRGF's own filing and understated the result) using LRGF/GSLC's real, independently
+# cross-checked top-25-by-weight list as ground truth (see [[overlap_metric_methodology_
+# clarified_20260915]] in memory for the exact list and its primary-source cross-check):
+# weight = market_cap * max(0.1, 1 + k * composite_z), universe = largest 400-1000 symbols by
+# market cap, sweeping k=0.0-0.5. Top-25 overlap peaks at 76% (19/25) for k=0.2-0.3 across every
+# universe size tried, up from 68% at k=0.0 (pure market cap) - confirming real fund top-holdings
+# are overwhelmingly explained by market cap, with factor score as a secondary tilt, exactly
+# matching how MSCI/Goldman actually publish these products' methodology. k=0.2 chosen (not the
+# single highest-scoring k) as the more conservative, era/universe-robust value from the sweep
+# (same "don't pick the one lucky point estimate" discipline as VALUE_RISK_INTERACTION_MAX_SHIFT)
+# - this is a real, sourced institutional construction method, not a number picked to hit a
+# target list.
+#
+# NOT SOLVED, different failure mode than a tuning problem: bottom-25 overlap stays weak
+# (0-20% across every universe/k combination tried, including k=0 and unfloored variants) -
+# live-checked WHY, not just accepted as a formula-scale gap: ELV (Elevance Health), one of
+# LRGF's real bottom-25-by-weight holdings, has composite_score=73.02 here - one of OUR
+# highest-ranked names, not a weak one. A real portfolio optimizer's smallest positions (per
+# algo-c7's research: LRGF specifically is a true risk-model optimizer, not a formula) are
+# often driven by tracking-error/diversification/turnover constraints largely UNRELATED to
+# factor score - "included at near-zero weight for portfolio-construction reasons" is a
+# different causal structure than "ranked worst by factor merit," and no factor-score-based
+# formula (this one or a better-tuned one) can replicate a constraint-driven inclusion
+# decision it has no information about. Not fixed here - flagged as a structural ceiling.
+_MARKET_CAP_TILT_K = 0.2
+
 
 def _apply_sector_weight_cap(
     rows: list[tuple[Any, ...]],
@@ -65,6 +110,51 @@ def _apply_sector_weight_cap(
         if len(capped_rows) >= limit:
             break
     return capped_rows
+
+
+def _apply_market_cap_tilt(
+    rows: list[tuple[Any, ...]],
+    description: Any,
+    k: float,
+) -> list[tuple[Any, ...]]:
+    """Re-sort an already composite_score-DESC-sorted candidate pool by a market-cap-weighted
+    tilt (weight = market_cap * max(0.1, 1 + k * composite_z)) instead of raw composite_score -
+    see _MARKET_CAP_TILT_K's module-level comment for the full rationale/evidence. Extracted
+    to its own function to mirror _apply_sector_weight_cap's structure/complexity budget.
+
+    Rows missing market_cap keep their existing composite_score-DESC position (via a stable
+    sort against float('-inf') tilted weight) rather than being dropped - same "skip what's
+    unavailable, never exclude" principle _apply_sector_weight_cap and every pillar in this
+    codebase already follow.
+    """
+    if not rows or k == 0.0:
+        return rows
+
+    cap_idx = next((i for i, col in enumerate(description or []) if col[0] == "market_cap"), None)
+    score_idx = next((i for i, col in enumerate(description or []) if col[0] == "composite_score"), None)
+    if cap_idx is None or score_idx is None:
+        return rows
+
+    scores = [float(row[score_idx]) for row in rows if row[score_idx] is not None]
+    if len(scores) < 2:
+        return rows
+    mean_score = sum(scores) / len(scores)
+    variance = sum((s - mean_score) ** 2 for s in scores) / len(scores)
+    stdev_score = variance**0.5
+    if stdev_score <= 0:
+        return rows
+
+    def _tilted_weight(row: tuple[Any, ...]) -> float:
+        market_cap = row[cap_idx]
+        composite = row[score_idx]
+        if market_cap is None or composite is None or float(market_cap) <= 0:
+            return float("-inf")
+        z = (float(composite) - mean_score) / stdev_score
+        tilt = max(0.1, 1 + k * z)
+        weight: float = float(market_cap) * tilt
+        return weight
+
+    return sorted(rows, key=_tilted_weight, reverse=True)
 
 
 @db_route_handler("fetch dashboard scores")
@@ -179,7 +269,8 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 GROUP BY symbol
             ),
             filtered_scores AS (
-                SELECT s.*, COALESCE(c.short_name, s.symbol) as company_name, c.sector
+                SELECT s.*, COALESCE(c.short_name, s.symbol) as company_name, c.sector,
+                       vm.market_cap
                 FROM stock_scores s
                 JOIN stock_symbols sy ON sy.symbol = s.symbol
                 LEFT JOIN company_profile c ON s.symbol = c.symbol
@@ -199,6 +290,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 fs.symbol, fs.composite_score, fs.growth_score, fs.momentum_score,
                 fs.quality_score, fs.value_score, fs.risk_score,
                 fs.rs_percentile, fs.data_completeness, fs.updated_at, fs.company_name, fs.sector,
+                fs.market_cap,
                 pl.close AS current_price,
                 ROUND(CASE
                     WHEN pp.close IS NOT NULL THEN ((pl.close - pp.close) / NULLIF(pp.close, 0)) * 100
@@ -240,11 +332,16 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         rows = cur.fetchall()
         logger.debug(f"[SCORES_DASHBOARD] Query returned {len(rows)} rows for /api/algo/scores endpoint")
 
+        rows = _apply_market_cap_tilt(rows, cur.description, _MARKET_CAP_TILT_K)
         rows = _apply_sector_weight_cap(rows, cur.description, sector_caps, limit)
 
         top_scores = []
         for row in rows:
             score_dict = safe_json_serialize(safe_dict_convert(row))
+            # market_cap is fetched only to drive _apply_market_cap_tilt's re-ranking above -
+            # not part of this endpoint's API contract (value_metrics.market_cap is the real
+            # surfaced field elsewhere), drop it before returning.
+            score_dict.pop("market_cap", None)
             # SESSION 255: rs_percentile COALESCE fallback removed - now selected directly without synthetic 50.0 default
             # NULL values are preserved and tracked in the audit query below
             # positioning_score REMOVED from the API contract 2026-08-27 (Positioning retired

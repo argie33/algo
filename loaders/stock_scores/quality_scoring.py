@@ -115,17 +115,24 @@ class QualityScoringMixin:
         REBUILT 2026-08-26, EXTENDED 2026-08-27 (Quality pillar exhaustive-input review,
         user-directed - supersedes this docstring's earlier "9-weighted-component cluster
         blend" description, which described the c568eccfe state, not the current one). The
-        upstream quality_score (load_value_quality_growth_metrics.py) is now an 8-weighted-
-        component blend, no clusters: ROA 18%, ROCE 18% (replaces ROIC - fixes ROIC's
-        cash-netting coverage gap), Debt-to-Equity 18% (replaces Debt-to-Assets - tests
-        stronger, t=3.12 vs 2.18), FCF Margin 15% (replaces Accruals Ratio - independent
+        upstream quality_score (loaders/helpers/vqg_quality_score.py) was an 8-weighted-
+        component blend as of 2026-08-27: ROA 18%, ROCE 18% (replaced ROIC - fixed ROIC's
+        cash-netting coverage gap), Debt-to-Equity 18% (replaced Debt-to-Assets - tested
+        stronger, t=3.12 vs 2.18), FCF Margin 15% (replaced Accruals Ratio - independent
         signal, corr=0.13), ROE 11%, Margin Volatility (3Y)/Asset Turnover/Gross Profitability
-        ~7% each - renormalized over whichever are available for a given symbol, with a
-        40-point minimum-available-weight floor out of a 101-point nominal total (below that,
-        quality_score is None rather than a thin-sample extrapolation - see
-        load_value_quality_growth_metrics.py's quality_components comment). Weights are set
-        from both full-sample t-stat magnitude AND a half-split time-stability check, not raw
-        t-stat alone.
+        ~7% each. STALE AS OF 2026-09-15 (per-docstring drift this repo's own standing rule
+        says to never trust without checking live code): ROCE and Asset Turnover were REMOVED
+        from quality_components entirely that day (two-layer validation policy - no real
+        institutional Quality definition scores them; raw roce_pct/asset_turnover still
+        computed/persisted for other consumers, just not scored). Live is now a flat 1/6
+        (~16.7%) equal weight across ROE/ROA/FCF Margin/Debt-to-Equity/Margin Volatility/Gross
+        Profitability - check `vqg_quality_score.py`'s own `quality_components` list for the
+        current authoritative weights rather than trusting this paragraph's numbers going
+        forward. Renormalized over whichever are available for a given symbol, with a
+        40-point minimum-available-weight floor (below that, quality_score is None rather than
+        a thin-sample extrapolation - see vqg_quality_score.py's quality_components comment).
+        Weights are set from both full-sample t-stat magnitude AND a half-split time-stability
+        check, not raw t-stat alone.
 
         Interest Coverage/Payout Ratio REMOVED 2026-08-27: both were live at 5% each on
         nothing but legacy assumption - properly isolated FM re-testing (own dropna scope, not
