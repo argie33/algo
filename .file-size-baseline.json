@@ -731,7 +731,7 @@
   "utils/data/tick_validator.py": 485,
   "utils/data/watermark.py": 361,
   "utils/data_queries.py": 409,
-  "utils/data_tiers.py": 91,
+  "utils/data_tiers.py": 96,
   "utils/db/__init__.py": 44,
   "utils/db/advisory_locks.py": 109,
   "utils/db/connection.py": 304,
