@@ -76,12 +76,19 @@ loaders/load_stock_scores.py directly on 2026-08-31:
   -PE/-PB/-PS (lower ratio = better) is this proxy's analogue of that percentile rank, same
   z-score convention this script already uses for every other pillar.
 
-- quality_proxy: flat 12.5% (1/8) each of ROE/ROA/ROCE/FCF Margin/(-Debt-to-Equity)/
-  (-Margin Volatility 3Y)/Asset Turnover/Gross Profitability, sector-neutral z-scored - the
-  stale 11/18/18/15/18/7/7/7 split here was CORRECTED 2026-09-12 (see quality_proxy's own
-  code comment below); PROXY_QUALITY_NUMERATORS/get_live_quality_weights()'s extraction
-  target were separately fixed 2026-09-13, having drifted independently of the construction
-  itself. Altman Z excluded, computed/persisted but deliberately unscored as a discrete
+- quality_proxy: 15% each of ROE/ROA/FCF Margin/(-Debt-to-Equity)/Gross Profitability, 25%
+  (-Margin Volatility 3Y), sector-neutral z-scored - CORRECTED 2026-09-15: ROCE and Asset
+  Turnover were REMOVED from production's quality_components entirely that day (two-layer
+  validation policy, see [[quality_roce_asset_turnover_removed_from_composite_20260915]]), and
+  the freed-up weight went entirely to Margin Volatility rather than an even re-split across
+  the remaining 6 - live-verified via get_live_quality_weights(), not assumed. The prior flat
+  12.5% (1/8) each of ROE/ROA/ROCE/FCF Margin/(-Debt-to-Equity)/(-Margin Volatility 3Y)/Asset
+  Turnover/Gross Profitability construction was itself only from 2026-09-12 (stale
+  11/18/18/15/18/7/7/7 split CORRECTED that day - see quality_proxy's own code comment below);
+  PROXY_QUALITY_NUMERATORS/get_live_quality_weights()'s extraction target were separately
+  fixed 2026-09-13, having drifted independently of the construction itself - both this and
+  that extraction target went stale again within days of being fixed, same recurring failure
+  mode. Altman Z excluded, computed/persisted but deliberately unscored as a discrete
   distress classifier, not part of the live weighted formula either.
 
 - stability_proxy (maps to live BASE_PILLAR_WEIGHTS["risk"]): flat 25% each of -vol_60d/
@@ -98,10 +105,14 @@ loaders/load_stock_scores.py directly on 2026-08-31:
   approximation carried over from every prior version of this script, not attempted to fix here
   to keep this rebuild's scope to the weight/formula staleness it was written to address.
 
-- momentum_proxy: flat 25% each of mom_3m, mom_12_1, avg(rsi_14, macd_sign), and
-  avg(price_vs_sma_50, price_vs_sma_200) - CORRECTED 2026-09-13 from the stale pre-2026-09-11
-  20/35/37/8 split (missed in the 2026-09-12 pass that fixed stability_proxy/value_proxy/
-  growth_proxy/quality_proxy the same way). RSI/MACD are score-then-averaged in production
+- momentum_proxy: mom_12_1 45% / mom_3m 20% / avg(rsi_14, macd_sign) 15% / avg(price_vs_sma_50,
+  price_vs_sma_200) 20% - CORRECTED 2026-09-15 from the flat-25%-each split (itself only one
+  day old - see [[momentum_industry_consensus_reweight_20260914]]: no institutional Momentum
+  definition uses RSI/MACD/SMA technical indicators, so mom_12_1, the real cross-sectional
+  12-1-month momentum factor, was given the dominant weight). That flat-25% split had itself
+  been CORRECTED 2026-09-13 from the stale pre-2026-09-11 20/35/37/8 split (missed in the
+  2026-09-12 pass that fixed stability_proxy/value_proxy/growth_proxy/quality_proxy the same
+  way). RSI/MACD are score-then-averaged in production
   (two 0-100 sub-scores), but macd_sign is
   ALREADY a sign-only extraction here (np.sign(macd_line) in
   fama_macbeth_momentum_factors.py's compute_daily_indicators), so z-scoring these two
@@ -313,7 +324,7 @@ def get_live_momentum_weights() -> dict[str, float] | None:
 
 
 def get_live_quality_weights() -> dict[str, float] | None:
-    from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
+    from loaders.helpers.vqg_quality_score import QualityScoreMixin
 
     # FIXED 2026-09-13 (/goal scoring-accuracy audit): this extraction targeted
     # `_compute_quality_metrics`, a method name that no longer exists - the file-split
@@ -323,16 +334,25 @@ def get_live_quality_weights() -> dict[str, float] | None:
     # anything. quality_proxy's own construction (further below) was independently already
     # correct - see its own 2026-09-12 CORRECTED comment - only this display/validation path
     # was broken.
-    source = inspect.getsource(ValueQualityGrowthMetricsLoader._compute_quality_composite_score)
+    #
+    # FIXED AGAIN 2026-09-15 (/goal composite-alignment audit, same recurring bug class as
+    # the 2026-09-13 fix above - this drift-checker itself going stale and silently returning
+    # None instead of validating anything): roce_score/asset_turnover_score were removed from
+    # quality_components entirely that day (see [[quality_roce_asset_turnover_removed_from_composite_20260915]]
+    # in memory / the ROCE-removal comment in vqg_quality_score.py), shrinking the list from 8
+    # weighted terms to 6 and changing every remaining weight - this regex still expected the
+    # old 8-term shape and had been returning None (silent extraction failure) since. Also
+    # moved the import off `loaders.load_value_quality_growth_metrics.ValueQualityGrowthMetricsLoader`
+    # (still resolves, since that class mixes QualityScoreMixin in) to import the mixin
+    # directly - one less indirection for the next refactor to break.
+    source = inspect.getsource(QualityScoreMixin._compute_quality_composite_score)
     match = re.search(
         r"quality_components\s*=\s*\[\s*"
         r"\(roe_score,\s*([\d.]+)\),\s*"
         r"\(roa_score,\s*([\d.]+)\),\s*"
-        r"\(roce_score,\s*([\d.]+)\),\s*"
         r"\(fcf_margin_score,\s*([\d.]+)\),\s*"
         r"\(debt_to_equity_score,\s*([\d.]+)\),\s*"
         r"\(margin_volatility_score,\s*([\d.]+)\),\s*"
-        r"\(asset_turnover_score,\s*([\d.]+)\),\s*"
         r"\(gross_profitability_score,\s*([\d.]+)\),?\s*\]",
         source,
     )
@@ -341,11 +361,9 @@ def get_live_quality_weights() -> dict[str, float] | None:
     keys = [
         "roe",
         "roa",
-        "roce",
         "fcf_margin",
         "debt_to_equity",
         "margin_volatility",
-        "asset_turnover",
         "gross_profitability",
     ]
     return dict(zip(keys, (float(g) for g in match.groups()), strict=True))
@@ -357,11 +375,9 @@ PROXY_MOMENTUM_FIELDS = {"mom_3m", "mom_12_1", "tech_trend", "sma"}
 PROXY_QUALITY_FIELDS = {
     "roe",
     "roa",
-    "roce",
     "fcf_margin",
     "debt_to_equity",
     "margin_volatility",
-    "asset_turnover",
     "gross_profitability",
 }
 # growth_proxy's actual implemented subset (equal-weighted, not nominal-weighted like the other
@@ -379,18 +395,25 @@ PROXY_VALUE_NUMERATORS = {"pe": 27.0, "pb": 27.0, "ps": 27.0}
 # reconfirmed via get_live_risk_weights()/get_live_momentum_weights(): all 5 risk fields
 # and all 4 momentum fields are flat 0.20/0.25 respectively - no [DRIFT] now.
 PROXY_RISK_NUMERATORS = {"vol60": 1.0, "vol252": 1.0, "beta": 1.0, "maxdd": 1.0}
-PROXY_MOMENTUM_NUMERATORS = {"mom_3m": 1.0, "mom_12_1": 1.0, "tech_trend": 1.0, "sma": 1.0}
+# FIXED 2026-09-15: live moved off flat equal-weight the day after the 2026-09-13 fix above -
+# see momentum_proxy's own 2026-09-15 comment below for the mom_12_1/momentum_3m/tech_trend/
+# sma_avg 45/20/15/20 rationale.
+PROXY_MOMENTUM_NUMERATORS = {"mom_3m": 20.0, "mom_12_1": 45.0, "tech_trend": 15.0, "sma": 20.0}
 # FIXED 2026-09-13 (same audit): was still the pre-2026-09-11 11/18/18/15/18/7/7/7 split;
-# live is flat 12.5 each (matches quality_proxy's own already-correct construction above).
+# live was flat 12.5 each at that time (matched quality_proxy's own construction then).
+# FIXED AGAIN 2026-09-15: roce/asset_turnover dropped (see quality_proxy's own 2026-09-15
+# comment above) - live-verified via get_live_quality_weights() this is NOT a flat 1/6 split
+# (an equal-weight assumption that would itself have been unverified drift): live is
+# 15/15/15/15/25/15 (margin_volatility alone got the two removed components' freed-up
+# weight, not an even split across all 6) - roe/roa/fcf_margin/debt_to_equity/
+# gross_profitability 15.0 each, margin_volatility 25.0.
 PROXY_QUALITY_NUMERATORS = {
-    "roe": 1.0,
-    "roa": 1.0,
-    "roce": 1.0,
-    "fcf_margin": 1.0,
-    "debt_to_equity": 1.0,
-    "margin_volatility": 1.0,
-    "asset_turnover": 1.0,
-    "gross_profitability": 1.0,
+    "roe": 15.0,
+    "roa": 15.0,
+    "fcf_margin": 15.0,
+    "debt_to_equity": 15.0,
+    "margin_volatility": 25.0,
+    "gross_profitability": 15.0,
 }
 
 
@@ -814,17 +837,28 @@ def build_pillar_proxy_records(
         # sector-neutralized Quality 2026-09-07 AND moved every component to flat 12.5% (1/8)
         # each 2026-09-11 (UNIFORM EQUAL-WEIGHT directive, vqg_quality_score.py's
         # quality_components list, re-verified live this pass).
+        #
+        # CORRECTED AGAIN 2026-09-15 (/goal composite-alignment audit): roce/asset_turnover
+        # DROPPED here - production removed both from quality_components 2026-09-15
+        # ([[quality_roce_asset_turnover_removed_from_composite_20260915]]; see
+        # vqg_quality_score.py's ROCE-removal comment for the two-layer-validation-policy
+        # rationale). NOT a flat 1/6 equal weight over the remaining 6 fields - live-verified
+        # via get_live_quality_weights() (PROXY_QUALITY_NUMERATORS above) that
+        # margin_volatility alone absorbed both removed components' freed-up weight
+        # (15/15/15/15/25/15, not 6x equal 16.7%) - this proxy was silently still testing an
+        # 8-field EQUAL-weighted construction production had both dropped a component from AND
+        # stopped equal-weighting, the same "validator goes stale, keeps returning green"
+        # failure mode get_live_quality_weights() above was just re-fixed for.
         quality_cols_pct = [
-            _sector_neutral_zscore_pct(q["roe"], sector_map),
-            _sector_neutral_zscore_pct(q["roa"], sector_map),
-            _sector_neutral_zscore_pct(q["roce"], sector_map),
-            _sector_neutral_zscore_pct(q["fcf_margin"], sector_map),
-            _sector_neutral_zscore_pct(-q["debt_to_equity"], sector_map),
-            _sector_neutral_zscore_pct(-q["margin_volatility_3y"], sector_map),
-            _sector_neutral_zscore_pct(q["asset_turnover"], sector_map),
-            _sector_neutral_zscore_pct(q["gross_profitability"], sector_map),
+            (15.0, _sector_neutral_zscore_pct(q["roe"], sector_map)),
+            (15.0, _sector_neutral_zscore_pct(q["roa"], sector_map)),
+            (15.0, _sector_neutral_zscore_pct(q["fcf_margin"], sector_map)),
+            (15.0, _sector_neutral_zscore_pct(-q["debt_to_equity"], sector_map)),
+            (25.0, _sector_neutral_zscore_pct(-q["margin_volatility_3y"], sector_map)),
+            (15.0, _sector_neutral_zscore_pct(q["gross_profitability"], sector_map)),
         ]
-        quality_proxy = sum(quality_cols_pct) / len(quality_cols_pct)
+        quality_weight_total = sum(w for w, _ in quality_cols_pct)
+        quality_proxy = sum(w * v for w, v in quality_cols_pct) / quality_weight_total
 
         # Risk (stability_proxy): vol_60d/vol_252d/max_dd_1y from the DAILY panel (real
         # 60/252-trading-day windows), beta from the monthly 24-month window (unchanged
@@ -866,10 +900,18 @@ def build_pillar_proxy_records(
             _zwinsor(indicators["price_vs_sma_50"].iloc[i]) + _zwinsor(indicators["price_vs_sma_200"].iloc[i])
         ) / 2.0
         # FIXED 2026-09-13 (/goal scoring-accuracy audit): was still the pre-2026-09-11
-        # 20/35/37/8 split - live momentum_scoring.py's _score_momentum weights momentum_3m/
+        # 20/35/37/8 split - live momentum_scoring.py's _score_momentum weighted momentum_3m/
         # mom_12_1/tech_trend/SMA FLAT 25% EACH (same UNIFORM EQUAL-WEIGHT directive that
         # already got applied to stability_proxy above but was missed here).
-        momentum_proxy = 0.25 * (_zwinsor(mom_3m) + _zwinsor(mom_12_1) + tech_trend + sma_avg)
+        #
+        # FIXED AGAIN 2026-09-15 (/goal composite-alignment audit): live-verified via
+        # get_live_momentum_weights() that the 2026-09-14 momentum industry-consensus reweight
+        # ([[momentum_industry_consensus_reweight_20260914]] - no institutional Momentum
+        # definition uses RSI/MACD/SMA technical indicators, so mom_12_1 (real 12-1-month
+        # cross-sectional momentum) got the dominant weight) moved this off flat 25% each to
+        # mom_12_1 45% / momentum_3m 20% / tech_trend 15% / sma_avg 20% - this proxy had gone
+        # stale again the very next day, same recurring failure mode as quality_proxy above.
+        momentum_proxy = 0.45 * _zwinsor(mom_12_1) + 0.20 * _zwinsor(mom_3m) + 0.15 * tech_trend + 0.20 * sma_avg
 
         fwd_ret = ret.iloc[i + 1]
 
