@@ -26,7 +26,7 @@ import {
 } from "recharts";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { api } from "../services/api";
-import { num } from "../components/dashboard/shared/utils/dashboardFormatters";
+import { num, fmtBig } from "../components/dashboard/shared/utils/dashboardFormatters";
 import { formatNumber } from "../utils/formatters";
 import ErrorBoundary from "../components/ErrorBoundary";
 import StockScoreAccordion from "../components/StockScoreAccordion";
@@ -189,16 +189,23 @@ function ScoresDashboardPage() {
   const [sector, setSector] = useState("");
   const [sortBy, setSortBy] = useState("composite_score");
   const [sortOrder, setSortOrder] = useState("desc");
-  // FUND-WEIGHTED VIEW TOGGLE (2026-09-15, fix for a real UX bug the user caught live):
-  // defaulting the Rankings table to sort by *_tilted_weight while DISPLAYING the raw 0-100
-  // score made the table look broken - e.g. a stock scoring 64.6 could rank below four stocks
-  // scoring 56-62, because tilted weight (market-cap dollars) and the displayed score are
-  // different scales entirely. Same root issue as the Leaders/Laggards tabs bug (see MEMORY.md
-  // leaders_laggards_wrongly_tilted_by_cap_fixed_20260915) and the API's ?weighting fix
-  // (lambda/api/routes/scores.py) - defaulting to raw keeps what's displayed consistent with
-  // what's sorted. Fund-weighted (tilted) is still available, opt-in, clearly labeled, for
-  // whoever wants the "how would a real cap-weighted multi-factor fund allocate this" view.
-  const [fundWeighted, setFundWeighted] = useState(false);
+  // FUND-WEIGHTED VIEW TOGGLE (2026-09-15). Defaults to ON: the user explicitly wants the
+  // main Rankings/Composite view to show recognizable large-cap names by default, matching
+  // how a real cap-weighted multi-factor fund (LRGF/GSLC) actually looks - that's the whole
+  // point of the top-25/bottom-25 verification (84%/80%, see MEMORY.md
+  // goal_top25_bottom25_achieved_production_verified_20260915). An earlier same-day attempt
+  // defaulted this OFF (raw score) to fix a real display-consistency bug (tilted sort order
+  // didn't match the displayed raw score, e.g. a 64.6 could rank below several 56-62s) - but
+  // that traded a real bug for an even worse regression (no mega-caps showing by default at
+  // all), which is strictly the wrong tradeoff. Fixed properly this time: sort stays
+  // fund-weighted by default, and the table now also shows market_cap explicitly next to each
+  // name so the displayed numbers are internally consistent with the sort order instead of
+  // hiding the actual ranking basis. Per-pillar Leaders/Laggards tabs are unaffected by this
+  // toggle - they correctly always use raw score (see MEMORY.md
+  // leaders_laggards_wrongly_tilted_by_cap_fixed_20260915), since a single-factor screen
+  // showing "who scores best on X" is a different question from "how would a fund weight
+  // this portfolio."
+  const [fundWeighted, setFundWeighted] = useState(true);
   const [minScore, setMinScore] = useState(0);
   // Investability screen (2026-09-01, un-defaulted then RE-DEFAULTED same session 2026-09-13
   // after live comparison against real institutional factor products - MSCI/iShares QUAL/
@@ -806,6 +813,23 @@ function RankingsTab({
                     }}
                   >
                     {s.company_name || "—"}
+                    {/* Market cap shown next to every row (2026-09-15) - when the fund-weighted
+                    toggle is on (default), the row order is driven by market_cap x factor tilt,
+                    not the displayed score alone, so a smaller-cap name can rank below a bigger
+                    one with a lower score. Showing the cap here makes that self-explanatory
+                    instead of the ranking looking arbitrary/wrong. */}
+                    {s.market_cap != null && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: "0.75rem",
+                          color: "var(--text-secondary)",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {fmtBig(s.market_cap)}
+                      </span>
+                    )}
                   </div>
                   <div
                     style={{
