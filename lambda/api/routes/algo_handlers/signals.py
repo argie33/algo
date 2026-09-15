@@ -582,29 +582,47 @@ def _get_rejection_reason_description(reason: str) -> str:
     return reason or "Unknown rejection reason"
 
 
-@db_route_handler("fetch stock scores")
+@db_route_handler("fetch swing candidates")
 @validate_api_response("scores")
-def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = None, symbol: str | None = None) -> Any:
-    """Get top stock candidates by composite score (SWING SCORE MIGRATION: now uses stock_scores).
+def _get_swing_scores(
+    cur: cursor,
+    limit: int = 100,
+    min_score: float | None = None,
+    symbol: str | None = None,
+    signal: str | None = None,
+) -> Any:
+    """Get the full-universe swing-candidate list: real stock_scores output joined to each
+    symbol's latest real buy_sell_daily signal (see algo/signals/buy_signal_generator.py /
+    lambda/api/routes/signals.py's /api/signals/stocks for the same source of truth).
 
-    DEPRECATED: API renamed from swing_scores to stock_scores but endpoint kept for backward compat.
-    Now queries stock_scores table using composite_score (primary ranking metric).
+    Deliberately ignores portfolio-level restrictions (sector/industry concentration caps,
+    max-new-positions, halt state, etc.) - those live in algo/risk/exposure_policy.py and
+    algo/orchestrator/phase8_guards.py and only apply once a candidate is actually being
+    routed for execution. This endpoint is the pre-restriction reference list: every symbol
+    with a real, currently-latest BUY or SELL signal, regardless of whether the live system
+    would actually be allowed to act on it today.
+
+    Previously (pre-2026-09-15) this endpoint faked a 7-component breakdown
+    (setup/trend/momentum/volume/fundamentals/sector/multi_tf) that never existed in
+    stock_scores - leftover from the deleted swing_trader_scores schema (migration 110) -
+    and hardcoded pass_gates=TRUE/fail_reason=NULL for every row. Both removed; this now
+    returns only real columns from stock_scores and buy_sell_daily.
     """
     try:
-        # Use psycopg2.sql for safe SQL composition
         # CRITICAL: Filter to stocks only (exclude ETFs) per GOVERNANCE.md
         # CRITICAL: Only return stocks with available metrics (data_unavailable = FALSE)
-        # NOTE: stock_scores table has no 'etf' column, so only check etf_symbols table
         interval_14d = get_interval_sql("14d")
         filters = [
             # stock_scores is one row per symbol (refreshed via UPDATE), so created_at is a
-            # static one-time insert stamp, not a freshness signal - updated_at is. Filtering/
-            # ordering on created_at let long-lived symbols look "stale" regardless of how
-            # recently their score actually refreshed, and (see JOIN below) broke the
-            # trend_template_data join for the same reason.
+            # static one-time insert stamp, not a freshness signal - updated_at is.
             psycopg2.sql.SQL(f"s.updated_at::date >= CURRENT_DATE - {interval_14d}"),
             psycopg2.sql.SQL("s.symbol NOT IN (SELECT symbol FROM etf_symbols)"),
             psycopg2.sql.SQL("(s.data_unavailable = FALSE OR s.data_unavailable IS NULL)"),
+            # "still relevant" = the symbol's most recent buy_sell_daily evaluation is an
+            # active BUY or SELL (not HOLD/NULL) - buy_sell_daily is re-evaluated daily, so
+            # the latest row already reflects whether price is still in the computed buy
+            # zone / sell level as of the latest trading day.
+            psycopg2.sql.SQL("b.signal IN ('BUY', 'SELL')"),
         ]
         query_params: list[Any] = []
         if min_score is not None:
@@ -613,11 +631,16 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
         if symbol:
             filters.append(psycopg2.sql.SQL("s.symbol = %s"))
             query_params.append(symbol.upper())
+        if signal:
+            filters.append(psycopg2.sql.SQL("b.signal = %s"))
+            query_params.append(signal.upper())
         where_clause = psycopg2.sql.SQL(" AND ").join(filters)
         query_params.append(limit)
         query = psycopg2.sql.SQL("""
                 SELECT
                     s.symbol, s.updated_at::date AS date, s.composite_score,
+                    s.quality_score, s.growth_score, s.value_score,
+                    s.momentum_score, s.risk_score, s.rs_percentile,
                     CASE
                         WHEN s.composite_score >= 85 THEN 'A+'
                         WHEN s.composite_score >= 75 THEN 'A'
@@ -625,23 +648,34 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
                         WHEN s.composite_score >= 55 THEN 'C'
                         ELSE 'D'
                     END AS grade,
-                    TRUE AS pass_gates,
-                    NULL AS fail_reason,
-                    jsonb_build_object(
-                        'quality_score', s.quality_score,
-                        'growth_score', s.growth_score,
-                        'momentum_score', s.momentum_score,
-                        'rs_percentile', s.rs_percentile
-                    ) AS components,
                     cp.sector, cp.industry,
-                    t.weinstein_stage AS stage, t.minervini_trend_score AS trend_template_score,
-                    jsonb_build_object('weinstein_stage', t.weinstein_stage, 'trend_template_score', t.minervini_trend_score, 'stage_substage', 'Stage ' || COALESCE(t.weinstein_stage::text, ''), 'trend_direction', t.trend_direction) AS details
+                    t.weinstein_stage AS stage_number,
+                    CASE t.weinstein_stage
+                        WHEN 1 THEN 'Stage 1'
+                        WHEN 2 THEN 'Stage 2 - Markup'
+                        WHEN 3 THEN 'Stage 3 - Topping'
+                        WHEN 4 THEN 'Stage 4'
+                    END AS market_stage,
+                    t.minervini_trend_score AS trend_template_score,
+                    b.signal, b.date AS signal_date, b.signal_triggered_date,
+                    b.signal_quality_score, b.entry_quality_score, b.strength, b.reason,
+                    b.base_type, b.base_length_days,
+                    b.buy_zone_start, b.buy_zone_end, b.pivot_price,
+                    b.sell_level, b.initial_stop, b.trailing_stop,
+                    b.entry_price, b.close, b.risk_reward_ratio,
+                    b.profit_target_8pct, b.profit_target_20pct, b.profit_target_25pct
                 FROM stock_scores s
+                INNER JOIN LATERAL (
+                    SELECT * FROM buy_sell_daily bsd
+                    WHERE bsd.symbol = s.symbol
+                    ORDER BY bsd.date DESC
+                    LIMIT 1
+                ) b ON TRUE
                 LEFT JOIN company_profile cp ON s.symbol = cp.symbol
                 LEFT JOIN trend_template_data t ON t.symbol = s.symbol
                     AND t.date = (SELECT MAX(tt.date) FROM trend_template_data tt WHERE tt.symbol = s.symbol)
                 WHERE {where_clause}
-                ORDER BY s.updated_at DESC, s.composite_score DESC
+                ORDER BY s.composite_score DESC
                 LIMIT %s
             """).format(where_clause=where_clause)
         cur.execute(query, query_params)
@@ -654,7 +688,7 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
         psycopg2.DatabaseError,
         Exception,
     ) as e:
-        code, error_type, message = handle_db_error(e, "fetch stock scores")
+        code, error_type, message = handle_db_error(e, "fetch swing candidates")
         return error_response(code, error_type, message)
 
 

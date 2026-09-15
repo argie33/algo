@@ -1,13 +1,22 @@
-﻿/**
- * Swing Candidates — full-universe analytical workbench.
+/**
+ * Swing Candidates — reference list of every symbol that currently has BOTH a high
+ * stock_scores composite score AND a real, still-active buy_sell_daily signal (BUY still
+ * in its computed buy zone, or SELL still relevant) — see /api/algo/swing-scores.
+ *
+ * Deliberately ignores the live system's own portfolio-level restrictions (sector/industry
+ * concentration caps, max-new-positions-per-day, halt state, etc. — algo/risk/exposure_policy.py,
+ * algo/orchestrator/phase8_guards.py). Those are applied downstream when the algo actually
+ * routes an entry; this page is the full pre-restriction candidate universe, kept around for
+ * reference even for names the live system wouldn't act on today.
  *
  * Sections:
  *   - KPI strip
  *   - Top performers strip (top 5 A+ candidates with sparklines)
- *   - Score-component radar (selected vs. universe avg vs. top-10 avg)
+ *   - Pillar-score radar (selected vs. universe avg vs. top-10 avg) — real stock_scores
+ *     pillars (quality/growth/value/momentum/risk), not a fabricated component breakdown
  *   - Sector concentration treemap (top-50 candidates)
- *   - Grade distribution + pass-gate funnel
- *   - 7-component correlation matrix
+ *   - Grade distribution + BUY/SELL signal funnel
+ *   - Pillar-score correlation matrix
  *   - History tab (A/A+ counts over time)
  *   - Enriched table with click-row navigation
  *
@@ -68,21 +77,24 @@ const GRADE_CLASS = {
 };
 
 const COMPONENTS = [
-  ["setup", "Setup"],
-  ["trend", "Trend"],
-  ["momentum", "Momentum"],
-  ["volume", "Volume"],
-  ["fundamentals", "Fundamentals"],
-  ["sector", "Sector"],
-  ["multi_tf", "Multi-TF"],
+  ["quality_score", "Quality"],
+  ["growth_score", "Growth"],
+  ["value_score", "Value"],
+  ["momentum_score", "Momentum"],
+  ["risk_score", "Risk"],
 ];
+
+const SIGNAL_CLASS = {
+  BUY: "badge-success",
+  SELL: "badge-danger",
+};
 
 export default function SwingCandidates() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [grade, setGrade] = useState("");
   const [sector, setSector] = useState("");
-  const [gateFilter, setGateFilter] = useState("");
+  const [signalFilter, setSignalFilter] = useState("");
   const [minScore, setMinScore] = useState(0);
   const [selectedSym, setSelectedSym] = useState(null);
   const [limit, setLimit] = useState(500); // Allow user to change limit
@@ -124,16 +136,15 @@ export default function SwingCandidates() {
       if (q && !(i.symbol || "").toUpperCase().includes(q)) return false;
       if (grade && i.grade !== grade) return false;
       if (sector && i.sector !== sector) return false;
-      if (gateFilter === "pass" && !i.pass_gates) return false;
-      if (gateFilter === "fail" && i.pass_gates) return false;
+      if (signalFilter && i.signal !== signalFilter) return false;
       return true;
     });
-  }, [itemsList, search, grade, sector, gateFilter]);
+  }, [itemsList, search, grade, sector, signalFilter]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, grade, sector, gateFilter, minScore, limit]);
+  }, [search, grade, sector, signalFilter, minScore, limit]);
 
   // Pagination calculations
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -142,8 +153,10 @@ export default function SwingCandidates() {
   const pageRows = filtered.slice(pageStart, pageEnd);
 
   const stats = useMemo(() => {
-    if (!itemsList) return { total: 0, passing: 0, gradeA: 0, top10Score: 0 };
-    const passing = itemsList.filter((i) => i.pass_gates).length;
+    if (!itemsList)
+      return { total: 0, buyCount: 0, sellCount: 0, gradeA: 0, top10Score: 0 };
+    const buyCount = itemsList.filter((i) => i.signal === "BUY").length;
+    const sellCount = itemsList.filter((i) => i.signal === "SELL").length;
     const gradeA = itemsList.filter(
       (i) => i.grade === "A" || i.grade === "A+"
     ).length;
@@ -153,7 +166,7 @@ export default function SwingCandidates() {
         ? 0
         : top10.reduce((s, i) => s + (i.composite_score || 0), 0) /
           top10.length;
-    return { total: itemsList.length, passing, gradeA, top10Score };
+    return { total: itemsList.length, buyCount, sellCount, gradeA, top10Score };
   }, [itemsList]);
 
   const topAplus = useMemo(
@@ -246,8 +259,8 @@ export default function SwingCandidates() {
           <div>
             <div className="page-head-title">Swing Candidates</div>
             <div className="page-head-sub">
-              Full-universe research-weighted scoring · setup · trend · momentum
-              · volume · fundamentals · sector · multi-TF
+              Full universe with an active BUY/SELL signal · not filtered by
+              portfolio concentration limits — reference list only
               {!isLoading && itemsList.length > 0 && (
                 <span style={{ marginLeft: 12, color: "var(--text-muted)" }}>
                   · {itemsList.length} candidates
@@ -292,21 +305,21 @@ export default function SwingCandidates() {
         {/* KPI strip */}
         <div className="grid grid-4">
           <Kpi
-            label="Total Universe"
+            label="Active Candidates"
             value={stats.total.toLocaleString()}
-            sub="ranked candidates"
+            sub="with a live BUY/SELL signal"
           />
           <Kpi
-            label="Pass All Gates"
-            value={stats.passing.toLocaleString()}
-            sub={`${stats.total ? Math.round((stats.passing / stats.total) * 100) : 0}% qualify`}
-            tone={stats.passing > 0 ? "up" : ""}
+            label="BUY Signals"
+            value={stats.buyCount.toLocaleString()}
+            sub={`${stats.total ? Math.round((stats.buyCount / stats.total) * 100) : 0}% of list`}
+            tone={stats.buyCount > 0 ? "up" : ""}
           />
           <Kpi
-            label="Grade A / A+"
-            value={stats.gradeA.toLocaleString()}
-            sub="institutional-quality"
-            tone={stats.gradeA > 0 ? "up" : ""}
+            label="SELL Signals"
+            value={stats.sellCount.toLocaleString()}
+            sub={`${stats.total ? Math.round((stats.sellCount / stats.total) * 100) : 0}% of list`}
+            tone={stats.sellCount > 0 ? "down" : ""}
           />
           <Kpi
             label="Top-10 Avg"
@@ -492,12 +505,12 @@ export default function SwingCandidates() {
               </select>
               <select
                 className="select"
-                value={gateFilter}
-                onChange={(e) => setGateFilter(e.target.value)}
+                value={signalFilter}
+                onChange={(e) => setSignalFilter(e.target.value)}
               >
-                <option value="">All gates</option>
-                <option value="pass">Pass only</option>
-                <option value="fail">Fail only</option>
+                <option value="">All signals</option>
+                <option value="BUY">BUY only</option>
+                <option value="SELL">SELL only</option>
               </select>
               <select
                 className="select"
@@ -540,14 +553,13 @@ export default function SwingCandidates() {
                       <th>Sector</th>
                       <th>Grade</th>
                       <th className="num">Score</th>
-                      <th className="num">Setup</th>
-                      <th className="num">Trend</th>
+                      <th className="num">Qual</th>
+                      <th className="num">Growth</th>
+                      <th className="num">Value</th>
                       <th className="num">Mom</th>
-                      <th className="num">Vol</th>
-                      <th className="num">Fund</th>
-                      <th className="num">Sector</th>
-                      <th className="num">MTF</th>
-                      <th>Gates</th>
+                      <th className="num">Risk</th>
+                      <th>Signal</th>
+                      <th>Zone / Stop</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -644,7 +656,7 @@ export default function SwingCandidates() {
         <div className="card" style={{ marginTop: "var(--space-4)" }}>
           <div className="card-head">
             <div>
-              <div className="card-title">Score Components</div>
+              <div className="card-title">Score Pillars &amp; Signal</div>
               <div className="card-sub">
                 Click a row to update the radar · double-click to open detail
               </div>
@@ -653,36 +665,32 @@ export default function SwingCandidates() {
           <div className="card-body">
             <div className="grid grid-4">
               <Legend1
-                name="Setup"
-                desc="VCP / cup-with-handle / flat-base / pivot proximity"
+                name="Quality"
+                desc="stock_scores.quality_score"
               />
               <Legend1
-                name="Trend"
-                desc="8-point trend template + market stage"
+                name="Growth"
+                desc="stock_scores.growth_score"
+              />
+              <Legend1
+                name="Value"
+                desc="stock_scores.value_score"
               />
               <Legend1
                 name="Momentum"
-                desc="ADX / RSI sweet spot / multi-TF alignment"
+                desc="stock_scores.momentum_score"
               />
               <Legend1
-                name="Volume"
-                desc="Pocket-pivot count / dry-up + breakout volume"
+                name="Risk"
+                desc="stock_scores.risk_score"
               />
               <Legend1
-                name="Fundamentals"
-                desc="EPS / sales / margin growth + ROE filter"
+                name="Signal"
+                desc="Latest buy_sell_daily BUY/SELL — still-active only"
               />
               <Legend1
-                name="Sector"
-                desc="Relative Strength + sector rotation tier"
-              />
-              <Legend1
-                name="Multi-TF"
-                desc="Daily + weekly + monthly alignment"
-              />
-              <Legend1
-                name="Gates"
-                desc="Trend + SQS + advanced filters all pass"
+                name="Zone / Stop"
+                desc="BUY: computed buy zone · SELL: sell level · initial stop"
               />
             </div>
           </div>
@@ -791,7 +799,7 @@ function TopCard({ c, onClick }) {
   );
 }
 
-// ─── component radar ───────────────────────────────────────────────────────
+// ─── pillar radar ───────────────────────────────────────────────────────────
 function ComponentRadar({ items: itemsProp, selected }) {
   const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const data = useMemo(() => {
@@ -804,17 +812,17 @@ function ComponentRadar({ items: itemsProp, selected }) {
     });
     items.forEach((i) => {
       COMPONENTS.forEach(([k]) => {
-        universeAvg[k] += Number(i.components?.[k] || 0);
+        universeAvg[k] += Number(i[k] || 0);
       });
     });
     const top10 = items.slice(0, 10);
     top10.forEach((i) => {
       COMPONENTS.forEach(([k]) => {
-        top10Avg[k] += Number(i.components?.[k] || 0);
+        top10Avg[k] += Number(i[k] || 0);
       });
     });
     return COMPONENTS.map(([k, lbl]) => {
-      const sel = selected ? Number(selected.components?.[k] || 0) : null;
+      const sel = selected ? Number(selected[k] || 0) : null;
       return {
         component: lbl,
         Selected: sel,
@@ -828,7 +836,7 @@ function ComponentRadar({ items: itemsProp, selected }) {
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Score Component Radar</div>
+          <div className="card-title">Pillar Score Radar</div>
           <div className="card-sub">
             {selected
               ? `${selected.symbol} vs. universe avg vs. top-10 avg`
@@ -1022,16 +1030,16 @@ function GradeFunnel({ items: itemsProp }) {
       count: items.filter((i) => i.grade === g).length,
     }));
 
-    // Build pass-gate funnel (uses fail_reason buckets when available)
+    // Build score/signal funnel: how the active-signal universe breaks down
     const total = items.length;
     const buckets = {
-      Universe: total,
-      "Has data": items.filter((i) => i.composite_score != null).length,
+      "Active signal": total,
       "Score ≥ 40": items.filter((i) => Number(i.composite_score) >= 40).length,
       "Score ≥ 60": items.filter((i) => Number(i.composite_score) >= 60).length,
       "Grade B+": items.filter((i) => ["B", "A", "A+"].includes(i.grade))
         .length,
-      "Pass gates": items.filter((i) => i.pass_gates).length,
+      "BUY signal": items.filter((i) => i.signal === "BUY").length,
+      "SELL signal": items.filter((i) => i.signal === "SELL").length,
     };
     const funnel = Object.entries(buckets).map(([stage, count]) => ({
       stage,
@@ -1054,10 +1062,10 @@ function GradeFunnel({ items: itemsProp }) {
       <div className="card-head">
         <div>
           <div className="card-title">
-            Grade Distribution + Pass-Gate Funnel
+            Grade Distribution + Signal Funnel
           </div>
           <div className="card-sub">
-            How the universe filters down to tradable candidates
+            How the active-signal universe breaks down by score and signal
           </div>
         </div>
       </div>
@@ -1125,7 +1133,13 @@ function GradeFunnel({ items: itemsProp }) {
                     </div>
                     <div className="bar">
                       <div
-                        className={`bar-fill ${i >= 4 ? "success" : ""}`}
+                        className={`bar-fill ${
+                          f.stage === "BUY signal"
+                            ? "success"
+                            : f.stage === "SELL signal"
+                              ? "danger"
+                              : ""
+                        }`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -1140,7 +1154,7 @@ function GradeFunnel({ items: itemsProp }) {
   );
 }
 
-// ─── component correlation matrix ──────────────────────────────────────────
+// ─── pillar correlation matrix ─────────────────────────────────────────────
 function ComponentCorrelation({ items: itemsProp }) {
   const items = Array.isArray(itemsProp) ? itemsProp : itemsProp?.items || [];
   const matrix = useMemo(() => {
@@ -1149,7 +1163,7 @@ function ComponentCorrelation({ items: itemsProp }) {
     const cols = {};
     COMPONENTS.forEach(([k]) => (cols[k] = []));
     items.forEach((i) => {
-      COMPONENTS.forEach(([k]) => cols[k].push(Number(i.components?.[k] || 0)));
+      COMPONENTS.forEach(([k]) => cols[k].push(Number(i[k] || 0)));
     });
     const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
     const std = (a, m) =>
@@ -1184,7 +1198,7 @@ function ComponentCorrelation({ items: itemsProp }) {
       <div className="card">
         <div className="card-head">
           <div>
-            <div className="card-title">Component Correlation Matrix</div>
+            <div className="card-title">Pillar Correlation Matrix</div>
           </div>
         </div>
         <div className="card-body">
@@ -1205,9 +1219,9 @@ function ComponentCorrelation({ items: itemsProp }) {
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Component Correlation Matrix</div>
+          <div className="card-title">Pillar Correlation Matrix</div>
           <div className="card-sub">
-            Pearson r between the 7 score components
+            Pearson r between the 5 stock_scores pillars
           </div>
         </div>
       </div>
@@ -1283,7 +1297,13 @@ function ComponentCorrelation({ items: itemsProp }) {
 
 // ─── row ───────────────────────────────────────────────────────────────────
 function Row({ c, rank, active, onClick, _onNavigate }) {
-  const cmp = c.components || {};
+  const zoneLabel =
+    c.signal === "BUY" && (c.buy_zone_start != null || c.buy_zone_end != null)
+      ? `${num(c.buy_zone_start, 2)}–${num(c.buy_zone_end, 2)}`
+      : c.signal === "SELL" && c.sell_level != null
+        ? `≤ ${num(c.sell_level, 2)}`
+        : "—";
+  const stopLabel = c.initial_stop != null ? num(c.initial_stop, 2) : null;
   return (
     <tr
       onClick={onClick}
@@ -1329,22 +1349,32 @@ function Row({ c, rank, active, onClick, _onNavigate }) {
           {num(c.composite_score, 1)}
         </span>
       </td>
-      <td className="num mono tnum t-xs">{num(cmp.setup, 1)}</td>
-      <td className="num mono tnum t-xs">{num(cmp.trend, 1)}</td>
-      <td className="num mono tnum t-xs">{num(cmp.momentum, 1)}</td>
-      <td className="num mono tnum t-xs">{num(cmp.volume, 1)}</td>
-      <td className="num mono tnum t-xs">{num(cmp.fundamentals, 1)}</td>
-      <td className="num mono tnum t-xs">{num(cmp.sector, 1)}</td>
-      <td className="num mono tnum t-xs">{num(cmp.multi_tf, 1)}</td>
+      <td className="num mono tnum t-xs">{num(c.quality_score, 1)}</td>
+      <td className="num mono tnum t-xs">{num(c.growth_score, 1)}</td>
+      <td className="num mono tnum t-xs">{num(c.value_score, 1)}</td>
+      <td className="num mono tnum t-xs">{num(c.momentum_score, 1)}</td>
+      <td className="num mono tnum t-xs">{num(c.risk_score, 1)}</td>
       <td>
-        {c.pass_gates ? (
-          <span className="badge badge-success">
-            <CheckCircle size={11} style={{ verticalAlign: "-2px" }} /> PASS
-          </span>
-        ) : (
-          <span className="badge badge-danger" title={c.fail_reason || ""}>
-            <XCircle size={11} style={{ verticalAlign: "-2px" }} />{" "}
-            {c.fail_reason ? c.fail_reason.slice(0, 18) : "FAIL"}
+        <span
+          className={`badge ${SIGNAL_CLASS[c.signal] || "badge"}`}
+          title={c.reason || ""}
+        >
+          {c.signal === "BUY" ? (
+            <CheckCircle size={11} style={{ verticalAlign: "-2px" }} />
+          ) : (
+            <XCircle size={11} style={{ verticalAlign: "-2px" }} />
+          )}{" "}
+          {c.signal || "—"}
+        </span>
+      </td>
+      <td
+        className="mono tnum t-xs muted"
+        title={stopLabel ? `Initial stop ${stopLabel}` : ""}
+      >
+        {zoneLabel}
+        {stopLabel && (
+          <span style={{ marginLeft: 6, color: "var(--danger)" }}>
+            stop {stopLabel}
           </span>
         )}
       </td>

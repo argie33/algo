@@ -160,9 +160,9 @@ export const ENDPOINT_SCHEMAS = {
   // Swing scores and signals
   "/api/algo/swing-scores": {
     type: "paginated",
-    itemFields: ["ticker", "score"],
+    itemFields: ["symbol", "composite_score", "signal"],
     paginationFields: ["page", "limit", "total"],
-    requireNonEmptyList: false, // Can have zero scores
+    requireNonEmptyList: false, // Can have zero candidates with an active signal
   },
   "/api/algo/swing-scores-history": {
     type: "paginated",

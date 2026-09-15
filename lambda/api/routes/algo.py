@@ -397,7 +397,10 @@ def _dispatch(  # noqa: C901
         if symbol_filter:
             if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol_filter.upper()):
                 raise_api_error(400, "bad_request", "Invalid symbol format")
-        return _get_swing_scores(cur, limit, min_score, symbol_filter)
+        signal_filter = extract_param(params, "signal")
+        if signal_filter and signal_filter.upper() not in ("BUY", "SELL"):
+            raise_api_error(400, "bad_request", "signal must be BUY or SELL")
+        return _get_swing_scores(cur, limit, min_score, symbol_filter, signal_filter)
     elif path == "/api/algo/swing-scores-history":
         days = safe_days(extract_param(params, "days"), max_val=365, default=30)
         return _get_swing_scores_history(cur, days)
