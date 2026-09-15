@@ -18,7 +18,9 @@ import psycopg2
 from loaders.helpers.factor_normalization import universe_wide_zscore, zscore_to_percentile_scale
 from loaders.stock_scores.pillar_weights import (
     BASE_PILLAR_WEIGHTS,
-    DEFAULT_MIN_INVESTABLE_MARKET_CAP,
+    DEFAULT_MIN_ADV_DOLLARS,
+    DEFAULT_MIN_STOCK_PRICE,
+    LIQUIDITY_FLOOR_JOIN_SQL,
     _value_risk_adjusted_weights,
 )
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
@@ -830,6 +832,107 @@ class MomentumScoringMixin:
         data_completeness_new = min(99.99, round(available_weight * 100, 2))
         return composite_score_new, data_completeness_new
 
+    def _withhold_momentum_below_floor(
+        self,
+    ) -> list[tuple[str, float | None, float, str | None, float, bool]]:
+        """Companion to update_momentum_sector_relative_mom_12_1(): finds the COMPLEMENT of
+        that method's own correction population - symbols with a real momentum_score and real
+        (non-data_unavailable) momentum_metrics, but ineligible for correction (below the
+        liquidity floor, or excluded by NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE) - and
+        withholds momentum_score (NULL) plus recomputes composite_score/data_completeness/
+        data_unavailable to match, rather than leaving Pass 1's stale, potentially-saturated
+        curve value in place indefinitely. See update_momentum_sector_relative_mom_12_1()'s own
+        "WITHHELD, NOT LEFT STALE" docstring note for the full rationale - this is the scoring-
+        pipeline-side fix for exactly the leak a reverted display-layer filter attempt found.
+
+        Returns tuples in the same (symbol, momentum_score, composite_score, components,
+        data_completeness, data_unavailable) shape update_momentum_sector_relative_mom_12_1()'s
+        own `updates` list uses, so the caller can extend one batch UPDATE with both.
+        """
+        with _owner().DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                SELECT ss.symbol, ss.composite_score, ss.quality_score, ss.growth_score,
+                       ss.value_score, ss.risk_score, ss.components,
+                       ss.data_completeness, ss.data_unavailable
+                FROM stock_scores ss
+                JOIN momentum_metrics mm ON mm.symbol = ss.symbol
+                JOIN stock_symbols su ON su.symbol = ss.symbol
+                LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                LEFT JOIN (
+                    SELECT symbol,
+                           AVG(volume * close) AS avg_dollar_volume_20d,
+                           (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
+                    FROM (
+                        SELECT symbol, volume, close, date,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM price_daily
+                        WHERE date >= CURRENT_DATE - INTERVAL '45 days'
+                          AND COALESCE(data_unavailable, false) = false
+                          AND volume IS NOT NULL AND close IS NOT NULL
+                    ) ranked
+                    WHERE rn <= 20
+                    GROUP BY symbol
+                ) liq_floor ON liq_floor.symbol = ss.symbol
+                WHERE ss.momentum_score IS NOT NULL
+                  AND COALESCE(mm.data_unavailable, false) = false
+                  AND (
+                        liq_floor.latest_close IS NULL
+                        OR liq_floor.latest_close < %s
+                        OR liq_floor.avg_dollar_volume_20d IS NULL
+                        OR liq_floor.avg_dollar_volume_20d < %s
+                        OR NOT ("""
+                + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                + """)
+                  )
+                """,
+                (
+                    getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
+                    getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                ),
+            )
+            rows = cur.fetchall()
+
+        if not rows:
+            # No work to do - every scored symbol already cleared the liquidity floor and the
+            # non-operating exclusion, so there's nothing to withhold this run. Not an error.
+            return []
+
+        min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
+        withheld: list[tuple[str, float | None, float, str | None, float, bool]] = []
+        for (
+            symbol,
+            _composite_score_old,
+            quality_score,
+            growth_score,
+            value_score,
+            risk_score,
+            components_old,
+            _dc_old,
+            _du_old,
+        ) in rows:
+            composite_score_new, data_completeness_new = self._recompute_composite_for_row(
+                quality_score, growth_score, value_score, risk_score, None
+            )
+            data_unavailable_new = data_completeness_new < min_completeness_threshold
+            components_json = self._components_with_corrected_momentum(components_old, None)
+            withheld.append(
+                (
+                    symbol,
+                    None,
+                    composite_score_new,
+                    components_json,
+                    data_completeness_new,
+                    data_unavailable_new,
+                )
+            )
+        logger.info(
+            f"[STOCK_SCORES] Momentum: withheld momentum_score for {len(withheld)} symbols below the "
+            f"liquidity floor / excluded from the scoring population (never reached by the correction "
+            f"pass above) - see _withhold_momentum_below_floor's docstring."
+        )
+        return withheld
+
     def update_momentum_sector_relative_mom_12_1(self) -> None:
         """Batch pass: replace mom_12_1's Pass-1 PROVISIONAL absolute-curve score (raw
         risk-adjusted return fed through `_pct_to_score`'s fixed +-20%-saturation curve, same
@@ -880,10 +983,30 @@ class MomentumScoringMixin:
         - same reason Quality/Growth's sector-neutral passes fully recompute rather than patch
         one component (only the final blended score is stored, not per-component sub-scores).
 
-        INVESTABILITY FLOOR: same $300M algo_config.min_market_cap_millions floor as every
-        other sector-neutral pass - sub-floor nanocaps distort the peer-group percentile
-        boundaries real, investable companies get ranked against; those symbols simply aren't
-        included here and keep whatever Pass-1 already gave them.
+        INVESTABILITY FLOOR: liquidity-based (algo_config.min_stock_price/min_adv_dollars,
+        same as every other sector-neutral pass - REPLACED the market-cap floor 2026-09-15,
+        see DEFAULT_MIN_INVESTABLE_MARKET_CAP's own docstring in pillar_weights.py for why) -
+        sub-floor illiquid names distort the peer-group percentile boundaries real, investable
+        companies get ranked against; those symbols simply aren't included in the CORRECTION
+        population above.
+
+        WITHHELD, NOT LEFT STALE (added 2026-09-15, same session - user directive: filtering
+        belongs in the scoring pipeline, never bolted onto the display/API layer). A symbol
+        below the liquidity floor (or excluded by NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE)
+        never reaches the correction pass above, so it would otherwise keep Pass-1's raw,
+        un-corrected `_pct_to_score` curve value forever - including that curve's hard
+        +-20%-return-to-[0,100] saturation, live-confirmed pegging WHG (Westwood Holdings,
+        ~$213K 20-day ADV, below the $500K floor) at momentum_score=100.00. A first attempt
+        fixed this by adding a liquidity check to the leaderboard's OWN display filter
+        (algo/signals/investable_universe.py) - reverted: that duplicates this pass's own
+        eligibility decision in a second place that can drift from it, and only hides the bad
+        score instead of fixing it. The real fix is here: `_withhold_momentum_below_floor`
+        below finds exactly this complement population (momentum_score IS NOT NULL, momentum
+        data itself is fine, but ineligible for correction) and withholds momentum_score
+        (NULL, matching MOMENTUM_MIN_WEIGHT's own "insufficient signal, don't fabricate a
+        score" convention) rather than leaving Pass 1's stale value in place - so any consumer
+        reading `stock_scores` directly (not just the leaderboard) sees a correct, honest
+        absence of signal instead of a display-layer-only correction.
 
         Composite_score recomputed exactly as update_growth_sector_neutral_scores recomputes
         it - from quality_score/value_score/risk_score/growth_score as they currently stand
@@ -913,7 +1036,6 @@ class MomentumScoringMixin:
                            mm.momentum_6m
                     FROM stock_scores ss
                     JOIN momentum_metrics mm ON mm.symbol = ss.symbol
-                    JOIN value_metrics vm ON vm.symbol = ss.symbol
                     JOIN stock_symbols su ON su.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
@@ -922,13 +1044,20 @@ class MomentumScoringMixin:
                         SELECT rsi_14, macd, sma_50, sma_200, close FROM technical_data_daily
                         WHERE symbol = ss.symbol ORDER BY date DESC LIMIT 1
                     ) td ON true
+                    """
+                    + LIQUIDITY_FLOOR_JOIN_SQL
+                    + """
                     WHERE ss.momentum_score IS NOT NULL
                       AND COALESCE(mm.data_unavailable, false) = false
-                      AND vm.market_cap >= %s
+                      AND liq_floor.latest_close >= %s
+                      AND liq_floor.avg_dollar_volume_20d >= %s
                       AND ("""
                     + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
                     + ")",
-                    (getattr(self, "_min_investable_market_cap", None) or DEFAULT_MIN_INVESTABLE_MARKET_CAP,),
+                    (
+                        getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
+                        getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                    ),
                 )
                 rows = cur.fetchall()
 
@@ -1080,6 +1209,8 @@ class MomentumScoringMixin:
                         )
                     )
 
+            updates.extend(self._withhold_momentum_below_floor())
+
             if not updates:
                 logger.info(
                     "[STOCK_SCORES] Momentum sector-relative mom_12_1 pass: no symbol's momentum_score/"
@@ -1092,11 +1223,11 @@ class MomentumScoringMixin:
                     cur,
                     """
                     UPDATE stock_scores AS ss
-                    SET momentum_score = v.momentum_score,
-                        composite_score = v.composite_score,
+                    SET momentum_score = v.momentum_score::numeric,
+                        composite_score = v.composite_score::numeric,
                         components = v.components::jsonb,
-                        data_completeness = v.data_completeness,
-                        data_unavailable = v.data_unavailable,
+                        data_completeness = v.data_completeness::numeric,
+                        data_unavailable = v.data_unavailable::boolean,
                         updated_at = CURRENT_TIMESTAMP
                     FROM (VALUES %s) AS v(symbol, momentum_score, composite_score, components,
                                            data_completeness, data_unavailable)

@@ -26,7 +26,11 @@ from typing import Any
 
 import psycopg2
 
-from loaders.stock_scores.pillar_weights import DEFAULT_MIN_INVESTABLE_MARKET_CAP
+from loaders.stock_scores.pillar_weights import (
+    DEFAULT_MIN_ADV_DOLLARS,
+    DEFAULT_MIN_STOCK_PRICE,
+    LIQUIDITY_FLOOR_JOIN_SQL,
+)
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 
 logger = logging.getLogger("loaders.load_stock_scores")
@@ -101,11 +105,18 @@ class MarketCapTiltMixin:
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
                     JOIN stock_symbols su ON su.symbol = ss.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
-                    WHERE vm.market_cap >= %s
+                    """
+                    + LIQUIDITY_FLOOR_JOIN_SQL
+                    + """
+                    WHERE liq_floor.latest_close >= %s
+                      AND liq_floor.avg_dollar_volume_20d >= %s
                       AND ("""
                     + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
                     + ")",
-                    (getattr(self, "_min_investable_market_cap", None) or DEFAULT_MIN_INVESTABLE_MARKET_CAP,),
+                    (
+                        getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
+                        getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                    ),
                 )
                 rows = cur.fetchall()
 

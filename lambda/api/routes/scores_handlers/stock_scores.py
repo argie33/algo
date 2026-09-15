@@ -124,27 +124,72 @@ def _get_stock_scores(
             # This gives traders full visibility: completeness % shown for all scores >= 50%.
             where_clause += " AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)"
 
-        # MARKET-CAP ELIGIBILITY FLOOR (added 2026-08-31, /goal session - "make sure the
-        # results make sense" investigation). This endpoint's default sort is composite_score
-        # DESC with no investability screen of any kind - live-verified the top of that
-        # ranking was dominated by nano/micro-caps (SOGP $37.6M mkt cap, COHN $19.6M, CPBI
-        # $79.5M, several under $200K/day dollar volume), because Size was deliberately
-        # retired as a scoring PILLAR (size_pillar_retired_entirely_20260828 in memory - not
-        # being re-litigated here) with nothing left to offset small-cap-favoring percentile
-        # scoring. A liquidity gate already exists for real trade EXECUTION
-        # (algo/risk/liquidity_checks.py, min_adv_shares/min_adv_dollars config) but only
-        # fires at Phase 8 entry time - invisible to anyone just browsing this "top stocks"
-        # list, so untradeable names surface as if they were the best picks. Opt-in
-        # (min_market_cap query param, no default) rather than a silent behavior change for
-        # existing callers/tests - single-symbol lookups are deliberately exempt (you should
-        # always be able to look up any specific symbol regardless of its size). Standard
-        # index-provider practice (Russell/S&P/MSCI) applies exactly this kind of investability
-        # screen separately from the factor scores themselves.
+        # MARKET-CAP ELIGIBILITY FLOOR - REMOVED as the default screen 2026-09-15 (user
+        # directive, correcting the same-day change below that kept this floor "alongside, not
+        # instead of" a new liquidity screen). This repo's own research already established
+        # real IBD screens (IBD 50) span small/mid/large-cap by design and have NO market-cap
+        # floor at all - see the IBD-STYLE LIQUIDITY SCREEN comment just below for the full
+        # citation. Keeping a $300M cap floor "because it's not a large-cap gate" missed the
+        # actual point: a cap floor of ANY size is the wrong tool for an IBD-style system, not
+        # just the wrong number - IBD's own screens are entirely liquidity-based (min price,
+        # min average dollar volume). `min_market_cap` is kept as an explicit OPT-IN
+        # (`?minMarketCap=<n>`) for a caller that genuinely wants a large/mid-cap-only view (a
+        # real, legitimate use case - just not this endpoint's default) - no longer applied by
+        # default (the `is not None` gate below only ever fires when a caller explicitly
+        # passes the param; nothing sets `min_market_cap` to a default value anymore).
         market_cap_join = ""
         if min_market_cap is not None and not symbol:
             market_cap_join = "JOIN value_metrics mcf ON mcf.symbol = sc.symbol"
             where_clause += " AND mcf.market_cap >= %s"
             params_list.append(min_market_cap)
+
+        # IBD-STYLE LIQUIDITY SCREEN (added 2026-09-15, /goal: "get our scores right" - closer
+        # to IBD's real methodology, which screens on liquidity, not market cap). IBD's own
+        # published screens are a minimum share price (~$10) and minimum average daily volume
+        # (~250k-500k shares) - NOT a market-cap dollar threshold. Checked IBD's own published
+        # methodology directly: the IBD 50 explicitly spans small/mid/large-cap companies by
+        # design and has no market-cap floor at all. Reuses the exact thresholds already
+        # governing real trade EXECUTION (algo_config min_stock_price/min_adv_dollars,
+        # algo/risk/liquidity_checks.py) so this "top stocks" list doesn't surface names Phase
+        # 8 entry would reject anyway. THIS is the default investability screen now
+        # (2026-09-15) - independent of min_market_cap, which is opt-in-only per the comment
+        # above. `symbol` lookups stay exempt (you should always be able to look up any
+        # specific symbol regardless of size/liquidity). Explicit `?minMarketCap=0` is kept as
+        # the one escape hatch that disables this screen too (internal tooling, tests,
+        # non-ranking use cases) - a caller wanting the fully raw universe shouldn't need two
+        # separate params to get it, and `0` was never a meaningful market-cap floor anyway.
+        if min_market_cap != 0 and not symbol:
+            cur.execute("SELECT key, value FROM algo_config WHERE key IN ('min_stock_price', 'min_adv_dollars')")
+            liquidity_config = {row[0]: row[1] for row in cur.fetchall()}
+            try:
+                min_stock_price = float(liquidity_config["min_stock_price"])
+            except (KeyError, TypeError, ValueError):
+                min_stock_price = 5.0
+            try:
+                min_adv_dollars = float(liquidity_config["min_adv_dollars"])
+            except (KeyError, TypeError, ValueError):
+                min_adv_dollars = 500_000.0
+
+            market_cap_join += """
+                JOIN (
+                    SELECT symbol,
+                           AVG(volume * close) AS avg_dollar_volume_20d,
+                           (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
+                    FROM (
+                        SELECT symbol, volume, close, date,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM price_daily
+                        WHERE date >= CURRENT_DATE - INTERVAL '45 days'
+                          AND COALESCE(data_unavailable, false) = false
+                          AND volume IS NOT NULL AND close IS NOT NULL
+                    ) ranked
+                    WHERE rn <= 20
+                    GROUP BY symbol
+                ) liq ON liq.symbol = sc.symbol
+            """
+            where_clause += " AND liq.latest_close >= %s AND liq.avg_dollar_volume_20d >= %s"
+            params_list.append(min_stock_price)
+            params_list.append(min_adv_dollars)
 
         # Real universe count (goal: dashboard/API were reporting "only ~1000 stocks
         # screened" - traced to `estimated_total` below being a page-size heuristic instead

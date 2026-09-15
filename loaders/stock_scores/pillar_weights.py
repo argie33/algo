@@ -375,18 +375,61 @@ BASE_PILLAR_WEIGHTS: dict[str, float] = {
 # load_stock_scores.py/growth_scoring.py don't need their own call-site changes.
 VALUE_RISK_INTERACTION_MAX_SHIFT = 0.0
 
-# INVESTABILITY FLOOR fallback default, dollars (added 2026-09-13). The real, live value is
-# always read from algo_config.min_market_cap_millions in `_prepare_batch_context()` (stored on
-# self._min_investable_market_cap) - this constant exists ONLY as the single shared fallback
-# for the rare case that attribute is missing (algo_config row absent, or a batch-pass method
-# called on a loader instance that never ran _prepare_batch_context, e.g. some unit tests).
-# Single source of truth so the same number isn't hand-copied into every pillar batch-pass
-# file's own `getattr(...)` call and left to drift if the real default ever changes - same
-# "module-level constant, not hand-copied" reasoning as BASE_PILLAR_WEIGHTS above. Matches
-# algo_config.min_market_cap_millions's own seeded default (migration 005) and
-# algo/infrastructure/config/config_defaults_risk.py's "300.0" - keep all three in sync if this
-# ever changes.
+# INVESTABILITY FLOOR (RETIRED as a market-cap gate 2026-09-15, user directive - corrects the
+# 2026-09-15 same-day API-layer change that kept BOTH a $300M cap floor AND a new liquidity
+# screen "alongside, not instead of" each other, per that change's own docstring. That was
+# self-contradictory on its own evidence: this repo's own research already established real
+# IBD screens (IBD 50) span small/mid/large-cap by design and have NO market-cap floor at all -
+# their real screens are liquidity-based (minimum share price, minimum average daily dollar
+# volume), see lambda/api/routes/scores.py's own updated comment. A $300M cap floor is
+# structurally the wrong tool for an IBD-style system regardless of what threshold it uses, not
+# just the wrong NUMBER - keeping it "because it doesn't gate large-caps" missed that a real
+# IBD-style screen doesn't gate on cap size in either direction. DEFAULT_MIN_INVESTABLE_MARKET_CAP
+# is kept ONLY as the tilt-formula input for update_market_cap_tilted_weights (market_cap_tilt.py
+# still needs a symbol's raw market_cap to compute market_cap * tilt - a display-only cap-WEIGHT
+# computation, unrelated to eligibility) - no batch pass uses it as a `vm.market_cap >= %s`
+# eligibility filter anymore. See DEFAULT_MIN_STOCK_PRICE/DEFAULT_MIN_ADV_DOLLARS/
+# LIQUIDITY_FLOOR_JOIN_SQL below for the liquidity-based floor that replaced it everywhere a
+# batch pass previously gated its z-score/percentile peer population on market_cap.
 DEFAULT_MIN_INVESTABLE_MARKET_CAP = 300_000_000.0
+
+# LIQUIDITY-BASED INVESTABILITY FLOOR (added 2026-09-15, replaces DEFAULT_MIN_INVESTABLE_MARKET_CAP
+# as the eligibility gate for every pillar batch pass's z-score/percentile peer population - see
+# DEFAULT_MIN_INVESTABLE_MARKET_CAP's own docstring above for why). Same real thresholds already
+# governing live trade EXECUTION (algo_config min_stock_price/min_adv_dollars,
+# algo/risk/liquidity_checks.py) and the API layer's own IBD-style screen
+# (lambda/api/routes/scores_handlers/stock_scores.py) - one number, read once
+# (`_prepare_batch_context` -> self._min_stock_price/self._min_adv_dollars), not hand-copied per
+# pillar file. These two constants are ONLY the fallback for a missing algo_config row or a
+# batch-pass method called without `_prepare_batch_context` having run (isolated unit tests) -
+# same convention as every other fallback constant in this file.
+DEFAULT_MIN_STOCK_PRICE = 5.0
+DEFAULT_MIN_ADV_DOLLARS = 500_000.0
+
+# Shared liquidity-floor JOIN fragment - every pillar batch pass's population query joins
+# `stock_scores ss` (or a CTE selecting off it), so `ss.symbol` is the one consistent join key
+# across all 6 call sites (vqg_quality_batch.py, growth_scoring.py, value_metrics.py,
+# risk_scoring.py, momentum_scoring.py, market_cap_tilt.py) - unlike the API layer's own copy of
+# this same fragment (lambda/api/routes/scores_handlers/stock_scores.py), which joins off `sc`.
+# 45-calendar-day / last-20-real-trading-day window matches every other avg_dollar_volume_20d
+# computation already live in this codebase (risk_scoring.py's own pre-existing `liquidity` CTE,
+# the API layer's copy) - not a new convention invented here.
+LIQUIDITY_FLOOR_JOIN_SQL = """
+                    JOIN (
+                        SELECT symbol,
+                               AVG(volume * close) AS avg_dollar_volume_20d,
+                               (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
+                        FROM (
+                            SELECT symbol, volume, close, date,
+                                   ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                            FROM price_daily
+                            WHERE date >= CURRENT_DATE - INTERVAL '45 days'
+                              AND COALESCE(data_unavailable, false) = false
+                              AND volume IS NOT NULL AND close IS NOT NULL
+                        ) ranked
+                        WHERE rn <= 20
+                        GROUP BY symbol
+                    ) liq_floor ON liq_floor.symbol = ss.symbol"""
 
 
 def _value_risk_adjusted_weights(risk_score: float | None) -> dict[str, float]:

@@ -148,23 +148,28 @@ def handle(
             sp500_only = extract_param(params, "sp500Only") or "false"
             symbol = extract_param(params, "symbol")
             min_market_cap_param = extract_param(params, "minMarketCap")
-            # DEFAULT INVESTABILITY FLOOR (2026-09-12, /goal: make the leaderboard look like a
-            # real industry factor list, not a raw unfiltered universe scan). This param existed
-            # since 2026-08-31 (see stock_scores.py's own longer comment on the join) but only as
-            # an opt-in nobody actually called - live-verified same session: the DEFAULT (no
-            # param) leaderboard was dominated by nano/micro-caps and thin foreign ADRs (Quality
-            # top-15 had zero of the mega-cap compounders every real Quality index is built from;
-            # Composite top-20 was mostly shipping/mining/EM micro-caps), because Size was
-            # retired as a scoring PILLAR with nothing left to floor small-cap-favoring percentile
-            # scoring. $300M is the standard micro-cap/small-cap boundary widely used by index
-            # providers (Russell 2000's practical lower bound, and the point below which
-            # analyst coverage/data quality drops sharply) - not a fitted or invented number.
-            # Matches the same $300M threshold already live on the TUI dashboard's own
-            # /api/algo/scores endpoint (routes/algo_handlers/dashboard/scores.py, 2026-09-07),
-            # bringing this general-purpose endpoint in line with it instead of a fresh number.
-            # Explicit ?minMarketCap=0 still disables it entirely for callers who want the raw
-            # universe (internal tooling, tests).
-            min_market_cap: float | None = 300_000_000.0
+            # MARKET-CAP FLOOR - REMOVED AS A DEFAULT 2026-09-15 (user directive, correcting a
+            # same-day change that had kept a $300M cap floor "alongside, not instead of" the
+            # new IBD-style liquidity screen). History: this floor was raised 300M -> 2B earlier
+            # the same day (verified against 7 real passive factor ETFs - iShares MTUM/QUAL/
+            # VLUE/USMV/IVW, Goldman GSLC, iShares LRGF - zero holdings under $2B, every one),
+            # then reverted to $300M on the grounds that explicit user direction is IBD-style
+            # CAN SLIM stock-picking, not a passive large-cap factor ETF, and IBD's own
+            # published methodology (the IBD 50) explicitly spans small/mid/large-cap companies
+            # by design with NO market-cap floor at all - its real screens are liquidity-based
+            # (minimum share price ~$10, minimum average daily volume ~250k-500k shares). That
+            # revert stopped short: it swapped $2B for $300M but kept a cap floor of SOME size,
+            # missing that a cap floor is the wrong tool for this system's stated goal
+            # regardless of the number - not just the wrong number. The IBD-style liquidity
+            # screen (min price + min avg dollar volume, mirroring algo/risk/
+            # liquidity_checks.py's min_adv_dollars already used for real trade execution) is
+            # now the actual default investability floor (lambda/api/routes/scores_handlers/
+            # stock_scores.py, unconditional unless minMarketCap=0) - min_market_cap here is no
+            # longer defaulted to any value, only applied when a caller EXPLICITLY passes
+            # ?minMarketCap=<n> for a genuine large/mid-cap-only view. Explicit ?minMarketCap=0
+            # still disables the liquidity screen too, for callers who want the fully raw
+            # universe (internal tooling, tests, non-ranking use cases).
+            min_market_cap: float | None = None
             if min_market_cap_param:
                 try:
                     min_market_cap = float(min_market_cap_param)

@@ -65,7 +65,9 @@ from loaders.stock_scores.market_cap_tilt import MarketCapTiltMixin  # noqa: E40
 from loaders.stock_scores.momentum_scoring import MomentumScoringMixin  # noqa: E402
 from loaders.stock_scores.pillar_weights import (  # noqa: E402
     BASE_PILLAR_WEIGHTS,
+    DEFAULT_MIN_ADV_DOLLARS,
     DEFAULT_MIN_INVESTABLE_MARKET_CAP,
+    DEFAULT_MIN_STOCK_PRICE,
     VALUE_RISK_INTERACTION_MAX_SHIFT,
     _value_risk_adjusted_weights,
 )
@@ -430,6 +432,51 @@ class StockScoresLoader(
             logger.warning(
                 "[STOCK_SCORES] min_market_cap_millions not configured in database. "
                 "Using conservative default $300M - consider setting explicit value in algo_config table."
+            )
+
+        # LIQUIDITY-BASED INVESTABILITY FLOOR (added 2026-09-15) - REPLACES
+        # self._min_investable_market_cap as the eligibility gate every pillar batch pass's
+        # z-score/percentile peer population is filtered against. See
+        # DEFAULT_MIN_INVESTABLE_MARKET_CAP's own docstring in pillar_weights.py for the full
+        # rationale (real IBD screens are liquidity-based, not a market-cap dollar threshold -
+        # this repo's own research already established that; the market-cap floor was the wrong
+        # tool regardless of its threshold). Same algo_config keys the API layer's IBD-style
+        # screen and algo/risk/liquidity_checks.py's live trade-execution gate already read, so
+        # this loader's scoring population and the dashboard's/executor's eligibility notion of
+        # "investable" stay the same number, read once here rather than per pillar file.
+        self._min_stock_price: float | None = None
+        self._min_adv_dollars: float | None = None
+        try:
+            with DatabaseContext("read") as config_cur:
+                config_cur.execute(
+                    "SELECT key, value FROM algo_config WHERE key IN ('min_stock_price', 'min_adv_dollars')"
+                )
+                liquidity_config = {row[0]: row[1] for row in config_cur.fetchall()}
+            if liquidity_config.get("min_stock_price"):
+                self._min_stock_price = float(liquidity_config["min_stock_price"])
+            if liquidity_config.get("min_adv_dollars"):
+                self._min_adv_dollars = float(liquidity_config["min_adv_dollars"])
+        except Exception as config_err:
+            logger.critical(
+                f"[STOCK_SCORES FAIL-FAST] Could not load min_stock_price/min_adv_dollars from config table: "
+                f"{config_err}. This is a critical data quality gate. Database may be inaccessible or corrupted."
+            )
+            raise RuntimeError(
+                f"[STOCK_SCORES CRITICAL] Failed to load liquidity-floor configuration: {config_err}. "
+                f"This parameter is critical for scoring-population integrity. Check database connectivity and schema."
+            ) from config_err
+
+        if self._min_stock_price is None:
+            self._min_stock_price = DEFAULT_MIN_STOCK_PRICE
+            logger.warning(
+                "[STOCK_SCORES] min_stock_price not configured in database. "
+                "Using conservative default $5.00 - consider setting explicit value in algo_config table."
+            )
+        if self._min_adv_dollars is None:
+            self._min_adv_dollars = DEFAULT_MIN_ADV_DOLLARS
+            logger.warning(
+                "[STOCK_SCORES] min_adv_dollars not configured in database. "
+                "Using conservative default $500,000 - consider setting explicit value in algo_config table."
             )
 
         with DatabaseContext("read") as cur:
@@ -1334,6 +1381,16 @@ class StockScoresLoader(
             raise
 
     def post_run(self) -> None:
+        # Quality re-sync-from-source pass (2026-09-15, see update_quality_from_source()'s own
+        # docstring for the full evidence trail: quality_score was the one pillar with no
+        # post_run() self-healing pass, computed only from a one-time in-memory snapshot of
+        # quality_metrics taken before the main loop - live-caught via a DataPatrol
+        # pillar_score_reconciliation quarantine on 1,369 symbols, including NVDA/MSFT/WMT/XOM/
+        # V/PG/NFLX, diverging from quality_metrics.quality_score by up to 26+ points). Placed
+        # FIRST of all the batch passes, before even Risk, so every pass after it sees the
+        # CORRECTED quality_score in its own composite_score recompute - same "later pass sees
+        # earlier pass's finalized pillar" ordering principle as everything below it.
+        self.update_quality_from_source()
         # ORDER MATTERS: update_rs_percentiles() reads only momentum_score, which is
         # unrelated to what audit_upstream_coverage() checks (value_metrics/stability_metrics
         # coverage). Live-reproduced 2026-08-10: a transient dip in value_metrics coverage

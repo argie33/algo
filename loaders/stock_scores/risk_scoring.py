@@ -134,7 +134,8 @@ import psycopg2
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
 from loaders.stock_scores.pillar_weights import (
     BASE_PILLAR_WEIGHTS,
-    DEFAULT_MIN_INVESTABLE_MARKET_CAP,
+    DEFAULT_MIN_ADV_DOLLARS,
+    DEFAULT_MIN_STOCK_PRICE,
     _value_risk_adjusted_weights,
 )
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
@@ -755,9 +756,11 @@ class RiskScoringMixin:
             cur.execute(
                 """
                 WITH liquidity AS (
-                    SELECT symbol, AVG(volume * close) AS avg_dollar_volume_20d
+                    SELECT symbol,
+                           AVG(volume * close) AS avg_dollar_volume_20d,
+                           (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
                     FROM (
-                        SELECT symbol, volume, close,
+                        SELECT symbol, volume, close, date,
                                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
                         FROM price_daily
                         WHERE date >= CURRENT_DATE - INTERVAL '45 days'
@@ -781,19 +784,22 @@ class RiskScoringMixin:
                        cp.sector, COALESCE(cis.is_foreign_private_issuer, false)
                 FROM stock_scores ss
                 JOIN stability_metrics sm ON sm.symbol = ss.symbol
-                JOIN value_metrics vm ON vm.symbol = ss.symbol
-                LEFT JOIN liquidity liq ON liq.symbol = ss.symbol
+                JOIN liquidity liq ON liq.symbol = ss.symbol
                 LEFT JOIN history hist ON hist.symbol = ss.symbol
                 JOIN stock_symbols su ON su.symbol = ss.symbol
                 LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
                 LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
                 WHERE ss.risk_score IS NOT NULL
                   AND COALESCE(sm.data_unavailable, false) = false
-                  AND vm.market_cap >= %s
+                  AND liq.latest_close >= %s
+                  AND liq.avg_dollar_volume_20d >= %s
                   AND ("""
                 + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
                 + ")",
-                (getattr(self, "_min_investable_market_cap", None) or DEFAULT_MIN_INVESTABLE_MARKET_CAP,),
+                (
+                    getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
+                    getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                ),
             )
             rows: list[tuple[Any, ...]] = cur.fetchall()
             return rows

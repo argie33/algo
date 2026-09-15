@@ -149,6 +149,18 @@ def investable_universe_conditions(scores_alias: str, symbols_alias: str) -> str
     ACTIVE-UNIVERSE FILTER (2026-09-08): no `active` check existed anywhere - live-verified
     3 delisted/deactivated symbols (TOI, KORE, PSNYW) cleared every other filter and would
     render with a plausible composite_score, indistinguishable from a real tradeable idea.
+
+    NO LIQUIDITY FLOOR HERE, DELIBERATELY (checked 2026-09-15, user directive - see
+    feedback memory "no display/API-layer filtering, scores logic only"): a WHG-class symbol
+    (below the $5/$500K liquidity floor every pillar's Pass-2 z-score/percentile correction
+    pass already gates its population on - loaders/stock_scores/pillar_weights.py's
+    LIQUIDITY_FLOOR_JOIN_SQL) displayed a stale, uncorrected momentum_score=100.00. A first
+    attempt fixed this by adding the identical liquidity check HERE - reverted: this is a
+    display-layer filter duplicating an eligibility decision the SCORING pipeline already
+    makes, a second source of truth that can silently drift from what the pipeline actually
+    computed. The real fix belongs in the scoring loader itself (mark the symbol
+    data_unavailable / withhold the score when Pass-2 will never correct it), not in a
+    parallel exclusion list here.
     """
     return f"""
         {scores_alias}.composite_score > 0

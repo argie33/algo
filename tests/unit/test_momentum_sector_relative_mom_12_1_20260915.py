@@ -112,7 +112,12 @@ def _full_row(symbol: str, mom_12m: float, sector: str, mom_1m: float = 0.0, mom
 def _run_with_mocked_rows(rows: list[tuple]) -> dict[str, tuple[float | None, float]]:
     """Run update_momentum_sector_relative_mom_12_1() against a fully mocked DB returning `rows`
     for the SELECT, and return {symbol: (momentum_score, composite_score)} from the UPDATE, or
-    {} if no UPDATE was issued."""
+    {} if no UPDATE was issued.
+
+    `_withhold_momentum_below_floor` (added 2026-09-15, a separate query/method entirely - see
+    its own docstring) is stubbed to return [] here: these tests exercise the CORRECTION pass's
+    own logic against a single mocked row shape, not the withhold companion's own (differently-
+    shaped) query - see test_momentum_withhold_below_liquidity_floor_20260915.py for that."""
     mock_cur = MagicMock()
     mock_cur.fetchall.return_value = rows
     with (
@@ -121,6 +126,7 @@ def _run_with_mocked_rows(rows: list[tuple]) -> dict[str, tuple[float | None, fl
     ):
         mock_ctx.return_value.__enter__.return_value = mock_cur
         loader = L.__new__(L)
+        loader._withhold_momentum_below_floor = list  # type: ignore[method-assign]
         loader.update_momentum_sector_relative_mom_12_1()
     if not mock_execute_values.called:
         return {}

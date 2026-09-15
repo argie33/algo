@@ -9,10 +9,22 @@ defines it.
 import logging
 from typing import TYPE_CHECKING, Any
 
+from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
 from utils.loaders.unavailable_markers import marker_loader_failed, marker_not_applicable
 from utils.type_conversion import safe_float
 
 logger = logging.getLogger("loaders.load_stock_scores")
+
+
+def _owner() -> Any:
+    """Lazy reference to the owner module (loaders.load_stock_scores), resolved at call time -
+    see loaders/stock_scores/value_metrics.py's identical `_owner()` for the full rationale.
+    Copied verbatim, not re-derived, per this file's own "reuse the established pattern"
+    mandate.
+    """
+    from loaders import load_stock_scores as _owner_mod
+
+    return _owner_mod
 
 
 class QualityScoringMixin:
@@ -197,3 +209,148 @@ class QualityScoringMixin:
             f"Returning data_unavailable marker instead of fabricated heuristic score."
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "quality_score_unavailable"}
+
+    def update_quality_from_source(self) -> None:
+        """Batch pass: re-sync stock_scores.quality_score from quality_metrics.quality_score as
+        it currently stands in the DB, and recompute composite_score/data_completeness/
+        data_unavailable to match. ADDED 2026-09-15 (/goal session, live-caught bug:
+        pillar_score_reconciliation DataPatrol check found 1,369 symbols - including NVDA,
+        MSFT, WMT, XOM, V, PG, NFLX - with stock_scores.quality_score diverging from
+        quality_metrics.quality_score by up to 26+ points, quarantining them out of the
+        leaderboard entirely).
+
+        ROOT CAUSE: unlike Risk/Value/Growth/Momentum (each of which has its own post_run()
+        batch-correction pass below that re-reads its source table fresh), Quality was the one
+        pillar computed ONLY from `self._quality_cache` - a single snapshot of the whole
+        quality_metrics table taken once in `_prepare_batch_context()` before the main
+        per-symbol loop runs (see load_stock_scores.py:435-443). `_score_quality` itself is a
+        pure passthrough of quality_metrics.quality_score (no independent computation - "Uses
+        only pre-computed quality_score... No fallback computation", see this file's own
+        `_score_quality` docstring), so any staleness is entirely a cache-vs-live-table gap: if
+        quality_metrics gets updated by anything else (a concurrent loader run, another
+        session) while this run is in flight, stock_scores permanently carries the stale
+        snapshot value with nothing to correct it afterward - the exact gap this pass closes,
+        mirroring the self-healing pattern every sibling pillar already has.
+
+        Runs FIRST in post_run() (before Risk/Value/Growth/Momentum) so their own composite
+        recomputes see the corrected quality_score, not the stale cached one.
+
+        Raises on failure, same as every other post_run() batch pass.
+        """
+        try:
+            with _owner().DatabaseContext("write") as cur:
+                cur.execute(
+                    """
+                    SELECT ss.symbol, ss.quality_score, ss.composite_score, ss.growth_score,
+                           ss.value_score, ss.risk_score, ss.momentum_score,
+                           ss.data_completeness, ss.data_unavailable, qm.quality_score
+                    FROM stock_scores ss
+                    JOIN quality_metrics qm ON qm.symbol = ss.symbol
+                    WHERE ss.quality_score IS NOT NULL
+                      AND qm.quality_score IS NOT NULL
+                      AND COALESCE(qm.data_unavailable, false) = false
+                    """
+                )
+                rows = cur.fetchall()
+
+            if not rows:
+                logger.warning(
+                    "[STOCK_SCORES] update_quality_from_source: no eligible rows found - skipping, nothing to correct."
+                )
+                return
+
+            min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
+
+            updates: list[tuple[str, float, float, float, bool]] = []
+            for row in rows:
+                (
+                    symbol,
+                    quality_score_old,
+                    composite_score_old,
+                    growth_score,
+                    value_score,
+                    risk_score,
+                    momentum_score,
+                    data_completeness_old,
+                    data_unavailable_old,
+                    quality_score_new,
+                ) = row
+                quality_score_new = float(quality_score_new)
+                data_completeness_old = float(data_completeness_old) if data_completeness_old is not None else None
+                data_unavailable_old = bool(data_unavailable_old) if data_unavailable_old is not None else False
+
+                risk_score_float = float(risk_score) if risk_score is not None else None
+                weights = _value_risk_adjusted_weights(risk_score_float)
+                composite_val = 0.0
+                for pillar_name, pillar_score in (
+                    ("quality", quality_score_new),
+                    ("growth", growth_score),
+                    ("value", value_score),
+                    ("risk", risk_score),
+                    ("momentum", momentum_score),
+                ):
+                    if pillar_score is not None:
+                        composite_val += float(pillar_score) * weights[pillar_name]
+                composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+
+                all_scores_new: dict[str, float | None] = {
+                    "quality": quality_score_new,
+                    "growth": float(growth_score) if growth_score is not None else None,
+                    "value": float(value_score) if value_score is not None else None,
+                    "risk": float(risk_score) if risk_score is not None else None,
+                    "momentum": float(momentum_score) if momentum_score is not None else None,
+                }
+                available_weight = sum(
+                    BASE_PILLAR_WEIGHTS[pillar] for pillar, score in all_scores_new.items() if score is not None
+                )
+                data_completeness_new = min(99.99, round(available_weight * 100, 2))
+                data_unavailable_new = data_completeness_new < min_completeness_threshold
+
+                if (
+                    quality_score_new != float(quality_score_old)
+                    or composite_score_new != float(composite_score_old)
+                    or data_completeness_new != data_completeness_old
+                    or data_unavailable_new != data_unavailable_old
+                ):
+                    updates.append(
+                        (
+                            symbol,
+                            quality_score_new,
+                            composite_score_new,
+                            data_completeness_new,
+                            data_unavailable_new,
+                        )
+                    )
+
+            if not updates:
+                logger.info(
+                    "[STOCK_SCORES] update_quality_from_source: no symbol's quality_score/"
+                    "composite_score changed (expected once quality_metrics and stock_scores are back in sync)."
+                )
+                return
+
+            with _owner().DatabaseContext("write") as cur:
+                _owner().execute_values(
+                    cur,
+                    """
+                    UPDATE stock_scores AS ss
+                    SET quality_score = v.quality_score,
+                        composite_score = v.composite_score,
+                        data_completeness = v.data_completeness,
+                        data_unavailable = v.data_unavailable,
+                        updated_at = CURRENT_TIMESTAMP
+                    FROM (VALUES %s) AS v(symbol, quality_score, composite_score,
+                                           data_completeness, data_unavailable)
+                    WHERE ss.symbol = v.symbol
+                    """,
+                    updates,
+                    template="(%s, %s, %s, %s, %s)",
+                )
+            logger.info(
+                f"[STOCK_SCORES] Quality re-sync-from-source pass corrected "
+                f"{len(updates)}/{len(rows)} symbols' quality_score/composite_score (post_run completed)"
+            )
+        except Exception as e:
+            error_msg = f"Quality re-sync-from-source batch update failed: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e

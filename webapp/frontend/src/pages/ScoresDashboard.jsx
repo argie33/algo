@@ -189,23 +189,17 @@ function ScoresDashboardPage() {
   const [sector, setSector] = useState("");
   const [sortBy, setSortBy] = useState("composite_score");
   const [sortOrder, setSortOrder] = useState("desc");
-  // FUND-WEIGHTED VIEW TOGGLE (2026-09-15). Defaults to ON: the user explicitly wants the
-  // main Rankings/Composite view to show recognizable large-cap names by default, matching
-  // how a real cap-weighted multi-factor fund (LRGF/GSLC) actually looks - that's the whole
-  // point of the top-25/bottom-25 verification (84%/80%, see MEMORY.md
-  // goal_top25_bottom25_achieved_production_verified_20260915). An earlier same-day attempt
-  // defaulted this OFF (raw score) to fix a real display-consistency bug (tilted sort order
-  // didn't match the displayed raw score, e.g. a 64.6 could rank below several 56-62s) - but
-  // that traded a real bug for an even worse regression (no mega-caps showing by default at
-  // all), which is strictly the wrong tradeoff. Fixed properly this time: sort stays
-  // fund-weighted by default, and the table now also shows market_cap explicitly next to each
-  // name so the displayed numbers are internally consistent with the sort order instead of
-  // hiding the actual ranking basis. Per-pillar Leaders/Laggards tabs are unaffected by this
-  // toggle - they correctly always use raw score (see MEMORY.md
-  // leaders_laggards_wrongly_tilted_by_cap_fixed_20260915), since a single-factor screen
-  // showing "who scores best on X" is a different question from "how would a fund weight
-  // this portfolio."
-  const [fundWeighted, setFundWeighted] = useState(true);
+  // FUND-WEIGHTED VIEW TOGGLE (2026-09-15, re-defaulted OFF 2026-09-15 per explicit user
+  // direction: "i want scores sorted highest to lowest" - the displayed badge in every row is
+  // the raw 0-100 composite_score, so the row order must match that field by default or the
+  // list visibly looks unsorted (e.g. 68.5, 65.4, 67.2, 67.3 - not descending). A same-day
+  // earlier attempt defaulted this ON specifically to resemble a real cap-weighted fund
+  // (LRGF/GSLC, see MEMORY.md goal_top25_bottom25_achieved_production_verified_20260915) - a
+  // real, still-available comparison, but it must be an explicit opt-in via this same
+  // checkbox, not silently override what "sorted by the number you see" means by default.
+  // Per-pillar Leaders/Laggards tabs are unaffected either way - they correctly always use raw
+  // score (see MEMORY.md leaders_laggards_wrongly_tilted_by_cap_fixed_20260915).
+  const [fundWeighted, setFundWeighted] = useState(false);
   const [minScore, setMinScore] = useState(0);
   // Investability screen (2026-09-01, un-defaulted then RE-DEFAULTED same session 2026-09-13
   // after live comparison against real institutional factor products - MSCI/iShares QUAL/

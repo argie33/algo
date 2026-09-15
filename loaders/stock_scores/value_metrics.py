@@ -21,7 +21,9 @@ from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_t
 from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
 from loaders.stock_scores.pillar_weights import (
     BASE_PILLAR_WEIGHTS,
-    DEFAULT_MIN_INVESTABLE_MARKET_CAP,
+    DEFAULT_MIN_ADV_DOLLARS,
+    DEFAULT_MIN_STOCK_PRICE,
+    LIQUIDITY_FLOOR_JOIN_SQL,
     _value_risk_adjusted_weights,
 )
 from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT, _dividend_sustainability_factor
@@ -671,13 +673,20 @@ class ValueMetricsMixin:
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
                     JOIN stock_symbols su ON su.symbol = ss.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                    """
+                    + LIQUIDITY_FLOOR_JOIN_SQL
+                    + """
                     WHERE ss.value_score IS NOT NULL
                       AND COALESCE(vm.data_unavailable, false) = false
-                      AND vm.market_cap >= %s
+                      AND liq_floor.latest_close >= %s
+                      AND liq_floor.avg_dollar_volume_20d >= %s
                       AND ("""
                     + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
                     + ")",
-                    (getattr(self, "_min_investable_market_cap", None) or DEFAULT_MIN_INVESTABLE_MARKET_CAP,),
+                    (
+                        getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
+                        getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                    ),
                 )
                 rows = cur.fetchall()
 
