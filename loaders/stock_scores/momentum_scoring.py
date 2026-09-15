@@ -15,8 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
-from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
-from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
+from loaders.helpers.factor_normalization import universe_wide_zscore, zscore_to_percentile_scale
 from loaders.stock_scores.pillar_weights import (
     BASE_PILLAR_WEIGHTS,
     DEFAULT_MIN_INVESTABLE_MARKET_CAP,
@@ -963,13 +962,6 @@ class MomentumScoringMixin:
                 )
                 return
 
-            sector_map: dict[str, str] = {}
-            for row in rows:
-                sector = apply_mortgage_reit_sector_override(row[0], row[19])
-                if sector is not None:
-                    sector_map[row[0]] = sector
-            is_fpi: dict[str, bool] = {row[0]: bool(row[20]) for row in rows}
-
             # Median vol_252d for this batch (same convention as _get_median_vol_252d, computed
             # fresh here since this pass runs off its own dedicated query, not self._stability_cache).
             vols = sorted(float(row[18]) for row in rows if row[18] is not None and float(row[18]) > 0)
@@ -1021,13 +1013,16 @@ class MomentumScoringMixin:
                 vol = float(vol252) if vol252 is not None else None
                 mom_12_1_risk_adj[symbol] = self._risk_adjust_pct(mom_12_1, vol, median_vol_252d, min_mult, max_mult)
 
-            mom_12_1_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(mom_12_1_risk_adj, sector_map, is_foreign_private_issuer=is_fpi)
-            )
+            # UNIVERSE-WIDE, not sector-relative (fixed 2026-09-15 - see this module's own
+            # update_momentum_sector_relative_mom_12_1 docstring and universe_wide_zscore's
+            # docstring in factor_normalization.py for the full evidence trail: sector-relative
+            # z-scoring was based on a misread of MTUM's real methodology - "sector
+            # diversification" there is a portfolio-construction-level exposure CAP, not a
+            # stock-scoring-level per-sector z-score - and empirically halved cap-neutral rank
+            # correlation vs fresh MTUM holdings, 0.235 vs 0.558 universe-wide).
+            mom_12_1_pct = zscore_to_percentile_scale(universe_wide_zscore(mom_12_1_risk_adj))
             logger.info(
-                "[STOCK_SCORES] Momentum sector-relative mom_12_1 z-score universe "
-                f"({len(sector_map)}/{len(rows)} symbols mapped to a GICS sector, "
-                f"{len(mom_12_1_pct)} scored)"
+                f"[STOCK_SCORES] Momentum universe-wide mom_12_1 z-score ({len(mom_12_1_pct)}/{len(rows)} scored)"
             )
 
             min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)

@@ -130,6 +130,28 @@ def sector_neutral_zscore(
     return result
 
 
+def universe_wide_zscore(values: dict[str, float]) -> dict[str, float]:
+    """Winsorize to [1st, 99th] percentile across the WHOLE population, then z-score against
+    that same single population - the correct transform for a factor whose real index
+    construction standardizes momentum/quality/etc. against the full eligible universe, not
+    per-sector peer groups (unlike `sector_neutral_zscore` above, which IS what MSCI Barra-style
+    Quality/Value ratios call for).
+
+    ADDED 2026-09-15 (fix for momentum_pillar_sector_relative_conflated_construction_vs_
+    diversification_cap_20260915): `sector_neutral_zscore` was applied to momentum's mom_12_1
+    component on the theory that MTUM's real MSCI USA Momentum (SR) index "z-scores momentum
+    WITHIN each GICS sector" - live-verified wrong (both against fresh MTUM daily holdings
+    cap-neutral rank correlation, 0.235 sector-relative vs 0.558 universe-wide using this
+    function, and against the index provider's own published methodology language: "the index
+    maintains sector diversification... on a market cap-weighted basis" - a PORTFOLIO-
+    CONSTRUCTION-level diversification CAP on total sector exposure, not a STOCK-SCORING-level
+    per-sector z-score). Same conflation already caught and fixed for Risk/USMV
+    (risk_pillar_sector_neutral_vs_real_minvol_construction_20260915) - a real, recurring
+    methodology-translation error in this codebase, not a one-off.
+    """
+    return _zscore_group(_winsorize_group(values))
+
+
 def zscore_to_percentile_scale(zscores: dict[str, float]) -> dict[str, float]:
     """Map a z-score onto the [0, 100] scale existing composite/threshold logic expects, via the
     standard normal CDF (Phi(z) * 100) - smooth and monotonic, unlike a hard percentile-rank tie
