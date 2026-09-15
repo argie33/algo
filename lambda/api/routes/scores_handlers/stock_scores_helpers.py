@@ -20,7 +20,9 @@ from .stock_details_history import _derive_mom_12_1
 logger = logging.getLogger(__name__)
 
 
-def _build_stock_scores_query(where_clause: str, market_cap_join: str, sort_col: str, sort_direction: str) -> str:
+def _build_stock_scores_query(
+    where_clause: str, market_cap_join: str, sort_col: str, sort_direction: str, fallback_col: str = "composite_score"
+) -> str:
     """Build the paginated stock-scores listing query.
 
     PERFORMANCE: filter/sort/limit to the target page FIRST in a CTE, then run the
@@ -29,6 +31,12 @@ def _build_stock_scores_query(where_clause: str, market_cap_join: str, sort_col:
     BEFORE the WHERE clause was applied, so a page of 50 rows still paid for thousands
     of per-symbol index scans - this was the root cause of the endpoint's 7+ second
     latency (and the dashboard's 3s client timeout hiding it as "no data").
+
+    `fallback_col` (2026-09-15, market-cap tilt fix): secondary ORDER BY key, normally the
+    raw score column `sort_col`'s *_tilted_weight was derived from. Every tilted weight is
+    NULL until the batch pass (loaders/stock_scores/market_cap_tilt.py) has run at least once
+    after migration 1294 - without this, `sort_col`'s own NULLS LAST would degrade ordering to
+    database-arbitrary for that entire window, not just "untilted".
     """
     interval_52w = get_interval_sql("52w")
     query = f"""
@@ -41,7 +49,7 @@ def _build_stock_scores_query(where_clause: str, market_cap_join: str, sort_col:
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
                 {market_cap_join}
                 {where_clause}
-                ORDER BY sc.{sort_col} {sort_direction} NULLS LAST
+                ORDER BY sc.{sort_col} {sort_direction} NULLS LAST, sc.{fallback_col} {sort_direction} NULLS LAST
                 LIMIT %s OFFSET %s
             )
             SELECT
@@ -387,7 +395,7 @@ def _build_stock_scores_query(where_clause: str, market_cap_join: str, sort_col:
                 ORDER BY acf_curr.fiscal_year DESC
                 LIMIT 1
             ) fcf_calc ON true
-            ORDER BY fs.{sort_col} {sort_direction} NULLS LAST
+            ORDER BY fs.{sort_col} {sort_direction} NULLS LAST, fs.{fallback_col} {sort_direction} NULLS LAST
         """
     return query
 

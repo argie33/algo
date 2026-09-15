@@ -41,6 +41,20 @@ class TestStockScoresTiltedWeightSort:
         assert any("ORDER BY sc.composite_tilted_weight DESC NULLS LAST" in sql for sql in executed_queries)
         assert not any("ORDER BY sc.composite_score " in sql for sql in executed_queries)
 
+    def test_raw_score_fallback_tiebreak_present(self) -> None:
+        """Every *_tilted_weight is NULL until the batch pass runs at least once after
+        migration 1294 - without a secondary ORDER BY key, that entire window would sort
+        database-arbitrarily instead of gracefully degrading to this endpoint's pre-fix
+        raw-score-DESC behavior."""
+        from routes.scores_handlers.stock_scores import _get_stock_scores
+
+        cursor = _mock_cursor()
+        _get_stock_scores(cursor, limit=10, offset=0, sort_by="quality_score", sort_order="desc")
+
+        executed_queries = [c.args[0] for c in cursor.execute.call_args_list]
+        main_query = next(sql for sql in executed_queries if "filtered_scores AS" in sql)
+        assert "sc.quality_tilted_weight DESC NULLS LAST, sc.quality_score DESC NULLS LAST" in main_query
+
     def test_each_pillar_sort_maps_to_its_own_tilted_weight_column(self) -> None:
         """Real ActiveBeta-style construction tilts EACH factor sub-index by that factor's
         own z-score, not composite's - a Quality Leaders request must order by

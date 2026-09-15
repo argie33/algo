@@ -69,6 +69,13 @@ def _get_stock_scores(
         }
         sort_col = allowed_sorts.get(sort_by, "composite_tilted_weight")
         sort_direction = "DESC" if sort_order == "desc" else "ASC"
+        # Secondary sort key: the raw score column the tilted weight was derived from (or
+        # "symbol" itself, which has no tilted-weight column to begin with). Every tilted
+        # weight is NULL until the batch pass has run at least once after migration 1294 -
+        # without this fallback, ordering degrades to database-arbitrary (not just "less
+        # tilted") for that entire window instead of gracefully matching this endpoint's
+        # pre-fix raw-score-DESC behavior.
+        fallback_col = sort_by if sort_by in allowed_sorts else "composite_score"
 
         # ETF FILTERING (GOVERNANCE compliance): Stock scores are for equity trading signals.
         # Exclude ETFs per GOVERNANCE.md: "financial data loaders and trading signals are stocks only".
@@ -149,7 +156,7 @@ def _get_stock_scores(
         # latency (and the dashboard's 3s client timeout hiding it as "no data"). Query
         # construction itself lives in stock_scores_helpers.py (_build_stock_scores_query) -
         # see that function's docstring for the same detail.
-        query = _build_stock_scores_query(where_clause, market_cap_join, sort_col, sort_direction)
+        query = _build_stock_scores_query(where_clause, market_cap_join, sort_col, sort_direction, fallback_col)
         params_list.extend([limit, offset])
 
         # Try with data_unavailable columns first (preferred)
