@@ -108,15 +108,22 @@ MAX_TARGET_DTE = 48
 def _select_symbols(cur: Any, limit: int) -> list[str]:
     """Daily-rotating pseudo-random sample of liquid, optionable symbols.
 
-    Restricted to market_constituents (S&P 500 / NASDAQ 100 / etc.) for the same reason the
-    deleted loader gave: penny stocks and micro-caps rarely have real options liquidity, and
-    fetching them wastes yfinance calls this codebase's shared rate limit can't spare (see
-    MEMORY.md yfinance_validation_calls_self_triggered_ban_during_reload_20260903).
+    Restricted to `stock_symbols` rows flagged `is_sp500`/`is_russell2000` (populated by
+    `loaders/load_market_constituents.py` - there is no `market_constituents` TABLE, that name
+    is the loader script's own filename; this query previously referenced a nonexistent table
+    and crashed on every run that didn't pass --symbols, silently making the default
+    daily-rotating-sample path a no-op since this loader was written - fixed 2026-09-12) for
+    the same reason the deleted loader gave: penny stocks and micro-caps rarely have real
+    options liquidity, and fetching them wastes yfinance calls this codebase's shared rate
+    limit can't spare (see MEMORY.md
+    yfinance_validation_calls_self_triggered_ban_during_reload_20260903).
     """
     cur.execute(
         """
-        SELECT DISTINCT symbol FROM market_constituents
-        WHERE symbol IS NOT NULL
+        SELECT symbol FROM (
+            SELECT DISTINCT symbol FROM stock_symbols
+            WHERE active = true AND (is_sp500 = true OR is_russell2000 = true)
+        ) candidates
         ORDER BY md5(symbol || CURRENT_DATE::text)
         LIMIT %s
         """,
