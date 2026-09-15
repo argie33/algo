@@ -221,13 +221,19 @@ class TestAbsoluteZScoreRanking:
         )
 
     def test_sector_relative_scoring_matches_quality_growth_value_pattern(self) -> None:
-        """The 2026-09-13 reversal: vol/drawdown are now sector-relative like Quality/Growth/
-        Value, via a real symbol->sector map. A symbol with mediocre raw vol/drawdown among a
-        rough Tech peer group (everyone volatile) should score HIGHER than the identical raw
-        readings would score among a calm Utilities peer group (everyone safe) - the same value
-        means something different relative to a different peer set. Uses 15 symbols per sector
-        to clear `sector_neutral_zscore`'s min_sector_size=15 floor, so neither group falls back
-        to the residual pool."""
+        """The 2026-09-13 reversal made vol/drawdown sector-relative like Quality/Growth/Value.
+        PARTIALLY RE-REVERSED 2026-09-15 (see `_compute_risk_absolute_zscore_percentiles`'s own
+        comment): volatility_60d/252d went back to universe-wide after a whole-universe
+        Fama-MacBeth test found vol has a real, robust forward-return edge broadly (the
+        2026-09-13 test only checked banks/insurers/REITs, where it doesn't) AND a real min-vol
+        fund's actual holdings (USMV) confirmed absolute vol is what matters, not
+        calmer-than-sector. max_drawdown_1y stays sector-relative (evidence there is weak
+        either way). This test still passes because max_drawdown's sector-relative pull plus
+        beta/liquidity parity keep MEDTECH/MEDUTIL close enough even with vol now absolute -
+        it's no longer proof vol itself is sector-relative, just that the overall risk_score
+        for this synthetic pair still lands within tolerance. Uses 15 symbols per sector to
+        clear `sector_neutral_zscore`'s min_sector_size=15 floor for drawdown, so neither group
+        falls back to the residual pool there."""
         tech_rows = [
             _row(
                 f"TECH{i}",
@@ -321,6 +327,114 @@ class TestAbsoluteZScoreRanking:
             f"sector-relative scoring should put a similarly-positioned peer within each sector "
             f"in a comparable range, not penalize Tech purely for its sector's higher absolute "
             f"volatility - MEDTECH={updates['MEDTECH'][0]} MEDUTIL={updates['MEDUTIL'][0]}"
+        )
+
+    def test_volatility_is_universe_wide_not_sector_relative(self) -> None:
+        """LOCKS IN the 2026-09-15 partial re-reversal (see
+        `_compute_risk_absolute_zscore_percentiles`'s own comment): volatility_60d/252d must
+        score on ABSOLUTE magnitude across the whole universe, not relative to sector peers.
+        Isolates volatility from drawdown/liquidity (both held identical across the two
+        symbols, beta absent) so only the vol transform drives the score difference. A "calm
+        for Tech" symbol (vol=0.35, genuinely elevated in absolute terms) must NOT out-score a
+        "typical for Utilities" symbol (vol=0.20, genuinely lower in absolute terms) just
+        because each is unremarkable within its own sector - the opposite of what
+        test_sector_relative_scoring_matches_quality_growth_value_pattern intentionally still
+        checks for max_drawdown_1y. Real motivation: a real min-vol fund (USMV, live N-PORT
+        holdings fetched 2026-09-15) holds genuinely low-absolute-vol names across sectors, not
+        "calmest within its own noisy sector" names - sector-neutral vol was elevating names
+        like UBER (vol=0.41) over genuinely defensive DUK (vol=0.18)."""
+        calm_for_tech = _row(
+            "CALMTECH",
+            999.0,
+            999.0,
+            50.0,
+            50.0,
+            50.0,
+            50.0,
+            {},
+            99.99,
+            False,
+            0.35,
+            0.35,
+            None,
+            None,
+            5_000_000.0,
+            LONG_HISTORY,
+            sector="Technology",
+        )
+        typical_util = _row(
+            "TYPUTIL",
+            999.0,
+            999.0,
+            50.0,
+            50.0,
+            50.0,
+            50.0,
+            {},
+            99.99,
+            False,
+            0.20,
+            0.20,
+            None,
+            None,
+            5_000_000.0,
+            LONG_HISTORY,
+            sector="Utilities",
+        )
+        # Pad each sector past min_sector_size=15 with genuinely worse Tech peers / genuinely
+        # better Utilities peers, so a sector-relative transform (if one were still in play)
+        # would make CALMTECH look good for its sector and TYPUTIL look mediocre for its own -
+        # the opposite of the absolute ordering this test requires.
+        tech_peers = [
+            _row(
+                f"NOISYTECH{i}",
+                999.0,
+                999.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                {},
+                99.99,
+                False,
+                0.60 + i * 0.05,
+                0.60 + i * 0.05,
+                None,
+                None,
+                5_000_000.0,
+                LONG_HISTORY,
+                sector="Technology",
+            )
+            for i in range(15)
+        ]
+        util_peers = [
+            _row(
+                f"CALMUTIL{i}",
+                999.0,
+                999.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                {},
+                99.99,
+                False,
+                0.08 + i * 0.005,
+                0.08 + i * 0.005,
+                None,
+                None,
+                5_000_000.0,
+                LONG_HISTORY,
+                sector="Utilities",
+            )
+            for i in range(15)
+        ]
+        updates = _run_with_mocked_rows([calm_for_tech, typical_util, *tech_peers, *util_peers])
+        assert updates["TYPUTIL"][0] > updates["CALMTECH"][0], (
+            f"volatility must score on absolute magnitude, not sector-relative position - "
+            f"TYPUTIL (vol=0.20) must outscore CALMTECH (vol=0.35) despite CALMTECH looking "
+            f"calm for its own noisy sector - TYPUTIL={updates['TYPUTIL'][0]} "
+            f"CALMTECH={updates['CALMTECH'][0]}"
         )
 
 

@@ -803,10 +803,13 @@ class RiskScoringMixin:
         rows: list[tuple[Any, ...]],
     ) -> dict[str, dict[str, float]]:
         """Winsorize+z-score Risk's 3 "lower raw value is better" inputs (volatility_60d,
-        volatility_252d, max_drawdown_1y magnitude) SECTOR-RELATIVE (via `sector_neutral_zscore`
-        with a real symbol->sector map, min_sector_size defaulting to 15) - the same primitive
-        Momentum/Growth/Value already use. Split out of `update_risk_absolute_zscore_scores` for
-        C901, pure function of its inputs.
+        volatility_252d, max_drawdown_1y magnitude). As of 2026-09-15, volatility_60d/252d are
+        UNIVERSE-WIDE z-scores (empty sectors dict) and max_drawdown_1y is SECTOR-RELATIVE (via
+        `sector_neutral_zscore` with a real symbol->sector map, min_sector_size defaulting to
+        15, the same primitive Momentum/Growth/Value use) - see the per-field comment at the
+        return statement below for why they now differ; this is a deliberate, evidence-driven
+        split, not an oversight. Split out of `update_risk_absolute_zscore_scores` for C901,
+        pure function of its inputs.
 
         REVERSED 2026-09-13 (composite-score structural audit, same session as the promotion
         above): this was universe-wide (empty sector map) on the argument that the low-volatility
@@ -883,13 +886,32 @@ class RiskScoringMixin:
             ):
                 raw_drawdown[symbol] = -abs(float(max_drawdown_1y))
 
+        # PARTIAL RE-REVERSAL 2026-09-15 (goal session: "the scores need to be right, not the
+        # display" - user rejected treating Risk's weak real-fund agreement as an unfixable
+        # structural gap). The 2026-09-13 reversal above sector-neutralized vol_60d/vol_252d/
+        # max_drawdown together based on a --industries banks|insurers|reits Fama-MacBeth run
+        # finding zero forward-return edge for vol/downside_vol/beta/max_dd in those 3
+        # industries specifically - true, but that result was generalized to "sector-neutralize
+        # everywhere" without testing the WHOLE universe first. Live-verified this session
+        # (`python -m algo.research.fama_macbeth_price_factors --start-date 2019-01-01`, no
+        # --industries filter, 68 months / ~6,665 median cross-section): vol has a real,
+        # consistent, strongly significant NEGATIVE forward-return relationship broadly
+        # (multivariate t=-5.80, correct sign in all 4 era-robustness blocks) - the low-
+        # volatility anomaly genuinely holds universe-wide even though it doesn't hold within
+        # banks/insurers/REITs specifically. max_dd shows no robust signal either direction at
+        # the whole-universe level either (univariate t=1.45, WRONG sign, era-robustness
+        # 1/4 blocks) - unlike vol, evidence doesn't support un-sector-neutralizing it, so it
+        # stays as-is. Real fund cross-check (USMV's actual N-PORT holdings, fetched fresh
+        # this session) independently confirms the same direction: genuinely low-absolute-
+        # volatility defensives (DUK vol=0.18, KO vol=0.22) are what a real min-vol product
+        # holds, not a merely-calmer-than-its-sector name (UBER vol=0.41) that sector-neutral
+        # scoring was elevating. vol_60d/vol_252d go back to universe-wide (empty sectors dict
+        # -> sector_neutral_zscore's own residual-pool fallback, same mechanism the pre-
+        # 2026-09-13 version used) while max_drawdown stays sector-neutral - a surgical,
+        # evidence-driven fix per-component, not a blanket revert of the whole 2026-09-13 pass.
         return {
-            "vol_60d": zscore_to_percentile_scale(
-                sector_neutral_zscore(raw_vol60, sectors, is_foreign_private_issuer=is_fpi)
-            ),
-            "vol_252d": zscore_to_percentile_scale(
-                sector_neutral_zscore(raw_vol252, sectors, is_foreign_private_issuer=is_fpi)
-            ),
+            "vol_60d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol60, {})),
+            "vol_252d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol252, {})),
             "max_drawdown": zscore_to_percentile_scale(
                 sector_neutral_zscore(raw_drawdown, sectors, is_foreign_private_issuer=is_fpi)
             ),
