@@ -293,6 +293,28 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         # brand-new/uncharacterized check still building its real false-positive rate - same
         # precedent as value_metrics/quality_metrics/momentum_metrics when they were first added.
         "vcp_patterns": 5,
+        # ADDED (goal session 2026-09-15, "right coverage in the patrols" sweep - table count
+        # drifted 176->180 since the 2026-09-14 exhaustive audit, re-diffed against current
+        # schema): algo_signals and algo_risk_daily are both real, actively-written, real-money
+        # tables with ZERO DataPatrol coverage of any kind - not a gap the 2026-09-14 sweep
+        # missed, both are genuinely new since then (git-blamed after that audit's own commit).
+        # algo_signals (phase8_entry_execution.py's live signal generation - execution_status/
+        # rejection_reason columns feed real trade decisions, same criticality tier as
+        # buy_sell_daily) is a "row only when a signal actually fires" table, not a strict
+        # daily cadence - live-checked: real gaps up to ~4 calendar days between rows even on a
+        # healthy pipeline (2026-09-05 to 2026-09-08), so a short CRIT threshold would
+        # false-positive on ordinary quiet periods; 5d/INFO matches vcp_patterns' identical
+        # "new/uncharacterized, real gaps expected" precedent above.
+        # algo_risk_daily (algo/risk/var.py's daily VaR/CVaR/beta/concentration risk report,
+        # phase9_reporting.py's own INSERT) has a genuinely strict one-row-per-trading-day
+        # cadence (live-checked: no gaps 2026-08-31 through 2026-09-14) - if Phase 9 silently
+        # stops running, nothing previously caught that (data_patrol_config.py's
+        # get_staleness_windows() name-drops this table but is DEAD CONFIG per
+        # config_defaults_data_quality.py's own comment - a different, unconsumed legacy
+        # system, not this checker). 3d/INFO matches market_exposure_daily/capital_routing_daily's
+        # identical daily-real-money-input precedent above.
+        "algo_signals": 5,
+        "algo_risk_daily": 3,
     }
 
     # Table configurations: (table, date_column, freq, max_days_allowed, severity_on_stale)
@@ -554,6 +576,8 @@ def build_staleness_sources() -> list[tuple[str, str, str, int, str]]:
         ("sec_segment_metrics", "updated_at", "monthly", staleness_thresholds["sec_segment_metrics"], INFO),
         ("sector_performance", "date", "daily", staleness_thresholds["sector_performance"], INFO),
         ("vcp_patterns", "date", "daily", staleness_thresholds["vcp_patterns"], INFO),
+        ("algo_signals", "signal_date", "daily", staleness_thresholds["algo_signals"], INFO),
+        ("algo_risk_daily", "report_date", "daily", staleness_thresholds["algo_risk_daily"], INFO),
         ("sector_rotation_signal", "date", "daily", staleness_thresholds["sector_rotation_signal"], INFO),
         ("short_interest_finra", "updated_at", "monthly", staleness_thresholds["short_interest_finra"], INFO),
         ("signal_quality_scores", "date", "daily", staleness_thresholds["signal_quality_scores"], INFO),
