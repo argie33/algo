@@ -61,6 +61,7 @@ from loaders.stock_scores.growth_scoring import (  # noqa: E402
     GROWTH_SCORE_FIELDS,
     GrowthScoringMixin,
 )
+from loaders.stock_scores.market_cap_tilt import MarketCapTiltMixin  # noqa: E402
 from loaders.stock_scores.momentum_scoring import MomentumScoringMixin  # noqa: E402
 from loaders.stock_scores.pillar_weights import (  # noqa: E402
     BASE_PILLAR_WEIGHTS,
@@ -117,6 +118,7 @@ class StockScoresLoader(
     ValueMetricsMixin,
     RiskScoringMixin,
     MomentumScoringMixin,
+    MarketCapTiltMixin,
 ):
     table_name = "stock_scores"
     primary_key = ("symbol",)
@@ -1381,6 +1383,12 @@ class StockScoresLoader(
         self.update_rs_percentiles()
         # update_size_percentiles() REMOVED 2026-08-28 (Size retired as a composite pillar -
         # see BASE_PILLAR_WEIGHTS for the full evidence trail).
+        # Market-cap tilted display weights (2026-09-15, migration 1294 - see
+        # market_cap_tilt.py's own docstring for the full "compute once, not per-consumer"
+        # rationale). MUST run LAST of the pillar-affecting passes, after composite_score and
+        # every pillar score is fully settled - tilting off a provisional score would produce
+        # a stale weight the instant a later pass changed that pillar.
+        self.update_market_cap_tilted_weights()
         self.snapshot_score_history()
         self.audit_upstream_coverage()
 
