@@ -130,6 +130,16 @@ class OrderManager(StopLossRepairMixin):
         # behavior today - it just removes the silent-bypass footgun for the next caller.
         self.execution_mode = execution_mode
 
+    # BUG FOUND 2026-09-15 (real-money-readiness audit, closing the retry gap flagged in
+    # [[realmoney_readiness_20260910_adversarial_second_pass]]): Alpaca order status
+    # values a caller must never treat as a live/fillable order - see this class's own
+    # send_bracket_order docstring for why client_order_id is deterministic (symbol +
+    # entry_price + signal_date, no timestamp): a genuinely-rejected order permanently
+    # occupies that id for the rest of the day, so every same-day retry of the same
+    # signal reuses it, gets rejected as a duplicate, and the ground-truth lookup below
+    # finds this exact dead order again - forever, for that signal, that day.
+    _TERMINAL_DEAD_ORDER_STATUSES = frozenset({"rejected", "canceled", "cancelled", "expired", "suspended"})
+
     def _entry_result_from_order_data(self, symbol: str, data: dict[str, Any]) -> dict[str, Any]:
         """Interpret an Alpaca order object into send_bracket_order's result shape.
 
@@ -145,6 +155,32 @@ class OrderManager(StopLossRepairMixin):
 
         order_status = validation["status"]
         executed_price = validation["filled_avg_price"]
+
+        # BUG FOUND 2026-09-15: this used to report success=True for ANY schema-valid
+        # order object regardless of status - including one the ground-truth lookup
+        # found in a terminal DEAD state (rejected/canceled/expired). The caller
+        # (executor.py's _submit_and_validate_order) then proceeds as if a real order
+        # is live, only discovering the truth several steps later when
+        # wait_for_order_fill's poll never sees a fill - by which point the entry
+        # attempt is reported as a failure anyway, but disguised behind a misleading
+        # "success" at this layer that obscured the real cause and made the eventual
+        # failure look like a fill-timeout, not a dead duplicate order. Reporting
+        # failure HERE instead, honestly, the moment the terminal status is known.
+        if order_status in self._TERMINAL_DEAD_ORDER_STATUSES:
+            error_msg = (
+                f"Order {validation['order_id']} exists at the broker but is in a terminal "
+                f"dead state (status={order_status}) - not a live/fillable order. If this was "
+                f"found via the duplicate-client_order_id ground-truth check, the original "
+                f"attempt genuinely failed; retrying with the same deterministic "
+                f"client_order_id will keep finding this same dead order every time."
+            )
+            logger.error(f"[SEND_ORDER] {symbol}: {error_msg}")
+            return {
+                "success": False,
+                "message": error_msg,
+                "rejection_reason": validation.get("rejection_reason"),
+                "terminal_dead_order": True,
+            }
 
         logger.info(
             f"[SEND_ORDER] {symbol}: Order {validation['order_id']} created - status={order_status}, fill=${executed_price}"
@@ -1437,6 +1473,20 @@ class OrderManager(StopLossRepairMixin):
             logger.error("[ORDER_MANAGER] Alpaca order response missing 'status' field")
             raise ValueError("Order status missing from Alpaca response")
         order_status = data["status"]
+
+        # See _entry_result_from_order_data's identical 2026-09-15 fix for the full
+        # rationale - the exit side of the same bug: a deterministic exit
+        # client_order_id (executor.py's _send_alpaca_exit) that hit a genuine
+        # rejection stays dead at that id for the rest of the day, and the
+        # ground-truth lookup would otherwise keep reporting that dead order as a
+        # successful exit on every retry.
+        if order_status in self._TERMINAL_DEAD_ORDER_STATUSES:
+            error_msg = (
+                f"Exit order {order_id} exists at the broker but is in a terminal dead "
+                f"state (status={order_status}) - not a live/fillable order."
+            )
+            logger.error(f"[SEND_EXIT] {symbol}: {error_msg}")
+            return {"success": False, "message": error_msg, "terminal_dead_order": True}
 
         if "filled_avg_price" not in data:
             logger.error(
