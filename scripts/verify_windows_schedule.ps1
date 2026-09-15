@@ -34,6 +34,8 @@ $expectedTasks = @(
     @{ Path = "\AlgoTrading\"; Name = "AlgoTrading_Orchestrator_1PM" }
     @{ Path = "\AlgoTrading\"; Name = "AlgoTrading_Orchestrator_3PM" }
     @{ Path = "\AlgoTrading\"; Name = "AlgoTrading_Orchestrator_530PM" }
+    @{ Path = "\AlgoTrading\"; Name = "stop-loss-guardian" }
+    @{ Path = "\AlgoTrading\"; Name = "intraday-risk-monitor" }
 )
 
 $anyFailed = $false

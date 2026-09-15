@@ -658,6 +658,75 @@ foreach ($t in $orchestratorTasks) {
     Write-Host "[OK] $($t.Name) scheduled for $($t.At) local, MON-FRI"
 }
 
+# Task: stop-loss-guardian + intraday-risk-monitor (every 15 min, 9:30 AM-4:00 PM ET, MON-FRI)
+#
+# REAL-MONEY-READINESS FIX (2026-09-15, goal: "keeps failing halting", user confirmed
+# local-only deployment - no AWS account in use for this system). terraform/modules/services/
+# stop-loss-guardian.tf and intraday-risk-monitor.tf already built these exact checks as AWS
+# Scheduler->Lambda invocations at a 15-minute cadence during market hours - but that requires
+# `terraform apply` against a real AWS account, which is moot for a local-only setup (and was
+# separately unverifiable from any dev sandbox regardless, since neither has AWS credentials -
+# see stop_loss_guardian_terraform_apply_unverified memory note). Without either the AWS path
+# or a local equivalent, this system's only stop-loss-leg-repair and beta/concentration checks
+# ran once per full orchestrator cycle (up to ~3.5h apart, per the 4 AlgoTrading_Orchestrator_*
+# triggers below) instead of within 15 minutes of a real gap appearing - both checks are pure
+# Python with no AWS dependency (DB + Alpaca broker client, same as everything else this file
+# already schedules locally), so scripts/run_stop_loss_guardian.py / run_intraday_risk_monitor.py
+# are the local equivalent entrypoints. Registered in \AlgoTrading (not \algo) since both touch
+# live trading state (stop-loss repair submits real orders; the risk monitor can set the shared
+# halt flag), same folder as the orchestrator tasks below.
+#
+# RepetitionInterval/RepetitionDuration (not available for the -Weekly/-At triggers used
+# elsewhere in this file) gives the 15-min-during-market-hours cadence in one trigger per task,
+# mirroring AWS EventBridge's `cron(0/15 9-16 ? * MON-FRI *)` in the terraform modules above.
+$intradayRiskTaskFolder = "\AlgoTrading"
+$intradayRiskStartLocal = Convert-EasternTimeToLocal -Hour 9 -Minute 30
+Write-Host ""
+Write-Host "Task: Stop-Loss Guardian + Intraday Risk Monitor (every 15 min, 9:30 AM-4:00 PM ET, MON-FRI)"
+Write-Host "[INFO] ET 09:30 start -> local $intradayRiskStartLocal"
+
+$intradayRiskTrigger = New-ScheduledTaskTrigger `
+    -Weekly `
+    -At $intradayRiskStartLocal `
+    -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
+$intradayRiskTrigger.Repetition.Interval = "PT15M"
+$intradayRiskTrigger.Repetition.Duration = "PT6H30M"
+
+$intradayRiskSettings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries:$true `
+    -DontStopIfGoingOnBatteries `
+    -Compatibility Win8 `
+    -MultipleInstances IgnoreNew `
+    -WakeToRun
+
+$intradayRiskTasks = @(
+    @{ Name = "stop-loss-guardian";     Args = "scripts/run_stop_loss_guardian.py";     Desc = "Stop-loss-leg protection check/self-repair, every 15 min during market hours (local equivalent of stop-loss-guardian.tf)" }
+    @{ Name = "intraday-risk-monitor";  Args = "scripts/run_intraday_risk_monitor.py";  Desc = "Portfolio beta/top-5-concentration re-check, every 15 min during market hours (local equivalent of intraday-risk-monitor.tf)" }
+)
+
+foreach ($t in $intradayRiskTasks) {
+    $action = New-ScheduledTaskAction -Execute $pythonExe -Argument $t.Args -WorkingDirectory $algoPath
+
+    if (Get-ScheduledTask -TaskPath "$intradayRiskTaskFolder\" -TaskName $t.Name -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskPath "$intradayRiskTaskFolder\" -TaskName $t.Name -Confirm:$false
+        Write-Host "[OK] Replaced existing $($t.Name)"
+    } else {
+        Write-Host "[INFO] No existing $($t.Name) found"
+    }
+
+    Register-ScheduledTask `
+        -TaskName $t.Name `
+        -TaskPath $intradayRiskTaskFolder `
+        -Action $action `
+        -Trigger $intradayRiskTrigger `
+        -Settings $intradayRiskSettings `
+        -Principal $taskPrincipal `
+        -Description $t.Desc `
+        -ErrorAction Stop | Out-Null
+
+    Write-Host "[OK] $($t.Name) scheduled every 15 min, 9:30 AM-4:00 PM ET, MON-FRI"
+}
+
 # List created tasks
 Write-Host ""
 Write-Host "================================"
@@ -671,6 +740,7 @@ Write-Host "The loaders will run automatically on MON-FRI at 2:00 AM, 4:05 PM, 7
 Write-Host "XBRL data-quality layers 4/5/6 (second-opinion) run MON-FRI at 11:50 PM ET; layer 7 (segment-sum) runs monthly on the 2nd at 6:00 AM ET"
 Write-Host "Score realized-IC monitor (live scoring-quality feedback loop) runs MON-FRI at 11:55 PM ET"
 Write-Host "The trading orchestrator will run automatically on MON-FRI at 9:30 AM, 1:00 PM, 3:00 PM (all real orders), and 5:30 PM ET (monitor-only)"
+Write-Host "Stop-loss guardian + intraday risk monitor run every 15 min, MON-FRI 9:30 AM-4:00 PM ET"
 Write-Host ""
 Write-Host "To view/manage tasks, open Task Scheduler (Win+R > taskschd.msc)"
 Write-Host "Tasks are under: Task Scheduler Library > algo, and Task Scheduler Library > AlgoTrading"
