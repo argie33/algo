@@ -127,6 +127,18 @@ def _fetch_table_history(cur: cursor, tables: list[str]) -> dict[str, dict[str, 
     (current state), while still reporting the old trailing-window counts as `recent` for the
     panel's separate "how much has fired in the last 30 days" history display - that field's
     use is descriptive volume, not the open/resolved determination.
+
+    FIXED 2026-09-14b (same goal session, follow-up): the fix above still couldn't distinguish
+    "nobody has looked at this yet" from "a human already confirmed this exact check/table is a
+    known review-queue pattern, not a bug" - a genuinely-reviewed WARN check that keeps
+    re-finding the same real outliers every run (analyst_sentiment_bounds,
+    roic_pct_cross_sectional_outlier, stability_metrics_bounds,
+    fcf_yield_cross_sectional_outlier - each independently re-verified live this session) stayed
+    'open' forever with no way to record that review, identical-looking to an unreviewed
+    backlog item. `open_warn`/`open_error`/`open_critical` now exclude rows whose
+    (check_name, target_table) has an active row in data_patrol_finding_acknowledgments
+    (migration 1292) - the check keeps running and logging every time, this just stops an
+    already-reviewed-and-accepted finding from reading as "needs review" on this panel.
     """
     # days_since_last_seen computed IN SQL (EXTRACT(EPOCH ...) on a plain interval), not by
     # subtracting a fetched `now()` from `last_seen` in Python - live-found 2026-09-13:
@@ -148,11 +160,25 @@ def _fetch_table_history(cur: cursor, tables: list[str]) -> dict[str, dict[str, 
                                  AND severity = 'warn') AS recent_warn,
                COUNT(*) FILTER (WHERE created_at >= now() - interval '{_LOOKBACK_DAYS} days'
                                  AND severity = 'info') AS recent_info,
-               COUNT(*) FILTER (WHERE status = 'open' AND severity = 'critical') AS open_critical,
-               COUNT(*) FILTER (WHERE status = 'open' AND severity = 'error') AS open_error,
-               COUNT(*) FILTER (WHERE status = 'open' AND severity = 'warn') AS open_warn,
+               COUNT(*) FILTER (
+                   WHERE status = 'open' AND severity = 'critical' AND NOT ack.acknowledged
+               ) AS open_critical,
+               COUNT(*) FILTER (
+                   WHERE status = 'open' AND severity = 'error' AND NOT ack.acknowledged
+               ) AS open_error,
+               COUNT(*) FILTER (
+                   WHERE status = 'open' AND severity = 'warn' AND NOT ack.acknowledged
+               ) AS open_warn,
                COUNT(*) FILTER (WHERE status = 'open' AND severity = 'info') AS open_info
         FROM data_patrol_log
+        LEFT JOIN LATERAL (
+            SELECT EXISTS (
+                SELECT 1 FROM data_patrol_finding_acknowledgments a
+                WHERE a.active
+                  AND a.check_name = data_patrol_log.check_name
+                  AND a.target_table = data_patrol_log.target_table
+            ) AS acknowledged
+        ) ack ON true
         WHERE target_table = ANY(%s)
         GROUP BY target_table
         """,
@@ -258,6 +284,32 @@ def _fetch_checking_checks(cur: cursor, tables: list[str]) -> dict[str, list[str
     return {table: list(checks) for table, checks in cur.fetchall()}
 
 
+def _fetch_acknowledgments(cur: cursor, tables: list[str]) -> dict[str, list[dict[str, Any]]]:
+    """Active data_patrol_finding_acknowledgments rows per table (migration 1292) - surfaced so
+    a reviewer can see WHY a table with real open WARN rows in data_patrol_log still shows
+    active_clean here, and who/why signed off, rather than the acknowledgment being invisible."""
+    cur.execute(
+        """
+        SELECT target_table, check_name, reason, acknowledged_by, acknowledged_at
+        FROM data_patrol_finding_acknowledgments
+        WHERE active AND target_table = ANY(%s)
+        ORDER BY target_table, check_name
+        """,
+        (tables,),
+    )
+    out: dict[str, list[dict[str, Any]]] = {}
+    for table, check_name, reason, acknowledged_by, acknowledged_at in cur.fetchall():
+        out.setdefault(table, []).append(
+            {
+                "check": check_name,
+                "reason": reason,
+                "acknowledged_by": acknowledged_by,
+                "acknowledged_at": acknowledged_at.isoformat() if acknowledged_at else None,
+            }
+        )
+    return out
+
+
 def _fetch_open_quarantine_counts(cur: cursor, tables: list[str]) -> dict[str, int]:
     """Open (unresolved) symbol_quarantine rows per table, so a "Findings open" row can show
     the actual actionable backlog size instead of just "something fired recently".
@@ -354,6 +406,7 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
         checking_checks = _fetch_checking_checks(cur, tables)
         open_quarantine = _fetch_open_quarantine_counts(cur, tables)
         open_quarantine_symbols = _fetch_open_quarantine_symbols(cur, tables)
+        acknowledgments = _fetch_acknowledgments(cur, tables)
 
         rows: list[dict[str, Any]] = []
         for table in tables:
@@ -385,6 +438,7 @@ def _get_scores_correctness_coverage(cur: cursor) -> Any:
                     "checks": checking_checks.get(table, []),
                     "open_quarantine_count": open_quarantine.get(table, 0),
                     "open_quarantine_symbols": open_quarantine_symbols.get(table, []),
+                    "acknowledgments": acknowledgments.get(table, []),
                 }
             )
 
