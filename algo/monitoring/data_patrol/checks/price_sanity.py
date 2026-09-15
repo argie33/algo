@@ -23,6 +23,7 @@ class PriceSanityChecker(BaseCheck):
         self.check_corporate_actions(cur)
         self.check_sequence_continuity(cur)
         self.check_isolated_spike_corruption(cur)
+        self.check_trading_day_gaps(cur)
 
         return self.results
 
@@ -338,3 +339,110 @@ class PriceSanityChecker(BaseCheck):
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, ZeroDivisionError, TypeError) as e:
             self.log("isolated_spike_corruption", ERROR, "price_daily", f"Check failed: {e}", None)
+
+    # ADDED 2026-09-15 (goal session: momentum-vs-MTUM comparison work surfaced this hole
+    # live). None of the four checks above catch an isolated missing row in one symbol's own
+    # trading-day history - check_price_moves only ever looks at the single most recent date,
+    # check_sequence_continuity only checks SPY's own calendar (not per-symbol), and
+    # check_isolated_spike_corruption only considers low-volume yfinance rows as candidates.
+    # Live-caught concretely: DELL was missing its 2026-05-29 row specifically (confirmed via
+    # yfinance as a second source - the real move happened over 2 real trading days, our data
+    # jumped straight from 5/28 to 6/1, compressing it into an apparent single 47% one-day
+    # spike) - exactly the kind of gap that would distort a daily-return-volatility-based
+    # momentum calc while looking like a legitimate large mover to every check above.
+    #
+    # $300M market-cap floor (same threshold as this system's established investability floor
+    # elsewhere - GOVERNANCE.md, ScoresDashboard.jsx) is required here for a different reason
+    # than usual: without it, this query is swamped by thousands of thinly-traded rights/
+    # warrants (ticker suffix R, e.g. APACR/BPACR/KTWOR) that legitimately don't trade every
+    # session - live-verified the unfiltered version returned ~2,500+ flagged symbols, almost
+    # all such instruments, burying the small number of genuine gaps in real actively-traded
+    # names. SPY's own trading-day calendar is the reference (self.check_sequence_continuity
+    # already establishes SPY itself is gap-free before this runs) - a symbol is only expected
+    # to have a row for a given SPY trading date if that date falls within the symbol's own
+    # observed min/max date range in this window, so a real IPO start or delisting end is never
+    # mistaken for a gap.
+    _GAP_LOOKBACK_DAYS = 120
+    _GAP_MIN_MARKET_CAP = 300_000_000
+
+    def check_trading_day_gaps(self, cur: Any) -> None:
+        try:
+            cur.execute(
+                f"""
+                WITH cal AS (
+                    SELECT date FROM price_daily
+                    WHERE symbol = 'SPY' AND date >= CURRENT_DATE - INTERVAL '{self._GAP_LOOKBACK_DAYS} days'
+                ),
+                sym_bounds AS (
+                    SELECT pd.symbol, min(pd.date) AS min_d, max(pd.date) AS max_d
+                    FROM price_daily pd
+                    JOIN value_metrics vm ON vm.symbol = pd.symbol
+                    WHERE pd.date >= CURRENT_DATE - INTERVAL '{self._GAP_LOOKBACK_DAYS} days'
+                      AND COALESCE(vm.market_cap, 0) >= %(min_cap)s
+                    GROUP BY pd.symbol
+                ),
+                expected AS (
+                    SELECT sb.symbol, cal.date
+                    FROM sym_bounds sb
+                    JOIN cal ON cal.date BETWEEN sb.min_d AND sb.max_d
+                ),
+                missing AS (
+                    SELECT e.symbol, e.date
+                    FROM expected e
+                    LEFT JOIN price_daily pd ON pd.symbol = e.symbol AND pd.date = e.date
+                    WHERE pd.symbol IS NULL
+                )
+                SELECT symbol, array_agg(date ORDER BY date) AS missing_dates, count(*) AS gap_count
+                FROM missing
+                GROUP BY symbol
+                ORDER BY gap_count DESC
+                """,
+                {"min_cap": self._GAP_MIN_MARKET_CAP},
+            )
+            rows = cur.fetchall()
+
+            if rows:
+                flagged: list[dict[str, Any]] = []
+                for r in rows:
+                    symbol = str(r.get("symbol") if isinstance(r, dict) else r[0])
+                    missing_dates_raw = r.get("missing_dates") if isinstance(r, dict) else r[1]
+                    missing_dates: list[Any] = missing_dates_raw if missing_dates_raw is not None else []
+                    gap_count_raw = r.get("gap_count") if isinstance(r, dict) else r[2]
+                    gap_count = int(gap_count_raw) if gap_count_raw is not None else 0
+                    flagged.append(
+                        {
+                            "symbol": symbol,
+                            "gap_count": gap_count,
+                            "sample_dates": [str(d) for d in missing_dates[:5]],
+                            "reason": (
+                                f"missing {gap_count} trading day(s) in price_daily within the "
+                                f"last {self._GAP_LOOKBACK_DAYS}d (vs SPY's calendar) - "
+                                "distorts daily-return-volatility-based momentum/risk calcs"
+                            ),
+                        }
+                    )
+                total_gap_rows = sum(int(f["gap_count"]) for f in flagged)
+                self.log(
+                    "trading_day_gaps",
+                    ERROR,
+                    "price_daily",
+                    f"{len(flagged)} symbol(s) with {total_gap_rows} missing trading-day row(s) "
+                    f"vs SPY's calendar in the last {self._GAP_LOOKBACK_DAYS}d (market_cap>="
+                    f"${self._GAP_MIN_MARKET_CAP:,.0f})",
+                    {
+                        "count": len(flagged),
+                        "total_gap_rows": total_gap_rows,
+                        "samples": flagged[:10],
+                        "flagged_symbols": [{"symbol": f["symbol"], "reason": f["reason"]} for f in flagged],
+                    },
+                )
+            else:
+                self.log(
+                    "trading_day_gaps",
+                    INFO,
+                    "price_daily",
+                    "No trading-day gaps detected in the investable universe",
+                    None,
+                )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, ZeroDivisionError, TypeError) as e:
+            self.log("trading_day_gaps", ERROR, "price_daily", f"Check failed: {e}", None)
