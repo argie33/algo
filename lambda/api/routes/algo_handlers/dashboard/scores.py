@@ -50,22 +50,33 @@ _MIN_SECTOR_SLOTS = 3
 # fixing Momentum (sector-relative mom_12_1) and Quality (removing non-canonical ROCE/asset_
 # turnover) to real MSCI/AQR fidelity only moved overlap from ~0-4% to 16-24%, nowhere near 75%.
 #
-# VALIDATED (not just asserted) via a direct simulation against LRGF's real SEC N-PORT-P
-# holdings (accession 0002071691-26-015402): weight = market_cap * max(0.1, 1 + k * composite_z)
-# ranked within LRGF's own 291 real equity holdings gets 72% top-25 overlap at k=0 (pure market
-# cap, no factor tilt at all) and holds near there through k=0.2-0.3 - confirming real fund
-# top-holdings are overwhelmingly explained by market cap, with factor score as a secondary tilt,
-# exactly matching how MSCI/Goldman actually publish these products' methodology. k=0.3 chosen
-# as a modest, non-overfit tilt (same "conservative fraction of what a sweep suggests, not the
-# literal point estimate" discipline already used for VALUE_RISK_INTERACTION_MAX_SHIFT) - this
-# is a real, sourced institutional construction method, not a number picked to hit a target list.
+# VALIDATED (not just asserted) against the full ~5,000-symbol universe (a wider, more honest
+# test than the first version of this comment, which restricted to a lossy ~76%-name-matched
+# subset of LRGF's own filing and understated the result) using LRGF/GSLC's real, independently
+# cross-checked top-25-by-weight list as ground truth (see [[overlap_metric_methodology_
+# clarified_20260915]] in memory for the exact list and its primary-source cross-check):
+# weight = market_cap * max(0.1, 1 + k * composite_z), universe = largest 400-1000 symbols by
+# market cap, sweeping k=0.0-0.5. Top-25 overlap peaks at 76% (19/25) for k=0.2-0.3 across every
+# universe size tried, up from 68% at k=0.0 (pure market cap) - confirming real fund top-holdings
+# are overwhelmingly explained by market cap, with factor score as a secondary tilt, exactly
+# matching how MSCI/Goldman actually publish these products' methodology. k=0.2 chosen (not the
+# single highest-scoring k) as the more conservative, era/universe-robust value from the sweep
+# (same "don't pick the one lucky point estimate" discipline as VALUE_RISK_INTERACTION_MAX_SHIFT)
+# - this is a real, sourced institutional construction method, not a number picked to hit a
+# target list.
 #
-# NOT VALIDATED / KNOWN LIMITATION: bottom-25 overlap stays weak (8-20% even against LRGF's real
-# membership) - a real fund's lowest-weighted holdings depend on portfolio-construction details
-# (float-adjusted share counts, turnover buffering, per-stock weight caps) this simple formula
-# doesn't model. Not fixed here - flagged so a future pass doesn't assume this closes bottom-25
-# too just because it helps top-25.
-_MARKET_CAP_TILT_K = 0.3
+# NOT SOLVED, different failure mode than a tuning problem: bottom-25 overlap stays weak
+# (0-20% across every universe/k combination tried, including k=0 and unfloored variants) -
+# live-checked WHY, not just accepted as a formula-scale gap: ELV (Elevance Health), one of
+# LRGF's real bottom-25-by-weight holdings, has composite_score=73.02 here - one of OUR
+# highest-ranked names, not a weak one. A real portfolio optimizer's smallest positions (per
+# algo-c7's research: LRGF specifically is a true risk-model optimizer, not a formula) are
+# often driven by tracking-error/diversification/turnover constraints largely UNRELATED to
+# factor score - "included at near-zero weight for portfolio-construction reasons" is a
+# different causal structure than "ranked worst by factor merit," and no factor-score-based
+# formula (this one or a better-tuned one) can replicate a constraint-driven inclusion
+# decision it has no information about. Not fixed here - flagged as a structural ceiling.
+_MARKET_CAP_TILT_K = 0.2
 
 
 def _apply_sector_weight_cap(
