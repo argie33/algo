@@ -14,15 +14,16 @@ Given its own new module (not added to tie_out.py) because that file is already 
 .file-size-baseline.json's note on tie_out.py.
 
 This is an EXACT recompute, not a tolerance-banded check like tie_out.py's siblings: fixed
-BASE_PILLAR_WEIGHTS, adjusted only by _value_risk_adjusted_weights' deterministic value<->risk
-weight transfer (conditioned on the symbol's own risk_score), with a missing pillar contributing
-0 (no redistribution, per GOVERNANCE). The only legitimate slack is float/rounding noise.
+BASE_PILLAR_WEIGHTS (the value<->risk interaction shift was removed entirely 2026-09-15 - see
+pillar_weights.py - real Barra-style factor models don't do ad hoc cross-factor weight shifts),
+with a missing pillar contributing 0 (no redistribution, per GOVERNANCE). The only legitimate
+slack is float/rounding noise.
 """
 
 import logging
 from typing import Any
 
-from loaders.stock_scores.pillar_weights import _value_risk_adjusted_weights
+from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS
 
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
@@ -61,8 +62,7 @@ class CompositeScoreReconciliationChecker(BaseCheck):
                     "risk": row["risk_score"],
                     "momentum": row["momentum_score"],
                 }
-                risk_score = float(row["risk_score"]) if row["risk_score"] is not None else None
-                weights = _value_risk_adjusted_weights(risk_score)
+                weights = BASE_PILLAR_WEIGHTS
                 recomputed = sum(
                     float(score) * weights[pillar] for pillar, score in pillar_scores.items() if score is not None
                 )
@@ -88,7 +88,7 @@ class CompositeScoreReconciliationChecker(BaseCheck):
                     severity,
                     "stock_scores",
                     f"{len(flagged)} symbol(s) have a composite_score that doesn't reconcile to "
-                    f"its own pillar inputs via BASE_PILLAR_WEIGHTS/_value_risk_adjusted_weights "
+                    f"its own pillar inputs via BASE_PILLAR_WEIGHTS "
                     f"beyond a {_WARN_PCT}-point rounding budget (max divergence "
                     f"{flagged[0]['divergence']:.4f})",
                     {

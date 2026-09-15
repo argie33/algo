@@ -57,14 +57,12 @@ class TestCompositeScoreReconciliation:
         assert len(results) == 1
         assert results[0].severity == INFO
 
-    def test_legitimate_value_risk_interaction_shift_not_flagged(self) -> None:
-        # risk_score=0 (riskiest) shifts weight from Risk to Value by the full
-        # VALUE_RISK_INTERACTION_MAX_SHIFT - a real, deterministic effect, not a bug. Value=100
-        # scored with the *shifted* (higher) weight while Risk=0 scored with the shifted (lower)
-        # weight must still reconcile exactly against the checker's own recompute.
-        from loaders.stock_scores.pillar_weights import _value_risk_adjusted_weights
+    def test_fixed_base_weights_not_flagged(self) -> None:
+        # Fixed BASE_PILLAR_WEIGHTS, no cross-pillar interaction shift (removed 2026-09-15 - real
+        # Barra-style factor models don't shift one factor's weight based on another's score).
+        from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS
 
-        weights = _value_risk_adjusted_weights(0.0)
+        weights = BASE_PILLAR_WEIGHTS
         composite = (
             weights["quality"] * 50.0
             + weights["growth"] * 50.0
@@ -80,9 +78,9 @@ class TestCompositeScoreReconciliation:
     def test_missing_pillar_contributes_zero_not_flagged(self) -> None:
         # momentum missing (None) - contributes 0 to the weighted sum, not redistributed to the
         # other 4 pillars (GOVERNANCE: no weight redistribution).
-        from loaders.stock_scores.pillar_weights import _value_risk_adjusted_weights
+        from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS
 
-        weights = _value_risk_adjusted_weights(50.0)
+        weights = BASE_PILLAR_WEIGHTS
         composite = (
             weights["quality"] * 50.0 + weights["growth"] * 50.0 + weights["value"] * 50.0 + weights["risk"] * 50.0
         )

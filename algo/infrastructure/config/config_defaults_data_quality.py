@@ -238,6 +238,17 @@ CONFIG_DEFAULTS_DATA_QUALITY: dict[str, tuple[Any, ...]] = {
         "Corporate action price drop ratio threshold",
         "Data Quality",
     ),
+    # ADDED 2026-09-15 (/goal "get our scores right" session): check_corporate_actions was
+    # drop-only - a REVERSE split (price jumps up, e.g. a 1-for-10) produced zero alert at
+    # all, a real blind spot found while root-causing the missing stock_splits table (see
+    # scripts/fix_missing_stock_splits.py's own module docstring). Symmetric magnitude to
+    # drop_ratio by default - same threshold reasoning applies in either direction.
+    "patrol_corporate_action_rise_ratio": (
+        "0.3",
+        "float",
+        "Corporate action price rise ratio threshold (reverse splits)",
+        "Data Quality",
+    ),
     "patrol_corporate_action_lookback_days": (
         "30",
         "int",

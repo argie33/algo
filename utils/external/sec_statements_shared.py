@@ -12,6 +12,7 @@ sec_statements_aggregate) without recreating the circular-import trap the origin
 single-file layout required a mid-file import to work around.
 """
 
+import datetime
 from typing import Any
 
 from utils.external.fx_rates import MAJOR_CURRENCIES, FxRateCache
@@ -39,6 +40,26 @@ def _extract_currency_code(unit: str) -> str:
     "USD" still correctly fall outside the 3-letter-uppercase-code shape.
     """
     return unit.split("/", 1)[0]
+
+
+def _is_genuine_fy_duration_span(start: str | None, end: str | None) -> bool:
+    """True if a duration fact's own start-end span (350-380 days) is close enough to a
+    genuine 365/366-day fiscal year - or a 52/53-week fiscal calendar's occasional 371/372-day
+    long year - to trust as real fiscal-year-end evidence, rather than a short quarterly fact
+    merely mistagged fp='FY' by its own filing's period label (see
+    sec_statements_unit_context.py's `_is_genuine_fy_span`, the original single-concept use of
+    this exact check, for the ARWR live-confirmed rationale). Extracted as a shared helper
+    2026-09-15 (goal: data-issue coordination session, SMMT live-confirmed) so
+    sec_statements_aggregate.py's cross-concept fiscal-year-end conflict scan can reuse the
+    identical criterion instead of drifting from it.
+    """
+    if not start or not end:
+        return False
+    try:
+        span = (datetime.date.fromisoformat(end) - datetime.date.fromisoformat(start)).days
+    except ValueError:
+        return False
+    return 350 <= span <= 380
 
 
 # Forms that carry audited/reviewed primary financial statements. See the

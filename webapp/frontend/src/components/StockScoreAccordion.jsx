@@ -1583,47 +1583,55 @@ const POSITIONING_SCHEMA = [
 // off this tab: momentum_1m was once a real 16%-weighted Momentum input with no display row
 // at all (see this file's own module docstring above) - same omission class, avoided here.
 // UNIFORM EQUAL-WEIGHT 2026-09-11 (see PILLAR_COMPOSITE_WEIGHTS' own comment for the full
-// rationale): all 5 components now flat 20% each, replacing the prior tuned 45/15/15/10/15
-// split.
+// rationale): all components flat-weighted, replacing the prior tuned 45/15/15/10/15 split.
+// LIQUIDITY REMOVED 2026-09-15 (user directive: "get rid of all the extra shit beyond the
+// barra and the industry guys" - see _score_risk's own docstring in risk_scoring.py). Real
+// Barra-style Minimum-Volatility/low-risk factor construction never folds tradability into
+// the risk-anomaly score itself - that's a separate execution-eligibility screen (still
+// enforced elsewhere: algo_config.min_adv_dollars, Phase 7/8's LiquidityChecks). The
+// remaining 4 genuine risk-of-loss inputs now split the full weight equally, 25% each.
 const RISK_SCHEMA = [
   {
     key: "volatility_60d",
     label: "Volatility (60D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "20%",
+    weight: "25%",
   },
   {
     key: "volatility_12m",
     label: "Volatility (252D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "20%",
+    weight: "25%",
   },
   {
     key: "beta",
     label: "Beta vs Market",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "20%",
+    weight: "25%",
   },
   {
     key: "max_drawdown_1y",
     label: "Max Drawdown (1Y)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "20%",
+    weight: "25%",
   },
   {
     key: "avg_dollar_volume_20d",
     label: "Avg Dollar Volume (20D)",
     fmt: (v) => (v == null ? null : `$${Math.round(v).toLocaleString()}`),
-    used: true,
-    weight: "20%",
+    used: false,
+    weight: null,
   },
   // Volatility 30D and downside volatility (252d/60d/30d) are NOT part of the current
-  // 5-input formula - still fetched/persisted for reference. Debt-to-Assets is scored under
-  // Quality instead, not this price-volatility/risk-of-loss pillar.
+  // 4-input formula - still fetched/persisted for reference. Debt-to-Assets is scored under
+  // Quality instead, not this price-volatility/risk-of-loss pillar. avg_dollar_volume_20d is
+  // still displayed (informational only, used:false) - it still gates the
+  // NEAR_ZERO_LIQUIDITY_THRESHOLD measurement-validity check and remains the system's real
+  // trade-eligibility floor elsewhere, it just no longer contributes to risk_score itself.
   // segment_count/largest_segment_revenue_pct/is_diversified also stay off this tab - the
   // underlying XBRL segment-dimension extraction always comes back empty.
 ];

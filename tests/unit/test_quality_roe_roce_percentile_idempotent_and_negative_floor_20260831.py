@@ -41,7 +41,11 @@ def _run_with_mocked_rows(rows: list[tuple]) -> list[tuple[str, float]]:
     across the run, i.e. a single pass), and return the UPDATE's (symbol, quality_score)
     pairs, or [] if no UPDATE was issued."""
     mock_cur = MagicMock()
-    mock_cur.fetchall.return_value = rows
+    # side_effect, not return_value (2026-09-15): update_quality_sector_neutral_scores now
+    # ALSO calls _withhold_quality_below_floor(), a second SELECT reusing this same mocked
+    # cursor - a shared return_value would spuriously re-serve the main rows as "below the
+    # liquidity floor" too. Only the first fetchall() (the correction pass) sees `rows`.
+    mock_cur.fetchall.side_effect = [rows, []]
     with (
         patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_ctx,
         patch("loaders.load_value_quality_growth_metrics.execute_values") as mock_execute_values,

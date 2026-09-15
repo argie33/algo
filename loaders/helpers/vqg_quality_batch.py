@@ -21,7 +21,7 @@ import itertools
 import logging
 from typing import TYPE_CHECKING, Any
 
-from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
+from loaders.helpers.factor_normalization import sector_size_neutral_zscore, zscore_to_percentile_scale
 from loaders.helpers.vqg_quality_debt_fallback import DebtComponentsFallbackMixin
 from loaders.helpers.vqg_shared import BROKER_DEALER_INDUSTRIES, apply_mortgage_reit_sector_override
 from loaders.stock_scores.pillar_weights import (
@@ -85,6 +85,77 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
         if not available or total_weight <= 0 or total_weight < min_weight_pct:
             return None
         return sum(v * w for v, w in available) / total_weight
+
+    def _withhold_quality_below_floor(self) -> list[tuple[str, float | None]]:
+        """Companion to update_quality_sector_neutral_scores(): finds the COMPLEMENT of that
+        method's own correction population - symbols with a real (non-NULL, non-data_unavailable)
+        quality_metrics.quality_score that are ineligible for the sector-neutral correction pass
+        (below the liquidity floor, or excluded by NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE)
+        - and withholds quality_score (NULL) instead of leaving Pass-1's stale, potentially-
+        floored curve value in place indefinitely.
+
+        LINEAGE (added 2026-09-15): same failure mode as the momentum-saturation bug fixed in
+        loaders/stock_scores/momentum_scoring.py's `_withhold_momentum_below_floor()` (commit
+        c1a3dd899), just manifesting at the BOTTOM of the scale instead of the top - update_
+        quality_sector_neutral_scores()'s own docstring already documents "Sub-floor symbols
+        simply aren't included in this pass and keep whatever Pass-1 already gave them", and
+        Pass-1's `_margin_curve` floors negative-ROE/ROA (sign-flip distress) symbols to 0.0 -
+        so a sub-floor symbol that happens to be loss-making stays pinned at quality_score=0.0
+        forever instead of getting a proper cross-sectional score once/if it clears the floor.
+        Live-confirmed 2026-09-15: 115 of the 179 symbols with quality_score<=1.0 in the live DB
+        are below the liquidity floor.
+
+        Only touches quality_metrics.quality_score - propagation to stock_scores.quality_score/
+        composite_score happens in loaders/stock_scores/quality_scoring.py's
+        update_quality_from_source(), which now also propagates a NULL-ing withhold (previously
+        it required qm.quality_score IS NOT NULL, which would silently DROP this withdrawal
+        instead of syncing it - see that method's own docstring for the fix).
+
+        Returns (symbol, None) tuples in the same shape update_quality_sector_neutral_scores()'s
+        own `updates` list uses, so the caller can extend one batch UPDATE with both.
+        """
+        with _owner().DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                SELECT qm.symbol
+                FROM quality_metrics qm
+                JOIN stock_scores ss ON ss.symbol = qm.symbol
+                JOIN stock_symbols su ON su.symbol = qm.symbol
+                LEFT JOIN company_info_sec cis ON cis.symbol = qm.symbol
+                """
+                + LIQUIDITY_FLOOR_JOIN_SQL
+                + """
+                WHERE qm.quality_score IS NOT NULL
+                  AND COALESCE(qm.data_unavailable, false) = false
+                  AND (
+                        liq_floor.latest_close IS NULL
+                        OR liq_floor.latest_close < %s
+                        OR liq_floor.avg_dollar_volume_20d IS NULL
+                        OR liq_floor.avg_dollar_volume_20d < %s
+                        OR NOT ("""
+                + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                + """)
+                  )
+                """,
+                (
+                    getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
+                    getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                ),
+            )
+            rows = cur.fetchall()
+
+        if not rows:
+            # No symbols below the liquidity floor / excluded from the scoring population -
+            # nothing to process, not a data-fetch failure.
+            return []
+
+        withheld: list[tuple[str, float | None]] = [(row[0], None) for row in rows]
+        logger.info(
+            f"[QUALITY_METRICS] withheld quality_score for {len(withheld)} symbols below the "
+            f"liquidity floor / excluded from the scoring population (never reached by the "
+            f"correction pass above) - see _withhold_quality_below_floor's docstring."
+        )
+        return withheld
 
     def update_quality_sector_neutral_scores(self) -> None:
         """Batch pass: FULLY RECOMPUTE quality_score from scratch off the raw stored ratio
@@ -158,12 +229,13 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                     """
                     SELECT qm.symbol, cp.sector, cp.industry, qm.roe, qm.roa, qm.roce_pct, qm.fcf_margin,
                            qm.debt_to_equity, qm.margin_volatility, qm.asset_turnover, qm.gross_profitability,
-                           qm.quality_score, COALESCE(cis.is_foreign_private_issuer, false)
+                           qm.quality_score, COALESCE(cis.is_foreign_private_issuer, false), vm.market_cap
                     FROM quality_metrics qm
                     JOIN stock_scores ss ON ss.symbol = qm.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = qm.symbol
                     JOIN stock_symbols su ON su.symbol = qm.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = qm.symbol
+                    LEFT JOIN value_metrics vm ON vm.symbol = qm.symbol
                     """
                     + LIQUIDITY_FLOOR_JOIN_SQL
                     + """
@@ -205,6 +277,22 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
             # this query's own SELECT above - len(row) guard keeps pre-existing shorter unit-test
             # fixture rows passing unchanged (same fail-open convention `industries` above uses).
             is_fpi: dict[str, bool] = {row[0]: bool(row[12]) for row in rows if len(row) > 12}
+
+            # BARRA-STYLE SIZE NEUTRALIZATION (2026-09-15, "get rid of the extra shit beyond
+            # Barra and the industry guys" directive - consistency follow-up to the same fix
+            # already applied to Value/Growth, see sector_size_neutral_zscore's own docstring).
+            # Real Barra/Axioma multi-factor construction regresses every style factor
+            # (Quality included) on sector dummies + log market cap before z-scoring, not just
+            # Value/Growth - AQR's published QMJ methodology doesn't do this size step at all,
+            # but this codebase already committed to the Barra convention elsewhere, so Quality
+            # now matches rather than being the one pillar left on the older sector-only
+            # transform. len(row) guard keeps pre-existing shorter unit-test fixture rows
+            # passing unchanged (same fail-open convention as is_fpi above) - a missing
+            # market_cap simply skips size-neutralization for that symbol (see
+            # _residualize_on_log_market_cap's own pass-through-unchanged fallback).
+            market_cap_map: dict[str, float] = {
+                row[0]: float(row[13]) for row in rows if len(row) > 13 and row[13] is not None and float(row[13]) > 0
+            }
 
             # D2E/ROA/ROCE/ROE/asset_turnover peer-group refinement (2026-09-08, quality_value_
             # sector_neutral_zscore_rewrite follow-up; extended 2026-09-11 - see
@@ -302,22 +390,28 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
             gross_prof_raw = _nonneg_raw(10)
 
             roe_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(roe_raw, d2e_roa_roce_sectors, is_foreign_private_issuer=is_fpi)
+                sector_size_neutral_zscore(
+                    roe_raw, d2e_roa_roce_sectors, market_cap_map, is_foreign_private_issuer=is_fpi
+                )
             )
             roa_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(roa_raw, d2e_roa_roce_sectors, is_foreign_private_issuer=is_fpi)
+                sector_size_neutral_zscore(
+                    roa_raw, d2e_roa_roce_sectors, market_cap_map, is_foreign_private_issuer=is_fpi
+                )
             )
             fcf_margin_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(fcf_margin_raw, sectors, is_foreign_private_issuer=is_fpi)
+                sector_size_neutral_zscore(fcf_margin_raw, sectors, market_cap_map, is_foreign_private_issuer=is_fpi)
             )
             d2e_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(d2e_raw, d2e_roa_roce_sectors, is_foreign_private_issuer=is_fpi)
+                sector_size_neutral_zscore(
+                    d2e_raw, d2e_roa_roce_sectors, market_cap_map, is_foreign_private_issuer=is_fpi
+                )
             )
             margin_vol_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(margin_vol_raw, sectors, is_foreign_private_issuer=is_fpi)
+                sector_size_neutral_zscore(margin_vol_raw, sectors, market_cap_map, is_foreign_private_issuer=is_fpi)
             )
             gross_prof_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(gross_prof_raw, sectors, is_foreign_private_issuer=is_fpi)
+                sector_size_neutral_zscore(gross_prof_raw, sectors, market_cap_map, is_foreign_private_issuer=is_fpi)
             )
             logger.info(
                 f"[QUALITY_METRICS] sector-neutral z-score universe: roe={len(roe_pct)} roa={len(roa_pct)} "
@@ -325,7 +419,7 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                 f"margin_volatility={len(margin_vol_pct)} gross_profitability={len(gross_prof_pct)}"
             )
 
-            updates: list[tuple[str, float]] = []
+            updates: list[tuple[str, float | None]] = []
             for row in rows:
                 symbol, quality_score_old = row[0], float(row[11])
                 # roce_pct_val/asset_turnover (row[5]/row[9]) unpacked but intentionally unused -
@@ -385,16 +479,23 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                 if quality_score_new != quality_score_old:
                     updates.append((symbol, quality_score_new))
 
+            updates.extend(self._withhold_quality_below_floor())
+
             if not updates:
                 logger.info("[QUALITY_METRICS] sector-neutral z-score pass: no eligible symbols to update.")
                 return
 
             with _owner().DatabaseContext("write") as cur:
+                # ::numeric cast (added alongside _withhold_quality_below_floor(), 2026-09-15):
+                # quality_score is now NULL for withheld rows in the same batch as real floats
+                # from the correction loop above - same mixed-None/float wrong-inferred-column-
+                # type psycopg2 gotcha already hit and fixed for momentum_score/quality_score
+                # in stock_scores (see quality_scoring.py's update_quality_from_source()).
                 _owner().execute_values(
                     cur,
                     """
                     UPDATE quality_metrics AS qm
-                    SET quality_score = v.quality_score,
+                    SET quality_score = v.quality_score::numeric,
                         updated_at = CURRENT_TIMESTAMP
                     FROM (VALUES %s) AS v(symbol, quality_score)
                     WHERE qm.symbol = v.symbol

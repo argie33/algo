@@ -7,7 +7,7 @@ called by _aggregate_concepts in sec_statements_aggregate.py.
 import datetime
 from typing import Any
 
-from utils.external.sec_statements_shared import _ANNUAL_REPORT_FORMS
+from utils.external.sec_statements_shared import _ANNUAL_REPORT_FORMS, _is_genuine_fy_duration_span
 
 
 def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existing complexity debt extracted from _aggregate_concepts, not new logic
@@ -95,11 +95,38 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
     # own fiscal year genuinely ends in December (checked below from its real
     # 10-K/equivalent instant facts) - deliberately NOT extended to non-calendar
     # fiscal years, where a bare calendar-month-to-quarter mapping would be wrong.
+    # FIXED 2026-09-15 (goal: cross-session data-issue sweep, SMMT live-confirmed via real SEC
+    # companyfacts JSON, CIK 0001599298): this loop used to `break` on the FIRST matching
+    # instant fact, trusting its end-month unconditionally - unlike the duration-fact path a
+    # few dozen lines below, which already requires EVERY genuine FY-duration fact to agree
+    # before trusting one (added 2026-09-13 for UHAL/ABVC, see that block's own comment). A
+    # filer with a genuine historical fiscal-year-end change has instant facts spanning BOTH
+    # eras, and entries is not guaranteed to be filed-date-ordered - for SMMT (real FYE January
+    # 31 through FY2019, changed to December 31 from FY2020 onward), EntityCommonStockShares
+    # Outstanding's real 10-K-sourced instant facts include both January-ending (old) and
+    # December-ending (new) values; whichever happened to sort first (January, here) got
+    # trusted as THE fiscal-year-end forever, applying a permanent +1-year offset
+    # (`end_month > fye_month` in _aggregate_concepts_resolve_entry_period) to every quarterly
+    # fact of every OTHER concept sharing this row-keying, including recent, correct filings -
+    # live-confirmed producing garbage fiscal_year=2026/2027 quarterly buckets (period_end
+    # 2025-10-14/2026-04-24/2026-07-17, today being 2026-09-15) with no revenue ever attached,
+    # while SMMT's real FY2018/2019 quarters collided with unrelated instant facts' end dates
+    # (2017-04-30/2017-07-31/2017-10-31/2018-04-30/2018-07-31) that don't belong to any real
+    # revenue fact - both are the same underlying corruption. Now requires unanimous agreement
+    # across every matching instant fact before trusting one, same principle as the duration-
+    # fact path immediately below: a genuine historical FYE change is proof there is no single
+    # stable answer, not evidence to guess one from whichever fact happened to be listed first.
     _fye_month: int | None = None
-    for _e in entries:
-        if _e.get("form") in _ANNUAL_REPORT_FORMS and not _e.get("start") and _e.get("end"):
-            _fye_month = int(_e["end"][5:7])
-            break
+    _fye_conflicting_evidence = False
+    _instant_fye_months = {
+        int(_e["end"][5:7])
+        for _e in entries
+        if _e.get("form") in _ANNUAL_REPORT_FORMS and not _e.get("start") and _e.get("end")
+    }
+    if len(_instant_fye_months) == 1:
+        _fye_month = next(iter(_instant_fye_months))
+    elif len(_instant_fye_months) > 1:
+        _fye_conflicting_evidence = True
     # ADDED 2026-09-13 (goal session: quarantine-backlog audit, UHAL live-confirmed via real
     # SEC companyfacts JSON): the instant-fact check just above can never fire for an income-
     # statement/cash-flow concept (Revenues, NetIncomeLoss, ...) - those are always duration
@@ -132,8 +159,11 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
     # whole history is. UHAL's real facts satisfy this trivially (every single FY fact ends
     # in March); SWK's do not (Dec/Dec/Jan), so this new check correctly stays silent for
     # SWK and leaves it to the existing January-crossing special case elsewhere in this
-    # file, unchanged.
-    _fye_conflicting_evidence = False
+    # file, unchanged. Deliberately does NOT reset `_fye_conflicting_evidence` here - it may
+    # already be True from the instant-fact check above (a genuine historical FYE-change
+    # signal is just as conclusive from instant facts as from duration facts, and must not be
+    # silently un-set only to have this block re-derive a wrong single answer from partial
+    # duration-fact evidence).
     if _fye_month is None:
 
         def _is_genuine_fy_span(_e: dict[str, Any]) -> bool:
@@ -150,11 +180,7 @@ def _aggregate_concepts_build_unit_context(  # noqa: C901 -- inherits pre-existi
             # 350-380 days covers both a normal 365/366-day year and a 52/53-week fiscal
             # calendar's occasional 371/372-day long year (same tolerance reasoning as this
             # file's own January-crossing 52/53-week handling above).
-            try:
-                _span = (datetime.date.fromisoformat(_e["end"]) - datetime.date.fromisoformat(_e["start"])).days
-            except ValueError:
-                return False
-            return 350 <= _span <= 380
+            return _is_genuine_fy_duration_span(_e.get("start"), _e.get("end"))
 
         _fy_duration_months = {
             int(_e["end"][5:7])

@@ -17,13 +17,17 @@ from unittest.mock import MagicMock, patch
 from algo.monitoring.data_patrol.base import CheckResult, DataPatrol
 from algo.monitoring.data_patrol.checks import (
     AlignmentChecker,
+    CikSharedIssuerFinancialsLeakChecker,
     CompositeScoreReconciliationChecker,
     CoverageChecker,
     FinancialStatementFlagDriftChecker,
+    FinancialStatementPeriodSanityChecker,
+    MetricBoundsChecker,
     NewXbrlConceptChecker,
     PillarScoreReconciliationChecker,
     PriceSanityChecker,
     QualityChecker,
+    ReverseMergerShellChecker,
     ScoreRatioOutlierChecker,
     SpecializedChecker,
     StalenessChecker,
@@ -49,6 +53,15 @@ def _run_patrol_with_results(results_by_checker: dict) -> dict:
     same trap this docstring already warns about, just not kept in sync when
     ScoreRatioOutlierChecker/CompositeScoreReconciliationChecker were added earlier
     either (added here too, alongside the fix, since both were also missing).
+
+    FIXED AGAIN 2026-09-15 (/goal "missing data patrols/tie-outs" session, live-caught):
+    MetricBoundsChecker, ReverseMergerShellChecker, CikSharedIssuerFinancialsLeakChecker, and
+    the newly-added FinancialStatementPeriodSanityChecker were never added here either -
+    same trap, still not kept in sync. Unmocked, each ran for real against the MagicMock()
+    cursor; MagicMock().fetchall() is truthy (default __bool__) but len() == 0 (default
+    __len__), which is exactly the shape FinancialStatementPeriodSanityChecker's own `if rows:`
+    branches treat as "found violations" - producing bogus "0 row(s) with a fiscal_year/quarter
+    that cannot exist yet" WARN findings that broke test_clean_run_does_not_notify below.
     """
     patrol = DataPatrol(PatrolConfig())
 
@@ -61,12 +74,16 @@ def _run_patrol_with_results(results_by_checker: dict) -> dict:
         "SpecializedChecker": SpecializedChecker,
         "TieOutChecker": TieOutChecker,
         "FinancialStatementFlagDriftChecker": FinancialStatementFlagDriftChecker,
+        "FinancialStatementPeriodSanityChecker": FinancialStatementPeriodSanityChecker,
+        "MetricBoundsChecker": MetricBoundsChecker,
         "NewXbrlConceptChecker": NewXbrlConceptChecker,
         "XbrlConceptContinuityChecker": XbrlConceptContinuityChecker,
         "StatisticalAnomalyChecker": StatisticalAnomalyChecker,
         "ScoreRatioOutlierChecker": ScoreRatioOutlierChecker,
+        "ReverseMergerShellChecker": ReverseMergerShellChecker,
         "CompositeScoreReconciliationChecker": CompositeScoreReconciliationChecker,
         "PillarScoreReconciliationChecker": PillarScoreReconciliationChecker,
+        "CikSharedIssuerFinancialsLeakChecker": CikSharedIssuerFinancialsLeakChecker,
     }
 
     mock_conn = MagicMock()
@@ -168,12 +185,16 @@ class TestDataPatrolNotifyWiring:
             patch.object(SpecializedChecker, "run", return_value=[]),
             patch.object(TieOutChecker, "run", return_value=[]),
             patch.object(FinancialStatementFlagDriftChecker, "run", return_value=[]),
+            patch.object(FinancialStatementPeriodSanityChecker, "run", return_value=[]),
+            patch.object(MetricBoundsChecker, "run", return_value=[]),
             patch.object(NewXbrlConceptChecker, "run", return_value=[]),
             patch.object(XbrlConceptContinuityChecker, "run", return_value=[]),
             patch.object(StatisticalAnomalyChecker, "run", return_value=[]),
             patch.object(ScoreRatioOutlierChecker, "run", return_value=[]),
+            patch.object(ReverseMergerShellChecker, "run", return_value=[]),
             patch.object(CompositeScoreReconciliationChecker, "run", return_value=[]),
             patch.object(PillarScoreReconciliationChecker, "run", return_value=[]),
+            patch.object(CikSharedIssuerFinancialsLeakChecker, "run", return_value=[]),
         ):
             # Must not raise despite notify() failing internally.
             summary = patrol.run()

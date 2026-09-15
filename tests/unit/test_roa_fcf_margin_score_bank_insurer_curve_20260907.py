@@ -188,9 +188,11 @@ class TestFcfMarginScoreDepositoryBankExclusion:
             "INDCO", _bank_row(150_000_000.0, 11_000_000_000.0, 150_000_000.0, 1_500_000_000.0), ev_metrics=None
         )
 
-        # Universal (non-FS/RE) branch: quality_components has 8 entries, fcf_margin_score
-        # at index 3.
-        universal_calls = [c for c in captured_calls if len(c) == 8]
+        # Universal (non-FS/RE) branch: quality_components has 6 entries since the
+        # 2026-09-15 ASSET_TURNOVER + ROCE REMOVED ENTIRELY change -
+        # [roe, roa, fcf_margin, debt_to_equity, margin_volatility, gross_profitability].
+        # fcf_margin_score is index 2.
+        universal_calls = [c for c in captured_calls if len(c) == 6]
         assert len(universal_calls) == 1
-        fcf_margin_score = universal_calls[0][3][0]
+        fcf_margin_score = universal_calls[0][2][0]
         assert fcf_margin_score is not None

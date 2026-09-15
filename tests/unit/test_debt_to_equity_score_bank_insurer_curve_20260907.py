@@ -125,11 +125,12 @@ class TestDebtToEquityScoreBankInsurerCurve:
 
         # REWRITE 2026-09-07 (sector-neutral-zscore rewrite): the old Financial Services
         # two-cluster branch (profitability cluster called first, safety cluster second) was
-        # collapsed to the same single flat 8-component call every sector uses -
-        # debt_to_equity_score is the 5th component: [roe, roa, roce, fcf_margin,
-        # debt_to_equity, margin_volatility, asset_turnover, gross_profitability].
+        # collapsed to the same single flat component call every sector uses. UPDATED
+        # 2026-09-15 (ASSET_TURNOVER + ROCE REMOVED ENTIRELY): that flat call now has 6
+        # components - [roe, roa, fcf_margin, debt_to_equity, margin_volatility,
+        # gross_profitability] - debt_to_equity_score is index 3.
         flat_call = captured_calls[0]
-        debt_to_equity_score = flat_call[4][0]
+        debt_to_equity_score = flat_call[3][0]
 
         assert debt_to_equity_score is not None
         assert debt_to_equity_score == 50.0  # 100 - (10.0 / 20.0) * 100

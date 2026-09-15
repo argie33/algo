@@ -344,6 +344,19 @@ BASE_PILLAR_WEIGHTS: dict[str, float] = {
     "risk": 0.20,
     "momentum": 0.20,
 }
+# VALUE x RISK INTERACTION - REMOVED ENTIRELY 2026-09-15 (user directive: "get rid of all the
+# extra shit beyond the barra and the industry guys" - real Barra-style multi-factor models
+# combine factor exposures linearly with fixed weights; they don't shift one factor's weight
+# based on another factor's own score for the same symbol via a hand-built interaction
+# function). This constant/function had already been RETIRED to a permanent no-op on
+# 2026-09-11 (see git history) - always returned BASE_PILLAR_WEIGHTS unmodified regardless of
+# risk_score. Removing the dead indirection entirely rather than leaving inert machinery in
+# place; every call site now uses BASE_PILLAR_WEIGHTS directly. See git history for the full
+# evidence trail (value_proxy x stability_proxy interaction sweep, its later retirement) if a
+# future session wants to revisit a real interaction term - that would need to be a genuine
+# risk-model construct (e.g. a factor-covariance term), not an ad hoc linear weight shift.
+#
+# OLD DOCSTRING (kept for archaeology only, describes removed code):
 # VALUE x RISK INTERACTION (added 2026-08-28, goal: cross-pillar interaction sweep - see
 # value_stability_interaction_found_robust_20260828 in memory). Swept all 15 pillar-proxy pairs
 # via algo/research/cross_pillar_interaction_sweep_20260828.py (complete-case regime, current
@@ -373,7 +386,6 @@ BASE_PILLAR_WEIGHTS: dict[str, float] = {
 # with this constant is inert rather than broken. _value_risk_adjusted_weights below now always
 # returns BASE_PILLAR_WEIGHTS unmodified - kept as a function (not inlined at call sites) so
 # load_stock_scores.py/growth_scoring.py don't need their own call-site changes.
-VALUE_RISK_INTERACTION_MAX_SHIFT = 0.0
 
 # INVESTABILITY FLOOR (RETIRED as a market-cap gate 2026-09-15, user directive - corrects the
 # 2026-09-15 same-day API-layer change that kept BOTH a $300M cap floor AND a new liquidity
@@ -384,14 +396,21 @@ VALUE_RISK_INTERACTION_MAX_SHIFT = 0.0
 # volume), see lambda/api/routes/scores.py's own updated comment. A $300M cap floor is
 # structurally the wrong tool for an IBD-style system regardless of what threshold it uses, not
 # just the wrong NUMBER - keeping it "because it doesn't gate large-caps" missed that a real
-# IBD-style screen doesn't gate on cap size in either direction. DEFAULT_MIN_INVESTABLE_MARKET_CAP
-# is kept ONLY as the tilt-formula input for update_market_cap_tilted_weights (market_cap_tilt.py
-# still needs a symbol's raw market_cap to compute market_cap * tilt - a display-only cap-WEIGHT
-# computation, unrelated to eligibility) - no batch pass uses it as a `vm.market_cap >= %s`
-# eligibility filter anymore. See DEFAULT_MIN_STOCK_PRICE/DEFAULT_MIN_ADV_DOLLARS/
-# LIQUIDITY_FLOOR_JOIN_SQL below for the liquidity-based floor that replaced it everywhere a
-# batch pass previously gated its z-score/percentile peer population on market_cap.
-DEFAULT_MIN_INVESTABLE_MARKET_CAP = 300_000_000.0
+# IBD-style screen doesn't gate on cap size in either direction.
+#
+# DELETED 2026-09-15 (dead-code sweep, "get rid of the extra shit beyond Barra and the
+# industry guys" directive): the comment that used to sit here claiming this constant was "kept
+# ONLY as the tilt-formula input for update_market_cap_tilted_weights" was itself stale -
+# market_cap_tilt.py's update_market_cap_tilted_weights reads `vm.market_cap` straight from the
+# DB and never touched this constant or self._min_investable_market_cap. A repo-wide grep for
+# `min_investable_market_cap` found exactly one file referencing it at all -
+# loaders/load_stock_scores.py, where it was read from algo_config/defaulted into
+# self._min_investable_market_cap and then never read again anywhere - fully dead, not merely
+# misleadingly named, so both DEFAULT_MIN_INVESTABLE_MARKET_CAP and self._min_investable_
+# market_cap were removed outright rather than left as inert machinery. See
+# DEFAULT_MIN_STOCK_PRICE/DEFAULT_MIN_ADV_DOLLARS/LIQUIDITY_FLOOR_JOIN_SQL below for the
+# liquidity-based floor that replaced it everywhere a batch pass gates its z-score/percentile
+# peer population on market_cap.
 
 # LIQUIDITY-BASED INVESTABILITY FLOOR (added 2026-09-15, replaces DEFAULT_MIN_INVESTABLE_MARKET_CAP
 # as the eligibility gate for every pillar batch pass's z-score/percentile peer population - see
@@ -430,13 +449,3 @@ LIQUIDITY_FLOOR_JOIN_SQL = """
                         WHERE rn <= 20
                         GROUP BY symbol
                     ) liq_floor ON liq_floor.symbol = ss.symbol"""
-
-
-def _value_risk_adjusted_weights(risk_score: float | None) -> dict[str, float]:
-    """Retired 2026-09-11 - always returns BASE_PILLAR_WEIGHTS unmodified. Kept as a function
-    (rather than inlining BASE_PILLAR_WEIGHTS at every call site) purely so existing callers in
-    load_stock_scores.py/growth_scoring.py don't need their own edits. See
-    VALUE_RISK_INTERACTION_MAX_SHIFT's docstring for why the interaction itself was retired.
-    """
-    del risk_score  # unused - interaction retired, argument kept for call-site compatibility
-    return BASE_PILLAR_WEIGHTS

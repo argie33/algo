@@ -385,6 +385,10 @@ VALIDATION_SCHEMA = {
     # Negative: a single-day price drop signaling a likely split/reverse-split (see
     # algo/infrastructure/config/data_patrol_config.py's -0.30 documented default).
     "patrol_corporate_action_drop_ratio": ("float", -1.0, 0.0, False, -0.30),
+    # Positive counterpart to drop_ratio - a single-day price RISE signaling a likely reverse
+    # split (e.g. 1-for-10). ADDED 2026-09-15 - the drop-only check was blind to this entire
+    # class of corporate action (see config_defaults_data_quality.py's own comment).
+    "patrol_corporate_action_rise_ratio": ("float", 0.0, 5.0, False, 0.30),
     # Historical Price Lookback Periods (for comparative calculations in scores/rankings)
     # These replace hardcoded INTERVAL values in SQL queries throughout loaders
     "lookback_price_1m": ("int", 20, 60, False, 30),  # ~1 month

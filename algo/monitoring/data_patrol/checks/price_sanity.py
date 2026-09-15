@@ -16,14 +16,45 @@ logger = logging.getLogger(__name__)
 
 class PriceSanityChecker(BaseCheck):
     def run(self, cur: Any) -> list[CheckResult]:
-        """Execute all price sanity checks."""
+        """Execute all price sanity checks.
+
+        FIXED 2026-09-15 (/goal "get our scores right" session): each sub-check below already
+        catches its own DB errors internally and logs an ERROR CheckResult rather than raising -
+        but a caught error still leaves the SHARED cursor's transaction aborted
+        (InFailedSqlTransaction) until an explicit ROLLBACK, so the sub-check's own internal
+        catch-and-log didn't stop the damage: every sub-check called AFTER it then failed too,
+        with the misleading generic "transaction is aborted" message instead of its own real
+        error. Live-caught: a real SQL bug in check_corporate_actions silently poisoned
+        check_sequence_continuity/check_isolated_spike_corruption/check_trading_day_gaps right
+        after it in this same run(). Rolling back after every sub-check (unconditionally, not
+        just on error) is safe - these are read-only checks with nothing to preserve - and
+        gives every sub-check a fair, isolated shot regardless of what ran before it.
+
+        Each sub-check already has its own internal try/except, but that except clause is
+        narrower than `Exception` in some of them (e.g. check_price_moves only catches
+        (ValueError, ZeroDivisionError, TypeError)) - a DB error type outside that tuple would
+        otherwise propagate straight out of this loop uncaught, skipping every remaining
+        sub-check entirely rather than just poisoning the transaction. Wrapping the call itself
+        here too closes that gap regardless of what each sub-check's own except covers.
+        """
         self.results = []
 
-        self.check_price_moves(cur)
-        self.check_corporate_actions(cur)
-        self.check_sequence_continuity(cur)
-        self.check_isolated_spike_corruption(cur)
-        self.check_trading_day_gaps(cur)
+        for check in (
+            self.check_price_moves,
+            self.check_corporate_actions,
+            self.check_sequence_continuity,
+            self.check_isolated_spike_corruption,
+            self.check_trading_day_gaps,
+        ):
+            try:
+                check(cur)
+            except Exception as e:
+                logger.error(f"[PriceSanityChecker] {check.__name__} raised uncaught: {e}", exc_info=True)
+                self.log("price_sanity", ERROR, "price_daily", f"{check.__name__} failed: {e}", None)
+            try:
+                cur.connection.rollback()
+            except Exception as e:
+                logger.error(f"[PriceSanityChecker] rollback after {check.__name__} failed: {e}")
 
         return self.results
 
@@ -108,11 +139,30 @@ class PriceSanityChecker(BaseCheck):
             self.log("price_sanity", ERROR, "price_daily", f"Check failed: {e}", None)
 
     def check_corporate_actions(self, cur: Any) -> None:
-        """Detect likely corporate actions (splits, halts, delistings)."""
+        """Detect likely corporate actions (splits, halts, delistings).
+
+        FIXED 2026-09-15 (/goal "get our scores right" session): two real gaps found while
+        root-causing the missing stock_splits table (scripts/fix_missing_stock_splits.py's own
+        module docstring has the full evidence trail - live-confirmed on APH, a real 2:1 split
+        that corrupted its volatility_60d to 144% annualized and dropped it from USMV-holding
+        rank ~1 to our own risk_score rank 2575/2908).
+
+        (1) This check was DROP-only (`drop_ratio` is negative) - a REVERSE split (price jumps
+        UP, e.g. 1-for-10) produced zero alert at all. Added a symmetric `rise_ratio` leg.
+
+        (2) This check fired correctly every single DataPatrol run but was pure WARN with no
+        remediation ever reading the finding - it just re-logged the same ~50 symbols run after
+        run indefinitely. Now excludes any (symbol, date) pair already recorded in
+        `stock_splits` (via scripts/fix_missing_stock_splits.py, the actual remediation this
+        finding was missing), so a confirmed-and-fixed split naturally drops off this list on
+        the next run instead of nagging forever - the finding now measures "still needs
+        remediation," not "ever happened."
+        """
         try:
             corp_cfg = self.config.get_corporate_actions_config()
             lookback_days = corp_cfg["lookback_days"]
             drop_ratio = corp_cfg["drop_ratio"]
+            rise_ratio = corp_cfg["rise_ratio"]
 
             # BUG FOUND 2026-08-11: `date = prev_date + 1 calendar day` required the LAG'd
             # previous row to be exactly one calendar day earlier. LAG(...) OVER (PARTITION BY
@@ -132,19 +182,25 @@ class PriceSanityChecker(BaseCheck):
                     FROM price_daily pd
                     WHERE pd.date >= CURRENT_DATE - INTERVAL '{lookback_days} days'
                 )
-                SELECT symbol, date, close, prev,
-                       (close - prev) / NULLIF(prev, 0) * 100 AS pct_change
+                SELECT d.symbol, d.date, d.close, d.prev,
+                       (d.close - d.prev) / NULLIF(d.prev, 0) * 100 AS pct_change
                 FROM d
-                WHERE prev IS NOT NULL
-                  AND (close - prev) / NULLIF(prev, 0) < {drop_ratio}
-                ORDER BY pct_change ASC
+                WHERE d.prev IS NOT NULL
+                  AND ((d.close - d.prev) / NULLIF(d.prev, 0) < {drop_ratio}
+                       OR (d.close - d.prev) / NULLIF(d.prev, 0) > {rise_ratio})
+                  AND NOT EXISTS (
+                      SELECT 1 FROM stock_splits ss
+                      WHERE ss.symbol = d.symbol
+                        AND ss.split_date BETWEEN d.date - INTERVAL '5 days' AND d.date + INTERVAL '5 days'
+                  )
+                ORDER BY ABS((d.close - d.prev) / NULLIF(d.prev, 0)) DESC
                 LIMIT 50
             """)
-            extreme_drops = cur.fetchall()
+            extreme_moves = cur.fetchall()
 
-            if extreme_drops:
+            if extreme_moves:
                 samples = []
-                for r in extreme_drops[:10]:
+                for r in extreme_moves[:10]:
                     try:
                         symbol = r.get("symbol") if isinstance(r, dict) else r[0]
                         date = r.get("date") if isinstance(r, dict) else r[1]
@@ -153,7 +209,7 @@ class PriceSanityChecker(BaseCheck):
                             {
                                 "symbol": symbol,
                                 "date": str(date),
-                                "pct_drop": round(pct_change, 1) if pct_change is not None else None,
+                                "pct_change": round(pct_change, 1) if pct_change is not None else None,
                             }
                         )
                     except (TypeError, KeyError, IndexError) as e:
@@ -162,9 +218,11 @@ class PriceSanityChecker(BaseCheck):
                     "corporate_action",
                     WARN,
                     "price_daily",
-                    f"{len(extreme_drops)} symbols with >{drop_ratio * -100:.0f}% single-day drop (likely corporate action)",
+                    f"{len(extreme_moves)} symbols with an unremediated >{drop_ratio * -100:.0f}%/"
+                    f"+{rise_ratio * 100:.0f}% single-day move (likely split/reverse-split) - "
+                    f"run scripts/fix_missing_stock_splits.py to confirm and adjust",
                     {
-                        "count": len(extreme_drops),
+                        "count": len(extreme_moves),
                         "samples": samples,
                     },
                 )
@@ -173,7 +231,7 @@ class PriceSanityChecker(BaseCheck):
                     "corporate_action",
                     INFO,
                     "price_daily",
-                    "No extreme drops detected (no obvious corporate actions)",
+                    "No unremediated extreme moves detected (no obvious unfixed corporate actions)",
                     None,
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

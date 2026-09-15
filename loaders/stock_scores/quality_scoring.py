@@ -9,7 +9,7 @@ defines it.
 import logging
 from typing import TYPE_CHECKING, Any
 
-from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS, _value_risk_adjusted_weights
+from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS
 from utils.loaders.unavailable_markers import marker_loader_failed, marker_not_applicable
 from utils.type_conversion import safe_float
 
@@ -219,6 +219,16 @@ class QualityScoringMixin:
         quality_metrics.quality_score by up to 26+ points, quarantining them out of the
         leaderboard entirely).
 
+        EXTENDED 2026-09-15 (same session, quality liquidity-floor withhold fix - see
+        loaders/helpers/vqg_quality_batch.py's `_withhold_quality_below_floor()` docstring for
+        the full evidence trail): now ALSO propagates qm.quality_score transitioning to NULL
+        (a withhold), not just non-NULL corrections - the original WHERE clause required
+        `qm.quality_score IS NOT NULL`, which would silently DROP a withhold instead of syncing
+        it, leaving stock_scores.quality_score permanently stuck on the stale pre-withhold
+        value. This is a genuine re-sync-from-source in both directions now: whatever
+        quality_metrics.quality_score currently holds (a real score OR None) is what
+        stock_scores.quality_score is corrected to.
+
         ROOT CAUSE: unlike Risk/Value/Growth/Momentum (each of which has its own post_run()
         batch-correction pass below that re-reads its source table fresh), Quality was the one
         pillar computed ONLY from `self._quality_cache` - a single snapshot of the whole
@@ -247,7 +257,6 @@ class QualityScoringMixin:
                     FROM stock_scores ss
                     JOIN quality_metrics qm ON qm.symbol = ss.symbol
                     WHERE ss.quality_score IS NOT NULL
-                      AND qm.quality_score IS NOT NULL
                       AND COALESCE(qm.data_unavailable, false) = false
                     """
                 )
@@ -261,7 +270,7 @@ class QualityScoringMixin:
 
             min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
 
-            updates: list[tuple[str, float, float, float, bool]] = []
+            updates: list[tuple[str, float | None, float, float, bool]] = []
             for row in rows:
                 (
                     symbol,
@@ -275,12 +284,11 @@ class QualityScoringMixin:
                     data_unavailable_old,
                     quality_score_new,
                 ) = row
-                quality_score_new = float(quality_score_new)
+                quality_score_new = float(quality_score_new) if quality_score_new is not None else None
                 data_completeness_old = float(data_completeness_old) if data_completeness_old is not None else None
                 data_unavailable_old = bool(data_unavailable_old) if data_unavailable_old is not None else False
 
-                risk_score_float = float(risk_score) if risk_score is not None else None
-                weights = _value_risk_adjusted_weights(risk_score_float)
+                weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
                 for pillar_name, pillar_score in (
                     ("quality", quality_score_new),
@@ -306,8 +314,9 @@ class QualityScoringMixin:
                 data_completeness_new = min(99.99, round(available_weight * 100, 2))
                 data_unavailable_new = data_completeness_new < min_completeness_threshold
 
+                quality_score_old_f = float(quality_score_old) if quality_score_old is not None else None
                 if (
-                    quality_score_new != float(quality_score_old)
+                    quality_score_new != quality_score_old_f
                     or composite_score_new != float(composite_score_old)
                     or data_completeness_new != data_completeness_old
                     or data_unavailable_new != data_unavailable_old
@@ -330,14 +339,21 @@ class QualityScoringMixin:
                 return
 
             with _owner().DatabaseContext("write") as cur:
+                # ::numeric/::boolean casts on the VALUES columns (added alongside the
+                # liquidity-floor withhold fix, 2026-09-15): quality_score can now be NULL in
+                # the same batch as real floats (a withhold propagating from
+                # _withhold_quality_below_floor()) - the identical mixed-None/float
+                # wrong-inferred-column-type psycopg2 gotcha already hit and fixed for
+                # momentum_score (see momentum_scoring.py's update_momentum_sector_relative_
+                # mom_12_1() UPDATE, which already casts for the same reason).
                 _owner().execute_values(
                     cur,
                     """
                     UPDATE stock_scores AS ss
-                    SET quality_score = v.quality_score,
-                        composite_score = v.composite_score,
-                        data_completeness = v.data_completeness,
-                        data_unavailable = v.data_unavailable,
+                    SET quality_score = v.quality_score::numeric,
+                        composite_score = v.composite_score::numeric,
+                        data_completeness = v.data_completeness::numeric,
+                        data_unavailable = v.data_unavailable::boolean,
                         updated_at = CURRENT_TIMESTAMP
                     FROM (VALUES %s) AS v(symbol, quality_score, composite_score,
                                            data_completeness, data_unavailable)

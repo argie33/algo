@@ -20,7 +20,6 @@ from unittest.mock import MagicMock, patch
 from loaders.load_stock_scores import (
     BASE_PILLAR_WEIGHTS,
     StockScoresLoader,
-    _value_risk_adjusted_weights,
 )
 
 
@@ -218,7 +217,7 @@ class TestValueMultiplesReconciliationMath:
 
         delta = (weighted_sum_multiples_new - weighted_sum_multiples_old) / total_weight_old
         value_score_new = round(max(0.0, min(100.0, value_score_old + delta)), 2)
-        value_weight = _value_risk_adjusted_weights(risk_score)["value"]
+        value_weight = BASE_PILLAR_WEIGHTS["value"]
         composite_score_new = round(
             max(0.0, min(100.0, composite_score_old + value_weight * (value_score_new - value_score_old))), 2
         )
@@ -309,9 +308,9 @@ class TestValueMultiplesReconciliationMath:
 
     def test_composite_delta_scaled_by_value_weight(self) -> None:
         # composite_score's change must equal value_weight * value_score's change, using the
-        # SAME risk-conditioned weight as _value_risk_adjusted_weights.
-        risk_score = 0.0  # riskiest -> max Value weight shift
-        value_weight = _value_risk_adjusted_weights(risk_score)["value"]
+        # same fixed BASE_PILLAR_WEIGHTS every pillar uses (no risk-conditioned shift).
+        risk_score = 0.0
+        value_weight = BASE_PILLAR_WEIGHTS["value"]
         value_new, composite_new = self._reconcile(
             value_score_old=40.0,
             composite_score_old=60.0,

@@ -12,21 +12,19 @@ Mixed into StockScoresLoader alongside the other stock_scores/*.py pillar mixins
 defines it.
 """
 
-import itertools
 import json
 import logging
 from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
-from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
+from loaders.helpers.factor_normalization import sector_size_neutral_zscore, zscore_to_percentile_scale
 from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
 from loaders.stock_scores.pillar_weights import (
     BASE_PILLAR_WEIGHTS,
     DEFAULT_MIN_ADV_DOLLARS,
     DEFAULT_MIN_STOCK_PRICE,
     LIQUIDITY_FLOOR_JOIN_SQL,
-    _value_risk_adjusted_weights,
 )
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.loaders.unavailable_markers import marker_loader_failed
@@ -416,8 +414,8 @@ class GrowthScoringMixin:
         GROWTH_SCORE_FIELDS's own docstring for the full rationale). It was a dispersion metric
         (population stddev of trailing-4Q YoY EPS growth rates, percentage points, always >=0,
         lower=more consistent) scored via a dedicated inverted piecewise curve
-        (_score_eps_growth_stability, kept below but unused by this method now) rather than
-        _score_single_growth - real, non-redundant signal, but an MSCI Quality-index component
+        (_score_eps_growth_stability, deleted 2026-09-15 as dead code - see git history) rather
+        than _score_single_growth - real, non-redundant signal, but an MSCI Quality-index component
         (earnings variability), not a named Growth-factor descriptor anywhere, so it didn't clear
         the same canon bar the other 12 fields are held to. fcf_growth_yoy was removed the same
         pass for a different reason - not canonical either, AND its own era-split predictive sign
@@ -478,46 +476,19 @@ class GrowthScoringMixin:
             # Positive growth: map [0, cap] → [40, 100]
             return min(100.0, 40 + (val / cap) * 60)
 
-        def _score_eps_growth_stability(val: float | None) -> float | None:
-            """Score eps_growth_stability (population stddev, percentage points, of the
-            trailing-4-quarter YoY EPS growth rates) as an inverted "earnings variability"
-            input: lower dispersion = more consistent execution = higher score. Always >=0, so
-            it needs its own curve rather than _score_single_growth's signed [-50,cap] shape.
-
-            Piecewise-linear "badness" curve (100 minus it), same convention this codebase
-            already uses for other dispersion/volatility metrics (see _margin_curve in
-            load_value_quality_growth_metrics.py's quality scoring), re-scaled for this field's
-            live distribution (verified directly against growth_metrics, not assumed):
-            p25~=18, median~=53, p75~=156, p90~=404 percentage points of stddev. Anchors: 0
-            stddev -> 100 (perfectly consistent), ~p25 -> 80, ~median -> ~59, ~p75 -> ~23,
-            >=p90 -> 0. Breakpoints are domain judgment calibrated to the real distribution,
-            not separately fit/backtested - same caveat this file already applies to its other
-            fixed-cap curves (e.g. the cap=30 above).
-            """
-            if val is None:
-                return None
-            if val <= 0:
-                return 100.0
-            breakpoints = [(20.0, 20.0), (75.0, 55.0), (200.0, 90.0), (400.0, 100.0)]
-            if val < breakpoints[0][0]:
-                badness = (val / breakpoints[0][0]) * breakpoints[0][1]
-            else:
-                badness = breakpoints[-1][1]
-                for (x0, y0), (x1, y1) in itertools.pairwise(breakpoints):
-                    if val < x1:
-                        badness = y0 + (val - x0) / (x1 - x0) * (y1 - y0)
-                        break
-            return max(0.0, 100.0 - badness)
-
         # Equal-weighted blend, NOT sign-flipped (see docstring - explicit user override of
         # this file's own growth-reversal research). Cap of 30% reused across every signed-rate
         # candidate: all of them share the same _cagr()/YoY-%-derived percentage-point scale
         # this file has always used that cap for (domain judgment, not separately fit per
         # field - same caveat already applied elsewhere in this file, e.g. asset_turnover,
         # gross_profitability, fcf_margin). No dispersion-metric candidate is scored here since
-        # eps_growth_stability's removal 2026-08-31 (see GROWTH_SCORE_FIELDS's own docstring) -
-        # _score_eps_growth_stability is kept, unused, in case a future Quality-pillar pass wants
-        # this exact well-tested dispersion curve for an earnings-variability input there.
+        # eps_growth_stability's removal 2026-08-31 (see GROWTH_SCORE_FIELDS's own docstring).
+        # The dedicated inverted piecewise "badness" curve that used to score it here
+        # (_score_eps_growth_stability, dispersion metric, breakpoints p25~=18/median~=53/
+        # p75~=156/p90~=404 stddev pct-points -> 80/59/23/0) was deleted 2026-09-15 as dead code
+        # (it had no caller since the 2026-08-31 removal) - see git history if a future
+        # Quality-pillar pass wants to resurrect this exact curve for an earnings-variability
+        # input there.
         component_scores = []
         for field in GROWTH_SCORE_FIELDS:
             raw = metrics.get(field)
@@ -634,7 +605,7 @@ class GrowthScoringMixin:
 
         Composite_score is recomputed exactly as `update_value_multiples_percentiles()` recomputes
         it - from quality_score/value_score/risk_score/momentum_score as they currently stand
-        (untouched by this pass) plus the new growth_score, via `_value_risk_adjusted_weights`.
+        (untouched by this pass) plus the new growth_score, via fixed `BASE_PILLAR_WEIGHTS`.
         Runs AFTER `update_value_multiples_percentiles()` in `post_run()` specifically so this
         pass's own composite recompute sees Value's own already-finalized value_score, not its
         Pass-1 provisional one - see `post_run()`'s own "ORDER MATTERS" comment.
@@ -661,12 +632,13 @@ class GrowthScoringMixin:
                            gm.revenue_growth_5y, gm.eps_growth_5y, gm.forward_eps_growth_current_fy,
                            gm.forward_eps_growth_next_fy, gm.forward_revenue_growth_next_fy,
                            gm.sustainable_growth_rate, gm.quarterly_growth_momentum, gm.earnings_growth_4q_avg,
-                           cp.sector, COALESCE(cis.is_foreign_private_issuer, false)
+                           cp.sector, COALESCE(cis.is_foreign_private_issuer, false), vm.market_cap
                     FROM stock_scores ss
                     JOIN growth_metrics gm ON gm.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
                     JOIN stock_symbols su ON su.symbol = ss.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                    LEFT JOIN value_metrics vm ON vm.symbol = ss.symbol
                     """
                     + LIQUIDITY_FLOOR_JOIN_SQL
                     + """
@@ -714,6 +686,9 @@ class GrowthScoringMixin:
             # see sector_neutral_zscore's own docstring in factor_normalization.py). row[23] is
             # COALESCE(cis.is_foreign_private_issuer, false) per this query's own SELECT above.
             is_fpi: dict[str, bool] = {row[0]: bool(row[23]) for row in rows if len(row) > 23}
+            market_cap_map: dict[str, float] = {
+                row[0]: float(row[24]) for row in rows if len(row) > 24 and row[24] is not None and float(row[24]) > 0
+            }
 
             raw_by_field: dict[str, dict[str, float]] = {field: {} for field in GROWTH_SCORE_FIELDS}
             for row in rows:
@@ -723,16 +698,23 @@ class GrowthScoringMixin:
                     if val is None:
                         continue
                     val_f = float(val) * 100 if field in fraction_fields else float(val)
-                    if val_f > GROWTH_INPUT_IMPLAUSIBLE_PCT:
-                        # See GROWTH_INPUT_IMPLAUSIBLE_PCT's own docstring - excluded from the
-                        # z-score population entirely, not merely winsorized down to the 99th
-                        # percentile, same as Pass 1's exclusion from the curve-blend.
-                        continue
+                    # GROWTH_INPUT_IMPLAUSIBLE_PCT's hard exclusion REMOVED from this pass
+                    # 2026-09-15 (user directive: "get rid of all the extra shit beyond the
+                    # barra and the industry guys"). It duplicated what `sector_size_neutral_
+                    # zscore`'s own `_winsorize_group` already does to this exact population -
+                    # clip to [1st, 99th] percentile per peer group - which is the real
+                    # MSCI Barra/AQR-standard outlier treatment (winsorize, never drop a raw
+                    # observation outright). A hand-picked absolute cutoff (150%) on top of
+                    # that standard winsorization was genuinely redundant machinery, not a
+                    # second layer of protection.
                     raw_by_field[field][symbol] = val_f
 
+            # Barra-style size neutralization (same as Value's div/cash-yield legs, 2026-09-15 -
+            # regress each field on log(market_cap) within its sector peer group, z-score the
+            # residual) - see sector_size_neutral_zscore's own docstring.
             pct_by_field: dict[str, dict[str, float]] = {
                 field: zscore_to_percentile_scale(
-                    sector_neutral_zscore(values, sector_map, is_foreign_private_issuer=is_fpi)
+                    sector_size_neutral_zscore(values, sector_map, market_cap_map, is_foreign_private_issuer=is_fpi)
                 )
                 for field, values in raw_by_field.items()
             }
@@ -769,8 +751,7 @@ class GrowthScoringMixin:
                         )
                     growth_score_new = None
 
-                risk_score_float = float(risk_score) if risk_score is not None else None
-                weights = _value_risk_adjusted_weights(risk_score_float)
+                weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
                 for pillar_name, pillar_score in (
                     ("quality", quality_score),

@@ -12,81 +12,28 @@ instance regardless of which mixin file defines it.
 
 import json
 import logging
-import math
 from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
-from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
-from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
+from loaders.helpers.factor_normalization import (
+    sector_size_neutral_zscore,
+    zscore_to_percentile_scale,
+)
+from loaders.helpers.vqg_shared import (
+    DEPOSITORY_BANK_INDUSTRIES,
+    INSURANCE_UNDERWRITER_INDUSTRIES,
+    apply_mortgage_reit_sector_override,
+)
 from loaders.stock_scores.pillar_weights import (
     BASE_PILLAR_WEIGHTS,
     DEFAULT_MIN_ADV_DOLLARS,
     DEFAULT_MIN_STOCK_PRICE,
     LIQUIDITY_FLOOR_JOIN_SQL,
-    _value_risk_adjusted_weights,
 )
-from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT, _dividend_sustainability_factor
+from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.type_conversion import safe_float
-
-# DIVIDEND EXTENSIVE-MARGIN TRANSFORM (2026-09-12, real-issue-audit session - see
-# scratch/dividend_yield_extensive_vs_intensive_20260912.py). The z-score below
-# (sector_neutral_zscore(div_effective_raw, ...)) was already a real, evidenced fix for a
-# DIFFERENT problem (the 2026-09-11 "SECTOR-RELATIVE DIVIDEND YIELD" note's majority-zero
-# tie-block inflation) - but it still z-scores raw yield MAGNITUDE, which a real point-in-time
-# IC test (dividend_data's actual ex-dividend history, fit 2017-2021/holdout 2022-2026,
-# |t|>=2-both-eras bar) found carries ZERO robust predictive power on its own: decomposing the
-# raw-yield IC that DOES clear the bar (t=3.04/2.79) into extensive (pays vs doesn't, binary)
-# and intensive (magnitude among payers only) margins found ~100% of the real signal is
-# extensive (t=3.01/2.83) and the intensive margin fails outright (t=1.05 fit / -0.05 holdout,
-# sign flips out of sample).
-#
-# CAVEAT NOT YET RESOLVED (flagged by peer review 2026-09-12, same session): this test's panel
-# comes from price_daily via fetch_month_end_prices(), the SAME return panel this repo's own
-# open finding (survivorship_bias_concretely_reverified_zero_rows_named_failures_20260912, in
-# memory) already documents as missing known dividend-cutting failures (Lehman/Enron/SVB etc
-# have zero rows - free paths exhausted, needs a paid vendor). A company that cut its dividend
-# and later failed would look artificially safe in this exact test (extensive margin =
-# "survived long enough to still be a payer"), which biases toward, not against, this specific
-# finding - not verified either way here, same unresolved limitation this repo's other
-# factor-validation scripts already carry, not something newly introduced by this fix.
-# Feeding raw magnitude into the z-score still rewards a 6% payer
-# far more than a 0.5% payer within the same sector - exactly the ungrounded gradient the test
-# found isn't real. This saturating transform compresses that gradient (any real payer reaches
-# most of its final value quickly) while staying strictly monotonic in effective_yield - so a
-# genuine higher yield still never scores below a lower one (same-signed, no regression versus
-# before), just without the outsized reward for magnitude the evidence doesn't support.
-#
-# K=0.005 IS NOT AN EMPIRICALLY-FIT PARAMETER - flagged by a peer review of this change
-# (2026-09-12) and confirmed by direct test (scratch/dividend_k_sensitivity_check.py):
-# re-running the exact same fit/holdout IC test across K in {binary, 0.001, 0.002, 0.005, 0.01,
-# 0.02} produces statistically IDENTICAL results (fit_t 3.00-3.04, hold_t 2.79-2.83, all clear
-# the bar) - the specific value of K carries no real information the evidence distinguishes.
-# A pure binary transform (payer=1.0, non-payer=0.0) is exactly what "extensive margin only,
-# zero intensive-margin power" actually supports, and IS the more defensible reading of the
-# evidence. The smooth exponential is kept anyway for a SOFTWARE reason, not a statistical
-# one: a pure binary would put every real payer in a sector at the identical raw value (1.0),
-# reintroducing a large-tie-block problem inside sector_neutral_zscore for the payer subgroup -
-# a smaller version of the exact majority-zero tie-block distortion the 2026-09-11
-# "SECTOR-RELATIVE DIVIDEND YIELD" fix (above) already had to solve once for the payer/
-# non-payer split. K=0.005 keeps that block from re-forming while conceding almost none of the
-# extensive-margin separation (per the sensitivity test) - a smoothing/tie-avoidance choice, not
-# a point estimate the data fit.
-DIVIDEND_EXTENSIVE_SATURATION_K = 0.005
-
-
-def _dividend_extensive_transform(effective_yield: float) -> float:
-    """Monotonic, saturating transform of a (sustainability-gated) effective dividend yield -
-    see DIVIDEND_EXTENSIVE_SATURATION_K's module docstring for the evidence. Zero/negative
-    stays exactly 0.0 (a real non-payer, or a payout the sustainability gate zeroed, is still
-    the worst case - unaffected by this transform, matches the pre-existing floor). Strictly
-    increasing for any positive input, so relative ordering between any two positive yields is
-    always preserved."""
-    if effective_yield <= 0:
-        return 0.0
-    return 1.0 - math.exp(-effective_yield / DIVIDEND_EXTENSIVE_SATURATION_K)
-
 
 logger = logging.getLogger("loaders.load_stock_scores")
 
@@ -540,7 +487,7 @@ class ValueMetricsMixin:
         weights them (20/20/20/20/20, per the UNIFORM EQUAL-WEIGHT note below). composite_score
         is then independently recomputed in full from quality_score/growth_score/risk_score/
         momentum_score (read as-is, untouched by this pass) plus the new value_score, via
-        `_value_risk_adjusted_weights` - the same weighting `_score_value`'s own caller uses,
+        `BASE_PILLAR_WEIGHTS` - the same fixed weighting `_score_value`'s own caller uses,
         just re-derived here rather than patched.
 
         BUG FOUND + FIXED 2026-08-31 (goal session: "VCIG tops the scores and it's a shitty
@@ -667,12 +614,14 @@ class ValueMetricsMixin:
                            vm.pb_ratio_unavailable_reason,
                            ss.components, cp.sector, ss.data_completeness, ss.data_unavailable,
                            ss.unavailable_metrics, vm.ps_ratio_unavailable_reason,
-                           COALESCE(cis.is_foreign_private_issuer, false)
+                           COALESCE(cis.is_foreign_private_issuer, false),
+                           vm.enterprise_value, qm.operating_cash_flow, vm.market_cap, cp.industry
                     FROM stock_scores ss
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
                     JOIN stock_symbols su ON su.symbol = ss.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                    LEFT JOIN quality_metrics qm ON qm.symbol = ss.symbol
                     """
                     + LIQUIDITY_FLOOR_JOIN_SQL
                     + """
@@ -699,38 +648,26 @@ class ValueMetricsMixin:
 
             pe_raw: dict[str, float] = {}
             pb_raw: dict[str, float] = {}
-            ps_raw: dict[str, float] = {}
             fwd_pe_raw: dict[str, float] = {}
-            # div_effective_raw: dividend_yield after the FCF payout-sustainability haircut
-            # (_dividend_sustainability_factor) - see SECTOR-RELATIVE DIVIDEND YIELD note below
-            # for why this replaced the old absolute magnitude curve. Ranked via
-            # `sector_neutral_zscore`/`zscore_to_percentile_scale` (loaders/helpers/
-            # factor_normalization.py) - the SAME primitive Growth/Quality already use, NOT
-            # `_percent_rank_cheap_high_sector_relative` (the P/E/P/B/P/S mechanism): a first
-            # attempt at this fix used that rank-based mechanism and was caught, before ever
-            # writing to stock_scores, by re-verifying against real DB data - dividend_yield's
-            # real distribution is 75-90% exact zeros (non-payers) per sector, and
-            # `_percent_rank_cheap_high`'s RANK()-style tie handling (ties share the percentile
-            # of the FIRST-occurring tied position, matching SQL RANK() semantics - correct for
-            # P/E/P/B/P/S, where exact ties are rare on a continuous ratio) badly inflates a
-            # large majority-zero tie block: live-verified a 20-symbol sector with 18 zero-yield
-            # symbols and 2 real payers put the ENTIRE 18-symbol non-payer block at the 89.5th
-            # percentile - the opposite of intended. A floor-non-payers-at-0/rank-payers-only
-            # variant fixed the inversion but left a real ~25-point average spread across
-            # sectors (Financial Services 31.5 vs Healthcare 4.6, live-verified) - still exactly
-            # the kind of persistent cross-sector level difference sector-relative treatment is
-            # supposed to remove, just smaller than before. `sector_neutral_zscore` z-scores the
-            # raw effective yield (zeros included, no special-casing needed - ties don't
-            # distort a z-score, unlike a rank) within each sector, then
-            # `zscore_to_percentile_scale` maps it through the normal CDF - mathematically
-            # anchors every sector's own average at ~50 regardless of how large that sector's
-            # non-payer fraction is (live-verified: sector averages 44.3-46.1 post-fix, matching
-            # Growth's 48.8-50.4 spread almost exactly, vs percentile-rank's 25-point spread).
-            div_effective_raw: dict[str, float] = {}
-            # fcf_yield_raw_map: MSCI Enhanced Value's Cash-Earnings/Price leg proxy (see
-            # "MSCI ENHANCED VALUE CONSTRUCTION FIDELITY" note below) - already computed
-            # (value_metrics.fcf_yield), just newly given a scoring role here.
-            fcf_yield_raw_map: dict[str, float] = {}
+            # cash_yield_raw_map: MSCI Enhanced Value's real third leg is Enterprise
+            # Value-to-Cash-Flow-from-Operations (EV/CFO), not a price/equity-basis metric -
+            # confirmed against MSCI's own published fact sheet for the real MSCI USA Enhanced
+            # Value Index / VLUE holdings methodology (ishares.com/us/products/251616). Prefer
+            # operating_cash_flow (quality_metrics.operating_cash_flow, CFO before capex, the
+            # actual MSCI-stated numerator) / enterprise_value (value_metrics.enterprise_value)
+            # when both are available and enterprise_value > 0 - this is leverage-aware, unlike
+            # a price-basis yield, which matters a lot for anything with meaningful net debt
+            # (live-confirmed root cause of the value_score-vs-real-VLUE near-zero correlation,
+            # rho=-0.063/p=0.464: JPM scored 19.09 despite normal P/E 14.85/fwd-P/E 14.01 purely
+            # because fcf_yield=-15.57% - a bank's loan-issuance-driven OCF sign flip, not real
+            # cheapness/expensiveness - and F/GM's fcf_yield/PRICE ~21% looked extreme-cheap
+            # while their EV/market_cap ratio is ~3.6x/2.3x on debt-heavy auto-financing arms,
+            # which a price-basis yield can't see at all). Falls back to the old fcf_yield
+            # (FCF/market_cap) proxy when operating_cash_flow or enterprise_value is missing -
+            # same graceful-degradation shape as every other leg's *_reason fallback in this
+            # file, not a full replacement, since this schema doesn't guarantee CFO/EV coverage
+            # matches fcf_yield's.
+            cash_yield_raw_map: dict[str, float] = {}
             # earnings_yield_raw: forward P/E when available, else trailing P/E (MSCI's own
             # stated substitution rule for a missing Fwd P/E - see note below).
             earnings_yield_raw: dict[str, float] = {}
@@ -741,15 +678,22 @@ class ValueMetricsMixin:
             unprofitable_symbols: set[str] = set()
             negative_fwd_symbols: set[str] = set()
             negative_book_value_symbols: set[str] = set()
-            no_revenue_ps_symbols: set[str] = set()
             sector_map: dict[str, str] = {}
             is_fpi: dict[str, bool] = {}
+            market_cap_map: dict[str, float] = {}
             for row in rows:
-                symbol, pe, pb, ps, fwd_pe = row[0], row[7], row[8], row[9], row[10]
-                dividend_yield_raw = row[11]
+                symbol, pe, pb, fwd_pe = row[0], row[7], row[8], row[10]
                 fcf_yield_raw = safe_float(row[12], f"{symbol}.fcf_yield") if row[12] is not None else None
+                enterprise_value_raw = row[23] if len(row) > 23 else None
+                operating_cash_flow_raw = row[24] if len(row) > 24 else None
+                market_cap_raw = row[25] if len(row) > 25 else None
+                if market_cap_raw is not None and float(market_cap_raw) > 0:
+                    market_cap_map[symbol] = float(market_cap_raw)
+                industry_raw = row[26] if len(row) > 26 else None
+                is_cfo_nonsense_industry = (
+                    industry_raw in DEPOSITORY_BANK_INDUSTRIES or industry_raw in INSURANCE_UNDERWRITER_INDUSTRIES
+                )
                 pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
-                ps_reason = row[21]
                 sector = apply_mortgage_reit_sector_override(symbol, row[17])
                 if sector is not None:
                     sector_map[symbol] = sector
@@ -767,10 +711,6 @@ class ValueMetricsMixin:
                     pb_raw[symbol] = float(pb)
                 elif pb_reason == "negative_book_value":
                     negative_book_value_symbols.add(symbol)
-                if ps is not None and float(ps) > 0:
-                    ps_raw[symbol] = float(ps)
-                elif ps_reason in ("no_revenue_reported", "zero_revenue_reported_this_period"):
-                    no_revenue_ps_symbols.add(symbol)
                 if fwd_pe is not None and float(fwd_pe) > 0:
                     fwd_pe_raw[symbol] = float(fwd_pe)
                 elif fwd_pe_reason == "negative_forward_eps":
@@ -779,25 +719,48 @@ class ValueMetricsMixin:
                     earnings_yield_raw[symbol] = float(fwd_pe)
                 elif pe is not None and float(pe) > 0:
                     earnings_yield_raw[symbol] = float(pe)
-                if fcf_yield_raw is not None:
-                    fcf_yield_raw_map[symbol] = float(fcf_yield_raw)
-                if dividend_yield_raw is not None:
-                    dy = float(dividend_yield_raw)
-                    effective_yield = dy * _dividend_sustainability_factor(dy, fcf_yield_raw)
-                    div_effective_raw[symbol] = _dividend_extensive_transform(effective_yield)
+                # BANK/INSURER EXCLUSION (2026-09-15, same session as the EV/CFO fix above):
+                # both EV/CFO and the FCF/market_cap fallback are nonsense for depository
+                # banks/risk-bearing insurers - operating_cash_flow for these industries is
+                # dominated by loan origination/deposit flows or reserve movements under GAAP,
+                # not a "cash generation" measure comparable to an operating company's (live-
+                # confirmed: JPM operating_cash_flow=-$147.8B despite being a normal, healthy
+                # bank), and enterprise_value is equally meaningless when "debt" includes
+                # customer deposits, not leverage - same DEPOSITORY_BANK_INDUSTRIES/
+                # INSURANCE_UNDERWRITER_INDUSTRIES carve-out this codebase already trusts for
+                # debt_for_roic (see vqg_shared.py). Leg omitted entirely for these industries -
+                # same "floored/no entry, other legs renormalize" pattern as unprofitable_symbols/
+                # negative_book_value_symbols above - rather than scored on a number that isn't
+                # measuring what the leg claims to measure.
+                if is_cfo_nonsense_industry:
+                    pass
+                else:
+                    ev = float(enterprise_value_raw) if enterprise_value_raw is not None else None
+                    cfo = float(operating_cash_flow_raw) if operating_cash_flow_raw is not None else None
+                    if ev is not None and ev > 0 and cfo is not None:
+                        cash_yield_raw_map[symbol] = cfo / ev
+                    elif fcf_yield_raw is not None:
+                        # Fallback: EV/CFO inputs missing for this symbol - use the old
+                        # price-basis fcf_yield proxy rather than dropping the leg entirely.
+                        cash_yield_raw_map[symbol] = float(fcf_yield_raw)
 
             pe_pct = self._percent_rank_cheap_high_sector_relative(pe_raw, sector_map, is_fpi)
             pb_pct = self._percent_rank_cheap_high_sector_relative(pb_raw, sector_map, is_fpi)
-            ps_pct = self._percent_rank_cheap_high_sector_relative(ps_raw, sector_map, is_fpi)
             fwd_pe_pct = self._percent_rank_cheap_high_sector_relative(fwd_pe_raw, sector_map, is_fpi)
             earnings_pct = self._percent_rank_cheap_high_sector_relative(earnings_yield_raw, sector_map, is_fpi)
-            div_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(div_effective_raw, sector_map, is_foreign_private_issuer=is_fpi)
-            )
-            # Cash-Earnings/Price leg (fcf_yield already yield-form - higher is cheaper/better,
-            # same direction convention as div_pct above, no inversion needed).
+            # BARRA-STYLE SIZE NEUTRALIZATION (added 2026-09-15, goal-session "scores way off
+            # from industry lists" directive): sector_neutral_zscore alone standardizes within
+            # sector but not within size - a megacap and a small-cap in the same sector still
+            # get compared raw, so any residual size effect in dividend/cash yield leaks into
+            # the score. sector_size_neutral_zscore additionally regresses out log(market_cap)
+            # within each peer group before z-scoring (see that function's own docstring) -
+            # same sector peer groups, no symbol excluded, just size-neutral within them.
+            # EV/CFO leg (CFO/EV, or the fcf_yield fallback - both already yield-form, higher
+            # is cheaper/better).
             cash_yield_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(fcf_yield_raw_map, sector_map, is_foreign_private_issuer=is_fpi)
+                sector_size_neutral_zscore(
+                    cash_yield_raw_map, sector_map, market_cap_map, is_foreign_private_issuer=is_fpi
+                )
             )
             for symbol in unprofitable_symbols:
                 pe_pct[symbol] = 0.0
@@ -805,8 +768,6 @@ class ValueMetricsMixin:
                 fwd_pe_pct[symbol] = 0.0
             for symbol in negative_book_value_symbols:
                 pb_pct[symbol] = 0.0
-            for symbol in no_revenue_ps_symbols:
-                ps_pct[symbol] = 0.0
             # Both earnings measures unusable (unprofitable trailing AND negative forward
             # estimate) - genuinely the worst possible Earnings/Price outcome, same floor
             # convention as pe_pct/fwd_pe_pct above.
@@ -817,9 +778,7 @@ class ValueMetricsMixin:
                 f"{len(sector_map)}/{len(rows)} symbols mapped to a GICS sector): "
                 f"P/E {len(pe_pct)} ({len(unprofitable_symbols)} floored unprofitable), "
                 f"P/B {len(pb_pct)} ({len(negative_book_value_symbols)} floored negative-book-value), "
-                f"P/S {len(ps_pct)} ({len(no_revenue_ps_symbols)} floored no-revenue, computed but unscored), "
                 f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast), "
-                f"Dividend Yield {len(div_pct)} symbols (sector-neutral z-score, computed but unscored), "
                 f"Earnings/Price (scored) {len(earnings_pct)}, Cash-Earnings/Price (scored) {len(cash_yield_pct)}"
             )
 
@@ -833,13 +792,8 @@ class ValueMetricsMixin:
             for row in rows:
                 symbol, value_score_old, composite_score_old, risk_score = row[0], row[1], row[2], row[3]
                 quality_score, growth_score, momentum_score = row[4], row[5], row[6]
-                pe, pb, ps, fwd_pe = row[7], row[8], row[9], row[10]
-                # dividend_yield/fcf_yield are consumed in the earlier loop that builds
-                # div_effective_raw/div_pct (see "SECTOR-RELATIVE DIVIDEND YIELD" note above) -
-                # not needed again here, div_pct[symbol] already carries the sustainability-
-                # gated, sector-ranked result.
+                pe, pb, fwd_pe = row[7], row[8], row[10]
                 pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
-                ps_reason = row[21]
                 components_old = row[16]
                 data_completeness_old = float(row[18]) if row[18] is not None else None
                 data_unavailable_old = bool(row[19]) if row[19] is not None else False
@@ -871,6 +825,20 @@ class ValueMetricsMixin:
                 # promoted to the Cash-Earnings/Price leg (proxy for EV/CFO: both are cash-flow-
                 # based valuation yields, no EV/CFO field exists in this schema) AND, per MSCI's
                 # own stated rule, the missing-P/B substitute.
+                #
+                # EV/CFO FIX (2026-09-15, cross-session review): the Cash-Earnings/Price leg
+                # above was fcf_yield (FCF/market_cap, a PRICE-basis yield) used as a stated
+                # proxy for MSCI's real EV/CFO leg because this schema had no EV/CFO field -
+                # but it does (value_metrics.enterprise_value, quality_metrics.
+                # operating_cash_flow), just not joined into this query. A price-basis yield is
+                # leverage-blind; EV/CFO isn't. Live-confirmed as the root cause of value_score's
+                # near-zero correlation with real VLUE holdings (rho=-0.063/p=0.464): JPM scored
+                # 19.09 despite normal P/E multiples purely from fcf_yield=-15.57% (a bank's
+                # loan-issuance OCF sign flip), and F/GM's fcf_yield ~21% looked extreme-cheap
+                # while EV/market_cap is 3.6x/2.3x on debt-heavy financing arms - invisible to a
+                # price-basis metric. cash_yield_raw_map now uses operating_cash_flow/
+                # enterprise_value when both are available (falls back to the old fcf_yield
+                # proxy otherwise, same graceful-degradation shape as this file's other legs).
                 #
                 # UNIFORM EQUAL-WEIGHT (3 legs, not the prior 5) - mirrors the 2026-09-11
                 # "flat weight" precedent for the base construction, just against the corrected
@@ -908,19 +876,14 @@ class ValueMetricsMixin:
                     components.append((0.0, 1.0 / 3.0))
                 if symbol in cash_yield_pct and not pb_used_cash_substitute:
                     components.append((cash_yield_pct[symbol], 1.0 / 3.0))
-                # SECTOR-RELATIVE DIVIDEND YIELD (div_pct, computed above) - REMOVED FROM
-                # SCORING 2026-09-15 (MSCI ENHANCED VALUE CONSTRUCTION FIDELITY fix, this
-                # method's own docstring note above): dividend yield has no home in MSCI
-                # Enhanced Value's real 3-variable definition. BUG FOUND + FIXED 2026-09-15
-                # (algo-fd/algo-f5, cross-session review of 43a1451ce): this append survived
-                # that rewrite unchanged - the commit removed the PE/PS 0.20-weight legs above
-                # but missed this one, so dividend_yield was STILL live-scored at 0.20 nominal
-                # weight for nearly every symbol (div_effective_raw is populated for ~the whole
-                # universe - dividend_yield is "never NULL, 0.0 for non-payers" per the FIXED
-                # 2026-08-31 precedent above), diluting the intended 3-equal-thirds construction
-                # to ~1.20 total nominal weight instead of 1.00 for most symbols. div_pct is
-                # still computed above for logging/other consumers - same "computed but
-                # unscored" convention as ps_pct - just no longer fed into value_score itself.
+                # Dividend yield has no home in MSCI Enhanced Value's real 3-variable
+                # definition (P/B-or-P/CE, E/P, EV/CFO-or-P/CE) - not scored here. The whole
+                # dividend-yield computation path (sustainability haircut, saturating
+                # transform, sector-size-neutral z-score) was deleted 2026-09-15 rather than
+                # left "computed but unscored": it had no consumer anywhere in the repo, just
+                # dead work run every reload for nothing (see git history for the removed
+                # code if a future Quality/Income-tilt pass wants dividend yield as an input
+                # somewhere it's actually scored).
 
                 total_weight = sum(w for _, w in components)
                 if total_weight <= 0:
@@ -956,8 +919,7 @@ class ValueMetricsMixin:
                 # pass - only value_score changed above), mirroring _score_value's own caller
                 # (no weight redistribution for a missing pillar - GOVERNANCE rule, same as
                 # Pass 1) instead of patching composite_score_old by a delta.
-                risk_score_float = float(risk_score) if risk_score is not None else None
-                weights = _value_risk_adjusted_weights(risk_score_float)
+                weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
                 for pillar_name, pillar_score in (
                     ("quality", quality_score),

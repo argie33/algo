@@ -337,10 +337,14 @@ class DataPatrolConfig:
             {
                 "lookback_days": 90,
                 "drop_ratio": -0.30,
+                "rise_ratio": 0.30,
             }
         """
         lookback = self.get("patrol_corporate_action_lookback_days")
         drop = self.get("patrol_corporate_action_drop_ratio")
+        # ADDED 2026-09-15: symmetric rise-side threshold - see config_schema.py's own
+        # comment for why (the drop-only check was blind to reverse splits entirely).
+        rise = self.get("patrol_corporate_action_rise_ratio")
 
         import logging as _logging
 
@@ -360,10 +364,17 @@ class DataPatrolConfig:
                 "using default -0.30. Apply migration 106 to fix."
             )
             drop = -0.30
+        if rise is None:
+            _log.critical(
+                "[CONFIG CRITICAL] patrol_corporate_action_rise_ratio missing from algo_config - "
+                "using default 0.30. Apply migration 106 to fix."
+            )
+            rise = 0.30
 
         return {
             "lookback_days": lookback,
             "drop_ratio": drop,
+            "rise_ratio": rise,
         }
 
     def get_loader_contracts(self) -> dict[str, dict[str, Any]]:

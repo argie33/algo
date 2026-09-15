@@ -66,10 +66,7 @@ from loaders.stock_scores.momentum_scoring import MomentumScoringMixin  # noqa: 
 from loaders.stock_scores.pillar_weights import (  # noqa: E402
     BASE_PILLAR_WEIGHTS,
     DEFAULT_MIN_ADV_DOLLARS,
-    DEFAULT_MIN_INVESTABLE_MARKET_CAP,
     DEFAULT_MIN_STOCK_PRICE,
-    VALUE_RISK_INTERACTION_MAX_SHIFT,
-    _value_risk_adjusted_weights,
 )
 from loaders.stock_scores.quality_scoring import QualityScoringMixin  # noqa: E402
 from loaders.stock_scores.risk_scoring import (  # noqa: E402
@@ -88,7 +85,7 @@ logger = logging.getLogger(__name__)
 
 STALE_PRICE_TRADING_DAYS_THRESHOLD = 3  # 2026-09-07: mirrors load_risk_metrics_daily.py's constant
 
-# BASE_PILLAR_WEIGHTS / VALUE_RISK_INTERACTION_MAX_SHIFT (from pillar_weights.py) and
+# BASE_PILLAR_WEIGHTS (from pillar_weights.py) and
 # GROWTH_SCORE_FIELDS / GROWTH_INPUT_IMPLAUSIBLE_PCT / GROWTH_MIN_FIELDS_AVAILABLE (from
 # growth_scoring.py) and RISK_MIN_WEIGHT_AVAILABLE / NEAR_ZERO_LIQUIDITY_THRESHOLD (from
 # risk_scoring.py) are re-exported here, not used directly in this file - existing external
@@ -107,7 +104,6 @@ __all__ = [
     "NEAR_ZERO_LIQUIDITY_THRESHOLD",
     "RISK_MIN_WEIGHT_AVAILABLE",
     "STALE_PRICE_TRADING_DAYS_THRESHOLD",
-    "VALUE_RISK_INTERACTION_MAX_SHIFT",
     "StockScoresLoader",
 ]
 
@@ -392,58 +388,22 @@ class StockScoresLoader(
                 "Using conservative default 70% - consider setting explicit value in algo_config table."
             )
 
-        # Load the investability floor (algo_config.min_market_cap_millions, default $300M) -
-        # ADDED 2026-09-13. Same config value LiquidityChecks._check_market_cap() now enforces
-        # at trade entry, and the /api/algo/scores display already floors at - but until this
-        # fix, the PILLAR-SCORING z-score/percentile peer populations below (Quality/Growth/
-        # Value/Risk) computed cross-sectional statistics against the FULL active universe,
-        # nanocaps included. That's the actual driver of "the leaderboard doesn't look like a
-        # real institutional quality/momentum list even above a cap floor" - a nanocap's
-        # extreme ratio distorts the percentile boundary every real company gets ranked
-        # against, the same way a single huge outlier skews an average. Real index/factor
-        # methodology (MSCI Quality/Momentum, AQR QMJ, Barra USE4) defines the eligible
-        # universe BEFORE computing factor exposures, never scores the full market then
-        # filters after - this makes that same ordering the actual peer group these batch
-        # passes z-score against, not just a display-time filter on the output.
-        self._min_investable_market_cap: float | None = None
-        try:
-            with DatabaseContext("read") as config_cur:
-                config_cur.execute("SELECT value FROM algo_config WHERE key = 'min_market_cap_millions'")
-                config_row = config_cur.fetchone()
-                if config_row and config_row[0]:
-                    self._min_investable_market_cap = float(config_row[0]) * 1_000_000.0
-                    logger.debug(
-                        f"[STOCK_SCORES] Using configurable investability floor: "
-                        f"${self._min_investable_market_cap:,.0f}"
-                    )
-        except Exception as config_err:
-            logger.critical(
-                f"[STOCK_SCORES FAIL-FAST] Could not load min_market_cap_millions from config table: {config_err}. "
-                f"This is a critical data quality gate. Database may be inaccessible or corrupted. "
-                f"Cannot proceed without explicit investability configuration."
-            )
-            raise RuntimeError(
-                f"[STOCK_SCORES CRITICAL] Failed to load min_market_cap_millions configuration: {config_err}. "
-                f"This parameter is critical for scoring-population integrity. Check database connectivity and schema."
-            ) from config_err
-
-        if self._min_investable_market_cap is None:
-            self._min_investable_market_cap = DEFAULT_MIN_INVESTABLE_MARKET_CAP
-            logger.warning(
-                "[STOCK_SCORES] min_market_cap_millions not configured in database. "
-                "Using conservative default $300M - consider setting explicit value in algo_config table."
-            )
-
-        # LIQUIDITY-BASED INVESTABILITY FLOOR (added 2026-09-15) - REPLACES
-        # self._min_investable_market_cap as the eligibility gate every pillar batch pass's
-        # z-score/percentile peer population is filtered against. See
-        # DEFAULT_MIN_INVESTABLE_MARKET_CAP's own docstring in pillar_weights.py for the full
-        # rationale (real IBD screens are liquidity-based, not a market-cap dollar threshold -
-        # this repo's own research already established that; the market-cap floor was the wrong
-        # tool regardless of its threshold). Same algo_config keys the API layer's IBD-style
-        # screen and algo/risk/liquidity_checks.py's live trade-execution gate already read, so
-        # this loader's scoring population and the dashboard's/executor's eligibility notion of
-        # "investable" stay the same number, read once here rather than per pillar file.
+        # LIQUIDITY-BASED INVESTABILITY FLOOR (added 2026-09-15) - the eligibility gate every
+        # pillar batch pass's z-score/percentile peer population is filtered against. See
+        # LIQUIDITY_FLOOR_JOIN_SQL's own docstring in pillar_weights.py for the full rationale
+        # (real IBD screens are liquidity-based, not a market-cap dollar threshold). Same
+        # algo_config keys the API layer's IBD-style screen and algo/risk/liquidity_checks.py's
+        # live trade-execution gate already read, so this loader's scoring population and the
+        # dashboard's/executor's eligibility notion of "investable" stay the same number, read
+        # once here rather than per pillar file.
+        #
+        # A market-cap-based investability floor (self._min_investable_market_cap /
+        # DEFAULT_MIN_INVESTABLE_MARKET_CAP) used to be loaded here as well, before the
+        # liquidity-based floor above replaced it as the actual gate everywhere - DELETED
+        # 2026-09-15 (dead-code sweep, "get rid of the extra shit beyond Barra and the industry
+        # guys" directive) after confirming via repo-wide grep that nothing read it anymore
+        # (not market_cap_tilt.py, which takes symbols' raw market_cap straight from the DB for
+        # its own unrelated display-weight computation).
         self._min_stock_price: float | None = None
         self._min_adv_dollars: float | None = None
         try:
@@ -1029,11 +989,10 @@ class StockScoresLoader(
             clamped_risk = clamp_score(risk_score)
             clamped_momentum = clamp_score(momentum_score)
 
-            # VALUE x RISK INTERACTION: see VALUE_RISK_INTERACTION_MAX_SHIFT's module-level
-            # docstring for the evidence. Conditions Value's/Risk's own weights on THIS symbol's
-            # real risk_score (falls back to unmodified base weights if Risk is unavailable, same
-            # as clamped_risk being None below).
-            normalized_weights = _value_risk_adjusted_weights(clamped_risk if isinstance(clamped_risk, float) else None)
+            # Fixed base weights - no cross-pillar interaction shift (removed 2026-09-15, see
+            # pillar_weights.py's own note: a hand-built interaction term isn't how real
+            # Barra-style multi-factor models combine factor exposures).
+            normalized_weights = BASE_PILLAR_WEIGHTS
 
             # Composite: only use metrics that are actually available
             # Do NOT redistribute weights (GOVERNANCE rule: no weight redistribution)

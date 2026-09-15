@@ -294,21 +294,28 @@ class TestPositioningScoreRemoved:
 
 class TestRiskScoreWeightBadges:
     def test_volatility_beta_and_max_drawdown_weights_match_code(self):
-        """REWEIGHTED 2026-09-01 (goal session - user live-observed untradeable micro-cap
-        banks topping Risk's "safest" ranking; see _score_risk's own docstring for the full
-        rationale). Volatility 60D 45% + Volatility 252D 15% + Beta 15% + Max Drawdown 1Y 10%
-        + Liquidity 15%. Volatility 30D dropped (most redundant of the three windows).
-        Debt-to-Assets stays out - see test_debt_to_assets_not_scored below."""
+        """LIQUIDITY REMOVED 2026-09-15 (user directive: "get rid of all the extra shit beyond
+        the barra and the industry guys" - see _score_risk's own docstring). Real Barra-style
+        risk-factor construction doesn't fold tradability into the risk score itself. The
+        remaining 4 genuine risk-of-loss inputs (Volatility 60D/252D, Beta, Max Drawdown 1Y)
+        are flat 25% each (UNIFORM EQUAL-WEIGHT, 2026-09-11). Volatility 30D dropped (most
+        redundant of the three windows). Debt-to-Assets stays out - see
+        test_debt_to_assets_not_scored below."""
         src = inspect.getsource(StockScoresLoader._score_risk)
         score_var_to_jsx_key = {
             "v60_score": "volatility_60d",
             "v252_score": "volatility_12m",  # API key "volatility_12m" actually carries volatility_252d
             "beta_score": "beta",
             "dd_score": "max_drawdown_1y",
-            "liq_score": "avg_dollar_volume_20d",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
+
+    def test_liquidity_no_longer_scored(self):
+        """Liquidity is fetched/displayed informationally only - no longer a weight-badged
+        Risk input (see _score_risk's own docstring for the removal rationale)."""
+        src = inspect.getsource(StockScoresLoader._score_risk)
+        assert "liq_score" not in src, "avg_dollar_volume_20d should no longer be a scored risk_score component"
 
     def test_downside_volatility_and_volatility_30d_not_scored(self):
         """downside_volatility and volatility_30d are not part of the current 4-input

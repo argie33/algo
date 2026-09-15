@@ -21,7 +21,6 @@ from loaders.stock_scores.pillar_weights import (
     DEFAULT_MIN_ADV_DOLLARS,
     DEFAULT_MIN_STOCK_PRICE,
     LIQUIDITY_FLOOR_JOIN_SQL,
-    _value_risk_adjusted_weights,
 )
 from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 from utils.type_conversion import safe_float
@@ -722,6 +721,12 @@ class MomentumScoringMixin:
         This is deliberately NOT a mean-reversion mapping (which would penalize high RSI as
         "overbought"). For a momentum factor, sustained strength (RSI 50-85) should score
         well; only extreme overbought (>85) gets a mild pullback for reversal risk.
+
+        NO LIVE SCORING CALLER since RSI/MACD were demoted to informational-only 2026-09-15
+        (see update_momentum_sector_relative_mom_12_1's own docstring). Kept only because
+        algo/research/all_pillars_curve_vs_percentile_sweep_20260828.py still calls it
+        directly as StockScoresLoader._rsi_to_score - verify that script no longer needs it
+        before deleting this.
         """
         rsi = max(0.0, min(100.0, rsi))
         if rsi <= 30:
@@ -805,8 +810,7 @@ class MomentumScoringMixin:
         update_momentum_sector_relative_mom_12_1()'s complexity within this repo's ruff C901
         bound, no behavior change. Mirrors update_growth_sector_neutral_scores()'s identical
         inline block exactly."""
-        risk_score_float = float(risk_score) if risk_score is not None else None
-        weights = _value_risk_adjusted_weights(risk_score_float)
+        weights = BASE_PILLAR_WEIGHTS
         composite_val = 0.0
         for pillar_name, pillar_score in (
             ("quality", quality_score),
@@ -985,7 +989,7 @@ class MomentumScoringMixin:
 
         INVESTABILITY FLOOR: liquidity-based (algo_config.min_stock_price/min_adv_dollars,
         same as every other sector-neutral pass - REPLACED the market-cap floor 2026-09-15,
-        see DEFAULT_MIN_INVESTABLE_MARKET_CAP's own docstring in pillar_weights.py for why) -
+        see LIQUIDITY_FLOOR_JOIN_SQL's own docstring in pillar_weights.py for why) -
         sub-floor illiquid names distort the peer-group percentile boundaries real, investable
         companies get ranked against; those symbols simply aren't included in the CORRECTION
         population above.
@@ -1010,7 +1014,7 @@ class MomentumScoringMixin:
 
         Composite_score recomputed exactly as update_growth_sector_neutral_scores recomputes
         it - from quality_score/value_score/risk_score/growth_score as they currently stand
-        (untouched by this pass) plus the new momentum_score, via `_value_risk_adjusted_weights`.
+        (untouched by this pass) plus the new momentum_score, via fixed `BASE_PILLAR_WEIGHTS`.
         Must run BEFORE update_rs_percentiles() (rs_percentile should rank the FINAL
         momentum_score, not Pass-1's provisional one) and AFTER
         update_growth_sector_neutral_scores() (so this pass's own composite recompute sees

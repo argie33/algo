@@ -323,7 +323,14 @@ class TestAbsoluteZScoreRanking:
         # the raw-better-looking absolute Utilities reading land at comparable relative
         # positions within their own peer groups, unlike a universe-wide transform where MEDTECH
         # (much higher absolute vol/drawdown) would always score far below MEDUTIL.
-        assert abs(updates["MEDTECH"][0] - updates["MEDUTIL"][0]) < 30, (
+        # Tolerance widened 2026-09-15 (40, was 30) after Liquidity's removal as a scored Risk
+        # component rebalanced the remaining 4 inputs from 20% each (of 5, incl. Liquidity) to
+        # 25% each - universe-wide volatility (still absolute, not sector-relative - see
+        # test_volatility_is_universe_wide_not_sector_relative below) now carries proportionally
+        # more of the total weight, so a real, large absolute-vol gap between these two synthetic
+        # symbols (0.90-0.95 vs 0.10-0.12) legitimately widens the composite gap even though
+        # drawdown's own sector-relative component still keeps them comparable on that input.
+        assert abs(updates["MEDTECH"][0] - updates["MEDUTIL"][0]) < 40, (
             f"sector-relative scoring should put a similarly-positioned peer within each sector "
             f"in a comparable range, not penalize Tech purely for its sector's higher absolute "
             f"volatility - MEDTECH={updates['MEDTECH'][0]} MEDUTIL={updates['MEDUTIL'][0]}"
@@ -692,10 +699,10 @@ class TestIdempotentAcrossRepeatedRuns:
 
 
 class TestBetaAndLiquidityUnchanged:
-    def test_beta_scored_by_distance_from_one_not_zscore(self) -> None:
-        """Beta must keep its existing 'closest to 1.0 wins' curve, not a z-score - a symbol with
-        beta=1.0 must outscore one with beta=0.1 even though 0.1 is numerically smaller (the
-        z-score direction this pass uses for vol/drawdown would be wrong here)."""
+    def test_beta_scored_by_low_beta_reward_not_closeness_to_one(self) -> None:
+        """Beta now rewards LOW beta directly (2026-09-15, real BAB/Min-Vol anomaly - see
+        _score_risk's own docstring), not closeness to an invented 1.0 target - a symbol with
+        beta=0.1 must outscore one with beta=1.0."""
         rows = [
             _row(
                 "ATONE",
@@ -735,7 +742,7 @@ class TestBetaAndLiquidityUnchanged:
             ),
         ]
         updates = _run_with_mocked_rows(rows)
-        assert updates["ATONE"][0] > updates["LOWBETA"][0], (
-            f"beta=1.0 must score higher than beta=0.1 (closeness-to-1.0 target, not magnitude) - "
+        assert updates["LOWBETA"][0] > updates["ATONE"][0], (
+            f"beta=0.1 must score higher than beta=1.0 (low-beta reward, not closeness-to-1.0) - "
             f"ATONE={updates['ATONE'][0]} LOWBETA={updates['LOWBETA'][0]}"
         )

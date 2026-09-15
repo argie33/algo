@@ -19,7 +19,11 @@ from utils.external.sec_statements_entry_resolution import (
     _aggregate_concepts_should_replace_entry,
 )
 from utils.external.sec_statements_fy_stub_period_guard import apply_fy_stub_period_guard
-from utils.external.sec_statements_shared import _ANNUAL_REPORT_FORMS, _extract_currency_code
+from utils.external.sec_statements_shared import (
+    _ANNUAL_REPORT_FORMS,
+    _extract_currency_code,
+    _is_genuine_fy_duration_span,
+)
 from utils.external.sec_statements_unit_context import _aggregate_concepts_build_unit_context
 
 logger = logging.getLogger(__name__)
@@ -56,6 +60,77 @@ def _aggregate_concepts_build_alias_group_history(
                     if prev is None or entry["end"] > prev:
                         group_max_annual_report_end[group_key] = entry["end"]
     return group_max_annual_report_end
+
+
+def _aggregate_concepts_detect_cross_concept_fye_conflict(
+    concept_specs: list[tuple[str, str, str]],
+    us_gaap_facts: dict[str, Any] | None,
+    ifrs_facts: dict[str, Any] | None,
+    dei_facts: dict[str, Any] | None,
+) -> bool:
+    """True if this filer's real fiscal-year-end month is NOT a single stable answer across
+    its WHOLE history, once every concept/taxonomy is considered together - not just within
+    one concept's own local view.
+
+    FIXED 2026-09-15 (goal: data-issue coordination session, SMMT live-confirmed via real SEC
+    companyfacts JSON, CIK 0001599298): `_aggregate_concepts_build_unit_context`'s existing
+    conflicting-FYE-evidence guard (see its own ABVC-confirmed comment) already refuses to
+    guess a filer's fiscal-year-end month when a SINGLE concept's own genuine FY-span facts
+    disagree on the end month - but it only ever looks at that one concept's own history. SMMT
+    (Summit Therapeutics) converted from a UK foreign-private-issuer (20-F/6-K filings, FYE
+    January 31, ifrs-full taxonomy) to a US domestic filer (10-K, FYE December 31, us-gaap
+    taxonomy) in 2020 - each taxonomy's own revenue concept (ifrs-full
+    RevenueFromContractsWithCustomers vs us-gaap RevenueFromContractWithCustomerExcludingAssess
+    edTax) only ever carries genuine FY-span facts from ONE of the two regimes, so each
+    concept's own local view looks perfectly unanimous (fye_month=1 for the old concept,
+    fye_month=12 for the new one) even though the filer's real history is genuinely two
+    different regimes. `_aggregate_concepts_resolve_entry_period`'s non-December-FYE quarter
+    year-shift correction then confidently (and, for the old ifrs-full concept alone,
+    "correctly" by its own logic) relabels 2018's real Feb-Apr/May-Jul quarters as
+    fiscal_year=2019 - which collides with the NEW regime's own real calendar-2019 Q1/Q2
+    facts computing to the exact same (2019, Q1)/(2019, Q2) row keys, silently overwriting the
+    real, much smaller, current-regime revenue with the stale, much larger, old-regime GBP
+    figure (live-confirmed: FY2019 Q2 stored $49.93M from the old regime's May-Jul 2018
+    period, when the real calendar Q2 2019 figure is $156K).
+
+    Scans every concept spec's genuine FY-span facts (the same 350-380-day criterion already
+    trusted per-concept) across BOTH taxonomies at once; more than one distinct end month
+    anywhere in this filer's real history means the per-concept correction must not be trusted
+    for ANY concept, even one whose own local view looks unanimous - purely conservative, only
+    ever suppresses a correction that could otherwise cause a genuine period collision like
+    SMMT's, never adds a new one.
+    """
+    months: set[int] = set()
+    for concept, _target_key, source in concept_specs:
+        units = _aggregate_concepts_lookup_units(concept, source, us_gaap_facts, ifrs_facts, dei_facts)
+        if not units:
+            continue
+        for entries in units.values():
+            for entry in entries:
+                if (
+                    entry.get("fp") == "FY"
+                    and _is_genuine_fy_duration_span(entry.get("start"), entry.get("end"))
+                    and entry.get("end")
+                    and len(entry["end"]) >= 7
+                ):
+                    months.add(int(entry["end"][5:7]))
+    return len(months) > 1
+
+
+def _aggregate_concepts_apply_cross_concept_fye_override(
+    cross_concept_fye_conflict: bool,
+    fye_month: int | None,
+    has_december_fiscal_year_end: bool,
+) -> tuple[int | None, bool]:
+    """Suppress a per-concept fye_month/has_december_fiscal_year_end determination once
+    `_aggregate_concepts_detect_cross_concept_fye_conflict` has found conflicting evidence
+    elsewhere in this filer's history - see that function's own docstring. Extracted purely to
+    keep `_aggregate_concepts`'s own cyclomatic complexity under the repo's ruff C901 ratchet,
+    same rationale as its sibling `_aggregate_concepts_widen_to_alias_group`.
+    """
+    if cross_concept_fye_conflict:
+        return None, False
+    return fye_month, has_december_fiscal_year_end
 
 
 def _aggregate_concepts_widen_to_alias_group(
@@ -166,6 +241,17 @@ def _aggregate_concepts(
         concept_specs, alias_groups, us_gaap_facts, ifrs_facts, dei_facts
     )
 
+    # FIXED 2026-09-15 (goal: data-issue coordination session, SMMT live-confirmed) - see
+    # _aggregate_concepts_detect_cross_concept_fye_conflict's own docstring for the full SMMT
+    # writeup. Computed once per symbol (same cost class as the alias-group scan just above)
+    # and only ever used to SUPPRESS a per-concept fye_month/has_december_fiscal_year_end
+    # determination that would otherwise be trusted despite the filer's real history spanning
+    # two genuinely different fiscal-year-end regimes (e.g. a foreign-private-issuer-to-
+    # domestic-filer conversion that also changed the fiscal year end).
+    _cross_concept_fye_conflict = period == "quarterly" and _aggregate_concepts_detect_cross_concept_fye_conflict(
+        concept_specs, us_gaap_facts, ifrs_facts, dei_facts
+    )
+
     for concept, target_key, source in concept_specs:
         units = _aggregate_concepts_lookup_units(concept, source, us_gaap_facts, ifrs_facts, dei_facts)
         if units is None:
@@ -229,6 +315,10 @@ def _aggregate_concepts(
                 _fy_by_start_end_val,
                 _fye_month,
             ) = _aggregate_concepts_build_unit_context(entries)
+
+            _fye_month, has_december_fiscal_year_end = _aggregate_concepts_apply_cross_concept_fye_override(
+                _cross_concept_fye_conflict, _fye_month, has_december_fiscal_year_end
+            )
 
             # Widen to the alias-group's confirmed annual-report history (see this
             # function's own comment above `_group_max_annual_report_end` for why) - only

@@ -128,6 +128,7 @@ class DataPatrol:
             CompositeScoreReconciliationChecker,
             CoverageChecker,
             FinancialStatementFlagDriftChecker,
+            FinancialStatementPeriodSanityChecker,
             MetricBoundsChecker,
             NewXbrlConceptChecker,
             PillarScoreReconciliationChecker,
@@ -160,6 +161,7 @@ class DataPatrol:
                 SpecializedChecker(self.config),
                 TieOutChecker(self.config),
                 FinancialStatementFlagDriftChecker(self.config),
+                FinancialStatementPeriodSanityChecker(self.config),
                 MetricBoundsChecker(self.config),
                 NewXbrlConceptChecker(self.config),
                 XbrlConceptContinuityChecker(self.config),
@@ -185,6 +187,24 @@ class DataPatrol:
                             message=f"{checker.__class__.__name__} failed: {e}",
                         )
                     )
+                    # FIXED 2026-09-15 (/goal "get our scores right" session): a DB error inside
+                    # any checker leaves the SHARED cursor's transaction aborted
+                    # (InFailedSqlTransaction) - every subsequent statement on this same `cur`
+                    # fails the same way regardless of which checker issues it, until an
+                    # explicit ROLLBACK. Live-caught: a genuine SQL bug in one PriceSanityChecker
+                    # sub-check silently poisoned every checker that ran after it in the same
+                    # pass (TieOutChecker, StatisticalAnomalyChecker, etc. all failed with the
+                    # SAME misleading "current transaction is aborted" message, none showing
+                    # their own real error) - a single typo could silently zero out the entire
+                    # 17-checker suite's findings for that run. Rolling back here restores the
+                    # connection to a clean state so checker N+1 gets a fair, isolated attempt
+                    # regardless of what checker N did.
+                    try:
+                        conn.rollback()
+                    except Exception as rollback_err:
+                        logger.error(
+                            f"[DataPatrol] rollback after {checker.__class__.__name__} failure also failed: {rollback_err}"
+                        )
 
             # BUG FOUND 2026-09-07 (goal: stock_scores/tie-out CI sanity audit): PatrolLogger
             # (this module's own logger.py, INSERT INTO data_patrol_log fully implemented and
