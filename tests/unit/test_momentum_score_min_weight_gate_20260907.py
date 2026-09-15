@@ -24,10 +24,12 @@ class _Loader(MomentumScoringMixin):
 class TestMomentumMinWeightGate:
     def test_macd_sign_alone_is_withheld_not_scored(self) -> None:
         # NCPL-shaped input: no price-return momentum, no RSI, no SMA - only a near-zero MACD
-        # sign (0.37 nominal weight, below MOMENTUM_MIN_WEIGHT). Old (buggy) behavior:
-        # momentum_score = 70.0 (MACD>0 floor score) treated as fully confident. Fixed
-        # behavior: withheld as data_unavailable, same "insufficient data, don't fabricate a
-        # score" treatment the other three pillars already use.
+        # sign. UPDATED 2026-09-15 (WEIGHTS REBALANCED, see momentum_scoring.py's own
+        # docstring): MACD/RSI are no longer scored inputs at all (demoted to informational-
+        # only), so this now hits the "zero scoreable fields" branch rather than the "thin but
+        # nonzero" one MACD alone used to produce - a stronger, more precise version of the
+        # same "insufficient data, don't fabricate a score" protection the other three pillars
+        # already use.
         assert MOMENTUM_MIN_WEIGHT == 0.40  # pin the constant this test's math depends on
         loader = _Loader()
         metrics = {
@@ -45,11 +47,12 @@ class TestMomentumMinWeightGate:
 
         assert isinstance(result, dict)
         assert result["data_unavailable"] is True
-        assert result["reason"] == "insufficient_momentum_inputs_thin_sample"
+        assert result["reason"] == "no_momentum_scores_computed"
 
     def test_rsi_and_macd_together_still_below_floor_is_withheld(self) -> None:
-        # VOGX-shaped input: RSI + MACD together are still only 0.37 nominal weight (the two
-        # share one combined slot, not two independent ones) - still below the 0.40 floor.
+        # VOGX-shaped input: RSI + MACD together contribute zero scored weight now (both
+        # demoted to informational-only 2026-09-15) - same "no scoreable fields" outcome as
+        # MACD alone above, confirming RSI doesn't rescue it either.
         loader = _Loader()
         metrics = {
             "momentum_1m": None,
@@ -66,7 +69,7 @@ class TestMomentumMinWeightGate:
 
         assert isinstance(result, dict)
         assert result["data_unavailable"] is True
-        assert result["reason"] == "insufficient_momentum_inputs_thin_sample"
+        assert result["reason"] == "no_momentum_scores_computed"
 
     def test_full_coverage_at_or_above_floor_still_scores(self) -> None:
         # Sanity counterpart: mom_3m (0.20) + 12-1 (0.35) = 0.55, clears MOMENTUM_MIN_WEIGHT -

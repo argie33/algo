@@ -486,8 +486,26 @@ class MomentumScoringMixin:
         # mom_12_1 alone) - this repo's standing practice per pillar_weights.py's governance
         # policy is to move deliberately, not to the point estimate, matching e.g. margin_
         # volatility landing at AQR's 25% rather than MSCI's ~33%.
+        # WEIGHTS REBALANCED 2026-09-15 (user directive: "do what is needed so we get ours
+        # like theirs", after live-verifying against fresh MTUM daily holdings). This
+        # docstring's own 2026-09-14 note already found, from real institutional/academic
+        # literature alone, that momentum_3m/tech_trend/sma_avg aren't part of any convergent
+        # Momentum factor definition (Jegadeesh-Titman, Carhart UMD, AQR, MSCI, S&P all
+        # construct purely from risk-adjusted return-lookback windows, never RSI/MACD/SMA) -
+        # but stopped short of the literal 100%-on-lookback-windows point estimate as a
+        # deliberate, documented conservative choice. Fresh empirical test against real MTUM
+        # closes that gap: cap-neutral Spearman rank correlation (controlling for market cap,
+        # so it reflects real factor agreement, not company size) was 0.186-0.240 for the
+        # then-current 45/20/15/20 blend, but 0.564 using ONLY risk-adjusted 6m + 12-1 month
+        # momentum (50/50, matching MSCI's own published "looking at both 6- and 12-month
+        # holding period returns... using modified Sharpe ratios" description exactly) -
+        # every tested configuration that added momentum_3m/tech_trend/sma_avg back in
+        # monotonically hurt the correlation, never helped. momentum_3m/RSI/MACD/SMA-position
+        # remain fetched/persisted/displayed (informational, not scored - same convention
+        # already used elsewhere in this codebase for demoted fields) - just no longer part
+        # of momentum_score itself.
         weights = {
-            "momentum_3m": 0.20,
+            "momentum_6m": 0.50,
         }
 
         vol_252d = metrics.get("vol_252d")
@@ -524,8 +542,8 @@ class MomentumScoringMixin:
                         self._risk_adjust_pct(mom_12_1, vol_252d, median_vol_252d, min_mult, max_mult)
                     )
                     if mom_12_1_score is not None:  # Skip weak momentum (score=None)
-                        weighted_sum += mom_12_1_score * 0.45
-                        total_weight += 0.45
+                        weighted_sum += mom_12_1_score * 0.50
+                        total_weight += 0.50
 
         # RSI(14) + MACD sign, CONSOLIDATED (see CONSOLIDATED 2026-08-28 docstring note):
         # averaged into one "technical trend confirmation" slot, combined weight 0.37
@@ -553,15 +571,9 @@ class MomentumScoringMixin:
         # stock_scores run - not a rare backward-compat path, pure log noise masking real
         # warnings, with zero effect on the actual score (this WAS already the only value
         # ever used). Reverted to using "macd" directly.
-        tech_trend_scores = []
-        if metrics.get("rsi_14") is not None:
-            tech_trend_scores.append(self._rsi_to_score(metrics["rsi_14"]))
-        macd = metrics.get("macd")
-        if macd is not None:
-            tech_trend_scores.append(70.0 if macd > 0 else 30.0 if macd < 0 else 50.0)
-        if tech_trend_scores:
-            weighted_sum += (sum(tech_trend_scores) / len(tech_trend_scores)) * 0.15
-            total_weight += 0.15
+        # tech_trend (RSI+MACD) DEMOTED TO INFORMATIONAL-ONLY 2026-09-15 - see WEIGHTS
+        # REBALANCED note above. No longer scored; raw rsi_14/macd values remain exposed via
+        # the API response's own top-level fields for display, unaffected by this removal.
 
         # ROC (Rate of Change) composite REMOVED 2026-08-25 (goal: full scoring-architecture
         # audit): roc_20d/60d/120d/252d are literally the same computation as
@@ -570,24 +582,9 @@ class MomentumScoringMixin:
         # and roc_252d both use exactly 252) - this wasn't a diversifying signal, it was the
         # same four numbers counted a second time. Removed rather than reweighted.
 
-        # Price vs Moving Averages: premium over SMAs indicates uptrend
-        sma_scores = []
-        for sma_field in ["price_vs_sma_50", "price_vs_sma_200"]:
-            sma_val = metrics.get(sma_field)
-            if sma_val is not None:
-                # Price above SMA = bullish: +10% above = 75, +20% above = 100, -10% below = 25.
-                # FIXED 2026-08-28 (goal: momentum/risk factor review): comment previously
-                # claimed +5%=75/+10%=100/-10% range (a ±10% saturation), but the formula
-                # itself has always used /0.2, i.e. ±20% saturation - the comment and the code
-                # disagreed with each other. Corrected the comment to describe what the code
-                # actually does; no evidence on file favors either threshold over the other, so
-                # the formula itself is left unchanged (this repo's standing convention is not
-                # to change a scoring curve without empirical backing).
-                sma_score = 50 + (sma_val / 0.2) * 50  # ±20% range maps to 0-100
-                sma_scores.append(min(100, max(0, sma_score)))
-        if sma_scores:
-            weighted_sum += (sum(sma_scores) / len(sma_scores)) * 0.20
-            total_weight += 0.20
+        # sma_avg (price_vs_sma_50/200) DEMOTED TO INFORMATIONAL-ONLY 2026-09-15 - see WEIGHTS
+        # REBALANCED note above. No longer scored; raw price_vs_sma_50/200 values remain
+        # exposed via the API response's own top-level fields for display.
 
         if total_weight >= MOMENTUM_MIN_WEIGHT:
             return weighted_sum / total_weight
@@ -765,49 +762,27 @@ class MomentumScoringMixin:
         min_mult: float,
         max_mult: float,
         mom_12_1_pct: dict[str, float],
+        mom_6m_pct: dict[str, float],
     ) -> float | None:
         """Recompute a single symbol's full momentum_score for
         update_momentum_sector_relative_mom_12_1() - split out purely to keep that method's
-        cyclomatic complexity within this repo's ruff C901 bound, no behavior change. Same
-        weights/gate as `_score_momentum`: momentum_3m 20% (risk-adjusted, same as Pass 1),
-        mom_12_1 45% (from the pre-computed sector-relative pct map, the one thing this pass
-        changes), tech_trend 15% (RSI+MACD averaged), sma_avg 20%.
+        cyclomatic complexity within this repo's ruff C901 bound. Same weights/gate as
+        `_score_momentum`'s 2026-09-15 WEIGHTS REBALANCED note: mom_6m 50% + mom_12_1 50%
+        (both from the pre-computed universe-wide pct maps), momentum_3m/tech_trend/sma_avg
+        no longer scored (m3_raw/rsi_14/macd/sma_50/sma_200/close params kept for call-site
+        stability - StockScoreAccordion/other callers still pass them - just unused for
+        scoring now).
         """
         weighted_sum = 0.0
         total_weight = 0.0
 
-        if m3_raw is not None:
-            m3_score = self._pct_to_score(
-                self._risk_adjust_pct(float(m3_raw), vol, median_vol_252d, min_mult, max_mult)
-            )
-            if m3_score is not None:
-                weighted_sum += m3_score * 0.20
-                total_weight += 0.20
+        if symbol in mom_6m_pct:
+            weighted_sum += mom_6m_pct[symbol] * 0.50
+            total_weight += 0.50
 
         if symbol in mom_12_1_pct:
-            weighted_sum += mom_12_1_pct[symbol] * 0.45
-            total_weight += 0.45
-
-        tech_trend_scores = []
-        if rsi_14 is not None:
-            tech_trend_scores.append(self._rsi_to_score(float(rsi_14)))
-        if macd is not None:
-            macd_f = float(macd)
-            tech_trend_scores.append(70.0 if macd_f > 0 else 30.0 if macd_f < 0 else 50.0)
-        if tech_trend_scores:
-            weighted_sum += (sum(tech_trend_scores) / len(tech_trend_scores)) * 0.15
-            total_weight += 0.15
-
-        sma_scores = []
-        close_f = float(close) if close is not None else None
-        for sma_val in (sma_50, sma_200):
-            if sma_val is not None and close_f is not None and float(sma_val) != 0:
-                sma_pct = (close_f - float(sma_val)) / float(sma_val)
-                sma_score = 50 + (sma_pct / 0.2) * 50
-                sma_scores.append(min(100, max(0, sma_score)))
-        if sma_scores:
-            weighted_sum += (sum(sma_scores) / len(sma_scores)) * 0.20
-            total_weight += 0.20
+            weighted_sum += mom_12_1_pct[symbol] * 0.50
+            total_weight += 0.50
 
         if total_weight >= MOMENTUM_MIN_WEIGHT:
             return round(weighted_sum / total_weight, 2)
@@ -934,7 +909,8 @@ class MomentumScoringMixin:
                            ss.data_completeness, ss.data_unavailable,
                            mm.momentum_1m, mm.momentum_3m, mm.momentum_12m,
                            td.rsi_14, td.macd, td.sma_50, td.sma_200, td.close,
-                           sm.volatility_252d, cp.sector, COALESCE(cis.is_foreign_private_issuer, false)
+                           sm.volatility_252d, cp.sector, COALESCE(cis.is_foreign_private_issuer, false),
+                           mm.momentum_6m
                     FROM stock_scores ss
                     JOIN momentum_metrics mm ON mm.symbol = ss.symbol
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
@@ -996,22 +972,29 @@ class MomentumScoringMixin:
 
                 min_mult, max_mult = _percentile(1.0), _percentile(99.0)
 
-            # Risk-adjust each symbol's raw mom_12_1 (skip-month construction), same derivation
-            # as _score_momentum's inline version.
+            # Risk-adjust each symbol's raw mom_12_1 (skip-month construction) and mom_6m, same
+            # derivation as _score_momentum's inline version. Both fed into the same
+            # universe-wide z-score treatment and blended 50/50 (see WEIGHTS REBALANCED note
+            # on _score_momentum above for the full evidence trail - fresh MTUM validation,
+            # not internal IC alone).
             mom_12_1_risk_adj: dict[str, float] = {}
+            mom_6m_risk_adj: dict[str, float] = {}
             for row in rows:
-                symbol, m1_raw, m12_raw, vol252 = row[0], row[10], row[12], row[18]
-                if m1_raw is None or m12_raw is None:
-                    continue
-                m1f, m12f = float(m1_raw), float(m12_raw)
-                denom = 1.0 + m1f / 100.0
-                if abs(denom) <= 1e-6:
-                    continue
-                mom_12_1 = ((1.0 + m12f / 100.0) / denom - 1.0) * 100.0
-                if not math.isfinite(mom_12_1):
-                    continue
+                symbol, m1_raw, m12_raw, vol252, m6_raw = row[0], row[10], row[12], row[18], row[21]
                 vol = float(vol252) if vol252 is not None else None
-                mom_12_1_risk_adj[symbol] = self._risk_adjust_pct(mom_12_1, vol, median_vol_252d, min_mult, max_mult)
+                if m1_raw is not None and m12_raw is not None:
+                    m1f, m12f = float(m1_raw), float(m12_raw)
+                    denom = 1.0 + m1f / 100.0
+                    if abs(denom) > 1e-6:
+                        mom_12_1 = ((1.0 + m12f / 100.0) / denom - 1.0) * 100.0
+                        if math.isfinite(mom_12_1):
+                            mom_12_1_risk_adj[symbol] = self._risk_adjust_pct(
+                                mom_12_1, vol, median_vol_252d, min_mult, max_mult
+                            )
+                if m6_raw is not None:
+                    mom_6m_risk_adj[symbol] = self._risk_adjust_pct(
+                        float(m6_raw), vol, median_vol_252d, min_mult, max_mult
+                    )
 
             # UNIVERSE-WIDE, not sector-relative (fixed 2026-09-15 - see this module's own
             # update_momentum_sector_relative_mom_12_1 docstring and universe_wide_zscore's
@@ -1021,8 +1004,10 @@ class MomentumScoringMixin:
             # stock-scoring-level per-sector z-score - and empirically halved cap-neutral rank
             # correlation vs fresh MTUM holdings, 0.235 vs 0.558 universe-wide).
             mom_12_1_pct = zscore_to_percentile_scale(universe_wide_zscore(mom_12_1_risk_adj))
+            mom_6m_pct = zscore_to_percentile_scale(universe_wide_zscore(mom_6m_risk_adj))
             logger.info(
-                f"[STOCK_SCORES] Momentum universe-wide mom_12_1 z-score ({len(mom_12_1_pct)}/{len(rows)} scored)"
+                f"[STOCK_SCORES] Momentum universe-wide mom_12_1 z-score ({len(mom_12_1_pct)}/{len(rows)} scored), "
+                f"mom_6m z-score ({len(mom_6m_pct)}/{len(rows)} scored)"
             )
 
             min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
@@ -1051,6 +1036,7 @@ class MomentumScoringMixin:
                     vol252,
                     _sector,
                     _is_fpi,
+                    _m6_raw,
                 ) = row
                 vol = float(vol252) if vol252 is not None else None
 
@@ -1067,6 +1053,7 @@ class MomentumScoringMixin:
                     min_mult,
                     max_mult,
                     mom_12_1_pct,
+                    mom_6m_pct,
                 )
                 composite_score_new, data_completeness_new = self._recompute_composite_for_row(
                     quality_score, growth_score, value_score, risk_score, momentum_score_new

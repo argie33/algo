@@ -303,23 +303,22 @@ def get_live_risk_weights() -> dict[str, float] | None:
 
 
 def get_live_momentum_weights() -> dict[str, float] | None:
+    """UPDATED 2026-09-15 (same day, later pass): _score_momentum no longer has tech_trend_scores/
+    sma_scores variables at all (momentum_3m/tech_trend/sma_avg removed from scoring entirely,
+    not just reweighted - see that method's own WEIGHTS REBALANCED docstring note), and mom_12_1's
+    weight moved from a literal `* 0.45` term to the `weights = {"momentum_6m": 0.50}` dict (mirroring
+    mom_12_1's own weight, which is still a literal `* 0.50` term further down in the same method).
+    """
     from loaders.load_stock_scores import StockScoresLoader
 
     source = inspect.getsource(StockScoresLoader._score_momentum)
-    weights = _extract_weighted_terms(
-        source,
-        {
-            "mom_12_1": "mom_12_1_score",
-            "tech_trend": "tech_trend_scores",
-            "sma": "sma_scores",
-        },
-    )
+    weights = _extract_weighted_terms(source, {"mom_12_1": "mom_12_1_score"})
     if weights is None:
         return None
-    m3m_match = re.search(r'"momentum_3m"\s*:\s*([\d.]+)', source)
-    if m3m_match is None:
+    m6m_match = re.search(r'"momentum_6m"\s*:\s*([\d.]+)', source)
+    if m6m_match is None:
         return None
-    weights["mom_3m"] = float(m3m_match.group(1))
+    weights["mom_6m"] = float(m6m_match.group(1))
     return weights
 
 
@@ -371,7 +370,7 @@ def get_live_quality_weights() -> dict[str, float] | None:
 
 PROXY_VALUE_FIELDS = {"pe", "pb", "ps"}
 PROXY_RISK_FIELDS = {"vol60", "vol252", "beta", "maxdd"}
-PROXY_MOMENTUM_FIELDS = {"mom_3m", "mom_12_1", "tech_trend", "sma"}
+PROXY_MOMENTUM_FIELDS = {"mom_12_1", "mom_6m"}
 PROXY_QUALITY_FIELDS = {
     "roe",
     "roa",
@@ -395,10 +394,10 @@ PROXY_VALUE_NUMERATORS = {"pe": 27.0, "pb": 27.0, "ps": 27.0}
 # reconfirmed via get_live_risk_weights()/get_live_momentum_weights(): all 5 risk fields
 # and all 4 momentum fields are flat 0.20/0.25 respectively - no [DRIFT] now.
 PROXY_RISK_NUMERATORS = {"vol60": 1.0, "vol252": 1.0, "beta": 1.0, "maxdd": 1.0}
-# FIXED 2026-09-15: live moved off flat equal-weight the day after the 2026-09-13 fix above -
-# see momentum_proxy's own 2026-09-15 comment below for the mom_12_1/momentum_3m/tech_trend/
-# sma_avg 45/20/15/20 rationale.
-PROXY_MOMENTUM_NUMERATORS = {"mom_3m": 20.0, "mom_12_1": 45.0, "tech_trend": 15.0, "sma": 20.0}
+# FIXED 2026-09-15: live moved off flat equal-weight the day after the 2026-09-13 fix above,
+# then FIXED AGAIN the same day - see momentum_proxy's own comments below for the full
+# mom_3m/tech_trend/sma_avg removal rationale. Live is now mom_12_1 50% / mom_6m 50% only.
+PROXY_MOMENTUM_NUMERATORS = {"mom_12_1": 50.0, "mom_6m": 50.0}
 # FIXED 2026-09-13 (same audit): was still the pre-2026-09-11 11/18/18/15/18/7/7/7 split;
 # live was flat 12.5 each at that time (matched quality_proxy's own construction then).
 # FIXED AGAIN 2026-09-15: roce/asset_turnover dropped (see quality_proxy's own 2026-09-15
@@ -891,14 +890,8 @@ def build_pillar_proxy_records(
             + 0.25 * _zwinsor(max_dd_1y)
         )
 
-        mom_3m = _trailing_cumret(px, i, 3)
         mom_12_1 = _trailing_cumret(px, i - 1, 11)
-        rsi = indicators["rsi_14"].iloc[i]
-        macd_sign = indicators["macd_sign"].iloc[i]
-        tech_trend = (_zwinsor(rsi) + _zwinsor(macd_sign)) / 2.0
-        sma_avg = (
-            _zwinsor(indicators["price_vs_sma_50"].iloc[i]) + _zwinsor(indicators["price_vs_sma_200"].iloc[i])
-        ) / 2.0
+        mom_6m = _trailing_cumret(px, i, 6)
         # FIXED 2026-09-13 (/goal scoring-accuracy audit): was still the pre-2026-09-11
         # 20/35/37/8 split - live momentum_scoring.py's _score_momentum weighted momentum_3m/
         # mom_12_1/tech_trend/SMA FLAT 25% EACH (same UNIFORM EQUAL-WEIGHT directive that
@@ -911,7 +904,17 @@ def build_pillar_proxy_records(
         # cross-sectional momentum) got the dominant weight) moved this off flat 25% each to
         # mom_12_1 45% / momentum_3m 20% / tech_trend 15% / sma_avg 20% - this proxy had gone
         # stale again the very next day, same recurring failure mode as quality_proxy above.
-        momentum_proxy = 0.45 * _zwinsor(mom_12_1) + 0.20 * _zwinsor(mom_3m) + 0.15 * tech_trend + 0.20 * sma_avg
+        #
+        # FIXED AGAIN 2026-09-15 (same day, later pass - "do what is needed so we get ours
+        # like theirs" user directive): live-verified against fresh MTUM daily holdings that
+        # momentum_3m/tech_trend/sma_avg aren't part of any convergent institutional Momentum
+        # definition and were actively diluting real-fund rank correlation (cap-neutral
+        # Spearman rho 0.235-0.430 with them included vs 0.564 without) - _score_momentum now
+        # scores ONLY risk-adjusted mom_12_1 (50%) + mom_6m (50%), matching MSCI's own
+        # published "6- and 12-month holding period returns" description. momentum_3m/
+        # tech_trend/sma_avg proxies removed from this file entirely, not just reweighted to
+        # zero, since the live formula no longer computes them at all.
+        momentum_proxy = 0.50 * _zwinsor(mom_12_1) + 0.50 * _zwinsor(mom_6m)
 
         fwd_ret = ret.iloc[i + 1]
 

@@ -1,17 +1,21 @@
-"""Tests for update_momentum_sector_relative_mom_12_1() (loaders/stock_scores/momentum_scoring.py,
-added 2026-09-15), the Momentum-pillar sibling of Quality/Growth/Value's own sector-neutral-zscore
-batch passes.
+"""Tests for update_momentum_sector_relative_mom_12_1() (loaders/stock_scores/momentum_scoring.py).
 
-Context: TWO-LAYER VALIDATION POLICY (pillar_weights.py, 2026-09-15, user directive) - pillar
-constructions are validated against fidelity to the real institutional factor definition, not
-their own standalone IC. MTUM's real underlying index (MSCI USA Momentum SR "Sector-Relative"
-Variant) z-scores momentum WITHIN each GICS sector - this method applies that same transform to
-mom_12_1 (45% of momentum_score), the one component with a real sourced sector-relative
-precedent, leaving momentum_3m/tech_trend/sma_avg on their existing universe-wide/self-relative
-constructions.
+REWRITTEN 2026-09-15 (same day, later pass - user directive: "do what is needed so we get ours
+like theirs", after live-verifying against fresh MTUM daily holdings). This method's name and
+the original test file predate a same-day correction: sector-relative z-scoring of mom_12_1 was
+based on a misread of MTUM's real methodology ("sector diversification" in MSCI's own published
+language is a portfolio-construction-level exposure CAP, not a stock-scoring-level per-sector
+z-score) - live-verified wrong via fresh MTUM daily holdings (cap-neutral Spearman rank
+correlation 0.235 sector-relative vs 0.558 universe-wide for mom_12_1 alone). The method now
+z-scores mom_12_1 AND mom_6m universe-wide (not per-sector) and blends them 50/50 - momentum_3m/
+tech_trend/sma_avg are no longer scored at all (see momentum_scoring.py's own WEIGHTS REBALANCED
+docstring note for the full evidence trail). The method's name (`..._sector_relative_...`) is
+now stale relative to what it does - left unchanged in this pass to avoid touching every call
+site across the codebase in the same commit as the scoring-logic fix; a rename is a separate,
+lower-risk follow-up.
 
-Test structure mirrors tests/unit/test_growth_sector_neutral_scores_20260908.py exactly (same
-mocked-DB-row / idempotency-across-repeated-runs pattern), since this method is built on the
+Test structure still mirrors tests/unit/test_growth_sector_neutral_scores_20260908.py's mocked-
+DB-row / idempotency-across-repeated-runs pattern, since this method is still built on the
 identical "Pass 1 provisional, batch pass fully recomputes and overwrites" architecture.
 """
 
@@ -42,12 +46,13 @@ def _row(
     volatility_252d: float | None,
     sector: str | None,
     is_fpi: bool = False,
+    momentum_6m: float | None = None,
 ) -> tuple:
     """Build a mocked SELECT row matching update_momentum_sector_relative_mom_12_1()'s own
     column order exactly: symbol, momentum_score, composite_score, quality_score, growth_score,
     value_score, risk_score, components, data_completeness, data_unavailable, momentum_1m,
     momentum_3m, momentum_12m, rsi_14, macd, sma_50, sma_200, close, volatility_252d, sector,
-    is_foreign_private_issuer."""
+    is_foreign_private_issuer, momentum_6m (appended as the trailing column, 2026-09-15)."""
     return (
         symbol,
         momentum_score,
@@ -70,12 +75,15 @@ def _row(
         volatility_252d,
         sector,
         is_fpi,
+        momentum_6m,
     )
 
 
-def _full_row(symbol: str, mom_12m: float, sector: str, mom_1m: float = 0.0) -> tuple:
-    """A row with every input present (all 4 momentum_score slots scoreable), varying only
-    momentum_12m (the dominant driver of mom_12_1 when momentum_1m is held near zero)."""
+def _full_row(symbol: str, mom_12m: float, sector: str, mom_1m: float = 0.0, mom_6m: float | None = None) -> tuple:
+    """A row with every input present (both mom_12_1 and mom_6m slots scoreable), varying
+    momentum_12m (the dominant driver of mom_12_1 when momentum_1m is held near zero).
+    momentum_6m defaults to the same value as momentum_12m when not given, so tests that only
+    care about the 12m-driven ordering aren't diluted by an independently-varying 6m input."""
     return _row(
         symbol,
         999.0,
@@ -97,6 +105,7 @@ def _full_row(symbol: str, mom_12m: float, sector: str, mom_1m: float = 0.0) -> 
         110.0,
         0.30,
         sector,
+        momentum_6m=mom_6m if mom_6m is not None else mom_12m,
     )
 
 
@@ -119,10 +128,10 @@ def _run_with_mocked_rows(rows: list[tuple]) -> dict[str, tuple[float | None, fl
     return {row[0]: (row[1], row[2]) for row in updates}
 
 
-class TestSectorRelativeRanking:
-    def test_stronger_12mo_return_scores_higher_than_weaker_peer_same_sector(self) -> None:
-        """Basic sanity: within the same sector, a higher raw momentum_12m (all else equal)
-        must score higher than a lower one."""
+class TestUniverseWideRanking:
+    def test_stronger_12mo_return_scores_higher_than_weaker_peer(self) -> None:
+        """Basic sanity: a higher raw momentum_12m (all else equal, same sector so this isn't
+        testing the sector question) must score higher than a lower one."""
         rows = [
             _full_row("STRONG", 60.0, "Technology"),
             _full_row("WEAK", -20.0, "Technology"),
@@ -135,12 +144,13 @@ class TestSectorRelativeRanking:
             updates["STRONG"][0] > updates["MID_C"][0] > updates["MID_B"][0] > updates["MID_A"][0] > updates["WEAK"][0]
         )
 
-    def test_same_absolute_return_scores_differently_across_sectors(self) -> None:
-        """The whole point of the rewrite: an IDENTICAL raw 12mo return should NOT map to the
-        identical score once sector peer groups differ - a return that's mediocre for a
-        hot-momentum sector should score lower than the SAME return in a cold sector. Energy
-        peers here are uniformly much stronger than Utilities peers, so a shared raw return of
-        20.0 should rank the Utilities symbol relatively higher."""
+    def test_same_absolute_return_scores_the_same_regardless_of_sector(self) -> None:
+        """FIXED 2026-09-15 (was inverted before this rewrite - see module docstring): mom_12_1
+        is now universe-wide, not sector-relative, matching MTUM's real construction (sector
+        diversification there is a portfolio-CONSTRUCTION cap, not per-sector stock scoring).
+        An IDENTICAL raw 12mo return (and identical mom_6m, held equal via _full_row's default)
+        must map to the SAME score regardless of which sector's peer group it's compared
+        against - the opposite property of what this test asserted before the fix."""
         energy_rows = [
             _full_row(f"NRG_{i}", v, "Energy")
             for i, v in enumerate(
@@ -154,18 +164,21 @@ class TestSectorRelativeRanking:
             )
         ]
         updates = _run_with_mocked_rows(energy_rows + util_rows)
-        # NRG_14 and UTL_14 both carry the identical raw momentum_12m = 20.0.
-        assert updates["UTL_14"][0] > updates["NRG_14"][0], (
-            f"UTL_14={updates['UTL_14'][0]} NRG_14={updates['NRG_14'][0]}: identical raw 12mo return "
-            "should score higher relative to a cold (Utilities) peer group than a hot (Energy) one - "
-            "this is the entire point of sector-relative z-scoring, and the exact pattern the live "
-            "2026-09 energy/refiner momentum cluster showed under the old universe-wide construction"
+        # NRG_14 and UTL_14 both carry the identical raw momentum_12m = 20.0 (and, via
+        # _full_row's default, identical momentum_6m = 20.0 too) - with universe-wide z-scoring
+        # they're compared against the SAME population regardless of sector, so they must land
+        # on the identical score now.
+        assert updates["UTL_14"][0] == updates["NRG_14"][0], (
+            f"UTL_14={updates['UTL_14'][0]} NRG_14={updates['NRG_14'][0]}: identical raw 12mo/6mo "
+            "returns must score identically now that mom_12_1/mom_6m are universe-wide, not "
+            "sector-relative - a sector-dependent split here would mean the sector-relative bug "
+            "this same-day fix removed has regressed."
         )
 
 
 class TestMomentumMinWeightFloorPreserved:
     def test_thin_coverage_withheld_not_saturated(self) -> None:
-        """MOMENTUM_MIN_WEIGHT=0.40: a symbol with only mom_12_1 available (0.45 weight is
+        """MOMENTUM_MIN_WEIGHT=0.40: a symbol with only mom_12_1 available (0.50 weight is
         enough alone) still scores, but a symbol with NOTHING available must be withheld
         (None), not silently dropped from the composite recompute as if it were fine."""
         rows = [
@@ -190,6 +203,7 @@ class TestMomentumMinWeightFloorPreserved:
                 None,  # close missing
                 None,
                 "Technology",
+                momentum_6m=None,  # momentum_6m missing too
             ),
             _full_row("PEER_A", 10.0, "Technology"),
             _full_row("PEER_B", 20.0, "Technology"),
@@ -198,12 +212,47 @@ class TestMomentumMinWeightFloorPreserved:
         assert "NOTHING" in updates
         assert updates["NOTHING"][0] is None, f"expected momentum_score withheld (None), got {updates['NOTHING'][0]}"
 
+    def test_only_mom_6m_available_still_scores(self) -> None:
+        """Symmetric to the mom_12_1-only case: a symbol missing momentum_1m/12m (so mom_12_1
+        can't derive) but with momentum_6m present should still score off that 0.50 weight
+        alone, clearing MOMENTUM_MIN_WEIGHT=0.40."""
+        rows = [
+            _row(
+                "ONLY_6M",
+                999.0,
+                999.0,
+                50.0,
+                50.0,
+                50.0,
+                50.0,
+                {},
+                99.99,
+                False,
+                None,  # momentum_1m missing -> mom_12_1 can't derive
+                5.0,
+                None,  # momentum_12m missing -> mom_12_1 can't derive
+                55.0,
+                1.0,
+                105.0,
+                102.0,
+                110.0,
+                0.30,
+                "Technology",
+                momentum_6m=20.0,
+            ),
+            _full_row("PEER_A", 10.0, "Technology"),
+            _full_row("PEER_B", 20.0, "Technology"),
+        ]
+        updates = _run_with_mocked_rows(rows)
+        assert "ONLY_6M" in updates
+        assert updates["ONLY_6M"][0] is not None, "expected a real score off mom_6m's 0.50 weight alone"
+
 
 class TestIdempotentAcrossRepeatedRuns:
     def test_re_running_with_the_prior_runs_output_as_input_produces_no_further_change(self) -> None:
         """Same non-idempotence bug class this repo already fixed for Value/Quality/Growth's
         batch passes - momentum_score/composite_score must never be read back as inputs to this
-        pass, since the raw momentum_1m/3m/12m/rsi/macd/sma/vol inputs are what it's a pure
+        pass, since the raw momentum_1m/3m/6m/12m/rsi/macd/sma/vol inputs are what it's a pure
         function of."""
         rows = [
             _full_row("A", 25.0, "Technology"),
@@ -237,6 +286,7 @@ class TestIdempotentAcrossRepeatedRuns:
                 r[18],
                 r[19],
                 r[20],
+                momentum_6m=r[21],
             )
             for r in rows
         ]

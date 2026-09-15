@@ -77,12 +77,12 @@ class TestMomentumMetricsUnavailableBranchesUnified:
     def test_both_unavailable_branches_produce_identical_score(self):
         """Same RSI/MACD/SMA inputs via either "no row" or "row present, unavailable=True"
         must yield the exact same outcome - proving the two paths are now unified, not just
-        individually non-crashing. RSI/MACD/SMA alone (no price-return momentum at all) now
-        combine for only 15%+20%=35% weight (2026-09-14 industry-consensus reweight demoted
-        tech_trend from 25% to 15%), below MOMENTUM_MIN_WEIGHT=0.40 - so both paths correctly
-        land on the SAME data_unavailable marker now, not a scored float. That's the intended
-        effect of MOMENTUM_MIN_WEIGHT (technical-indicator-only input is the least reliable
-        slice of this pillar), and the two paths still agree, which is what this test checks."""
+        individually non-crashing. UPDATED 2026-09-15 (WEIGHTS REBALANCED, see
+        momentum_scoring.py's own docstring): RSI/MACD/SMA are now informational-only,
+        contributing exactly ZERO scored weight (not just "below MOMENTUM_MIN_WEIGHT") - so
+        both paths land on the "zero scoreable fields" marker, a stronger/more precise version
+        of the same "insufficient data, don't fabricate a score" outcome this test always
+        checked. The two paths still agree, which is what this test checks."""
         loader = StockScoresLoader()
         tech_row = (55.0, 0.3, 100.0, 95.0, 105.0)
 
@@ -100,10 +100,10 @@ class TestMomentumMetricsUnavailableBranchesUnified:
         assert score_absent == {
             "symbol": "ROW_ABSENT",
             "data_unavailable": True,
-            "reason": "insufficient_momentum_inputs_thin_sample",
+            "reason": "no_momentum_scores_computed",
         }
         assert score_unavailable == {
             "symbol": "ROW_UNAVAILABLE",
             "data_unavailable": True,
-            "reason": "insufficient_momentum_inputs_thin_sample",
+            "reason": "no_momentum_scores_computed",
         }

@@ -50,21 +50,23 @@ class TestMomentumMetricsSmaWiring:
         assert metrics["price_vs_sma_50"] is None
         assert metrics["price_vs_sma_200"] is None
 
-    def test_sma_positioning_actually_moves_momentum_score(self):
-        """End-to-end: with identical momentum/RSI/MACD inputs, a symbol trading well
-        above its SMAs must score higher than one trading well below - proving the
-        SMA weight is now live, not dead, in _score_momentum. momentum_3m/momentum_12m
-        use a clearly non-weak (>3%) return so those slots aren't skipped as weak
-        momentum (score=None) - since tech_trend+sma_avg's combined weight (15%+20%=35%,
-        2026-09-14 industry-consensus reweight) alone falls below MOMENTUM_MIN_WEIGHT=0.40,
-        a fixture testing SMA in isolation needs the price-return slots to also
-        contribute weight, same as any real symbol with genuine momentum data would."""
+    def test_sma_positioning_no_longer_affects_momentum_score(self):
+        """UPDATED 2026-09-15 (WEIGHTS REBALANCED, see momentum_scoring.py's own docstring):
+        sma_avg (like momentum_3m/tech_trend) was demoted to informational-only - real
+        institutional Momentum factor definitions (Jegadeesh-Titman, Carhart UMD, AQR, MSCI,
+        S&P) are built purely from risk-adjusted return-lookback windows, never SMA-crossover
+        technical indicators, and live-verifying against fresh MTUM holdings confirmed
+        removing it (along with momentum_3m/tech_trend) roughly doubled real-fund rank
+        correlation. price_vs_sma_50/200 are still correctly wired into `metrics` for display
+        (see the other tests in this file) - this test now asserts the opposite of its
+        pre-fix version: with identical momentum_1m/3m/6m/12m/rsi/macd inputs, SMA
+        positioning must NOT move momentum_score at all anymore."""
         loader = StockScoresLoader()
         base = {
             "momentum_1m": 2.0,
             "momentum_3m": 5.0,
             "momentum_6m": 10.0,
-            "momentum_12m": 20.0,  # with momentum_1m=2.0, derives a clearly non-weak mom_12_1
+            "momentum_12m": 20.0,
             "rsi_14": 50.0,
             "macd": 0.0,
         }
@@ -76,4 +78,4 @@ class TestMomentumMetricsSmaWiring:
 
         assert isinstance(score_above, float)
         assert isinstance(score_below, float)
-        assert score_above > score_below
+        assert score_above == score_below

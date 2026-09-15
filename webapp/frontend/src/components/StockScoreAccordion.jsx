@@ -1096,69 +1096,50 @@ const QUALITY_SCHEMA = [
 // avg) cut 25%->15%, momentum_3m/SMA-avg landed at 20% each.
 const MOMENTUM_SCHEMA = [
   {
-    key: "momentum_3m",
-    label: "Momentum (3M)",
+    key: "momentum_6m",
+    label: "Momentum (6M, risk-adjusted)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "20%",
+    weight: "50%",
   },
   {
     key: "momentum_12_1",
     label: "Momentum (12-1, skip-month)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "45%",
+    weight: "50%",
   },
-  {
-    key: "rsi",
-    label: "RSI (14)",
-    fmt: (v) => num(v, 1),
-    used: true,
-    weight: "15% avg",
-  },
-  {
-    key: "macd",
-    label: "MACD Line",
-    fmt: (v) => num(v, 3),
-    used: true,
-    weight: "15% avg",
-  },
-  {
-    key: "price_vs_sma_50",
-    label: "Price vs 50-SMA",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "20% avg",
-  },
-  {
-    key: "price_vs_sma_200",
-    label: "Price vs 200-SMA",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "20% avg",
-  },
-  // TRIMMED BACK 2026-08-28 (user directive: this tab should show ONLY what's actually in
-  // the scoring formula, not every computed field - reversing the same-day earlier
-  // "restore to display" pass below). Before cutting each field, checked whether it
-  // deserved to be a REAL scored input instead of just hidden - the standard the user asked
-  // for ("if we need more in the scoring logic to get it right, keep working on it").
+  // WEIGHTS REBALANCED 2026-09-15 (user directive: "do what is needed so we get ours like
+  // theirs", after live-verifying against fresh MTUM daily holdings). momentum_3m/RSI(14)/
+  // MACD/price_vs_sma_50/200 REMOVED from this schema (not just reweighted to 0%) - none of
+  // them are part of any convergent institutional Momentum factor definition (Jegadeesh-
+  // Titman, Carhart UMD, AQR, MSCI, S&P all construct purely from risk-adjusted return-
+  // lookback windows, never RSI/MACD/SMA-crossover technical indicators - already noted in
+  // momentum_scoring.py's own 2026-09-14 docstring, which stopped short of actually acting on
+  // it that day). Fresh empirical test against real MTUM closed that gap: cap-neutral
+  // Spearman rank correlation (controlling for market cap) was 0.235-0.430 for the
+  // then-current 45/20/15/20 blend, but 0.564 using ONLY risk-adjusted 6m + 12-1 month
+  // momentum (50/50, matching MSCI's own published "looking at both 6- and 12-month holding
+  // period returns... using modified Sharpe ratios" description exactly) - every tested
+  // configuration that added momentum_3m/tech_trend/sma_avg back in monotonically hurt the
+  // correlation, never helped. momentum_6m ADDED (was previously fetched but never scored or
+  // shown - see the now-superseded 2026-08-28 comment this block replaces, which excluded it
+  // as "redundant with 3m/12-1" under the old formula; it's now one of only two scored
+  // inputs). momentum_3m/rsi/macd/price_vs_sma_50/200 raw values remain available via the API
+  // response's own top-level fields even though no longer shown on this tab, same
+  // "informational, not delete" treatment RISK_SCHEMA already uses for debt_to_assets.
   // - current_price: not a signal, a display-only fact. Never a scoring candidate.
-  // - momentum_1m/momentum_6m/momentum_12_3 (raw 12m): already tested and excluded from
-  //   scoring on real evidence (Jegadeesh 1990 short-term reversal for 1m; redundancy with
-  //   3m/12-1 for 6m/12m - see this pillar's own docstring above). Confirmed rejects, not
-  //   gaps - the 12-1 skip-month row above IS the properly-constructed use of this same
-  //   underlying data.
+  // - momentum_1m/momentum_12_3 (raw 12m): still excluded from scoring on real evidence
+  //   (Jegadeesh 1990 short-term reversal for 1m; the 12-1 skip-month row above IS the
+  //   properly-constructed use of the same underlying 12m data as raw momentum_12m).
   // - roc_20d/60d/120d/252d: same `close.pct_change()` computation as the momentum windows
   //   over near-identical trading-day windows - proven duplicate data, not a distinct signal.
-  // - price_vs_52w_high: the one candidate that hadn't actually been tested for this pillar
-  //   before today, despite being a real, separate, published anomaly (George & Hwang 2004,
-  //   JoF, "52-Week High and Momentum Investing"). Tested properly just now - monthly
-  //   cross-sectional panel, 37 months, 52,152 symbol-months, same Fama-MacBeth-style
-  //   methodology as every other factor in this file: mean_corr=0.0092, t=0.308 (no signal),
-  //   and unstable across sub-periods (first half t=0.92, second half t=-0.43, sign flip).
-  //   The naive pooled Spearman looked significant (r=-0.031, p=1.8e-12) but that's the same
-  //   inflated-significance artifact this file already warns about elsewhere (pooled panels
-  //   understate within-month correlation). Genuinely tested and rejected, not overlooked.
+  // - price_vs_52w_high: tested (2026-08-28) and rejected - monthly cross-sectional panel,
+  //   37 months, 52,152 symbol-months: mean_corr=0.0092, t=0.308 (no signal), unstable across
+  //   sub-periods (first half t=0.92, second half t=-0.43, sign flip). The naive pooled
+  //   Spearman looked significant (r=-0.031, p=1.8e-12) but that's the same inflated-
+  //   significance artifact this file already warns about elsewhere (pooled panels understate
+  //   within-month correlation). Genuinely tested and rejected, not overlooked.
 ];
 
 // FIXED 2026-08-04: value_score (load_stock_scores.py::_score_value) weight badges were

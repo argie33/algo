@@ -337,44 +337,37 @@ class TestRiskScoreWeightBadges:
 
 class TestMomentumScoreWeightBadges:
     def test_price_return_weights_match_code(self):
+        """UPDATED 2026-09-15 (WEIGHTS REBALANCED, see momentum_scoring.py's own docstring):
+        momentum_3m/RSI/MACD/SMA-position removed from scoring entirely - momentum_score is
+        now purely mom_6m (from the `weights = {"momentum_6m": 0.50}` dict literal) + mom_12_1
+        (a standalone `mom_12_1_score * 0.50` line, same pattern eve_score/evr_score use)."""
         src = inspect.getsource(StockScoresLoader._score_momentum)
         dict_match = re.search(r"weights = \{([\s\S]*?)\}", src)
         assert dict_match, "expected a `weights = {...}` dict literal in _score_momentum"
         dict_weights = {k: float(v) for k, v in re.findall(r'"(\w+)":\s*(0\.\d+)', dict_match.group(1))}
 
-        # momentum_1m removed 2026-08-25 (goal: full scoring-architecture audit) - dropped
-        # per the standard academic 12-1 momentum construction (Jegadeesh 1990 short-term
-        # reversal); see _score_momentum's docstring for the empirical confirmation.
-        field_to_jsx_key = {
-            "momentum_3m": "momentum_3m",
-        }
-        for field, jsx_key in field_to_jsx_key.items():
-            _assert_pct_matches(jsx_key, dict_weights[field])
-
-        # momentum_6m/raw momentum_12m REPLACED same day by a derived 12-1 skip-month
-        # construction (mom_12_1_score, not a `weights` dict entry - a standalone
-        # `* 0.NN` line like eve_score/evr_score were) - see _score_momentum's docstring
-        # RESOLVED note.
+        _assert_pct_matches("momentum_6m", dict_weights["momentum_6m"])
         _assert_pct_matches("momentum_12_1", _weight_for_score_var(src, "mom_12_1_score"))
 
-    def test_rsi_and_macd_weights_match_code(self):
-        """CONSOLIDATED 2026-08-28 (goal: momentum/risk factor-interaction review): RSI(14)
-        and MACD-sign used to be two independently `rsi_score * 0.21` / `macd_score * 0.16`
-        terms - but they're correlated (r=0.70 in the 2026-08-25 FM panel, r=0.58 live-
-        reverified 2026-08-28) and their multivariate coefficients flip sign against each
-        other, the same redundancy symptom already fixed for SMA-50/200 (averaged into one
-        slot) and Risk's volatility windows (6 collapsed to 2). Now averaged into one
-        `tech_trend_scores` slot at a combined 0.37 weight (21%+16%, unchanged) - see
-        _score_momentum's CONSOLIDATED 2026-08-28 docstring note. `_weight_for_score_var`'s
-        `<var> * 0.NN` pattern has nothing to match against an averaged-list slot (same
-        reason SMA's weight was never checked this way either), so this checks the combined
-        weight constant directly instead, and that both JSX rows advertise it."""
+    def test_technical_indicators_no_longer_scored_or_displayed(self):
+        """UPDATED 2026-09-15 (WEIGHTS REBALANCED): RSI(14)/MACD/SMA-50/SMA-200 are no longer
+        part of momentum_score at all (see momentum_scoring.py's own docstring for the full
+        evidence trail - none of them are part of any convergent institutional Momentum
+        factor definition, and empirically diluted real-fund rank correlation). Guards that
+        the rows were actually removed from MOMENTUM_SCHEMA, not just left stale (same
+        "no display row for a no-longer-scored field" convention RISK_SCHEMA's
+        test_debt_to_assets_not_scored already checks for debt_to_assets)."""
         src = inspect.getsource(StockScoresLoader._score_momentum)
-        combined_match = re.search(r"tech_trend_scores\)\s*/\s*len\(tech_trend_scores\)\)\s*\*\s*(0\.\d+)", src)
-        assert combined_match, "expected `(sum(tech_trend_scores) / len(tech_trend_scores)) * 0.NN` in source"
-        combined_weight = float(combined_match.group(1))
-        _assert_pct_matches("rsi", combined_weight)
-        _assert_pct_matches("macd", combined_weight)
+        assert "tech_trend_scores" not in src, "RSI/MACD should no longer be scored momentum_score components"
+        assert "sma_scores" not in src, "SMA positioning should no longer be a scored momentum_score component"
+        schema_match = re.search(r"const MOMENTUM_SCHEMA = \[([\s\S]*?)\n\];", _JSX_SOURCE)
+        assert schema_match, "expected MOMENTUM_SCHEMA to still exist"
+        schema_body = schema_match.group(1)
+        for removed_key in ("momentum_3m", "rsi", "macd", "price_vs_sma_50", "price_vs_sma_200"):
+            assert f'key: "{removed_key}"' not in schema_body, (
+                f"{removed_key} should have no MOMENTUM_SCHEMA row (not scored, so not displayed on this tab)"
+            )
+        assert 'key: "momentum_6m"' in schema_body, "momentum_6m should now have a MOMENTUM_SCHEMA row (scored)"
 
 
 class TestCompositeWeightBadges:
