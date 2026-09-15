@@ -47,6 +47,32 @@ def _is_power_of_ten_scale_outlier(existing_val: Any, entry_val: Any) -> bool:
     return any(abs(ratio - power) / power < 0.01 for power in (100, 1000, 10000, 1_000_000))
 
 
+def _prefer_smaller_power_of_ten_value(existing_val: float, entry_val: float) -> bool:
+    """True if `entry_val` (not `existing_val`) is the correct one of a confirmed
+    power-of-ten pair from `_is_power_of_ten_scale_outlier`. Every documented instance of
+    this bug class up through 2026-09-14 (IPAR/UPC/MKZR/CCU/PAGS/DYAI/FENC) was zeros
+    ADDED to an integer dollar total, so "prefer the smaller magnitude" was safe on its
+    own - but that assumption breaks for a *decimal-point-shifted* corruption (the filer's
+    own comma/decimals-tag error divides instead of multiplies), which produces a smaller
+    value that is no longer a whole dollar amount. Live-confirmed via UG (United-Guardian)
+    FY2019 RevenueFromContractWithCustomerIncludingAssessedTax: the correct value from
+    UG's own FY2019 10-K is $13,599,084 (accn 0001171843-20-002021, no frame); UG's FY2020
+    10-K re-cites the same period as a frame-tagged comparative at $13,599.084 (accn
+    0001171843-21-001963) - the *smaller* value here has a fractional-cent remainder,
+    which a real income-statement total never does (SEC XBRL income-statement facts are
+    always whole dollars) - so unconditionally preferring "smaller" picked the corrupted
+    $13,599.084 figure, understating revenue 1000x. Real financial-statement dollar totals
+    are always whole numbers, so whichever candidate is NOT a whole number is the corrupted
+    one regardless of magnitude; only fall back to the plain smaller-magnitude heuristic
+    when both (or neither) candidate is a whole number.
+    """
+    existing_is_whole = abs(existing_val - round(existing_val)) < 1e-6
+    entry_is_whole = abs(entry_val - round(entry_val)) < 1e-6
+    if existing_is_whole != entry_is_whole:
+        return entry_is_whole
+    return abs(entry_val) < abs(existing_val)
+
+
 def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-existing complexity debt extracted from _aggregate_concepts, not new logic
     entry: Any,
     source: str,
@@ -726,7 +752,25 @@ def _aggregate_concepts_should_replace_entry(
                     # ADDED, never removed - so preferring the smaller magnitude (whichever
                     # side it's on) generalizes correctly to both temporal orderings instead of
                     # assuming the existing value is always right.
-                    if entry_has_frame and col in row:
+                    # FIXED 2026-09-15 (real-money-readiness /goal session, live-confirmed via
+                    # UG's real SEC companyfacts JSON): this guard still only ran when the
+                    # INCOMING entry carried the frame (`entry_has_frame and ...`) - if SEC's
+                    # JSON array instead delivers the frame-tagged corrupted entry FIRST (so it
+                    # becomes the row's existing value) and the correct non-framed entry arrives
+                    # SECOND, entry_has_frame is False and the whole magnitude check was skipped,
+                    # leaving should_replace at its line-714 default of False - the wrong value
+                    # then never gets corrected. UG's real RevenueFromContractWithCustomer
+                    # IncludingAssessedTax FY2019: accn 0001171843-20-002021 (filed 2020-03-26,
+                    # no frame) correctly reports $13,599,084; UG's own next 10-K (accn
+                    # 0001171843-21-001963, filed 2021-03-22, frame="CY2019") re-cites the SAME
+                    # period as $13,599.084 - exactly 1000x smaller, the opposite direction of
+                    # every other documented instance of this bug class, but the same root cause
+                    # (a filer decimals-tag error on a re-citation). The magnitude check itself
+                    # (_is_power_of_ten_scale_outlier/_prefer_smaller_power_of_ten_value) is
+                    # already symmetric and order-independent - only the gate guarding entry into
+                    # it was one-sided. Drop the entry_has_frame requirement so the check runs
+                    # for both temporal orderings.
+                    if col in row:
                         _existing_val = row.get(col)
                         _entry_val = entry.get("val")
                         if (
@@ -739,7 +783,7 @@ def _aggregate_concepts_should_replace_entry(
                             if _ratio < 1:
                                 _ratio = 1 / _ratio
                             if any(abs(_ratio - _power) / _power < 0.01 for _power in (100, 1000, 10000)):
-                                _entry_is_smaller = abs(_entry_val) < abs(_existing_val)
+                                _entry_is_smaller = _prefer_smaller_power_of_ten_value(_existing_val, _entry_val)
                                 logger.warning(
                                     f"[frame_magnitude_scale_guard] {'Accepting' if _entry_is_smaller else 'Rejecting'} "
                                     f"frame-tagged replacement for {col} (accn {entry.get('accn')}): "
@@ -812,13 +856,20 @@ def _aggregate_concepts_should_replace_entry(
                 # magnitude regardless of which side arrived first - every documented
                 # instance of this bug class (IPAR/UPC/MKZR/CCU/PAGS/DYAI/FENC) has the
                 # smaller value be correct.
-                if entry.get("frame") and col in row and _is_power_of_ten_scale_outlier(row.get(col), entry.get("val")):
+                # FIXED 2026-09-15 (real-money-readiness /goal session, live-confirmed via
+                # IRDM Q1 2017): this guard also required `entry.get("frame")` - if the
+                # corrupted frame-tagged entry is processed first (becoming the row's existing
+                # value) and a later, correct, non-framed entry arrives, the guard never fired
+                # (same asymmetric-ordering gap as the instant-fact/annual branches above, fixed
+                # the same way). Dropped the frame requirement so the magnitude check runs
+                # regardless of which side carries the frame.
+                if col in row and _is_power_of_ten_scale_outlier(row.get(col), entry.get("val")):
                     _entry_val = entry.get("val")
                     _existing_val = row.get(col)
                     _entry_is_smaller = (
                         isinstance(_entry_val, int | float)
                         and isinstance(_existing_val, int | float)
-                        and abs(_entry_val) < abs(_existing_val)
+                        and _prefer_smaller_power_of_ten_value(_existing_val, _entry_val)
                     )
                     logger.warning(
                         f"[frame_magnitude_scale_guard] {'Accepting' if _entry_is_smaller else 'Rejecting'} "
@@ -873,7 +924,7 @@ def _aggregate_concepts_should_replace_entry(
                 # shape as the instant-fact guard: only overrides frame-preference when the
                 # new value is a suspiciously-exact power-of-10 multiple of unanimous prior
                 # agreement.
-                if entry_has_frame and col in row and _is_power_of_ten_scale_outlier(row.get(col), entry.get("val")):
+                if col in row and _is_power_of_ten_scale_outlier(row.get(col), entry.get("val")):
                     # FIXED 2026-09-13 (goal session: keep-finding-data-issues audit, live-
                     # confirmed via PAGS/PagSeguro): the block above assumed the EXISTING
                     # (arrived-first) value is always correct and a later power-of-10-scaled
@@ -888,12 +939,22 @@ def _aggregate_concepts_should_replace_entry(
                     # codebase (IPAR/UPC/MKZR/CCU/PAGS) has the SMALLER of the two values be
                     # correct - extra zeros are always ADDED, never removed - so preferring the
                     # smaller magnitude generalizes correctly to both temporal orderings.
+                    #
+                    # FIXED 2026-09-15 (real-money-readiness /goal session, live-confirmed via
+                    # GNE/NIXX/NYC): the `if` guarding this block still required
+                    # `entry_has_frame` (see the identical instant-fact fix above for the full
+                    # UG writeup) - if the frame-tagged corrupted entry is processed into the row
+                    # FIRST and the correct non-framed entry arrives SECOND, entry_has_frame is
+                    # False and this whole magnitude check was skipped, so should_replace stayed
+                    # at its line-886 default of False and the corrupted value was never
+                    # replaced. Dropped `entry_has_frame and` from the outer `if` so the check
+                    # runs for both temporal orderings, same as the instant-fact branch.
                     _entry_val = entry.get("val")
                     _existing_val = row.get(col)
                     _entry_is_smaller = (
                         isinstance(_entry_val, int | float)
                         and isinstance(_existing_val, int | float)
-                        and abs(_entry_val) < abs(_existing_val)
+                        and _prefer_smaller_power_of_ten_value(_existing_val, _entry_val)
                     )
                     logger.warning(
                         f"[frame_magnitude_scale_guard] {'Accepting' if _entry_is_smaller else 'Rejecting'} "
