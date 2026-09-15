@@ -46,10 +46,15 @@ Reasoning:
 - Both legs are fully collateralized — CSP by cash, covered call by owned shares. No
   undefined/naked risk, no margin-call exposure distinct from what equity positions already
   carry.
-- Matches Alpaca options-approval **level 1** (see `scripts/check_options_approval_status.py`)
-  — the lowest approval tier, which is the realistic near-term state of this account (status
-  unknown as of 2026-09-12, being checked now). Anything requiring level 2/3 approval is out
-  of scope until there's a reason to request a higher tier.
+- Only needs Alpaca options-approval **level 1** in principle (fully-collateralized CSP/
+  covered-call). **Confirmed 2026-09-12: the account is actually approved at level 3**
+  (Covered Calls, Cash-Secured Puts, Long Calls, Long Puts, Spreads, Covered Straddles,
+  Multi-leg Strategies all enabled per the Alpaca dashboard's own Configuration screen —
+  `scripts/check_options_approval_status.py` still can't verify this itself from a
+  credential-less local session, see §7 item 3 and the phase-5-status section below, but the
+  user directly confirmed it from their own Alpaca account settings). Level 3 is more than
+  this spec needs — spreads/straddles/multi-leg remain deliberately out of scope for the pilot
+  regardless of what the approval level would allow, not because the account can't do them.
 - Matches what `algo/signals/signal_options.py`'s dead `SignalOptionsMixin` methods
   (`iv_rank_signal`, `put_call_ratio_signal`, `implied_move_signal`) were already built
   toward and what the screener's 0.15-0.30 delta band in
@@ -61,8 +66,11 @@ Reasoning:
 
 An underlying is eligible for the sleeve only if **all** of:
 
-- Already a member of `market_constituents` (the same universe the equity strategy scores —
-  no new universe to maintain).
+- Already a member of `stock_symbols` with `is_sp500`/`is_russell2000` set (populated by
+  `loaders/load_market_constituents.py` - not a `market_constituents` table, which doesn't
+  exist; that name is the loader script's own filename, corrected here 2026-09-12 after the
+  same confusion caused a real bug in `scripts/options_data_loader.py`'s default sampling
+  query). This is the same universe the equity strategy scores - no new universe to maintain.
 - **Optionable with real liquidity**: options-chain `open_interest >= 100` and
   `volume >= 10` on the specific contract being considered (not just "the underlying has
   options listed" — a listed-but-illiquid chain produces wide bid/ask spreads that eat the
@@ -169,7 +177,11 @@ Before any real order submission code goes live, **all** of:
    sleeve's own pretrade checks wired into the existing `halt_flag_manager` (same halt
    propagation the equity strategy already has — not a parallel, disconnected halt system).
 3. Alpaca account confirmed options-approved at the required level (§1) —
-   `scripts/check_options_approval_status.py` run with real credentials, not assumed.
+   **user-confirmed 2026-09-12 via the Alpaca dashboard directly: level 3, covers CSP/covered
+   call with room to spare.** Ideally also re-confirmed by
+   `scripts/check_options_approval_status.py` with real credentials once run from an
+   environment that can reach them (belt-and-suspenders programmatic check, not because the
+   user's own account screen is in doubt) — not yet re-run that way as of this writing.
 4. Minimum paper-trading track record on this exact sleeve logic — **60 calendar days or 20
    completed CSP/covered-call cycles, whichever is longer** — mirroring
    `scripts/verify_live_trading_readiness.py`'s existing equity-strategy precedent of
@@ -205,9 +217,25 @@ Run against real local `price_daily` history, 35 liquid symbols, 2020-01 to 2024
 
 **Verdict**: directionally positive signal, grounds to continue into phase 4
 (risk/collateral infrastructure) — but NOT grounds to treat §7's go/no-go gate item 1 as
-satisfied. Real historical options data (a paid vendor, or waiting years for the daily
-loader to accumulate its own history) is still needed to actually confirm the edge before
+satisfied. Real historical options data is still needed to actually confirm the edge before
 phase 5 (real execution).
+
+**UPDATE 2026-09-12 — the "paid vendor or years of waiting" framing above was too
+pessimistic.** Alpaca itself (the same brokerage account this sleeve would trade through,
+already options-approved — see the go/no-go §7 item 3 update below) offers a historical
+options bars/trades/quotes API (`/v1beta1/options/*`, docs:
+docs.alpaca.markets/us/docs/historical-option-data) with a free "indicative" feed (15-minute-
+delayed, OPRA-derived, no separate market-data subscription needed beyond the funded brokerage
+account already in use) — real quotes, not a synthetic proxy. The real constraint: **Alpaca's
+historical option data only goes back to February 2024** — it does NOT cover the 2020 COVID
+crash or the 2022 bear market this spec's go/no-go gate names as reference drawdown windows.
+It DOES plausibly cover the 2026-08 drawdown this same gate already accepts as an alternative
+("2020, 2022 or 2026-08 drawdown-comparable window") — meaning a real-data (not proxy)
+backtest satisfying §7 item 1 may already be achievable with data that exists today, without
+a new paid vendor and without waiting years for the daily loader's own accumulation. This
+still requires real Alpaca credentials to call (same access gap as `check_options_approval_
+status.py` below) - not yet done, but a fundamentally different, much closer next step than
+what this section previously implied.
 
 v1 scope gaps carried forward (not simulated): early-close-at-50%-profit, DTE<=7 rolls, the
 >15%-underlying-drop stop rule (spec §5), and the composite-score eligibility filter (spec
@@ -220,10 +248,10 @@ refinements for a v2 once a real-data backtest justifies further investment.
 - Loader's "nearest 2 expirations" behavior vs. this spec's 30-45 DTE target (§3) — needs a
   real DTE filter added to `scripts/options_data_loader.py`, tracked as a phase-4 item since
   it's infrastructure, not strategy-rule, work.
-- Alpaca options-approval level: unknown as of this writing, being checked via
-  `scripts/check_options_approval_status.py` (requires real credentials this local session
-  doesn't have — needs to be run somewhere `AlpacaSyncManager` can resolve them, e.g. via AWS
-  Secrets Manager access, and the result recorded back into this doc and memory).
+- ~~Alpaca options-approval level: unknown~~ **RESOLVED 2026-09-12: level 3, user-confirmed
+  via the Alpaca dashboard.** `scripts/check_options_approval_status.py` still hasn't been run
+  successfully itself (still needs real credentials this local session can't reach) — worth
+  doing once possible as an independent programmatic check, but no longer a blocker per se.
 - `terraform/modules/loaders/main.tf`'s `options_data_loader` schedule is written but not
   applied (carried over from phase 1) — needs `terraform apply` before the sleeve can depend
   on same-day data freshness for real trading, independent of everything else in this spec.
@@ -351,21 +379,33 @@ predicted/prevented - American-style early assignment risk on ITM covered calls 
 dividend dates is a real but small, spec-§5-accepted risk of the "assignment is an expected
 outcome, not a failure" framing, not something phase 5 needs new logic for).
 
-## Phase 5 status: still blocked, not started (as of 2026-09-12)
+## Phase 5 status: still blocked, not started (updated 2026-09-12)
 
 Per §7's go/no-go gate, phase 5 (real order-submission code) remains explicitly not started.
-Checked again this session — no change to either blocker:
-- **Alpaca options-approval level still unknown.** `scripts/check_options_approval_status.py`
-  re-run from this local session again fails to resolve credentials (no `APCA_API_KEY_ID`/
-  `APCA_API_SECRET_KEY` env vars, no AWS Secrets Manager access here) — same constraint as
-  when this was first flagged in phase 2. Must be run somewhere `AlpacaSyncManager` can reach
-  real credentials before phase 5 can start.
-- **Backtest is still proxy-IV evidence only** (§7 item 1) — no real historical options-quote
-  data exists to replay yet; unblocking this needs either a paid vendor or years of the daily
-  loader accumulating its own history.
+Status of each blocker as of this update:
+- **Alpaca options-approval level: RESOLVED.** User-confirmed directly from the Alpaca
+  dashboard's Configuration screen: account is approved at **level 3** (Covered Calls,
+  Cash-Secured Puts, Long Calls, Long Puts, Spreads, Covered Straddles, Multi-leg Strategies)
+  — comfortably covers the level-1-equivalent CSP/covered-call scope this spec uses.
+  `scripts/check_options_approval_status.py` still can't independently verify this from a
+  credential-less local session (no `APCA_API_KEY_ID`/`APCA_API_SECRET_KEY` env vars, no AWS
+  Secrets Manager access here) — worth running once as a programmatic double-check when
+  someone has real credentials available, but no longer treated as an open blocker.
+- **Backtest is still proxy-IV evidence only** (§7 item 1) — not yet resolved, but the path to
+  resolving it is more concrete than previously stated: Alpaca's own historical options data
+  API (`/v1beta1/options/*`, free indicative feed, same account already in use) covers
+  February 2024 to present, which plausibly includes the 2026-08 drawdown this gate already
+  accepts as a reference window — see the phase-3-status update above. Still needs real
+  credentials to actually pull, same access gap as the approval check.
 - `terraform/modules/loaders/main.tf`'s `options_data_loader` and `xbrl_second_opinion`
-  schedules are both still written but not applied — independent of the phase 5 gate itself,
-  but real same-day options-chain freshness depends on the loader schedule actually running,
-  not just being defined. Applying real AWS infrastructure changes is intentionally left as a
-  decision for whoever has real AWS access to confirm, not something to run silently from
-  here.
+  schedules are both still written but not applied — confirmed this session via
+  `terraform validate` (syntactically clean, ready to apply) — independent of the phase 5 gate
+  itself, but real same-day options-chain freshness depends on the loader schedule actually
+  running, not just being defined. Applying real AWS infrastructure changes is intentionally
+  left as a decision for whoever has real AWS access to confirm, not something to run silently
+  from here.
+
+**Net effect: one of two go/no-go blockers is now cleared; the other (real-data backtest) has
+a concrete, credentialed-session-away path instead of an open-ended one.** Phase 5 itself
+remains correctly not started — a cleared approval-level item and a clearer path for the
+backtest are not the same as the backtest itself being run on real data yet.
