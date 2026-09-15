@@ -189,6 +189,16 @@ function ScoresDashboardPage() {
   const [sector, setSector] = useState("");
   const [sortBy, setSortBy] = useState("composite_score");
   const [sortOrder, setSortOrder] = useState("desc");
+  // FUND-WEIGHTED VIEW TOGGLE (2026-09-15, fix for a real UX bug the user caught live):
+  // defaulting the Rankings table to sort by *_tilted_weight while DISPLAYING the raw 0-100
+  // score made the table look broken - e.g. a stock scoring 64.6 could rank below four stocks
+  // scoring 56-62, because tilted weight (market-cap dollars) and the displayed score are
+  // different scales entirely. Same root issue as the Leaders/Laggards tabs bug (see MEMORY.md
+  // leaders_laggards_wrongly_tilted_by_cap_fixed_20260915) and the API's ?weighting fix
+  // (lambda/api/routes/scores.py) - defaulting to raw keeps what's displayed consistent with
+  // what's sorted. Fund-weighted (tilted) is still available, opt-in, clearly labeled, for
+  // whoever wants the "how would a real cap-weighted multi-factor fund allocate this" view.
+  const [fundWeighted, setFundWeighted] = useState(false);
   const [minScore, setMinScore] = useState(0);
   // Investability screen (2026-09-01, un-defaulted then RE-DEFAULTED same session 2026-09-13
   // after live comparison against real institutional factor products - MSCI/iShares QUAL/
@@ -248,7 +258,7 @@ function ScoresDashboardPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, sector, sortBy, sortOrder, minScore, minMarketCap]);
+  }, [search, sector, sortBy, sortOrder, minScore, minMarketCap, fundWeighted]);
 
   const sectors = useMemo(() => {
     if (!items || items.length === 0) return [];
@@ -281,13 +291,14 @@ function ScoresDashboardPage() {
       }
       return true;
     });
-    // Sort by the market-cap-tilted weight (every SORT_FIELDS option has one - see
-    // TILTED_WEIGHT_FIELD's own comment above). Deliberately NOT falling back to the raw
-    // score for a row missing its tilted weight - the two are different scales (tilted
-    // weight is market-cap-dollars, the raw score is 0-100), so mixing them per-row would
-    // produce a meaningless comparison. A missing tilted weight sorts to the end instead,
-    // same NULLS LAST behavior the backend's own ORDER BY already uses.
-    const rankField = TILTED_WEIGHT_FIELD[sortBy] || sortBy;
+    // Sort by raw score by default (matches what's DISPLAYED, see fundWeighted's own comment
+    // above) - only switch to the market-cap-tilted weight when the user explicitly opts into
+    // the fund-weighted view. Deliberately NOT falling back to raw score for a row missing its
+    // tilted weight when fundWeighted is on - the two are different scales (tilted weight is
+    // market-cap-dollars, the raw score is 0-100), so mixing them per-row would produce a
+    // meaningless comparison. A missing tilted weight sorts to the end instead, same NULLS
+    // LAST behavior the backend's own ORDER BY already uses.
+    const rankField = fundWeighted ? TILTED_WEIGHT_FIELD[sortBy] || sortBy : sortBy;
     arr.sort((a, b) => {
       const av = a[rankField],
         bv = b[rankField];
@@ -299,7 +310,7 @@ function ScoresDashboardPage() {
         : Number(av) - Number(bv);
     });
     return arr;
-  }, [items, search, sector, sortBy, sortOrder, minScore, minMarketCap]);
+  }, [items, search, sector, sortBy, sortOrder, minScore, minMarketCap, fundWeighted]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageStart = (page - 1) * pageSize;
@@ -420,6 +431,7 @@ function ScoresDashboardPage() {
     setSortOrder("desc");
     setMinScore(0);
     setMinMarketCap(0);
+    setFundWeighted(false);
   };
 
   const detailStock = selectedSymbol
@@ -514,6 +526,18 @@ function ScoresDashboardPage() {
                 </option>
               ))}
             </select>
+            <label
+              className="flex items-center gap-2"
+              title="Off (default): ranked by the score shown in the table. On: ranked by estimated market-cap-tilted $ weight (matches how a real cap-weighted multi-factor fund like LRGF/GSLC allocates), which can differ from the displayed score order."
+              style={{ fontSize: "var(--t-xs)", whiteSpace: "nowrap" }}
+            >
+              <input
+                type="checkbox"
+                checked={fundWeighted}
+                onChange={(e) => setFundWeighted(e.target.checked)}
+              />
+              Fund-weighted rank
+            </label>
             <select
               className="select"
               value={sortOrder}
