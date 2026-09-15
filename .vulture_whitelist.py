@@ -808,3 +808,4 @@ OrchestratorFinalReportMixin  # unused class (algo\orchestration\orchestrator_fi
 _.get_frames  # unused method (utils\external\sec_edgar_client.py:326) - called only from scripts\xbrl_frames_check.py, which vulture doesn't trace into, same false positive as save_dismissed above
 put_delta  # unused function (utils\options\black_scholes.py:57) - called from scripts\options_data_loader.py's per-symbol loader, which vulture doesn't trace into, same false positive as save_dismissed above
 implied_volatility  # unused function (utils\options\black_scholes.py:62) - only production call site is future strategy logic that doesn't exist yet; exercised today by tests\unit\test_black_scholes_iv_delta_roundtrip.py's round-trip checks, which vulture doesn't trace into either
+fact_search  # unused function (utils\external\xbrl_us_client.py:188) - called only from scripts\xbrl_us_crosscheck.py, which vulture doesn't trace into, same false positive as save_dismissed above
