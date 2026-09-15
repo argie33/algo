@@ -1,13 +1,23 @@
-"""Regression test for the 2026-09-13 fix (goal session: "is bad data quarantine handled
-right" audit): scripts/verify_and_fix_revenue_identity.py's `revenue_identity_reload_no_change`
-CheckResult is severity="error" with no `flagged_symbols`, so under
-algo/monitoring/data_patrol/quarantine.py's own contract (a CRIT/ERROR finding without a
-non-empty flagged_symbols list is NOT quarantinable) Phase 1 would halt the ENTIRE pipeline
-for this finding instead of quarantining just the symbols with a currently-reproducing
-extraction bug - even though this check already knows exactly which symbols they are.
+"""Regression test for scripts/verify_and_fix_revenue_identity.py's
+`revenue_identity_reload_no_change` CheckResult severity.
 
-`run()` now includes a deduplicated `flagged_symbols` list (one entry per affected symbol,
-covering every fiscal year that symbol failed on) on that CheckResult's details.
+Originally (2026-09-13) this asserted severity="error" plus a deduplicated `flagged_symbols`
+list, added so a CRIT/ERROR finding without flagged_symbols wouldn't halt the entire pipeline
+under algo/monitoring/data_patrol/quarantine.py's contract (ERROR without flagged_symbols is
+not quarantinable, so Phase 1 would halt everyone for this one check instead of quarantining
+just the affected symbols).
+
+**REVERSED 2026-09-14** (found live: an --apply run against the full flagged population
+quarantined 378 symbols, including large real companies like ADM/AIG). The "no_change after a
+live reload" population is the same 1.35x-tolerance set tie_out_identity_quarterly.py's own
+check logs as a WARN-tier review queue precisely because most of it is genuine filer-side
+restatement inconsistency (quarterly_revenue_extreme_dismissed.json already documents dozens
+of exactly this shape), not a code bug - a reload correctly re-fetches the same real,
+inconsistent data either way, so "unchanged" does not distinguish a real bug from a dismissable
+non-bug. Auto-quarantining on this signal alone was the actual defect; the 2026-09-13 fix just
+made that defect efficient instead of catastrophic. Now severity="warn" (doesn't quarantine or
+halt anything - purely a review-queue log entry) and flagged_symbols is gone entirely, matching
+tie_out_identity_quarterly.py's own treatment of this same population.
 """
 
 from typing import Any
@@ -40,7 +50,7 @@ def _run_with_no_change_rows(by_symbol: dict[str, list[dict[str, Any]]]) -> list
     def fake_current_annual_revenue(cur: Any, symbol: str, fiscal_year: int) -> float:
         for row in by_symbol[symbol]:
             if row["fiscal_year"] == fiscal_year:
-                return row["annual_revenue_before"]
+                return float(row["annual_revenue_before"])
         raise AssertionError(f"no stub row for {symbol}/{fiscal_year}")
 
     with (
@@ -57,8 +67,8 @@ def _run_with_no_change_rows(by_symbol: dict[str, list[dict[str, Any]]]) -> list
     return captured["results"]
 
 
-class TestRevenueIdentityReloadNoChangeQuarantine:
-    def test_flagged_symbols_present_and_deduplicated(self) -> None:
+class TestRevenueIdentityReloadNoChangeIsReviewQueueNotAutoQuarantine:
+    def test_no_change_is_warn_severity_not_error(self) -> None:
         by_symbol = {
             "AAA": [
                 {"fiscal_year": 2024, "quarters_sum": 100.0, "annual_revenue_before": 50.0},
@@ -71,15 +81,15 @@ class TestRevenueIdentityReloadNoChangeQuarantine:
         results = _run_with_no_change_rows(by_symbol)
         no_change_result = next(r for r in results if r.check_name == "revenue_identity_reload_no_change")
 
-        assert no_change_result.severity == "error"
+        assert no_change_result.severity == "warn"
         assert no_change_result.details["count"] == 3
-        flagged = no_change_result.details["flagged_symbols"]
-        flagged_symbols = [f["symbol"] for f in flagged]
-        assert flagged_symbols == ["AAA", "BBB"]  # deduplicated, one entry per symbol
-        aaa_reason = next(f["reason"] for f in flagged if f["symbol"] == "AAA")
-        assert "2023" in aaa_reason and "2024" in aaa_reason
+        # No flagged_symbols - a WARN finding here must not auto-quarantine anything, since
+        # "unchanged by reload" cannot distinguish a real extraction bug from a genuine,
+        # already-dismissable filer-side restatement inconsistency.
+        assert "flagged_symbols" not in no_change_result.details
 
-    def test_no_flagged_rows_yields_empty_flagged_symbols(self) -> None:
+    def test_no_flagged_rows_yields_zero_count(self) -> None:
         results = _run_with_no_change_rows({})
         no_change_result = next(r for r in results if r.check_name == "revenue_identity_reload_no_change")
-        assert no_change_result.details["flagged_symbols"] == []
+        assert no_change_result.details["count"] == 0
+        assert "flagged_symbols" not in no_change_result.details

@@ -76,11 +76,29 @@ _RELOAD_TIMEOUT_SECONDS = 600
 def _flagged_rows(cur: Any) -> dict[str, list[dict[str, Any]]]:
     """Same identity as check_quarterly_revenue_sum_vs_annual_total (thresholds imported
     from tie_out_shared.py to stay in sync, query kept literal here - see that check's own
-    docstring for the full rationale). Returns rows grouped by symbol."""
+    docstring for the full rationale). Returns rows grouped by symbol.
+
+    FIXED 2026-09-14 (found live: an --apply run against the full flagged population
+    quarantined 378 symbols, including large real companies like ADM/AIG, via
+    revenue_identity_reload_no_change): this query is the same 1.35x-tolerance population
+    tie_out_identity_quarterly.py's check_quarterly_revenue_sum_vs_annual_total() logs as a
+    WARN-tier review queue specifically BECAUSE that check's own docstring says it is "not
+    yet individually confirmed against an external source" - most of it is ordinary
+    dismissable filer-side restatement noise (quarterly_revenue_extreme_dismissed.json
+    already documents dozens of exactly this shape), not code bugs. This function was
+    reimplementing that same query without also reimplementing the dismissed-list filter the
+    real check applies - so every already-reviewed-and-dismissed symbol/year got re-pulled in
+    here, and (before this fix) run() treated "unchanged by reload" as automatic proof of a
+    live extraction bug, which a genuine restatement inconsistency will *always* show too
+    (the reload correctly re-fetches the same real, filer-inconsistent data both times). Now
+    filters out anything already in that dismissed list, same as the real check.
+    """
     from algo.monitoring.data_patrol.checks.tie_out_shared import (
         _QUARTERLY_REVENUE_ANNUAL_OVERSHOOT_TOLERANCE,
+        load_revenue_extreme_dismissed,
     )
 
+    dismissed = load_revenue_extreme_dismissed()
     cur.execute(
         """
         WITH quarters AS (
@@ -100,6 +118,8 @@ def _flagged_rows(cur: Any) -> dict[str, list[dict[str, Any]]]:
     )
     by_symbol: dict[str, list[dict[str, Any]]] = {}
     for row in cur.fetchall():
+        if f"{row['symbol']}:{row['fiscal_year']}" in dismissed:
+            continue
         quarters_sum, annual_revenue = float(row["quarters_sum"]), float(row["annual_revenue"])
         if quarters_sum / annual_revenue <= _QUARTERLY_REVENUE_ANNUAL_OVERSHOOT_TOLERANCE:
             continue
@@ -202,30 +222,22 @@ def run(limit: int | None, symbols_override: list[str] | None, apply: bool) -> d
             ),
             CheckResult(
                 "revenue_identity_reload_no_change",
-                "error",
+                "warn",
                 "annual_income_statement",
-                f"{len(no_change)} flagged row(s) UNCHANGED by a live reload - a currently-reproducing "
-                "extraction bug (QCOM's shape), needs a code-level fix, not reachable by re-running the loader",
+                f"{len(no_change)} flagged row(s) UNCHANGED by a live reload - each is EITHER a "
+                "currently-reproducing extraction bug (QCOM's shape) OR a genuine filer-side "
+                "restatement inconsistency (a reload correctly re-fetches the same real, "
+                "inconsistent data either way) - review queue, not an auto-confirmed bug list. "
+                "FIXED 2026-09-14: this used to log ERROR and auto-quarantine every row here "
+                "(378 symbols including ADM/AIG, live-caught the same session) on the wrong "
+                "assumption that 'unchanged by reload' alone proves a bug; downgraded to WARN "
+                "to match tie_out_identity_quarterly.py's own WARN-tier treatment of this exact "
+                "1.35x-tolerance population until each row is individually confirmed against an "
+                "external source (see quarterly_revenue_extreme_dismissed.json for the dismiss "
+                "path once reviewed).",
                 {
                     "count": len(no_change),
                     "examples": no_change[:_MAX_EXAMPLES_PER_CATEGORY],
-                    # Per-symbol isolable (see algo/monitoring/data_patrol/quarantine.py's own
-                    # docstring: an ERROR/CRITICAL finding with a non-empty flagged_symbols list
-                    # gets those specific symbols quarantined - excluded from scoring - instead of
-                    # Phase 1 halting the whole pipeline for it). Every affected symbol goes here,
-                    # not just the truncated `examples` slice above - quarantine must be complete
-                    # even when the display list is capped.
-                    "flagged_symbols": [
-                        {
-                            "symbol": s,
-                            "reason": (
-                                "revenue identity fails a live reload re-check (FY"
-                                f"{sorted({e['fiscal_year'] for e in no_change if e['symbol'] == s})}) - "
-                                "currently-reproducing extraction bug, not a stale-data issue"
-                            ),
-                        }
-                        for s in dict.fromkeys(e["symbol"] for e in no_change)
-                    ],
                 },
             ),
             CheckResult(
