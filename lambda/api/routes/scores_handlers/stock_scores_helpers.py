@@ -41,7 +41,7 @@ def _build_stock_scores_query(where_clause: str, market_cap_join: str, sort_col:
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
                 {market_cap_join}
                 {where_clause}
-                ORDER BY sc.{sort_col} {sort_direction}
+                ORDER BY sc.{sort_col} {sort_direction} NULLS LAST
                 LIMIT %s OFFSET %s
             )
             SELECT
@@ -51,6 +51,8 @@ def _build_stock_scores_query(where_clause: str, market_cap_join: str, sort_col:
                 cp.industry,
                 fs.composite_score, fs.momentum_score, fs.quality_score,
                 fs.value_score, fs.growth_score, fs.risk_score,
+                fs.composite_tilted_weight, fs.momentum_tilted_weight, fs.quality_tilted_weight,
+                fs.value_tilted_weight, fs.growth_tilted_weight, fs.risk_tilted_weight,
                 fs.rs_percentile, fs.data_completeness,
                 fs.updated_at AS last_updated,
                 pl.close AS current_price,
@@ -385,7 +387,7 @@ def _build_stock_scores_query(where_clause: str, market_cap_join: str, sort_col:
                 ORDER BY acf_curr.fiscal_year DESC
                 LIMIT 1
             ) fcf_calc ON true
-            ORDER BY fs.{sort_col} {sort_direction}
+            ORDER BY fs.{sort_col} {sort_direction} NULLS LAST
         """
     return query
 
@@ -686,16 +688,27 @@ def _build_stock_score_items(scores: Any) -> list[dict[str, Any]]:
         # CRITICAL FIX: Explicit data_unavailable flags for each metric
         # If a score metric is marked unavailable, include it as None (not synthetic value)
         # Dashboard will see explicit unavailability markers
+        #
+        # MARKET-CAP TILTED WEIGHT KEPT IN SYNC (2026-09-15): nulling a raw score without
+        # also nulling its *_tilted_weight would let the response show e.g. growth_score=None
+        # next to a real numeric growth_tilted_weight computed by the batch pass before this
+        # per-request staleness override fired - same display-inconsistency class the
+        # data_completeness/data_unavailable resync fixes elsewhere in this codebase exist to
+        # prevent.
         if d.get("_growth_data_unavailable"):
             d["growth_score"] = None
+            d["growth_tilted_weight"] = None
         # positioning_score REMOVED from the API contract 2026-08-27 (Positioning retired
         # as a composite pillar - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS).
         if d.get("_risk_data_unavailable"):
             d["risk_score"] = None
+            d["risk_tilted_weight"] = None
         if d.get("_financial_data_unavailable"):
             d["quality_score"] = None
+            d["quality_tilted_weight"] = None
         if d.get("_value_data_unavailable"):
             d["value_score"] = None
+            d["value_tilted_weight"] = None
         # size_score REMOVED from the API contract 2026-08-28 (Size retired as a composite
         # pillar - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS). market_cap
         # itself is still available via the Value pillar's inputs.

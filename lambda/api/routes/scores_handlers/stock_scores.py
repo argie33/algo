@@ -48,16 +48,26 @@ def _get_stock_scores(
 ) -> Any:
     """Get stock scores with multi-factor ranking."""
     try:
+        # MARKET-CAP TILTED SORT (2026-09-15, see loaders/stock_scores/market_cap_tilt.py's
+        # own module docstring for the full rationale): a `sort_by` request for any of the 5
+        # pillars or composite_score orders by that column's batch-computed
+        # *_tilted_weight (migration 1294), not the raw percentile score - matching real
+        # cap-weighted-parent + factor-tilt index construction. This was previously the one
+        # of two dashboard-facing endpoints that never got any market-cap tilt at all
+        # (/api/algo/scores had its own now-superseded Python-side tilt) - live-caught bug,
+        # the page that actually calls THIS endpoint kept showing raw-percentile micro/
+        # small-cap "leaders" with no cap-weighting. "symbol" sort is untouched (alphabetical
+        # has no tilted-weight analog).
         allowed_sorts = {
-            "composite_score": "composite_score",
-            "momentum_score": "momentum_score",
-            "quality_score": "quality_score",
-            "value_score": "value_score",
-            "growth_score": "growth_score",
-            "risk_score": "risk_score",
+            "composite_score": "composite_tilted_weight",
+            "momentum_score": "momentum_tilted_weight",
+            "quality_score": "quality_tilted_weight",
+            "value_score": "value_tilted_weight",
+            "growth_score": "growth_tilted_weight",
+            "risk_score": "risk_tilted_weight",
             "symbol": "symbol",
         }
-        sort_col = allowed_sorts.get(sort_by, "composite_score")
+        sort_col = allowed_sorts.get(sort_by, "composite_tilted_weight")
         sort_direction = "DESC" if sort_order == "desc" else "ASC"
 
         # ETF FILTERING (GOVERNANCE compliance): Stock scores are for equity trading signals.
