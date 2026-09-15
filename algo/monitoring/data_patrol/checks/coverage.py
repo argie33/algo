@@ -151,16 +151,50 @@ class CoverageChecker(BaseCheck):
                 # same pattern as buy_sell_daily.
             ]
 
+            # BUG FOUND 2026-09-14 (live-reproduced via a real ERROR finding: price_daily
+            # coverage 0.2% (10/5145), patrol_run_id 7c0d02266a824df3ac1fba984c8f5355,
+            # 2026-09-14 23:59:27): comparing against a bare MAX(date) races against an
+            # in-progress load. The moment a table's very first row for a new trading day
+            # lands (e.g. a real-time reconciliation write, or the "signals" pipeline just
+            # starting its "prices" step while queued behind another pipeline on the shared
+            # scheduler lock - see CLAUDE.md's local-scheduler-lock-contention notes),
+            # MAX(date) flips to that brand-new date with only a handful of rows, and this
+            # check compares that handful against the full active-symbol count - a guaranteed
+            # false ERROR against a load that simply hasn't finished yet, not a genuine data
+            # problem. Since Phase 1 (phase1_data_freshness.py's _check_data_patrol_results)
+            # gates live trading on the MOST RECENT DataPatrol run regardless of what produced
+            # it, this single false finding can halt trading even though the real load
+            # completes minutes later. Fixed by treating MAX(date) as a candidate only once it
+            # already has at least in_progress_load_floor distinct symbols - otherwise fall
+            # back to the most recent date that does, and only degrade to the bare MAX(date)
+            # (today's prior, race-prone behavior) if no recent date clears the floor either,
+            # which is itself a genuine multi-day gap worth flagging as before.
+            in_progress_load_floor = 50
             try:
                 for table_name in critical_tables:
                     assert_safe_table(table_name)
 
                 union_parts = []
                 for table_name in critical_tables:
+                    safe_table = assert_safe_table(table_name)
                     union_parts.append(f"""
                         SELECT '{table_name}' as table_name, COUNT(DISTINCT symbol) as cnt
-                        FROM {assert_safe_table(table_name)}
-                        WHERE date = (SELECT MAX(date) FROM {assert_safe_table(table_name)})
+                        FROM {safe_table}
+                        WHERE date = COALESCE(
+                            (
+                                SELECT date FROM (
+                                    SELECT date, COUNT(DISTINCT symbol) AS c
+                                    FROM {safe_table}
+                                    GROUP BY date
+                                    ORDER BY date DESC
+                                    LIMIT 7
+                                ) recent_dates
+                                WHERE c >= {in_progress_load_floor}
+                                ORDER BY date DESC
+                                LIMIT 1
+                            ),
+                            (SELECT MAX(date) FROM {safe_table})
+                        )
                     """)
 
                 union_query = " UNION ALL ".join(union_parts)
