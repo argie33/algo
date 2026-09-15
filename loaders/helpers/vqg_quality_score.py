@@ -226,46 +226,21 @@ class QualityScoreMixin:
                 implausible_ratio_metrics.append("accruals_ratio")
             else:
                 accruals_ratio = float(computed_accruals_ratio)
-        # ROCE score: same curve shape as the old roic_score (both are "return on capital
-        # deployed" measures, similar scale) - see the roce_pct computation's own comment
-        # (near roic_pct above) for why ROCE replaces ROIC in the composite.
-        #
-        # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, JPM/BAC/WFC/C/
-        # GS/MS/MET/PRU live-confirmed): same industrial-curve-applied-to-every-sector bug
-        # class as debt_to_equity_score/roa_score above, for the SAME underlying cause -
-        # capital_employed (line ~1053-1054) already uses debt_for_roic=total_liabilities
-        # for depository banks/insurers (see that override's own comment), so a bank's
-        # capital_employed is ~its entire (deposit-funded, hence enormous) balance sheet,
-        # structurally floors roce_pct into single digits regardless of real capital
-        # efficiency (JPM=3.85%, BAC=3.40%, WFC=3.03%, C=3.87%, GS=12.55%, MS=4.21% - the
-        # 8.0-floors-to-~19/25.0-caps-to-100 industrial curve scored JPM/BAC/WFC/C around
-        # 15-20 despite GS's genuinely-higher 12.55% showing real cross-sectional variation
-        # exists to reward). Insurers get the same single blended curve precedent as
-        # debt_to_equity_score/roa_score's INSURANCE_UNDERWRITER_INDUSTRIES override (P&C
-        # underwriters PGR/TRV/ALL live-confirmed 5.72-11.79% run meaningfully higher than
-        # life insurers MET/PRU's ~0.82-0.85%, same reserve-heavy-balance-sheet split ROA's
-        # curve already accounts for) - hand-calibrated to credit P&C-typical ROCE highly
-        # without being so generous it validates a genuinely weak life-insurer ROCE.
-        # Breakpoints hand-set (not FM-backtested), same as every other curve in this
-        # function - this curve-scored roce_score is provisional only, see the quality_
-        # components comment below: update_quality_sector_neutral_scores() overwrites the
-        # final quality_score for every sector via sector-neutral z-scoring of raw roce_pct.
-        # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, same
-        # utility evidence as roa_score/debt_to_equity_score): capital_employed for a
-        # regulated utility is ~its entire rate-base-financed balance sheet, same structural
-        # compression as banks/insurers - live-confirmed ROCE 3.96-7.23% across the same
-        # 16-symbol utility set (see UTILITY_INDUSTRIES's own comment).
-        roce_pct_val = metrics.get("roce_pct")
-        _symbol_industry_for_roce = self._get_symbol_industry(symbol)
-        if _symbol_industry_for_roce in _owner().DEPOSITORY_BANK_INDUSTRIES:
-            _roce_breakpoints = [(3.0, 40.0), (6.0, 75.0), (10.0, 100.0)]
-        elif _symbol_industry_for_roce in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
-            _roce_breakpoints = [(3.5, 40.0), (7.0, 80.0), (12.0, 100.0)]  # recalibrated+IC-validated 20260907
-        elif _symbol_industry_for_roce in _owner().UTILITY_INDUSTRIES:
-            _roce_breakpoints = [(5.2, 40.0), (8.0, 80.0), (13.0, 100.0)]
-        else:
-            _roce_breakpoints = [(8.0, 40.0), (15.0, 75.0), (25.0, 100.0)]
-        roce_score = self._margin_curve(roce_pct_val, _roce_breakpoints) if roce_pct_val is not None else None
+        # ROCE REMOVED FROM THE COMPOSITE (2026-09-15, TWO-LAYER VALIDATION POLICY / "get the
+        # right inputs, not just retuned weights on what we already have" user directive):
+        # return-on-capital-employed has no home in any of the real institutional Quality
+        # definitions actually checked this session - not AQR QMJ's Profitability leg (GPOA/
+        # ROE/ROA/CFOA/GMAR/ACC, confirmed via the primary paper), not MSCI's 3-factor Quality
+        # Index (ROE/debt-to-equity/earnings-variability, confirmed via MSCI's own methodology
+        # doc), not Novy-Marx's gross-profitability paper. It's a Greenblatt "Magic Formula"
+        # concept, a different (non-index-provider) framework. Same reasoning just applied to
+        # ASSET_TURNOVER below - dropped together, not because ROCE tested poorly (this
+        # repo's own per-component IC test found it fine) but because pillar-fidelity to real
+        # definitions, not this repo's own IC, is the bar for a pillar-level input choice.
+        # roce_pct itself (the raw percentile) is UNTOUCHED - still computed/stored/displayed
+        # elsewhere (quality_metrics.roce_pct) for other consumers; only its vote in
+        # quality_score is removed. Pass-2's sector-neutral overwrite (vqg_quality_batch.py)
+        # mirrors this exact change - keep both in sync if either changes.
         # FCF Margin (free_cash_flow / revenue): cash-conversion efficiency net of capex,
         # independent of Accruals Ratio (never nets out capex). Replaces accruals_score in
         # the composite.
@@ -421,11 +396,13 @@ class QualityScoreMixin:
         if asset_turnover is None and _asset_turnover_implausible:
             failed_metrics.append("asset_turnover")
             implausible_ratio_metrics.append("asset_turnover")
-        asset_turnover_score = (
-            self._margin_curve(asset_turnover, [(30.0, 40.0), (80.0, 75.0), (150.0, 100.0)])
-            if asset_turnover is not None
-            else None
-        )
+        # asset_turnover_score (the curve-based composite input) REMOVED 2026-09-15 - see
+        # the ROCE removal comment above (near the old roce_score block) for the full
+        # rationale: no real institutional Quality definition (AQR QMJ/MSCI/Novy-Marx) scores
+        # asset turnover; only Piotroski's F-Score does, as a minor binary signal in a
+        # different framework. The raw `asset_turnover` ratio above is UNCHANGED - still
+        # computed/returned/persisted for display and other consumers, only its vote in
+        # quality_score is removed.
         # Debt-to-Equity score: inverted (lower leverage = higher score), 0.5 maps to 75,
         # 1.0 to 50, 2.0+ to 0. Negative D/E (negative book equity, real financial distress)
         # floors to 0 rather than inverting into a spuriously high score.
@@ -546,38 +523,42 @@ class QualityScoreMixin:
         # Pass-2's sector-neutral overwrite (vqg_quality_batch.py) mirrors this exact scheme - keep
         # both in sync if either changes.
         #
-        # ASSET_TURNOVER DEMOTED 10.71->5.77 (2026-09-14, goal session - "get factor scores more
-        # in line with industry"). Unlike the margin_volatility promotion above, this IS a fresh
-        # internal test - but the non-circular, non-contaminated kind the WEIGHT-REVISION
-        # GOVERNANCE POLICY (this module's own pillar_weights.py) actually calls for: per-COMPONENT
-        # univariate Spearman IC on the same real point-in-time panel the fama_macbeth_*.py family
-        # already uses (build_pillar_proxy_records()'s underlying panels, not the contaminated
-        # top-level imputed/complete-case composite regression the 2026-09-11 uniform-equal-weight
-        # directive was reacting to), fit 2017-2021 vs holdout 2022-2026
-        # (algo/research/per_component_ic_validation_20260911.py, re-run fresh 2026-09-14, 111
-        # months through 2026-08). Of Quality's 8 components, asset_turnover is the ONLY one that
-        # fails this repo's own |t|>=2-both-eras bar in BOTH eras (fit_t=1.91, hold_t=1.24) - the
-        # other 7 (including margin_volatility) all clear it outright (hold_t 3.13-5.76). This is
-        # a materially different failure shape than Risk's beta/max_drawdown or Value's P/E/P/B,
-        # which are fit-era-weak but HOLDOUT-STRONG (t>5) - those stay at equal weight per this
-        # file's own "no basis to demote a standard literature-grounded descriptor" precedent,
-        # since a genuinely predictive component that's merely thin in the shorter fit window is
-        # not the same finding as one that's weak in both. Halved (not zeroed) rather than
-        # dropped - still same-signed, a real Sloan-accruals-family measure, same treatment this
-        # file already gives other same-signed-but-weak legs elsewhere (e.g. Value's margin_of_
-        # safety/dividend_yield). The other 6 non-margin_volatility components renormalized up
-        # from 10.71 to 11.54 each (75/6.5) to keep the 75-point non-margin_volatility pool exactly
-        # matching its own already-decided total. Pass-2's sector-neutral overwrite
-        # (vqg_quality_batch.py) mirrors this exact scheme - keep both in sync if either changes.
+        # ASSET_TURNOVER + ROCE REMOVED ENTIRELY (2026-09-15, TWO-LAYER VALIDATION POLICY,
+        # SUPERSEDES the 2026-09-14 "demoted 10.71->5.77" episode below). That prior fix used
+        # per-component IC as the deciding test - the wrong bar for a pillar-level input
+        # choice under the policy landed one day later (see pillar_weights.py's own TWO-LAYER
+        # VALIDATION POLICY block): a pillar's job is to faithfully MEASURE the real factor,
+        # not to independently clear this repo's own forward-return IC bar. Checked fresh
+        # against the actual sourced definitions instead: AQR's QMJ paper (Profitability =
+        # GPOA/ROE/ROA/CFOA/GMAR/ACC), MSCI's real Quality Index methodology (ROE/debt-to-
+        # equity/earnings-variability, 3 factors only), and Novy-Marx's gross-profitability
+        # paper - NONE of them score a turnover/efficiency ratio or a return-on-capital-
+        # employed ratio. Only Piotroski's F-Score uses asset-turnover-change, as one of 9
+        # equally-weighted BINARY signals in a different (non-continuous, non-index-provider)
+        # framework; ROCE has no home in any of the three checked. Both raw values
+        # (asset_turnover, roce_pct) are UNCHANGED - still computed/persisted/displayed for
+        # other consumers, only their vote in quality_score is removed. The remaining 6
+        # components (the ones that DO map onto AQR/MSCI/Novy-Marx) are renormalized: the
+        # non-margin_volatility pool stays at its already-decided 75 points, now split 5 ways
+        # (roe/roa/fcf_margin/debt_to_equity/gross_profitability) at 15.0 each instead of 6
+        # ways at 11.54. margin_volatility is untouched at 25.0 (AQR Safety-leg-derived,
+        # unrelated to this change). Pass-2's sector-neutral overwrite (vqg_quality_batch.py)
+        # mirrors this exact scheme - keep both in sync if either changes.
+        #
+        # (Prior episode, kept for history: ASSET_TURNOVER DEMOTED 10.71->5.77 on 2026-09-14
+        # via per-component univariate Spearman IC on a real point-in-time panel, fit
+        # 2017-2021 vs holdout 2022-2026 - the only one of Quality's 8 components to fail this
+        # repo's own |t|>=2-both-eras bar in BOTH eras (fit_t=1.91, hold_t=1.24), a materially
+        # weaker finding than Risk/Value's fit-weak-but-holdout-strong near-misses. That test
+        # wasn't wrong on its own terms, it was answering a question the policy above now says
+        # isn't the right one for this decision.)
         quality_components = [
-            (roe_score, 11.54),
-            (roa_score, 11.54),
-            (roce_score, 11.54),
-            (fcf_margin_score, 11.54),
-            (debt_to_equity_score, 11.54),
+            (roe_score, 15.0),
+            (roa_score, 15.0),
+            (fcf_margin_score, 15.0),
+            (debt_to_equity_score, 15.0),
             (margin_volatility_score, 25.0),
-            (asset_turnover_score, 5.77),
-            (gross_profitability_score, 11.54),
+            (gross_profitability_score, 15.0),
         ]
         # COMPLETENESS FLOOR: without it, renormalizing over 1-3 available components lets
         # a single extreme raw ratio (e.g. an oil/gas royalty trust's ROA of 700%+) drive

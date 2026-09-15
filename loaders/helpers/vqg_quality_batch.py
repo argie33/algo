@@ -270,13 +270,17 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
 
             # roe additionally requires roa present/non-negative (sign-flip guard), floored
             # to 0.0 in the loop below - independent of roa's own component (continuous above).
+            # roce_raw/asset_turnover_raw (and their z-scored *_pct dicts) REMOVED 2026-09-15 -
+            # see the ASSET_TURNOVER + ROCE REMOVED ENTIRELY comment in the component-weighting
+            # loop below for the full rationale. qm.roce_pct/qm.asset_turnover (row[5]/row[9])
+            # are still SELECTed and displayed elsewhere - only the now-unused z-scoring here is
+            # gone.
             roe_raw = {
                 row[0]: float(row[3])
                 for row in rows
                 if row[3] is not None and row[4] is not None and float(row[3]) >= 0.0 and float(row[4]) >= 0.0
             }
             roa_raw = _continuous_raw(4)
-            roce_raw = _continuous_raw(5)
             fcf_margin_raw = {
                 symbol: val
                 for symbol, val in _continuous_raw(6).items()
@@ -284,7 +288,6 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
             }
             d2e_raw = _negated_nonneg_raw(7)
             margin_vol_raw = _negated_nonneg_raw(8)
-            asset_turnover_raw = _nonneg_raw(9)
             gross_prof_raw = _nonneg_raw(10)
 
             roe_pct = zscore_to_percentile_scale(
@@ -292,9 +295,6 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
             )
             roa_pct = zscore_to_percentile_scale(
                 sector_neutral_zscore(roa_raw, d2e_roa_roce_sectors, is_foreign_private_issuer=is_fpi)
-            )
-            roce_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(roce_raw, d2e_roa_roce_sectors, is_foreign_private_issuer=is_fpi)
             )
             fcf_margin_pct = zscore_to_percentile_scale(
                 sector_neutral_zscore(fcf_margin_raw, sectors, is_foreign_private_issuer=is_fpi)
@@ -305,55 +305,54 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
             margin_vol_pct = zscore_to_percentile_scale(
                 sector_neutral_zscore(margin_vol_raw, sectors, is_foreign_private_issuer=is_fpi)
             )
-            asset_turnover_pct = zscore_to_percentile_scale(
-                sector_neutral_zscore(asset_turnover_raw, d2e_roa_roce_sectors, is_foreign_private_issuer=is_fpi)
-            )
             gross_prof_pct = zscore_to_percentile_scale(
                 sector_neutral_zscore(gross_prof_raw, sectors, is_foreign_private_issuer=is_fpi)
             )
             logger.info(
                 f"[QUALITY_METRICS] sector-neutral z-score universe: roe={len(roe_pct)} roa={len(roa_pct)} "
-                f"roce={len(roce_pct)} fcf_margin={len(fcf_margin_pct)} debt_to_equity={len(d2e_pct)} "
-                f"margin_volatility={len(margin_vol_pct)} asset_turnover={len(asset_turnover_pct)} "
-                f"gross_profitability={len(gross_prof_pct)}"
+                f"fcf_margin={len(fcf_margin_pct)} debt_to_equity={len(d2e_pct)} "
+                f"margin_volatility={len(margin_vol_pct)} gross_profitability={len(gross_prof_pct)}"
             )
 
             updates: list[tuple[str, float]] = []
             for row in rows:
                 symbol, quality_score_old = row[0], float(row[11])
-                roe, roa, roce_pct_val, fcf_margin, d2e, margin_vol, asset_turnover, gross_prof = row[3:11]
+                # roce_pct_val/asset_turnover (row[5]/row[9]) unpacked but intentionally unused -
+                # see the ASSET_TURNOVER + ROCE REMOVED comment below.
+                roe, roa, _roce_pct_val, fcf_margin, d2e, margin_vol, _asset_turnover, gross_prof = row[3:11]
 
                 components: list[tuple[float, float]] = []
 
-                # UNIFORM EQUAL-WEIGHT (2026-09-11) + MARGIN_VOLATILITY REWEIGHT (2026-09-13) +
-                # ASSET_TURNOVER DEMOTION (2026-09-14, see vqg_quality_score.py Pass-1's own
-                # comment for the full per-component IC-validation rationale - asset_turnover is
-                # the only one of Quality's 8 components that fails this repo's own
-                # |t|>=2-both-eras bar in BOTH eras, a materially different/weaker finding than
-                # Risk/Value's fit-weak-but-holdout-strong near-misses which stay at equal weight).
-                # Mirrors vqg_quality_score.py Pass-1's own weights exactly - keep both passes' in
-                # sync if either changes.
+                # ASSET_TURNOVER + ROCE REMOVED ENTIRELY (2026-09-15, TWO-LAYER VALIDATION
+                # POLICY - see vqg_quality_score.py Pass-1's own comment on its
+                # quality_components list for the full rationale: neither maps to a real
+                # institutional Quality definition (AQR QMJ/MSCI/Novy-Marx), unlike the
+                # remaining 6 components, so they're dropped rather than reweighted based on
+                # this repo's own IC - the wrong bar for a pillar-fidelity question. The
+                # remaining 5 non-margin_volatility components move from 11.54 to 15.0 each
+                # (75/5) to keep the already-decided 75-point non-margin_volatility pool
+                # exactly matching its own total; margin_volatility stays at 25.0. Mirrors
+                # vqg_quality_score.py Pass-1's own weights exactly - keep both passes' in
+                # sync if either changes. roce_pct_val/asset_turnover are still read from
+                # `row` above (unpacking stays aligned to the SELECT's column order) but no
+                # longer feed a component here - both raw columns remain available for other
+                # consumers via quality_metrics itself.
                 if roe is not None and roa is not None:  # roa<0 = sign-flip distress artifact; missing roa omits it
                     roe_component = 0.0 if float(roe) < 0.0 or float(roa) < 0.0 else roe_pct[symbol]
-                    components.append((roe_component, 11.54))
+                    components.append((roe_component, 15.0))
                 if roa is not None:  # continuous, no floor
-                    components.append((roa_pct[symbol], 11.54))
-                if roce_pct_val is not None:  # continuous, no floor
-                    components.append((roce_pct[symbol], 11.54))
+                    components.append((roa_pct[symbol], 15.0))
                 if fcf_margin is not None and industries.get(symbol) not in _fcf_excluded_industries:
-                    components.append((fcf_margin_pct[symbol], 11.54))  # continuous, no floor
+                    components.append((fcf_margin_pct[symbol], 15.0))  # continuous, no floor
                 if d2e is not None:  # negative D/E = real distress, floored to 0.0 - UNCHANGED
                     d2e_component = 0.0 if float(d2e) < 0.0 else d2e_pct[symbol]
-                    components.append((d2e_component, 11.54))
+                    components.append((d2e_component, 15.0))
                 if margin_vol is not None:
                     # Volatility can't be genuinely negative - no floor case, just z-scored.
                     components.append((margin_vol_pct[symbol], 25.0))
-                if asset_turnover is not None:
-                    at_component = 0.0 if float(asset_turnover) < 0.0 else asset_turnover_pct[symbol]
-                    components.append((at_component, 5.77))
                 if gross_prof is not None:
                     gp_component = 0.0 if float(gross_prof) < 0.0 else gross_prof_pct[symbol]
-                    components.append((gp_component, 11.54))
+                    components.append((gp_component, 15.0))
 
                 # COMPLETENESS FLOOR (2026-09-10 real-money-readiness re-audit): mirrors
                 # vqg_quality_score.py's Pass-1 `min_quality_weight_pct=40.0` floor on the

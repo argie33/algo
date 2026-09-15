@@ -47,21 +47,22 @@ class TestRoeSignFlipDistressArtifactExcluded:
         """ROC-shaped case: roe=915.88 (positive) but roa=-38.43 (a real loss) - the ROE
         term must contribute 0, the same as a directly-negative ROE, not win a high
         percentile off the sign-flip artifact. Standalone row (no peer) with every other
-        component filled in (6 x 11.54 + 25.0 + 5.77 = 100.01 under the 2026-09-14
-        asset_turnover demotion - see vqg_quality_score.py's "ASSET_TURNOVER DEMOTED"
+        component filled in (4 x 15.0 + 25.0 = 85.0 under the 2026-09-15 asset_turnover+ROCE
+        removal - see vqg_quality_score.py's "ASSET_TURNOVER + ROCE REMOVED ENTIRELY"
         comment - well clear of the 40.0 completeness floor) so an update actually fires -
         alone, each of those other components pools with itself and z-scores to neutral
-        percentile 50.0."""
+        percentile 50.0. roce_pct=20.0 in the row below is still read but no longer
+        contributes to any component."""
         row = ("ROC_SHAPED", "Technology", None, 915.88, -38.43, 20.0, 12.0, 0.2, 3.0, 90.0, 35.0, 999.0)
         updates = dict(_run_with_mocked_rows([row]))
         assert "ROC_SHAPED" in updates
         # ROE floors to 0 (sign-flip guard: roa<0). ROA's OWN component floor was REMOVED
         # 2026-09-13 (see vqg_quality_batch.py's "FLOOR REMOVED" docstring note) - roa is now
         # continuous, and as the sole symbol in its z-score pool it scores neutral 50.0 (a
-        # singleton pool has no variance to standardize against), same as the other 6
-        # components (weight 11.54 each except margin_volatility at 25.0 and asset_turnover at
-        # 5.77 = 88.47 total, all solo in their pools -> neutral 50.0).
-        expected = round((50.0 * 88.47) / 100.01, 2)
+        # singleton pool has no variance to standardize against), same as the other 4
+        # components (weight 15.0 each except margin_volatility at 25.0 = 85.0 total, all
+        # solo in their pools -> neutral 50.0).
+        expected = round((50.0 * 85.0) / 100.0, 2)
         assert updates["ROC_SHAPED"] == expected
 
     def test_positive_roe_with_positive_roa_still_ranks_normally(self) -> None:
