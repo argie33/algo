@@ -156,6 +156,30 @@ class TestSendLoaderAlert:
         ):
             mgr.send_loader_alert([("CRITICAL", "price_daily", "loader failed")])
 
+    def test_critical_finding_pages(self):
+        """BUG FOUND 2026-09-15: send_loader_alert never called page_critical() at all,
+        unlike send_patrol_alert/send_position_alert which both page on CRITICAL severity
+        - a critical loader failure (frequently the real root cause of a Phase 1 halt) could
+        never reach PagerDuty/SMS overnight, only email/SNS."""
+        mgr = _make_alert_manager(email_to=["ops@example.com"])
+        with (
+            patch.object(mgr, "_persist_to_db"),
+            patch.object(mgr, "_send_email"),
+            patch.object(mgr, "page_critical") as mock_page,
+        ):
+            mgr.send_loader_alert([("CRITICAL", "price_daily", "loader failed")])
+        mock_page.assert_called_once()
+
+    def test_error_only_finding_does_not_page(self):
+        mgr = _make_alert_manager(email_to=["ops@example.com"])
+        with (
+            patch.object(mgr, "_persist_to_db"),
+            patch.object(mgr, "_send_email"),
+            patch.object(mgr, "page_critical") as mock_page,
+        ):
+            mgr.send_loader_alert([("ERROR", "buy_sell_daily", "stale")])
+        mock_page.assert_not_called()
+
     def test_includes_both_critical_and_error_findings_in_message(self):
         mgr = _make_alert_manager(email_to=["ops@example.com"])
         findings = [

@@ -381,6 +381,15 @@ class AlertManager:
 
         Args:
             findings: list of (severity, check, message) tuples from LoaderMonitor
+
+        BUG FOUND (2026-09-15 real-money-readiness audit): unlike send_patrol_alert and
+        send_position_alert (both of which call page_critical() on CRITICAL severity - see
+        their own 2026-09-06/09-07 fix comments), this method never paged at all - a THIRD
+        instance of the same missed-call-site bug shape. A CRITICAL loader failure is
+        frequently the actual root cause behind Phase 1's data-freshness halt (this
+        codebase's most common real-money "keeps halting" complaint), so this was the one
+        alert type most likely to matter overnight/weekend and least likely to reach anyone
+        outside business hours.
         """
         critical = [f for f in findings if f[0] == "CRITICAL"]
         errors = [f for f in findings if f[0] == "ERROR"]
@@ -442,6 +451,9 @@ class AlertManager:
                 self._publish_sns(subject, body_text)
             except Exception as e:
                 logger.error(f"Loader alert SNS failed (non-blocking): {e}")
+
+        if severity == "CRITICAL":
+            self.page_critical(subject, body_text)
 
     def critical(self, message: str) -> None:
         """Send a generic critical alert. Non-blocking.
