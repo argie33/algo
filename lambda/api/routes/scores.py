@@ -132,6 +132,19 @@ def handle(
             offset = safe_offset(extract_param(params, "offset") or "0")
             sort_by = extract_param(params, "sortBy") or "composite_score"
             sort_order = (extract_param(params, "sortOrder") or "desc").lower()
+            # WEIGHTING (2026-09-15, fix for the tilted-weight-everywhere regression): the
+            # 2026-09-15 market-cap tilt was meant only for a caller that wants this
+            # endpoint's order to resemble a real cap-weighted fund's HOLDINGS composition
+            # (that's what ScoresDashboard.jsx's Rankings table does - but it fetches all
+            # rows and sorts client-side anyway, so it never actually needed server-side
+            # tilting). Every OTHER caller (SectorAnalysis.jsx's "Top Companies", any future
+            # one) wants "who scores best on this factor" and was getting silently
+            # market-cap-dominated results instead - same symptom as the Leaders/Laggards
+            # tabs bug (see MEMORY.md leaders_laggards_wrongly_tilted_by_cap_fixed_20260915).
+            # Default back to raw-score ordering; ?weighting=tilted opts in explicitly.
+            weighting = extract_param(params, "weighting") or "raw"
+            if weighting not in ("raw", "tilted"):
+                return error_response(400, "bad_request", 'weighting must be "raw" or "tilted"')
             sp500_only = extract_param(params, "sp500Only") or "false"
             symbol = extract_param(params, "symbol")
             min_market_cap_param = extract_param(params, "minMarketCap")
@@ -177,7 +190,15 @@ def handle(
                 return error_response(400, "bad_request", 'Sort order must be "asc" or "desc"')
 
             return _get_stock_scores(
-                cur, limit, offset, sort_by, sort_order, sp500_only == "true", symbol, min_market_cap
+                cur,
+                limit,
+                offset,
+                sort_by,
+                sort_order,
+                sp500_only == "true",
+                symbol,
+                min_market_cap,
+                weighting=weighting,
             )
         else:
             return error_response(404, "not_found", "Invalid scores endpoint requested")

@@ -913,6 +913,18 @@ function RankingsTab({
 }
 
 // ─── tabs: leaders/laggards/sectors ────────────────────────────────────────
+// Leaders/Laggards rank by each factor's RAW 0-100 score, not its *_tilted_weight (2026-09-15
+// fix - see this file's TILTED_WEIGHT_FIELD comment for what the tilt is FOR: matching a real
+// cap-weighted multi-factor fund's overall composite holdings, e.g. LRGF/GSLC, verified at
+// 84%/80% top-25/bottom-25 overlap - see MEMORY.md goal_top25_bottom25_achieved_production_
+// verified_20260915). market_cap varies across the universe by 1000x+ while the tilt itself
+// only moves weight by roughly 0.1x-1.6x, so sorting a SINGLE pillar by its tilted weight is
+// really just sorting by market cap with a barely-visible factor perturbation - live-caught
+// 2026-09-15: every one of these 5 panels returned the identical top-10 mega-cap-tech list
+// regardless of which factor was selected, destroying the whole point of a per-factor
+// leaderboard. Raw score is also what was already validated against real single-factor ETFs
+// (QUAL/MTUM/VLUE) on 2026-09-14 - strong-to-moderate agreement - so this restores that
+// already-correct behavior rather than introducing something new.
 function LeadersTab({ items, sectorFilter, onClick }) {
   return (
     <div className="grid grid-3" style={{ marginTop: "var(--space-4)" }}>
@@ -920,7 +932,7 @@ function LeadersTab({ items, sectorFilter, onClick }) {
         <CategoryTable
           key={f.key}
           factor={f}
-          rows={topBy(items, f.sortKey, 10, sectorFilter, "desc")}
+          rows={topBy(items, f.scoreKey, 10, sectorFilter, "desc")}
           mode="leaders"
           onClick={onClick}
         />
@@ -936,7 +948,7 @@ function LaggardsTab({ items, sectorFilter, onClick }) {
         <CategoryTable
           key={f.key}
           factor={f}
-          rows={topBy(items, f.sortKey, 10, sectorFilter, "asc")}
+          rows={topBy(items, f.scoreKey, 10, sectorFilter, "asc")}
           mode="laggards"
           onClick={onClick}
         />

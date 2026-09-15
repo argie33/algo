@@ -45,20 +45,33 @@ def _get_stock_scores(
     sp500_only: bool = False,
     symbol: str | None = None,
     min_market_cap: float | None = None,
+    weighting: str = "raw",
 ) -> Any:
     """Get stock scores with multi-factor ranking."""
     try:
-        # MARKET-CAP TILTED SORT (2026-09-15, see loaders/stock_scores/market_cap_tilt.py's
-        # own module docstring for the full rationale): a `sort_by` request for any of the 5
-        # pillars or composite_score orders by that column's batch-computed
-        # *_tilted_weight (migration 1294), not the raw percentile score - matching real
-        # cap-weighted-parent + factor-tilt index construction. This was previously the one
-        # of two dashboard-facing endpoints that never got any market-cap tilt at all
-        # (/api/algo/scores had its own now-superseded Python-side tilt) - live-caught bug,
-        # the page that actually calls THIS endpoint kept showing raw-percentile micro/
-        # small-cap "leaders" with no cap-weighting. "symbol" sort is untouched (alphabetical
-        # has no tilted-weight analog).
-        allowed_sorts = {
+        # WEIGHTING (default "raw", opt-in "tilted" - 2026-09-15, see loaders/stock_scores/
+        # market_cap_tilt.py's own module docstring for the *_tilted_weight rationale): tilted
+        # weight exists to make a ranking resemble a real cap-weighted fund's HOLDINGS
+        # composition (verified vs LRGF/GSLC at 84%/80% top-25/bottom-25 overlap - see
+        # MEMORY.md goal_top25_bottom25_achieved_production_verified_20260915). That is NOT
+        # what "who scores best on this factor" callers want (SectorAnalysis.jsx's "Top
+        # Companies", any per-pillar leaderboard) - defaulting every sort_by to tilted weight
+        # silently market-cap-dominated every one of them (same symptom independently caught
+        # in ScoresDashboard.jsx's Leaders/Laggards tabs - see MEMORY.md
+        # leaders_laggards_wrongly_tilted_by_cap_fixed_20260915). Raw score is the default;
+        # a caller that specifically wants fund-holdings-style ordering passes
+        # ?weighting=tilted. "symbol" sort is untouched either way (alphabetical has no
+        # tilted-weight analog).
+        raw_sorts = {
+            "composite_score": "composite_score",
+            "momentum_score": "momentum_score",
+            "quality_score": "quality_score",
+            "value_score": "value_score",
+            "growth_score": "growth_score",
+            "risk_score": "risk_score",
+            "symbol": "symbol",
+        }
+        tilted_sorts = {
             "composite_score": "composite_tilted_weight",
             "momentum_score": "momentum_tilted_weight",
             "quality_score": "quality_tilted_weight",
@@ -67,7 +80,8 @@ def _get_stock_scores(
             "risk_score": "risk_tilted_weight",
             "symbol": "symbol",
         }
-        sort_col = allowed_sorts.get(sort_by, "composite_tilted_weight")
+        allowed_sorts = tilted_sorts if weighting == "tilted" else raw_sorts
+        sort_col = allowed_sorts.get(sort_by, "composite_score" if weighting == "raw" else "composite_tilted_weight")
         sort_direction = "DESC" if sort_order == "desc" else "ASC"
         # Secondary sort key: the raw score column the tilted weight was derived from (or
         # "symbol" itself, which has no tilted-weight column to begin with). Every tilted
