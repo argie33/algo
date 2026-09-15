@@ -887,11 +887,20 @@ def _check_per_day_signal_counts(run_date: _date, log_phase_result_fn: Callable[
             lookback_start = _buysell_lookback_start_date(run_date)
 
             # Get signal count for each trading day in lookback window
+            # FIX 2026-09-15: was `WHERE signal = 'BUY'` - counted BUY rows only, but the
+            # per_day_signal_floor below was reasoned/documented against the TOTAL (BUY+SELL)
+            # baseline ("~80-250/day...105 BUY/210 total"). BUY-only count legitimately swings
+            # 29-230/day depending on market direction (choppy/downtrending days produce far
+            # fewer BUY setups while SELL count stays high - not a data gap). Live-confirmed
+            # 3/30 trading days in Aug-Sep 2026 (8/18, 8/31, 9/10) false-halted on this: BUY
+            # count dipped under 40 while TOTAL that day was 119-206, well within normal range,
+            # and SELL count alone was 74-182 - the loader clearly ran and had full data.
+            # Counting total rows per day is what actually detects a loader/data gap.
             cur.execute(
                 """
                 SELECT date, COUNT(*) as signal_count
                 FROM buy_sell_daily
-                WHERE signal = 'BUY' AND date >= %s AND date <= %s
+                WHERE date >= %s AND date <= %s
                 GROUP BY date
                 ORDER BY date DESC
                 """,
@@ -910,7 +919,11 @@ def _check_per_day_signal_counts(run_date: _date, log_phase_result_fn: Callable[
             # that day's BUY/SELL rows). True per-day counts are now correctly lower
             # (~80-250/day; 8/18 post-fix: 105 BUY/210 total) - 200 would halt on every normal
             # day going forward. See BUY_SELL_DAILY_ANOMALY_THRESHOLD in validation_thresholds.py.
-            per_day_signal_floor = 40
+            # FIX 2026-09-15: floor is against the TOTAL count now (see query fix above) - live
+            # totals since 8/3/2026 range 118-308, so 80 stays well below every genuine day
+            # while still catching an actual gap (a real loader failure produces near-zero rows,
+            # not "just under 80").
+            per_day_signal_floor = 80
             for day_row in daily_counts:
                 signal_date = day_row[0]
                 day_signal_count = day_row[1]
@@ -1211,6 +1224,20 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             today_count_row = cur.fetchone()
             today_count = today_count_row[0] if today_count_row else 0
 
+            # FIX 2026-09-15: both halt checks below used to gate on `today_count` (BUY-only)
+            # alone, but a legitimately choppy/downtrending day produces few BUY setups while
+            # still having full SELL/total data - a business outcome, not a loader failure. The
+            # same false-halt bug already fixed in `_check_per_day_signal_counts` above. Query
+            # the day's TOTAL row count too, and only treat a low/zero BUY count as a data
+            # failure when the total is also anomalously low - a real technical_data_daily/
+            # buy_sell_daily loader failure produces near-zero rows overall, not just few BUYs.
+            cur.execute(
+                "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s",
+                (latest_buysell_date,),
+            )
+            today_total_row = cur.fetchone()
+            today_total_count = today_total_row[0] if today_total_row else 0
+
             # NOTE: no separate "is latest_buysell_date recent enough" gate here - the
             # acceptable_staleness check above already halted (returned False) if
             # latest_buysell_date were too old, so by this point it's already confirmed to be
@@ -1221,10 +1248,16 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             # more dangerous direction: it made a real zero-signal upstream failure on the
             # most recent trading day invisible instead of halting on it, the exact failure
             # mode this check exists to catch.
-            if today_count == 0:
-                # Most recent trading day has 0 signals - this is anomalous
+            # Total-row floor for distinguishing a real loader outage from a low-BUY-count
+            # business day: live totals since 8/3/2026 never dropped below 118 on a day the
+            # loader actually ran; a real outage produces near-zero rows overall.
+            total_row_floor = 80
+            if today_count == 0 and today_total_count < total_row_floor:
+                # Most recent trading day has 0 BUY signals AND total rows are also anomalously
+                # low - this is a real data outage, not just an extreme down day.
                 msg = (
-                    f"[PHASE 7 CRITICAL HALT] buy_sell_daily on {latest_buysell_date} has ZERO BUY signals. "
+                    f"[PHASE 7 CRITICAL HALT] buy_sell_daily on {latest_buysell_date} has ZERO BUY signals "
+                    f"and only {today_total_count} total rows (< {total_row_floor}). "
                     f"Historical normal (post edge-trigger-fix, see bc0047231): ~80-250 signals per trading day. "
                     f"This indicates: (1) technical_data_daily loader failed (required for buy_sell generation), "
                     f"(2) Signal generation thresholds were too strict, or "
@@ -1238,15 +1271,22 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 logger.critical(msg)
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
+            elif today_count == 0:
+                logger.warning(
+                    f"[PHASE 7] buy_sell_daily on {latest_buysell_date} has ZERO BUY signals but "
+                    f"{today_total_count} total rows - treating as a genuine extreme down day "
+                    f"(loader ran, SELL/data present), not a data outage. No entries possible today."
+                )
 
             # Severe but non-zero collapse: Drop from typical 300+/day to handful of signals
             # indicates underlying failure (upstream loader degradation or universe coverage collapse).
             # Use dynamically-calculated threshold (median_30d / 3) not hardcoded constant.
             anomaly_threshold = _calculate_dynamic_anomaly_threshold()
-            if 0 < today_count < anomaly_threshold:
+            if 0 < today_count < anomaly_threshold and today_total_count < total_row_floor:
                 msg = (
                     f"[PHASE 7 CRITICAL HALT] buy_sell_daily on {latest_buysell_date} has only {today_count} "
-                    f"BUY signals (< anomaly floor of {anomaly_threshold}). "
+                    f"BUY signals (< anomaly floor of {anomaly_threshold}) and only {today_total_count} total "
+                    f"rows (< {total_row_floor}). "
                     f"This indicates a severe upstream data quality problem: "
                     f"(1) technical_data_daily loader partially failed, "
                     f"(2) universe coverage collapsed for another reason. "
@@ -1258,6 +1298,12 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 logger.critical(msg)
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
+            elif 0 < today_count < anomaly_threshold:
+                logger.info(
+                    f"[PHASE 7] buy_sell_daily on {latest_buysell_date} has {today_count} BUY signals "
+                    f"(< anomaly floor {anomaly_threshold}) but {today_total_count} total rows - "
+                    f"few BUY setups today, not a data outage. Proceeding with fewer/no entries."
+                )
 
             # Data freshness and signal count look OK
             if days_stale == 1:

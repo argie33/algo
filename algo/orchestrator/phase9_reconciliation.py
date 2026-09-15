@@ -422,7 +422,7 @@ def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None
                 FROM algo_trades
                 WHERE exit_date IS NOT NULL
                   AND exit_price IS NULL
-                  AND exit_reason ILIKE '%Closed position recorded during reconciliation%'
+                  AND exit_reason ILIKE '%%Closed position recorded during reconciliation%%'
                   AND status = ANY(%s)
                 ORDER BY exit_date DESC
                 LIMIT 100
