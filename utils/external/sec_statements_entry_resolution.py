@@ -321,6 +321,42 @@ def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-exis
         derived_fp = None
         if not start_date and has_december_fiscal_year_end and entry.get("end") and len(entry["end"]) >= 7:
             derived_fp = {"03": "Q1", "06": "Q2", "09": "Q3", "12": "Q4"}.get(entry["end"][5:7])
+        # FIXED 2026-09-15 (goal: data-issue coordination session, ARQ live-confirmed via real
+        # SEC companyfacts JSON, CIK 0001515156): the instant-only derivation above left every
+        # DURATION fact with fp != Q1-Q4 unrecoverable, even when SEC's own frame tag
+        # unambiguously identifies it as a genuine discrete quarter. ARQ's 2013 Q2/Q3 revenue
+        # was massively restated: the originally-filed 2013 10-Qs report Q2=$58.93M/Q3=$74.59M
+        # (fp='Q2'/'Q3', no frame) - passed straight through and stored - but the 2016 10-K/A
+        # (accn 0001515156-16-000074) re-cites the CORRECTED values ($6.427M/$3.470M, ~9-13x
+        # smaller) as comparative duration facts tagged fp='FY' (the filing's own period) with
+        # frame='CY2013Q2'/'CY2013Q3' - SEC's frames API independently confirming these are the
+        # real discrete quarters. Because fp='FY' isn't in fp_filter and the fact has a
+        # start_date (so the instant-only branch above never fires), these correct,
+        # frame-confirmed, later-filed values were silently dropped entirely, leaving the stale
+        # pre-restatement 10-Q values as the only candidate ever considered for that
+        # (fiscal_year, quarter) bucket - this is what produced the
+        # quarterly_revenue_sum_vs_annual_extreme finding (quarters summing to ~10x the audited
+        # annual total). Narrowly scoped to a genuine single-quarter span (80-100 days, same
+        # window trusted elsewhere in this file) so a frame like 'CY2013Q2I' (instant) or a
+        # cumulative duration fact that happens to share the 'CYyyyyQn' prefix can't slip
+        # through.
+        if derived_fp is None and start_date and entry.get("end"):
+            _frame = entry.get("frame") or ""
+            if (
+                len(_frame) == 8
+                and _frame[:2] == "CY"
+                and _frame[2:6].isdigit()
+                and _frame[6] == "Q"
+                and _frame[7] in "1234"
+            ):
+                try:
+                    _frame_span_days = (
+                        datetime.date.fromisoformat(entry["end"]) - datetime.date.fromisoformat(start_date)
+                    ).days
+                except ValueError:
+                    _frame_span_days = None
+                if _frame_span_days is not None and 80 <= _frame_span_days <= 100:
+                    derived_fp = f"Q{_frame[7]}"
         if derived_fp is None:
             return None
         fp = derived_fp
