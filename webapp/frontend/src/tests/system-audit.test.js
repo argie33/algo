@@ -18,8 +18,6 @@ const APP_PAGES = [
   { path: "/app/economic", name: "Economic Data" },
   { path: "/app/sentiment", name: "Sentiment" },
   { path: "/app/trading-signals", name: "Trading Signals" },
-  { path: "/app/portfolio", name: "Portfolio" },
-  { path: "/app/trades", name: "Trade History" },
   { path: "/app/scores", name: "Scores Dashboard" },
   { path: "/app/health", name: "System Health" },
   { path: "/app/audit", name: "Audit Log" },

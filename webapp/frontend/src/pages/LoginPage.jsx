@@ -10,7 +10,7 @@ function LoginPage() {
   const [authModalOpen, setAuthModalOpen] = useState(true);
 
   const from =
-    new URLSearchParams(location.search).get("from") || "/app/portfolio";
+    new URLSearchParams(location.search).get("from") || "/app/markets";
 
   useEffect(() => {
     if (isAuthenticated && user) {

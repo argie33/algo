@@ -16,10 +16,7 @@ import CTASection from "../../components/marketing/CTASection";
 import ImagePlaceholder from "../../components/marketing/ImagePlaceholder";
 import {
   AccountBalance as AccountBalanceIcon,
-  BarChart as BarChartIcon,
   Shield as ShieldIcon,
-  ShowChart as ShowChartIcon,
-  Assessment as AssessmentIcon,
 } from "@mui/icons-material";
 
 const WealthManagement = () => {
@@ -28,31 +25,10 @@ const WealthManagement = () => {
 
   const features = [
     {
-      icon: <BarChartIcon />,
-      title: "Portfolio Dashboard",
-      description:
-        "Track all open positions in one view. See real-time P&L, position sizing relative to portfolio, days held, and entry vs. current price&#8212;with automatic Alpaca reconciliation.",
-      link: "/app/portfolio",
-    },
-    {
-      icon: <ShowChartIcon />,
-      title: "Performance Metrics",
-      description:
-        "Analyze your trading record with win rate, average gain/loss, expectancy, and trade-by-trade attribution. Understand which setups and conditions are actually producing returns.",
-      link: "/app/portfolio",
-    },
-    {
       icon: <ShieldIcon />,
       title: "Risk & Circuit Breakers",
       description:
         "Automated circuit breakers evaluate drawdown, consecutive losses, daily P&L limits, and VIX conditions before any trade is placed. The system protects capital in adverse regimes.",
-    },
-    {
-      icon: <AssessmentIcon />,
-      title: "Trade Tracker & History",
-      description:
-        "Complete audit trail of every entry, exit, and hold decision&#8212;including the specific signals and scores that triggered each trade. Full transparency into your track record.",
-      link: "/app/trades",
     },
     {
       icon: <AccountBalanceIcon />,
@@ -366,7 +342,7 @@ const WealthManagement = () => {
         variant="dark"
         title="Start Managing Risk the Right Way"
         subtitle="Access the full portfolio and risk management suite&#8212;pre-trade simulation, live P&L, and performance analytics."
-        primaryCTA={{ label: "Launch Platform", link: "/app/portfolio" }}
+        primaryCTA={{ label: "Launch Platform", link: "/app/markets" }}
         secondaryCTA={{
           label: "View Trading Signals",
           link: "/app/trading-signals",

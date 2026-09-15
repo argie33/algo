@@ -12,10 +12,6 @@ vi.mock("../../pages/MarketsHealth", () => ({
   default: () => <div data-testid="markets-health-page">Markets Health</div>,
 }));
 
-vi.mock("../../pages/PortfolioDashboard", () => ({
-  default: () => <div data-testid="portfolio-page">Portfolio</div>,
-}));
-
 vi.mock("../../pages/NotFound", () => ({
   default: () => <div data-testid="not-found-page">Not Found</div>,
 }));
@@ -72,13 +68,6 @@ describe("App Dashboard Routing", () => {
       renderAt("/app/markets");
       await waitFor(() =>
         expect(screen.getByTestId("markets-health-page")).toBeInTheDocument()
-      );
-    });
-
-    test("/app/portfolio renders portfolio page", async () => {
-      renderAt("/app/portfolio");
-      await waitFor(() =>
-        expect(screen.getByTestId("portfolio-page")).toBeInTheDocument()
       );
     });
 

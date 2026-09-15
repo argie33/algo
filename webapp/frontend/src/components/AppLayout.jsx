@@ -27,8 +27,6 @@ import {
   Target,
   Award,
   Layers,
-  Wallet,
-  History,
   HeartPulse,
   Zap,
   Crosshair,
@@ -71,13 +69,6 @@ const NAV_SECTIONS = [
       { text: "Swing Candidates", icon: Target, path: "/app/swing" },
       { text: "Deep Value Picks", icon: Layers, path: "/app/deep-value" },
       { text: "Earnings Calendar", icon: Calendar, path: "/app/earnings" },
-    ],
-  },
-  {
-    title: "Portfolio",
-    items: [
-      { text: "Portfolio", icon: Wallet, path: "/app/portfolio" },
-      { text: "Trade Tracker", icon: History, path: "/app/trades" },
     ],
   },
   {

@@ -111,7 +111,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
   test("should handle protected routes", async ({ page }) => {
     // Test without authentication
 
-    const protectedRoutes = ["/app/portfolio", "/app/trades", "/app/settings"];
+    const protectedRoutes = ["/app/scores", "/app/trading-signals", "/app/settings"];
 
     let accessibleRoutes = 0;
     let redirectedRoutes = 0;
@@ -177,7 +177,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
       );
     });
 
-    await page.goto("/app/portfolio");
+    await page.goto("/app/markets");
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
