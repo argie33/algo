@@ -105,15 +105,21 @@ class RiskMetricsLoader(OptimalLoader):
     def _compute_momentum_row(self, symbol: str) -> dict[str, Any]:
         try:
             with DatabaseContext("read") as cur:
-                # ADJ_CLOSE FIX 2026-09-01 (see _compute_stability_row's own docstring note for
-                # the full evidence trail): fetch adj_close alongside close and prefer it - raw
-                # close is NOT a reliable point-in-time historical price for return math, see
-                # that note for why.
+                # SPLIT_ADJUSTED FIX 2026-09-15 (see _compute_stability_row's own docstring note
+                # for the 2026-09-01 adj_close evidence trail this supersedes): adj_close alone
+                # doesn't cover Alpaca-sourced rows, since Alpaca's raw adjustment mode writes
+                # adj_close == close (no split adjustment at all) - exactly the AKTS-class bug
+                # cited above (69,200% "return" from an unadjusted reverse split) can still occur
+                # for any Alpaca-primary symbol. price_daily_split_adjusted (migration 1298)
+                # computes the correct split-adjusted value at read time from price_daily joined
+                # against stock_splits, covering both vendors uniformly - see that view's own
+                # docstring for why raw price_daily can't just be mutated in place instead.
                 cur.execute(
-                    "SELECT date, close, adj_close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 253",
+                    "SELECT date, adj_close_adjusted FROM price_daily_split_adjusted "
+                    "WHERE symbol = %s ORDER BY date DESC LIMIT 253",
                     (symbol,),
                 )
-                rows = [(r[0], r[2] if r[2] is not None else r[1]) for r in cur.fetchall()]
+                rows = cur.fetchall()
 
                 # FIX 2026-07-20: Previously required the full 252 days (needed only
                 # for 12m momentum) before computing ANYTHING, discarding real 1m/3m/6m
@@ -380,10 +386,15 @@ class RiskMetricsLoader(OptimalLoader):
                 # (fetched from yfinance's "Adj Close", split+dividend adjusted, see
                 # utils/data/source_router.py) does NOT have this instability - it is the
                 # correct series for return-math per standard finance practice (never compute
-                # returns from a source that can retroactively rewrite history). Falls back to
-                # close only when adj_close is genuinely absent (e.g. some Alpaca-sourced rows).
+                # returns from a source that can retroactively rewrite history).
+                # SPLIT_ADJUSTED FIX 2026-09-15: adj_close alone doesn't cover Alpaca-sourced
+                # rows (adj_close == close there, no split adjustment applied at all) - now reads
+                # price_daily_split_adjusted's adj_close_adjusted instead, which covers both
+                # vendors correctly (see migration 1298 and _compute_momentum_row's matching fix
+                # above for the full rationale).
                 cur.execute(
-                    "SELECT date, close, adj_close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 252",
+                    "SELECT date, adj_close_adjusted FROM price_daily_split_adjusted "
+                    "WHERE symbol = %s ORDER BY date DESC LIMIT 252",
                     (symbol,),
                 )
                 rows = cur.fetchall()
@@ -398,7 +409,7 @@ class RiskMetricsLoader(OptimalLoader):
                                     date(row[0].year, row[0].month, row[0].day) if hasattr(row[0], "year") else row[0]
                                 )
                             ),
-                            row[2] if row[2] is not None else row[1],
+                            row[1],
                         )
                         for row in rows
                     ]
@@ -457,8 +468,11 @@ class RiskMetricsLoader(OptimalLoader):
                     stock_dates = [row[0] for row in rows]
                     min_date = min(stock_dates)
                     max_date = max(stock_dates)
+                    # SPLIT_ADJUSTED FIX 2026-09-15: same rationale as the two queries above -
+                    # price_daily_split_adjusted covers Alpaca-sourced rows correctly too.
                     cur.execute(
-                        "SELECT date, close, adj_close FROM price_daily WHERE symbol = 'SPY' AND date >= %s AND date <= %s ORDER BY date ASC",
+                        "SELECT date, adj_close_adjusted FROM price_daily_split_adjusted "
+                        "WHERE symbol = 'SPY' AND date >= %s AND date <= %s ORDER BY date ASC",
                         (min_date, max_date),
                     )
                     spy_rows_raw = cur.fetchall()
@@ -475,7 +489,7 @@ class RiskMetricsLoader(OptimalLoader):
                                         else row[0]
                                     )
                                 ),
-                                row[2] if row[2] is not None else row[1],
+                                row[1],
                             )
                             for row in spy_rows_raw
                         ]

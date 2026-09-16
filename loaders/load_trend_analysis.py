@@ -133,8 +133,13 @@ def _fetch_technical_data(cur: psycopg2.extensions.cursor, dates: list[date]) ->
 
 
 def _fetch_price_data(cur: psycopg2.extensions.cursor, dates: list[date]) -> pd.DataFrame:
+    # SPLIT_ADJUSTED FIX 2026-09-15: this `close` gets compared against sma_50/sma_200/roc_*
+    # from technical_data_daily, which load_technical_indicators.py already computes from a
+    # split-adjusted series (detect_and_adjust_splits) - reading raw here would compare
+    # mismatched scales right around a split. price_daily_split_adjusted keeps both sides
+    # consistent.
     cur.execute(
-        "SELECT symbol, date, close FROM price_daily WHERE date = ANY(%s)",
+        "SELECT symbol, date, close_adjusted AS close FROM price_daily_split_adjusted WHERE date = ANY(%s)",
         (dates,),
     )
     rows = cur.fetchall()

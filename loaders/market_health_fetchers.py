@@ -573,24 +573,26 @@ class BreadthFetcher:
                 f"Check: price loader is running, price_daily table is populated."
             )
 
+        # SPLIT_ADJUSTED FIX 2026-09-15: a split stock inside this window would falsely
+        # register as a new 252-day high or low on the split day, skewing market-breadth.
         cur.execute(
             """
             WITH price_window AS (
                 SELECT
                     date,
                     symbol,
-                    close,
-                    MAX(close) OVER (
+                    close_adjusted AS close,
+                    MAX(close_adjusted) OVER (
                         PARTITION BY symbol
                         ORDER BY date
                         ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
                     ) AS high_252,
-                    MIN(close) OVER (
+                    MIN(close_adjusted) OVER (
                         PARTITION BY symbol
                         ORDER BY date
                         ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
                     ) AS low_252
-                FROM price_daily
+                FROM price_daily_split_adjusted
                 WHERE date >= %s AND date <= %s
             )
             SELECT
@@ -676,15 +678,18 @@ class BreadthFetcher:
             # before `start` - a 10-calendar-day lookback comfortably covers any holiday
             # weekend gap while keeping the window small. The outer WHERE date >= %s (the
             # real `start`) then discards those lookback-only rows from the final result.
+            # SPLIT_ADJUSTED FIX 2026-09-15: day-over-day close comparison across the whole
+            # universe - a split stock would falsely count as a huge decline (or advance for
+            # a reverse split), skewing market-wide advance/decline breadth.
             cur.execute(
                 """
                 WITH ranked AS (
                     SELECT
                         symbol,
                         date,
-                        close,
-                        LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
-                    FROM price_daily
+                        close_adjusted AS close,
+                        LAG(close_adjusted) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
+                    FROM price_daily_split_adjusted
                     WHERE date >= %s AND date <= %s AND close IS NOT NULL
                 )
                 SELECT
@@ -807,14 +812,18 @@ class BreadthFetcher:
                 return {"data_unavailable": True, "reason": "insufficient_trading_days"}
             latest_day, prev_day = day_rows[0][0], day_rows[1][0]
 
+            # SPLIT_ADJUSTED FIX 2026-09-15: t.close > y.close classifies up/down volume - a
+            # split stock's raw closes would misclassify its whole volume. Raw t.volume is
+            # still correct for the SUM itself (today's actual traded share count, not a
+            # cross-time comparison), only the close comparison needs the adjusted view.
             cur.execute(
                 """
                 SELECT
-                    SUM(t.volume) FILTER (WHERE t.close > y.close) AS up_volume,
+                    SUM(t.volume) FILTER (WHERE t.close_adjusted > y.close_adjusted) AS up_volume,
                     SUM(t.volume) AS total_volume
-                FROM price_daily t
+                FROM price_daily_split_adjusted t
                 JOIN stock_symbols s ON s.symbol = t.symbol AND s.active = true
-                JOIN price_daily y ON y.symbol = t.symbol AND y.date = %s
+                JOIN price_daily_split_adjusted y ON y.symbol = t.symbol AND y.date = %s
                 WHERE t.date = %s
                   AND t.volume IS NOT NULL AND t.close IS NOT NULL
                   AND y.close IS NOT NULL AND y.volume IS NOT NULL

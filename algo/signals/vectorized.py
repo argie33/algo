@@ -68,10 +68,14 @@ class VectorizedSignalGenerator:
                     )
 
                 # Fetch 300 days of history for all symbols in ONE query
+                # SPLIT_ADJUSTED FIX 2026-09-15: a 300-day window is highly likely to contain
+                # an unadjusted split for some symbols in a 1000+-symbol batch - reads as a
+                # fake price/volume cliff for every vectorized signal computed over it.
                 cur.execute(
                     """
-                    SELECT symbol, date, close, high, low, volume, open
-                    FROM price_daily
+                    SELECT symbol, date, close_adjusted, high_adjusted, low_adjusted,
+                           volume_adjusted, open_adjusted
+                    FROM price_daily_split_adjusted
                     WHERE symbol = ANY(%s)
                       AND date >= %s::date - INTERVAL '300 days'
                       AND date <= %s

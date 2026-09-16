@@ -32,9 +32,12 @@ class TrendlineSupport:
     def get_price_history(self, symbol: str, end_date: date, days: int = 130) -> list[Any]:
         try:
             with DatabaseContext("read") as cur:
+                # SPLIT_ADJUSTED FIX 2026-09-15: an unadjusted split within this 130-day
+                # window would read as a fake trendline break/support level - see migration
+                # 1298's docstring for why price_daily itself must stay raw.
                 cur.execute(
                     """
-                    SELECT date, low, close FROM price_daily
+                    SELECT date, low_adjusted, close_adjusted FROM price_daily_split_adjusted
                     WHERE symbol = %s
                       AND date >= %s
                       AND date <= %s

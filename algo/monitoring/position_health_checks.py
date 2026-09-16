@@ -349,10 +349,13 @@ class PositionHealthChecksMixin:
         # This was inverted in a previous attempt - the bug was opening fresh context when cursor was passed.
         if cur is not None:
             try:
+                # SPLIT_ADJUSTED FIX 2026-09-15: MAX(close) over the position's whole
+                # holding period would be corrupted by an unadjusted split (e.g. understating
+                # or overstating max unrealized gain relative to a since-rescaled entry price).
                 cur.execute(
                     """
-                    SELECT MAX(close), bool_or(data_unavailable), MAX(data_unavailable_reason)
-                    FROM price_daily
+                    SELECT MAX(close_adjusted), bool_or(data_unavailable), MAX(data_unavailable_reason)
+                    FROM price_daily_split_adjusted
                     WHERE symbol = %s AND date >= %s AND date <= %s
                     AND close IS NOT NULL
                     """,
@@ -367,8 +370,8 @@ class PositionHealthChecksMixin:
             with _pm.DatabaseContext("read") as fresh_cur:  # type: ignore[attr-defined]
                 fresh_cur.execute(
                     """
-                    SELECT MAX(close), bool_or(data_unavailable), MAX(data_unavailable_reason)
-                    FROM price_daily
+                    SELECT MAX(close_adjusted), bool_or(data_unavailable), MAX(data_unavailable_reason)
+                    FROM price_daily_split_adjusted
                     WHERE symbol = %s AND date >= %s AND date <= %s
                     AND close IS NOT NULL
                     """,
@@ -572,11 +575,13 @@ class PositionHealthChecksMixin:
         # CRITICAL FIX 2026-08-01: If caller passed a cursor, use it instead of opening new context
         # Nested DatabaseContext calls close the outer cursor, causing "cursor already closed" errors.
         if cur is not None:
+            # SPLIT_ADJUSTED FIX 2026-09-15: comparing newest vs oldest close across an
+            # unadjusted split would produce a fake, huge period return.
             cur.execute(
                 f"""
                 WITH bracket AS (
-                    SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                    FROM price_daily
+                    SELECT close_adjusted AS close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                    FROM price_daily_split_adjusted
                     WHERE symbol = %s AND date <= %s
                       AND date >= %s::date - (%s * {interval_1d})
                 )
@@ -592,8 +597,8 @@ class PositionHealthChecksMixin:
                 fresh_cur.execute(
                     f"""
                     WITH bracket AS (
-                        SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                        FROM price_daily
+                        SELECT close_adjusted AS close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                        FROM price_daily_split_adjusted
                         WHERE symbol = %s AND date <= %s
                           AND date >= %s::date - (%s * {interval_1d})
                     )

@@ -85,10 +85,14 @@ class PositionMarketDataMixin:
 
         if cur is not None:
             try:
+                # SPLIT_ADJUSTED FIX 2026-09-15: td.sma_50/sma_200 already come from a
+                # split-adjusted series (load_technical_indicators.py's detect_and_adjust_splits)
+                # - reading raw pd.close here would compare mismatched scales right around a
+                # split. price_daily_split_adjusted keeps both sides consistent.
                 cur.execute(
                     """
-                    SELECT pd.close, td.atr, td.sma_50, td.sma_200
-                    FROM price_daily pd
+                    SELECT pd.close_adjusted, td.atr, td.sma_50, td.sma_200
+                    FROM price_daily_split_adjusted pd
                     LEFT JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
                     WHERE pd.symbol = %s AND pd.date <= %s
                     ORDER BY pd.date DESC LIMIT 1
@@ -102,8 +106,8 @@ class PositionMarketDataMixin:
             with _pm.DatabaseContext("read") as fresh_cur:  # type: ignore[attr-defined]
                 fresh_cur.execute(
                     """
-                    SELECT pd.close, td.atr, td.sma_50, td.sma_200
-                    FROM price_daily pd
+                    SELECT pd.close_adjusted, td.atr, td.sma_50, td.sma_200
+                    FROM price_daily_split_adjusted pd
                     LEFT JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
                     WHERE pd.symbol = %s AND pd.date <= %s
                     ORDER BY pd.date DESC LIMIT 1

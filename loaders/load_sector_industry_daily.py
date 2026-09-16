@@ -229,18 +229,22 @@ class SectorIndustryDailyLoader(OptimalLoader):
                 # shares_outstanding simply drop out of the weighted SUMs (NULL propagates,
                 # SUM ignores it) but still count toward stock_count - preserves stock_count's
                 # existing meaning as sector breadth, not narrowed to "cap-eligible only".
+                # SPLIT_ADJUSTED FIX 2026-09-15: day-over-day close-to-close return is exactly
+                # the class of query utils/db/sql_split_guard.py's docstring warns about ("one
+                # split stock can materially skew a sector/industry average") - using the
+                # split-adjusted view gives the true return instead of just excluding it.
                 cur.execute(
                     """
                     WITH daily_changes AS (
                         SELECT
                             COALESCE(c.sic_description, 'Unknown') as sector,
                             pd_today.symbol,
-                            (pd_today.close - pd_prev.close) / NULLIF(pd_prev.close, 0) as daily_return,
+                            (pd_today.close_adjusted - pd_prev.close_adjusted) / NULLIF(pd_prev.close_adjusted, 0) as daily_return,
                             CASE WHEN c.shares_outstanding > 0
                                  THEN pd_today.close * c.shares_outstanding
                             END as market_cap
-                        FROM price_daily pd_today
-                        INNER JOIN price_daily pd_prev
+                        FROM price_daily_split_adjusted pd_today
+                        INNER JOIN price_daily_split_adjusted pd_prev
                             ON pd_today.symbol = pd_prev.symbol
                             AND pd_prev.date = %s
                         LEFT JOIN company_info_sec c ON pd_today.symbol = c.symbol

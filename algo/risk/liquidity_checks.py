@@ -78,11 +78,17 @@ class LiquidityChecks:
     def _check_adv(self, symbol: str, signal_date: _date) -> tuple[bool, str]:
         try:
             with DatabaseContext("read") as cur:
+                # SPLIT_ADJUSTED FIX 2026-09-15: raw share volume jumps by the split ratio on
+                # a split day (e.g. 10x more shares after a 10:1 split) - an unadjusted split
+                # in this 20-day window would badly skew the ADV liquidity check. (Note: the
+                # sibling dollar-volume check below does NOT need this - volume*close is
+                # mathematically invariant to split adjustment, price and volume move by
+                # inverse factors and cancel out.)
                 cur.execute(
                     """
-                    SELECT AVG(volume) as avg_vol
+                    SELECT AVG(volume_adjusted) as avg_vol
                     FROM (
-                        SELECT volume FROM price_daily
+                        SELECT volume_adjusted FROM price_daily_split_adjusted
                         WHERE symbol = %s
                           AND date >= %s
                           AND date < %s

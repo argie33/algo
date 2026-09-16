@@ -841,11 +841,11 @@ def _batch_fetch_prior_close(symbols: list[str], run_date: _date) -> dict[str, f
     with DatabaseContext("read") as cur:
         cur.execute(
             f"""
-            SELECT symbol, close
+            SELECT symbol, close_adjusted AS close
             FROM (
-                SELECT symbol, close,
+                SELECT symbol, close_adjusted,
                        ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-                FROM price_daily
+                FROM price_daily_split_adjusted
                 WHERE symbol IN ({placeholders}) AND date <= %s
             ) ranked
             WHERE rn = 2
@@ -2750,8 +2750,8 @@ def run(
                 with DatabaseContext("read") as cur_support:
                     cur_support.execute(
                         """
-                        SELECT MIN(low) as support_52w
-                        FROM price_daily
+                        SELECT MIN(low_adjusted) as support_52w
+                        FROM price_daily_split_adjusted
                         WHERE symbol = %s AND date >= %s - INTERVAL '365 days'
                         """,
                         (symbol, run_date),

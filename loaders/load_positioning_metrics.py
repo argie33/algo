@@ -114,10 +114,13 @@ class PositioningMetricsLoader(OptimalLoader):
                 # allow_none=False crashed the whole A/D calc on those rows instead of just
                 # excluding them, so every symbol with even one such day lost its A/D rating
                 # entirely (masqueraded as ad_calculation_error, not insufficient_price_history).
+                # SPLIT_ADJUSTED FIX 2026-09-15: A/D rating (Chaikin Money Flow) is a rolling
+                # calc over a symbol's full history - an unadjusted split anywhere in it would
+                # inject a fake huge single-day money-flow spike.
                 cur.execute(
                     """
-                    SELECT date, high, low, close, volume
-                    FROM price_daily
+                    SELECT date, high_adjusted, low_adjusted, close_adjusted, volume_adjusted
+                    FROM price_daily_split_adjusted
                     WHERE symbol = %s AND volume IS NOT NULL
                     ORDER BY date ASC
                     """,

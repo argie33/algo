@@ -568,12 +568,15 @@ class AdvancedFilters:
     def _volume_confirmation_score(
         self, symbol: str, signal_date: _date, cur: PsycopgCursor[Any]
     ) -> tuple[float, float]:
+        # SPLIT_ADJUSTED FIX 2026-09-15: raw volume jumps by the split ratio on a split day
+        # (e.g. 10x more shares after a 10:1 split) - an unadjusted split inside this 50-day
+        # window would badly skew avg_vol and falsely pass/fail volume confirmation.
         cur.execute(
             """
             WITH d AS (
-                SELECT date, volume,
-                       AVG(volume) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol
-                FROM price_daily
+                SELECT date, volume_adjusted AS volume,
+                       AVG(volume_adjusted) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol
+                FROM price_daily_split_adjusted
                 WHERE symbol = %s AND date <= %s
                 ORDER BY date DESC LIMIT 1
             )
@@ -691,11 +694,13 @@ class AdvancedFilters:
             ValueError: If price data is missing or invalid for the period
         """
         interval_1d = get_interval_sql("1d")
+        # SPLIT_ADJUSTED FIX 2026-09-15: comparing the newest vs oldest close in this window
+        # across an unadjusted split would produce a fake, huge period return.
         cur.execute(
             f"""
             WITH bracket AS (
-                SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                FROM price_daily
+                SELECT close_adjusted AS close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                FROM price_daily_split_adjusted
                 WHERE symbol = %s AND date <= %s
                   AND date >= %s::date - (%s * {interval_1d})
             )

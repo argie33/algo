@@ -457,14 +457,16 @@ class SignalQualityScoresLoader(OptimalLoader):
                 # instead of referencing the dead column: rolling 252-trading-day high vs.
                 # that day's close, same definition stock_fundamentals.drop_from_52w_high_pct
                 # uses for its own (latest-only) snapshot.
+                # SPLIT_ADJUSTED FIX 2026-09-15: an unadjusted split inside this 252-day
+                # window would produce a bogus 52-week-high anchor and a fake "% from high".
                 cur.execute(
                     """
                     WITH price_window AS (
-                        SELECT date, close,
-                               MAX(high) OVER (
+                        SELECT date, close_adjusted AS close,
+                               MAX(high_adjusted) OVER (
                                    ORDER BY date ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
                                ) AS high_52w
-                        FROM price_daily
+                        FROM price_daily_split_adjusted
                         WHERE symbol = %s AND date <= %s
                     )
                     SELECT t.date, t.minervini_trend_score, t.weinstein_stage,

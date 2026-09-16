@@ -78,9 +78,12 @@ class SignalPatternsMixin:
 
     def base_detection(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         def _fetch_and_analyze(cur: PsycopgCursor[Any]) -> dict[str, Any]:
+            # SPLIT_ADJUSTED FIX 2026-09-15: an unadjusted split in this window would read as
+            # a fake price/volume cliff, corrupting base-pattern detection.
             cur.execute(
                 f"""
-                SELECT date, high, low, close, volume FROM price_daily
+                SELECT date, high_adjusted, low_adjusted, close_adjusted, volume_adjusted
+                FROM price_daily_split_adjusted
                 WHERE symbol = %s AND date <= %s
                 ORDER BY date DESC LIMIT {self.LOOKBACK_DAYS_DEFAULT}
                 """,
@@ -246,9 +249,11 @@ class SignalPatternsMixin:
                 lows = _prefetched["lows"][-self.VCP_LOOKBACK_DAYS :]
                 volumes = _prefetched["volumes"][-self.VCP_LOOKBACK_DAYS :]
             else:
+                # SPLIT_ADJUSTED FIX 2026-09-15: same rationale as base_detection above.
                 cur.execute(
                     f"""
-                    SELECT date, high, low, close, volume FROM price_daily
+                    SELECT date, high_adjusted, low_adjusted, close_adjusted, volume_adjusted
+                    FROM price_daily_split_adjusted
                     WHERE symbol = %s AND date <= %s
                     ORDER BY date DESC LIMIT {self.VCP_LOOKBACK_DAYS}
                     """,
@@ -591,8 +596,10 @@ class SignalPatternsMixin:
 
             strategy = get_strategy(base_type)
             if strategy:
+                # SPLIT_ADJUSTED FIX 2026-09-15: an unadjusted split in this lookback would
+                # produce a bogus (way-too-low) MIN(low) stop-loss floor.
                 cur.execute(
-                    "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
+                    "SELECT MIN(low_adjusted) FROM price_daily_split_adjusted WHERE symbol = %s AND date <= %s "
                     "AND date >= %s::date - INTERVAL %s",
                     (symbol, eval_date, eval_date, f"{strategy.lookback_days} days"),
                 )

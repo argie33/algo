@@ -70,8 +70,11 @@ class TestBreadthFetcherUsesRealDayOverDayAdvanceDecline:
             fetcher.fetch(date(2026, 8, 19), date(2026, 8, 19))
 
         ad_sql = mock_cursor.execute.call_args_list[0].args[0]
-        assert "price_daily" in ad_sql
-        assert "LAG(close)" in ad_sql
+        # SPLIT_ADJUSTED FIX 2026-09-15: now reads price_daily_split_adjusted's
+        # close_adjusted instead of raw price_daily.close, so a split stock doesn't get
+        # misclassified as a huge decline/advance - see migration 1298's docstring.
+        assert "price_daily_split_adjusted" in ad_sql
+        assert "LAG(close_adjusted)" in ad_sql
         assert "close > prev_close" in ad_sql
         assert "close < prev_close" in ad_sql
 

@@ -263,9 +263,12 @@ class CapitalRouting:
                 return {"data_unavailable": True, "reason": f"non-finite {symbol} trend data"}
             trend_up = price > sma
 
+            # SPLIT_ADJUSTED FIX 2026-09-15: an unadjusted split in this window would read as
+            # a fake huge daily return, corrupting the annualized volatility used to route
+            # capital between legs.
             cur.execute(
                 """
-                SELECT date, close FROM price_daily
+                SELECT date, close_adjusted FROM price_daily_split_adjusted
                 WHERE symbol = %s AND date <= %s
                 ORDER BY date DESC LIMIT %s
                 """,

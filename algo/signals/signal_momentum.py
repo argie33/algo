@@ -27,9 +27,12 @@ class SignalMomentumMixin:
         def _fetch_data(cur: Any) -> dict[str, Any]:
             # M6: Compute count fresh from price data each time
             # Count inherently resets daily as it's based on bar-by-bar closes
+            # SPLIT_ADJUSTED FIX 2026-09-15: raw price_daily can contain an unadjusted split
+            # within this window, reading as a fake single-bar price jump - same bug class
+            # already fixed for Risk/Momentum pillar scores (see migration 1298's docstring).
             cur.execute(
                 """
-                SELECT date, high, low, close FROM price_daily
+                SELECT date, high_adjusted, low_adjusted, close_adjusted FROM price_daily_split_adjusted
                 WHERE symbol = %s AND date <= %s
                 ORDER BY date DESC LIMIT 30
                 """,
@@ -189,13 +192,16 @@ class SignalMomentumMixin:
         """
 
         def _check_pivot(cur: Any) -> dict[str, Any]:
+            # SPLIT_ADJUSTED FIX 2026-09-15: see td_sequential's matching fix above - an
+            # unadjusted split in the 21/50-bar lookback windows would produce a bogus pivot
+            # level or volume average.
             cur.execute(
                 """
                 WITH d AS (
-                    SELECT date, close, volume,
-                           MAX(high) OVER (ORDER BY date ROWS BETWEEN 21 PRECEDING AND 1 PRECEDING) AS pivot,
-                           AVG(volume) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol_50
-                    FROM price_daily
+                    SELECT date, close_adjusted AS close, volume_adjusted AS volume,
+                           MAX(high_adjusted) OVER (ORDER BY date ROWS BETWEEN 21 PRECEDING AND 1 PRECEDING) AS pivot,
+                           AVG(volume_adjusted) OVER (ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol_50
+                    FROM price_daily_split_adjusted
                     WHERE symbol = %s AND date <= %s
                     ORDER BY date DESC LIMIT 1
                 )
@@ -264,13 +270,16 @@ class SignalMomentumMixin:
         """
 
         def _check_pocket(cur: Any) -> dict[str, Any]:
+            # SPLIT_ADJUSTED FIX 2026-09-15: LAG(close) across an unadjusted split would read
+            # as a fake huge single-day move (pocket pivot detection is exactly the kind of
+            # signal a split-day false positive would corrupt).
             cur.execute(
                 """
                 WITH daily AS (
-                    SELECT date, close, volume,
-                           LAG(close) OVER (ORDER BY date) AS prev_close,
+                    SELECT date, close_adjusted AS close, volume_adjusted AS volume,
+                           LAG(close_adjusted) OVER (ORDER BY date) AS prev_close,
                            ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                    FROM price_daily
+                    FROM price_daily_split_adjusted
                     WHERE symbol = %s AND date <= %s
                     ORDER BY date DESC LIMIT %s
                 )
@@ -385,13 +394,15 @@ class SignalMomentumMixin:
         """
 
         def _count_dist(cur: Any) -> int:
+            # SPLIT_ADJUSTED FIX 2026-09-15: an unadjusted reverse split would look exactly
+            # like a "distribution day" (close < prev_close*0.998 on high volume) here.
             cur.execute(
                 """
                 WITH d AS (
-                    SELECT date, close, volume,
-                           LAG(close) OVER (ORDER BY date) AS prev_close,
-                           LAG(volume) OVER (ORDER BY date) AS prev_vol
-                    FROM price_daily
+                    SELECT date, close_adjusted AS close, volume_adjusted AS volume,
+                           LAG(close_adjusted) OVER (ORDER BY date) AS prev_close,
+                           LAG(volume_adjusted) OVER (ORDER BY date) AS prev_vol
+                    FROM price_daily_split_adjusted
                     WHERE symbol = %s AND date <= %s
                     ORDER BY date DESC LIMIT %s
                 )

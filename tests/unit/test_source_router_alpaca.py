@@ -1,4 +1,14 @@
-"""Routing tests for PRICE_DATA_SOURCE=alpaca with per-symbol yfinance residual fallback."""
+"""Routing tests for PRICE_DATA_SOURCE=alpaca.
+
+REMOVED 2026-09-15 (explicit decision, not a bug fix): equities no longer get any
+yfinance residual/wholesale fallback - an Alpaca miss leaves the symbol unavailable
+instead of silently substituting a different vendor's number (live-caught: FFAI's
+alpaca/yfinance feeds disagreed by ~150x for several days around a reverse split,
+undetected until then because the blend made it invisible). Caret index symbols
+(^VIX etc.) still route to yfinance unconditionally - Alpaca's stock endpoints
+cannot serve them at all (confirmed live, both /v2/stocks and every /v1beta1/indices
+guess 404/403), so there's no "which source is right" ambiguity for those.
+"""
 
 from datetime import date
 from typing import Any
@@ -31,23 +41,23 @@ def router() -> DataSourceRouter:
     return DataSourceRouter()
 
 
-def test_alpaca_primary_merges_residual_from_yfinance(
+def test_alpaca_primary_routes_index_symbols_to_yfinance_only(
     router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Symbols Alpaca doesn't serve (caret indexes, OTC stragglers) come from yfinance."""
+    """Caret index symbols always go to yfinance (Alpaca can't serve them at all);
+    real equities never fall back to yfinance even when Alpaca doesn't serve them."""
     monkeypatch.setenv("PRICE_DATA_SOURCE", "alpaca")
     symbols = ["AAPL", "BK", "^GSPC"]
 
     def fake_alpaca(syms: list[str], start: date, end: date) -> dict[str, Any]:
-        # Add source attribution as the real code does
+        assert sorted(syms) == ["AAPL", "BK"], "Alpaca must only be asked for real equities, never caret symbols"
         aapl_rows = _rows("AAPL")
         for row in aapl_rows:
             row["_source_name"] = "alpaca"
-        return {"AAPL": aapl_rows, "BK": None, "^GSPC": None}
+        return {"AAPL": aapl_rows, "BK": None}
 
     def fake_yfinance(syms: list[str], start: date, end: date, interval: str = "1d") -> dict[str, Any]:
-        assert sorted(syms) == ["BK", "^GSPC"], "yfinance must only see the Alpaca residual"
-        # Return plain rows without source tracking - the router adds it
+        assert syms == ["^GSPC"], "yfinance must only be asked for index symbols, never equities"
         return {s: _rows(s) for s in syms}
 
     with (
@@ -56,48 +66,40 @@ def test_alpaca_primary_merges_residual_from_yfinance(
     ):
         result = router.fetch_ohlcv_batch(symbols, START, END)
 
-    # Verify data is present for all symbols
     assert result["AAPL"] is not None, "AAPL should have data from Alpaca"
-    assert result["BK"] is not None, "BK should have data from yfinance fallback"
-    assert result["^GSPC"] is not None, "^GSPC should have data from yfinance fallback"
+    assert result["BK"] is None, "BK has no yfinance fallback - Alpaca not serving it means unavailable"
+    assert result["^GSPC"] is not None, "^GSPC should have data from yfinance (Alpaca can't serve indexes)"
 
-    # Verify Alpaca data has source tracking
     assert all(row.get("_source_name") == "alpaca" for row in result["AAPL"]), "AAPL rows should be marked as alpaca"
-
-    # Verify yfinance fallback data has source tracking
-    assert all(row.get("_source_name") == "yfinance" for row in result["BK"]), "BK rows should be marked as yfinance"
     assert all(row.get("_source_name") == "yfinance" for row in result["^GSPC"]), (
         "^GSPC rows should be marked as yfinance"
     )
-    assert all(row.get("_primary_source_failed") == "alpaca" for row in result["BK"]), "BK should track Alpaca failure"
-
-    assert router.last_source == "alpaca"
 
 
-def test_alpaca_wholesale_failure_falls_back_to_full_yfinance(
+def test_alpaca_wholesale_failure_leaves_equities_unavailable(
     router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A wholesale Alpaca outage must NOT silently substitute yfinance for equities -
+    the gap must surface as unavailable so it gets investigated/retried, not masked."""
     monkeypatch.setenv("PRICE_DATA_SOURCE", "alpaca")
     symbols = ["AAPL", "MSFT"]
 
-    def fake_yfinance(syms: list[str], start: date, end: date, interval: str = "1d") -> dict[str, Any]:
-        assert syms == symbols, "wholesale Alpaca failure must re-fetch the FULL batch"
-        return {s: _rows(s) for s in syms}
-
     with (
         patch.object(router, "_fetch_alpaca_ohlcv_batch", side_effect=RuntimeError("alpaca outage")),
-        patch.object(router, "_fetch_yfinance_ohlcv_batch", side_effect=fake_yfinance),
+        patch.object(router, "_fetch_yfinance_ohlcv_batch") as yf_mock,
     ):
         result = router.fetch_ohlcv_batch(symbols, START, END)
 
-    assert all(result[s] == _rows(s) for s in symbols)
-    assert router.last_source == "yfinance"
+    yf_mock.assert_not_called()
+    assert result["AAPL"] is None
+    assert result["MSFT"] is None
 
 
-def test_yfinance_residual_failure_keeps_alpaca_batch(
+def test_alpaca_partial_batch_leaves_unserved_equity_none(
     router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A yfinance blip on the residual must not discard the successful Alpaca batch."""
+    """A symbol Alpaca doesn't serve within an otherwise-successful batch stays
+    unavailable - no yfinance call happens for it at all (equities never fall back)."""
     monkeypatch.setenv("PRICE_DATA_SOURCE", "alpaca")
     symbols = ["AAPL", "BK"]
 
@@ -106,25 +108,26 @@ def test_yfinance_residual_failure_keeps_alpaca_batch(
 
     with (
         patch.object(router, "_fetch_alpaca_ohlcv_batch", side_effect=fake_alpaca),
-        patch.object(router, "_fetch_yfinance_ohlcv_batch", side_effect=RuntimeError("yf blip")),
+        patch.object(router, "_fetch_yfinance_ohlcv_batch") as yf_mock,
     ):
         result = router.fetch_ohlcv_batch(symbols, START, END)
 
+    yf_mock.assert_not_called()
     assert result["AAPL"] == _rows("AAPL")
     assert result["BK"] is None
     assert router.last_source == "alpaca"
 
 
-def test_alpaca_stale_rows_still_trigger_yfinance_residual(
+def test_alpaca_stale_rows_are_kept_as_is_not_backfilled_from_yfinance(
     router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A symbol with real Alpaca rows that stop short of `end` must still fall back
-    to yfinance for the missing tail, not be treated as fully served.
+    """A symbol with real Alpaca rows that stop short of `end` is left as-is - no
+    yfinance backfill for equities, even for just the missing tail.
 
-    Regression test for the 2026-08-22 fix: Alpaca can return genuine historical
-    rows for a symbol while lagging/gapping on just the most recent trading day.
-    The old check (`not alpaca_results.get(s)`) only caught symbols with zero
-    rows, so a stale-but-present response silently never advanced past that gap.
+    Superseded 2026-09-15: this used to test that a stale/gapping Alpaca response
+    triggered a yfinance residual fetch (the 2026-08-22 fix). That blending is gone
+    by explicit decision - a stale equity row should surface as a real gap to
+    investigate, not be quietly patched from a second vendor.
     """
     monkeypatch.setenv("PRICE_DATA_SOURCE", "alpaca")
     symbols = ["AAPL", "STALE"]
@@ -135,57 +138,15 @@ def test_alpaca_stale_rows_still_trigger_yfinance_residual(
         stale_rows = [{**_rows("STALE")[0], "date": "2026-07-13"}]
         return {"AAPL": aapl_rows, "STALE": stale_rows}
 
-    def fake_yfinance(syms: list[str], start: date, end: date, interval: str = "1d") -> dict[str, Any]:
-        assert syms == ["STALE"], "yfinance must only be asked to backfill the stale symbol"
-        return {s: _rows(s) for s in syms}
-
     with (
         patch.object(router, "_fetch_alpaca_ohlcv_batch", side_effect=fake_alpaca),
-        patch.object(router, "_fetch_yfinance_ohlcv_batch", side_effect=fake_yfinance),
+        patch.object(router, "_fetch_yfinance_ohlcv_batch") as yf_mock,
     ):
         result = router.fetch_ohlcv_batch(symbols, START, END)
 
-    assert result["AAPL"] == _rows("AAPL"), "AAPL already reached `end` via Alpaca, no fallback needed"
-    assert all(row.get("_source_name") == "yfinance" for row in result["STALE"]), (
-        "STALE's gap-day should be backfilled from yfinance instead of silently staying stale"
-    )
-
-
-def test_yfinance_residual_still_short_of_end_is_logged_not_silently_filled(
-    router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Regression test for the 2026-08-25 fix: the yfinance residual merge counted a
-    symbol as "filled" purely on `rows` being truthy, without re-checking `_reaches_end`
-    the way the Alpaca-primary path already does. A yfinance response that itself only
-    has stale/partial data (e.g. yfinance is lagging too, not just Alpaca) used to be
-    merged and logged identically to a genuine full catch-up, masking a still-incomplete
-    symbol from monitoring. The partial data must still be merged (best-effort), but it
-    must be distinguishable in the logs from a real fill.
-    """
-    monkeypatch.setenv("PRICE_DATA_SOURCE", "alpaca")
-    symbols = ["AAPL", "STALE"]
-
-    def fake_alpaca(syms: list[str], start: date, end: date) -> dict[str, Any]:
-        return {"AAPL": _rows("AAPL"), "STALE": None}
-
-    def fake_yfinance(syms: list[str], start: date, end: date, interval: str = "1d") -> dict[str, Any]:
-        # yfinance itself only has a stale row (short of `end`), not a real catch-up.
-        return {"STALE": [{**_rows("STALE")[0], "date": "2026-07-12"}]}
-
-    with (
-        patch.object(router, "_fetch_alpaca_ohlcv_batch", side_effect=fake_alpaca),
-        patch.object(router, "_fetch_yfinance_ohlcv_batch", side_effect=fake_yfinance),
-        caplog.at_level("WARNING"),
-    ):
-        result = router.fetch_ohlcv_batch(symbols, START, END)
-
-    # Best-effort: the partial data is still merged in, not discarded.
-    assert result["STALE"] is not None
-    assert result["STALE"][0]["date"] == "2026-07-12"
-    # But it must be flagged as still-short, not silently counted as a full fill.
-    assert any("still don't reach" in rec.message for rec in caplog.records), (
-        "a yfinance fallback that itself doesn't reach `end` must be surfaced, not masked as resolved"
-    )
+    yf_mock.assert_not_called()
+    assert result["AAPL"] == _rows("AAPL")
+    assert result["STALE"][0]["date"] == "2026-07-13", "STALE keeps Alpaca's real (if lagging) data, untouched"
 
 
 def test_default_source_never_touches_alpaca(router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch) -> None:

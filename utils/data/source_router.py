@@ -336,8 +336,8 @@ class DataSourceRouter:
                         # gives per-row consumers (e.g. load_prices.py's
                         # `r.pop("_source_name", None) or self.router.last_source`) correct
                         # attribution without mutating the batch; per-row stamping for mixed
-                        # Alpaca/yfinance batches is handled separately by
-                        # _fill_alpaca_residual_from_yfinance.
+                        # Alpaca/yfinance batches (index symbols only, as of 2026-09-15) is
+                        # handled directly in fetch_ohlcv_batch.
                         pass
                     else:
                         result["_source_name"] = name
@@ -410,18 +410,30 @@ class DataSourceRouter:
     ) -> Any | None:
         """OHLCV bars at a specified interval (1d/1wk/1mo).
 
-        For daily bars (interval='1d'), routes through Alpaca if PRICE_DATA_SOURCE=alpaca.
-        Falls back to yfinance for unsupported symbols or other intervals.
+        For daily bars (interval='1d') on a real equity, routes through Alpaca only
+        when PRICE_DATA_SOURCE=alpaca - no yfinance fallback on an Alpaca miss/failure
+        (see fetch_ohlcv_batch's docstring for why, removed 2026-09-15). Caret index
+        symbols (^VIX etc.) and non-daily intervals still use yfinance unconditionally,
+        since Alpaca cannot serve either at all.
         """
         request_desc = f"OHLCV[{symbol} {start}..{end} {interval}]"
 
-        # Only Alpaca supports daily bars; other intervals use yfinance
-        if interval == "1d" and os.getenv("PRICE_DATA_SOURCE", "yfinance").lower() == "alpaca":
+        if (
+            interval == "1d"
+            and not symbol.startswith("^")
+            and os.getenv("PRICE_DATA_SOURCE", "yfinance").lower() == "alpaca"
+        ):
             alpaca_results = self._alpaca_batch_or_none([symbol], start, end, request_desc)
             if alpaca_results is not None and alpaca_results.get(symbol):
                 self.last_source = "alpaca"
                 return alpaca_results[symbol]
-            # Alpaca failed or symbol not served - fall through to yfinance
+            logger.error(
+                "[DataSourceRouter] Alpaca returned no data for equity %s in %s - "
+                "leaving unavailable (no yfinance fallback for equities).",
+                symbol,
+                request_desc,
+            )
+            return {"symbol": symbol, "data_unavailable": True, "reason": "alpaca_no_data"}
 
         sources = [
             (
@@ -442,22 +454,57 @@ class DataSourceRouter:
 
         Source selection (PRICE_DATA_SOURCE env / algo config):
         - "yfinance" (default): unchanged legacy path.
-        - "alpaca": Alpaca Market Data first (genuinely batched - ~200 symbols per
-          HTTP request, full SIP historical data on the free plan for windows older
-          than 15 minutes). Fallback to yfinance is PER-SYMBOL: symbols Alpaca
-          doesn't serve (caret indexes, OTC/delisted stragglers) are re-fetched
-          through the yfinance batch path and merged, so switching primaries never
-          creates per-symbol data holes. A wholesale Alpaca failure falls back to
-          the full yfinance batch. Only daily bars route to Alpaca; other
-          intervals stay on yfinance.
+        - "alpaca": Alpaca Market Data only, for daily bars on real equities. Alpaca's
+          stock endpoints structurally cannot serve caret index symbols (^VIX, ^GSPC,
+          etc. - confirmed live 2026-09-15, both the /v2/stocks endpoint and every
+          /v1beta1/indices guess 404/403) - those are routed to yfinance unconditionally,
+          not as a health-based fallback, since there is no ambiguity about which
+          source should serve them.
+          REMOVED 2026-09-15 (equity yfinance blending, per explicit decision): equities
+          used to get any Alpaca gap or wholesale failure silently patched from
+          yfinance ("_fill_alpaca_residual_from_yfinance" / full-batch fallback). That
+          let two vendors' disagreeing split-adjustment timing corrupt a symbol's series
+          without anyone noticing (live-caught on FFAI: alpaca/yfinance disagreed by
+          ~150x for several days around a reverse split). A live Alpaca health check
+          the same day showed it serving every symbol tried (mega-caps, OTC/microcaps,
+          index-proxy ETFs) with zero errors - the yfinance reliance seen historically
+          was transient (concurrent local sessions exhausting one shared free-tier rate
+          limit, not a real per-symbol coverage gap), so failing loud here is strictly
+          better than blending: a missing equity row now surfaces as an actual gap to
+          investigate/retry, not a quietly-substituted number from a different vendor.
         """
         request_desc = f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]"
         if interval == "1d" and os.getenv("PRICE_DATA_SOURCE", "yfinance").lower() == "alpaca":
-            alpaca_results = self._alpaca_batch_or_none(symbols, start, end, request_desc)
-            if alpaca_results is not None:
-                self._fill_alpaca_residual_from_yfinance(alpaca_results, symbols, start, end)
-                return alpaca_results
-            # Wholesale Alpaca failure (auth/outage) - full yfinance fallback below.
+            index_symbols = [s for s in symbols if s.startswith("^")]
+            equity_symbols = [s for s in symbols if not s.startswith("^")]
+
+            results: dict[str, list[dict[str, Any]] | None] = dict.fromkeys(symbols)
+
+            if index_symbols:
+                index_results = self._fetch_yfinance_ohlcv_batch(index_symbols, start, end, interval=interval)
+                if isinstance(index_results, dict) and not _is_data_unavailable_marker(index_results):
+                    for rows in index_results.values():
+                        if rows and not _is_data_unavailable_marker(rows):
+                            for row in rows:
+                                row["_source_name"] = "yfinance"
+                    results.update(index_results)
+
+            if equity_symbols:
+                alpaca_results = self._alpaca_batch_or_none(equity_symbols, start, end, request_desc)
+                if alpaca_results is not None:
+                    results.update(alpaca_results)
+                else:
+                    # Wholesale Alpaca failure (auth/outage/rate-limit exhaustion): leave
+                    # every equity symbol as None (data_unavailable to the caller) rather
+                    # than silently substituting yfinance - surfaces the real gap instead
+                    # of masking it.
+                    logger.error(
+                        "[DataSourceRouter] Alpaca failed wholesale for %d equity symbol(s) in %s - "
+                        "leaving unavailable (no yfinance fallback for equities).",
+                        len(equity_symbols),
+                        request_desc,
+                    )
+            return results
 
         sources: list[tuple[str, Callable[[], Any]]] = [
             (
@@ -465,8 +512,8 @@ class DataSourceRouter:
                 lambda: self._fetch_yfinance_ohlcv_batch(symbols, start, end, interval=interval),
             )
         ]
-        results = self._try_chain(sources, request_desc)
-        return cast(dict[str, list[dict[str, Any]] | None], results if results else dict.fromkeys(symbols))
+        chain_results = self._try_chain(sources, request_desc)
+        return cast(dict[str, list[dict[str, Any]] | None], chain_results if chain_results else dict.fromkeys(symbols))
 
     def _alpaca_batch_or_none(
         self, symbols: list[str], start: date, end: date, request_desc: str
@@ -489,105 +536,6 @@ class DataSourceRouter:
         health.record(True)
         self.last_source = "alpaca"
         return results
-
-    def _fill_alpaca_residual_from_yfinance(
-        self,
-        alpaca_results: dict[str, list[dict[str, Any]] | None],
-        symbols: list[str],
-        start: date,
-        end: date,
-    ) -> None:
-        """Re-fetch symbols Alpaca returned nothing for, or whose rows stop short
-        of `end`, via yfinance and merge in place.
-
-        FIXED 2026-08-22 (goal session - price completeness audit): this used to
-        treat a symbol as "served" if Alpaca returned ANY rows at all (`not
-        alpaca_results.get(s)`), even when those rows stopped short of `end`.
-        Alpaca's feed intermittently lags or has a per-symbol gap on just the
-        most recent trading day without raising an exception, so a symbol with
-        real-but-stale-by-a-day rows never triggered this fallback and its
-        watermark simply never advanced. Live DB audit found 183 active symbols
-        (including liquid names like AVB, WBS - not thin/delisted tickers)
-        missing their most recent close in a single EOD run where only 11
-        symbols triggered this fallback at all; 107 of them were already missing
-        the prior day too, i.e. silently and cumulatively falling further behind
-        rather than self-healing. Now checks the max row date reaches `end`.
-
-        Best-effort: a yfinance failure here must not discard the successful
-        Alpaca batch - unresolved symbols simply stay short (same semantics as a
-        symbol with no data).
-
-        TRANSPARENCY FIX: Mark each row with source attribution so callers know
-        which data came from Alpaca vs yfinance fallback.
-        """
-
-        def _reaches_end(rows: list[dict[str, Any]] | None) -> bool:
-            if not rows:
-                return False
-            for row in rows:
-                row_date = row.get("date")
-                if not row_date:
-                    continue
-                try:
-                    parsed = date.fromisoformat(row_date) if isinstance(row_date, str) else row_date
-                except ValueError:
-                    continue
-                if parsed >= end:
-                    return True
-            return False
-
-        residual = [s for s in symbols if not _reaches_end(alpaca_results.get(s))]
-        if not residual:
-            return
-        alpaca_served = len(symbols) - len(residual)
-        logger.info(
-            f"[DataSourceRouter] Alpaca served {alpaca_served}/{len(symbols)} symbols; "
-            f"fetching {len(residual)} residual via yfinance fallback: {residual[:10]}"
-        )
-        try:
-            yf_results = self._fetch_yfinance_ohlcv_batch(residual, start, end, interval="1d")
-        except Exception as e:
-            logger.warning(
-                f"[DataSourceRouter] yfinance residual fetch failed for {len(residual)} symbols "
-                f"(Alpaca batch retained). Primary source failure masked by fallback: {e}"
-            )
-            return
-        if not isinstance(yf_results, dict) or _is_data_unavailable_marker(yf_results):
-            return
-        for sym in residual:
-            rows = yf_results.get(sym)
-            if rows and not _is_data_unavailable_marker(rows):
-                # TRANSPARENCY: Mark each row to indicate this came from yfinance fallback
-                for row in rows:
-                    row["_source_name"] = "yfinance"
-                    row["_primary_source_failed"] = "alpaca"  # Track that Alpaca failed for this symbol
-                alpaca_results[sym] = rows
-
-        # Log summary of source mixing for monitoring
-        yf_filled = sum(1 for s in residual if alpaca_results.get(s))
-        if yf_filled > 0:
-            logger.info(
-                f"[DataSourceRouter] Source mix for request: alpaca={alpaca_served}, "
-                f"yfinance_fallback={yf_filled}, unfilled={len(residual) - yf_filled}"
-            )
-
-        # BUG FOUND 2026-08-25 (goal session - data-gap dig): `yf_filled` above only checks
-        # `alpaca_results.get(s)` truthy - it never re-runs `_reaches_end()` on the merged
-        # result, so a yfinance response that returns SOME rows but still stops short of
-        # `end` (e.g. yfinance itself is lagging, or only has a stale/partial catch-up) gets
-        # logged as "filled" identically to a genuine full catch-up. That silently masks a
-        # still-incomplete symbol from monitoring exactly the way the 2026-08-22 fix above
-        # stopped Alpaca from doing - the watermark still won't advance (whatever consumes
-        # `alpaca_results` derives that from the actual row dates, not this log line), but an
-        # operator watching this log for "unfilled=0" would wrongly conclude the batch is
-        # fully current. Surface it explicitly instead of leaving it indistinguishable from a
-        # real full fill.
-        still_short = [s for s in residual if alpaca_results.get(s) and not _reaches_end(alpaca_results.get(s))]
-        if still_short:
-            logger.warning(
-                f"[DataSourceRouter] {len(still_short)} symbol(s) got yfinance data but still "
-                f"don't reach {end} (yfinance itself is behind, not just Alpaca): {still_short[:10]}"
-            )
 
     def _fetch_alpaca_ohlcv_batch(
         self, symbols: list[str], start: date, end: date

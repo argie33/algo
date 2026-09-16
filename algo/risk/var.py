@@ -573,9 +573,16 @@ class ValueAtRisk:
                             f"Check SPY price data quality."
                         )
                     try:
+                        # SPLIT_ADJUSTED FIX 2026-09-15: raw price_daily.close can contain an
+                        # unadjusted split within this 60-day window (e.g. Alpaca-sourced rows
+                        # never auto-adjust; see migration 1298's docstring), which would read as
+                        # a fake ~50%+ single-day return and corrupt this symbol's beta - same bug
+                        # class already fixed for Risk/Momentum pillar scores in
+                        # load_risk_metrics_daily.py. price_daily_split_adjusted computes the
+                        # correct value at read time from stock_splits, no raw mutation involved.
                         cur.execute(
                             """
-                            SELECT date, close FROM price_daily
+                            SELECT date, close_adjusted FROM price_daily_split_adjusted
                             WHERE symbol = %s
                             ORDER BY date DESC LIMIT 61
                             """,

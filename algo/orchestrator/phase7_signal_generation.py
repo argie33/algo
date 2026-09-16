@@ -551,14 +551,17 @@ def _score_candidates_inline(candidates: list[dict[str, Any]]) -> list[dict[str,
                         f"This indicates buy_sell_daily has a NULL date field (data integrity issue). "
                         f"Fail-fast: check buy_sell_daily loader and ensure all signals have valid dates."
                     )
+                # SPLIT_ADJUSTED FIX 2026-09-15: same rationale as load_signal_quality_scores.py's
+                # matching query - an unadjusted split in this 252-day window would produce a
+                # bogus 52-week-high anchor.
                 cur_sqs.execute(
                     """
                     WITH price_window AS (
-                        SELECT date, close,
-                               MAX(high) OVER (
+                        SELECT date, close_adjusted AS close,
+                               MAX(high_adjusted) OVER (
                                    ORDER BY date ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
                                ) AS high_52w
-                        FROM price_daily
+                        FROM price_daily_split_adjusted
                         WHERE symbol = %s AND date <= %s
                     )
                     SELECT
@@ -778,16 +781,21 @@ def _get_candidates_from_buysell(
                         ORDER BY symbol, date DESC
                     ) bsd
                     INNER JOIN stock_scores ss ON ss.symbol = bsd.symbol AND ss.composite_score IS NOT NULL
+                    -- SPLIT_ADJUSTED FIX 2026-09-15: p/sma/atr_calc must all read the SAME
+                    -- (split-adjusted) basis - an unadjusted split anywhere in the 50-day SMA
+                    -- or 14-day ATR window would corrupt both the average and the true-range
+                    -- calc, and a scale mismatch between raw `p` and adjusted `sma`/`atr_calc`
+                    -- would itself produce nonsense comparisons even without a real split.
                     JOIN LATERAL (
-                        SELECT close, high, low
-                        FROM price_daily
+                        SELECT close_adjusted AS close, high_adjusted AS high, low_adjusted AS low
+                        FROM price_daily_split_adjusted
                         WHERE symbol = bsd.symbol AND date <= %s
                         ORDER BY date DESC LIMIT 1
                     ) p ON TRUE
                     JOIN LATERAL (
                         SELECT AVG(close) AS avg_close
                         FROM (
-                            SELECT close FROM price_daily
+                            SELECT close_adjusted AS close FROM price_daily_split_adjusted
                             WHERE symbol = bsd.symbol AND date <= %s
                             ORDER BY date DESC LIMIT 50
                         ) t
@@ -802,8 +810,11 @@ def _get_candidates_from_buysell(
                                     ABS(low - LAG(close) OVER (ORDER BY date))
                                 ) AS tr,
                                 ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                            FROM price_daily
-                            WHERE symbol = bsd.symbol AND date <= %s
+                            FROM (
+                                SELECT date, high_adjusted AS high, low_adjusted AS low, close_adjusted AS close
+                                FROM price_daily_split_adjusted
+                                WHERE symbol = bsd.symbol AND date <= %s
+                            ) src
                         ) t
                         WHERE tr IS NOT NULL AND rn <= 14
                     ) atr_calc ON TRUE

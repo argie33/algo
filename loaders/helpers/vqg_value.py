@@ -139,6 +139,52 @@ class ValueMetricsMixin(SymbolGateMixin):
         total = sum(safe_float(r[0], f"{symbol}.ttm_eps_quarter", allow_none=True) or 0.0 for r in rows)
         return self._nan_to_none(total)
 
+    def _derive_fpi_eps_from_net_income_and_shares(self, symbol: str, row_dict: dict[str, Any]) -> float | None:
+        """Last-resort EPS derivation for foreign private issuers whose filings never tag any
+        EPS concept in EITHER annual or quarterly history - the population
+        `_fetch_ttm_eps_from_quarterly`'s own docstring identifies as genuinely unrecoverable
+        there (real net_income every year, zero EarningsPerShareBasic/Diluted facts ever
+        tagged, annual or quarterly - live-confirmed via AZI, 2026-09-16).
+
+        ADDED 2026-09-16 (goal: XBRL/data-patrol sweep, AZI live-confirmed): mirrors
+        `load_sec_valuations.py`'s own `_derive_fpi_eps_from_resolved_shares` - same "shares_out
+        here can only have come from the already-yfinance-verified live-fetch tier" reasoning
+        (every SEC-sourced shares tier is gated off for FPIs) - but that fallback only feeds
+        load_sec_valuations.py's own separate pe_ratio computation, never this loader's
+        independent reason-cascade, so a real, derivable EPS for an FPI with this exact
+        tagging gap was still mislabeled "eps_never_tagged_in_filings" (implying missing data)
+        here instead of routing through the same unprofitable_stock/implausible_ratio/real-PE
+        branches every other latest_eps-having symbol already gets. For a loss-making FPI
+        (AZI itself: negative net_income every year on file) this still correctly lands on
+        "unprofitable_stock" either way - the practical benefit is for a PROFITABLE FPI hitting
+        this exact shape, which would otherwise be stuck on the generic missing-data label
+        despite having everything needed to compute a real pe_ratio.
+        """
+        with _owner().DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT is_foreign_private_issuer FROM company_info_sec WHERE symbol = %s",
+                (symbol,),
+            )
+            fpi_row = cur.fetchone()
+        if not (fpi_row and fpi_row[0]):
+            return None
+        shares_out = safe_float(row_dict.get("shares_outstanding"), f"{symbol}.fpi_derived_eps_shares", allow_none=True)
+        if not shares_out or shares_out <= 0:
+            return None
+        with _owner().DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT net_income FROM annual_income_statement
+                WHERE symbol = %s AND net_income IS NOT NULL AND data_unavailable IS NOT TRUE
+                ORDER BY fiscal_year DESC LIMIT 1
+                """,
+                (symbol,),
+            )
+            ni_row = cur.fetchone()
+        if not ni_row or ni_row[0] is None:
+            return None
+        return self._nan_to_none(float(ni_row[0]) / shares_out)
+
     def _compute_dividend_and_payout_yield(  # noqa: C901 -- multi-tier fallback chain,
         # extracted verbatim from _build_value_metrics (which carried the same noqa) - not
         # entangled with anything else, left as one function rather than force-split further.
@@ -811,6 +857,11 @@ class ValueMetricsMixin(SymbolGateMixin):
                 if ttm_eps_from_quarterly is not None:
                     latest_eps = ttm_eps_from_quarterly
                     eps_row = (ttm_eps_from_quarterly,)
+                else:
+                    derived_fpi_eps = self._derive_fpi_eps_from_net_income_and_shares(symbol, row_dict)
+                    if derived_fpi_eps is not None:
+                        latest_eps = derived_fpi_eps
+                        eps_row = (derived_fpi_eps,)
             # FIXED 2026-09-07 (goal session: real-money-readiness audit): sec_valuations_
             # ratios.py's _compute_pe_ratio deliberately nulls a real, positive, plausible
             # pe_ratio when _pe_earnings_too_volatile/_pe_earnings_tax_benefit_inflated fire

@@ -534,9 +534,12 @@ class PreTradeChecks:
             raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
 
         all_symbols = [symbol, *open_symbols]
+        # SPLIT_ADJUSTED FIX 2026-09-15: an unadjusted split for any symbol in this window
+        # would inject a fake huge daily return, corrupting the correlation check meant to
+        # prevent over-concentration in correlated positions.
         cur.execute(
             """
-            SELECT symbol, date, close FROM price_daily
+            SELECT symbol, date, close_adjusted AS close FROM price_daily_split_adjusted
             WHERE symbol = ANY(%s) AND date >= CURRENT_DATE - (%s || ' days')::interval
               AND close IS NOT NULL AND close > 0
             ORDER BY symbol, date
@@ -836,9 +839,11 @@ class PreTradeChecks:
             )
 
         all_symbols = [symbol, *(p[0] for p in open_positions)]
+        # SPLIT_ADJUSTED FIX 2026-09-15: same rationale as the correlation check above - an
+        # unadjusted split would inject a fake huge daily return into this simulated VaR.
         cur.execute(
             """
-            SELECT symbol, date, close FROM price_daily
+            SELECT symbol, date, close_adjusted AS close FROM price_daily_split_adjusted
             WHERE symbol = ANY(%s) AND date >= CURRENT_DATE - (%s || ' days')::interval
               AND close IS NOT NULL AND close > 0
             ORDER BY symbol, date

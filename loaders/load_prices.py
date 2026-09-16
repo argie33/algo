@@ -2686,15 +2686,13 @@ class PriceLoader(OptimalLoader, BatchFetchRetryMixin):
             self._stats["rows_fetched"] += len(rows)
 
             # Persist which upstream API actually served each row (migration 1135).
-            # Per-row `_source_name` is only set by the Alpaca-primary path (both the
-            # Alpaca rows themselves and any yfinance residual fill for symbols Alpaca
-            # doesn't serve - see utils/data/source_router.py::_fill_alpaca_residual_from_yfinance);
-            # a wholesale Alpaca outage falls through to a plain yfinance batch whose rows
-            # aren't individually tagged, so those fall back to the batch-level last_source.
-            # Previously this block used self.router.last_source for EVERY row in the batch,
-            # which meant a batch with a handful of yfinance-residual symbols still logged
-            # 100% "alpaca" in source_distribution - the exact silent-fallback blind spot
-            # migration 1135 fixes.
+            # Per-row `_source_name` is set by the Alpaca-primary path for both real
+            # Alpaca rows and caret index-symbol rows (^VIX etc., always yfinance -
+            # see utils/data/source_router.py::fetch_ohlcv_batch's docstring; Alpaca
+            # cannot serve those at all, so this is unconditional, not a health
+            # fallback). REMOVED 2026-09-15: equities no longer get a yfinance
+            # residual/wholesale fallback at all - an Alpaca miss leaves the row
+            # absent instead of silently substituting a different vendor's number.
             for r in rows:
                 src = r.pop("_source_name", None) or (self.router.last_source if self.router else None) or "unknown"
                 r["data_source"] = src
