@@ -85,6 +85,16 @@ def _run_patrol_with_results(results_by_checker: dict) -> dict:
         "PillarScoreReconciliationChecker": PillarScoreReconciliationChecker,
         "CikSharedIssuerFinancialsLeakChecker": CikSharedIssuerFinancialsLeakChecker,
     }
+    # ADDED 2026-09-08 (goal session): this dict has already drifted out of sync with
+    # checks/__init__.py's __all__ twice (see this function's own docstring) - assert it
+    # explicitly instead of relying on an unmocked checker happening to produce live findings.
+    from algo.monitoring.data_patrol import checks as _checks_module
+
+    assert set(checker_classes) == set(_checks_module.__all__), (
+        "checker_classes here is out of sync with checks/__init__.py's __all__ - "
+        f"missing: {set(_checks_module.__all__) - set(checker_classes)}, "
+        f"extra: {set(checker_classes) - set(_checks_module.__all__)}"
+    )
 
     mock_conn = MagicMock()
     with ExitStack() as stack:
