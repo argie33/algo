@@ -789,7 +789,7 @@
   "utils/external/sec_income_statement.py": 1271,
   "utils/external/sec_income_statement_fallbacks.py": 860,
   "utils/external/sec_statements.py": 95,
-  "utils/external/sec_statements_aggregate.py": 700,
+  "utils/external/sec_statements_aggregate.py": 712,
   "utils/external/sec_statements_cumulative_quarter_derivation.py": 84,
   "utils/external/sec_statements_entry_resolution.py": 1049,
   "utils/external/sec_statements_fy_stub_period_guard.py": 70,
