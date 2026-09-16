@@ -11,8 +11,20 @@ symbol/period groups with this exact signature (e.g. AGYS, ACI, MCK, FLEX).
 Fix: fetch_incremental() now reconciles this before insert - for each row it's about to write,
 if the DB already has a different (fiscal_year, fiscal_quarter) row for the same symbol sharing
 that row's period_end, the old one is deleted (this run's fresh resolution is authoritative).
+
+BUGFIX 2026-09-16 (same session, live-caught running the historical backfill this fix was
+supposed to enable): the original version of these tests constructed `fresh_row` with an
+already-transformed int "fiscal_quarter" key - but _reconcile_stale_fiscal_year_duplicate_period_end
+runs INSIDE fetch_incremental(), before transform() has renamed/parsed the raw "fiscal_period"
+string ("Q1".."Q4") into the canonical int "fiscal_quarter" column, and before period_end (a
+plain ISO string on a raw row) has been coerced to a `date`. Real raw rows never carry an int
+"fiscal_quarter" key at this stage, so the original tests exercised a shape the real code path
+never produces - masking that the fix was dead code (candidates was always empty against real
+rows). Rewritten to use the real raw-row shape: "fiscal_period" (string) + "period_end" (ISO
+string), matching what fetch_incremental's superclass actually returns.
 """
 
+from datetime import date
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -54,11 +66,11 @@ class TestStaleFiscalYearDuplicateReconciled:
         fresh_row = {
             "symbol": "AGYS",
             "fiscal_year": 2023,
-            "fiscal_quarter": 3,
+            "fiscal_period": "Q3",
             "period_end": "2022-12-31",
             "revenue": 49_920_000,
         }
-        read_ctx = _mock_read_context([(2022, 3, "2022-12-31")])
+        read_ctx = _mock_read_context([(2022, 3, date(2022, 12, 31))])
         write_ctx, mock_cur = _mock_write_context()
         with (
             patch.object(
@@ -84,11 +96,11 @@ class TestStaleFiscalYearDuplicateReconciled:
         fresh_row = {
             "symbol": "AAPL",
             "fiscal_year": 2024,
-            "fiscal_quarter": 4,
+            "fiscal_period": "Q4",
             "period_end": "2024-09-28",
             "revenue": 391_035_000_000,
         }
-        read_ctx = _mock_read_context([(2024, 4, "2024-09-28")])
+        read_ctx = _mock_read_context([(2024, 4, date(2024, 9, 28))])
         with (
             patch.object(
                 ConsolidatedFinancialStatementsLoader.__mro__[1],
@@ -118,7 +130,7 @@ class TestStaleFiscalYearDuplicateReconciled:
         """A row without a resolved period_end can't safely be reconciled - must not crash
         or issue a query keyed on nothing."""
         loader = _make_loader()
-        fresh_row = {"symbol": "AGYS", "fiscal_year": 2023, "fiscal_quarter": 3, "period_end": None, "revenue": None}
+        fresh_row = {"symbol": "AGYS", "fiscal_year": 2023, "fiscal_period": "Q3", "period_end": None, "revenue": None}
         with patch.object(
             ConsolidatedFinancialStatementsLoader.__mro__[1],
             "fetch_incremental",
