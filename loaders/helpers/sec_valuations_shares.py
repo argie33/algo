@@ -530,6 +530,9 @@ class SharesOutstandingResolutionMixin:
             # unit-scale question the plausibility floor below can catch), checked before the
             # live yfinance fetch so it never even runs for a symbol already known-bad.
             import loaders.load_sec_valuations as _lsv
+            from loaders.helpers.financial_statements_share_count_validation import (
+                KNOWN_BAD_FPI_YFINANCE_SHARES_OUTSTANDING,
+            )
 
             if symbol in _lsv.FPI_YFINANCE_STALE_SHARES_TRUST_SEC_DEI_SYMBOLS:
                 shares_out = float(_lsv.FPI_YFINANCE_STALE_SHARES_TRUST_SEC_DEI_SYMBOLS[symbol])
@@ -538,6 +541,30 @@ class SharesOutstandingResolutionMixin:
                     f"[{symbol}] Using SEC dei:EntityCommonStockSharesOutstanding "
                     f"({shares_out:,.0f}) instead of stale live yfinance shares_outstanding "
                     f"(see FPI_YFINANCE_STALE_SHARES_TRUST_SEC_DEI_SYMBOLS)"
+                )
+            # FIXED 2026-09-15 (goal: LRGF/GSLC top-25 side-by-side audit - market_cap_tilt.py
+            # lineage check): KNOWN_BAD_FPI_YFINANCE_SHARES_OUTSTANDING was added 2026-09-09 in
+            # financial_statements_share_count_validation.py for the exact same symbol/root
+            # cause (SKHY/SK hynix, unsponsored OTC ADR, no SEC filings to cross-check against)
+            # but was only ever wired into ConsolidatedFinancialStatementsLoader - this loader's
+            # OWN independent yfinance fetch here never consulted it, so sec_valuations.market_cap
+            # (and everything downstream: value_metrics.market_cap, stock_scores' market-cap-
+            # tilted weights) kept shipping the same implausible ~$1.25T market cap this registry
+            # already exists to reject. Live-reconfirmed 2026-09-15: our stored market_cap
+            # ($1,246,718,145,063) and a fresh live yfinance re-fetch both still show
+            # sharesOutstanding=7,098,548,910 - the SAME wrong number - which is exactly why
+            # _sanity_check_market_cap's cross-check above can't catch it (both sides come from
+            # the identical yfinance field, so they trivially "agree"). No unit-scale ratio
+            # rescue applies here either (SKHY has no SEC filing to derive an ADS ratio from -
+            # see that registry's own module comment). Skip the live fetch entirely for these
+            # symbols, same as the STALE_SHARES_TRUST tier just above - shares_out stays
+            # unresolved (market_cap/pb/ps/etc. correctly end up data_unavailable) rather than
+            # silently shipping a number we have concrete live evidence is wrong.
+            elif symbol in KNOWN_BAD_FPI_YFINANCE_SHARES_OUTSTANDING:
+                logger.debug(
+                    f"[{symbol}] Skipping live FPI yfinance shares fetch - symbol is in "
+                    "KNOWN_BAD_FPI_YFINANCE_SHARES_OUTSTANDING (self-consistent-but-wrong "
+                    "yfinance data, no independent source available)"
                 )
             else:
                 fpi_shares = self._fetch_live_fpi_shares_outstanding_yfinance(symbol)

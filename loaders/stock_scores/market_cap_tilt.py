@@ -166,7 +166,45 @@ class MarketCapTiltMixin:
                 values_for_row = tuple(tilted_by_column[score_col].get(symbol) for score_col, _ in _TILT_COLUMNS)
                 updates.append((symbol, *values_for_row))
 
+            eligible_symbols = [row[0] for row in rows]
+
             with _owner().DatabaseContext("write") as cur:
+                # FIXED 2026-09-15 (goal: LRGF/GSLC top-25 side-by-side audit - live-caught via
+                # the SKHY/SK hynix bad-market-cap fix just above in this same session): this
+                # pass's own docstring promises "Pure overwrite every run" / "must be fully
+                # recomputed", but the UPDATE below only ever touched symbols present in `rows`
+                # (this run's eligible population) - a symbol that WAS eligible on a prior run
+                # (bad market_cap slipped past the eligibility floor, or genuinely fell out of
+                # the investable universe/non-operating-company exclusion since) but is NOT
+                # eligible this run kept its stale *_tilted_weight values forever, since nothing
+                # ever nulled them back out. Live-reproduced this exact gap: after fixing SKHY's
+                # upstream market_cap to correctly go NULL (foreign_private_issuer_shares_
+                # unavailable), SKHY dropped out of `rows` here as expected, but its already-
+                # stored composite_tilted_weight ($1.005T, rank #13 in the live top-25) survived
+                # this pass completely unchanged and kept appearing in the dashboard's top-25 -
+                # the exact "slop" class this whole audit was asked to find. Null every
+                # *_tilted_weight column for any symbol NOT in this run's eligible set (not just
+                # the ones this run recomputed) before applying this run's real values, so a
+                # symbol that drops out of eligibility for ANY reason (bad data, delisting,
+                # newly-excluded as a non-operating company, etc.) can never keep serving a
+                # previous run's number.
+                cur.execute(
+                    """
+                    UPDATE stock_scores
+                    SET composite_tilted_weight = NULL,
+                        momentum_tilted_weight = NULL,
+                        quality_tilted_weight = NULL,
+                        value_tilted_weight = NULL,
+                        growth_tilted_weight = NULL,
+                        risk_tilted_weight = NULL
+                    WHERE NOT (symbol = ANY(%s))
+                      AND (composite_tilted_weight IS NOT NULL OR momentum_tilted_weight IS NOT NULL
+                           OR quality_tilted_weight IS NOT NULL OR value_tilted_weight IS NOT NULL
+                           OR growth_tilted_weight IS NOT NULL OR risk_tilted_weight IS NOT NULL)
+                    """,
+                    (eligible_symbols,),
+                )
+                stale_cleared = cur.rowcount
                 _owner().execute_values(
                     cur,
                     """
@@ -185,7 +223,10 @@ class MarketCapTiltMixin:
                     updates,
                     template="(%s, %s, %s, %s, %s, %s, %s)",
                 )
-            logger.info(f"[STOCK_SCORES] Market-cap tilted weights computed for {len(updates)}/{len(rows)} symbols.")
+            logger.info(
+                f"[STOCK_SCORES] Market-cap tilted weights computed for {len(updates)}/{len(rows)} symbols "
+                f"({stale_cleared} stale out-of-population rows cleared)."
+            )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             error_msg = f"Market-cap tilted weight batch update failed: {e}"
             logger.error(error_msg)
