@@ -11,10 +11,24 @@ Fixed by adding both concepts to sec_statements.py's get_balance_sheet() concept
 mapping them to the "stockholders_equity" column, mirroring the existing
 StockholdersEquity/StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest
 precedence: "partners_capital" (parent-only, the direct partnership analogue of plain
-"StockholdersEquity") is NOT fallback-only and always wins; the "...IncludingPortion..."
-variant (total consolidated capital including third-party LP capital in KKR's consolidated
-managed funds - live-confirmed ~10x larger than the parent-only figure some years) is
-fallback-only and only fills years where the parent-only concept is absent entirely.
+"StockholdersEquity") is the parent-only figure and the "...IncludingPortion..." variant
+(total consolidated capital including third-party LP capital in KKR's consolidated managed
+funds - live-confirmed ~10x larger than the parent-only figure some years) is fallback-only
+and only fills years where the parent-only concept is absent entirely.
+
+FIXED 2026-09-16 (CHKP live-confirmed via real SEC companyfacts JSON): "partners_capital"
+deliberately stays OUT of the generic fallback-only set (it must still unconditionally win
+over its own "...IncludingPortion..." sibling, the KKR case above - a blanket fallback-only
+membership breaks that precedence whenever the sibling happens to be processed first). CHKP,
+a real corporation, falsified the assumption this family was built on ("a filer tags either
+StockholdersEquity or PartnersCapital, never both meaningfully"): its FY2025 20-F tags a
+genuine StockholdersEquity ($2,882,100,000) AND, in the same filing, an unrelated $34,800,000
+"PartnersCapital" fact (almost certainly a minor joint-venture interest, not CHKP's own
+equity) - the unconditional mapping let it clobber the real value regardless of field order.
+Fixed with a narrower, targeted guard in sec_base.py's transform() (not the fallback-only
+set): "partners_capital" is skipped specifically when the SAME raw row also carries a real
+StockholdersEquity-family concept, checked against the raw SEC field dict directly so it's
+independent of processing order.
 """
 
 from loaders.helpers.sec_base import SecEdgarStatementLoader
@@ -89,3 +103,20 @@ class TestPartnersCapitalFallbackForLimitedPartnershipFilers:
         transformed = loader.transform([row])
 
         assert transformed[0]["stockholders_equity"] == 10_186_400_000.0
+
+    def test_unrelated_partners_capital_does_not_clobber_real_stockholders_equity(self) -> None:
+        """FIXED 2026-09-16, CHKP live-confirmed: a real corporation (never an LP) can also
+        tag an unrelated, much smaller "PartnersCapital" fact (e.g. a minor joint-venture
+        interest) in the same filing - this must never overwrite the filer's own real,
+        already-populated StockholdersEquity value, however field iteration order lands."""
+        loader = self._make_loader()
+        row = {
+            "symbol": "CHKP",
+            "fiscal_year": 2025,
+            "stockholders_equity": 2_882_100_000.0,
+            "partners_capital": 34_800_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["stockholders_equity"] == 2_882_100_000.0

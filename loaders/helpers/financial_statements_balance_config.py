@@ -63,11 +63,24 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # funds - live-confirmed KKR FY2014 $51.4B under this concept vs $5.38B under
         # the parent-only "PartnersCapital" concept the same year, a ~10x gap from
         # consolidated variable-interest entities) under this concept. Fallback-only so
-        # the precise parent-only "partners_capital" mapping below (NOT fallback-only,
-        # same non-fallback precedence as "stockholders_equity" itself) always wins when
-        # both are present for the same fiscal year - same "IncludingPortion" vs.
-        # parent-only precedence convention as the StockholdersEquity pair above.
+        # the precise parent-only "partners_capital" mapping below always wins when both
+        # are present for the same fiscal year - same "IncludingPortion" vs. parent-only
+        # precedence convention as the StockholdersEquity pair above.
         "partners_capital_including_portion_attributable_to_noncontrolling_interest",
+        # NOTE 2026-09-16 (CHKP live-confirmed, see sec_base.py's transform() for the actual
+        # fix): "partners_capital" stays deliberately OUT of this generic fallback-only set -
+        # it must still unconditionally win over its own sibling
+        # "partners_capital_including_portion_attributable_to_noncontrolling_interest" (the
+        # KKR case this family was built for) regardless of dict-insertion order, which a
+        # blanket fallback-only membership here would have broken (live-confirmed: it made
+        # test_partnership_filer_parent_only_capital_recovered fail, since the "...Including
+        # Portion..." sibling - also fallback-only - would then win the "already in row"
+        # race whenever it happened to be processed first). CHKP's actual bug (a real
+        # corporation's genuine StockholdersEquity getting clobbered by an unrelated small
+        # PartnersCapital fact) is fixed instead by a targeted guard in transform() that
+        # only blocks "partners_capital" from writing when the SAME raw row also carries a
+        # genuine StockholdersEquity-family concept - a narrower, correct condition a flat
+        # fallback-only set can't express.
         # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep): see
         # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEBT_CONCEPTS module comment
         # (BRK.A/BRK.B live evidence) - must never win over a real value the normal
@@ -193,10 +206,12 @@ _BALANCE_FIELD_MAPPING = {
     # ADDED 2026-09-02 (goal session: "missing SEC/XBRL data" audit, KKR live-confirmed):
     # see _DEBT_FALLBACK_ONLY_FIELDS's comment on the IncludingPortion key -
     # limited-partnership-structured filers (KKR pre-2018) tag total partner capital
-    # instead of any StockholdersEquity concept. "partners_capital" (parent-only, NOT
-    # fallback-only) is the direct partnership analogue of "stockholders_equity" above
-    # and always wins; the IncludingPortion variant only fills years where the
-    # parent-only concept is absent entirely.
+    # instead of any StockholdersEquity concept. "partners_capital" (parent-only) is the
+    # direct partnership analogue of "stockholders_equity" above and always wins over its
+    # own "...IncludingPortion..." sibling; the IncludingPortion variant only fills years
+    # where the parent-only concept is absent entirely. See sec_base.py's transform() for
+    # the 2026-09-16 CHKP-driven guard that stops "partners_capital" from overwriting a
+    # genuine, already-populated StockholdersEquity value from an unrelated concept.
     "partners_capital_including_portion_attributable_to_noncontrolling_interest": "stockholders_equity",
     "partners_capital": "stockholders_equity",
     # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero"/tie-out sweep): mirrors

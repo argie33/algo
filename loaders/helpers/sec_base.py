@@ -31,6 +31,7 @@ from loaders.helpers.sec_reit_exclusive_scale_guard import (
     reject_reit_exclusive_scale_mismatch,
     should_override_fallback_field_for_depository_institution,
     should_skip_reit_only_fallback_field,
+    should_skip_unrelated_partners_capital_fact,
 )
 from loaders.helpers.sec_revenue_total_resolution import (
     asc606_existing_value_outranks_candidate,
@@ -1451,29 +1452,17 @@ class SecEdgarStatementLoader(SecLoaderBase):
             _field_source_rank: dict[str, int] = {}
 
             field_mapping = self._field_mapping
-            # FIXED 2026-08-22 (goal session: "Implausible / rejected value" coverage audit):
-            # REIT-only-fallback concepts (revenue_from_contract_with_customer_*, the minor
-            # ASC-606 fee-income line - see test_sec_reit_lease_revenue_not_overwritten.py)
-            # only skip when "revenue" is ALREADY populated - which depends entirely on
-            # whichever concept happened to occupy an earlier position in `r`'s insertion
-            # order (itself just _aggregate_concepts's own concepts-list iteration order in
-            # sec_statements.py, an implementation detail, not a deliberate priority signal).
-            # Live-confirmed via CPT (Camden Property Trust, a real REIT, SIC 6798): reports
-            # NO "Revenues"/"SalesRevenueNet" at all, only a small real ASC-606 fee-income
-            # figure ($12.967M) AND the correct, much larger real lease-revenue figure under
-            # operating_lease_lease_income ($1.574B, live-confirmed via real companyfacts
-            # JSON) - because the ASC-606 concept happens to sit earlier in the concepts
-            # list (so gets inserted into `r` first), it won the "not yet populated" check
-            # and permanently blocked the correct, REIT-exclusive figure from ever writing
-            # (operating_lease_lease_income's OWN fallback-only-for-REIT check then saw
-            # "revenue" already populated and skipped too) - a ~121x understatement with no
-            # data_unavailable/reason flag anywhere, silently corrupting every downstream
-            # margin/ratio computation (net_margin, roic_pct, etc. all showed nonsensical
-            # thousands-of-percent values, correctly caught by the implausible_ratio guard,
-            # but for the wrong underlying reason). Process `_reit_only_fallback_fields`
-            # keys LAST (stable sort - relative order otherwise unchanged) so the real REIT
-            # lease-revenue concept always gets first claim on "revenue" for confirmed REITs,
-            # regardless of incidental dict-insertion order.
+            # FIXED 2026-08-22 ("Implausible/rejected value" audit): REIT-only-fallback
+            # concepts (revenue_from_contract_with_customer_*, the minor ASC-606 fee-income
+            # line) only skip when "revenue" is already populated - order-dependent on `r`'s
+            # incidental insertion order, not a deliberate priority signal. Live-confirmed via
+            # CPT (Camden Property Trust, SIC 6798): its small ASC-606 fee-income fact
+            # ($12.967M) happened to sit earlier in `r` than the correct, much larger real
+            # lease-revenue figure under operating_lease_lease_income ($1.574B) and
+            # permanently blocked it from ever writing - a ~121x understatement corrupting
+            # every downstream margin/ratio. Process `_reit_only_fallback_fields` keys LAST
+            # (stable sort) so the real REIT lease-revenue concept always gets first claim on
+            # "revenue", regardless of incidental dict-insertion order.
             _reit_only_fallback: frozenset[str] = getattr(self, "_reit_only_fallback_fields", frozenset())
             ordered_fields = sorted(r.items(), key=lambda kv: kv[0] in _reit_only_fallback)
             # See _REVENUE_TOTAL_CANDIDATE_FIELDS's module-level comment for why these 4
@@ -1522,6 +1511,8 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     )
                     if revenue_total_source.get(db_field) == sec_field:
                         _revenue_source_sec_field = sec_field
+                    continue
+                if should_skip_unrelated_partners_capital_fact(sec_field, r):
                     continue
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and (
                     db_field in row or revenue_total_source.get(db_field) == "negative_total_rejected"

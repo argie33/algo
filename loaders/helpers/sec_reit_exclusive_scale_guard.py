@@ -169,3 +169,29 @@ def should_override_fallback_field_for_depository_institution(
     ):
         return False
     return float(value) > float(existing)
+
+
+def should_skip_unrelated_partners_capital_fact(sec_field: str, r: dict[str, Any]) -> bool:
+    """True if a "partners_capital" fact should be skipped because the same raw row also
+    carries a genuine StockholdersEquity-family concept.
+
+    FIXED 2026-09-16 (CHKP live-confirmed via real SEC companyfacts JSON, CIK 0001015922):
+    "partners_capital" deliberately stays OUT of the generic _fallback_only_fields set in
+    financial_statements_balance_config.py (see that set's own comment on this entry for
+    why - it must still unconditionally win over its own "...IncludingPortion..." sibling,
+    which a blanket fallback-only membership would break, the KKR case that family was
+    built for). But a real corporation (never an LP) can also tag an unrelated, much
+    smaller "PartnersCapital" fact in the same filing - CHKP's FY2025 20-F tags a genuine
+    StockholdersEquity ($2,882,100,000) AND an unrelated $34,800,000 PartnersCapital fact
+    (almost certainly a minor joint-venture interest, not CHKP's own equity) - live-
+    confirmed corrupting stockholders_equity to $34.8M regardless of field-iteration
+    order, since the mapping was unconditional. This concept never legitimately competes
+    with a real StockholdersEquity-family fact for the SAME filer/fiscal year (the KKR
+    precedent this family was built for is a filer with ZERO such facts) - checked
+    directly against the raw SEC field dict `r`, not the transformed output row, so it
+    doesn't depend on which of the two got processed first.
+    """
+    return sec_field == "partners_capital" and (
+        "stockholders_equity" in r
+        or "stockholders_equity_including_portion_attributable_to_noncontrolling_interest" in r
+    )
