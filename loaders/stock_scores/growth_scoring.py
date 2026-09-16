@@ -568,12 +568,12 @@ class GrowthScoringMixin:
         SAME shared primitive Quality already validated (`sector_neutral_zscore()`/
         `zscore_to_percentile_scale()`), not a bespoke re-derivation.
 
-        INVESTABILITY FLOOR ADDED 2026-09-13 (`vm.market_cap >= %s`, algo_config.min_market_
-        cap_millions, same $300M threshold LiquidityChecks._check_market_cap() now enforces at
-        trade entry): the sector-neutral z-score's peer group is the current run's universe -
-        if that includes sub-floor nanocaps, their more extreme growth ratios distort the
-        percentile boundaries real, investable companies get ranked against. Sub-floor symbols
-        simply aren't included in this pass and keep whatever Pass-1 already gave them.
+        LIQUIDITY-BASED INVESTABILITY FLOOR (see pillar_weights.py's DEFAULT_MIN_STOCK_PRICE/
+        DEFAULT_MIN_ADV_DOLLARS docstring for the 2026-09-15 rationale superseding the market-cap-
+        floor version this paragraph used to describe): the sector-neutral z-score's peer group is
+        the current run's universe - illiquid names' more extreme growth ratios would otherwise
+        distort the percentile boundaries real, investable companies get ranked against. Sub-floor
+        symbols simply aren't included in this pass and keep whatever Pass-1 already gave them.
 
         MECHANISM: Pass 1 (`_score_growth`, per-symbol, no access to the universe distribution)
         still runs first via `_compute_stock_score` so growth_score/composite_score are never
