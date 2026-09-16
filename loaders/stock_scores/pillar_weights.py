@@ -337,6 +337,21 @@ from loaders.load_stock_scores and must keep working unchanged.
 # already did on prior user override - not a new philosophy, just applied consistently instead of
 # pillar-by-pillar. The extensive weight-revision history above is kept as the audit trail of what
 # was tried and why it was abandoned, not because it still justifies today's live weights.
+# THIS IS CLOSED (added 2026-09-16, after a stale un-merged worktree from 2026-09-11 -
+# .claude/worktrees/equal-weight-pillar-refactor, deleted 2026-09-16 - was found still sitting
+# on disk reintroducing IC-tuned differential component weights, the exact pattern this policy
+# exists to stop). Equal-weight is not a placeholder pending a better idea - it is the decision,
+# reached after this file's own extensive multi-week churn history above and an explicit user
+# directive to stop it. Do NOT open a new worktree/branch to re-derive per-component or
+# per-pillar weights from a backtest "to see if equal-weight still holds" - it will not produce
+# a materially different, non-noise answer than the history above already found, and an
+# uncommitted or unmerged branch that disagrees with this file is not a pending decision, it is
+# an artifact to delete. Re-opening this requires the SAME bar every rule above already sets
+# (disjoint fit/holdout, era-robust, FDR-corrected if multi-candidate) AND an explicit new user
+# directive citing genuinely new data - not a session's own initiative. If you build a
+# throwaway/investigative branch or worktree to test a candidate against this file, delete it
+# (or merge it, if it clears the bar) before ending the task that created it - do not leave it
+# for a future session to rediscover. See scripts/check_worktree_health.py.
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
     "quality": 0.20,
     "growth": 0.20,

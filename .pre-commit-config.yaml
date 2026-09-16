@@ -241,6 +241,23 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+  # Advisory only (check_worktree_health.py always exits 0, never blocks a commit) - added
+  # 2026-09-16 after a worktree from 2026-09-11 (equal-weight-pillar-refactor, reintroducing
+  # backtest-tuned pillar weights the rest of this repo had already rejected) sat unreaped on
+  # disk for 5 days and was only found by an explicit manual audit. Surfacing this on every
+  # commit to main, rather than relying on someone remembering to run the script by hand, is
+  # the actual fix - see pillar_weights.py's "THIS IS CLOSED" note for what that specific
+  # worktree was doing.
+  - repo: local
+    hooks:
+      - id: worktree-hygiene-reminder
+        name: Worktree hygiene (advisory - lists unreaped worktree work)
+        entry: python scripts/check_worktree_health.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
   # Comprehensive CI validation (ruff + basic syntax checks)
   - repo: local
     hooks:
@@ -271,6 +288,23 @@ repos:
         name: TruffleHog secret scan
         stages: [manual]
 
+  # check-yaml (this repo, v4.6.0) is LOCAL not remote (2026-09-16, same Windows Smart App
+  # Control issue already documented for the ruff hooks above): unlike this repo's other
+  # pure-Python hooks (trailing-whitespace, end-of-file-fixer, ...), check-yaml depends on
+  # PyYAML's libyaml C extension, a freshly-extracted unsigned .pyd in the isolated
+  # pre-commit env cache - blocked outright ("[WinError 4551] An Application Control policy
+  # has blocked this file") the first time this hook actually ran against a real .yaml
+  # change (discovered editing this file itself). `python -c "import yaml; ..."` from the
+  # repo's normal installed environment isn't a freshly-extracted binary and isn't blocked -
+  # same fix, same reasoning as the ruff hooks' own comment above.
+  - repo: local
+    hooks:
+      - id: check-yaml
+        name: Check YAML syntax
+        entry: python -c "import sys, yaml; [yaml.safe_load(open(f, encoding='utf-8')) for f in sys.argv[1:]]"
+        language: system
+        types: [yaml]
+
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
@@ -288,8 +322,6 @@ repos:
         # job). Excluded, not fixed - re-encoding it is a deploy-tooling change outside this
         # session's scope, not a code-quality fix.
         exclude: ^terraform/trigger-deploy\.txt$
-      - id: check-yaml
-        name: Check YAML syntax
       - id: check-json
         name: Check JSON syntax
       - id: check-merge-conflict
