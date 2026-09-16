@@ -95,6 +95,7 @@
   "algo/monitoring/data_patrol/checks/tie_out_identity_annual.py": 914,
   "algo/monitoring/data_patrol/checks/tie_out_identity_quarterly.py": 918,
   "algo/monitoring/data_patrol/checks/tie_out_implausible_magnitude.py": 154,
+  "algo/monitoring/data_patrol/checks/tie_out_income_statement_nonnegative.py": 128,
   "algo/monitoring/data_patrol/checks/tie_out_nonnegative_magnitudes.py": 313,
   "algo/monitoring/data_patrol/checks/tie_out_shared.py": 634,
   "algo/monitoring/data_patrol/checks/xbrl_concept_continuity.py": 85,

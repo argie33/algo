@@ -173,6 +173,7 @@ from .tie_out_cashflow_cumulative_quarters import TieOutCashflowCumulativeQuarte
 from .tie_out_identity_annual import TieOutIdentityAnnualMixin
 from .tie_out_identity_quarterly import TieOutIdentityQuarterlyMixin
 from .tie_out_implausible_magnitude import TieOutImplausibleMagnitudeMixin
+from .tie_out_income_statement_nonnegative import TieOutIncomeStatementNonnegativeMixin
 from .tie_out_nonnegative_magnitudes import TieOutNonnegativeMagnitudesMixin
 from .tie_out_shared import TieOutSharedMixin
 
@@ -187,6 +188,7 @@ class TieOutChecker(
     TieOutBoundsQuarterly2MiscMixin,
     TieOutCashflowCumulativeQuartersMixin,
     TieOutNonnegativeMagnitudesMixin,
+    TieOutIncomeStatementNonnegativeMixin,
     TieOutImplausibleMagnitudeMixin,
     TieOutSharedMixin,
     BaseCheck,
@@ -312,4 +314,18 @@ class TieOutChecker(
         # cumulative-YTD-stored-as-discrete-quarter bug class - see
         # tie_out_cashflow_cumulative_quarters.py's module docstring.
         self.check_quarterly_cashflow_cumulative_duplicate(cur)
+        # 2026-09-15 (goal: "make sure we have the right tie outs for all we should" audit):
+        # income-statement side of the DQC_0015/US1-style nonnegative-magnitude guard - see
+        # tie_out_income_statement_nonnegative.py's own module docstring for why these five
+        # fields never had this coverage before.
+        self.check_interest_expense_nonnegative(cur)
+        self.check_quarterly_interest_expense_nonnegative(cur)
+        self.check_depreciation_expense_nonnegative(cur)
+        self.check_quarterly_depreciation_expense_nonnegative(cur)
+        self.check_amortization_expense_nonnegative(cur)
+        self.check_quarterly_amortization_expense_nonnegative(cur)
+        self.check_research_development_expense_nonnegative(cur)
+        self.check_quarterly_research_development_expense_nonnegative(cur)
+        self.check_goodwill_impairment_loss_nonnegative(cur)
+        self.check_quarterly_goodwill_impairment_loss_nonnegative(cur)
         return self.results
