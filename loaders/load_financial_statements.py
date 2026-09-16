@@ -249,13 +249,11 @@ _REQUIRED_STATEMENT_FIELDS = {
     "cashflow": {"operating_cash_flow"},
 }
 
-# The three quarterly tables keyed on (symbol, fiscal_year, fiscal_quarter) - see
-# _reconcile_stale_fiscal_year_duplicate_period_end's call site for why a shared
-# fiscal_year-derivation bug can produce stale duplicate rows across all three.
+# FIXED 2026-09-16: quarterly_balance_sheet/quarterly_cash_flow have no period_end column
+# (unlike quarterly_income_statement) - including them crashed 879/882 symbols with
+# UndefinedColumn. Restricted to the one table this mechanism can operate on.
 _QUARTERLY_TABLES_WITH_FISCAL_QUARTER_PK = {
     "quarterly_income_statement",
-    "quarterly_balance_sheet",
-    "quarterly_cash_flow",
 }
 
 # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): the (us-gaap concepts,

@@ -1,6 +1,6 @@
-"""Regression test for the 2026-09-16 fix: quarterly_income_statement/quarterly_balance_sheet/
-quarterly_cash_flow are keyed on (symbol, fiscal_year, fiscal_quarter), not (symbol,
-period_end). _aggregate_concepts_resolve_entry_period's fiscal_year derivation for a
+"""Regression test for the 2026-09-16 fix: quarterly_income_statement is keyed on (symbol,
+fiscal_year, fiscal_quarter), not (symbol, period_end).
+_aggregate_concepts_resolve_entry_period's fiscal_year derivation for a
 non-December-FYE filer depends on fye_month, which is re-derived from a symbol's evolving SEC
 evidence on every run (not cached) - when a symbol's fye_month confidence flips between two
 runs, the same underlying fact (same period_end) can get assigned a different fiscal_year on a
@@ -22,6 +22,15 @@ plain ISO string on a raw row) has been coerced to a `date`. Real raw rows never
 never produces - masking that the fix was dead code (candidates was always empty against real
 rows). Rewritten to use the real raw-row shape: "fiscal_period" (string) + "period_end" (ISO
 string), matching what fetch_incremental's superclass actually returns.
+
+BUGFIX 2026-09-16 (same session, live-caught mid-backfill): quarterly_balance_sheet and
+quarterly_cash_flow were ALSO listed in _QUARTERLY_TABLES_WITH_FISCAL_QUARTER_PK, but neither
+table actually has a period_end column at all (confirmed via information_schema.columns) - the
+reconcile query unconditionally selects period_end FROM {self.table_name}, so every quarterly
+balance/cashflow loader run crashed with UndefinedColumn instead of skipping harmlessly
+(live-reproduced: 879/882 symbols failed on the first real backfill attempt against
+quarterly_balance_sheet). Restricted the set to quarterly_income_statement only -
+test_other_quarterly_tables_never_trigger_this_guard below pins that.
 """
 
 from datetime import date
@@ -125,6 +134,31 @@ class TestStaleFiscalYearDuplicateReconciled:
         ):
             result = loader.fetch_incremental("AGYS", None)
         assert result == [fresh_row]
+
+    def test_other_quarterly_tables_never_trigger_this_guard(self) -> None:
+        """quarterly_balance_sheet/quarterly_cash_flow have no period_end column at all - the
+        reconcile query must never be issued against them (it would crash with
+        UndefinedColumn, as live-reproduced), not just skip quietly."""
+        for table_name in ("quarterly_balance_sheet", "quarterly_cash_flow"):
+            loader = _make_loader(statement_type="balance", table_name=table_name)
+            fresh_row = {
+                "symbol": "AGYS",
+                "fiscal_year": 2023,
+                "fiscal_period": "Q3",
+                "period_end": "2022-12-31",
+                "total_assets": 123_456,
+            }
+            with (
+                patch.object(
+                    ConsolidatedFinancialStatementsLoader.__mro__[1],
+                    "fetch_incremental",
+                    return_value=[fresh_row],
+                ),
+                patch("loaders.load_financial_statements.DatabaseContext") as mock_db_context,
+            ):
+                result = loader.fetch_incremental("AGYS", None)
+            assert result == [fresh_row]
+            mock_db_context.assert_not_called()
 
     def test_row_missing_period_end_is_skipped(self) -> None:
         """A row without a resolved period_end can't safely be reconciled - must not crash
