@@ -1457,6 +1457,61 @@ class TestCashLeCurrentAssets:
         assert checker.results[0].severity == ERROR
 
 
+class TestCashAndEquivalentsNonnegative:
+    """FIXED 2026-09-16 (goal session: XBRL/patrol data-quality sweep, RCI/SAGT live-confirmed
+    via real SEC companyfacts JSON): a foreign private issuer's real, audited IFRS financials
+    can legitimately report negative CashAndCashEquivalents (IAS 7.8 permits netting bank
+    overdrafts that form an integral part of cash management) - not an extraction bug, so a
+    confirmed FPI's negative value must not be flagged. See tie_out_shared.py's
+    `_check_nonnegative_cashflow_field` docstring for the full writeup.
+    """
+
+    def test_flags_negative_cash_for_non_fpi(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "BADCASH",
+                        "fiscal_year": 2023,
+                        "cash_and_equivalents": -53_913.0,
+                        "is_foreign_private_issuer": None,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_cash_and_equivalents_nonnegative(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == WARN
+        assert checker.results[0].details["examples"][0]["symbol"] == "BADCASH"
+
+    def test_does_not_flag_negative_cash_for_confirmed_fpi(self) -> None:
+        cur = _mock_cursor(
+            [
+                [
+                    {
+                        "symbol": "RCI",
+                        "fiscal_year": 2017,
+                        "cash_and_equivalents": -6_000_000.0,
+                        "is_foreign_private_issuer": True,
+                    }
+                ]
+            ]
+        )
+        checker = _checker()
+        checker.check_cash_and_equivalents_nonnegative(cur)
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == INFO
+
+    def test_exception_is_caught_not_raised(self) -> None:
+        cur = MagicMock()
+        cur.execute.side_effect = RuntimeError("db down")
+        checker = _checker()
+        checker.check_cash_and_equivalents_nonnegative(cur)  # must not raise
+        assert len(checker.results) == 1
+        assert checker.results[0].severity == ERROR
+
+
 class TestInventoryLeCurrentAssets:
     def test_flags_inventory_above_current_assets(self) -> None:
         cur = _mock_cursor(

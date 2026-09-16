@@ -47,6 +47,7 @@ class TieOutBoundsQuarterly2MiscMixin:
             check_name: str,
             quarterly: bool,
             materiality_floor_pct: float | None = None,
+            allow_negative_for_foreign_private_issuer: bool = False,
         ) -> None: ...
 
         def _check_shares_outstanding_dei_plausible_scale(

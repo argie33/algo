@@ -139,6 +139,7 @@ class TieOutNonnegativeMagnitudesMixin:
             field="cash_and_equivalents",
             check_name="cash_and_equivalents_nonnegative",
             quarterly=False,
+            allow_negative_for_foreign_private_issuer=True,
         )
 
     def check_quarterly_cash_and_equivalents_nonnegative(self, cur: Any) -> None:
@@ -148,6 +149,7 @@ class TieOutNonnegativeMagnitudesMixin:
             field="cash_and_equivalents",
             check_name="quarterly_cash_and_equivalents_nonnegative",
             quarterly=True,
+            allow_negative_for_foreign_private_issuer=True,
         )
 
     def check_accounts_receivable_nonnegative(self, cur: Any) -> None:
@@ -301,6 +303,7 @@ class TieOutNonnegativeMagnitudesMixin:
             field="cash_and_restricted_cash_combined",
             check_name="cash_and_restricted_cash_combined_nonnegative",
             quarterly=False,
+            allow_negative_for_foreign_private_issuer=True,
         )
 
     def check_quarterly_cash_and_restricted_cash_combined_nonnegative(self, cur: Any) -> None:
@@ -310,4 +313,5 @@ class TieOutNonnegativeMagnitudesMixin:
             field="cash_and_restricted_cash_combined",
             check_name="quarterly_cash_and_restricted_cash_combined_nonnegative",
             quarterly=True,
+            allow_negative_for_foreign_private_issuer=True,
         )

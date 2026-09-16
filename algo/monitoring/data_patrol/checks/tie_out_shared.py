@@ -412,6 +412,7 @@ class TieOutSharedMixin:
         check_name: str,
         quarterly: bool,
         materiality_floor_pct: float | None = None,
+        allow_negative_for_foreign_private_issuer: bool = False,
     ) -> None:
         """Shared implementation for the Round 5 sign-flip guard checks and Round 7's
         balance-sheet nonnegative-magnitude checks (tie_out_nonnegative_magnitudes.py) -
@@ -455,15 +456,41 @@ class TieOutSharedMixin:
         scales with each symbol's own balance sheet size. `None` (the default) preserves the
         original unconditional `< 0` behavior for the other 34 dependent checks this helper
         backs - zero behavior change for anything that doesn't opt in.
+
+        ADDED `allow_negative_for_foreign_private_issuer` 2026-09-16 (goal session: XBRL/
+        patrol data-quality sweep, RCI/SAGT live-confirmed via real SEC companyfacts JSON):
+        `cash_and_equivalents_nonnegative`/`quarterly_cash_and_equivalents_nonnegative` assumed
+        a directly-extracted cash balance can never legitimately be negative - true for a
+        US-GAAP filer (a negative value there really is an extraction bug), but false for an
+        IFRS filer, where "cash and cash equivalents" is explicitly permitted to be presented
+        net of bank overdrafts that form an integral part of the entity's cash management
+        (IAS 7.8) and can go negative in a real, audited filing with no bug at all. Rogers
+        Communications' (RCI) real FY2016/2017 40-F reports ifrs-full:CashAndCashEquivalents
+        as -$71M/-$6M CAD; SAG Technology's (SAGT) real 20-F reports several years of genuinely
+        negative MYR/USD cash - both filer-side, both audited, neither an extraction bug.
+        When true, joins `company_info_sec.is_foreign_private_issuer` (already populated for
+        every SEC filer we track) and skips flagging a negative value for a confirmed FPI -
+        `None`/unset for that column (symbol not yet in company_info_sec) is NOT treated as
+        FPI, so an unrecognized symbol still gets the strict US-GAAP-shaped check by default.
+        Only opted into by the two cash_and_equivalents checks; every other dependent check
+        (inventory/goodwill/accounts_receivable/etc., which have no equivalent legitimate-
+        negative accounting convention under either GAAP or IFRS) is unaffected.
         """
         try:
             quarter_col = ", b.fiscal_quarter" if quarterly else ""
             assets_col = ", b.total_assets" if materiality_floor_pct is not None else ""
+            fpi_join = (
+                " LEFT JOIN company_info_sec c ON c.symbol = b.symbol"
+                if allow_negative_for_foreign_private_issuer
+                else ""
+            )
+            fpi_col = ", c.is_foreign_private_issuer" if allow_negative_for_foreign_private_issuer else ""
             cur.execute(
                 f"""
-                SELECT b.symbol, b.fiscal_year{quarter_col}, b.{field}{assets_col}
+                SELECT b.symbol, b.fiscal_year{quarter_col}, b.{field}{assets_col}{fpi_col}
                 FROM {table} b
                 JOIN stock_symbols s ON s.symbol = b.symbol AND s.active = true
+                {fpi_join}
                 WHERE b.data_unavailable = FALSE
                   AND b.{field} IS NOT NULL
                   AND b.{field} < 0
@@ -473,6 +500,8 @@ class TieOutSharedMixin:
             for row in cur.fetchall():
                 value = float(row[field])
                 if value >= 0:
+                    continue
+                if allow_negative_for_foreign_private_issuer and row["is_foreign_private_issuer"] is True:
                     continue
                 if materiality_floor_pct is not None:
                     total_assets = row["total_assets"]
