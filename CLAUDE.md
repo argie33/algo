@@ -403,13 +403,35 @@ rm *.log                                       # Remove orchestrator test logs
 rm -r __pycache__ .pytest_cache .mypy_cache   # Python cache (regenerated)
 
 # Git optimization
-git stash clear                                # Clear uncommitted work storage
+# NOT `git stash clear` - the stash stack is shared across every worktree/session in this
+# repo; clearing it can destroy another session's in-progress work with no recovery (see
+# worktree-hygiene note below, same root cause as the stash-collision rule in memory).
 git gc --aggressive --prune=now                # Compact .git (frees 50-100 MB)
 
 # Memory system
 # Delete old session-scoped findings from memory/
 # Keep only load-bearing rules referenced in MEMORY.md index
 ```
+
+**Agent worktree hygiene (added 2026-09-16 after a from-scratch audit found 20 abandoned
+worktrees under `.claude/worktrees/`, several holding real, never-committed trading-execution
+and scoring code that had been sitting unreaped for days):**
+```bash
+python scripts/check_worktree_health.py   # lists every worktree's uncommitted files + ahead/behind vs main
+```
+Run this before deleting ANY worktree, and periodically as part of this same maintenance pass
+(it's not on a schedule - nothing automated catches this today). A worktree is only safe to
+delete once its work is actually reaped: either merged into main (commit any uncommitted
+changes first, then merge/cherry-pick, verify tests, THEN delete) or explicitly confirmed
+superseded by reading main's current code for the same behavior (not just comparing commit
+messages - message-grepping alone produced false "superseded" verdicts during the 2026-09-16
+audit that a real code read caught). An agent that spins up a worktree and finishes its task
+should merge or explicitly hand off before considering the task done - an abandoned worktree
+with uncommitted work is not a completed task, it's a hidden one. Also watch for orphaned
+worktree directories that `git worktree list` no longer even shows (found 6 of these
+2026-09-16, likely from `git worktree remove` failing on a Windows "Filename too long" error
+and leaving the files behind after the metadata was pruned) - `git worktree list` won't
+surface them; a stray `ls .claude/worktrees/` comparison will.
 
 **What to keep:** Source code, tests, IaC, config, current session active findings.
 **What to delete:** `.log` files, old audit reports, Python cache, debug scripts, dated session findings from memory, .terraform cache (auto-regenerated).
