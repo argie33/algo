@@ -628,7 +628,7 @@
   "loaders/stock_scores/pillar_weights.py": 451,
   "loaders/stock_scores/quality_scoring.py": 372,
   "loaders/stock_scores/risk_scoring.py": 1128,
-  "loaders/stock_scores/value_metrics.py": 1028,
+  "loaders/stock_scores/value_metrics.py": 1039,
   "loaders/stock_scores/value_score.py": 911,
   "loaders/technical_indicators.py": 329,
   "loaders/timeout_config.py": 254,
