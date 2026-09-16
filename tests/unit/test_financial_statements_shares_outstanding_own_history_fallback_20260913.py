@@ -126,3 +126,39 @@ class TestSharesOutstandingOwnHistoryFallback:
         assert loader._explicit_null_rejections == []
         assert transformed[0]["shares_outstanding_basic"] == 100500000.0
         assert transformed[0]["shares_outstanding_diluted"] == 101000000.0
+
+    def test_balance_sheet_table_never_queries_own_history(self) -> None:
+        """BUGFIX 2026-09-16 (goal session: XBRL data-check sweep, live-confirmed via a
+        206-symbol fye-flip-backlog reconcile run against real SEC data): annual_balance_sheet/
+        quarterly_balance_sheet/annual_cash_flow/quarterly_cash_flow never had
+        shares_outstanding_basic/diluted columns - the own-history fallback's raw SQL blindly
+        queried f"... FROM {self.table_name} ..." regardless of statement_type, throwing
+        psycopg2.errors.UndefinedColumn on every balance/cashflow symbol lacking a
+        company_info_sec reference (caught non-fatally, but at ERROR log level, on every
+        affected symbol every run - live-confirmed on ARM's annual_balance_sheet/
+        quarterly_balance_sheet/annual_cash_flow/quarterly_cash_flow rows in the same run).
+        Must skip the query entirely for these table types, not rely on the exception path."""
+        loader = _make_loader(statement_type="balance", period="annual")
+        rows = [
+            {
+                "symbol": "BALFAKE",
+                "fiscal_year": 2024,
+                "total_assets": Decimal("1000000000"),
+                "data_unavailable": False,
+                "reason": None,
+            }
+        ]
+
+        # Only one DatabaseContext call is legitimate here: the generic company_info_sec
+        # reference lookup (not keyed on self.table_name, so it's always safe to run). If
+        # the buggy own-history fallback ran too, it would consume a SECOND context/exhaust
+        # the single canned one and either raise (side_effect list exhausted) or - pre-fix -
+        # issue a real query against the mocked context using the broken column names.
+        company_info_context = _make_context([])
+        with patch(
+            "loaders.helpers.financial_statements_share_count_validation.DatabaseContext",
+            side_effect=[company_info_context],
+        ) as mock_db_context:
+            _transform(loader, rows)
+
+        assert mock_db_context.call_count == 1

@@ -63,6 +63,20 @@ KNOWN_BAD_FPI_YFINANCE_SHARES_OUTSTANDING: frozenset[str] = frozenset(
     }
 )
 
+# TABLES_WITH_SHARES_OUTSTANDING_COLUMNS (added 2026-09-16, /goal session: XBRL data-check
+# sweep, live-confirmed via a 206-symbol fye-flip-backlog reconcile run): only these two
+# tables actually have shares_outstanding_basic/diluted columns (confirmed against the live
+# schema) - annual_balance_sheet/quarterly_balance_sheet/annual_cash_flow/quarterly_cash_flow
+# never did. _reject_shares_outstanding_off_own_history's raw SQL blindly queried
+# f"... FROM {self.table_name} ..." for every statement_type, so every balance/cashflow
+# symbol lacking a company_info_sec reference threw psycopg2.errors.UndefinedColumn on
+# every single run - caught by that method's own try/except (non-fatal, no corrupted data),
+# but silently, at ERROR log level, on every affected symbol every run. Guarding the call
+# by table_name avoids the doomed query outright instead of relying on the exception path.
+TABLES_WITH_SHARES_OUTSTANDING_COLUMNS: frozenset[str] = frozenset(
+    {"annual_income_statement", "quarterly_income_statement"}
+)
+
 
 class FinancialStatementsShareCountValidationMixin:
     """Shares-outstanding/derived-EPS validation methods for ConsolidatedFinancialStatementsLoader.
@@ -253,7 +267,14 @@ class FinancialStatementsShareCountValidationMixin:
     def _reject_shares_outstanding_off_own_history(self, transformed: list[dict[str, Any]], symbols: list[str]) -> None:
         """Second-chance reference for symbols with no company_info_sec value: each symbol's
         own median shares_outstanding_basic/diluted across every OTHER fiscal year already
-        stored in this table. See _reject_implausible_shares_outstanding's 2026-09-13 note."""
+        stored in this table. See _reject_implausible_shares_outstanding's 2026-09-13 note.
+
+        No-ops for balance/cashflow statement types - see TABLES_WITH_SHARES_OUTSTANDING_COLUMNS's
+        own docstring: those tables never had these columns, so there is no "own history" to
+        query in the first place.
+        """
+        if self.table_name not in TABLES_WITH_SHARES_OUTSTANDING_COLUMNS:
+            return
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
