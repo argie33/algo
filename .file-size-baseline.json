@@ -541,7 +541,7 @@
   "loaders/helpers/financial_statements_cashflow_config.py": 397,
   "loaders/helpers/financial_statements_config_shared.py": 24,
   "loaders/helpers/financial_statements_custom_extension_fallbacks.py": 154,
-  "loaders/helpers/financial_statements_fye_flip_reconcile.py": 219,
+  "loaders/helpers/financial_statements_fye_flip_reconcile.py": 231,
   "loaders/helpers/financial_statements_income_config.py": 682,
   "loaders/helpers/financial_statements_prefetch.py": 90,
   "loaders/helpers/financial_statements_q4_sweeps.py": 1174,
