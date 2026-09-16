@@ -669,7 +669,7 @@
   "scripts/dev_server_health_check.py": 187,
   "scripts/diagnose_missing_concepts.py": 148,
   "scripts/expire_stale_pending_signals.py": 123,
-  "scripts/factor_etf_correlation_check.py": 346,
+  "scripts/factor_etf_correlation_check.py": 415,
   "scripts/find_loader_data_gaps.py": 250,
   "scripts/fix_balance_sheet_equity_nci_double_count.py": 132,
   "scripts/fix_balance_sheet_nci_double_count.py": 143,
