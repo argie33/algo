@@ -1415,6 +1415,30 @@ class ConsolidatedFinancialStatementsLoader(
             if val is not None and val < 0:
                 row["interest_expense"] = abs(val)
 
+    def _normalize_income_statement_magnitude_signs(self, rows: list[dict[str, Any]]) -> None:
+        """abs() the income-statement fields that are always a magnitude under GAAP,
+        never a real negative value: interest_expense, depreciation_expense,
+        amortization_expense, research_development_expense, goodwill_impairment_loss.
+
+        Same debit-balance XBRL sign-flip bug already fixed for dividends_paid/
+        stock_based_compensation/common_stock_repurchased on the cashflow side above (see
+        those FIXED comments) - filers routinely tag these concepts with a negative val in
+        their own companyfacts JSON even though the concept is defined as a cost/expense
+        magnitude. tie_out_income_statement_nonnegative.py's own docstring found 400/51/139/
+        24/46 negative rows respectively (annual_income_statement alone) before this fix -
+        a real, sizeable backlog, not a speculative guard.
+        """
+        for row in rows:
+            for field in (
+                "interest_expense",
+                "depreciation_expense",
+                "amortization_expense",
+                "research_development_expense",
+                "goodwill_impairment_loss",
+            ):
+                if row.get(field) is not None:
+                    row[field] = abs(row[field])
+
     def _is_foreign_private_issuer(self, symbol: str) -> bool:
         if symbol not in self._fpi_symbol_cache:
             with DatabaseContext("read") as cur:
@@ -1672,6 +1696,7 @@ class ConsolidatedFinancialStatementsLoader(
             self._reject_partial_segment_gross_profit_for_managed_care_insurers(transformed)
             self._reject_partial_cost_of_revenue(transformed)
             self._fill_operating_income_from_revenue_cost_and_opex(transformed)
+            self._normalize_income_statement_magnitude_signs(transformed)
 
         # Get REQUIRED metrics for current statement type (see module-level
         # _REQUIRED_STATEMENT_FIELDS docstring - shared with post_run()'s flag sync).
