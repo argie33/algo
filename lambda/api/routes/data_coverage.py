@@ -281,6 +281,158 @@ def get_loader_health(cur: cursor) -> Any:
         raise Exception(f"Failed to retrieve loader health: {e}") from e
 
 
+# ADDED 2026-09-16 (goal session: "verified accurate / known issue / unknown, covering all
+# [second-opinion] sources"). Only scripts/xbrl_yfinance_crosscheck.py persists a granular,
+# per-symbol/per-field/per-fiscal-year comparison (xbrl_yfinance_line_item_report, migration
+# 1300) - the other XBRL second-opinion layers (calculation-linkbase self-consistency, DQC/
+# Arelle, segment-sum reconciliation, price source crosscheck; see CLAUDE.md's XBRL table)
+# only ever persist an aggregate WARN/info rollup per check into data_patrol_log, same as every
+# other DataPatrol check - there's no per-field breakdown to surface for those. This section is
+# honest about that granularity gap rather than pretending equal detail exists everywhere:
+# `line_item_matrix` is the real verified/known-issue/unknown matrix (from the one source that
+# actually has one), `other_second_opinion_layers` is coarser (whole-check pass/fail + whether
+# a human has triaged it in data_patrol_review), not a symbol-level breakdown.
+_OTHER_SECOND_OPINION_CHECK_NAMES = [
+    "xbrl_calculation_linkbase_self_consistency",
+    "xbrl_dqc_arelle_check",
+    "xbrl_segment_sum_reconciliation",
+    "price_source_independent_crosscheck",
+]
+
+
+def get_fundamentals_verification_coverage(cur: cursor) -> Any:
+    try:
+        cur.execute("SET LOCAL statement_timeout = '20s'")
+
+        # Same eligible-universe filter scripts/xbrl_yfinance_crosscheck.py itself uses -
+        # kept in sync deliberately so "coverage_pct" here means the same thing it means in
+        # scripts/xbrl_line_item_report.py's CLI output.
+        cur.execute(
+            """
+            SELECT COUNT(DISTINCT ais.symbol)
+            FROM annual_income_statement ais
+            JOIN stock_symbols s ON s.symbol = ais.symbol AND s.active = true
+            WHERE ais.data_source = 'sec_audited' AND ais.data_unavailable = FALSE
+            """
+        )
+        row = cur.fetchone()
+        universe = row[0] if row and row[0] is not None else 0
+
+        cur.execute("SELECT COUNT(DISTINCT symbol) FROM xbrl_yfinance_line_item_report")
+        row = cur.fetchone()
+        symbols_checked = row[0] if row and row[0] is not None else 0
+
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE NOT divergent) AS verified_accurate,
+                COUNT(*) FILTER (WHERE divergent) AS known_issue,
+                COUNT(*) AS total
+            FROM xbrl_yfinance_line_item_report
+            """
+        )
+        row = cur.fetchone()
+        verified_accurate, known_issue, total_compared = (row[0] or 0, row[1] or 0, row[2] or 0) if row else (0, 0, 0)
+
+        cur.execute(
+            """
+            SELECT our_table, our_field,
+                   COUNT(*) FILTER (WHERE NOT divergent) AS verified_accurate,
+                   COUNT(*) FILTER (WHERE divergent) AS known_issue,
+                   COUNT(*) AS checked
+            FROM xbrl_yfinance_line_item_report
+            GROUP BY our_table, our_field
+            ORDER BY known_issue DESC, our_table, our_field
+            """
+        )
+        per_field = [
+            {
+                "table": r[0],
+                "field": r[1],
+                "verified_accurate": r[2],
+                "known_issue": r[3],
+                "checked": r[4],
+                "known_issue_rate_pct": round(r[3] / r[4] * 100, 1) if r[4] else None,
+            }
+            for r in cur.fetchall()
+        ]
+
+        cur.execute("SELECT last_symbol, updated_at FROM xbrl_yfinance_crosscheck_progress WHERE id = 1")
+        row = cur.fetchone()
+        sweep_cursor = {"last_symbol": row[0], "updated_at": str(row[1])} if row else None
+
+        other_layers: list[dict[str, Any]] = []
+        for check_name in _OTHER_SECOND_OPINION_CHECK_NAMES:
+            cur.execute(
+                """
+                SELECT severity, message, created_at
+                FROM data_patrol_log
+                WHERE check_name = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (check_name,),
+            )
+            latest = cur.fetchone()
+
+            cur.execute(
+                "SELECT status, COUNT(*) FROM data_patrol_review WHERE check_name = %s GROUP BY status",
+                (check_name,),
+            )
+            review_triage = {r[0]: r[1] for r in cur.fetchall()}
+
+            if latest is None:
+                other_layers.append({"check_name": check_name, "status": "never_run", "review_triage": review_triage})
+                continue
+
+            severity, message, created_at = latest
+            # data_patrol_log.created_at is live-typed "timestamp without time zone" (schema.sql
+            # says WITH TIME ZONE, but that's stale vs. the live column - confirmed 2026-09-16),
+            # so psycopg2 hands back a naive datetime; compare against another naive one instead
+            # of datetime.now(timezone.utc), which raises on naive-vs-aware subtraction.
+            days_since_run = (datetime.utcnow() - created_at).days if created_at else None
+            other_layers.append(
+                {
+                    "check_name": check_name,
+                    "last_severity": severity,
+                    "last_message": message,
+                    "last_run_at": str(created_at) if created_at else None,
+                    "days_since_run": days_since_run,
+                    # findings a human has already looked at (acceptable/needs_fix) vs. sitting
+                    # untriaged in the review queue - not itself the finding count, just triage state
+                    "review_triage": review_triage,
+                }
+            )
+
+        return success_response(
+            {
+                "line_item_matrix": {
+                    "source": "scripts/xbrl_yfinance_crosscheck.py (per-symbol/per-field/per-fiscal-year)",
+                    "universe_size": universe,
+                    "symbols_checked": symbols_checked,
+                    "symbols_unknown": max(universe - symbols_checked, 0),
+                    "coverage_pct": round(symbols_checked / universe * 100, 1) if universe else None,
+                    "comparisons_verified_accurate": verified_accurate,
+                    "comparisons_known_issue": known_issue,
+                    "comparisons_total": total_compared,
+                    "sweep_cursor": sweep_cursor,
+                    "per_field": per_field,
+                },
+                "other_second_opinion_layers": other_layers,
+                "status": "ok" if symbols_checked else "not_started",
+            }
+        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "get fundamentals verification coverage")
+        return error_response(code, error_type, message)
+
+
 def _safe_call(cur: cursor, fn: Any) -> Any:
     """Call fn(cur) with SAVEPOINT isolation so a failed query doesn't abort the outer tx.
 
@@ -322,6 +474,7 @@ def get_overall_coverage_summary(cur: cursor) -> Any:
         "technical_data": _safe_call(cur, get_technical_coverage),
         "market_data": _safe_call(cur, get_market_data_coverage),
         "loaders": _safe_call(cur, get_loader_health),
+        "fundamentals_verification": _safe_call(cur, get_fundamentals_verification_coverage),
     }
 
     # Determine overall status

@@ -692,7 +692,7 @@ class ValueQualityGrowthMetricsLoader(
                     """
                     SELECT ais.fiscal_year, ais.revenue, ais.operating_income, ais.net_income,
                            ais.earnings_per_share, ais.shares_outstanding_diluted,
-                           ais.shares_outstanding_basic, abs.stockholders_equity
+                           ais.shares_outstanding_basic, abs.stockholders_equity, ais.diluted_eps
                     FROM annual_income_statement ais
                     LEFT JOIN annual_balance_sheet abs
                         ON ais.symbol = abs.symbol AND ais.fiscal_year = abs.fiscal_year

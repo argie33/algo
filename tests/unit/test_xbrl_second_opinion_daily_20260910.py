@@ -38,7 +38,7 @@ class TestMain:
                 main([])
 
             assert exc.value.code == 0
-            yf_run.assert_called_once_with(limit=25, symbols_override=None, dry_run=False)
+            yf_run.assert_called_once_with(limit=25, symbols_override=None, dry_run=False, sweep=True)
             calc_run.assert_called_once_with(limit=15, symbols_override=None, dry_run=False)
             dqc_sample.assert_called_once_with(10)
             dqc_run.assert_called_once_with(symbols=["A"] * 10, dry_run=False)
@@ -62,7 +62,7 @@ class TestMain:
                 main(["--dry-run"])
 
             assert exc.value.code == 0
-            yf_run.assert_called_once_with(limit=25, symbols_override=None, dry_run=True)
+            yf_run.assert_called_once_with(limit=25, symbols_override=None, dry_run=True, sweep=True)
             calc_run.assert_called_once_with(limit=15, symbols_override=None, dry_run=True)
             dqc_run.assert_called_once_with(symbols=["A"] * 10, dry_run=True)
             reason_run.assert_called_once_with(limit=40, symbols_override=None, dry_run=True)

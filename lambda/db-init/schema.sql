@@ -882,6 +882,38 @@ CREATE TABLE IF NOT EXISTS data_patrol_review (
 CREATE INDEX IF NOT EXISTS idx_data_patrol_review_check_table
     ON data_patrol_review(check_name, target_table);
 
+-- Full line-item-level SEC-vs-yfinance cross-check persistence (migration 1300): every
+-- comparison (match or divergence) as its own row, upserted per (symbol, our_table, our_field,
+-- fiscal_year), so scripts/xbrl_yfinance_crosscheck.py's repeated runs accumulate a durable,
+-- queryable record instead of the capped-15-example JSONB blob data_patrol_log alone gives.
+-- See scripts/xbrl_line_item_report.py for the read side.
+CREATE TABLE IF NOT EXISTS xbrl_yfinance_line_item_report (
+    id BIGSERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    our_table VARCHAR(50) NOT NULL,
+    our_field VARCHAR(80) NOT NULL,
+    fiscal_year INTEGER NOT NULL,
+    our_value NUMERIC,
+    yfinance_value NUMERIC,
+    ratio NUMERIC,
+    divergent BOOLEAN NOT NULL,
+    checked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (symbol, our_table, our_field, fiscal_year)
+);
+CREATE INDEX IF NOT EXISTS idx_xbrl_yf_line_item_divergent
+    ON xbrl_yfinance_line_item_report(our_table, our_field) WHERE divergent;
+CREATE INDEX IF NOT EXISTS idx_xbrl_yf_line_item_symbol
+    ON xbrl_yfinance_line_item_report(symbol);
+
+-- One-row cursor letting the crosscheck script sweep the full active universe alphabetically
+-- across many rate-limit-safe runs (same "accumulate over many small runs" posture as
+-- tiingo_backfill_status), instead of re-sampling a random 25 symbols forever.
+CREATE TABLE IF NOT EXISTS xbrl_yfinance_crosscheck_progress (
+    id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    last_symbol VARCHAR(20),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ============================================================================
 -- WEIGHT OPTIMIZATION (Dynamic weight management for portfolio components)
 -- ============================================================================

@@ -495,7 +495,7 @@ class StockScoresLoader(
                 "gross_margin_trend, operating_margin_trend, net_margin_trend, roe_trend, asset_growth_yoy, "
                 "eps_growth_stability, quarterly_growth_momentum, earnings_growth_4q_avg, "
                 "forward_eps_growth_current_fy, forward_eps_growth_next_fy, forward_revenue_growth_next_fy, "
-                "eps_estimate_revision_90d_pct, "
+                "eps_estimate_revision_90d_pct, eps_growth_trend_5y, sps_growth_trend_5y, "
                 "data_unavailable FROM growth_metrics"
             )
             self._growth_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}

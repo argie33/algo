@@ -1,16 +1,38 @@
 """Tests for scripts/xbrl_yfinance_crosscheck.py (goal session 2026-09-10: periodic
 independent-second-opinion cross-check of SEC-XBRL-derived financial statement values
 against yfinance's own, independently-parsed financials).
+
+EXPANDED 2026-09-16 (goal session: full line-item coverage) alongside the script itself:
+_FIELDS grew from 5 to 29 entries, so a fixed-length fetchone() side_effect list is no longer
+maintainable here - _make_cur now dispatches on the executed SQL text instead, keyed by
+table/field, and returns None (no row) for any field a test doesn't care about. This is more
+robust to future _FIELDS changes than counting exact call positions.
 """
 
 from unittest.mock import MagicMock, patch
 
-from scripts.xbrl_yfinance_crosscheck import run
+from scripts.xbrl_yfinance_crosscheck import _our_latest_value, run
 
 
-def _make_cur(fetchone_sequence):
+def _make_cur(is_fpi: bool, our_values: dict[tuple[str, str], tuple[int, float]]):
+    """our_values: {(table, field): (fiscal_year, value)} - any (table, field) not present
+    behaves as "no comparable row for this symbol/field", same as a real NULL/missing row."""
     cur = MagicMock()
-    cur.fetchone.side_effect = fetchone_sequence
+
+    def _fetchone():
+        query = cur.execute.call_args[0][0]
+        if "is_foreign_private_issuer" in query:
+            return (is_fpi,)
+        for (table, field), value in our_values.items():
+            if f"FROM {table}" not in query:
+                continue
+            # Composite fields (e.g. depreciation_expense + amortization_expense) select
+            # "(field + COALESCE(extra, 0))" instead of a bare "field" - match either shape.
+            if f", {field}\n" in query or f"({field} + COALESCE(" in query:
+                return value
+        return None
+
+    cur.fetchone.side_effect = _fetchone
     return cur
 
 
@@ -23,20 +45,45 @@ def _yf_side_effect(income=None, balance=None, cashflow=None):
     return _fetch
 
 
+class TestOurLatestValueComposite:
+    # ADDED 2026-09-16 (real batch on live data): yfinance's "depreciation" concept is the
+    # cashflow-statement's combined D&A add-back, not pure depreciation - live-confirmed on
+    # ABT/ABBV/ADI, whose depreciation_expense + amortization_expense summed to yfinance's
+    # value to the exact dollar. Comparing depreciation_expense alone produced a ~48%
+    # false-divergence rate on the first real batch.
+    def test_depreciation_expense_sums_amortization_expense(self):
+        cur = MagicMock()
+        cur.fetchone.return_value = (2025, 150.0)
+
+        result = _our_latest_value(cur, "annual_income_statement", "depreciation_expense", "AAA")
+
+        query = cur.execute.call_args[0][0]
+        assert "amortization_expense" in query
+        assert "COALESCE" in query
+        assert result == (2025, 150.0)
+
+    def test_other_fields_are_not_summed(self):
+        cur = MagicMock()
+        cur.fetchone.return_value = (2025, 100.0)
+
+        _our_latest_value(cur, "annual_income_statement", "revenue", "AAA")
+
+        query = cur.execute.call_args[0][0]
+        assert "amortization_expense" not in query
+        assert "COALESCE" not in query
+
+
 class TestXbrlYfinanceCrosscheck:
     def test_flags_diverging_field_and_leaves_matching_fields_clean(self):
-        # Order matches run()'s per-symbol query sequence: is_foreign_private_issuer, then
-        # one _our_latest_value lookup per _FIELDS entry (revenue, net_income, total_assets,
-        # stockholders_equity, operating_cash_flow).
         cur = _make_cur(
-            [
-                (False,),  # is_foreign_private_issuer
-                (2025, 100_000_000.0),  # revenue - will diverge 3x vs yfinance
-                (2025, 10_000_000.0),  # net_income - matches
-                (2025, 500_000_000.0),  # total_assets - matches
-                (2025, 200_000_000.0),  # stockholders_equity - matches
-                (2025, 20_000_000.0),  # operating_cash_flow - matches
-            ]
+            is_fpi=False,
+            our_values={
+                ("annual_income_statement", "revenue"): (2025, 100_000_000.0),  # diverges 3x vs yfinance
+                ("annual_income_statement", "net_income"): (2025, 10_000_000.0),  # matches
+                ("annual_balance_sheet", "total_assets"): (2025, 500_000_000.0),  # matches
+                ("annual_balance_sheet", "stockholders_equity"): (2025, 200_000_000.0),  # matches
+                ("annual_cash_flow", "operating_cash_flow"): (2025, 20_000_000.0),  # matches
+            },
         )
         conn = MagicMock()
         conn.cursor.return_value = cur
@@ -51,7 +98,7 @@ class TestXbrlYfinanceCrosscheck:
             patch("utils.db.connection.get_db_connection", return_value=conn),
             patch("utils.external.yfinance_financials.fetch_financial_statement", side_effect=fetch_fn),
         ):
-            summary = run(limit=25, symbols_override=["AAA"], dry_run=True)
+            summary = run(limit=25, symbols_override=["AAA"], dry_run=True, delay_seconds=0)
 
         results_by_check = {r["check"]: r for r in summary["results"]}
         revenue_result = results_by_check["yfinance_independent_crosscheck_revenue"]
@@ -64,7 +111,7 @@ class TestXbrlYfinanceCrosscheck:
             assert clean_result["severity"] == "info"
 
     def test_dry_run_never_writes_to_data_patrol_log(self):
-        cur = _make_cur([(False,), (2025, 100.0), (2025, 100.0), (2025, 100.0), (2025, 100.0), (2025, 100.0)])
+        cur = _make_cur(is_fpi=False, our_values={})
         conn = MagicMock()
         conn.cursor.return_value = cur
 
@@ -73,13 +120,13 @@ class TestXbrlYfinanceCrosscheck:
             patch("utils.external.yfinance_financials.fetch_financial_statement", return_value=None),
             patch("algo.monitoring.data_patrol.logger.PatrolLogger") as mock_logger_cls,
         ):
-            run(limit=25, symbols_override=["AAA"], dry_run=True)
+            run(limit=25, symbols_override=["AAA"], dry_run=True, delay_seconds=0)
 
         mock_logger_cls.assert_not_called()
         conn.commit.assert_not_called()
 
     def test_live_run_logs_results_and_commits(self):
-        cur = _make_cur([(False,), (2025, 100.0), (2025, 100.0), (2025, 100.0), (2025, 100.0), (2025, 100.0)])
+        cur = _make_cur(is_fpi=False, our_values={})
         conn = MagicMock()
         conn.cursor.return_value = cur
 
@@ -88,18 +135,17 @@ class TestXbrlYfinanceCrosscheck:
             patch("utils.external.yfinance_financials.fetch_financial_statement", return_value=None),
             patch("algo.monitoring.data_patrol.logger.PatrolLogger") as mock_logger_cls,
         ):
-            run(limit=25, symbols_override=["AAA"], dry_run=False)
+            run(limit=25, symbols_override=["AAA"], dry_run=False, delay_seconds=0)
 
         mock_logger_cls.return_value.log_results.assert_called_once()
         conn.commit.assert_called_once()
 
     def test_aborts_batch_after_consecutive_shared_ip_ban_errors(self):
-        # Every symbol's is_foreign_private_issuer + 5 field lookups all return a row, but
-        # every yfinance fetch raises a shared-IP-ban RuntimeError - after 3 consecutive such
-        # errors the batch must stop calling fetch_financial_statement for later symbols
-        # rather than burning through the whole sample uselessly.
-        per_symbol_rows = [(False,), (2025, 100.0), (2025, 100.0), (2025, 100.0), (2025, 100.0), (2025, 100.0)]
-        cur = _make_cur(per_symbol_rows * 5)
+        # Every symbol has a comparable revenue row, but every yfinance fetch raises a
+        # shared-IP-ban RuntimeError - after 3 consecutive such errors the batch must stop
+        # calling fetch_financial_statement for later symbols rather than burning through the
+        # whole sample uselessly.
+        cur = _make_cur(is_fpi=False, our_values={("annual_income_statement", "revenue"): (2025, 100.0)})
         conn = MagicMock()
         conn.cursor.return_value = cur
 
@@ -113,8 +159,47 @@ class TestXbrlYfinanceCrosscheck:
             patch("utils.db.connection.get_db_connection", return_value=conn),
             patch("utils.external.yfinance_financials.fetch_financial_statement", side_effect=_raise_ban),
         ):
-            run(limit=25, symbols_override=["AAA", "BBB", "CCC", "DDD", "EEE"], dry_run=True)
+            run(limit=25, symbols_override=["AAA", "BBB", "CCC", "DDD", "EEE"], dry_run=True, delay_seconds=0)
 
-        # 3 consecutive ban errors trip the abort - only the first symbol's 5 field lookups
-        # (1 fetch per distinct statement_type: income, balance, cashflow) should have fired.
+        # 3 consecutive ban errors trip the abort - only the first symbol's revenue lookup
+        # (1 fetch for statement_type='income') should have fired per symbol before aborting;
+        # only 3 symbols get that far before the abort kicks in.
         assert call_count["n"] == 3
+
+    def test_delay_seconds_paces_between_symbols_but_not_after_the_last_one(self):
+        # ADDED 2026-09-16 (user-requested after a live batch ran with zero inter-symbol
+        # pacing): confirms run() actually sleeps between symbols by the requested amount,
+        # and doesn't waste a sleep after the final symbol (nothing left to pace against).
+        cur = _make_cur(is_fpi=False, our_values={})
+        conn = MagicMock()
+        conn.cursor.return_value = cur
+
+        with (
+            patch("utils.db.connection.get_db_connection", return_value=conn),
+            patch("utils.external.yfinance_financials.fetch_financial_statement", return_value=None),
+            patch("scripts.xbrl_yfinance_crosscheck.time.sleep") as mock_sleep,
+        ):
+            run(limit=25, symbols_override=["AAA", "BBB", "CCC"], dry_run=True, delay_seconds=5.0)
+
+        assert mock_sleep.call_count == 2
+        mock_sleep.assert_called_with(5.0)
+
+    def test_delay_seconds_skipped_after_ban_abort(self):
+        cur = _make_cur(is_fpi=False, our_values={("annual_income_statement", "revenue"): (2025, 100.0)})
+        conn = MagicMock()
+        conn.cursor.return_value = cur
+
+        def _raise_ban(symbol, statement_type, period, is_known_foreign_issuer=False):
+            raise RuntimeError("yfinance shared IP ban active: still banned")
+
+        with (
+            patch("utils.db.connection.get_db_connection", return_value=conn),
+            patch("utils.external.yfinance_financials.fetch_financial_statement", side_effect=_raise_ban),
+            patch("scripts.xbrl_yfinance_crosscheck.time.sleep") as mock_sleep,
+        ):
+            run(limit=25, symbols_override=["AAA", "BBB", "CCC", "DDD", "EEE"], dry_run=True, delay_seconds=5.0)
+
+        # consecutive_ban_errors only reaches the threshold (3) once the 3rd symbol's fetch
+        # has already failed, so symbols 1 and 2 still sleep before it - only the sleep after
+        # symbol 3 (which would immediately precede the abort) is skipped.
+        assert mock_sleep.call_count == 2

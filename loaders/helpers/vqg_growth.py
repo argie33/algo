@@ -114,10 +114,14 @@ class GrowthMetricsMixin(SymbolGateMixin):
         Calculates CAGR for 1y, 3y, 5y periods using compound annual growth rate formula.
         income_rows: List of (fiscal_year, total_revenue, operating_income, net_income,
         earnings_per_share[, shares_outstanding_diluted, shares_outstanding_basic[,
-        stockholders_equity]]) sorted DESC by fiscal_year (most recent first). The two shares
-        columns are optional (older 5-tuple test fixtures still work) and feed the
-        EPS_SPLIT_GUARD_CLEAN_MULTIPLES guard; stockholders_equity is also optional and feeds
-        only book_value_growth's BVPS computation - every other field is unaffected by its absence.
+        stockholders_equity[, diluted_eps]]]) sorted DESC by fiscal_year (most recent first).
+        The two shares columns are optional (older 5-tuple test fixtures still work) and feed
+        the EPS_SPLIT_GUARD_CLEAN_MULTIPLES guard; stockholders_equity is also optional and
+        feeds only book_value_growth's BVPS computation - every other field is unaffected by
+        its absence. diluted_eps (row[8]) is likewise optional and feeds ONLY
+        eps_growth_trend_5y - the pre-existing eps_growth_1y/3y/5y CAGR fields deliberately
+        keep using basic earnings_per_share (row[4]); fixing those to diluted EPS too is a
+        separate, larger change, not part of this field's introduction.
         """
         if not income_rows:
             # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep, growth_metrics
@@ -159,6 +163,10 @@ class GrowthMetricsMixin(SymbolGateMixin):
 
         revenues: list[tuple[int, float]] = []
         eps_values: list[tuple[int, float]] = []
+        # Diluted EPS series, used ONLY by eps_growth_trend_5y (see this method's own
+        # docstring) - the industry-standard input for an MSCI-style LT EPS growth trend,
+        # distinct from the basic-EPS eps_values series the pre-existing CAGR fields use.
+        diluted_eps_values: list[tuple[int, float]] = []
         # bvps = stockholders_equity/shares_outstanding_diluted, book_value_growth = bvps/prior_bvps - 1.
         # Reuses _compute_period_growth's offset=1 CAGR machinery (same sign-change/split-guard
         # protection EPS gets) - BVPS is just another (fiscal_year, value) series.
@@ -208,15 +216,24 @@ class GrowthMetricsMixin(SymbolGateMixin):
                 stockholders_equity = None
                 if len(row) > 7 and row[7] is not None:
                     stockholders_equity = float(row[7])
+                # row[8] (ais.diluted_eps) same len() guard - older test fixtures without it
+                # simply leave eps_growth_trend_5y unavailable via the diluted_eps_values
+                # empty-list path in ols_growth_trend, same as any other insufficient-history case.
+                diluted_eps = None
+                if len(row) > 8 and row[8] is not None:
+                    diluted_eps = float(row[8])
                 rev = self._nan_to_none(rev)
                 eps = self._nan_to_none(eps)
                 stockholders_equity = self._nan_to_none(stockholders_equity)
+                diluted_eps = self._nan_to_none(diluted_eps)
                 if fiscal_year is None:
                     continue
                 if rev is not None and rev > 0:
                     revenues.append((fiscal_year, rev))
                 if eps is not None and eps != 0:
                     eps_values.append((fiscal_year, eps))
+                if diluted_eps is not None and diluted_eps != 0:
+                    diluted_eps_values.append((fiscal_year, diluted_eps))
                 # Use income statement shares if available, fallback to company_info_sec if not
                 # (see fallback-fetch logic above for context)
                 shares_for_year = shares
@@ -336,8 +353,11 @@ class GrowthMetricsMixin(SymbolGateMixin):
         # MSCI's real "Long-term Historical Growth Trend" (LT his EPS G / LT his SPS G) - an OLS
         # regression through up to 5 years of history, NOT another two-point CAGR like the
         # 1y/3y/5y fields above. See loaders/helpers/growth_trend.py's own docstring for the
-        # verified formula (reproduces MSCI's own published worked example). Computed from the
-        # SAME eps_values/sps_values series already assembled above - no new data fetch.
+        # verified formula (reproduces MSCI's own published worked example). EPS leg computed
+        # from diluted_eps_values (NOT the basic-EPS eps_values series the 1y/3y/5y CAGR fields
+        # above use - diluted is the correct per-share input here; see this method's own
+        # docstring). SPS leg computed from the sps_values series already assembled above.
+        # Neither requires a new data fetch.
         #
         # SPLIT-GUARD (added same session, "worried we're doing something not in line" review):
         # ols_growth_trend has no split/share-count-discontinuity protection of its own (it only
@@ -361,11 +381,11 @@ class GrowthMetricsMixin(SymbolGateMixin):
 
         eps_growth_trend_5y: float | None
         eps_growth_trend_5y_reason: str | None
-        if _trend_window_has_split(eps_values):
+        if _trend_window_has_split(diluted_eps_values):
             eps_growth_trend_5y = None
             eps_growth_trend_5y_reason = "growth_undefined_share_count_discontinuity"
         else:
-            eps_growth_trend_5y = ols_growth_trend(eps_values)
+            eps_growth_trend_5y = ols_growth_trend(diluted_eps_values)
             eps_growth_trend_5y_reason = None if eps_growth_trend_5y is not None else "insufficient_history"
 
         sps_growth_trend_5y: float | None

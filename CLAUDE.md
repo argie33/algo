@@ -33,7 +33,7 @@ python scripts/verify_eventbridge_scheduler.py --fix   # Repair scheduler if stu
 | Script | Checks | Notes |
 |---|---|---|
 | `scripts/xbrl_concept_coverage_scan.py --exclude-noise --min-companies 100` | us-gaap/dei concepts real filers tag vs. our loader allowlist | `--dismiss "us-gaap:Concept" --reason "..."` persists to `scripts/xbrl_concept_coverage_dismissed.json` (checked in) |
-| `scripts/xbrl_yfinance_crosscheck.py` | Our SEC-XBRL numbers vs. yfinance (>2x divergence = WARN) | 25-symbol daily rotating sample |
+| `scripts/xbrl_yfinance_crosscheck.py` | Our SEC-XBRL numbers vs. yfinance, all 29 mappable line items across income/balance/cash-flow (>2x divergence = WARN) | 25-symbol daily rotating sample by default; `--sweep` walks the full active universe alphabetically via a persistent cursor instead. Every comparison (match or divergence) is upserted into `xbrl_yfinance_line_item_report` — see `scripts/xbrl_line_item_report.py` to query it |
 | `scripts/xbrl_calculation_linkbase_check.py` | Filer's own declared XBRL summation relationships vs. their own reported facts | 15-symbol sample; primary-statement roles only (note-schedule dimensional facts produce false mismatches) |
 | `scripts/xbrl_dqc_arelle_check.py` | Industry-standard DQC ruleset via Arelle | needs `pip install -r requirements-xbrl-dqc.txt` + `arelleCmdLine` on PATH; raises loudly if missing rather than reporting false-clean |
 | `scripts/xbrl_segment_sum_reconciliation.py` | Segment revenue sums vs. consolidated total (>10% divergence = WARN) | monthly, full universe, uses SEC's dimensional Financial Statement and Notes Data Sets |

@@ -135,8 +135,19 @@ def main(argv: list[str] | None = None) -> None:
     started = time.monotonic()
     failures = 0
 
+    def _run_yfinance_crosscheck_sweep(
+        *, limit: int, symbols_override: list[str] | None, dry_run: bool
+    ) -> dict[str, Any]:
+        # EXPANDED 2026-09-16 (goal session: full line-item, full-universe transparency):
+        # switched from random daily resampling to --sweep's alphabetical cursor walk (see
+        # xbrl_yfinance_crosscheck.py's own docstring) so this scheduled daily call
+        # provably covers the whole active universe over repeated runs instead of merely
+        # converging on it eventually. Same 25-symbol/run budget, same rate-limit posture -
+        # only the selection mechanism changed.
+        return run_yfinance_crosscheck(limit=limit, symbols_override=symbols_override, dry_run=dry_run, sweep=True)
+
     layers = (
-        ("yfinance_crosscheck", run_yfinance_crosscheck, 25),
+        ("yfinance_crosscheck", _run_yfinance_crosscheck_sweep, 25),
         ("calculation_linkbase_check", run_calc_linkbase, 15),
         ("dqc_arelle_check", _run_dqc_layer, 10),
         # ADDED 2026-09-13 (goal: "question our own assumptions" audit, "is 8 layers ai

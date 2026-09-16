@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """Periodic independent cross-check: our SEC-XBRL-derived financial statement values vs
-yfinance's own, independently-parsed financials, for a rotating sample of the active universe.
+yfinance's own, independently-parsed financials, across every mappable line item on the
+income statement, balance sheet, and cash flow statement.
 
 Added 2026-09-10 (goal session: institution-grade XBRL data-quality architecture). Real
 vendors validate XBRL preparation with three layers, none of which require paying for
 another data vendor: (1) a filing's own calculation-linkbase arithmetic ties within that
-same document (not implemented here - that needs parsing the instance's calc linkbase, a
-separate piece of work), (2) same-filer time-series continuity and cross-sectional peer
-statistics (already covered by algo/monitoring/data_patrol/checks/statistical_anomaly.py
-and tie_out.py), and (3) an independently-*parsed* second read of the same underlying
-filing to catch extraction/mapping bugs that are internally self-consistent (so tie_out.py's
-identity checks pass) and don't stand out against peers/history either (so
-statistical_anomaly.py doesn't fire). This script is #3.
+same document (see scripts/xbrl_calculation_linkbase_check.py), (2) same-filer time-series
+continuity and cross-sectional peer statistics (already covered by algo/monitoring/
+data_patrol/checks/statistical_anomaly.py and tie_out.py), and (3) an independently-*parsed*
+second read of the same underlying filing to catch extraction/mapping bugs that are
+internally self-consistent (so tie_out.py's identity checks pass) and don't stand out
+against peers/history either (so statistical_anomaly.py doesn't fire). This script is #3.
 
 yfinance is not a truly independent SOURCE - it likely also derives from XBRL, probably
 through a data vendor between the SEC feed and Yahoo's site. But it goes through completely
@@ -21,16 +21,37 @@ same "second opinion, not ground truth" role sec_valuations already gives it for
 shares_outstanding (see loaders/helpers/sec_valuations_checks.py) and the same fallback-only
 fetch (utils/external/yfinance_financials.py) - REUSED here, not reimplemented.
 
+EXPANDED 2026-09-16 (goal session: "validate all line items in the prepared statement vs
+yahoo ... for full transparency into the exact place where we still have a data issue"):
+previously only 5 headline fields (revenue, net_income, total_assets, stockholders_equity,
+operating_cash_flow) were compared, and only flagged/divergent examples were persisted, capped
+at 15 per field, as a JSONB blob inside data_patrol_log. Now every field mappable between our
+schema and utils/external/yfinance_financials.py's own field maps is compared (_FIELDS below -
+29 fields across the three statements, driven off _INCOME_FIELD_MAP/_BALANCE_FIELD_MAP/
+_CASHFLOW_FIELD_MAP so this can't silently drift from what the fallback fetch actually
+supports), and EVERY comparison - match or divergence - is upserted into
+xbrl_yfinance_line_item_report (migration 1300), not just the flagged ones. That gives a
+durable, queryable, per-symbol/per-field/per-fiscal-year record of exactly where our SEC data
+and yfinance's independent parse agree or disagree - see scripts/xbrl_line_item_report.py for
+the read side. data_patrol_log still gets the aggregate WARN/info rollup per field, unchanged
+in spirit, just now covering every field instead of 5.
+
 Deliberately NOT part of every DataPatrol run (unlike statistical_anomaly.py, which is pure
 SQL and cheap): this makes live yfinance network calls per symbol through the same
 rate-limited/circuit-broken worker every other yfinance call in this codebase shares
 (utils/external/yfinance_circuit_breaker.py) - see MEMORY.md's
 yfinance_validation_calls_self_triggered_ban_during_reload_20260903 for why a naive
 "check everything, every run" version of this would risk self-triggering the shared-IP ban
-that live loader runs also depend on. Run this by hand or from a low-frequency schedule
-(e.g. weekly), on a small rotating sample (--limit, default 25) - NOT the full universe -
-and let findings accumulate into the existing data_patrol_review triage workflow over many
-runs rather than trying to cover everyone in one pass.
+that live loader runs also depend on. Still NOT a full-universe-in-one-pass tool even after
+the 2026-09-16 expansion - that constraint didn't change, only field coverage did. Two sampling
+modes:
+  - default (no --sweep): daily-rotating pseudo-random sample, good for ad hoc/manual checks.
+  - --sweep: walks the active universe alphabetically using a persistent cursor
+    (xbrl_yfinance_crosscheck_progress, migration 1300 - same "accumulate over many small,
+    rate-limit-safe runs" posture as tiingo_backfill_status), so a low-frequency schedule
+    (e.g. daily) provably covers every symbol exactly once per full lap instead of relying on
+    random resampling to eventually touch everyone. Use --sweep on the scheduled/periodic
+    invocation; leave it off for spot-checking specific symbols.
 
 Findings are WARN severity (review queue, not a confirmed bug - same posture as
 statistical_anomaly.py: a real divergence can be a genuine restatement, non-GAAP
@@ -44,8 +65,9 @@ a human to act on it via the review queue, it does not auto-quarantine the symbo
 Usage:
     python scripts/xbrl_yfinance_crosscheck.py                  # sample 25 symbols, write findings
     python scripts/xbrl_yfinance_crosscheck.py --limit 50
+    python scripts/xbrl_yfinance_crosscheck.py --sweep           # next 25 symbols in the universe sweep
     python scripts/xbrl_yfinance_crosscheck.py --symbols AAPL,MSFT,KO
-    python scripts/xbrl_yfinance_crosscheck.py --dry-run         # print, don't write to data_patrol_log
+    python scripts/xbrl_yfinance_crosscheck.py --dry-run         # print, don't write to DB
 """
 
 from __future__ import annotations
@@ -65,14 +87,70 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 # (our_table, our_field, yfinance statement_type, yfinance target_key) - target_key values
-# come straight from utils/external/yfinance_financials.py's own field maps, not reinvented.
+# come straight from utils/external/yfinance_financials.py's own field maps
+# (_INCOME_FIELD_MAP / _BALANCE_FIELD_MAP / _CASHFLOW_FIELD_MAP), not reinvented. our_field is
+# this codebase's live DB column name on the corresponding annual_* table (confirmed live via
+# information_schema.columns 2026-09-16) - not always the same spelling as target_key.
 _FIELDS: list[tuple[str, str, str, str]] = [
+    # annual_income_statement
     ("annual_income_statement", "revenue", "income", "revenues"),
+    ("annual_income_statement", "cost_of_revenue", "income", "cost_of_revenue"),
+    ("annual_income_statement", "gross_profit", "income", "gross_profit"),
+    ("annual_income_statement", "operating_income", "income", "operating_income_loss"),
     ("annual_income_statement", "net_income", "income", "net_income_loss"),
+    # NOT "eps" - that column exists on the live table but is dead/always-NULL for
+    # data_source='sec_audited' rows (live-confirmed via COUNT(*) FILTER 2026-09-16); the
+    # loader actually writes basic EPS to "earnings_per_share". Using "eps" here would make
+    # this field silently produce zero comparisons forever, the opposite of this table's
+    # "full transparency" purpose.
+    ("annual_income_statement", "earnings_per_share", "income", "earnings_per_share_basic"),
+    ("annual_income_statement", "diluted_eps", "income", "earnings_per_share_diluted"),
+    (
+        "annual_income_statement",
+        "shares_outstanding_basic",
+        "income",
+        "weighted_average_number_of_shares_outstanding_basic",
+    ),
+    (
+        "annual_income_statement",
+        "shares_outstanding_diluted",
+        "income",
+        "weighted_average_number_of_diluted_shares_outstanding",
+    ),
+    ("annual_income_statement", "interest_expense", "income", "interest_expense"),
+    ("annual_income_statement", "depreciation_expense", "income", "depreciation"),
+    ("annual_income_statement", "income_tax_expense", "income", "income_tax_expense_benefit"),
+    (
+        "annual_income_statement",
+        "pretax_income",
+        "income",
+        "income_loss_from_continuing_operations_before_income_taxes_extraordinary_items_noncontrolling_interest",
+    ),
+    # annual_balance_sheet
     ("annual_balance_sheet", "total_assets", "balance", "assets"),
+    ("annual_balance_sheet", "current_assets", "balance", "assets_current"),
+    ("annual_balance_sheet", "total_liabilities", "balance", "liabilities"),
     ("annual_balance_sheet", "stockholders_equity", "balance", "stockholders_equity"),
+    ("annual_balance_sheet", "current_liabilities", "balance", "liabilities_current"),
+    ("annual_balance_sheet", "inventory", "balance", "inventory_net"),
+    ("annual_balance_sheet", "cash_and_equivalents", "balance", "cash_and_cash_equivalents_at_carrying_value"),
+    ("annual_balance_sheet", "accounts_receivable", "balance", "accounts_receivable_net_current"),
+    ("annual_balance_sheet", "ppe_net", "balance", "property_plant_and_equipment_net"),
+    ("annual_balance_sheet", "goodwill", "balance", "goodwill"),
+    ("annual_balance_sheet", "long_term_debt", "balance", "long_term_debt"),
+    # annual_cash_flow
     ("annual_cash_flow", "operating_cash_flow", "cashflow", "net_cash_provided_by_used_in_operating_activities"),
+    ("annual_cash_flow", "investing_cash_flow", "cashflow", "net_cash_provided_by_used_in_investing_activities"),
+    ("annual_cash_flow", "financing_cash_flow", "cashflow", "net_cash_provided_by_used_in_financing_activities"),
+    ("annual_cash_flow", "capex", "cashflow", "payments_to_acquire_property_plant_and_equipment"),
+    ("annual_cash_flow", "dividends_paid", "cashflow", "payments_of_dividends"),
 ]
+
+# Per-share and share-count fields live on a completely different scale than dollar-magnitude
+# fields (EPS is single digits/low tens; a $1,000,000 floor would make every EPS comparison
+# vacuously "too small to check"). Keyed by our_field.
+_PER_SHARE_FIELDS = frozenset({"earnings_per_share", "diluted_eps"})
+_SHARE_COUNT_FIELDS = frozenset({"shares_outstanding_basic", "shares_outstanding_diluted"})
 
 # Wide by design: two independently-parsed sources legitimately disagree by 20-40% on plenty
 # of real filers (non-GAAP reclassifications, discontinued-ops treatment, fiscal-period-end
@@ -80,12 +158,31 @@ _FIELDS: list[tuple[str, str, str, str]] = [
 # way statistical_anomaly.py's 20x was - tighten it once real runs show what the normal
 # divergence distribution actually looks like.
 _DIVERGENCE_RATIO = 2.0
-_DIVERGENCE_FLOOR = 1_000_000.0
+_DIVERGENCE_FLOOR_DOLLARS = 1_000_000.0
+_DIVERGENCE_FLOOR_PER_SHARE = 0.01
+_DIVERGENCE_FLOOR_SHARE_COUNT = 100_000.0
 _MAX_EXAMPLES_PER_FIELD = 15
 _MAX_CONSECUTIVE_BAN_ERRORS = 3
 
+# ADDED 2026-09-16 (goal session, user-requested after live testing): the shared-IP circuit
+# breaker (utils/external/yfinance_circuit_breaker.py) is reactive-only - it backs off after
+# Yahoo already returns a 429/401, it doesn't pace requests to avoid triggering one in the
+# first place. Two live batches (75 then 250 symbols) ran clean with zero ban errors relying
+# solely on natural per-symbol fetch latency (~2.1s/symbol, no sleep at all), but that's not a
+# safety margin, just luck holding so far across a couple thousand total requests - a real
+# inter-symbol pause is cheap insurance against burning through it on a longer/faster run.
+_DEFAULT_INTER_SYMBOL_DELAY_SECS = 2.0
 
-def _select_symbols(cur: Any, limit: int) -> list[str]:
+
+def _floor_for_field(our_field: str) -> float:
+    if our_field in _PER_SHARE_FIELDS:
+        return _DIVERGENCE_FLOOR_PER_SHARE
+    if our_field in _SHARE_COUNT_FIELDS:
+        return _DIVERGENCE_FLOOR_SHARE_COUNT
+    return _DIVERGENCE_FLOOR_DOLLARS
+
+
+def _select_symbols_random(cur: Any, limit: int) -> list[str]:
     """Daily-rotating pseudo-random sample of active symbols with real SEC-audited annual
     income-statement data (data_source='sec_audited' - excludes our own yfinance-fallback
     rows and unknown-source rows, so we're never comparing yfinance against itself)."""
@@ -105,10 +202,77 @@ def _select_symbols(cur: Any, limit: int) -> list[str]:
     return [row[0] for row in cur.fetchall()]
 
 
+def _eligible_universe(cur: Any) -> list[str]:
+    cur.execute(
+        """
+        SELECT DISTINCT ais.symbol
+        FROM annual_income_statement ais
+        JOIN stock_symbols s ON s.symbol = ais.symbol AND s.active = true
+        WHERE ais.data_source = 'sec_audited' AND ais.data_unavailable = FALSE
+        ORDER BY 1
+        """
+    )
+    return [row[0] for row in cur.fetchall()]
+
+
+def _select_symbols_sweep(cur: Any, limit: int) -> list[str]:
+    """Next `limit` symbols after the last cursor position, alphabetically over the full
+    eligible universe, wrapping around at the end. Guarantees every symbol gets checked
+    exactly once per full lap instead of relying on random resampling."""
+    universe = _eligible_universe(cur)
+    if not universe:
+        return []
+
+    cur.execute("SELECT last_symbol FROM xbrl_yfinance_crosscheck_progress WHERE id = 1")
+    row = cur.fetchone()
+    last_symbol = row[0] if row else None
+
+    start_idx = 0
+    if last_symbol is not None:
+        for i, sym in enumerate(universe):
+            if sym > last_symbol:
+                start_idx = i
+                break
+        else:
+            start_idx = 0  # last_symbol was >= everything - wrap to the start
+
+    if start_idx + limit <= len(universe):
+        batch = universe[start_idx : start_idx + limit]
+    else:
+        batch = universe[start_idx:] + universe[: (start_idx + limit) - len(universe)]
+    return batch
+
+
+def _advance_sweep_cursor(cur: Any, last_symbol_checked: str) -> None:
+    cur.execute(
+        """
+        INSERT INTO xbrl_yfinance_crosscheck_progress (id, last_symbol, updated_at)
+        VALUES (1, %s, CURRENT_TIMESTAMP)
+        ON CONFLICT (id) DO UPDATE SET last_symbol = EXCLUDED.last_symbol, updated_at = EXCLUDED.updated_at
+        """,
+        (last_symbol_checked,),
+    )
+
+
+# our_field -> extra column to ADD before comparing against yfinance. Live-confirmed 2026-09-16
+# (ABT/ABBV/ADI all matched yfinance's "depreciation" value to the dollar once summed): yfinance's
+# "Reconciled Depreciation" is the CASH-FLOW STATEMENT'S non-cash D&A add-back line, i.e. combined
+# depreciation + amortization, not pure depreciation - our depreciation_expense column alone
+# excludes amortization_expense (a separate column). Comparing depreciation_expense alone against
+# it was producing a ~48% false-divergence rate on the very first real batch, drowning out any
+# genuine signal in this field. Without this, "depreciation_expense" would look like our worst
+# data-quality field when it's actually a crosscheck mapping bug, not a data bug.
+_COMPOSITE_SUM_FIELDS: dict[tuple[str, str], str] = {
+    ("annual_income_statement", "depreciation_expense"): "amortization_expense",
+}
+
+
 def _our_latest_value(cur: Any, table: str, field: str, symbol: str) -> tuple[int, float] | None:
+    extra = _COMPOSITE_SUM_FIELDS.get((table, field))
+    select_expr = f"({field} + COALESCE({extra}, 0))" if extra else field
     cur.execute(
         f"""
-        SELECT fiscal_year, {field}
+        SELECT fiscal_year, {select_expr}
         FROM {table}
         WHERE symbol = %s AND data_source = 'sec_audited' AND data_unavailable = FALSE AND {field} IS NOT NULL
         ORDER BY fiscal_year DESC
@@ -128,7 +292,40 @@ def _is_foreign_private_issuer(cur: Any, symbol: str) -> bool:
     return bool(row and row[0])
 
 
-def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[str, Any]:
+def _record_line_item(
+    cur: Any,
+    symbol: str,
+    table: str,
+    field: str,
+    fiscal_year: int,
+    our_value: float,
+    yfinance_value: float,
+    ratio: float,
+    divergent: bool,
+) -> None:
+    cur.execute(
+        """
+        INSERT INTO xbrl_yfinance_line_item_report
+            (symbol, our_table, our_field, fiscal_year, our_value, yfinance_value, ratio, divergent, checked_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+        ON CONFLICT (symbol, our_table, our_field, fiscal_year) DO UPDATE SET
+            our_value = EXCLUDED.our_value,
+            yfinance_value = EXCLUDED.yfinance_value,
+            ratio = EXCLUDED.ratio,
+            divergent = EXCLUDED.divergent,
+            checked_at = EXCLUDED.checked_at
+        """,
+        (symbol, table, field, fiscal_year, our_value, yfinance_value, ratio, divergent),
+    )
+
+
+def run(
+    limit: int,
+    symbols_override: list[str] | None,
+    dry_run: bool,
+    sweep: bool = False,
+    delay_seconds: float = _DEFAULT_INTER_SYMBOL_DELAY_SECS,
+) -> dict[str, Any]:
     from psycopg2.extras import DictCursor
 
     from algo.monitoring.data_patrol.base import CheckResult
@@ -139,15 +336,21 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
     conn = get_db_connection(max_retries=2, timeout=30)
     cur = conn.cursor(cursor_factory=DictCursor)
 
-    symbols = symbols_override or _select_symbols(cur, limit)
-    logger.info(f"[YFINANCE_CROSSCHECK] Sampling {len(symbols)} symbol(s): {symbols}")
+    if symbols_override:
+        symbols = symbols_override
+    elif sweep:
+        symbols = _select_symbols_sweep(cur, limit)
+    else:
+        symbols = _select_symbols_random(cur, limit)
+    logger.info(f"[YFINANCE_CROSSCHECK] {'Sweeping' if sweep else 'Sampling'} {len(symbols)} symbol(s): {symbols}")
 
     # field_key ("table:field") -> list of flagged example dicts
     flagged: dict[str, list[dict[str, Any]]] = {f"{t}:{f}": [] for t, f, _, _ in _FIELDS}
     sampled_count: dict[str, int] = {f"{t}:{f}": 0 for t, f, _, _ in _FIELDS}
     consecutive_ban_errors = 0
+    last_symbol_checked: str | None = None
 
-    for symbol in symbols:
+    for i, symbol in enumerate(symbols):
         if consecutive_ban_errors >= _MAX_CONSECUTIVE_BAN_ERRORS:
             logger.warning(
                 f"[YFINANCE_CROSSCHECK] {_MAX_CONSECUTIVE_BAN_ERRORS} consecutive shared-IP-ban "
@@ -186,20 +389,31 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
 
             field_key = f"{table}:{field}"
             sampled_count[field_key] += 1
-            if max(abs(our_value), abs(yf_value)) < _DIVERGENCE_FLOOR or yf_value == 0:
+            floor = _floor_for_field(field)
+            if max(abs(our_value), abs(yf_value)) < floor or yf_value == 0:
                 continue
             ratio = abs(our_value) / abs(yf_value)
-            if _DIVERGENCE_RATIO > ratio > (1.0 / _DIVERGENCE_RATIO):
-                continue
-            flagged[field_key].append(
-                {
-                    "symbol": symbol,
-                    "fiscal_year": fiscal_year,
-                    "our_value": our_value,
-                    "yfinance_value": yf_value,
-                    "ratio": round(ratio, 4),
-                }
-            )
+            divergent = not (_DIVERGENCE_RATIO > ratio > (1.0 / _DIVERGENCE_RATIO))
+
+            if not dry_run:
+                _record_line_item(cur, symbol, table, field, fiscal_year, our_value, yf_value, ratio, divergent)
+
+            if divergent:
+                flagged[field_key].append(
+                    {
+                        "symbol": symbol,
+                        "fiscal_year": fiscal_year,
+                        "our_value": our_value,
+                        "yfinance_value": yf_value,
+                        "ratio": round(ratio, 4),
+                    }
+                )
+
+        last_symbol_checked = symbol
+
+        is_last = i == len(symbols) - 1
+        if delay_seconds > 0 and not is_last and consecutive_ban_errors < _MAX_CONSECUTIVE_BAN_ERRORS:
+            time.sleep(delay_seconds)
 
     results: list[CheckResult] = []
     for table, field, _, _ in _FIELDS:
@@ -214,9 +428,9 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
                     "warn",
                     table,
                     f"{len(examples)}/{n_sampled} symbol(s) with a yfinance-comparable {field} value "
-                    f"diverge >{_DIVERGENCE_RATIO:.0f}x from our SEC-derived value (floor "
-                    f"${_DIVERGENCE_FLOOR:,.0f}) - review queue, not a confirmed bug: restatements, "
-                    "non-GAAP reclassification, and fiscal-period misalignment can all produce this.",
+                    f"diverge >{_DIVERGENCE_RATIO:.0f}x from our SEC-derived value - review queue, not a "
+                    "confirmed bug: restatements, non-GAAP reclassification, and fiscal-period "
+                    "misalignment can all produce this.",
                     {"sampled": n_sampled, "flagged": len(examples), "examples": examples[:_MAX_EXAMPLES_PER_FIELD]},
                 )
             )
@@ -238,6 +452,8 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
         run_id = uuid.uuid4().hex
         patrol_logger = PatrolLogger(run_id)
         patrol_logger.log_results(cur, results)
+        if sweep and last_symbol_checked is not None:
+            _advance_sweep_cursor(cur, last_symbol_checked)
         conn.commit()
         logger.info(f"[YFINANCE_CROSSCHECK] Logged {len(results)} result(s) to data_patrol_log (run_id={run_id})")
 
@@ -250,13 +466,30 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--limit", type=int, default=25, help="How many symbols to sample this run (default 25)")
     parser.add_argument("--symbols", help="Comma-separated explicit symbol list, overrides --limit sampling")
-    parser.add_argument("--dry-run", action="store_true", help="Print findings, don't write to data_patrol_log")
+    parser.add_argument(
+        "--sweep",
+        action="store_true",
+        help="Walk the active universe alphabetically via a persistent cursor instead of random daily sampling",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Print findings, don't write to DB")
+    parser.add_argument(
+        "--delay-seconds",
+        type=float,
+        default=_DEFAULT_INTER_SYMBOL_DELAY_SECS,
+        help=f"Pause between symbols to avoid tripping the shared-IP rate limit (default {_DEFAULT_INTER_SYMBOL_DELAY_SECS}s)",
+    )
     args = parser.parse_args()
 
     symbols_override = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else None
 
     started = time.monotonic()
-    summary = run(limit=args.limit, symbols_override=symbols_override, dry_run=args.dry_run)
+    summary = run(
+        limit=args.limit,
+        symbols_override=symbols_override,
+        dry_run=args.dry_run,
+        sweep=args.sweep,
+        delay_seconds=args.delay_seconds,
+    )
     elapsed = time.monotonic() - started
     logger.info(f"[YFINANCE_CROSSCHECK] Done in {elapsed:.1f}s - {summary['sampled_symbols']} symbol(s) sampled")
 
