@@ -11,9 +11,11 @@ ValueMetricsMixin/QualityMetricsMixin - every `self.` call here resolves normall
 the instance regardless of which mixin file defines it.
 """
 
+import itertools
 import logging
 from typing import TYPE_CHECKING, Any
 
+from loaders.helpers.growth_trend import ols_growth_trend, years_in_trend_window
 from loaders.helpers.vqg_shared import (
     _SHARED_TREND_FIELDS,
     get_loader_timestamp,
@@ -101,6 +103,9 @@ class GrowthMetricsMixin(SymbolGateMixin):
             implausible_growth_metrics: set[str] | None = None,
         ) -> None: ...
 
+        EPS_SPLIT_GUARD_CLEAN_MULTIPLES: tuple[float, ...]
+        EPS_SPLIT_GUARD_CLEAN_TOLERANCE: float
+
     def _compute_growth_metrics(  # noqa: C901 -- pre-existing complexity debt from the book_value_growth addition (migration 1242), not introduced by this change
         self, symbol: str, income_rows: list[Any]
     ) -> dict[str, Any]:
@@ -158,6 +163,10 @@ class GrowthMetricsMixin(SymbolGateMixin):
         # Reuses _compute_period_growth's offset=1 CAGR machinery (same sign-change/split-guard
         # protection EPS gets) - BVPS is just another (fiscal_year, value) series.
         bvps_values: list[tuple[int, float]] = []
+        # sales-per-share (SPS), MSCI's actual growth-trend descriptor (LT his SPS G) - not raw
+        # revenue, same per-share normalization reasoning as EPS vs raw net income. See
+        # loaders/helpers/growth_trend.py's own docstring for the formula this feeds.
+        sps_values: list[tuple[int, float]] = []
         shares_by_year: dict[int, float] = {}
         # company_info_sec.shares_outstanding is a point-in-time snapshot (not historical per
         # fiscal year) but is used as a fallback when annual_income_statement lacks shares for
@@ -222,6 +231,8 @@ class GrowthMetricsMixin(SymbolGateMixin):
                 # excluding negative values outright.
                 if stockholders_equity is not None and shares_for_year is not None and shares_for_year > 0:
                     bvps_values.append((fiscal_year, stockholders_equity / shares_for_year))
+                if rev is not None and rev > 0 and shares_for_year is not None and shares_for_year > 0:
+                    sps_values.append((fiscal_year, rev / shares_for_year))
             except (ValueError, TypeError):
                 continue
 
@@ -321,6 +332,55 @@ class GrowthMetricsMixin(SymbolGateMixin):
 
         if not revenues and not eps_values and not bvps_values:
             return self._unavailable_marker("growth_metrics", symbol)
+
+        # MSCI's real "Long-term Historical Growth Trend" (LT his EPS G / LT his SPS G) - an OLS
+        # regression through up to 5 years of history, NOT another two-point CAGR like the
+        # 1y/3y/5y fields above. See loaders/helpers/growth_trend.py's own docstring for the
+        # verified formula (reproduces MSCI's own published worked example). Computed from the
+        # SAME eps_values/sps_values series already assembled above - no new data fetch.
+        #
+        # SPLIT-GUARD (added same session, "worried we're doing something not in line" review):
+        # ols_growth_trend has no split/share-count-discontinuity protection of its own (it only
+        # ever sees per-share VALUES, never share counts) - a mid-window stock split would
+        # silently blend pre-split and post-split per-share figures into a corrupted slope,
+        # exactly the failure mode _compute_period_growth's own shares_by_year adjacent-pair scan
+        # (is_split_or_share_count_scale_error, used for eps_growth_1y/3y/5y/book_value_growth
+        # above) already exists to catch for the two-point CAGR fields. Reused here against the
+        # SAME window years_in_trend_window() reports ols_growth_trend actually used, not the
+        # full history - a split outside the 5-year window the trend ignores shouldn't block it.
+        def _trend_window_has_split(fiscal_year_values: list[tuple[int, float]]) -> bool:
+            window_years = sorted(y for y in years_in_trend_window(fiscal_year_values) if y in shares_by_year)
+            for year_a, year_b in itertools.pairwise(window_years):
+                shares_a, shares_b = shares_by_year[year_a], shares_by_year[year_b]
+                ratio = max(shares_a, shares_b) / min(shares_a, shares_b)
+                if is_split_or_share_count_scale_error(
+                    ratio, self.EPS_SPLIT_GUARD_CLEAN_MULTIPLES, self.EPS_SPLIT_GUARD_CLEAN_TOLERANCE
+                ):
+                    return True
+            return False
+
+        eps_growth_trend_5y: float | None
+        eps_growth_trend_5y_reason: str | None
+        if _trend_window_has_split(eps_values):
+            eps_growth_trend_5y = None
+            eps_growth_trend_5y_reason = "growth_undefined_share_count_discontinuity"
+        else:
+            eps_growth_trend_5y = ols_growth_trend(eps_values)
+            eps_growth_trend_5y_reason = None if eps_growth_trend_5y is not None else "insufficient_history"
+
+        sps_growth_trend_5y: float | None
+        sps_growth_trend_5y_reason: str | None
+        if _trend_window_has_split(sps_values):
+            sps_growth_trend_5y = None
+            sps_growth_trend_5y_reason = "growth_undefined_share_count_discontinuity"
+        else:
+            sps_growth_trend_5y = ols_growth_trend(sps_values)
+            sps_growth_trend_5y_reason = None if sps_growth_trend_5y is not None else "insufficient_history"
+
+        metrics["eps_growth_trend_5y"] = eps_growth_trend_5y
+        metrics["eps_growth_trend_5y_unavailable_reason"] = eps_growth_trend_5y_reason
+        metrics["sps_growth_trend_5y"] = sps_growth_trend_5y
+        metrics["sps_growth_trend_5y_unavailable_reason"] = sps_growth_trend_5y_reason
 
         def _growth_reason(metric_key: str) -> str | None:
             if metric_key in sign_change_metrics:

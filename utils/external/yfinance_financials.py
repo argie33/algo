@@ -63,6 +63,27 @@ _SHARE_COUNT_FIELDS = frozenset(
     }
 )
 
+# ADDED 2026-09-16 (goal session: xbrl/yfinance crosscheck false-positive triage, VALE
+# live-confirmed): yfinance's Ticker.info["financialCurrency"] for VALE (Vale S.A.) reports
+# "BRL", but Vale's actual 20-F financial statements are prepared and filed in USD (Vale
+# changed its functional/reporting currency to USD years ago - a real, well-known fact
+# about this filer, not a yfinance data gap). Trusting the BRL label here divided an
+# already-USD statement value by the BRL/USD rate a second time - live-confirmed via
+# scripts/xbrl_yfinance_crosscheck.py: our real SEC-derived FY2025 revenue is $38.403B
+# (matches Vale's actual reported figure), this module's fallback fetch for the same
+# period returned $7.011B, and $38.403B / $7.011B = 5.4778 - exactly the real BRL/USD rate
+# for that date (utils/external/fx_rates.py FxRateCache confirms 5.4778 for 2025-12-31), not
+# a coincidence. This only actually corrupts stored data for a symbol where SEC XBRL is
+# unavailable and this fallback becomes the primary source (VALE itself is shielded today
+# since real sec_audited rows exist and always win) - fixing here rather than leaving it
+# latent for whenever that stops being true. Hand-verified override list, same convention
+# as load_financial_statements.py's SHARED_ISSUER_OR_TRUST_CIK_SYMBOLS - add a symbol here
+# only after live-confirming its statements are genuinely USD-denominated despite a non-USD
+# financialCurrency label, never as a guess.
+_FINANCIAL_CURRENCY_LABEL_OVERRIDES: dict[str, str] = {
+    "VALE": "USD",
+}
+
 
 def _get_financial_currency(symbol: str, yf_symbol: str) -> str | None:
     """Best-effort lookup of the currency yfinance reports `symbol`'s statements in.
@@ -82,6 +103,8 @@ def _get_financial_currency(symbol: str, yf_symbol: str) -> str | None:
     ineffective - socket.setdefaulttimeout() around it; this one had none at all) that
     runs on every successful statement fetch, not a rare corner case.
     """
+    if symbol in _FINANCIAL_CURRENCY_LABEL_OVERRIDES:
+        return _FINANCIAL_CURRENCY_LABEL_OVERRIDES[symbol]
     try:
         info = _get_module_worker().fetch(yf_symbol, "info", timeout_seconds=10.0)
         currency = info.get("financialCurrency") if isinstance(info, dict) else None

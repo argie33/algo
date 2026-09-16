@@ -7,6 +7,7 @@ from .composite_score_reconciliation import CompositeScoreReconciliationChecker
 from .coverage import CoverageChecker
 from .financial_statement_flag_drift import FinancialStatementFlagDriftChecker
 from .financial_statement_period_sanity import FinancialStatementPeriodSanityChecker
+from .growth_share_count_gap_split_risk import GrowthShareCountGapSplitRiskChecker
 from .metric_bounds import MetricBoundsChecker
 from .pillar_score_reconciliation import PillarScoreReconciliationChecker
 from .price_sanity import PriceSanityChecker
@@ -27,6 +28,7 @@ __all__ = [
     "CoverageChecker",
     "FinancialStatementFlagDriftChecker",
     "FinancialStatementPeriodSanityChecker",
+    "GrowthShareCountGapSplitRiskChecker",
     "MetricBoundsChecker",
     "NewXbrlConceptChecker",
     "PillarScoreReconciliationChecker",

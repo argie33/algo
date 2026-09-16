@@ -11,29 +11,33 @@ None of the existing loader tests would have caught this: they all mock the curs
 plain MagicMock, which records execute() calls without validating that the SQL's placeholder
 count matches the params tuple length - only a real psycopg2 cursor (or a mock that checks
 this explicitly, as here) exercises that. This test asserts the invariant directly against
-the loader's actual source (not a hardcoded copy of the query) for all 3 INSERT methods in
-this file, so a future column-list edit that forgets to update one of the two other spots
-(VALUES placeholders, or the bound-values tuple) fails immediately instead of silently
-breaking every future loader run.
+the real source (not a hardcoded copy of the query) for all 3 INSERT functions, so a future
+column-list edit that forgets to update one of the two other spots (VALUES placeholders, or
+the bound-values tuple) fails immediately instead of silently breaking every future loader run.
+
+2026-09-16 (file-size-ratchet extraction): the three insert_* functions moved out of
+ValueQualityGrowthMetricsLoader's _insert_* methods into module-level functions in
+loaders/helpers/vqg_inserts.py (the loader file was past the repo's 2000-line hard ceiling).
+This test now scans that module directly instead of the loader class.
 """
 
 import ast
 import inspect
 import textwrap
 
-from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
+from loaders.helpers import vqg_inserts
 
 
 def _insert_methods_with_execute_call() -> dict[str, ast.Call]:
-    """Find every `_insert_*` method's cur.execute(...) call in the loader's real source,
+    """Find every `insert_*` function's cur.execute(...) call in vqg_inserts' real source,
     via AST (not string-matching) so this test can't be fooled by a query string that spans
     multiple concatenated literals or comments containing "%s"."""
     calls = {}
-    for name in dir(ValueQualityGrowthMetricsLoader):
-        if not name.startswith("_insert_"):
+    for name in dir(vqg_inserts):
+        if not name.startswith("insert_"):
             continue
-        method = getattr(ValueQualityGrowthMetricsLoader, name)
-        source = textwrap.dedent(inspect.getsource(method))
+        func = getattr(vqg_inserts, name)
+        source = textwrap.dedent(inspect.getsource(func))
         tree = ast.parse(source)
         for node in ast.walk(tree):
             if (

@@ -254,6 +254,28 @@ class TestFetchFinancialStatementCurrencyConversion:
         # ... but a share COUNT must never be divided by an FX rate.
         assert rows[0]["weighted_average_number_of_shares_outstanding_basic"] == 500.0
 
+    def test_vale_financial_currency_label_overridden_to_usd(self, _patch_circuit_breaker):
+        """VALE live-confirmed 2026-09-16: yfinance's financialCurrency label ("BRL") for
+        this symbol disagrees with the real statement currency (USD - Vale's actual
+        reporting currency). Without the override in _FINANCIAL_CURRENCY_LABEL_OVERRIDES,
+        this would wrongly divide an already-USD value by the BRL/USD rate again. The mock
+        worker still returns "BRL" for financialCurrency (as the real yfinance call does)
+        to prove the override short-circuits _get_financial_currency before that lookup's
+        result is ever used, not merely that no FX rate happened to be mocked."""
+        df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 38_403_000_000.0}})
+        worker = _mock_worker_with_df_and_currency("income_stmt", df, "BRL")
+        with (
+            patch(_WORKER_PATCH_TARGET, return_value=worker),
+            patch(
+                "utils.external.yfinance_financials._fx_rate_cache.get_usd_rate",
+                return_value=5.4778,
+            ),
+        ):
+            rows = fetch_financial_statement("VALE", "income", "annual")
+
+        assert rows is not None
+        assert rows[0]["revenues"] == pytest.approx(38_403_000_000.0)
+
     def test_non_major_currency_rejected_entirely(self, _patch_circuit_breaker):
         """TRY (Turkish lira) isn't in MAJOR_CURRENCIES - fail closed and reject the
         whole fetch rather than store raw TRY as if it were USD. (ARS, the original

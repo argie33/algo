@@ -45,6 +45,12 @@ def test_eps_growth_5y_across_split_boundary_reports_discontinuity_not_a_number(
     # Revenue isn't per-share, so it's never affected by a split discontinuity.
     assert result["revenue_growth_5y"] is not None
     assert result["revenue_growth_5y_unavailable_reason"] is None
+    # eps_growth_trend_5y (added 2026-09-16, MSCI-formula OLS regression trend - see
+    # loaders/helpers/growth_trend.py) uses the same most-recent-5-years window (2022-2026),
+    # which also straddles the split boundary - must fail closed the same way the two-point
+    # CAGR fields do, not silently blend pre-split and post-split EPS into a corrupted slope.
+    assert result["eps_growth_trend_5y"] is None
+    assert result["eps_growth_trend_5y_unavailable_reason"] == "growth_undefined_share_count_discontinuity"
 
 
 def test_eps_growth_without_share_data_falls_back_to_computing_normally():
