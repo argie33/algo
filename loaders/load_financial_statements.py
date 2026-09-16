@@ -44,6 +44,10 @@ from loaders.helpers.financial_statements_custom_extension_fallbacks import (  #
     apply_custom_debt_extensions,
     apply_custom_income_extensions,
 )
+from loaders.helpers.financial_statements_fye_flip_reconcile import (  # noqa: E402
+    QUARTERLY_TABLES_WITH_FISCAL_QUARTER_PK,
+    FyeFlipReconcileMixin,
+)
 from loaders.helpers.financial_statements_prefetch import start_companyfacts_prefetch  # noqa: E402
 from loaders.helpers.financial_statements_q4_sweeps import Q4DerivationSweepMixin  # noqa: E402
 from loaders.helpers.financial_statements_share_count_validation import (  # noqa: E402
@@ -247,13 +251,6 @@ _REQUIRED_STATEMENT_FIELDS = {
     "income": {"revenue", "net_income"},
     "balance": {"total_assets", "stockholders_equity"},
     "cashflow": {"operating_cash_flow"},
-}
-
-# FIXED 2026-09-16: quarterly_balance_sheet/quarterly_cash_flow have no period_end column
-# (unlike quarterly_income_statement) - including them crashed 879/882 symbols with
-# UndefinedColumn. Restricted to the one table this mechanism can operate on.
-_QUARTERLY_TABLES_WITH_FISCAL_QUARTER_PK = {
-    "quarterly_income_statement",
 }
 
 # ADDED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): the (us-gaap concepts,
@@ -958,6 +955,7 @@ def get_conflict_target(primary_key: tuple[str, ...]) -> str:
 class ConsolidatedFinancialStatementsLoader(
     SecEdgarStatementLoader,
     Q4DerivationSweepMixin,
+    FyeFlipReconcileMixin,
     FinancialStatementsShareCountValidationMixin,
     FinancialStatementsValueValidationMixin,
 ):
@@ -1297,90 +1295,16 @@ class ConsolidatedFinancialStatementsLoader(
             )
         # FIXED 2026-09-16 (goal session: XBRL/data-patrol sweep - non-Dec-FYE
         # quarterly-duplication follow-up): the primary key on quarterly_*
-        # tables is (symbol, fiscal_year, fiscal_quarter), not (symbol,
-        # period_end) - _aggregate_concepts_resolve_entry_period's fiscal_year
-        # derivation for a non-December-FYE filer depends on fye_month, which
-        # is re-derived from that symbol's evolving SEC evidence on every run
-        # (see _aggregate_concepts_build_unit_context's unanimous-agreement/
-        # conflicting-evidence gating - genuinely not cached anywhere). When a
-        # symbol's fye_month confidence flips between two runs (new filing
-        # adds/removes corroborating evidence), the exact same underlying fact
-        # (same period_end) can get assigned a different fiscal_year on a later
-        # run. Since that's a different primary key, ON CONFLICT never fires -
-        # bulk_insert() just adds a second row instead of correcting the first,
-        # leaving one stale (wrong fiscal_year) row and one fresh (correct)
-        # row for the same real-world period. Live-confirmed DB-wide sweep this
-        # session found 1,000+ symbol/period groups with this exact signature.
-        # Fix: this run's own fresh resolution is authoritative for THIS
-        # symbol (whatever fiscal_year/fiscal_quarter it just derived above IS
-        # the current-best answer), so before insert, delete any other
-        # existing row for this symbol whose period_end matches a row we're
-        # about to write but whose (fiscal_year, fiscal_quarter) differs -
-        # otherwise the upsert below would silently leave that stale row
-        # behind forever. Safe to run unconditionally here: this loader run
-        # already holds this table's exclusive rds_lock for its whole
-        # execution (see runner.py / rds_lock.py), so no other writer can be
-        # touching this symbol's rows concurrently.
-        if self.period == "quarterly" and self.table_name in _QUARTERLY_TABLES_WITH_FISCAL_QUARTER_PK:
+        # tables is (symbol, fiscal_year, fiscal_quarter), not (symbol, period_end) - a
+        # non-December-FYE symbol's fye_month can be re-derived differently between runs,
+        # relabeling the same fact under a different fiscal_year and leaving a stale
+        # duplicate row behind (ON CONFLICT never fires - different PK). See
+        # loaders/helpers/financial_statements_fye_flip_reconcile.py's module docstring for
+        # full root cause. Safe to run unconditionally: this loader run already holds this
+        # table's exclusive rds_lock for its whole execution.
+        if self.period == "quarterly" and self.table_name in QUARTERLY_TABLES_WITH_FISCAL_QUARTER_PK:
             self._reconcile_stale_fiscal_year_duplicate_period_end(symbol, rows)
         return rows
-
-    def _reconcile_stale_fiscal_year_duplicate_period_end(self, symbol: str, rows: list[dict[str, Any]]) -> None:
-        """Delete any existing DB row for `symbol` sharing a `period_end` with one of `rows`
-        but disagreeing on (fiscal_year, fiscal_quarter) - see call site for root cause.
-        BUGFIX 2026-09-16: pre-transform() rows carry raw "fiscal_period"/str period_end,
-        not int fiscal_quarter/date - parse both like transform() does, else always empty.
-        """
-        quarter_map = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
-        candidates = []
-        for row in rows:
-            raw_end, raw_period = row.get("period_end"), row.get("fiscal_period")
-            period_end = date.fromisoformat(raw_end) if isinstance(raw_end, str) else raw_end
-            fiscal_quarter = quarter_map.get(raw_period) if isinstance(raw_period, str) else None
-            if period_end is None or row.get("fiscal_year") is None or fiscal_quarter is None:
-                continue
-            candidates.append(
-                {"period_end": period_end, "fiscal_year": row["fiscal_year"], "fiscal_quarter": fiscal_quarter}
-            )
-        if not candidates:
-            return
-        period_ends = {row["period_end"] for row in candidates}
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                f"""
-                SELECT fiscal_year, fiscal_quarter, period_end
-                FROM {self.table_name}
-                WHERE symbol = %s AND period_end = ANY(%s)
-                """,
-                (symbol, list(period_ends)),
-            )
-            existing = cur.fetchall()
-        current_keys_by_period_end: dict[Any, set[tuple[Any, Any]]] = {}
-        for row in candidates:
-            current_keys_by_period_end.setdefault(row["period_end"], set()).add(
-                (row["fiscal_year"], row["fiscal_quarter"])
-            )
-        stale_keys = [
-            (existing_fy, existing_fq)
-            for existing_fy, existing_fq, existing_period_end in existing
-            if (existing_fy, existing_fq) not in current_keys_by_period_end.get(existing_period_end, set())
-        ]
-        if not stale_keys:
-            return
-        with DatabaseContext("write") as cur:
-            deleted = 0
-            for stale_fy, stale_fq in stale_keys:
-                cur.execute(
-                    f"DELETE FROM {self.table_name} WHERE symbol = %s AND fiscal_year = %s AND fiscal_quarter = %s",
-                    (symbol, stale_fy, stale_fq),
-                )
-                deleted += cur.rowcount
-        if deleted:
-            logger.warning(
-                f"[{self.table_name}] {symbol}: deleted {deleted} stale duplicate row(s) whose "
-                "period_end matched this run's fresh data under a different (fiscal_year, "
-                "fiscal_quarter) - see _reconcile_stale_fiscal_year_duplicate_period_end docstring."
-            )
 
     def _reject_all_none_annual_rows_without_existing_data(
         self,

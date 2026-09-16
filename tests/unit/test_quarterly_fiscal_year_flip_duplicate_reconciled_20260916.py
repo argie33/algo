@@ -29,8 +29,18 @@ table actually has a period_end column at all (confirmed via information_schema.
 reconcile query unconditionally selects period_end FROM {self.table_name}, so every quarterly
 balance/cashflow loader run crashed with UndefinedColumn instead of skipping harmlessly
 (live-reproduced: 879/882 symbols failed on the first real backfill attempt against
-quarterly_balance_sheet). Restricted the set to quarterly_income_statement only -
-test_other_quarterly_tables_never_trigger_this_guard below pins that.
+quarterly_balance_sheet). Temporarily restricted the set to quarterly_income_statement only.
+
+FIXED 2026-09-16 (same session, follow-up): quarterly_balance_sheet/quarterly_cash_flow carry
+the exact same fye_month-flip duplicate-row bug (DB-wide sweep: 1,442/417 groups respectively,
+same "same core values, fiscal_year off by exactly one, same fiscal_quarter" signature) - they
+just can't be reconciled by period_end since that column doesn't exist for them. Re-added both
+to _QUARTERLY_TABLES_WITH_FISCAL_QUARTER_PK, routed through a value-fingerprint variant
+(_reconcile_stale_fiscal_year_duplicate_value_fingerprint) that recognizes the same underlying
+fact via its core reported values (_VALUE_FINGERPRINT_FIELDS) matching exactly under an
+adjacent fiscal_year label instead of via period_end.
+test_other_quarterly_tables_never_trigger_this_guard (renamed
+test_balance_cashflow_use_value_fingerprint_reconcile below) now pins the new behavior.
 """
 
 from datetime import date
@@ -135,30 +145,92 @@ class TestStaleFiscalYearDuplicateReconciled:
             result = loader.fetch_incremental("AGYS", None)
         assert result == [fresh_row]
 
-    def test_other_quarterly_tables_never_trigger_this_guard(self) -> None:
-        """quarterly_balance_sheet/quarterly_cash_flow have no period_end column at all - the
-        reconcile query must never be issued against them (it would crash with
-        UndefinedColumn, as live-reproduced), not just skip quietly."""
-        for table_name in ("quarterly_balance_sheet", "quarterly_cash_flow"):
-            loader = _make_loader(statement_type="balance", table_name=table_name)
-            fresh_row = {
-                "symbol": "AGYS",
-                "fiscal_year": 2023,
-                "fiscal_period": "Q3",
-                "period_end": "2022-12-31",
-                "total_assets": 123_456,
-            }
-            with (
-                patch.object(
-                    ConsolidatedFinancialStatementsLoader.__mro__[1],
-                    "fetch_incremental",
-                    return_value=[fresh_row],
-                ),
-                patch("loaders.load_financial_statements.DatabaseContext") as mock_db_context,
-            ):
-                result = loader.fetch_incremental("AGYS", None)
-            assert result == [fresh_row]
-            mock_db_context.assert_not_called()
+    def test_balance_sheet_stale_value_fingerprint_row_is_deleted(self) -> None:
+        """ABAT/ACI-shaped case: same total_assets/total_liabilities/stockholders_equity
+        reported for fiscal_quarter=2, but the DB has it under fiscal_year=2025 (stale) while
+        this run resolved fiscal_year=2026 (fresh) - the stale row must be deleted."""
+        loader = _make_loader(statement_type="balance", table_name="quarterly_balance_sheet")
+        # PRE-transform raw SEC concept keys (self._field_mapping), not canonical column
+        # names - see this method's own docstring for the dead-code bug this pins.
+        fresh_row = {
+            "symbol": "ABAT",
+            "fiscal_year": 2026,
+            "fiscal_period": "Q2",
+            "assets": 123_342_477,
+            "liabilities": 4_363_822,
+            "stockholders_equity": 118_978_655,
+        }
+        read_ctx = _mock_read_context([(2025, 2, 123_342_477, 4_363_822, 118_978_655)])
+        write_ctx, mock_cur = _mock_write_context()
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[fresh_row],
+            ),
+            patch(
+                "loaders.load_financial_statements.DatabaseContext",
+                side_effect=[read_ctx, write_ctx],
+            ),
+        ):
+            result = loader.fetch_incremental("ABAT", None)
+        assert result == [fresh_row]
+        delete_sql, delete_params = mock_cur.execute.call_args_list[0][0]
+        assert "DELETE FROM quarterly_balance_sheet" in delete_sql
+        assert delete_params == ("ABAT", 2025, 2)
+
+    def test_cash_flow_stale_value_fingerprint_row_is_deleted(self) -> None:
+        loader = _make_loader(statement_type="cashflow", table_name="quarterly_cash_flow")
+        fresh_row = {
+            "symbol": "AACG",
+            "fiscal_year": 2026,
+            "fiscal_period": "Q3",
+            "net_cash_provided_by_used_in_operating_activities": 1_000_000,
+            "net_cash_provided_by_used_in_investing_activities": -200_000,
+            "net_cash_provided_by_used_in_financing_activities": -50_000,
+        }
+        read_ctx = _mock_read_context([(2025, 3, 1_000_000, -200_000, -50_000)])
+        write_ctx, mock_cur = _mock_write_context()
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[fresh_row],
+            ),
+            patch(
+                "loaders.load_financial_statements.DatabaseContext",
+                side_effect=[read_ctx, write_ctx],
+            ),
+        ):
+            result = loader.fetch_incremental("AACG", None)
+        assert result == [fresh_row]
+        delete_sql, delete_params = mock_cur.execute.call_args_list[0][0]
+        assert "DELETE FROM quarterly_cash_flow" in delete_sql
+        assert delete_params == ("AACG", 2025, 3)
+
+    def test_balance_sheet_non_adjacent_year_match_is_left_alone(self) -> None:
+        """Same values but fiscal_year is 2 apart (not the fye-flip's exact off-by-one
+        signature) - a coincidental multi-year-stagnant balance sheet must not be deleted."""
+        loader = _make_loader(statement_type="balance", table_name="quarterly_balance_sheet")
+        fresh_row = {
+            "symbol": "FLAT",
+            "fiscal_year": 2026,
+            "fiscal_period": "Q2",
+            "assets": 500_000,
+            "liabilities": 100_000,
+            "stockholders_equity": 400_000,
+        }
+        read_ctx = _mock_read_context([(2024, 2, 500_000, 100_000, 400_000)])
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[fresh_row],
+            ),
+            patch("loaders.load_financial_statements.DatabaseContext", return_value=read_ctx),
+        ):
+            result = loader.fetch_incremental("FLAT", None)
+        assert result == [fresh_row]
 
     def test_row_missing_period_end_is_skipped(self) -> None:
         """A row without a resolved period_end can't safely be reconciled - must not crash
