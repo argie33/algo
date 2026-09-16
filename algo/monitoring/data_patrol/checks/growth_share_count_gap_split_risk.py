@@ -1,29 +1,25 @@
 #!/usr/bin/env python3
-"""Detects the exact blind spot confirmed live on NVDA (2026-09-16 investigation): the EPS/
-book-value split-discontinuity guard in loaders/helpers/vqg_growth.py
-(is_split_or_share_count_scale_error, wired through GrowthMetricsMixin._compute_period_growth)
-only scans ADJACENT fiscal years that both have usable shares_outstanding data
-(shares_by_year is built by skipping any year where diluted AND basic are both NULL/<=0 and
-no company_info_sec fallback applies). When shares_outstanding_diluted/basic are NULL for one
-or more intervening fiscal years, the guard silently compares across the gap instead of the
-true adjacent years - which dilutes a real split's ratio below its detection tolerance.
+"""Detects when GrowthMetricsMixin.shares_by_year (loaders/helpers/vqg_growth.py) resolves a
+fiscal year's share count via the company_info_sec fallback (a single CURRENT snapshot applied
+to every year lacking real annual_income_statement shares) or leaves a true gap (no fallback
+available either), and that resolution puts an adjacent-year ratio close to a clean split
+multiple but just outside the production guard's tight EPS_SPLIT_GUARD_CLEAN_TOLERANCE. Only
+scans each symbol's most recent _MAX_OFFSET_YEARS fiscal years (the widest window any real
+growth-field CAGR uses) - unrestricted, a symbol's full history against the fallback constant
+produces mostly coincidental old-history noise unrelated to any live computation (cut real
+flagged-symbol count from 694 to 281 against the live DB when added; see _MAX_OFFSET_YEARS'
+own comment).
 
-Live-confirmed root cause: NVDA's real 10:1 split lands between FY2022 and FY2023 (shares
-2.535B -> 25.07B, ratio 9.89, only 1.10% off the clean 10x multiple - well inside the
-production guard's EPS_SPLIT_GUARD_CLEAN_TOLERANCE of 1.5%, would have been caught cleanly).
-But annual_income_statement.shares_outstanding_diluted/basic are NULL for both FY2023 and
-FY2024 in the real DB, so the guard's adjacent-pair scan is forced to jump straight from
-FY2022 to FY2025 (2.535B -> 24.8B, ratio 9.78, 2.16% off 10x) - just outside tolerance. The
-data gap, not a real change in capital structure, is what lets the split slip through.
+Live-confirmed on NVDA (2026-09-16): FY2023/FY2024 shares_outstanding_diluted/basic are NULL,
+resolved via company_info_sec's CURRENT 24.1B-share snapshot (not NVDA's true FY2023 restated
+count). FY2022's real 2.535B vs that fallback gives ratio 9.507 - 4.93% off the real 10:1
+split's clean 10x multiple, outside the 1.5% production tolerance. Verified by running
+ValueQualityGrowthMetricsLoader._compute_growth_metrics against real NVDA rows: eps_growth_5y
+returns 22.88 (the known pre/post-split-blended wrong value) right now, in production, today.
 
-This is DETECTION only, not a fix to the production guard itself - see this check's own
-`_LIVE_BYPASS_NOTE` below and the goal-session writeup for why the two are being kept
-separate (root-cause fix needs careful tolerance design against legitimate multi-year
-buyback/dilution drift; this check is safe and additive, surfacing candidates into the
-existing human-reviewed queue rather than silently shipping a corrupted growth number).
-Deliberately WARN, not ERROR/CRIT: a nearby clean-multiple ratio across a data gap is a
-plausible-split CANDIDATE for review, not proof - same discipline as
-reverse_merger_shell.py's "go look at this."
+WARN-only detection, not a fix to the guard itself - the fallback exists to avoid blocking
+book_value_growth entirely for thin-shares-data symbols, and tightening it needs care against
+that tradeoff. See reverse_merger_shell.py for the same "surface it, needs a human" discipline.
 """
 
 import logging
@@ -38,18 +34,20 @@ from ..config import INFO, WARN
 
 logger = logging.getLogger(__name__)
 
-# Wider than the production guard's EPS_SPLIT_GUARD_CLEAN_TOLERANCE (1.5%) on purpose: this
-# check exists precisely because a genuine gap-diluted split ratio (NVDA: 2.16% off 10x)
-# falls just outside that tight production tolerance. This is a WARN-only detection surface,
-# not a value-blocking guard, so casting a wider net to catch that class of near-miss is the
-# whole point - false positives cost a human a look at the review queue, not a wrong number.
+# Wider than production's EPS_SPLIT_GUARD_CLEAN_TOLERANCE (1.5%) on purpose - this check exists
+# because NVDA's real fallback-driven ratio (4.93% off 10x) falls just outside it. WARN-only, so
+# casting a wider net costs a review-queue look, not a wrong number.
 _GAP_DETECTION_TOLERANCE = 0.05
-# Below the smallest real clean multiple (1.5x) with margin - excludes ordinary multi-year
-# dilution/buyback drift (see the production guard's own 2026-08-31 false-positive fix,
-# TRNO/RCMT/LOPE/ARW, ~60% cumulative drift over 5 years with no single-year jump) from ever
-# reaching the clean-multiple check at all.
-_MIN_RATIO_OF_INTEREST = 1.4
+_MIN_RATIO_OF_INTEREST = 1.4  # below the smallest real clean multiple (1.5x), with margin
 _MAX_REPORTED = 30
+# Production's split-guard only ever scans within a growth field's own CAGR window
+# (target_year..latest_year, offset<=5 for eps_growth_5y/eps_growth_trend_5y - the widest offset
+# any field uses), not a symbol's full multi-decade history. Unrestricted, a symbol's old,
+# otherwise-irrelevant history routinely lands a coincidental near-clean-multiple ratio against
+# the company_info_sec fallback constant (live-caught: NVDA's own 2019->2020 boundary, ratio
+# 9.75, 7 years before its latest fiscal year and never used by any real CAGR computation) - pure
+# noise that drowned the real, in-window 2022->2023 finding among ~650 others before this bound.
+_MAX_OFFSET_YEARS = 5
 
 
 class GrowthShareCountGapSplitRiskChecker(BaseCheck):
@@ -62,10 +60,7 @@ class GrowthShareCountGapSplitRiskChecker(BaseCheck):
         try:
             cur.execute("""
                 SELECT ais.symbol, ais.fiscal_year, ais.shares_outstanding_diluted, ais.shares_outstanding_basic,
-                       gm.eps_growth_1y, gm.eps_growth_1y_unavailable_reason,
-                       gm.eps_growth_3y, gm.eps_growth_3y_unavailable_reason,
-                       gm.eps_growth_5y, gm.eps_growth_5y_unavailable_reason,
-                       gm.book_value_growth, gm.book_value_growth_unavailable_reason
+                       gm.eps_growth_1y, gm.eps_growth_3y, gm.eps_growth_5y, gm.book_value_growth
                 FROM annual_income_statement ais
                 JOIN stock_symbols s ON s.symbol = ais.symbol AND s.active = true
                 LEFT JOIN growth_metrics gm ON gm.symbol = ais.symbol
@@ -74,45 +69,69 @@ class GrowthShareCountGapSplitRiskChecker(BaseCheck):
             """)
             rows = cur.fetchall()
 
-            # (fiscal_year, shares) per symbol, restricted to years with usable shares data -
-            # same "diluted preferred, fallback basic" convention as GrowthMetricsMixin's own
-            # shares_by_year construction (company_info_sec's single-snapshot fallback is
-            # deliberately NOT reproduced here: it can only ever mask this exact gap further,
-            # never reveal one, so skipping it makes this check strictly more sensitive, not
-            # less, than the production guard it's auditing).
-            shares_by_symbol: dict[str, list[tuple[int, float]]] = {}
+            cur.execute("""
+                SELECT symbol, shares_outstanding FROM company_info_sec
+                WHERE shares_outstanding IS NOT NULL AND shares_outstanding > 0
+            """)
+            fallback_by_symbol = {r["symbol"]: float(r["shares_outstanding"]) for r in cur.fetchall()}
+
+            # (fiscal_year, resolved_shares, source) per symbol - reproduces
+            # GrowthMetricsMixin's own real/fallback resolution exactly, so adjacent-pair ratios
+            # here match what the production guard actually compares, not a simplified model.
+            resolved_by_symbol: dict[str, list[tuple[int, float, str]]] = {}
             growth_row_by_symbol: dict[str, Any] = {}
+            latest_fiscal_year_by_symbol: dict[str, int] = {}
             for row in rows:
                 symbol = row["symbol"]
                 growth_row_by_symbol.setdefault(symbol, row)
                 fiscal_year = row["fiscal_year"]
-                shares = row["shares_outstanding_diluted"] or row["shares_outstanding_basic"]
-                if fiscal_year is None or shares is None or shares <= 0:
+                if fiscal_year is None:
                     continue
-                shares_by_symbol.setdefault(symbol, []).append((int(fiscal_year), float(shares)))
+                fiscal_year = int(fiscal_year)
+                latest_fiscal_year_by_symbol[symbol] = max(
+                    latest_fiscal_year_by_symbol.get(symbol, fiscal_year), fiscal_year
+                )
+                real_shares = row["shares_outstanding_diluted"] or row["shares_outstanding_basic"]
+                if real_shares is not None and real_shares > 0:
+                    resolved_by_symbol.setdefault(symbol, []).append((fiscal_year, float(real_shares), "real"))
+                    continue
+                fallback = fallback_by_symbol.get(symbol)
+                if fallback is not None:
+                    resolved_by_symbol.setdefault(symbol, []).append((fiscal_year, fallback, "fallback"))
 
             clean_multiples = ValueQualityGrowthMetricsLoader.EPS_SPLIT_GUARD_CLEAN_MULTIPLES
+            tight_tolerance = ValueQualityGrowthMetricsLoader.EPS_SPLIT_GUARD_CLEAN_TOLERANCE
 
             flagged: list[dict[str, Any]] = []
-            for symbol, years in shares_by_symbol.items():
-                years.sort()
-                for (fy_a, shares_a), (fy_b, shares_b) in pairwise(years):
-                    gap = fy_b - fy_a
-                    if gap < 2:
-                        # Genuinely adjacent years - the production guard already scans this
-                        # pair directly, nothing hidden by a gap here.
-                        continue
+            for symbol, years in resolved_by_symbol.items():
+                latest_fiscal_year = latest_fiscal_year_by_symbol.get(symbol)
+                if latest_fiscal_year is None:
+                    continue
+                window_floor = latest_fiscal_year - _MAX_OFFSET_YEARS
+                years = sorted((fy, shares, src) for fy, shares, src in years if fy >= window_floor)
+                for (fy_a, shares_a, src_a), (fy_b, shares_b, src_b) in pairwise(years):
                     ratio = max(shares_a, shares_b) / min(shares_a, shares_b)
                     if ratio < _MIN_RATIO_OF_INTEREST:
+                        continue
+                    if is_split_or_share_count_scale_error(ratio, clean_multiples, tight_tolerance):
+                        # Production's own tight tolerance already catches this pair - not a
+                        # blind spot this check needs to surface.
                         continue
                     if not is_split_or_share_count_scale_error(ratio, clean_multiples, _GAP_DETECTION_TOLERANCE):
                         continue
 
+                    gap_years = fy_b - fy_a
+                    if gap_years >= 2:
+                        mask_reason = "data_gap"
+                    elif src_a == "fallback" or src_b == "fallback":
+                        mask_reason = "fallback_substituted"
+                    else:
+                        # Two genuinely adjacent real-data years, near but not within the tight
+                        # tolerance - a tolerance-calibration question, not a gap/fallback
+                        # masking one, so out of this check's scope.
+                        continue
+
                     growth_row = growth_row_by_symbol.get(symbol, {})
-                    # If any growth field spanning this gap currently reports a real (non-null)
-                    # value, the production guard has ALREADY been bypassed for this symbol -
-                    # not just a latent risk. This is the highest-priority subset to review
-                    # first (mirrors the live-confirmed NVDA case exactly).
                     live_bypassed_fields = [
                         field
                         for field in ("eps_growth_1y", "eps_growth_3y", "eps_growth_5y", "book_value_growth")
@@ -121,9 +140,9 @@ class GrowthShareCountGapSplitRiskChecker(BaseCheck):
                     flagged.append(
                         {
                             "symbol": symbol,
-                            "fiscal_year_before_gap": fy_a,
-                            "fiscal_year_after_gap": fy_b,
-                            "gap_years": gap,
+                            "fiscal_year_before": fy_a,
+                            "fiscal_year_after": fy_b,
+                            "mask_reason": mask_reason,
                             "shares_before": shares_a,
                             "shares_after": shares_b,
                             "ratio": round(ratio, 3),
@@ -136,27 +155,22 @@ class GrowthShareCountGapSplitRiskChecker(BaseCheck):
                     "growth_share_count_gap_split_risk",
                     INFO,
                     "annual_income_statement",
-                    "no share-count data gaps masking a near-clean-multiple split ratio detected",
+                    "no share-count gap/fallback resolution masking a near-clean-multiple split ratio detected",
                 )
                 return
 
-            # Symbols with a currently-live bypassed growth field first (real, shipping bug
-            # right now) then by ratio's closeness to a clean multiple.
             flagged.sort(key=lambda r: (not r["currently_bypassed_fields"], -r["ratio"]))
             live_count = sum(1 for r in flagged if r["currently_bypassed_fields"])
             self.log(
                 "growth_share_count_gap_split_risk",
                 WARN,
                 "annual_income_statement",
-                f"{len(flagged)} symbol(s) have a >=2-year gap in shares_outstanding_diluted/basic "
-                f"spanning a near-clean-multiple share-count ratio - the EPS/book-value split-guard "
-                f"(loaders/helpers/vqg_growth.py) only scans adjacent years WITH data, so a gap can "
-                f"dilute a real split ratio below its detection tolerance (see NVDA, this check's own "
-                f"motivating discovery: 2022->2023 true split ratio 9.89 was cleanly detectable, but "
-                f"the FY2023/FY2024 data gap forced the guard to compare 2022->2025 instead, 9.78, "
-                f"just outside tolerance). {live_count} of these already have a non-null growth field "
-                f"spanning the gap RIGHT NOW (currently_bypassed_fields) - review those first. Needs "
-                f"individual filing review before treating as a confirmed split, not an automatic fix.",
+                f"{len(flagged)} symbol(s) have a share-count data gap or company_info_sec fallback "
+                f"substitution producing a near-clean-multiple ratio the production split-guard's tight "
+                f"tolerance misses (see NVDA, this check's own motivating discovery - loaders/helpers/"
+                f"vqg_growth.py). {live_count} already have a non-null growth field spanning it RIGHT NOW "
+                f"(currently_bypassed_fields) - review those first. Needs individual filing review, not "
+                f"an automatic fix.",
                 {"count": len(flagged), "currently_bypassed_count": live_count, "examples": flagged[:_MAX_REPORTED]},
             )
         except Exception as e:
