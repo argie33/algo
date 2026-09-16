@@ -9,13 +9,16 @@ scratch/momentum_mtum_fulldist_rank_check_20260914.py) that validated the moment
 (Spearman rho improved 0.186 -> 0.564 after that fix). This generalizes the same method to all
 five pillars.
 
-METHODOLOGY: for each pillar, fetch that ETF's live N-PORT holdings (SEC EDGAR, cached under
-%TEMP%/algo-nport-cache/<ticker>_nport.xml - see scratch/live_pillar_vs_factor_etf_20260915.py
-for how the cache was populated; this script does NOT re-fetch from EDGAR itself, it reads the
-existing cache and raises if a needed file is missing rather than silently skipping), resolve
-CUSIP->ticker via sec_13f_cusip_crosswalk, then for the intersection of (top-800-by-market-cap,
-non-ETF universe) and (fund's held names), compute Spearman rank correlation between the fund's
-per-holding weight and our own raw pillar score.
+METHODOLOGY: for each pillar, fetch that ETF's holdings, preferring a cached daily-holdings CSV
+(%TEMP%/algo-nport-cache/<etf>_daily_holdings_*.csv, ticker-keyed directly) over the cached
+quarterly N-PORT XML (%TEMP%/algo-nport-cache/<ticker>_nport.xml, CUSIP-keyed, resolved via
+sec_13f_cusip_crosswalk) - see `_load_ticker_weights`'s own docstring (FIXED 2026-09-16) for why:
+N-PORT is a quarterly regulatory filing that can lag the actual holdings by months, which
+produced a false alarm on Momentum specifically (see that docstring for the live numbers). This
+script does NOT re-fetch from EDGAR/iShares itself - it reads the existing cache and skips a
+pillar (does not raise) if neither file is cached. Then, for the intersection of
+(top-800-by-market-cap, non-ETF universe) and (fund's held names), compute Spearman rank
+correlation between the fund's per-holding weight and our own raw pillar score.
 
 PRIMARY METRIC IS TOP-N RANK AGREEMENT, NOT CORPUS-WIDE CORRELATION (FIXED 2026-09-15, same-day
 follow-up #2): a whole-corpus Spearman rho is the wrong shape of answer to the question that
@@ -115,6 +118,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import csv
 import logging
 import os
 import re
@@ -155,20 +159,85 @@ def parse_cusip_weights(path: Path) -> dict[str, float]:
     return out
 
 
-def check_pillar(cur: object, pillar: str, cfg: dict[str, str], top_n: int) -> dict[str, object] | None:
+def _nport_report_date(path: Path) -> str | None:
+    """N-PORT's own <repPdDate> - the holdings-as-of date the filing actually reports, which
+    can lag the filing/cache date by months (N-PORT is a quarterly filing with up to a 60-day
+    lag) - see check_pillar's own docstring note for why this matters for momentum specifically."""
+    with open(path, encoding="utf-8", errors="ignore") as f:
+        m = re.search(r"<repPdDate>([\d-]+)</repPdDate>", f.read())
+    return m.group(1) if m else None
+
+
+def parse_daily_holdings_csv(path: Path) -> dict[str, float]:
+    """Parse an iShares-style 'daily holdings' CSV (Ticker/Weight (%) columns after a
+    metadata preamble) directly to {ticker: weight_pct} - no CUSIP crosswalk needed, and
+    genuinely daily (not quarterly-lagged like N-PORT - see check_pillar's docstring)."""
+    out: dict[str, float] = {}
+    with open(path, encoding="utf-8-sig", errors="ignore") as f:
+        lines = f.readlines()
+    header_idx = next((i for i, line in enumerate(lines) if line.startswith("Ticker,")), None)
+    if header_idx is None:
+        return out
+    for row in csv.DictReader(lines[header_idx:]):
+        ticker = (row.get("Ticker") or "").strip()
+        weight_raw = (row.get("Weight (%)") or "").strip()
+        if not ticker or not weight_raw:
+            continue
+        try:
+            out[ticker] = float(weight_raw)
+        except ValueError:
+            continue
+    return out
+
+
+def _load_ticker_weights(cur: object, pillar: str, cfg: dict[str, str]) -> dict[str, float] | None:
+    """Prefer the daily-holdings CSV over the quarterly N-PORT XML (FIXED 2026-09-16, see
+    factor_etf_pillar_check_stale_nport_vs_daily_csv_20260916): live-verified the cached
+    mtum_nport.xml's own <repPdDate> is 2026-04-30 - 4.5 months stale relative to today - while
+    mtum_daily_holdings_*.csv is genuinely current (iShares publishes this daily). For a
+    slow-moving factor (Quality/Value fundamentals barely change month to month) that lag barely
+    matters, but Momentum's whole point is that the winning names ROTATE - comparing today's
+    momentum_score against an April holdings snapshot produced a false WEAK-BOTH/negative
+    top-N-rho alarm (cap-neutral rho 0.088 via stale N-PORT vs. 0.44 via the fresh CSV,
+    independently re-verified against live stock_scores this session) that looked like a real
+    scoring-architecture defect but was entirely a data-freshness bug in THIS script, not in
+    momentum_scoring.py. CSV also skips the CUSIP->crosswalk step entirely (one less place to
+    silently drift/mismap). Falls back to N-PORT (with its staleness logged) only when no CSV is
+    cached for that ETF - matches this script's own "read the existing cache only" convention.
+    """
+    csv_candidates = sorted(NPORT_CACHE.glob(f"{cfg['etf'].lower()}_daily_holdings_*.csv"))
+    if csv_candidates:
+        csv_path = csv_candidates[-1]
+        weights = parse_daily_holdings_csv(csv_path)
+        if weights:
+            logger.info(f"[FACTOR_ETF] {pillar}: using daily-holdings CSV {csv_path.name} ({len(weights)} holdings)")
+            return weights
+        logger.warning(f"[FACTOR_ETF] {pillar}: {csv_path.name} parsed to 0 holdings - falling back to N-PORT.")
+
     nport_path = NPORT_CACHE / cfg["file"]
     if not nport_path.exists():
         logger.warning(
-            f"[FACTOR_ETF] {pillar}: no cached N-PORT holdings at {nport_path} - skipping "
+            f"[FACTOR_ETF] {pillar}: no cached daily-holdings CSV or N-PORT XML - skipping "
             f"(this script reads the existing cache only, it does not fetch from EDGAR itself)."
         )
         return None
 
+    report_date = _nport_report_date(nport_path)
+    logger.warning(
+        f"[FACTOR_ETF] {pillar}: no daily-holdings CSV cached, falling back to N-PORT "
+        f"{nport_path.name} (holdings as of {report_date or 'unknown date'} - may be stale "
+        f"for a fast-rotating factor like momentum, see _load_ticker_weights docstring)."
+    )
     cusip_weights = parse_cusip_weights(nport_path)
-
     cur.execute("SELECT cusip, ticker FROM sec_13f_cusip_crosswalk")  # type: ignore[attr-defined]
     cusip_to_ticker = dict(cur.fetchall())  # type: ignore[attr-defined]
-    ticker_weights = {cusip_to_ticker[c]: w for c, w in cusip_weights.items() if c in cusip_to_ticker}
+    return {cusip_to_ticker[c]: w for c, w in cusip_weights.items() if c in cusip_to_ticker}
+
+
+def check_pillar(cur: object, pillar: str, cfg: dict[str, str], top_n: int) -> dict[str, object] | None:
+    ticker_weights = _load_ticker_weights(cur, pillar, cfg)
+    if not ticker_weights:
+        return None
 
     score_col = cfg["score_col"]
     cur.execute(  # type: ignore[attr-defined]
