@@ -219,6 +219,20 @@ class TestStaleFiscalYearDuplicateReconciled:
         assert "DELETE FROM quarterly_cash_flow" in delete_sql
         assert delete_params == ("AACG", 2025, 3)
 
+    def test_value_fingerprint_empty_rows_does_not_crash(self) -> None:
+        """BUGFIX 2026-09-16 (goal session, XBRL data-check sweep, live-confirmed via CAT
+        with a real incremental `since` cutoff): an ordinary incremental fetch with no new
+        SEC data returns rows=[] - the normal, common steady-state outcome, not a failure.
+        self.transform() doesn't distinguish "0 rows in, 0 rows out" from "N rows in, 0
+        valid rows out" and raises the same CRITICAL RuntimeError for both - calling it
+        unconditionally here meant this reconcile silently no-op'd (via the broad except)
+        on every ordinary no-new-data run. Must return early on empty rows before ever
+        calling transform(), not attempt it and rely on the except to paper over it."""
+        loader = _make_loader(statement_type="cashflow", table_name="quarterly_cash_flow")
+        with patch.object(loader, "transform") as mock_transform:
+            loader._reconcile_stale_fiscal_year_duplicate_value_fingerprint("EMPTY", [])
+        mock_transform.assert_not_called()
+
     def test_balance_sheet_non_adjacent_year_match_is_left_alone(self) -> None:
         """Same values but fiscal_year is 2 apart (not the fye-flip's exact off-by-one
         signature) - a coincidental multi-year-stagnant balance sheet must not be deleted."""

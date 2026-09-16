@@ -140,6 +140,18 @@ class FyeFlipReconcileMixin:
         last-bit rounding noise between two runs that resolve the same underlying fact via
         different intermediate float operations.
         """
+        # BUGFIX 2026-09-16 (goal session: XBRL data-check sweep, live-confirmed via CAT with
+        # a real incremental `since` cutoff): an incremental fetch legitimately returns rows=[]
+        # whenever a symbol has no new SEC data since the last run - the normal, common
+        # steady-state outcome, not a failure. self.transform() (sec_base.py) doesn't
+        # distinguish "0 rows in, 0 rows out" from "N rows in, 0 valid rows out" - both raise
+        # the identical CRITICAL RuntimeError. Calling transform() unconditionally here meant
+        # this whole reconcile silently no-op'd (via the broad except below) on every ordinary
+        # no-new-data incremental run for quarterly_cash_flow/quarterly_balance_sheet - live-
+        # reproduced: 506/many-hundreds of quarterly_cash_flow symbols hit this in one run.
+        # Nothing to reconcile against with zero fetched rows anyway - skip transform() entirely.
+        if not rows:
+            return
         quarter_map = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
         fields = VALUE_FINGERPRINT_FIELDS[self.table_name]
         try:
