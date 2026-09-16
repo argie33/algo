@@ -104,6 +104,7 @@ from algo.orchestrator.phase8_preentry_health_check import PreEntryHealthValidat
 from algo.orchestrator.phase8_technical_data import _batch_fetch_technical_data
 from algo.orchestrator.phase_data_contract import ExposureConstraints, QualifiedTrade
 from algo.orchestrator.phase_result import PhaseResult
+from algo.orchestrator.type_converters import sector_position_cap
 from algo.orchestrator.validation_thresholds import (
     MAX_PLAUSIBLE_ENTRY_PRICE_MOVE_PCT,
     MIN_ATR_THRESHOLD,
@@ -2330,7 +2331,8 @@ def run(
                             if sector_counts_unavailable
                             else sector_position_counts.get(signal_sector, 0)
                         )
-                        if current_sector_count >= max_positions_per_sector:
+                        effective_sector_cap = sector_position_cap(config, signal_sector, max_positions_per_sector)
+                        if current_sector_count >= effective_sector_cap:
                             reason_key = (
                                 "sector_counts_unavailable"
                                 if sector_counts_unavailable
@@ -2341,7 +2343,7 @@ def run(
                                 symbol,
                                 "concentration_prefilter",
                                 f"{reason_key}: {signal_sector} at {current_sector_count} "
-                                f"positions (limit {max_positions_per_sector})",
+                                f"positions (limit {effective_sector_cap})",
                                 run_date,
                                 entry_price,
                                 None,

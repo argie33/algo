@@ -12,7 +12,7 @@ import psycopg2
 from algo.exceptions import ValidationError
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_result import PhaseResult
-from algo.orchestrator.type_converters import ensure_float, ensure_int
+from algo.orchestrator.type_converters import ensure_float, ensure_int, sector_position_cap
 from algo.reporting import AlertManager, notify
 from algo.trading.exceptions import DatabaseError, NotificationError
 from utils.db.advisory_locks import (
@@ -406,13 +406,31 @@ def run(
                         JOIN company_profile cs ON ap.symbol = cs.symbol
                         WHERE ap.status = 'open'
                         GROUP BY cs.sector
-                        HAVING COUNT(*) > %s
                         ORDER BY COUNT(*) DESC
-                        """,
-                        (max_per_sector,),
+                        """
                     )
 
-                    concentrated_sectors = cur.fetchall()
+                    # SECTOR-SPECIFIC CAP OVERRIDE (2026-09-11): the HAVING clause used to filter
+                    # to over-limit sectors directly in SQL against the single global
+                    # max_per_sector. Now fetches every sector's count and filters here instead,
+                    # so sector_position_cap() (same helper phase8_entry_execution.py's
+                    # entry-side gate uses) can apply a tighter effective cap for a specific
+                    # sector (Real Estate, confirmed overweighted-while-underperforming this
+                    # session - see reit_risk_pillar_concentration_not_fixable_by_sector_relative_20260911)
+                    # without changing the global cap every other sector still uses.
+                    all_sector_counts = cur.fetchall()
+                    concentrated_sectors = []
+                    for row in all_sector_counts:
+                        if len(row) < 2:
+                            logger.warning(
+                                f"[PHASE 6 CONCENTRATION] Sector row has {len(row)} columns, expected 2. "
+                                f"Skipping malformed row: {row}"
+                            )
+                            continue
+                        sector_check, count_check = row[0], row[1]
+                        effective_cap_check = sector_position_cap(config, sector_check, max_per_sector)
+                        if count_check is not None and int(count_check) > effective_cap_check:
+                            concentrated_sectors.append((sector_check, count_check, effective_cap_check))
                     rebalance_actions = []
 
                     for row in concentrated_sectors:
@@ -422,7 +440,7 @@ def run(
                                 f"Skipping malformed row: {row}"
                             )
                             continue
-                        sector, count = row[0], row[1]
+                        sector, count, effective_max_per_sector = row[0], row[1], row[2]
                         # CRITICAL: Handle Decimal types from psycopg2 - convert to int BEFORE arithmetic
                         try:
                             count_int = _ensure_int(count, f"sector_count:{sector}") if count is not None else 0
@@ -435,7 +453,9 @@ def run(
                         # This ensures native Python int, not psycopg2 Decimal or numpy types
                         try:
                             count_int_native = _ensure_int(count_int, f"sector_count:{sector} (pre-arithmetic)")
-                            max_sector_native = _ensure_int(max_per_sector, "max_positions_per_sector (pre-arithmetic)")
+                            max_sector_native = _ensure_int(
+                                effective_max_per_sector, "max_positions_per_sector (pre-arithmetic)"
+                            )
                         except (TypeError, ValueError) as conv_err:
                             raise RuntimeError(
                                 f"[PHASE 6 CRITICAL] Failed to convert ints for arithmetic on sector {sector}: {conv_err}. "
