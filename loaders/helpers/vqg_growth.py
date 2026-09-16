@@ -159,6 +159,13 @@ class GrowthMetricsMixin(SymbolGateMixin):
 
         revenues: list[tuple[int, float]] = []
         eps_values: list[tuple[int, float]] = []
+        # DILUTED EPS series, separate from eps_values (basic EPS - ais.earnings_per_share) above.
+        # ols_growth_trend's MSCI/Barra formula specifies diluted EPS, the institutional-standard
+        # convention (accounts for options/RSU/convertible dilution) - eps_values (basic) stays
+        # exactly as-is for the pre-existing eps_growth_1y/3y/5y CAGR fields, which are NOT
+        # switched to diluted here (see load_value_quality_growth_metrics.py's income_rows query
+        # comment for why that's deliberately out of scope for this pass).
+        diluted_eps_values: list[tuple[int, float]] = []
         # bvps = stockholders_equity/shares_outstanding_diluted, book_value_growth = bvps/prior_bvps - 1.
         # Reuses _compute_period_growth's offset=1 CAGR machinery (same sign-change/split-guard
         # protection EPS gets) - BVPS is just another (fiscal_year, value) series.
@@ -208,15 +215,23 @@ class GrowthMetricsMixin(SymbolGateMixin):
                 stockholders_equity = None
                 if len(row) > 7 and row[7] is not None:
                     stockholders_equity = float(row[7])
+                # row[8] (ais.diluted_eps, added 2026-09-16) same len() guard - older 5/8-tuple
+                # test fixtures predating this column still work.
+                diluted_eps = None
+                if len(row) > 8 and row[8] is not None:
+                    diluted_eps = float(row[8])
                 rev = self._nan_to_none(rev)
                 eps = self._nan_to_none(eps)
                 stockholders_equity = self._nan_to_none(stockholders_equity)
+                diluted_eps = self._nan_to_none(diluted_eps)
                 if fiscal_year is None:
                     continue
                 if rev is not None and rev > 0:
                     revenues.append((fiscal_year, rev))
                 if eps is not None and eps != 0:
                     eps_values.append((fiscal_year, eps))
+                if diluted_eps is not None and diluted_eps != 0:
+                    diluted_eps_values.append((fiscal_year, diluted_eps))
                 # Use income statement shares if available, fallback to company_info_sec if not
                 # (see fallback-fetch logic above for context)
                 shares_for_year = shares
@@ -336,8 +351,12 @@ class GrowthMetricsMixin(SymbolGateMixin):
         # MSCI's real "Long-term Historical Growth Trend" (LT his EPS G / LT his SPS G) - an OLS
         # regression through up to 5 years of history, NOT another two-point CAGR like the
         # 1y/3y/5y fields above. See loaders/helpers/growth_trend.py's own docstring for the
-        # verified formula (reproduces MSCI's own published worked example). Computed from the
-        # SAME eps_values/sps_values series already assembled above - no new data fetch.
+        # verified formula (reproduces MSCI's own published worked example). Uses diluted_eps_
+        # values/sps_values (already assembled above) - no new data fetch beyond the diluted_eps
+        # column added to income_rows for this. DILUTED, not basic (eps_values) - MSCI's/Barra's
+        # real formula specifies diluted EPS; see load_value_quality_growth_metrics.py's
+        # income_rows query comment for why the pre-existing eps_growth_1y/3y/5y fields keep
+        # using basic EPS unchanged (separate, higher-blast-radius fix, out of scope here).
         #
         # SPLIT-GUARD (added same session, "worried we're doing something not in line" review):
         # ols_growth_trend has no split/share-count-discontinuity protection of its own (it only
@@ -361,11 +380,11 @@ class GrowthMetricsMixin(SymbolGateMixin):
 
         eps_growth_trend_5y: float | None
         eps_growth_trend_5y_reason: str | None
-        if _trend_window_has_split(eps_values):
+        if _trend_window_has_split(diluted_eps_values):
             eps_growth_trend_5y = None
             eps_growth_trend_5y_reason = "growth_undefined_share_count_discontinuity"
         else:
-            eps_growth_trend_5y = ols_growth_trend(eps_values)
+            eps_growth_trend_5y = ols_growth_trend(diluted_eps_values)
             eps_growth_trend_5y_reason = None if eps_growth_trend_5y is not None else "insufficient_history"
 
         sps_growth_trend_5y: float | None

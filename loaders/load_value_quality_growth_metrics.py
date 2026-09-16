@@ -688,11 +688,26 @@ class ValueQualityGrowthMetricsLoader(
                 # growth calc; book_value_growth alone goes unavailable for that year via the NULL.
                 # Appended last so existing positional reads (income_rows[i][0..6] in
                 # _compute_growth_metrics/_compute_margin_volatility) stay unchanged.
+                #
+                # ais.diluted_eps (9th column, added 2026-09-16) is a GENUINELY SEPARATE column
+                # from ais.earnings_per_share, not a naming variant - confirmed via
+                # loaders/helpers/financial_statements_income_config.py's own concept mapping:
+                # "earnings_per_share_basic" -> earnings_per_share (what this query's existing
+                # 5th column and every pre-existing eps_growth_1y/3y/5y field actually use),
+                # "earnings_per_share_diluted" -> diluted_eps. MSCI's/Barra's real EPS-growth-
+                # trend formula (loaders/helpers/growth_trend.py) specifies diluted EPS, the
+                # institutional-standard convention (accounts for options/RSU/convertible
+                # dilution; basic EPS overstates true per-share economics) - added here so the
+                # NEW eps_growth_trend_5y field can use the correct convention from day one,
+                # not inherit the pre-existing basic-EPS fields' convention. The pre-existing
+                # eps_growth_1y/3y/5y CAGR fields are NOT changed to diluted_eps in this pass -
+                # that's a separate, higher-blast-radius fix (touches already-shipped fields
+                # across the whole system) deliberately left out of scope here.
                 cur.execute(
                     """
                     SELECT ais.fiscal_year, ais.revenue, ais.operating_income, ais.net_income,
                            ais.earnings_per_share, ais.shares_outstanding_diluted,
-                           ais.shares_outstanding_basic, abs.stockholders_equity
+                           ais.shares_outstanding_basic, abs.stockholders_equity, ais.diluted_eps
                     FROM annual_income_statement ais
                     LEFT JOIN annual_balance_sheet abs
                         ON ais.symbol = abs.symbol AND ais.fiscal_year = abs.fiscal_year

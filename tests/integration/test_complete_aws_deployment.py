@@ -83,7 +83,13 @@ class TestCompleteAWSDeployment:
         # docstring for that evidence-vs-override trail. _score_growth now iterates the shared
         # GROWTH_SCORE_FIELDS constant (checked directly below) rather than naming each field
         # as its own literal in its source, and scores every field un-inverted (no sign-flip).
-        assert "revenue_growth_1y" in GROWTH_SCORE_FIELDS, "Growth must score revenue_growth_1y"
+        #
+        # revenue_growth_1y REMOVED 2026-09-16 (factor-purity /goal session - see
+        # GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE in loaders/stock_scores/growth_scoring.py): it's a
+        # two-point CAGR, not MSCI's/Barra's real "growth trend" (an OLS regression) - replaced
+        # by eps_growth_trend_5y. The "multi-input, not sign-flipped" principle this test guards
+        # is unaffected; only which specific fields qualify as real methodology matches changed.
+        assert "eps_growth_trend_5y" in GROWTH_SCORE_FIELDS, "Growth must score eps_growth_trend_5y"
         # book_value_growth REMOVED 2026-08-28 (separate, later same-day user directive - see
         # GROWTH_SCORE_FIELDS's own docstring in loaders/load_stock_scores.py: live-observed
         # persistent "No data" on StockDetail for the stock under review). This assertion is

@@ -45,6 +45,96 @@ def _owner() -> Any:
     return _owner_mod
 
 
+# GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE: the 12-field version of this constant (2026-08-31 through
+# 2026-09-16) is SUPERSEDED below (2026-09-16, /goal session: "assume any previous decisions in
+# memory are wrong ... do what is proven best and right in the industry", later "really dig and
+# be certain on the right methodology", "we don't want to veer far from what they do"). That
+# version's own comment claimed "all 12 fields are independently verified canonical to a named
+# MSCI/Russell/S&P/IBD Growth-factor component" - re-checked against MSCI's and Barra's actual
+# published methodology documents this session (fetched and read directly, not recalled from
+# memory) and this does not hold up:
+#
+#   - MSCI's real Growth style (MSCI Global Investable Market Value and Growth Index Methodology,
+#     Feb 2021, msci.com/eqb/methodology/meth_docs/MSCI_GIMIVGMethod_Feb2021.pdf) uses exactly 5
+#     descriptors: long-term forward EPS growth rate, short-term forward EPS growth rate, current
+#     internal growth rate (g = ROE x retention rate), long-term historical EPS growth TREND,
+#     long-term historical sales-per-share growth TREND. The historical TREND descriptors are an
+#     OLS regression of the last 5 years' (DILUTED) EPS/SPS against time, annualized, divided by
+#     the mean absolute level over that window - NOT a two-point CAGR. See
+#     loaders/helpers/growth_trend.py for the full formula and its worked-example verification.
+#   - INDEPENDENTLY CORROBORATED (different document, different company lineage - Barra was
+#     acquired by MSCI in 2004, predates common authorship): the classic Barra US-E3 Risk Model
+#     Handbook, Appendix A "Descriptor Definitions", Growth section, EGRO ("Earnings growth rate
+#     over last five years") - "First, the following regression is run: EPS_t = a + b*t, ...
+#     This regression is run for the period t=1,...,5. EGRO is computed as: EGRO = b /
+#     average(EPS_t)" - the SAME OLS-regression-over-5-years-divided-by-average-level
+#     construction, independently arrived at.
+#   - NEITHER MSCI's nor Barra's Growth descriptors include a forecast REVENUE growth rate, a
+#     quarterly/trailing-4Q earnings "momentum" metric, or three separate overlapping
+#     point-in-time growth rates (1y/3y/5y) for the same underlying quantity.
+#     forward_revenue_growth_next_fy, quarterly_growth_momentum, and earnings_growth_4q_avg are
+#     not named components of either published methodology.
+#   - Live-verified (this session, 5,164-row growth_metrics query, Spearman correlation) that the
+#     1y/3y/5y windows this repo scored as 6 independent votes are real duplicates of each other,
+#     not diversifying signal: revenue_growth_3y vs 5y r=0.66, revenue_growth_1y vs 3y r=0.54,
+#     eps_growth_3y vs 5y r=0.54, eps_growth_1y vs 3y r=0.46.
+#   - EPS COLUMN FIX (found mid-session, user: "we are using the wrong eps stuff though arent
+#     we"): annual_income_statement.earnings_per_share (what the pre-existing eps_growth_1y/3y/5y
+#     use) is BASIC EPS - loaders/helpers/financial_statements_income_config.py maps
+#     "earnings_per_share_basic" -> earnings_per_share and "earnings_per_share_diluted" ->
+#     diluted_eps, two genuinely separate, both-maintained columns. MSCI's/Barra's real formula
+#     specifies DILUTED EPS (institutional-standard - accounts for options/RSU/convertible
+#     dilution). eps_growth_trend_5y is built from diluted_eps, not the pre-existing basic-EPS
+#     series - a real fix, not a stylistic choice (see test_growth_trend_uses_diluted_eps_not_
+#     basic_20260916.py). The pre-existing eps_growth_1y/3y/5y fields keep using basic EPS
+#     unchanged - fixing those is separate, higher-blast-radius work, out of scope here.
+#
+# NO SUBSTITUTE SHIPPED FOR DATA WE DON'T HAVE (user: "I don't like the guesses ... we need to
+# only use what the industry does"): forward_eps_growth_next_fy (this DB's next-FY analyst
+# consensus) was tried as a stand-in for MSCI's "long-term forward EPS growth rate" (a real 3-5yr
+# consensus LTG estimate) and DROPPED rather than shipped as a wrong-horizon guess. Live-checked
+# this session: yfinance's own `growth_estimates` property has a real "LTG" row, but it returned
+# NaN for every symbol tried (MSFT/NVDA/KO/T/JPM) - Yahoo's free tier doesn't populate real
+# per-stock long-term consensus growth. A PEG-ratio-derived implied growth rate was also
+# investigated and REJECTED - multiple sources confirm PEG's growth-rate horizon is vendor-
+# dependent and undocumented by Yahoo (could be next-year, 1-3yr, or 5yr), so it can't be
+# verified as the real LTG descriptor either. No other analyst-estimate data source is
+# integrated into this system - real LTG data would need a new paid vendor (Zacks/FactSet/IBES/
+# Finnhub), a separate cost/access decision, not a gap closeable here.
+#
+# YOUNG-COMPANY COVERAGE (explicitly checked, not assumed - "I don't want anything where we're
+# losing out on the good younger growth companies"): MSCI's own text is explicit that a security
+# without >=4 years of EPS/SPS history simply has the historical-TREND descriptor marked missing,
+# NOT the whole Growth score - "Growth trends for securities without sufficient EPS or SPS values
+# are considered to be missing." A young high-growth company still scores on
+# forward_eps_growth_current_fy (needs only current analyst coverage) and sustainable_growth_rate
+# (needs only 1 year of ROE/payout data) - the same "score what's available, renormalize"
+# treatment GROWTH_MIN_FIELDS_AVAILABLE already implements below. Live-checked coverage: ~88% of
+# this universe has >=4 years of revenue history, so the historical-trend legs are genuinely
+# missing (not fabricated from insufficient data) for roughly 12% of symbols - the same tradeoff
+# a real institutional provider makes, not a gap unique to this implementation.
+#
+# RESULT: 12 fields -> 4, real methodology matches ONLY - no substitute for a descriptor this
+# system can't actually compute:
+#   - eps_growth_trend_5y -> "long-term historical EPS growth trend" (verified formula match,
+#     diluted EPS)
+#   - sps_growth_trend_5y -> "long-term historical sales-per-share growth trend" (verified
+#     formula match; MSCI's descriptor is per-SHARE sales, not raw revenue - sps_growth_trend_5y
+#     divides revenue by diluted shares outstanding per year, same per-share normalization
+#     reasoning as EPS vs raw net income)
+#   - forward_eps_growth_current_fy -> "short-term forward EPS growth rate" (real ~12-month-ahead
+#     analyst consensus - a genuine horizon match, not a proxy across a different time horizon)
+#   - sustainable_growth_rate -> "current internal growth rate" (ROE x retention rate is
+#     literally that descriptor's textbook definition, not just a loose analogy - EXACT match,
+#     verified against this repo's own sustainable_growth_rate computation in vqg_quality.py)
+# revenue_growth_1y/3y/5y, eps_growth_1y/3y/5y, forward_eps_growth_next_fy,
+# forward_revenue_growth_next_fy, quarterly_growth_momentum, earnings_growth_4q_avg are DEMOTED
+# to informational-only: still computed/persisted in growth_metrics and still API-served, but
+# REMOVED from GROWTH_SCHEMA entirely (StockScoreAccordion.jsx) rather than kept as used:false
+# rows - this repo's own established "if we're not scoring it we don't want to display it"
+# convention (already applied to every other pillar's *_SCHEMA, see
+# TestUnscoredValueFieldsNotDisplayed/test_growth_schema_has_no_unscored_rows).
+#
 # GROWTH_SCORE_FIELDS: the multi-input equal-weighted blend _score_growth scores (RESTORED
 # 2026-08-28, user directive - see _score_growth's docstring for the full history/evidence
 # trail). Order matches GROWTH_SCHEMA in StockScoreAccordion.jsx - every field the frontend's
@@ -165,21 +255,16 @@ def _owner() -> Any:
 #    pillar decision, not made here. Still computed/persisted in growth_metrics and displayed as
 #    a tracked-not-scored row in GROWTH_SCHEMA (frontend), per this repo's standing "convert
 #    removed fields to informational rows, don't delete" practice - not scored here.
-# Net result: 12 fields, all independently verified canonical to a named MSCI/Russell/S&P/IBD
-# Growth-factor component, equal-weighted (1/12 ~= 8.3% each - see GROWTH_SCHEMA/weight badges).
+# Net result at the time (2026-08-31 through 2026-09-16): 12 fields, claimed canonical to a named
+# MSCI/Russell/S&P/IBD Growth-factor component. SUPERSEDED 2026-09-16 - see
+# GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE above: only 4 of these 12 survive verification against
+# MSCI's and Barra's real published methodology, with no guessed substitute for the one
+# descriptor this system can't actually compute. Equal-weighted (1/4 = 25% each now, not 1/12).
 GROWTH_SCORE_FIELDS: tuple[str, ...] = (
-    "revenue_growth_1y",
-    "eps_growth_1y",
-    "revenue_growth_3y",
-    "eps_growth_3y",
-    "revenue_growth_5y",
-    "eps_growth_5y",
+    "eps_growth_trend_5y",
+    "sps_growth_trend_5y",
     "forward_eps_growth_current_fy",
-    "forward_eps_growth_next_fy",
-    "forward_revenue_growth_next_fy",
     "sustainable_growth_rate",
-    "quarterly_growth_momentum",
-    "earnings_growth_4q_avg",
 )
 
 # GROWTH_INPUT_IMPLAUSIBLE_PCT (added 2026-08-31, /goal session - "make sure the results make
@@ -220,11 +305,14 @@ GROWTH_INPUT_IMPLAUSIBLE_PCT = 150.0
 # visible. This is the identical problem Quality already solved for itself - see _score_quality's
 # docstring ("40-point minimum-available-weight floor out of a 101-point nominal total... below
 # that, quality_score is None rather than a thin-sample extrapolation") - Growth just never got the
-# same treatment when it moved from single-input to multi-input. 5/12 (~42%) mirrors Quality's
-# ~40%-of-101 ratio; below this, _score_growth returns a data_unavailable marker instead of a
-# score built from too little evidence, same "honest partial data, not thin-sample extrapolation"
-# principle, not a new one invented here.
-GROWTH_MIN_FIELDS_AVAILABLE = 5
+# same treatment when it moved from single-input to multi-input. 5/12 (~42%) mirrored Quality's
+# ~40%-of-101 ratio at the time.
+# RESCALED 2026-09-16 (see GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE - 12 fields -> 4, real-methodology-
+# only, no guessed substitutes): 2/4 (50%) - can't hit ~40% exactly with only 4 slots, and 1/4
+# (25%) would recreate the exact single-field-renormalization problem this constant exists to
+# prevent, so this rounds UP to the stricter, safer side rather than down to match the old ratio
+# more closely.
+GROWTH_MIN_FIELDS_AVAILABLE = 2
 
 
 class GrowthScoringMixin:
@@ -241,38 +329,38 @@ class GrowthScoringMixin:
     def _get_growth_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch growth metrics for symbol.
 
-        Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 25 columns (revenue_growth_1y/3y/5y, eps_growth_1y/
+        - Row length validation: Must have 27 columns (revenue_growth_1y/3y/5y, eps_growth_1y/
           3y/5y, book_value_growth, net_income_growth_yoy, operating_income_growth_yoy,
           sustainable_growth_rate, fcf_growth_yoy, ocf_growth_yoy, gross/operating/net_margin_
           trend, roe_trend, asset_growth_yoy, eps_growth_stability, quarterly_growth_momentum,
           earnings_growth_4q_avg, forward_eps_growth_current_fy, forward_eps_growth_next_fy,
-          forward_revenue_growth_next_fy, eps_estimate_revision_90d_pct, data_unavailable) -
-          extended 2026-08-31 to add the 4 forward/analyst-estimate fields (see
-          GROWTH_SCORE_FIELDS/_score_growth for why 3 of the 4 now feed growth_score).
-        - Schema mismatch (len(row) < 25) → raises ValueError immediately
+          forward_revenue_growth_next_fy, eps_estimate_revision_90d_pct, eps_growth_trend_5y,
+          sps_growth_trend_5y, data_unavailable) - extended 2026-09-16 to add the two
+          MSCI/Barra-formula OLS growth-trend fields (see loaders/helpers/growth_trend.py).
+        - Schema mismatch (len(row) < 27) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
-        - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_growth_metrics_found"
 
-        CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Some securities have rows
-        marked data_unavailable=True with NULL values. Previously returned NULLs instead of
-        marker; now properly returns marker dict.
+        STALE CLAIM REMOVED 2026-09-16 (found while extending this docstring for the trend
+        fields, not the focus of that change): this docstring used to claim "data_unavailable=True
+        flag -> returns marker dict even if row exists" and cite a "CRITICAL FIX 2026-07-01" that
+        added that check - the FIX 2026-09-04 note in the code below already explains that check
+        was deliberately REMOVED (a data_unavailable=True row can still carry real per-field
+        values worth scoring), but the docstring above it was never updated to stop claiming the
+        opposite. The code has been correct since 2026-09-04; only this comment was lying about it.
 
-        MINIMUM DATA REQUIREMENT: Row must have exactly 25 columns. Missing columns causes
+        MINIMUM DATA REQUIREMENT: Row must have exactly 27 columns. Missing columns causes
         immediate fail-fast ValueError. Dependent on upstream annual_income_statement availability.
         """
         row = self._growth_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 25 columns before accessing indices
-            # (21 + forward_eps_growth_current_fy/next_fy + forward_revenue_growth_next_fy +
-            # eps_estimate_revision_90d_pct, added 2026-08-31)
-            if len(row) < 25:
+            # CRITICAL: Validate row has expected 27 columns before accessing indices
+            if len(row) < 27:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 25. "
+                    f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 27. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
             # FIX 2026-09-04 (goal: "Missing SEC/XBRL data" reduction, real-scoring-consumption
@@ -344,6 +432,8 @@ class GrowthScoringMixin:
                 "eps_estimate_revision_90d_pct": safe_float(
                     row[23], f"{symbol}.eps_estimate_revision_90d_pct", allow_none=True
                 ),
+                "eps_growth_trend_5y": safe_float(row[24], f"{symbol}.eps_growth_trend_5y", allow_none=True),
+                "sps_growth_trend_5y": safe_float(row[25], f"{symbol}.sps_growth_trend_5y", allow_none=True),
             }
         # No row exists at all
         logger.warning(
@@ -597,7 +687,7 @@ class GrowthScoringMixin:
         likely one-off (KARO's eps_growth_1y=1889%, DX's fcf_growth_yoy=739.5% - see that
         constant's own docstring for the full evidence).
 
-        GROWTH_MIN_FIELDS_AVAILABLE is preserved exactly: a symbol with fewer than 5/12 fields
+        GROWTH_MIN_FIELDS_AVAILABLE is preserved exactly: a symbol with fewer than 2/4 fields
         available (after implausible-value exclusion) gets growth_score=None here (withheld,
         same "thin-sample extrapolation, not an honest partial score" principle as Pass 1's
         marker-dict return, adapted to this pass's "None is a valid overwrite" convention -
@@ -623,15 +713,19 @@ class GrowthScoringMixin:
                 # universe exclusion get_active_symbols(exclude_etfs=True) enforces for the
                 # per-symbol fetch path keeps getting growth_score/composite_score freshly
                 # recomputed here forever.
+                # Growth-field column list built from GROWTH_SCORE_FIELDS itself (4 fields as of
+                # the 2026-09-16 MSCI/Barra-aligned cut - see that constant's own
+                # GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE) rather than a separately hand-maintained
+                # column literal - field_col_offset below assumes column order/count matches
+                # GROWTH_SCORE_FIELDS exactly, so a hardcoded list here could silently drift out
+                # of sync with that constant.
+                growth_field_columns = ", ".join(f"gm.{field}" for field in GROWTH_SCORE_FIELDS)
                 cur.execute(
-                    """
+                    f"""
                     SELECT ss.symbol, ss.growth_score, ss.composite_score, ss.quality_score,
                            ss.value_score, ss.risk_score, ss.momentum_score, ss.components,
                            ss.data_completeness, ss.data_unavailable,
-                           gm.revenue_growth_1y, gm.eps_growth_1y, gm.revenue_growth_3y, gm.eps_growth_3y,
-                           gm.revenue_growth_5y, gm.eps_growth_5y, gm.forward_eps_growth_current_fy,
-                           gm.forward_eps_growth_next_fy, gm.forward_revenue_growth_next_fy,
-                           gm.sustainable_growth_rate, gm.quarterly_growth_momentum, gm.earnings_growth_4q_avg,
+                           {growth_field_columns},
                            cp.sector, COALESCE(cis.is_foreign_private_issuer, false), vm.market_cap
                     FROM stock_scores ss
                     JOIN growth_metrics gm ON gm.symbol = ss.symbol
@@ -662,32 +756,36 @@ class GrowthScoringMixin:
                 )
                 return
 
-            # forward_eps_growth_current_fy/next_fy and forward_revenue_growth_next_fy are stored
-            # as raw fractions in growth_metrics (0.18 = 18%), same as _get_growth_metrics's own
-            # _scale_fraction_to_pct helper handles for Pass 1 - scale to percentage points here
-            # too so they're on the same scale as every other GROWTH_SCORE_FIELDS candidate before
-            # winsorization/z-scoring.
+            # forward_eps_growth_current_fy is stored as a raw fraction in growth_metrics
+            # (0.18 = 18%), same as _get_growth_metrics's own _scale_fraction_to_pct helper
+            # handles for Pass 1 - scale to percentage points here too so it's on the same scale
+            # as every other GROWTH_SCORE_FIELDS candidate before winsorization/z-scoring.
             fraction_fields = {
                 "forward_eps_growth_current_fy",
-                "forward_eps_growth_next_fy",
-                "forward_revenue_growth_next_fy",
             }
-            # Column index (within the 12-field slice starting at row[10]) for each
-            # GROWTH_SCORE_FIELDS candidate, matching the SELECT's column order above exactly.
+            # Column index (within the GROWTH_SCORE_FIELDS-width slice starting at row[10]) for
+            # each candidate, matching the SELECT's dynamically-built column order above exactly.
             field_col_offset = {field: 10 + i for i, field in enumerate(GROWTH_SCORE_FIELDS)}
+            # sector/is_fpi/market_cap immediately follow the GROWTH_SCORE_FIELDS columns - their
+            # index must move with that constant's length, not a hardcoded 12-field assumption.
+            _sector_idx = 10 + len(GROWTH_SCORE_FIELDS)
+            _fpi_idx = _sector_idx + 1
+            _market_cap_idx = _sector_idx + 2
 
             sector_map: dict[str, str] = {}
             for row in rows:
-                sector = apply_mortgage_reit_sector_override(row[0], row[22])
+                sector = apply_mortgage_reit_sector_override(row[0], row[_sector_idx])
                 if sector is not None:
                     sector_map[row[0]] = sector
 
             # FPI peer-group split (2026-09-14, goal-session "fix z-scoring issues" directive -
-            # see sector_neutral_zscore's own docstring in factor_normalization.py). row[23] is
+            # see sector_neutral_zscore's own docstring in factor_normalization.py).
             # COALESCE(cis.is_foreign_private_issuer, false) per this query's own SELECT above.
-            is_fpi: dict[str, bool] = {row[0]: bool(row[23]) for row in rows if len(row) > 23}
+            is_fpi: dict[str, bool] = {row[0]: bool(row[_fpi_idx]) for row in rows if len(row) > _fpi_idx}
             market_cap_map: dict[str, float] = {
-                row[0]: float(row[24]) for row in rows if len(row) > 24 and row[24] is not None and float(row[24]) > 0
+                row[0]: float(row[_market_cap_idx])
+                for row in rows
+                if len(row) > _market_cap_idx and row[_market_cap_idx] is not None and float(row[_market_cap_idx]) > 0
             }
 
             raw_by_field: dict[str, dict[str, float]] = {field: {} for field in GROWTH_SCORE_FIELDS}

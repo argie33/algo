@@ -175,18 +175,10 @@ class TestGrowthScoreWeightBadges:
     # displays it (StockScoreAccordion.jsx's GROWTH_SCHEMA). Kept explicit (not derived) so a
     # field renamed on one side without the other fails loudly here.
     _PY_FIELD_TO_JSX_KEY = {
-        "revenue_growth_1y": "revenue_growth_1y_pct",
-        "eps_growth_1y": "eps_growth_1y_pct",
-        "revenue_growth_3y": "revenue_growth_3y_cagr",
-        "eps_growth_3y": "eps_growth_3y_cagr",
-        "revenue_growth_5y": "revenue_growth_5y_cagr",
-        "eps_growth_5y": "eps_growth_5y_cagr",
+        "eps_growth_trend_5y": "eps_growth_trend_5y",
+        "sps_growth_trend_5y": "sps_growth_trend_5y",
         "forward_eps_growth_current_fy": "forward_eps_growth_current_fy",
-        "forward_eps_growth_next_fy": "forward_eps_growth_next_fy",
-        "forward_revenue_growth_next_fy": "forward_revenue_growth_next_fy",
         "sustainable_growth_rate": "sustainable_growth_rate",
-        "quarterly_growth_momentum": "quarterly_growth_momentum",
-        "earnings_growth_4q_avg": "earnings_growth_4q_avg",
     }
 
     def test_growth_score_fields_match_jsx_key_map(self):

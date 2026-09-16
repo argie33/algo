@@ -1381,90 +1381,47 @@ const VALUE_SCHEMA = [
 // (unscored, no weight badge) - an estimate-REVISION-momentum signal is a distinct factor
 // style from a growth-rate level, not folded into this blend; already percentage-point scaled
 // (no *100 needed).
+// GROWTH_SCHEMA cut 12->4 rows 2026-09-16 (factor-purity /goal session - see
+// GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE in loaders/stock_scores/growth_scoring.py). Real MSCI/
+// Barra published Growth methodology uses 5 (MSCI) / 2 (Russell) descriptors, not 12, and
+// never separately scores revenue_growth_1y/3y/5y, eps_growth_1y/3y/5y (all two-point CAGRs -
+// the real "growth trend" descriptor is an OLS regression, see eps_growth_trend_5y/
+// sps_growth_trend_5y below), forward_eps_growth_next_fy (wrong time horizon - MSCI's
+// "long-term forward EPS growth" needs a real 3-5yr consensus estimate this system doesn't
+// have; not shipped as a wrong-horizon guess), forward_revenue_growth_next_fy, or
+// quarterly_growth_momentum/earnings_growth_4q_avg. Those 8 raw fields are still
+// computed/persisted/API-served, just no longer scored, so per this repo's own "if we're not
+// scoring it we don't want to display it" rule (already applied to every other pillar - see
+// TestUnscoredValueFieldsNotDisplayed) they're removed from this display schema entirely, not
+// kept as used:false rows.
 const GROWTH_SCHEMA = [
   {
-    key: "revenue_growth_1y_pct",
-    label: "Revenue Growth (1Y)",
+    key: "eps_growth_trend_5y",
+    label: "EPS Growth Trend (5Y OLS regression)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "8%",
+    weight: "25%",
   },
   {
-    key: "eps_growth_1y_pct",
-    label: "EPS Growth (1Y)",
+    key: "sps_growth_trend_5y",
+    label: "Sales-Per-Share Growth Trend (5Y OLS regression)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "8%",
-  },
-  {
-    key: "revenue_growth_3y_cagr",
-    label: "Revenue Growth (3Y CAGR)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "eps_growth_3y_cagr",
-    label: "EPS Growth (3Y CAGR)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "revenue_growth_5y_cagr",
-    label: "Revenue Growth (5Y CAGR)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "eps_growth_5y_cagr",
-    label: "EPS Growth (5Y CAGR)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
+    weight: "25%",
   },
   {
     key: "forward_eps_growth_current_fy",
     label: "Forward EPS Growth (Current FY, analyst consensus)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "8%",
-  },
-  {
-    key: "forward_eps_growth_next_fy",
-    label: "Forward EPS Growth (Next FY, analyst consensus)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "forward_revenue_growth_next_fy",
-    label: "Forward Revenue Growth (Next FY, analyst consensus)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "8%",
+    weight: "25%",
   },
   {
     key: "sustainable_growth_rate",
     label: "Sustainable Growth Rate",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "8%",
-  },
-  {
-    key: "quarterly_growth_momentum",
-    label: "Revenue Growth (4Q YoY Avg)",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "earnings_growth_4q_avg",
-    label: "Earnings Growth (4Q Avg)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
+    weight: "25%",
   },
 ];
 // fcf_growth_yoy / eps_growth_stability / net_income_growth_yoy / eps_estimate_revision_90d_pct
