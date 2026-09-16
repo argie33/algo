@@ -179,6 +179,20 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
                     continue
                 if not concept_facts:
                     continue
+                # FIXED 2026-09-16 (SKM live-confirmed, /goal data-patrol sweep): XBRL US's
+                # fact-search endpoint returns the raw filed value with no USD conversion - a
+                # foreign private issuer reporting in its home-market currency (SKM/SK Telecom
+                # files in KRW) produces an apparent ~1370x divergence against our USD-converted
+                # value that is a currency-units mismatch, not a data or extraction bug
+                # (live-confirmed: SKM total_assets flagged our_value=$20.69B vs
+                # xbrl_us_value=30,515,255,000,000, which is exactly ~30.5T KRW at the real
+                # KRW/USD rate). Skip any fact whose unit isn't USD outright - a non-USD figure
+                # is never a valid comparable for our USD-denominated columns, and this
+                # review-queue check has no currency-conversion logic of its own (unlike
+                # utils/external/sec_statements_aggregate.py's MAJOR_CURRENCIES handling for our
+                # own extraction, which this check doesn't need to duplicate here).
+                if concept_facts[0].get("unit.unit-of-measure") not in (None, "USD"):
+                    continue
                 candidate = float(concept_facts[0]["fact.value"])
                 if best_value is None or abs(candidate) > abs(best_value):
                     best_value = candidate

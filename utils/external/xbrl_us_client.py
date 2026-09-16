@@ -199,11 +199,20 @@ def fact_search(
     filing wins for this period" semantics our own loaders already apply, not the full
     dimensional fact history (use `dimensions.count=0` explicitly if a caller needs to widen
     this later for a dimensional/segment query instead).
+
+    `unit.unit-of-measure` is always requested (ADDED 2026-09-16, SKM live-confirmed): a
+    foreign private issuer files in its home-market currency (SK Telecom/SKM reports in KRW),
+    and this endpoint returns the raw filed value with no USD conversion - a caller comparing
+    the returned value directly against a USD figure without checking this field will see an
+    apparent ~1370x (or whatever the FX rate is) divergence that is a units mismatch, not a
+    data or extraction bug. See scripts/xbrl_us_crosscheck.py's own USD-only filter, which
+    consumes this field.
     """
     default_fields = [
         "fact.value",
         "fact.decimals",
         "fact.ultimus",
+        "unit.unit-of-measure",
         "period.fiscal-year",
         "period.fiscal-period",
         "report.filing-date",
