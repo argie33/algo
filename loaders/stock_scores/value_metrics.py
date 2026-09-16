@@ -861,16 +861,45 @@ class ValueMetricsMixin:
                 # reproducing MSCI's intended equal-thirds balance. pb_used_cash_substitute
                 # tracks whether this symbol already consumed cash_yield_pct as the P/B
                 # substitute, so the independent leg below is skipped for it.
+                # NEGATIVE-BOOK-VALUE DISTRESS FLOOR TAKES PRIORITY OVER THE CASH-YIELD
+                # SUBSTITUTE (fixed 2026-09-15, same day as the MSCI fidelity rewrite above -
+                # live-verified value-trap gap: BHC/BMBL/EMBC scoring value_score 99.9+ despite
+                # negative stockholders' equity, ROE -13 to -85). Root cause: the MSCI
+                # substitution rule above ("missing P/B -> P/CE leg") was applied literally to
+                # BOTH pb_reason cases - genuinely MISSING book-value data (no balance sheet
+                # coverage at all) AND negative_book_value (distressed negative equity, a real,
+                # meaningful, definitionally-worst data point, not an absence of data). MSCI's
+                # own published substitution rule is stated for the missing-data case (e.g. a
+                # financial-services filer where the metric doesn't apply) - it says nothing
+                # about deliberately overriding an already-known "worst" signal with a
+                # potentially-inflated substitute. Live query (289 universe symbols with
+                # pb_ratio_unavailable_reason='negative_book_value'): 282/289 (97.6%) have a
+                # real fcf_yield and so silently took the cash-yield substitute path instead of
+                # the floor - exactly the classic value-trap mechanism (a distressed, heavily
+                # levered company's tiny market cap mechanically inflates FCF/price into a huge
+                # "cheap" cash yield: BHC fcf_yield=35.8%, EMBC=49.4%) reaching value_score 80-100
+                # for 16 negative-equity symbols, 99.9+ for the worst 2. This silently undid the
+                # explicit 0.0 negative-book-value floor this same file already established
+                # (2026-09-05, see _score_value's own "NEGATIVE-BOOK-VALUE FLOOR ADDED" note) for
+                # all but the ~2% of negative-equity symbols with no fcf_yield at all. Fix: check
+                # pb_reason == "negative_book_value" FIRST (definitionally worst, matching every
+                # other floor in this file - unprofitable_stock/negative_forward_eps/no-revenue -
+                # none of which get a substitute either) - the cash-yield substitute is now only
+                # used for the genuinely-missing case (pb NULL with no negative_book_value
+                # reason). Not an exclusion (still 1/3 weight, still scored, still contributes to
+                # value_score) - a correction of which value it contributes, per the standing
+                # "fix don't exclude" rule.
                 pb_used_cash_substitute = False
                 components: list[tuple[float, float]] = []
                 if pb is not None and float(pb) > 0:
                     components.append((pb_pct[symbol], 1.0 / 3.0))
-                elif symbol in cash_yield_pct:
-                    # MSCI's own stated substitution: missing P/B -> cash earnings (P/CE) leg.
-                    components.append((cash_yield_pct[symbol], 1.0 / 3.0))
-                    pb_used_cash_substitute = True
                 elif pb_reason == "negative_book_value":
                     components.append((0.0, 1.0 / 3.0))
+                elif symbol in cash_yield_pct:
+                    # MSCI's own stated substitution: missing P/B -> cash earnings (P/CE) leg.
+                    # Only reached for genuinely missing (not negative/distressed) book value.
+                    components.append((cash_yield_pct[symbol], 1.0 / 3.0))
+                    pb_used_cash_substitute = True
                 if symbol in earnings_pct:
                     components.append((earnings_pct[symbol], 1.0 / 3.0))
                 elif symbol in (unprofitable_symbols & negative_fwd_symbols):
