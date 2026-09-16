@@ -376,13 +376,24 @@ class ValueMetricsMixin:
         return json.dumps(components_new)
 
     def update_value_multiples_percentiles(self) -> None:
-        """Batch pass: replace P/E, P/B, P/S, and Forward P/E's Pass-1 PROVISIONAL fixed-curve
-        scores with a true cross-sectional percentile rank against the current run's universe,
-        then FULLY RECOMPUTE value_score and composite_score from scratch off the raw stored
-        inputs (not patched relative to whatever value_score/composite_score currently hold).
-        Mirrors `update_rs_percentiles()`'s pure-overwrite pattern, not the additive-delta
-        design this method used until the rewrite below - see "BUG FOUND + FIXED 2026-08-31"
-        below.
+        """Batch pass: replace Pass-1's PROVISIONAL fixed-curve scores with a true
+        cross-sectional percentile rank against the current run's universe, then FULLY
+        RECOMPUTE value_score and composite_score from scratch off the raw stored inputs (not
+        patched relative to whatever value_score/composite_score currently hold). Mirrors
+        `update_rs_percentiles()`'s pure-overwrite pattern, not the additive-delta design this
+        method used until the rewrite below - see "BUG FOUND + FIXED 2026-08-31" below.
+
+        STALE-DOCSTRING NOTE (fixed 2026-09-16, factor-purity sweep): this top section and the
+        MECHANISM paragraph below described a 5-input flat-20%-each construction (P/E/P/B/P/S/
+        Forward-P/E/Dividend-Yield) that hasn't been true since 2026-09-15 - the real, live
+        construction is the MSCI Enhanced Value 3-leg formula (P/B-or-P/CE, E/P, EV/CFO-or-P/CE,
+        each 1/3 weight, no P/S or dividend-yield leg at all) implemented further down in this
+        same method - see the "MSCI ENHANCED VALUE CONSTRUCTION FIDELITY" comment block below
+        for the actual, current logic. Left the historical MECHANISM narrative below as-is
+        (audit trail, not currently-accurate mechanism) rather than rewriting it, same
+        "superseded, kept for history" convention this file uses elsewhere - trust the
+        code/comments from "MSCI ENHANCED VALUE CONSTRUCTION FIDELITY" onward, not this
+        docstring's own top section or MECHANISM paragraph, for what's actually live.
 
         INVESTABILITY FLOOR ADDED 2026-09-13 (`vm.market_cap >= %s`, algo_config.min_market_
         cap_millions, same $300M threshold LiquidityChecks._check_market_cap() now enforces at
