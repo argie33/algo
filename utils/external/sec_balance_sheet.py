@@ -868,6 +868,19 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # GAIN/MAIN/CSWC/NMFC/BCSF/ICMB/RWAY/SAR/NCDL, the other BDCs checked the same
         # session) - fallback-only, same convention as every concept above.
         "SecuredLongTermDebt",
+        # ADDED 2026-09-16 (goal session: SEC-vs-yfinance divergence sweep,
+        # xbrl_yfinance_line_item_report long_term_debt=0-but-real audit): bank-holding
+        # filers tag their real borrowed-funds debt under this bank-specific concept
+        # instead of any of LongTermDebt/NotesPayable/SubordinatedDebt/OtherLongTermDebt/
+        # SecuredLongTermDebt above - live-confirmed via real SEC companyfacts JSON: BANR
+        # (Banner Corp, CIK 0000946673) AdvancesFromFederalHomeLoanBanks FY2025
+        # $150,000,000 (10-K filed 2026-02-25), never tags any of the standard debt
+        # concepts. AMTB/BCRX showed the same our_value=0-vs-real-yfinance-value pattern
+        # in the same sweep (unverified whether they use this exact concept vs. a sibling
+        # FHLB one - only BANR is live-confirmed). Fallback-only, same single-figure
+        # convention as OtherLongTermDebt/SecuredLongTermDebt above (target:
+        # long_term_debt).
+        "AdvancesFromFederalHomeLoanBanks",
         # ADDED 2026-08-26 (Quality pillar literature audit): needed for Altman Z''-Score's
         # Retained Earnings/Total Assets term (the one term not derivable from concepts
         # already fetched above). Standard, near-universal US-GAAP concept - every filer with

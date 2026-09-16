@@ -161,6 +161,16 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # term-debt concept - see sec_statements.py's get_balance_sheet() comment on
         # "SecuredLongTermDebt" for the live evidence.
         "secured_long_term_debt",
+        # ADDED 2026-09-16 (goal session: SEC-vs-yfinance divergence sweep,
+        # xbrl_yfinance_line_item_report long_term_debt=0-but-real audit): bank-holding
+        # filers (BANR live-confirmed via real SEC companyfacts JSON: AdvancesFromFederal
+        # HomeLoanBanks FY2025 $150,000,000, 10-K filed 2026-02-25) tag their real
+        # borrowed-funds debt under this bank-specific concept instead of any of
+        # LongTermDebt/NotesPayable/SubordinatedDebt/OtherLongTermDebt above - AMTB/BCRX
+        # showed the same our_value=0-vs-real-yfinance-value pattern in the same sweep.
+        # Fallback-only, same single-figure convention as notes_payable/subordinated_debt
+        # above (target: long_term_debt).
+        "advances_from_federal_home_loan_banks",
         # FIXED 2026-09-05 (same continuation): KBDC (Kayne Anderson BDC) real fair-value
         # credit-facility concept - see sec_statements.py's get_balance_sheet() comment on
         # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and
@@ -441,6 +451,11 @@ _BALANCE_FIELD_MAPPING = {
     # see sec_statements.py's get_balance_sheet() comment on "SecuredLongTermDebt" for the
     # live evidence ($299M FY2025). Fallback-only, single-figure convention as above.
     "secured_long_term_debt": "long_term_debt",
+    # ADDED 2026-09-16 (goal session: SEC-vs-yfinance divergence sweep): bank-holding
+    # filers real borrowed-funds concept - see sec_balance_sheet.py's get_balance_sheet()
+    # comment on "AdvancesFromFederalHomeLoanBanks" for the live evidence (BANR FY2025
+    # $150,000,000). Fallback-only, single-figure convention as above.
+    "advances_from_federal_home_loan_banks": "long_term_debt",
     # FIXED 2026-09-05 (same sweep): KBDC (Kayne Anderson BDC) real fair-value credit-
     # facility balance - see sec_statements.py's get_balance_sheet() comment on
     # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and
