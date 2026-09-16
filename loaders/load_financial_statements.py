@@ -1328,17 +1328,22 @@ class ConsolidatedFinancialStatementsLoader(
         return rows
 
     def _reconcile_stale_fiscal_year_duplicate_period_end(self, symbol: str, rows: list[dict[str, Any]]) -> None:
-        """Delete any existing DB row for `symbol` that shares a `period_end` with one of
-        `rows` but disagrees on (fiscal_year, fiscal_quarter) - see the fix comment at this
-        method's call site for the full root cause. Only considers rows this run actually
-        derived a period_end/fiscal_year/fiscal_quarter for; never touches a symbol's rows
-        that this run didn't re-derive.
+        """Delete any existing DB row for `symbol` sharing a `period_end` with one of `rows`
+        but disagreeing on (fiscal_year, fiscal_quarter) - see call site for root cause.
+        BUGFIX 2026-09-16: pre-transform() rows carry raw "fiscal_period"/str period_end,
+        not int fiscal_quarter/date - parse both like transform() does, else always empty.
         """
-        candidates = [
-            row
-            for row in rows
-            if row.get("period_end") and row.get("fiscal_year") is not None and row.get("fiscal_quarter") is not None
-        ]
+        quarter_map = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
+        candidates = []
+        for row in rows:
+            raw_end, raw_period = row.get("period_end"), row.get("fiscal_period")
+            period_end = date.fromisoformat(raw_end) if isinstance(raw_end, str) else raw_end
+            fiscal_quarter = quarter_map.get(raw_period) if isinstance(raw_period, str) else None
+            if period_end is None or row.get("fiscal_year") is None or fiscal_quarter is None:
+                continue
+            candidates.append(
+                {"period_end": period_end, "fiscal_year": row["fiscal_year"], "fiscal_quarter": fiscal_quarter}
+            )
         if not candidates:
             return
         period_ends = {row["period_end"] for row in candidates}
