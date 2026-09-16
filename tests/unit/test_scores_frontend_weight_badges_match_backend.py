@@ -105,12 +105,14 @@ class TestValueScoreWeightBadges:
         # not scoring it we dont want to display it") - see TestUnscoredValueFieldsNotDisplayed
         # below. All five stay fully computed/stored/API-served; margin_of_safety and
         # intrinsic_value are the Deep Value Picks page's primary metrics instead.
+        # ps_score/div_score REMOVED 2026-09-16 (factor-purity sweep) - P/S and Dividend Yield
+        # are no longer scored inputs at all (backend deleted the whole Pass-1 block, see
+        # value_score.py's VALUE_MIN_WEIGHT docstring), so there's no weight to check anymore -
+        # see TestUnscoredValueFieldsNotDisplayed below for their coverage instead.
         score_var_to_jsx_key = {
             "pe_score": "stock_pe",
             "pb_score": "stock_pb",
-            "ps_score": "stock_ps",
             "fwd_pe_score": "stock_forward_pe",
-            "div_score": "stock_dividend_yield",
         }
         for score_var, jsx_key in score_var_to_jsx_key.items():
             _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
@@ -145,11 +147,27 @@ class TestUnscoredValueFieldsNotDisplayed:
             "fcf_yield",
             "stock_ev_ebitda",
             "stock_ev_revenue",
+            "stock_ps",
+            "stock_dividend_yield",
         ]
         for key in removed_keys:
             assert f'key: "{key}"' not in schema_src and f"key: '{key}'" not in schema_src, (
                 f"{key} should have no VALUE_SCHEMA row at all (not scored, so not displayed on this tab)"
             )
+
+    def test_ps_and_dividend_yield_not_scored(self):
+        """Guards the 2026-09-16 factor-purity removal - P/S and Dividend Yield (plus the
+        hand-set dividend magnitude-bonus curve and FCF-payout-sustainability gate that only
+        existed to score dividend_yield) should stay fully computed/stored but never weighted
+        into value_score again: MSCI Enhanced Value's real published methodology has no home
+        for either, and Pass 2 (value_metrics.py) already dropped both on 2026-09-15. Checks
+        the backend side doesn't drift back to computing this dead Pass-1 scaffolding."""
+        src = inspect.getsource(StockScoresLoader._score_value)
+        assert "ps_score" not in src, "P/S should no longer be a scored value_score component"
+        assert "div_score" not in src, "Dividend yield should no longer be a scored value_score component"
+        assert not hasattr(StockScoresLoader, "_dividend_sustainability_factor"), (
+            "_dividend_sustainability_factor should be deleted, not just unused"
+        )
 
 
 class TestGrowthScoreWeightBadges:

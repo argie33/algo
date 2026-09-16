@@ -5,8 +5,13 @@ GROWTH_MIN_FIELDS_AVAILABLE and Quality's 40-point minimum-available-weight floo
 
 Before this fix, `if total_weight > 0: return weighted_sum / total_weight` treated ANY
 nonzero weight as a fully-confident score - live-verified 71 universe symbols got a
-value_score built from <=20% of nominal weight (most often dividend_yield=0.0 alone, 10%
-of nominal weight, for a non-dividend-paying stock with every multiple missing).
+value_score built from <=20% of nominal weight, most often a single satellite input alone
+for a name with every other multiple missing.
+
+UPDATED 2026-09-16 (factor-purity sweep): the original "dividend-only" thin-sample scenario
+below no longer applies - dividend_yield (and P/S) were removed from Pass-1 scoring entirely,
+see value_score.py's VALUE_MIN_WEIGHT docstring. _score_value now only scores PE/PB/Forward
+PE (0.20 each, 0.60 nominal max), so a single one of those alone is the new thin-sample case.
 """
 
 from loaders.load_stock_scores import StockScoresLoader
@@ -14,12 +19,12 @@ from loaders.stock_scores.value_score import VALUE_MIN_WEIGHT
 
 
 class TestValueMinWeightThinSample:
-    def test_dividend_only_below_floor_returns_marker(self):
-        """dividend_yield alone is 0.10 of nominal weight, below VALUE_MIN_WEIGHT (0.40) -
-        must return a data_unavailable marker, not a confident float."""
+    def test_single_multiple_below_floor_returns_marker(self):
+        """Forward P/E alone is 0.20 of nominal weight, below VALUE_MIN_WEIGHT (0.40) - must
+        return a data_unavailable marker, not a confident float."""
         loader = StockScoresLoader()
 
-        result = loader._score_value({"dividend_yield": 0.0}, "THIN")
+        result = loader._score_value({"forward_pe": 15.0}, "THIN")
 
         assert isinstance(result, dict)
         assert result["data_unavailable"] is True

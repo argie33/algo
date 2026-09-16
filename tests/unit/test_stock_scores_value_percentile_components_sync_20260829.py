@@ -40,14 +40,15 @@ class TestValuePercentileComponentsSync:
         # Deliberately expensive-looking multiples so the fixed-curve Pass-1 score and the
         # (single-symbol-universe, always-50.0 per _percent_rank_cheap_high's own documented
         # behavior) percentile score disagree - guaranteeing this symbol hits the update path.
-        pe, pb, ps, fwd_pe, dividend_yield = 24.10, 5.98, 7.25, 17.04, 0.0037
+        # P/S dropped 2026-09-16 (factor-purity sweep, _ps_curve_score deleted - see
+        # value_score.py's VALUE_MIN_WEIGHT docstring); this fixture no longer includes it.
+        pe, pb, fwd_pe, dividend_yield = 24.10, 5.98, 17.04, 0.0037
         pe_curve = loader._pe_curve_score(pe)
         pb_curve = loader._pb_curve_score(pb)
-        ps_curve = loader._ps_curve_score(ps)
         fwd_pe_curve = loader._pe_curve_score(fwd_pe)
 
-        weighted_sum_old = pe_curve * 0.12 + pb_curve * 0.39 + ps_curve * 0.34 + fwd_pe_curve * 0.04
-        total_weight_old = 0.12 + 0.39 + 0.34 + 0.04 + 0.11  # dividend_yield present too
+        weighted_sum_old = pe_curve * 0.12 + pb_curve * 0.39 + fwd_pe_curve * 0.04
+        total_weight_old = 0.12 + 0.39 + 0.04 + 0.11  # dividend_yield present too
         # value_score_old is whatever Pass-1 actually stored - pick something plausible and
         # self-consistent so the delta arithmetic below is realistic, not just "whatever old was".
         value_score_old = round(max(0.0, min(100.0, weighted_sum_old / (total_weight_old - 0.11))), 2)
@@ -71,7 +72,7 @@ class TestValuePercentileComponentsSync:
             components_old["momentum"],
             pe,
             pb,
-            ps,
+            7.25,  # ps_ratio - still selected/displayed, no longer a scoring input (see above)
             fwd_pe,
             dividend_yield,
             None,  # fcf_yield

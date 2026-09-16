@@ -24,9 +24,12 @@ from loaders.load_stock_scores import StockScoresLoader
 
 class TestPbNegativeBookValueFloor:
     def _base_metrics(self) -> dict:
+        # forward_pe (not ps_ratio - P/S was dropped from scoring entirely 2026-09-16, factor-
+        # purity sweep, see value_score.py's VALUE_MIN_WEIGHT docstring) so pe+forward_pe alone
+        # (0.40 nominal weight) still clears VALUE_MIN_WEIGHT when pb is excluded below.
         return {
             "pe_ratio": 15.0,
-            "ps_ratio": 3.0,
+            "forward_pe": 16.0,
         }
 
     def test_negative_book_value_scores_lower_than_positive(self):

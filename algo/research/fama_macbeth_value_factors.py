@@ -439,16 +439,16 @@ def _ps_score(ps: float) -> float:
 # own univariate Fama-MacBeth tests - those only need the raw factor columns, not a 0-100 score.
 
 
-# ADDED 2026-09-14 (reconciliation pass): dividend_yield replaced net_payout_yield as the live
-# formula's 4th scored input (see LIVE_VALUE_FACTOR_COLS's docstring above) but this script had
-# no dividend-scoring curve at all. Replicates value_score.py's DIVIDEND_PAYER_BASE_CREDIT
-# (70.0) + DIVIDEND_MAGNITUDE_BONUS_PER_PCT (5.0) Pass-1 placeholder curve - NOT Pass-2's real
-# sector-relative saturating-exponential z-score (value_metrics.py's
-# DIVIDEND_EXTENSIVE_SATURATION_K), which is what's actually persisted to stock_scores.
-# Replicating Pass-2 exactly would require this whole function to sector-neutralize PE/PB/PS
-# too (it currently doesn't - it already only approximates Pass-1's simpler curves), a
-# materially bigger change than this reconciliation pass scopes. Flagged, not fixed - see this
-# module's own docstring for the open items this reconciliation left.
+# ADDED 2026-09-14 (reconciliation pass), STALE AS OF 2026-09-16: dividend_yield was, at the
+# time this was written, the live formula's 4th scored input, and this replicated
+# value_score.py's DIVIDEND_PAYER_BASE_CREDIT (70.0) + DIVIDEND_MAGNITUDE_BONUS_PER_PCT (5.0)
+# Pass-1 placeholder curve as an approximation of Pass-2's real behavior. Both are now
+# HISTORICAL ONLY: dividend_yield (and P/S) were removed from live scoring entirely 2026-09-15
+# (Pass 2 rewritten to MSCI Enhanced Value's real 3-leg definition, no home for either) and the
+# Pass-1 constants this replicated were deleted from value_score.py 2026-09-16 as dead,
+# non-industry-standard scaffolding - see that file's VALUE_MIN_WEIGHT docstring. Kept only for
+# reconstructing PRE-2026-09-15 point-in-time history in this script's own panel - not a
+# description of anything currently persisted to stock_scores.value_score.
 def _dividend_score(dividend_yield_decimal: float) -> float:
     if dividend_yield_decimal <= 0:
         return 0.0

@@ -178,18 +178,6 @@ class ValueMetricsMixin:
             return 70 - ((pb - 3.0) / 4.0) * 40  # 70->30 in [3,7]
         return max(0.0, 30 - (pb - 7.0) * 3)
 
-    @staticmethod
-    def _ps_curve_score(ps: float) -> float:
-        """PROVISIONAL fixed-threshold P/S score - see `_pe_curve_score`'s docstring for why
-        this must stay unchanged independent of the live scoring path."""
-        if ps <= 2.0:
-            return 100.0
-        if ps <= 6.0:
-            return 100 - ((ps - 2.0) / 4.0) * 30  # 100->70 in [2,6]
-        if ps <= 15.0:
-            return 70 - ((ps - 6.0) / 9.0) * 40  # 70->30 in [6,15]
-        return max(0.0, 30 - (ps - 15.0) * 1.5)
-
     def _value_metrics_coverage_excluding_fpi(self, cur: Any) -> tuple[int, int] | None:
         """Return (covered, total) for value_metrics over the active, non-FPI universe.
 
@@ -475,9 +463,11 @@ class ValueMetricsMixin:
         evidence for it specifically doesn't hold here even though the citation is real.
 
         MECHANISM: Pass 1 (`_score_value`, per-symbol, no access to the universe distribution)
-        still uses `_pe_curve_score`/`_pb_curve_score`/`_ps_curve_score` (the last one reused for
-        Forward P/E too, same curve, see that field's own docstring note) as a PROVISIONAL
-        placeholder so value_score/composite_score are never NULL mid-run. This method runs
+        still uses `_pe_curve_score`/`_pb_curve_score` (the latter reused for Forward P/E too,
+        same curve, see that field's own docstring note) as a PROVISIONAL placeholder so
+        value_score/composite_score are never NULL mid-run - `_ps_curve_score` was deleted
+        2026-09-16 as dead code once P/S was dropped from both passes entirely (see
+        value_score.py's VALUE_MIN_WEIGHT docstring). This method runs
         after every symbol in this run has a value_score, computes the true cross-sectional
         percentile per ratio (independently - a symbol missing P/B still gets ranked on P/E and
         P/S), and FULLY RECOMPUTES value_score from the percentile scores of all five inputs -

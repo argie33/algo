@@ -1249,13 +1249,6 @@ const VALUE_SCHEMA = [
     used: true,
     weight: "20%",
   },
-  {
-    key: "stock_ps",
-    label: "P/S",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "20%",
-  },
   // Forward P/E PROMOTED to a scored input 2026-08-28 (user directive - MSCI's Value index
   // uses 12-month forward Earnings/Price as one of its three core descriptors; explicitly a
   // judgment call, not evidence-based - analyst_earnings_estimates only has ~22 trading days
@@ -1264,17 +1257,6 @@ const VALUE_SCHEMA = [
     key: "stock_forward_pe",
     label: "Forward P/E",
     fmt: (v) => num(v, 2),
-    used: true,
-    weight: "20%",
-  },
-  // "Net Payout Yield (Div + Buybacks)" (net_payout_yield) REVERTED 2026-08-28 back to plain
-  // Dividend Yield on explicit user directive ("we want the dividend yield instead of that
-  // payout shit") - see loaders/load_stock_scores.py's _score_value docstring for the full
-  // history.
-  {
-    key: "stock_dividend_yield",
-    label: "Dividend Yield",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
     weight: "20%",
   },
@@ -1315,6 +1297,15 @@ const VALUE_SCHEMA = [
   //     primary metrics instead - their natural home, and where a viewer should look for them.
   //   - net_payout_yield: was already fully hidden here on an earlier explicit user directive
   //     ("make sure this one is gone") - unaffected by this pass, still gone.
+  //   - P/S (stock_ps) / Dividend Yield (stock_dividend_yield): REMOVED FROM SCORING AND
+  //     DISPLAY 2026-09-16 (factor-purity sweep, same "if we not scoring it we dont want to
+  //     display it" rule) - MSCI Enhanced Value's real published 3-leg definition (Book/Price,
+  //     Forward Earnings/Price, EV/CFO) has no home for either; the backend's Pass 1
+  //     (value_score.py) had kept computing and weighting both off a hand-set curve/bonus/gate
+  //     for a full day after Pass 2 (the real, persisted score) already dropped them on
+  //     2026-09-15 - see loaders/stock_scores/value_score.py's VALUE_MIN_WEIGHT docstring.
+  //     ps_ratio/dividend_yield stay fully computed/stored/API-served (still shown in the raw
+  //     metrics table elsewhere on this page), just no longer a "Used in Score" badge here.
   //   - market_cap (Size, formerly shown informationally via a separate "Size (informational)"
   //     card below Safety): REMOVED FROM DISPLAY 2026-08-31 (user directive) - Size was already
   //     retired as a scored pillar 2026-08-28 (see BASE_PILLAR_WEIGHTS history above); this

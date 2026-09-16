@@ -22,98 +22,47 @@ logger = logging.getLogger("loaders.load_stock_scores")
 
 # VALUE_MIN_WEIGHT (added 2026-09-07, /goal session: "dig into the scoring results" sweep).
 # _score_value's `if total_weight > 0: return weighted_sum / total_weight` accepted ANY nonzero
-# weight as a fully-confident score - live-verified this lets a single satellite input (most
-# often dividend_yield=0.0 for a non-dividend-paying stock, 10% of nominal weight, or the
-# unprofitable-PE floor at 27%) produce a value_score indistinguishable in the DB from a name
-# scored off real coverage of PE/PB/PS. Live sweep: 71 universe symbols currently get a
-# value_score built from <=20% of nominal weight (17 from dividend_yield ALONE). This is the
-# identical thin-sample-extrapolation problem Growth (GROWTH_MIN_FIELDS_AVAILABLE, ~42% of its
-# 12 fields - see growth_scoring.py) and Quality (40-point floor out of a 101-point nominal
-# total - see quality_scoring.py's own docstring) already solved for themselves; Value never
-# got the same treatment. 0.40 mirrors that same ~40% convention against this pillar's own
-# 1.00 nominal total (PE 0.27 + PB 0.27 + PS 0.27 + Forward P/E 0.09 + Dividend Yield 0.10).
-# Below this, _score_value returns a data_unavailable marker instead of a score built from too
-# little evidence, same principle, not a new one invented here.
+# weight as a fully-confident score - live-verified this lets a single satellite input produce
+# a value_score indistinguishable in the DB from a name scored off real coverage of PE/PB/PS.
+# This is the identical thin-sample-extrapolation problem Growth (GROWTH_MIN_FIELDS_AVAILABLE,
+# ~42% of its 12 fields - see growth_scoring.py) and Quality (40-point floor out of a 101-point
+# nominal total - see quality_scoring.py's own docstring) already solved for themselves; Value
+# never got the same treatment. Below this, _score_value returns a data_unavailable marker
+# instead of a score built from too little evidence, same principle, not a new one invented
+# here.
+#
+# P/S AND DIVIDEND YIELD REMOVED FROM PASS-1 SCORING ENTIRELY (2026-09-16, factor-purity
+# sweep - "get this perverse shit out of here... we want the purest factor scores in line with
+# the industry guys"). These two inputs (plus the FCF-payout-sustainability gate and the
+# hand-built dividend magnitude-bonus curve that only existed to score dividend_yield) had
+# already been deleted from the REAL score on 2026-09-15, when Pass 2
+# (value_metrics.update_value_multiples_percentiles) was rewritten to MSCI Enhanced Value's
+# actual published 3-variable definition (Book/Price-or-Cash-Earnings/Price, Forward
+# Earnings/Price, EV/CFO-or-Cash-Earnings/Price) - that methodology has "no home" for P/S or
+# dividend yield at all, per that pass's own docstring. Pass 1 (this function) was never
+# brought back in sync, so it kept computing and weighting both every single run - a fixed
+# P/S curve, a hand-set "70 + 5-per-point, capped at 6% yield" dividend bonus, and a hand-set
+# 1.0x/2.0x FCF-payout taper - entirely dead work with zero effect on the persisted score
+# (Pass 2 always overwrites it), except in the one scenario where it isn't dead: if Pass 2
+# ever fails partway through a run, a symbol is left holding THIS non-industry-standard,
+# never-validated Pass-1 value as its real, persisted value_score. Deleted outright rather
+# than resynced to Pass 2's percentile logic - Pass 1 only needs to be a safe interim value,
+# not a second implementation of the real methodology to keep parallel-maintained forever.
+# VALUE_MIN_WEIGHT's nominal max total_weight is now 0.60 (PE/PB/Forward-PE, 0.20 each) -
+# still comfortably above this 0.40 floor whenever all three are present.
 VALUE_MIN_WEIGHT = 0.40
-
-# DIVIDEND PAYOUT-SUSTAINABILITY GATE (added 2026-09-08, real-money-readiness audit: "does the
-# dividend_yield term correctly penalize a high yield that's funded by negative FCF, or does it
-# reward a value-trap the same as a genuinely cheap, well-covered dividend?"). Confirmed real
-# gap: dividend_yield's scoring block (below) only ever looked at yield magnitude - a stock
-# with a 21%+ yield funded entirely by negative free cash flow (a classic, well-documented
-# value-trap pattern: the dividend is one downgrade/cut away from a price collapse) scored the
-# SAME as an equally-high yield backed by strong FCF coverage. fcf_yield is already
-# fetched into `metrics` (value_metrics.py's _get_value_metrics) but unused here - it was
-# REMOVED as its own standalone scored input 2026-08-28 ("FCF YIELD - RESOLVED" docstring note
-# below) because it was robustly WRONG-SIGNED as an independent cheapness signal (higher
-# fcf_yield predicted LOWER forward returns). That finding does not apply here: this is not
-# re-adding fcf_yield as an alpha input, it's using it as a risk GATE on a different input
-# (dividend_yield) - conceptually distinct, same way this pillar already treats
-# "unprofitable_stock"/"negative_book_value" as floors on PE/PB rather than standalone inputs.
-# Since dividend_yield and fcf_yield are both yield-on-price (dividends/price, fcf/price), their
-# ratio is exactly the FCF payout ratio (dividends/FCF) with price canceling out - no new data
-# needed. FCF_PAYOUT_UNSUSTAINABLE_RATIO=1.0: paying out 100%+ of FCF as dividends is the
-# standard unsustainable-payout threshold (any coverage ratio below 1x means the dividend is
-# funded by debt/asset sales/equity issuance, not organic cash generation). Below 1.0x: no
-# penalty (this is what a well-covered dividend looks like). 1.0x-2.0x: linearly taper the
-# dividend score to 0 (this file's existing "worst" floor value, see PE/PB's own floors) by
-# 2.0x. Negative or zero FCF while paying any dividend at all is floored straight to 0 -
-# unambiguously the worst case, not merely "high payout ratio" (division would give a
-# meaningless negative "ratio" otherwise). Missing fcf_yield (no coverage available) leaves
-# dividend_yield scored on magnitude alone, same fail-safe-on-missing-data convention as every
-# other input in this pillar - this gate only fires when there's real evidence to fire on.
-FCF_PAYOUT_UNSUSTAINABLE_RATIO = 1.0
-FCF_PAYOUT_ZERO_SCORE_RATIO = 2.0
-
-# DIVIDEND SCORING CURVE RESHAPED 2026-09-12 (see div_score's own inline note below for the
-# full evidence) - real point-in-time IC test found dividend_yield's predictive power is
-# ~entirely extensive-margin (pays vs doesn't, t=3.01/2.83 both eras), not intensive-margin
-# (magnitude among payers, t=1.05/-0.05, fails the bar and flips sign OOS). Any real payer
-# (dividend_yield > 0) gets this base credit immediately - the evidenced part - plus a small,
-# capped bonus for higher yield (conservative acknowledgment that magnitude may carry some real
-# signal this one test couldn't detect, not zeroed out entirely). At the 6%-yield cap (same cap
-# as before), 70 + 6*5 = 100 - a payer can still reach the maximum score. NOTE: this is Pass 1's
-# PROVISIONAL curve only (mid-run placeholder, never NULL) - the value actually persisted to
-# stock_scores comes from Pass 2 (loaders/stock_scores/value_metrics.py's
-# update_value_multiples_percentiles, which fully overwrites this every run) - see that
-# function's DIVIDEND_EXTENSIVE_SATURATION_K for the equivalent real fix at the layer that
-# matters. Kept in sync here so Pass 1's mid-run value isn't misleadingly stale relative to
-# Pass 2's eventual real value.
-DIVIDEND_PAYER_BASE_CREDIT = 70.0
-DIVIDEND_MAGNITUDE_BONUS_PER_PCT = 5.0
-
-
-def _dividend_sustainability_factor(dividend_yield: float, fcf_yield: float | None) -> float:
-    """Scale factor (0.0-1.0) to apply to the raw dividend_yield score.
-
-    See FCF_PAYOUT_UNSUSTAINABLE_RATIO's module-level docstring for the full reasoning. Pure
-    function, no I/O - dividend_yield/fcf_yield are both already-fetched value_metrics fields.
-    """
-    if dividend_yield <= 0 or fcf_yield is None:
-        return 1.0
-    if fcf_yield <= 0:
-        # Dividend funded by negative (or zero) free cash flow - the classic value-trap
-        # pattern (e.g. a stock scoring well on a double-digit yield that's actually being
-        # paid out of debt/asset sales while operations burn cash). Unambiguously the worst
-        # case - floor straight to 0 rather than computing a meaningless negative "ratio".
-        return 0.0
-    payout_ratio = dividend_yield / fcf_yield
-    if payout_ratio <= FCF_PAYOUT_UNSUSTAINABLE_RATIO:
-        return 1.0
-    if payout_ratio >= FCF_PAYOUT_ZERO_SCORE_RATIO:
-        return 0.0
-    # Linear taper between 1.0x (fully covered, no penalty) and 2.0x (floor)
-    span = FCF_PAYOUT_ZERO_SCORE_RATIO - FCF_PAYOUT_UNSUSTAINABLE_RATIO
-    return 1.0 - (payout_ratio - FCF_PAYOUT_UNSUSTAINABLE_RATIO) / span
 
 
 class ValueScoreMixin:
     """See module docstring.
 
-    `_pe_curve_score`/`_pb_curve_score`/`_ps_curve_score` are defined on the sibling
-    ValueMetricsMixin (loaders/stock_scores/value_metrics.py) - declared type-checking-only
-    below so mypy can see them without a real circular import (both are mixed into the same
-    StockScoresLoader, so `self.` resolves them fine at runtime either way).
+    `_pe_curve_score`/`_pb_curve_score` are defined on the sibling ValueMetricsMixin
+    (loaders/stock_scores/value_metrics.py) - declared type-checking-only below so mypy can
+    see them without a real circular import (both are mixed into the same StockScoresLoader,
+    so `self.` resolves them fine at runtime either way). `_ps_curve_score` is intentionally
+    NOT referenced here - see VALUE_MIN_WEIGHT's module docstring for why P/S was removed from
+    scoring entirely (2026-09-16); it stays defined on ValueMetricsMixin only as a
+    computed-but-unscored utility (value_metrics.py still displays the raw ps_ratio).
     """
 
     if TYPE_CHECKING:
@@ -124,19 +73,22 @@ class ValueScoreMixin:
         @staticmethod
         def _pb_curve_score(pb: float) -> float: ...
 
-        @staticmethod
-        def _ps_curve_score(ps: float) -> float: ...
-
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
         UNIFORM EQUAL-WEIGHT (2026-09-11, user directive - see pillar_weights.py's
         BASE_PILLAR_WEIGHTS comment for the full rationale): the 27/27/27/9/10 split below
         (already a move away from fully in-sample-optimized weights, see "EQUAL-WEIGHTED
-        2026-09-01" note further down) is now flat 20% each across all 5 components (PE/PB/PS/
-        Forward PE/Dividend Yield) - no more smaller "satellite" weights for Forward PE/Dividend
-        Yield. value_metrics.py's update_value_multiples_percentiles() mirrors this exact split -
-        keep both in sync if either changes. Historical reasoning below is kept as audit trail.
+        2026-09-01" note further down) moved to flat 20% each across all 5 components (PE/PB/
+        PS/Forward PE/Dividend Yield) - no more smaller "satellite" weights for Forward PE/
+        Dividend Yield. Historical reasoning below is kept as audit trail.
+
+        P/S AND DIVIDEND YIELD NO LONGER SCORED HERE AT ALL (2026-09-16 factor-purity sweep -
+        see VALUE_MIN_WEIGHT's module docstring) - this function now only scores PE/PB/Forward
+        PE, each still flat 20% of a now-lower 0.60 nominal max. value_metrics.py's
+        update_value_multiples_percentiles() is the real, live score and does NOT mirror a
+        5-component split - it uses MSCI Enhanced Value's actual 3-leg definition (see that
+        function's own docstring); keep this comment in sync if either changes again.
 
         ARCHITECTURE CHANGE 2026-08-28 (goal: "what does IBD/the best and brightest do" - see
         VALUE_RISK_INTERACTION_MAX_SHIFT's neighbor, update_value_multiples_percentiles()'s own
@@ -764,21 +716,11 @@ class ValueScoreMixin:
             weighted_sum += 0.0 * 0.20
             total_weight += 0.20
 
-        # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
-        # multiples run richer than book multiples (especially for growth/SaaS names).
-        # NO-REVENUE FLOOR ADDED (real-money-readiness audit): same bug class as P/E's
-        # unprofitable_stock and P/B's negative_book_value floors above - a company with no
-        # revenue (pre-revenue biotech/blank-check SPAC) makes ps_ratio mathematically
-        # undefined, and this was previously just SKIPPED, renormalizing Value over the
-        # remaining components instead of scoring it at the floor. No revenue is
-        # definitionally worse than any positive P/S on a sales-multiple basis.
-        if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
-            ps_score = self._ps_curve_score(metrics["ps_ratio"])
-            weighted_sum += ps_score * 0.20
-            total_weight += 0.20
-        elif metrics.get("ps_ratio_unavailable_reason") in ("no_revenue_reported", "zero_revenue_reported_this_period"):
-            weighted_sum += 0.0 * 0.20
-            total_weight += 0.20
+        # P/S ratio - REMOVED FROM PASS-1 SCORING 2026-09-16 (factor-purity sweep - see
+        # VALUE_MIN_WEIGHT's module docstring). MSCI Enhanced Value's real published
+        # definition has no P/S leg at all; Pass 2 already dropped it entirely on 2026-09-15.
+        # ps_ratio stays fully computed/stored/displayed (value_metrics.ps_ratio) - same
+        # "computed but unscored" convention as ev_ebitda/ev_revenue elsewhere in this file.
 
         # PEG - REMOVED FROM SCORING 2026-08-28 (goal: "is this value score right per industry
         # best practice"). Prior passes (see "PEG - TRIMMED FURTHER, NOT REMOVED" docstring
@@ -859,60 +801,16 @@ class ValueScoreMixin:
         # (sec_valuations.fcf_yield) - just no longer consumed here, same "computed but
         # unscored" convention as ev_ebitda/ev_revenue elsewhere in this file.
 
-        # Dividend yield: bonus signal for income/quality. REVERTED 2026-08-28 from
-        # net_payout_yield (dividends + buybacks) back to plain dividend_yield on explicit
-        # user directive - see this function's docstring for the full history (net_payout_yield
-        # had the stronger statistical case, t=3.05 multivariate vs. dividend_yield's t=1.55-
-        # 2.28, but the user overrode that on judgment; same precedent as Amihud/Size
-        # elsewhere in this file). sec_valuations.dividend_yield (migration 1146) is stored as
-        # a decimal fraction (0.03 = 3%).
-        # net_payout_yield ITSELF is unchanged and stays computed/stored - just no longer
-        # consumed here, same "computed but unscored" convention as ev_ebitda/ev_revenue.
-        # Weight 11% (2026-08-28, later same day: +3 from PEG's removal above - see "PEG -
-        # REMOVED FROM SCORING 2026-08-28" docstring note - the only other input at PEG's same
-        # "real but modest" evidentiary tier).
-        # FIXED 2026-08-31 (goal: data-loading gap investigation - same bug class as the
-        # "UNPROFITABLE-COMPANY FLOOR"/"UNPROFITABLE-FORECAST FLOOR" notes above, found while
-        # auditing this file for the same pattern). value_metrics.dividend_yield is a REAL,
-        # already-computed 0.0 (not NULL) for non-dividend-paying stocks -
-        # dividend_yield_unavailable_reason='non_dividend_paying_stock' confirms live-checked:
-        # 2,850 of 5,111 universe symbols (56%), ALL with dividend_yield=0.0 exactly, never
-        # NULL. A `> 0` gate here treated that real, correctly-computed 0% yield exactly like
-        # missing data, silently reweighting the 11% dividend term away onto PE/PB/PS/Forward
-        # P/E instead of scoring it at the floor - the same selection-bias bug class already
-        # fixed for P/E/Forward P/E's own unprofitable-company case, just unnoticed here
-        # because the raw value was already correct (0.0, not NULL) so no `_unavailable_reason`
-        # plumbing was needed to fix it - only the `is not None` vs `> 0` gate. 0% yield is
-        # definitionally the worst end of any yield ranking, so div_score's own formula
-        # (min(100, div*16.7)) already floors correctly at div=0 -> score=0 once the gate lets
-        # it through.
-        # DIVIDEND YIELD - TRIMMED 2026-08-31 (/goal session: factor-score review, "do what is
-        # best here maybe 7-8%"). Kept as a scored input on explicit user directive (see this
-        # docstring's REVERTED/"we want the dividend yield instead of that payout shit" note
-        # above), but its own predictive evidence has never been strong: full-sample t=0.98-2.28
-        # depending on spec, and the effect vanished entirely in the best-covered 2019-2024
-        # sub-period (p=0.542) - see the REDESIGNED 2026-08-25 docstring note above, which
-        # already flagged this exact weakness and cut the weight once before (to "a token
-        # weight") for the same reason, prior to the 2026-08-28 revert back up to 11%. Trimmed
-        # 11%->8% to size the weight to the evidence while still keeping the input the user
-        # explicitly asked for - not removed, not left at a weight the data doesn't support.
-        # Freed 3pts split proportionally to PB(+2)/PS(+1) above, the two strongest, most
-        # robust multiples in this pillar.
-        # RAISED 8%->10% 2026-09-01 (equal-weight-the-core-multiples reweight above, see
-        # PE/PB/PS's own note) - still a smaller satellite weight than the 27% core multiples.
-        if metrics.get("dividend_yield") is not None:
-            if metrics["dividend_yield"] <= 0:
-                div_score = 0.0
-            else:
-                div_pct = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
-                div_score = min(100.0, DIVIDEND_PAYER_BASE_CREDIT + div_pct * DIVIDEND_MAGNITUDE_BONUS_PER_PCT)
-            # PAYOUT-SUSTAINABILITY GATE - see FCF_PAYOUT_UNSUSTAINABLE_RATIO's module-level
-            # docstring above. Penalizes (does not just cap) a high yield that isn't covered by
-            # free cash flow - the CATO-pattern value trap this pillar previously scored
-            # identically to a well-covered dividend of the same magnitude.
-            div_score *= _dividend_sustainability_factor(metrics["dividend_yield"], metrics.get("fcf_yield"))
-            weighted_sum += div_score * 0.20
-            total_weight += 0.20
+        # Dividend yield - REMOVED FROM PASS-1 SCORING 2026-09-16 (factor-purity sweep - see
+        # VALUE_MIN_WEIGHT's module docstring). MSCI Enhanced Value's real published
+        # definition has no dividend-yield leg; Pass 2 already dropped it entirely on
+        # 2026-09-15, deleting its whole computation path (sustainability haircut, saturating
+        # transform, sector-size-neutral z-score) as unconsumed dead work. This Pass-1 block -
+        # the hand-set "70 base + 5-per-point, capped at 6% yield" bonus curve and the hand-set
+        # 1.0x/2.0x FCF-payout-sustainability taper - was the last piece still computing and
+        # weighting it, now removed to match. dividend_yield/net_payout_yield/fcf_yield all
+        # stay fully computed/stored/displayed - same "computed but unscored" convention as
+        # ev_ebitda/ev_revenue elsewhere in this file.
 
         # Forward P/E REMOVED 2026-08-25, RE-ADDED 2026-08-28 - see "FORWARD P/E - ADDED
         # 2026-08-28" docstring note above and the scored block earlier in this function for

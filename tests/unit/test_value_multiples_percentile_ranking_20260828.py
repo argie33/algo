@@ -115,9 +115,11 @@ class TestPercentRankCheapHighSectorRelative:
 
 
 class TestPeCurveScoreUnchanged:
-    """_pe_curve_score/_pb_curve_score/_ps_curve_score must stay byte-for-byte the OLD
-    formulas - update_value_multiples_percentiles()'s reconciliation diffs against whatever
-    they return, so a change here silently breaks the correction math, not just Pass 1."""
+    """_pe_curve_score/_pb_curve_score must stay byte-for-byte the OLD formulas -
+    update_value_multiples_percentiles()'s reconciliation diffs against whatever they return,
+    so a change here silently breaks the correction math, not just Pass 1. _ps_curve_score was
+    deleted 2026-09-16 (factor-purity sweep, P/S dropped from scoring entirely - see
+    value_score.py's VALUE_MIN_WEIGHT docstring), so its own pinning test is gone with it."""
 
     def test_pe_curve_known_points(self) -> None:
         assert StockScoresLoader._pe_curve_score(10.0) == 60.0
@@ -128,11 +130,6 @@ class TestPeCurveScoreUnchanged:
         assert StockScoresLoader._pb_curve_score(1.0) == 100.0
         assert StockScoresLoader._pb_curve_score(3.0) == 70.0
         assert StockScoresLoader._pb_curve_score(7.0) == 30.0
-
-    def test_ps_curve_known_points(self) -> None:
-        assert StockScoresLoader._ps_curve_score(2.0) == 100.0
-        assert StockScoresLoader._ps_curve_score(6.0) == 70.0
-        assert StockScoresLoader._ps_curve_score(15.0) == 30.0
 
 
 class TestValueMultiplesReconciliationMath:
@@ -179,12 +176,10 @@ class TestValueMultiplesReconciliationMath:
         risk_score: float | None,
         pe: float | None,
         pb: float | None,
-        ps: float | None,
         fwd_pe: float | None,
         dividend_yield: float | None,
         pe_pct: float | None,
         pb_pct: float | None,
-        ps_pct: float | None,
         fwd_pe_pct: float | None,
         pe_reason: str | None = None,
         fwd_pe_reason: str | None = None,
@@ -202,10 +197,6 @@ class TestValueMultiplesReconciliationMath:
             total_weight_old += 0.27
             weighted_sum_multiples_old += StockScoresLoader._pb_curve_score(pb) * 0.27
             weighted_sum_multiples_new += pb_pct * 0.27  # type: ignore[operator]
-        if ps is not None and ps > 0:
-            total_weight_old += 0.27
-            weighted_sum_multiples_old += StockScoresLoader._ps_curve_score(ps) * 0.27
-            weighted_sum_multiples_new += ps_pct * 0.27  # type: ignore[operator]
         if fwd_pe is not None and fwd_pe > 0:
             total_weight_old += 0.09
             weighted_sum_multiples_old += StockScoresLoader._pe_curve_score(fwd_pe) * 0.09
@@ -228,7 +219,6 @@ class TestValueMultiplesReconciliationMath:
         # available multiple, value_score/composite_score must be unchanged (delta=0).
         pe_curve = StockScoresLoader._pe_curve_score(15.0)
         pb_curve = StockScoresLoader._pb_curve_score(2.0)
-        ps_curve = StockScoresLoader._ps_curve_score(4.0)
         fwd_pe_curve = StockScoresLoader._pe_curve_score(18.0)
         value_new, composite_new = self._reconcile(
             value_score_old=72.5,
@@ -236,19 +226,17 @@ class TestValueMultiplesReconciliationMath:
             risk_score=50.0,
             pe=15.0,
             pb=2.0,
-            ps=4.0,
             fwd_pe=18.0,
             dividend_yield=0.02,
             pe_pct=pe_curve,
             pb_pct=pb_curve,
-            ps_pct=ps_curve,
             fwd_pe_pct=fwd_pe_curve,
         )
         assert value_new == 72.5
         assert composite_new == 64.0
 
     def test_higher_percentile_than_curve_raises_value_score(self) -> None:
-        # All 4 multiples percentile-rank HIGHER (cheaper-relative-to-peers) than their curve
+        # All 3 multiples percentile-rank HIGHER (cheaper-relative-to-peers) than their curve
         # score -> value_score must strictly increase.
         value_new, _ = self._reconcile(
             value_score_old=50.0,
@@ -256,12 +244,10 @@ class TestValueMultiplesReconciliationMath:
             risk_score=50.0,
             pe=25.0,
             pb=4.0,
-            ps=8.0,
             fwd_pe=22.0,
             dividend_yield=None,
             pe_pct=100.0,
             pb_pct=100.0,
-            ps_pct=100.0,
             fwd_pe_pct=100.0,
         )
         assert value_new > 50.0
@@ -276,12 +262,10 @@ class TestValueMultiplesReconciliationMath:
             risk_score=50.0,
             pe=15.0,
             pb=None,
-            ps=None,
             fwd_pe=None,
             dividend_yield=None,
             pe_pct=90.0,
             pb_pct=None,
-            ps_pct=None,
             fwd_pe_pct=None,
         )
         assert value_new == round(90.0, 2)
@@ -296,12 +280,10 @@ class TestValueMultiplesReconciliationMath:
             risk_score=50.0,
             pe=None,
             pb=None,
-            ps=None,
             fwd_pe=18.0,
             dividend_yield=None,
             pe_pct=None,
             pb_pct=None,
-            ps_pct=None,
             fwd_pe_pct=85.0,
         )
         assert value_new == round(85.0, 2)
@@ -317,12 +299,10 @@ class TestValueMultiplesReconciliationMath:
             risk_score=risk_score,
             pe=15.0,
             pb=None,
-            ps=None,
             fwd_pe=None,
             dividend_yield=None,
             pe_pct=80.0,
             pb_pct=None,
-            ps_pct=None,
             fwd_pe_pct=None,
         )
         expected_composite = round(60.0 + value_weight * (value_new - 40.0), 2)
@@ -335,12 +315,10 @@ class TestValueMultiplesReconciliationMath:
             risk_score=0.0,
             pe=5.0,
             pb=None,
-            ps=None,
             fwd_pe=None,
             dividend_yield=None,
             pe_pct=100.0,
             pb_pct=None,
-            ps_pct=None,
             fwd_pe_pct=None,
         )
         assert 0.0 <= value_new <= 100.0
@@ -359,12 +337,10 @@ class TestValueMultiplesReconciliationMath:
             risk_score=50.0,
             pe=15.0,
             pb=2.0,
-            ps=None,
             fwd_pe=None,
             dividend_yield=None,
             pe_pct=StockScoresLoader._pe_curve_score(15.0),
             pb_pct=pb_curve,
-            ps_pct=None,
             fwd_pe_pct=None,
         )
         unprofitable = self._reconcile(
@@ -373,12 +349,10 @@ class TestValueMultiplesReconciliationMath:
             risk_score=50.0,
             pe=None,
             pb=2.0,
-            ps=None,
             fwd_pe=None,
             dividend_yield=None,
             pe_pct=None,
             pb_pct=pb_curve,
-            ps_pct=None,
             fwd_pe_pct=None,
             pe_reason="unprofitable_stock",
         )

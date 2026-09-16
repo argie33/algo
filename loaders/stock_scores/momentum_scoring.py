@@ -758,16 +758,6 @@ class MomentumScoringMixin:
     def _recompute_momentum_score_for_row(
         self,
         symbol: str,
-        m3_raw: Any,
-        rsi_14: Any,
-        macd: Any,
-        sma_50: Any,
-        sma_200: Any,
-        close: Any,
-        vol: float | None,
-        median_vol_252d: float,
-        min_mult: float,
-        max_mult: float,
         mom_12_1_pct: dict[str, float],
         mom_6m_pct: dict[str, float],
     ) -> float | None:
@@ -775,10 +765,8 @@ class MomentumScoringMixin:
         update_momentum_sector_relative_mom_12_1() - split out purely to keep that method's
         cyclomatic complexity within this repo's ruff C901 bound. Same weights/gate as
         `_score_momentum`'s 2026-09-15 WEIGHTS REBALANCED note: mom_6m 50% + mom_12_1 50%
-        (both from the pre-computed universe-wide pct maps), momentum_3m/tech_trend/sma_avg
-        no longer scored (m3_raw/rsi_14/macd/sma_50/sma_200/close params kept for call-site
-        stability - StockScoreAccordion/other callers still pass them - just unused for
-        scoring now).
+        (both from the pre-computed universe-wide pct maps) - momentum_3m/tech_trend/sma_avg
+        are no longer scored at all, so their raw inputs are never passed here.
         """
         weighted_sum = 0.0
         total_weight = 0.0
@@ -981,9 +969,9 @@ class MomentumScoringMixin:
         OWN idiosyncratic volatility first, then compare that risk-adjusted return within its
         sector peer group), then `sector_neutral_zscore`/`zscore_to_percentile_scale`
         (loaders/helpers/factor_normalization.py, same primitive Quality/Growth/Value already
-        use) in place of `_pct_to_score`'s fixed curve. momentum_3m/tech_trend/sma_avg are
-        recomputed identically to `_score_momentum` (same weights, same MOMENTUM_MIN_WEIGHT
-        gate) so this pass is a full, consistent momentum_score recompute, not a partial patch
+        use) in place of `_pct_to_score`'s fixed curve. momentum_3m/tech_trend/sma_avg are NOT
+        scored here (mom_6m 50% + mom_12_1 50% only, same as `_score_momentum`'s 2026-09-15
+        WEIGHTS REBALANCED note) so this pass is a full, consistent momentum_score recompute, not a partial patch
         - same reason Quality/Growth's sector-neutral passes fully recompute rather than patch
         one component (only the final blended score is stored, not per-component sub-scores).
 
@@ -1034,8 +1022,7 @@ class MomentumScoringMixin:
                     SELECT ss.symbol, ss.momentum_score, ss.composite_score, ss.quality_score,
                            ss.growth_score, ss.value_score, ss.risk_score, ss.components,
                            ss.data_completeness, ss.data_unavailable,
-                           mm.momentum_1m, mm.momentum_3m, mm.momentum_12m,
-                           td.rsi_14, td.macd, td.sma_50, td.sma_200, td.close,
+                           mm.momentum_1m, mm.momentum_12m,
                            sm.volatility_252d, cp.sector, COALESCE(cis.is_foreign_private_issuer, false),
                            mm.momentum_6m
                     FROM stock_scores ss
@@ -1044,10 +1031,6 @@ class MomentumScoringMixin:
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
                     LEFT JOIN stability_metrics sm ON sm.symbol = ss.symbol
-                    LEFT JOIN LATERAL (
-                        SELECT rsi_14, macd, sma_50, sma_200, close FROM technical_data_daily
-                        WHERE symbol = ss.symbol ORDER BY date DESC LIMIT 1
-                    ) td ON true
                     """
                     + LIQUIDITY_FLOOR_JOIN_SQL
                     + """
@@ -1073,7 +1056,7 @@ class MomentumScoringMixin:
 
             # Median vol_252d for this batch (same convention as _get_median_vol_252d, computed
             # fresh here since this pass runs off its own dedicated query, not self._stability_cache).
-            vols = sorted(float(row[18]) for row in rows if row[18] is not None and float(row[18]) > 0)
+            vols = sorted(float(row[12]) for row in rows if row[12] is not None and float(row[12]) > 0)
             median_vol_252d = vols[len(vols) // 2] if vols else MEDIAN_UNIVERSE_VOL_252D
 
             # Dynamic risk-adjustment multiplier bounds ([1st,99th] percentile of median_vol/
@@ -1087,9 +1070,9 @@ class MomentumScoringMixin:
             # population, not silently falling back to the static [0.5x,2.0x] constants by
             # omission (caught in review before this landed).
             ratios = sorted(
-                median_vol_252d / float(row[18])
+                median_vol_252d / float(row[12])
                 for row in rows
-                if row[18] is not None and float(row[18]) >= MIN_VOL_252D_FOR_RISK_ADJUSTMENT
+                if row[12] is not None and float(row[12]) >= MIN_VOL_252D_FOR_RISK_ADJUSTMENT
             )
             n_ratios = len(ratios)
             if n_ratios < 5:
@@ -1113,7 +1096,7 @@ class MomentumScoringMixin:
             mom_12_1_risk_adj: dict[str, float] = {}
             mom_6m_risk_adj: dict[str, float] = {}
             for row in rows:
-                symbol, m1_raw, m12_raw, vol252, m6_raw = row[0], row[10], row[12], row[18], row[21]
+                symbol, m1_raw, m12_raw, vol252, m6_raw = row[0], row[10], row[11], row[12], row[15]
                 vol = float(vol252) if vol252 is not None else None
                 if m1_raw is not None and m12_raw is not None:
                     m1f, m12f = float(m1_raw), float(m12_raw)
@@ -1159,32 +1142,15 @@ class MomentumScoringMixin:
                     data_completeness_old,
                     data_unavailable_old,
                     _m1_raw,
-                    m3_raw,
                     _m12_raw,
-                    rsi_14,
-                    macd,
-                    sma_50,
-                    sma_200,
-                    close,
-                    vol252,
+                    _vol252,
                     _sector,
                     _is_fpi,
                     _m6_raw,
                 ) = row
-                vol = float(vol252) if vol252 is not None else None
 
                 momentum_score_new = self._recompute_momentum_score_for_row(
                     symbol,
-                    m3_raw,
-                    rsi_14,
-                    macd,
-                    sma_50,
-                    sma_200,
-                    close,
-                    vol,
-                    median_vol_252d,
-                    min_mult,
-                    max_mult,
                     mom_12_1_pct,
                     mom_6m_pct,
                 )

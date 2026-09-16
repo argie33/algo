@@ -36,13 +36,7 @@ def _row(
     data_completeness: float | None,
     data_unavailable: bool,
     momentum_1m: float | None,
-    momentum_3m: float | None,
     momentum_12m: float | None,
-    rsi_14: float | None,
-    macd: float | None,
-    sma_50: float | None,
-    sma_200: float | None,
-    close: float | None,
     volatility_252d: float | None,
     sector: str | None,
     is_fpi: bool = False,
@@ -51,8 +45,10 @@ def _row(
     """Build a mocked SELECT row matching update_momentum_sector_relative_mom_12_1()'s own
     column order exactly: symbol, momentum_score, composite_score, quality_score, growth_score,
     value_score, risk_score, components, data_completeness, data_unavailable, momentum_1m,
-    momentum_3m, momentum_12m, rsi_14, macd, sma_50, sma_200, close, volatility_252d, sector,
-    is_foreign_private_issuer, momentum_6m (appended as the trailing column, 2026-09-15)."""
+    momentum_12m, volatility_252d, sector, is_foreign_private_issuer, momentum_6m (appended as
+    the trailing column, 2026-09-15). rsi_14/macd/sma_50/sma_200/close/momentum_3m were dropped
+    from the query entirely (2026-09-16) - the recompute never scored them, only passed them
+    through unused."""
     return (
         symbol,
         momentum_score,
@@ -65,13 +61,7 @@ def _row(
         data_completeness,
         data_unavailable,
         momentum_1m,
-        momentum_3m,
         momentum_12m,
-        rsi_14,
-        macd,
-        sma_50,
-        sma_200,
-        close,
         volatility_252d,
         sector,
         is_fpi,
@@ -96,13 +86,7 @@ def _full_row(symbol: str, mom_12m: float, sector: str, mom_1m: float = 0.0, mom
         99.99,
         False,
         mom_1m,
-        5.0,
         mom_12m,
-        55.0,
-        1.0,
-        105.0,
-        102.0,
-        110.0,
         0.30,
         sector,
         momentum_6m=mom_6m if mom_6m is not None else mom_12m,
@@ -200,14 +184,8 @@ class TestMomentumMinWeightFloorPreserved:
                 99.99,
                 False,
                 None,  # momentum_1m missing -> mom_12_1 can't derive
-                None,  # momentum_3m missing
                 None,  # momentum_12m missing
-                None,  # rsi_14 missing
-                None,  # macd missing
-                None,  # sma_50 missing
-                None,  # sma_200 missing
-                None,  # close missing
-                None,
+                None,  # volatility_252d
                 "Technology",
                 momentum_6m=None,  # momentum_6m missing too
             ),
@@ -235,13 +213,7 @@ class TestMomentumMinWeightFloorPreserved:
                 99.99,
                 False,
                 None,  # momentum_1m missing -> mom_12_1 can't derive
-                5.0,
                 None,  # momentum_12m missing -> mom_12_1 can't derive
-                55.0,
-                1.0,
-                105.0,
-                102.0,
-                110.0,
                 0.30,
                 "Technology",
                 momentum_6m=20.0,
@@ -286,13 +258,7 @@ class TestIdempotentAcrossRepeatedRuns:
                 r[12],
                 r[13],
                 r[14],
-                r[15],
-                r[16],
-                r[17],
-                r[18],
-                r[19],
-                r[20],
-                momentum_6m=r[21],
+                momentum_6m=r[15],
             )
             for r in rows
         ]

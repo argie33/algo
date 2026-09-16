@@ -652,9 +652,8 @@ class RiskScoringMixin:
     def _vol_curve_score(vol: float) -> float:
         """Fixed-threshold volatility score for volatility_60d (downside_volatility_60d REMOVED
         from scoring 2026-08-28 - see _score_risk's docstring - this curve no longer scores it,
-        though the same threshold family as `_pe_curve_score`/`_pb_curve_score`/
-        `_ps_curve_score` still applies). `vol` must already be non-negative (callers clamp via
-        max(0, ...))."""
+        though the same threshold family as `_pe_curve_score`/`_pb_curve_score` still applies).
+        `vol` must already be non-negative (callers clamp via max(0, ...))."""
         if vol <= 0.15:
             return 100.0
         if vol <= 0.30:
@@ -797,10 +796,11 @@ class RiskScoringMixin:
         bar (|t|>=1.5 in >=3/4 blocks, consistent sign) in ZERO of the 12 industry x factor cells
         tested. The "real, sector-independent signal" defense for leaving Risk absolute does not
         hold up in this repo's own data for the industries it actually matters for - so this pass
-        now sector-neutralizes, matching Quality/Growth/Value's own methodology. Beta (scored for
-        closeness to 1.0, a different kind of target entirely - see `update_risk_absolute_
-        zscore_scores`'s own docstring) and Liquidity (anchored to a real system constant, not an
-        academic anomaly) are NOT changed by this reversal and stay on their existing curves.
+        now sector-neutralizes, matching Quality/Growth/Value's own methodology. Beta (a direct
+        linear transform, not z-scored - low-beta-reward per `_score_risk`'s 2026-09-15 BAB/
+        Min-Vol change, see `update_risk_absolute_zscore_scores`'s docstring) and Liquidity
+        (anchored to a real system constant, not an academic anomaly) are NOT changed by this
+        reversal and stay on their existing curves.
 
         Each raw value is NEGATED before z-scoring so a symbol with a LOW volatility/drawdown -
         the desirable direction for this pillar - gets a HIGH z-score and therefore a HIGH
@@ -1049,14 +1049,14 @@ class RiskScoringMixin:
         a fabricated top-15 safety score. Re-verified after adding the gate: none of the 13
         symbols above remain in the top 200 of the corrected risk_score.
 
-        Beta is UNCHANGED - recomputed here using its existing inline formula
-        (distance-from-1.0), purely so this pass can fully recompute risk_score/composite_score
-        without depending on Pass-1's now-partially-stale value. Beta isn't a "lower is better"
-        input at all (it's scored for closeness to 1.0, a different kind of target the z-score
-        transform doesn't fit), so it doesn't have the miscalibration problem this pass exists
-        to fix. Liquidity is no longer a scored Risk component at all (see `_score_risk`'s own
-        note) - `adv20` is still fetched here only for the NEAR_ZERO_LIQUIDITY_THRESHOLD
-        measurement-validity gate.
+        Beta is UNCHANGED by this pass - recomputed here using the same low-beta-reward formula
+        `_score_risk` uses (100 - beta*50, per Frazzini & Pedersen 2014 "Betting Against Beta"/
+        MSCI Min Vol, not closeness to 1.0 - see `_score_risk`'s 2026-09-15 change), purely so
+        this pass can fully recompute risk_score/composite_score without depending on Pass-1's
+        now-partially-stale value. It's a direct linear transform, not a z-scored population
+        member, so it doesn't have the miscalibration problem this pass exists to fix. Liquidity
+        is no longer a scored Risk component at all (see `_score_risk`'s own note) - `adv20` is
+        still fetched here only for the NEAR_ZERO_LIQUIDITY_THRESHOLD measurement-validity gate.
 
         Runs FIRST in `post_run()`, ahead of `update_momentum_sector_neutral_scores()` and every
         other batch pass that recomputes composite_score from the pillar scores as they currently
