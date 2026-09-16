@@ -926,54 +926,40 @@ class MomentumScoringMixin:
         return withheld
 
     def update_momentum_sector_relative_mom_12_1(self) -> None:
-        """Batch pass: replace mom_12_1's Pass-1 PROVISIONAL absolute-curve score (raw
-        risk-adjusted return fed through `_pct_to_score`'s fixed +-20%-saturation curve, same
-        for every sector) with a true sector-relative z-score against the current run's
-        universe, then FULLY RECOMPUTE momentum_score/composite_score from scratch - mirrors
+        """Batch pass: replace mom_12_1's AND mom_6m's Pass-1 PROVISIONAL absolute-curve scores
+        (raw risk-adjusted return fed through `_pct_to_score`'s fixed +-20%-saturation curve,
+        same for every sector) with universe-wide z-scores against the current run's universe,
+        then FULLY RECOMPUTE momentum_score/composite_score from scratch - mirrors
         `update_growth_sector_neutral_scores()`'s pure-overwrite pattern (loaders/stock_scores/
-        growth_scoring.py) exactly, which itself mirrors Quality's.
+        growth_scoring.py) exactly, which itself mirrors Quality's, minus the sector grouping.
 
-        TWO-LAYER VALIDATION POLICY (2026-09-15, user directive - see pillar_weights.py's own
-        "TWO-LAYER VALIDATION POLICY" comment block): this is scoped ONLY to mom_12_1 (45% of
-        momentum_score, the literature-standard Jegadeesh 1990 construction and the single
-        input a real institutional Momentum index actually sector-relative-z-scores) - NOT
-        momentum_3m (no comparable real-index precedent found), NOT tech_trend/sma_avg (RSI is
-        already a bounded oscillator, MACD sign-only, SMA already self-relative to that stock's
-        own moving average - none of these are cross-sectional return comparisons a sector peer
-        group would even apply to). Directly supersedes the evidentiary basis behind
-        `momentum_pillar_sector_relative_mom_12_1_rejected_20260911` (memory) / the 2026-09-11
-        revert (`6666ff0f4`) of the equivalent earlier attempt (`cc4030f8a`) - that rejection
-        tested mom_12_1's own standalone forward-return IC (universe-wide beat sector-relative,
-        0.0437 vs 0.0383 pooled Spearman IC, both eras) and concluded sector-relative was worse.
-        Under the new policy that was the wrong bar for a PILLAR-level construction choice: the
-        pillar's job is to accurately MEASURE the real momentum factor, not to independently
-        predict returns (only composite_score is validated on that basis) - and MTUM's actual
-        underlying index (MSCI USA Momentum **SR** "Sector-Relative" Variant, confirmed via two
-        independent primary-source methodology-PDF extractions 2026-09-15) z-scores momentum
-        WITHIN each GICS sector before combining. Live-verified this actually closes real
-        alignment gap: full-universe capband overlap vs real MTUM/XMMO/DWAS top-25 went from
-        1/25 (large-cap) / 1/25 (mid) / 0/25 (small) under the pre-existing universe-wide
-        risk-adjusted construction to 6/25 / 4/25 / 6/25 under this sector-relative version,
-        computed fresh via `_score_momentum` directly (dry run, no DB writes, before this
-        method existed) - same methodology already used to validate Quality/Growth/Value's own
-        sector-relative rewrites against real fund holdings.
+        NAME IS STALE, KEPT FOR CALL-SITE STABILITY (see `PARTIAL RE-REVERSAL 2026-09-15` note
+        near the actual z-score calls below for the full evidence trail - same reversal
+        risk_scoring.py's vol_60d/vol_252d went through the same day, see that file's own
+        version of this note). A 2026-09-15 attempt DID make this pass genuinely sector-relative
+        for mom_12_1 (citing MTUM's real MSCI USA Momentum SR "Sector-Relative" Variant
+        methodology, and an initial dry-run overlap improvement vs MTUM/XMMO/DWAS top-25 holdings
+        of 1/25->6/25 large-cap, 1/25->4/25 mid, 0/25->6/25 small) - found later the SAME DAY to
+        have halved real cap-neutral rank correlation vs fresh MTUM once measured properly
+        (0.235 sector-relative vs 0.558 universe-wide), the same "sector diversification is a
+        portfolio-construction-level exposure cap, not a stock-scoring-level per-sector z-score"
+        misread of MTUM's methodology risk_scoring.py's own reversal note describes. Both
+        mom_12_1 and mom_6m are UNIVERSE-WIDE (`universe_wide_zscore`, not `sector_neutral_zscore`
+        - that import was removed from this file) as of that reversal - do not trust this
+        function's own name or reintroduce `sector_neutral_zscore` here without re-clearing the
+        same live-fund-holdings bar that reversed it, not just a citation to MTUM's published
+        methodology text (which is exactly what led to this mistake the first time).
 
-        FPI PEER-GROUP SPLIT: `sector_neutral_zscore` already carries the FPI peer-group split
-        (2026-09-14 fix, same module) - this pass gets that split for free, which should also
-        help the FPI-overrepresentation pattern independently found in Momentum's current top-25
-        lists (10/25, 7/25, 11/25 FPI vs a 14.9-19.2% band base rate) without any extra code here.
-
-        MECHANISM: risk-adjust each symbol's raw mom_12_1 return via the existing
-        `_risk_adjust_pct` (unchanged - the risk-adjustment and the sector-relative step are
-        independent corrections, composed risk-adjust-then-sector-z: normalize for the stock's
-        OWN idiosyncratic volatility first, then compare that risk-adjusted return within its
-        sector peer group), then `sector_neutral_zscore`/`zscore_to_percentile_scale`
-        (loaders/helpers/factor_normalization.py, same primitive Quality/Growth/Value already
-        use) in place of `_pct_to_score`'s fixed curve. momentum_3m/tech_trend/sma_avg are NOT
-        scored here (mom_6m 50% + mom_12_1 50% only, same as `_score_momentum`'s 2026-09-15
-        WEIGHTS REBALANCED note) so this pass is a full, consistent momentum_score recompute, not a partial patch
-        - same reason Quality/Growth's sector-neutral passes fully recompute rather than patch
-        one component (only the final blended score is stored, not per-component sub-scores).
+        MECHANISM: risk-adjust each symbol's raw mom_12_1 return AND raw mom_6m return via the
+        existing `_risk_adjust_pct` (normalize each for the stock's own idiosyncratic volatility
+        first), then `universe_wide_zscore`/`zscore_to_percentile_scale` (loaders/helpers/
+        factor_normalization.py) in place of `_pct_to_score`'s fixed curve, blended 50/50 - see
+        the WEIGHTS REBALANCED note on `_score_momentum` above for the full evidence trail.
+        momentum_3m/tech_trend/sma_avg are NOT scored here (mom_6m 50% + mom_12_1 50% only, same
+        as `_score_momentum`) so this pass is a full, consistent momentum_score recompute, not a
+        partial patch - same reason Quality/Growth's sector-neutral passes fully recompute rather
+        than patch one component (only the final blended score is stored, not per-component
+        sub-scores).
 
         INVESTABILITY FLOOR: liquidity-based (algo_config.min_stock_price/min_adv_dollars,
         same as every other sector-neutral pass - REPLACED the market-cap floor 2026-09-15,
