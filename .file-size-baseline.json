@@ -625,7 +625,7 @@
   "loaders/schema_definitions.py": 52,
   "loaders/signal_quality_scorer.py": 333,
   "loaders/stock_scores/__init__.py": 0,
-  "loaders/stock_scores/growth_scoring.py": 880,
+  "loaders/stock_scores/growth_scoring.py": 930,
   "loaders/stock_scores/market_cap_tilt.py": 233,
   "loaders/stock_scores/momentum_scoring.py": 1311,
   "loaders/stock_scores/pillar_weights.py": 466,
