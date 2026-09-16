@@ -50,8 +50,9 @@ def main() -> int:
         if line.startswith("+++ b/"):
             current_file = line[6:]
             continue
-        if current_file == ".pre-commit-scripts/check_phantom_file_refs.py":
-            continue  # this file's own deny-list necessarily contains the phantom names
+        if current_file in (".pre-commit-scripts/check_phantom_file_refs.py", "CLAUDE.md"):
+            continue  # this file's own deny-list, and CLAUDE.md's canonical "don't use this"
+            # guidance the deny-list points readers at, necessarily contain the phantom names
         if not line.startswith("+") or line.startswith("+++"):
             continue
         added_text = line[1:]

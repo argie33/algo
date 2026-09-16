@@ -2,362 +2,51 @@
 
 ## Quick Start
 
-**`start_dashboard_dev.py` does not exist** — it's referenced in old log messages and comments
-across the repo but was never a real file (confirmed via `git log --all`, 2026-08-09). Don't
-invoke it or tell users to.
+**Phantom files — do not invoke these or tell users to; if referenced anywhere, it's stale, fix it:**
+- `start_dashboard_dev.py`, `check_system_health.py` — never existed / deleted. Use `scripts/monitor_data_staleness.py` instead.
+- `steering/OPERATIONS.md`, `QUICKSTART_LOCAL.md` — deleted / never existed. Use `steering/GOVERNANCE.md` or this file instead.
 
-**`check_system_health.py` also does not exist** — same bug class, different phantom file
-(confirmed deleted at some point via `git log --all --diff-filter=D`, and via a full-repo search,
-2026-08-23). It was still being suggested as a real troubleshooting step in two user-facing
-spots — `dashboard/dashboard.py`'s "no data loaded" console message and
-`webapp/frontend/FRONTEND_SETUP.md` — both fixed to point at `scripts/monitor_data_staleness.py`
-instead. Don't invoke `check_system_health.py` or tell users to; if you see it referenced
-anywhere else in the repo, it's stale and should be corrected the same way.
-
-**`steering/OPERATIONS.md` and `QUICKSTART_LOCAL.md` also don't exist** — same bug class again.
-`OPERATIONS.md` was deliberately deleted 2026-07-26 (commit `6e81a267c`, "AWS-only, local dev
-doesn't use"); `QUICKSTART_LOCAL.md` appears to have never existed. Both were still linked from
-`steering/COMMON_OPERATIONS.md` (3 places) and referenced in a code comment in
-`algo/monitoring/data_patrol/checks/staleness.py` (found and fixed 2026-08-24) — if you see
-either referenced anywhere else, it's stale and should be corrected the same way, pointing at
-`steering/GOVERNANCE.md` or this file instead as appropriate.
-
-The real local dev components are separate processes:
-
+**Local dev components (separate processes):**
 ```bash
 python lambda/api/dev_server.py                         # Local API server (port 3001)
 python -m dashboard --local                              # Dashboard TUI, reads local API (see dashboard/README.md)
 python -m dashboard                                       # Dashboard TUI, AWS RDS mode (default, needs AWS_PROFILE)
-python scripts/local_loader_scheduler.py --now metrics   # Load data locally (see feedback_always_use_pipeline_scheduler_for_backfills memory — never run individual loaders)
+python scripts/local_loader_scheduler.py --now metrics   # Load data locally — never run individual loaders directly
 ```
 
 **Test orchestrator logic locally:**
 ```bash
 python scripts/run_local_orchestrator.py [--morning|--afternoon|--preclose|--evening] [--date YYYY-MM-DD] [--force]
 ```
-This loads `.env.local` — `DB_NAME` there must be `stocks` (the real local dev DB), not
-`algo_trading` (a separate near-empty DB `tests/conftest.py` reserves for pytest only) — that
-drift happened once (2026-08-09) and silently made a session's "verified locally" claim worthless.
-
-**`--date YYYY-MM-DD` does not bypass the market-hours guard.** `algo/orchestration/orchestrator.py`
-checks the *real* current wall-clock ET time against real market hours on every run, regardless
-of `--date` or `--force` — this is intentional (prevents pre/post-market runs from corrupting
-production state), not a bug. Outside real market hours (which is most of the time you'd be
-testing locally, including all weekends), a `--date` run for a past trading day will silently
-`skip` with `halt_reason: "outside_market_hours: HH:MM:SS ET"` and never reach Phase 1 at all —
-easy to mistake for the loader/data problem you were actually trying to reproduce. To actually
-exercise phase logic for a historical date outside real market hours, set
-`ALLOW_OUTSIDE_MARKET_HOURS=true` in the environment first.
-
-**Phase 1 now halts if DataPatrol hasn't run recently (FIXED 2026-09-07).** `algo/orchestrator/
-phase1_data_freshness.py`'s `_check_data_patrol_results` queries `data_patrol_log` for the
-latest DataPatrol run and halts if it's missing, more than 8h stale, or has any CRITICAL/ERROR
-finding (tie-out identity checks, staleness, XBRL concept gaps, statistical anomalies - the
-whole DataPatrol suite). In production this is always fresh (terraform's pipeline DAG runs the
-DataPatrol ECS step immediately before triggering the orchestrator), but
-`scripts/run_local_orchestrator.py` never invokes DataPatrol itself — run
-`python algo/algo_data_patrol.py` first, or set `ALLOW_MISSING_DATA_PATROL=true` (local/dev
-only; forced off in `execution_mode="auto"` regardless, same as `ALLOW_OUTSIDE_MARKET_HOURS`)
-to downgrade a missing/stale patrol run to a warning instead of a halt.
-
-**This was the real, root cause of the orchestrator "always halting" locally (FIXED
-2026-09-14, goal: "algo keeps halting and failing").** Live-confirmed: this dev machine's
-`\algo\*`/`\AlgoTrading\*` Task Scheduler tasks had zero task running
-`algo/algo_data_patrol.py` (the full checker suite this gate actually reads — 16 checkers as of
-2026-09-14, now 17 after `7741b3f2a` added `CikSharedIssuerFinancialsLeakChecker`; see
-`algo/monitoring/data_patrol/base.py` for the current list) on any
-schedule — the only automated writers into `data_patrol_log` were the narrow nightly
-second-opinion layers (`xbrl-second-opinion` 11:50 PM, `score-realized-ic-monitor` 11:55 PM)
-plus one-off manual verification scripts (`patrol_run_id` like `manual-<slug>-<hash>`), none
-of which are the full suite. Since the gate's freshness check looks at the single newest
-`data_patrol_log` row by timestamp regardless of which script wrote it, every row from those
-nightly runs aged past the 8h window by ~8 AM ET — meaning every one of the four
-`AlgoTrading_Orchestrator_*` triggers (9:30 AM/1 PM/3 PM/5:30 PM ET) halted on
-`stale_patrol_data` every single day unless a human happened to run `algo_data_patrol.py` by
-hand first that day. `ALLOW_MISSING_DATA_PATROL=true` would have "fixed" this but is a
-bypass, not a fix — it downgrades a real, currently-true "no fresh quality check ran" halt to
-a warning instead of making that statement false. **Real fix: `scripts/setup_windows_schedule.ps1`
-now registers a `\algo\data-patrol-full` task (3x/day: 4:00 AM/10:00 AM/2:00 PM ET, same
-S4U/battery-safe/retry settings as every other task it registers) that runs
-`algo/algo_data_patrol.py` itself, timed so every orchestrator trigger has a patrol run
-within 8h — mirroring the fix production's terraform already applied for the identical
-problem (see this gate's own docstring). `scripts/verify_windows_schedule.ps1` checks it for
-the same LogonType/battery-setting drift it checks every other task for. Needs an ELEVATED
-re-run of `setup_windows_schedule.ps1` to actually register on this machine — not yet applied
-as of this fix landing (script change only); see
-[[score_realized_ic_monitor_scheduled_20260914]] for the other pending elevated re-run this
-machine also needs (`morning-pipeline`/`score-realized-ic-monitor` were accidentally deleted
-by an earlier un-elevated run and still need restoring in that same elevated pass).**
+- Loads `.env.local` — `DB_NAME` there must be `stocks` (real local dev DB), not `algo_trading` (pytest-only DB).
+- `--date`/`--force` do **not** bypass the market-hours guard — outside real market hours, a `--date` run silently `skip`s with `halt_reason: "outside_market_hours"` and never reaches Phase 1. Set `ALLOW_OUTSIDE_MARKET_HOURS=true` to actually exercise phase logic for a historical date.
+- Phase 1 halts if DataPatrol hasn't run within 8h (missing/stale/CRITICAL finding in `data_patrol_log`). `run_local_orchestrator.py` never runs DataPatrol itself — run `python algo/algo_data_patrol.py` first, or set `ALLOW_MISSING_DATA_PATROL=true` (local/dev only; forced off in `execution_mode="auto"`).
 
 **Troubleshooting data issues:**
 ```bash
-python scripts/monitor_data_staleness.py               # Check freshness
+python scripts/monitor_data_staleness.py               # Check freshness (simple elapsed-time buckets)
 python scripts/verify_eventbridge_scheduler.py --fix   # Repair scheduler if stuck
 ```
+`monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use different freshness methodologies — Phase 1 is date-aware (requires TODAY's data after market close, YESTERDAY's otherwise), the monitor is not. A table can show FRESH in the monitor and still halt Phase 1 later the same day. Don't substitute the monitor for actually running the orchestrator.
 
-**Finding missing XBRL concepts systematically (not one bug report at a time):**
-```bash
-python scripts/xbrl_concept_coverage_scan.py --exclude-noise --min-companies 100
-```
-Diffs every us-gaap/dei concept real filers actually tag (read from the on-disk SEC EDGAR
-companyfacts cache under `%TEMP%/algo-sec-edgar-cache/companyfacts` — already populated by
-normal loader runs, no extra fetching) against the allowlist our loader source files
-(`utils/external/sec_income_statement.py`, `sec_balance_sheet.py`, `sec_cash_flow.py`,
-`sec_custom_xbrl_concepts.py`, etc.) actually know how to fetch, ranked by how many distinct
-companies tag each missing concept. This is how the `accounts_payable` gap (confirmed missing
-from the whole schema, independently rediscovered by
-`algo/research/quality_asset_turnover_piotroski_candidates.py`) got found — 3,392 filers tag
-`AccountsPayableCurrent` and it was never in the allowlist at all. Re-run this periodically
-(new symbols entering the universe, filers adopting newly-effective taxonomy tags in future
-10-Ks) rather than waiting for the next "implausible value" bug report to point at a gap.
-Review a batch, then record anything genuinely out of scope with `--dismiss "us-gaap:Concept"
---reason "..."` (persisted in `scripts/xbrl_concept_coverage_dismissed.json`, checked into
-git) so future scans only surface what's actually new instead of re-litigating the same
-already-reviewed footnote/schedule concepts every time.
+**XBRL / price data-quality second-opinion layers** — periodic, sample-based cross-checks that are NOT part of every DataPatrol run (rate-limit/subprocess-cost reasons); run by hand or via their Windows Task Scheduler entries:
+| Script | Checks | Notes |
+|---|---|---|
+| `scripts/xbrl_concept_coverage_scan.py --exclude-noise --min-companies 100` | us-gaap/dei concepts real filers tag vs. our loader allowlist | `--dismiss "us-gaap:Concept" --reason "..."` persists to `scripts/xbrl_concept_coverage_dismissed.json` (checked in) |
+| `scripts/xbrl_yfinance_crosscheck.py` | Our SEC-XBRL numbers vs. yfinance (>2x divergence = WARN) | 25-symbol daily rotating sample |
+| `scripts/xbrl_calculation_linkbase_check.py` | Filer's own declared XBRL summation relationships vs. their own reported facts | 15-symbol sample; primary-statement roles only (note-schedule dimensional facts produce false mismatches) |
+| `scripts/xbrl_dqc_arelle_check.py` | Industry-standard DQC ruleset via Arelle | needs `pip install -r requirements-xbrl-dqc.txt` + `arelleCmdLine` on PATH; raises loudly if missing rather than reporting false-clean |
+| `scripts/xbrl_segment_sum_reconciliation.py` | Segment revenue sums vs. consolidated total (>10% divergence = WARN) | monthly, full universe, uses SEC's dimensional Financial Statement and Notes Data Sets |
+| `scripts/score_realized_ic_monitor.py` | Spearman IC between score columns and subsequent returns, logged to `score_realized_ic_log` | local-only, no network calls |
+| `scripts/price_source_crosscheck.py` | Our `price_daily_split_adjusted.close_adjusted` vs. yfinance close (>1% divergence = WARN) | 25-symbol daily sample; also flags NULL `data_source` rows |
 
-**Independent second-opinion cross-check against yfinance (not a bug-report-driven thing,
-run it periodically):**
-```bash
-python scripts/xbrl_yfinance_crosscheck.py               # samples 25 symbols, writes findings
-python scripts/xbrl_yfinance_crosscheck.py --limit 50
-python scripts/xbrl_yfinance_crosscheck.py --symbols AAPL,MSFT,KO
-python scripts/xbrl_yfinance_crosscheck.py --dry-run      # print only, don't write to data_patrol_log
-```
-tie_out.py and statistical_anomaly.py both validate our own SEC-XBRL-derived numbers against
-themselves (arithmetic identities, own trailing history) - neither can catch an extraction/
-mapping bug that's internally self-consistent and doesn't stand out against history either.
-This script fetches yfinance's independently-parsed financials (reuses the existing
-`utils/external/yfinance_financials.py` fallback fetch and its currency/circuit-breaker
-handling, never a value source for real tables - same discipline as `sec_valuations_checks.py`'s
-market_cap/shares_outstanding cross-checks) and flags a >2x divergence on revenue/net_income/
-total_assets/stockholders_equity/operating_cash_flow as a WARN finding, which flows into the
-same `data_patrol_review` triage workflow as every other DataPatrol check. Deliberately NOT
-part of every DataPatrol run - it makes live per-symbol yfinance network calls through the
-same shared-IP rate limit every loader depends on, so a full-universe version every run would
-risk the same self-triggered ban `yfinance_validation_calls_self_triggered_ban_during_reload_20260903`
-describes. Run it by hand every so often (or from a low-frequency schedule) on a small
-rotating sample - the daily pseudo-random sample means broad coverage accumulates over many
-runs rather than needing to cover the whole universe in one pass.
+All support `--symbols`, `--limit`, `--dry-run`. `scripts/setup_windows_schedule.ps1` registers the periodic ones as Windows Task Scheduler tasks; `scripts/verify_windows_schedule.ps1` checks them for LogonType/battery-setting drift.
 
-**Layers 4/5/6 now run on their own daily schedule LOCALLY, not just "by hand" (added
-2026-09-10, layer 6 folded in + local wiring added 2026-09-12):**
-`scripts/xbrl_second_opinion_daily.py` calls `xbrl_yfinance_crosscheck.run()`,
-`xbrl_calculation_linkbase_check.run()`, and `xbrl_dqc_arelle_check.run()` back-to-back
-with their normal periodic-sample defaults (25 / 15 / 10 symbols) — any one layer failing
-(including the DQC layer's optional Arelle/dqc_us_rules dependency not being installed)
-doesn't block the others; the whole run still exits nonzero on any failure. Two automation
-paths exist for it, and **the local one is the one that actually runs on this dev
-machine**: `scripts/setup_windows_schedule.ps1` registers a `\algo\xbrl-second-opinion`
-Windows Task Scheduler task (MON-FRI, 11:50 PM ET, same S4U/battery-safe/retry settings as
-every other task it registers — see that script's own comments) that runs it with zero AWS
-dependency, needing only local Postgres + outbound network access.
-`scripts/verify_windows_schedule.ps1` checks it for the same LogonType/battery-setting
-drift it checks every other task for. Separately, an `aws_cloudwatch_event_rule`/
-`aws_ecs_task_definition` pair in `terraform/modules/loaders/main.tf` (`xbrl_second_opinion*`,
-05:00 UTC daily) exists for the eventual cloud deployment — **that terraform is written
-but NOT applied**, and applying or not applying it has no effect on the local Task
-Scheduler path above; they're independent. Daily, not the "e.g. weekly" example in the
-underlying scripts' own docstrings above: all three scripts' sample-selection rotates by
-`CURRENT_DATE`, engineered for daily coverage accumulation across the ~4,900-symbol
-universe (weekly would take 3.8-6.4 years to cycle through it once; daily takes 6.5-11
-months) — an initial version of this schedule copied the "weekly" example literally
-without checking that.
+**Never force-kill a `local_loader_scheduler.py` or loader child process without checking liveness first.** `%TEMP%/algo-scheduler.lock` records `pid=/pipeline=/started=` — run `tasklist /FI "PID eq <n>"` to confirm the PID is actually dead before touching it. If alive, wait or ask.
 
-**Calculation-linkbase self-consistency check (5th layer of the XBRL data-quality
-architecture, added 2026-09-10 - not a bug-report-driven thing, run it periodically):**
-```bash
-python scripts/xbrl_calculation_linkbase_check.py               # samples 15 symbols, writes findings
-python scripts/xbrl_calculation_linkbase_check.py --limit 30
-python scripts/xbrl_calculation_linkbase_check.py --symbols AAPL,MSFT,KO
-python scripts/xbrl_calculation_linkbase_check.py --dry-run      # print only, don't write to data_patrol_log
-```
-Unlike the other four layers (self-consistency of our own derived fields, statistical/peer
-outliers, DQC-style negative-value guards, yfinance second-opinion), this one never touches
-our own tables at all - it parses each sampled symbol's latest 10-K's XBRL calculation
-linkbase (`utils/external/sec_calculation_linkbase.py`, fetched via
-`SecEdgarClient.get_calculation_linkbase_xml`) to get the filer's OWN declared summation-item
-relationships (e.g. `Assets = AssetsCurrent + AssetsNoncurrent`), then checks those against
-the filer's own reported us-gaap fact values (matched by accession number, from the already-
-cached companyfacts payload) for that exact filing. A mismatch means the FILING itself doesn't
-tie, independent of anything our extraction code does. Restricted to primary-statement
-extended link roles only (role name has no "Details"/"Tables" suffix) - SEC's companyfacts API
-collapses all dimensional facts for a concept into one flat list with no axis/member info, so
-note-schedule concepts reused across dimensional breakdowns (lease maturity tables, debt
-schedules, segment detail) produce false "mismatches" that are really just companyfacts
-losing the dimensional context, not a real filing error (live-confirmed on AAPL's FY2025
-10-K before this filter was added: all 3 raw mismatches were note-schedule concepts, 0 were
-face-financial-statement concepts). Same rate-limit posture as the yfinance script - not part
-of every DataPatrol run, small rotating sample only.
+**Execution mode changes require a full orchestrator/API restart.** `EXECUTION_MODE` (paper/dry/review/auto) is read once at process startup, not re-read mid-run. Restart both `lambda/api/dev_server.py` and the orchestrator together after changing it, and check the `[EXECUTOR] mode=...`/`[STARTUP]` log lines to confirm.
 
-**DQC (Data Quality Committee) rule validation via Arelle (6th layer, added 2026-09-12 -
-not a bug-report-driven thing, run it periodically):**
-```bash
-python scripts/xbrl_dqc_arelle_check.py               # samples symbols, writes findings
-python scripts/xbrl_dqc_arelle_check.py --limit 30
-python scripts/xbrl_dqc_arelle_check.py --symbols AAPL,MSFT,KO
-python scripts/xbrl_dqc_arelle_check.py --dry-run      # print only, don't write to data_patrol_log
-```
-Runs the actual industry-standard DQC ruleset (the rules SEC filing agents/vendors use,
-published at github.com/DataQualityCommittee/dqc_us_rules) against each sampled symbol's
-latest 10-K/20-F/40-F XBRL instance, entirely locally and free — no account needed, unlike
-the XBRL US API. Requires `pip install -r requirements-xbrl-dqc.txt` (Arelle + dqc_us_rules,
-a real local XBRL processor — deliberately NOT in `requirements.txt` or the orchestrator/API/
-dashboard runtime path, same reasoning as the two layers above) and `arelleCmdLine` resolvable
-on PATH; without it the script raises loudly rather than silently reporting "clean" — a missing
-`"validated in ..."` info line in Arelle's own log is treated as a fetch/load failure, not a
-pass. Resolves each symbol's latest filing instance URL from SEC EDGAR's `submissions.json`,
-shells out to `arelleCmdLine` with the `dqc_us_rules` plugin (passed as a filesystem path, not
-a bare name — `--plugins dqc_us_rules` alone fails to resolve), and parses `DQC.*` entries out
-of Arelle's log XML. Findings are about the FILING itself (e.g. extension members used on axes
-where the taxonomy only allows standard members) — potentially a genuine filing-quality defect
-independent of anything our own extraction pipeline does, but verify before trusting one:
-**`_parse_dqc_findings` filters out a specific known false-positive shape (FIXED 2026-09-12)** —
-if the local Arelle taxonomy package cache doesn't recognize the filing's dated us-gaap
-namespace (e.g. `http://fasb.org/us-gaap/2025`) as "standard", every concept in that namespace
-misclassifies as a filer "extension", and DQC.US.0001.x fires on entirely standard tagging
-(live-reproduced: 257/257 "violations" on AAPL's real FY2025 10-K, all flagging standard members
-like `FairValueInputsLevel2Member`). `_is_taxonomy_resolution_false_positive()` catches ~96% of
-this shape by cross-checking the flagged member against the fact's own rendered dimensions; a
-surviving finding is still a review-queue candidate, not an automatic "real filing bug" — spot-
-check implausible volumes the same way this was caught (a well-scrutinized mega-cap filer
-"failing" at high volume means suspect the tool first). Same rate-limit/subprocess-latency
-posture as the two layers above — not part of every DataPatrol run, small rotating sample only.
-**Now runs automatically as part of the local `xbrl-second-opinion` Task Scheduler task
-described above (added 2026-09-12)** — no longer manual-only; the dev machine that task
-runs on already has Arelle/dqc_us_rules installed (verified live), so it runs for real
-every weekday rather than raising and being silently skipped.
-
-**Segment-sum-to-consolidated-revenue reconciliation (7th layer, added 2026-09-12 - not a
-bug-report-driven thing, run it periodically):**
-```bash
-python scripts/xbrl_segment_sum_reconciliation.py               # current month, full active universe
-python scripts/xbrl_segment_sum_reconciliation.py --symbols AAPL,MSFT,KO
-python scripts/xbrl_segment_sum_reconciliation.py --dry-run      # print only, don't write to data_patrol_log
-```
-The one check in this suite that never touches our own tables — it uses SEC's free
-"Financial Statement and Notes Data Sets" (distinct from the plain "Financial Statement Data
-Sets" `xbrl_dera_bulk_scan.py` uses; a ~300MB/month download, no registration), whose `dim.tsv`
-carries real per-fact axis=member dimensional context via a `dimhash` joined against `num.tsv`.
-That dimensional context is exactly what made a segment-sum-vs-consolidated-revenue check
-impossible from companyfacts alone (rejected twice, 2026-09-06/07 — see `tie_out.py`'s own
-module docstring — because companyfacts flattens ASC 280 segment facts and ASC 606
-product-disaggregation facts into one indistinguishable bucket). Filters to facts dimensioned
-by exactly one axis whose local name is/ends in `Segments`/`SegmentAxis` (true business-segment
-facts only), dedupes to one value per (accession, period, dimhash) — `num.tsv` is fact-INSTANCE
-level, so the same disclosed number can appear more than once if a filer's own HTML rendering
-repeats it across tables, and skipping the dedupe produced a wave of suspiciously-exact
-ratio=2.0 false positives on first test — then sums per filing and compares to that filing's own
-non-dimensional consolidated revenue total, logging >10% divergences as WARN.
-**Now wired into a local monthly Windows Task Scheduler task (added 2026-09-12):**
-`scripts/setup_windows_schedule.ps1` registers `\algo\xbrl-segment-sum-monthly`
-(2nd of each month, 06:00 ET — a one-day buffer after SEC's typical monthly publish,
-deliberately not folded into the daily `xbrl-second-opinion` task since this dataset only
-updates monthly and a daily run would just re-check the same snapshot).
-
-**Live realized-IC scoring-quality monitor (added 2026-09-12, scheduled 2026-09-14 — not a
-bug-report-driven thing, this is the feedback loop itself):**
-```bash
-python scripts/score_realized_ic_monitor.py                  # compute + log all new IC points
-python scripts/score_realized_ic_monitor.py --horizons 5,10   # only these horizons (trading days)
-python scripts/score_realized_ic_monitor.py --dry-run         # print, don't write anywhere
-```
-Every other validation of the composite/pillar scores (`fama_macbeth_*.py`, the backtest
-scripts under `algo/research/`) is a one-off OFFLINE test against historical data — none of
-them answer whether a score is still predicting anything on an ongoing basis in the real,
-currently-scored universe. This script does: for each `stock_scores_history` snapshot old
-enough that `horizon_trading_days` have since elapsed, it computes the Spearman rank
-correlation ("Information Coefficient") between each score column and each symbol's actual
-subsequent return, accumulating results in `score_realized_ic_log`. Cheap and local-only (only
-reads `price_daily`/`stock_scores_history` already in the DB, no network calls, no rate limit) —
-`stock_scores_history` only goes back to 2026-08-24, so early runs are instrumentation coming
-online, not a verdict.
-**Now wired into a local daily Windows Task Scheduler task (added 2026-09-14, same day the
-gap — a live quality-measurement tool with zero automation and zero staleness coverage of its
-own — was found and closed):** `scripts/setup_windows_schedule.ps1` registers
-`\algo\score-realized-ic-monitor` (MON-FRI, 11:55 PM ET — 5 minutes after `xbrl-second-opinion`,
-needing neither the scheduler lock nor network access). `algo/monitoring/data_patrol/checks/
-staleness.py` also now carries a `score_realized_ic_log` entry (2-day threshold) so a broken
-schedule surfaces in DataPatrol instead of silently going dark again.
-
-**Price-source independent cross-check (added 2026-09-16 — the XBRL "second opinion" pattern
-applied to price data, not a bug-report-driven thing, run it periodically):**
-```bash
-python scripts/price_source_crosscheck.py               # samples 25 symbols, writes findings
-python scripts/price_source_crosscheck.py --limit 50
-python scripts/price_source_crosscheck.py --symbols AAPL,MSFT,KO
-python scripts/price_source_crosscheck.py --dry-run      # print only, don't write to data_patrol_log
-```
-An audit of the XBRL data-quality stack (7+ layers of cross-provider/self-consistency checks)
-found that price data — which feeds every scoring/trading decision at least as directly as any
-XBRL field — had zero cross-provider validation, only internal self-consistency
-(`PriceSanityChecker`). This is the price-data sibling of `xbrl_yfinance_crosscheck.py`: for a
-small daily rotating sample of active symbols, it compares our stored close
-(`price_daily_split_adjusted.close_adjusted`, not raw `price_daily.close` — see the script's
-own docstring for why raw-vs-adjusted would produce a false divergence for any symbol with a
-split in its history) against an independently-fetched yfinance close for the same trading day,
-flagging a >1% divergence as WARN into the same `data_patrol_log`/`data_patrol_review` triage
-workflow as every other check. Same rate-limit discipline as the XBRL yfinance layer (small
-rotating sample, not full-universe — see
-`yfinance_validation_calls_self_triggered_ban_during_reload_20260903` in memory for why). Also
-surfaces (INFO) any sampled symbol with a NULL `price_daily.data_source` on its latest row,
-per `steering/DATA_LOADERS.md`'s previously-open question about those rows, instead of
-silently dropping them. A prior one-off evaluation of this exact question
-(`scripts/compare_price_sources.py`, deleted 2026-07-27 per commit `f6d061869`) found 99.4%
-coverage and a 0.0000% median close diff at the time `PRICE_DATA_SOURCE` was switched to
-Alpaca — this script makes that an ongoing, scheduled check instead of a one-time snapshot.
-**Now wired into a local daily Windows Task Scheduler task (added 2026-09-16, same session
-the gap was found and closed):** `scripts/setup_windows_schedule.ps1` registers
-`\algo\price-source-crosscheck` (MON-FRI, 11:58 PM ET — 3 minutes after
-`score-realized-ic-monitor`, same S4U/battery-safe/retry settings as every other task it
-registers). `scripts/verify_windows_schedule.ps1` checks it for the same
-LogonType/battery-setting drift it checks every other task for. **Needs an elevated re-run of
-`setup_windows_schedule.ps1` to actually register on this machine — not yet applied as of this
-change landing (script change only), same as every other task added this way.**
-
-`monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use
-**different freshness methodologies** — a table can show FRESH in the monitor and still halt
-Phase 1 minutes later:
-- `monitor_data_staleness.py`: simple elapsed-time buckets (fresh/stale/critical at
-  24h/36h/48h for most tables).
-- Phase 1: date-aware — requires TODAY's data once market close has passed, YESTERDAY's data
-  otherwise (`is_after_market_close` check), not just "loaded within N hours".
-An operator checking the monitor at 4 PM can see FRESH on yesterday's data that Phase 1 will
-correctly halt on at 5 PM once market close makes today's data the requirement. This is
-expected — not a bug in either script — but don't use the monitor's output as a substitute for
-running the orchestrator itself when you need to know if Phase 1 will pass.
-
-**Never force-kill a `local_loader_scheduler.py` or loader child process without checking
-liveness first.** A "stuck" PID may belong to a concurrent session's genuinely in-progress work
-— live-witnessed 2026-08-17: a session force-killed a loader ~1.5h into a real run plus its
-parent scheduler, destroying that progress and orphaning several tables' status rows (see
-`concurrent_sessions_live_collision_20260817` / `scheduler_lock_owner_liveness_check_fix_20260817`
-in memory). `%TEMP%/algo-scheduler.lock` now records `pid=/pipeline=/started=` for exactly this
-reason — before killing anything, run `tasklist /FI "PID eq <n>"` (or `ps -ef | grep <n>`) to
-confirm the PID in that lock file is actually dead, not just slow. If it's alive, it's not
-stuck — wait for it, or ask before touching it.
-
-**Execution mode changes require a full orchestrator/API restart.** `EXECUTION_MODE`
-(paper/dry/review/auto) is read and logged once at process startup (`algo/trading/
-executor_strategies.py`'s `validate_and_log_initialization`, `orchestrator.py`'s `[STARTUP]`
-log line) — it is not re-read mid-run. Changing the config or env var without restarting both
-`lambda/api/dev_server.py` and the orchestrator process leaves them running against
-inconsistent assumptions about which mode is active (e.g. the API server still reporting
-"paper" while the orchestrator process was restarted into "auto"), which can desync what the
-dashboard shows from what the orchestrator is actually doing. Always restart both processes
-together after an execution-mode change, and check the `[EXECUTOR] mode=...`/`[STARTUP]` log
-lines to confirm the mode you expect actually took effect.
-
-**The options CSP/covered-call sleeve is off by default — `OPTIONS_SLEEVE_ENABLED=true` turns
-it on.** There is no live options *execution* path yet (`steering/OPTIONS_STRATEGY_SPEC.md`
-phase 5 hasn't been built), so this flag only gates the screener surface: `/api/options`
-(`lambda/api/routes/options.py`) returns a `feature_disabled` 404 and the dashboard's
-`fetch_options` (`dashboard/fetchers_options.py`) short-circuits to a disabled message when
-unset, so the panel/API stay invisible until you're ready to look at it. It does **not** gate
-`algo/orchestrator/phase8_guards.py`'s `check_options_sleeve_overlap` — that's a cheap,
-fail-closed equity/options-overlap capital-safety check and stays always-on regardless, the
-same way `ALLOW_OUTSIDE_MARKET_HOURS`/`ALLOW_MISSING_DATA_PATROL` above never bypass a real
-safety guard. Restart `lambda/api/dev_server.py` after changing this (env vars are read at
-process startup, same caveat as `EXECUTION_MODE` above).
+**Options sleeve is off by default** — `OPTIONS_SLEEVE_ENABLED=true` gates only the screener surface (`/api/options`, dashboard options panel), not `phase8_guards.py`'s `check_options_sleeve_overlap` capital-safety check, which always runs. Restart `lambda/api/dev_server.py` after changing.
 
 ## Core Rules (Non-Negotiable)
 
@@ -396,7 +85,7 @@ process startup, same caveat as `EXECUTION_MODE` above).
 
 ## Repository Maintenance
 
-**Monthly cleanup** (runs ~2026-08-07 cleaned 1,850 MB):
+**Cleanup:**
 ```bash
 # Session artifacts
 rm *.log                                       # Remove orchestrator test logs
@@ -404,42 +93,19 @@ rm -r __pycache__ .pytest_cache .mypy_cache   # Python cache (regenerated)
 
 # Git optimization
 # NOT `git stash clear` - the stash stack is shared across every worktree/session in this
-# repo; clearing it can destroy another session's in-progress work with no recovery (see
-# worktree-hygiene note below, same root cause as the stash-collision rule in memory).
-git gc --aggressive --prune=now                # Compact .git (frees 50-100 MB)
+# repo; clearing it can destroy another session's in-progress work with no recovery.
+git gc --aggressive --prune=now                # Compact .git
 
 # Memory system
 # Delete old session-scoped findings from memory/
 # Keep only load-bearing rules referenced in MEMORY.md index
 ```
 
-**Agent worktree hygiene (added 2026-09-16 after a from-scratch audit found 20 abandoned
-worktrees under `.claude/worktrees/`, several holding real, never-committed trading-execution
-and scoring code that had been sitting unreaped for days):**
+**Agent worktree hygiene:**
 ```bash
 python scripts/check_worktree_health.py   # lists every worktree's uncommitted files + ahead/behind vs main
 ```
-Run this before deleting ANY worktree, and periodically as part of this same maintenance pass
-(it's not on a schedule - nothing automated catches this today). A worktree is only safe to
-delete once its work is actually reaped: either merged into main (commit any uncommitted
-changes first, then merge/cherry-pick, verify tests, THEN delete) or explicitly confirmed
-superseded by reading main's current code for the same behavior (not just comparing commit
-messages - message-grepping alone produced false "superseded" verdicts during the 2026-09-16
-audit that a real code read caught). An agent that spins up a worktree and finishes its task
-should merge or explicitly hand off before considering the task done - an abandoned worktree
-with uncommitted work is not a completed task, it's a hidden one. Also watch for orphaned
-worktree directories that `git worktree list` no longer even shows (found 6 of these
-2026-09-16, likely from `git worktree remove` failing on a Windows "Filename too long" error
-and leaving the files behind after the metadata was pruned) - `git worktree list` won't
-surface them; a stray `ls .claude/worktrees/` comparison will.
+Run before deleting ANY worktree — nothing automated catches abandoned worktrees today. A worktree is only safe to delete once its work is merged (commit uncommitted changes first, then merge/cherry-pick, verify tests, THEN delete) or explicitly confirmed superseded by reading main's current code (not just commit messages — message-grepping alone has produced false "superseded" verdicts). An agent that spins up a worktree should merge or explicitly hand off before considering its task done. Also check for orphaned worktree directories `git worktree list` no longer shows (can happen if `git worktree remove` fails partway) — compare against `ls .claude/worktrees/` directly.
 
 **What to keep:** Source code, tests, IaC, config, current session active findings.
 **What to delete:** `.log` files, old audit reports, Python cache, debug scripts, dated session findings from memory, .terraform cache (auto-regenerated).
-
-**Recent cleanup (2026-08-07):**
-- Memory: 70+ files (250 KB) → 32 files (111 KB)
-- Logs: 80 files (39 MB deleted)
-- Python cache: 26 dirs (13 MB deleted)
-- Terraform cache: 3 dirs (1,785 MB deleted)
-- Git gc: 6 MB additional packing
-- **Total: 1,850 MB freed**
