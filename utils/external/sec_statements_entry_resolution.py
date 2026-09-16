@@ -381,8 +381,27 @@ def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-exis
                     if fye_month is None or fye_month == 12:
                         derived_fp = f"Q{_frame[7]}"
                     else:
-                        _calendar_quarter_end_month = int(_frame[7]) * 3
-                        _fiscal_quarter_num = ((_calendar_quarter_end_month - fye_month - 1) % 12) // 3 + 1
+                        # FIXED 2026-09-16 (goal session: data-issue fix-through sweep, ACI
+                        # live-confirmed via real SEC companyfacts JSON, CIK 0001646972):
+                        # deriving the frame's nominal end month as `int(_frame[7]) * 3`
+                        # (i.e. always 3/6/9/12) only coincides with a fiscal-quarter-end
+                        # month cadence when fye_month is ITSELF a multiple of 3 (a
+                        # calendar-quarter-aligned FYE, e.g. AGYS's March 31 - the case this
+                        # branch was originally verified against). For any FYE that isn't
+                        # (Albertsons/ACI: February), the two non-multiple-of-3 FYE months
+                        # sharing the same calendar quarter as a multiple-of-3 FYE month (e.g.
+                        # Feb and Mar both fall in calendar Q1) must map identically, but the
+                        # old formula treated them differently - live-confirmed via ACI's real
+                        # discrete Jun18-Sep9 2017 quarter fact (frame='CY2017Q3'): the old
+                        # formula placed it in fiscal Q3 of FY2018, when ACI's real fiscal
+                        # calendar (FYE last Saturday of February) makes it fiscal Q2 - and
+                        # its frame='CY2017Q1' Q4 fact (Dec2016-Feb2017) mapped to fiscal Q1
+                        # instead of the correct Q4. Anchor on the CALENDAR quarter fye_month
+                        # itself falls in, not fye_month's raw value, so filers sharing a
+                        # calendar quarter (Feb/Mar, May/Jun, Aug/Sep, Nov/Dec) get identical,
+                        # correct treatment.
+                        _fye_calendar_quarter = ((fye_month - 1) // 3) + 1
+                        _fiscal_quarter_num = ((int(_frame[7]) - _fye_calendar_quarter - 1) % 4) + 1
                         derived_fp = f"Q{_fiscal_quarter_num}"
         if derived_fp is None:
             return None
