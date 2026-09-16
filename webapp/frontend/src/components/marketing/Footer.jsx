@@ -43,7 +43,6 @@ const Footer = () => {
         { label: "Stock Scores", path: "/app/scores" },
         { label: "Sector Analysis", path: "/app/sectors" },
         { label: "Economic Data", path: "/app/economic" },
-        { label: "Portfolio Dashboard", path: "/app/portfolio" },
       ],
     },
   ];

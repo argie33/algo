@@ -11,10 +11,6 @@ const EconomicDashboard = React.lazy(() => import("./pages/EconomicDashboard"));
 const SectorAnalysis = React.lazy(() => import("./pages/SectorAnalysis"));
 const Sentiment = React.lazy(() => import("./pages/Sentiment"));
 const ScoresDashboard = React.lazy(() => import("./pages/ScoresDashboard"));
-const TradeTracker = React.lazy(() => import("./pages/TradeTracker"));
-const PortfolioDashboard = React.lazy(
-  () => import("./pages/PortfolioDashboard")
-);
 const ServiceHealth = React.lazy(() => import("./pages/ServiceHealth"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const AuditViewer = React.lazy(() => import("./pages/AuditViewer"));
@@ -127,18 +123,6 @@ function App() {
               element={<Navigate to="/app/scores" replace />}
             />
             <Route
-              path="/portfolio"
-              element={<Navigate to="/app/portfolio" replace />}
-            />
-            <Route
-              path="/positions"
-              element={<Navigate to="/app/portfolio" replace />}
-            />
-            <Route
-              path="/trades"
-              element={<Navigate to="/app/trades" replace />}
-            />
-            <Route
               path="/health"
               element={<Navigate to="/app/health" replace />}
             />
@@ -217,23 +201,6 @@ function App() {
               }
             />
 
-            {/* Portfolio & Trading */}
-            <Route
-              path="/app/portfolio"
-              element={
-                <ProtectedRoute requireAuth>
-                  <PortfolioDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/app/trades"
-              element={
-                <ProtectedRoute requireAuth>
-                  <TradeTracker />
-                </ProtectedRoute>
-              }
-            />
             {/* Admin & Settings */}
             <Route
               path="/app/configuration"
