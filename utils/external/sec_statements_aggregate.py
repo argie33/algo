@@ -156,6 +156,37 @@ def _aggregate_concepts_widen_to_alias_group(
     return True, max_annual_report_end
 
 
+def _aggregate_concepts_correct_period_end_anchor(row: dict[str, Any], entry: Any, end_date: Any) -> bool:
+    """True if `entry` corrected `row`'s period_end anchor (mutates `row` in place) instead
+    of being a mismatch this row should reject.
+
+    FIXED 2026-09-16 (CHKP live-confirmed via real SEC companyfacts JSON, CIK 0001015922): an
+    annual row's period_end is set ONCE, by whichever entry first creates the (fiscal_year,
+    "FY") key - the LOVE-case guard this helper is called from assumes "concepts with real
+    10-K/20-F history never hit this, since the annual filing's own instant fact already
+    occupies the row first" - false for an FPI whose interim 6-K for a concept is iterated
+    BEFORE that same concept's own later-filed 20-F fact within SEC's companyfacts array.
+    CHKP's "Assets" concept (first in sec_balance_sheet.py's concepts list, so always
+    processed first) lists its Q3 2025 6-K fact (filed 2025-12-02, end 2025-09-30, $5.6996B)
+    before its FY2025 20-F fact (filed 2026-03-31, end 2025-12-31, real total $7.8064B) -
+    period_end got anchored to the interim date, and every later concept's real FY-end fact
+    (including Assets' own correction and StockholdersEquity's real $2.8821B) was then
+    silently skipped as a "disagreeing" period_end for the rest of this row, corrupting the
+    entire FY2025 balance sheet to a Q3 snapshot. A genuine annual-report-form entry
+    (10-K/20-F/40-F) is always more authoritative than whatever set an interim-sourced
+    period_end - same "structural form authority beats filing recency" principle already
+    applied elsewhere in this file - so let it correct the anchor instead of being rejected by
+    it, but only once (a row already anchored by a real annual-report-form entry keeps that
+    anchor - this never lets a SECOND, different-period annual-form entry re-anchor an
+    already-correct row).
+    """
+    if entry.get("form") in _ANNUAL_REPORT_FORMS and not row.get("_period_end_from_annual_form"):
+        row["period_end"] = end_date
+        row["_period_end_from_annual_form"] = True
+        return True
+    return False
+
+
 def _aggregate_concepts(
     client: Any,
     symbol: str,
@@ -362,6 +393,8 @@ def _aggregate_concepts(
                         "period_end": end_date,
                         "filed": entry.get("filed"),
                         "form": entry.get("form"),
+                        "_period_end_from_annual_form": period == "annual"
+                        and entry.get("form") in _ANNUAL_REPORT_FORMS,
                     },
                 )
                 # BUG FOUND 2026-09-13 (goal session: DataPatrol needs_fix backlog,
@@ -393,7 +426,13 @@ def _aggregate_concepts(
                 # the real fiscal-year-end (see test_sec_statements_dei_fact_uses_own_fy_
                 # not_end_date.py's AAP case) - already correctly bucketed by their own `fy`
                 # field a few lines up, not by end-date proximity to the row's other facts.
-                if period == "annual" and not start_date and source != "dei" and row["period_end"] != end_date:
+                if (
+                    period == "annual"
+                    and not start_date
+                    and source != "dei"
+                    and row["period_end"] != end_date
+                    and not _aggregate_concepts_correct_period_end_anchor(row, entry, end_date)
+                ):
                     continue
                 col = target_key
                 # Keep latest filing if multiple for same period, EXCEPT: never let a
@@ -487,7 +526,7 @@ def _aggregate_concepts(
                 and not k.startswith("_frame_")
                 and not k.startswith("_span_")
                 and not k.startswith("_is_instant_")
-                and k not in ("filed", "form")
+                and k not in ("filed", "form", "_period_end_from_annual_form")
                 and (k != "period_end" or period == "quarterly")
             }
         )
