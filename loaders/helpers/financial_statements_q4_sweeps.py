@@ -709,9 +709,68 @@ class Q4DerivationSweepMixin:
                     "revenue/net_income row(s) as FY_annual - 9mo_YTD (Q4 is never separately "
                     "filed by any US GAAP domestic filer)."
                 )
+        self._sweep_correct_q4_period_end_frame_mislabel()
         self._sweep_derive_missing_q4_interest_expense()
         self._sweep_derive_missing_q4_eps()
         self._sweep_derive_missing_q4_income_remaining_fields()
+
+    def _sweep_correct_q4_period_end_frame_mislabel(self) -> None:
+        """Correct a Q4 row's stale period_end left over from the frame-derived-fp bug
+        fixed in sec_statements_entry_resolution.py's _aggregate_concepts_resolve_entry_period
+        (goal session 2026-09-16, [[non_december_fye_quarter_duplication_bug_found_20260916]]).
+
+        ROOT CAUSE: for a non-December-FYE filer, SEC's `frame` tag (e.g. 'CY2017Q4') names
+        the CALENDAR quarter, not the filer's fiscal quarter - the old entry-resolution code
+        trusted it directly, so a retrospective "Selected Quarterly Data" footnote fact for
+        the filer's real Q3 (e.g. Oct-Dec) could land in a synthetic fiscal_quarter=4 bucket
+        with period_end stuck at that Oct-Dec period's own end date instead of the real
+        Jan-Mar-shaped Q4. The entry-resolution fix stops this from recurring on freshly-
+        fetched facts, but a Q4 row seeded by the bug BEFORE the fix never gets its
+        period_end touched by anything else: _sweep_derive_missing_q4() above only UPDATEs
+        the row's revenue/net_income (an accounting identity, FY - 9mo), it explicitly never
+        touches period_end - so an already-wrong date stays wrong forever even after the
+        value self-heals. Live-confirmed on AGYS (real FYE March 31): FY2021-2027 Q4 rows
+        kept period_end='<year>-12-31' (matching that year's own Q3) even after a fresh
+        reload recomputed revenue correctly, because no fresh Q4-shaped XBRL fact existed to
+        re-trigger entry-resolution for those years at all (US GAAP filers never file a
+        discrete Q4 10-Q - see _sweep_derive_missing_q4()'s own docstring).
+
+        Signature (same heuristic used to scope the DB-wide backfill this fix shipped with):
+        a Q4 row whose period_end falls in the SAME MONTH as that fiscal year's own Q3
+        period_end, one calendar year later - i.e. Q4 was seeded from a frame-mislabeled
+        Oct-Dec-shaped fact instead of the filer's real ~3-months-after-Q3 Q4. Deliberately
+        narrow (not "any Q4 date that looks unusual") to avoid touching genuinely correct
+        52/53-week or otherwise irregular fiscal calendars - the month-match-plus-one-year
+        pattern is specific to this exact bug shape, live-verified to not occur for a
+        December-FYE filer's normal Q3(Sep30)->Q4(Dec31 same year) cadence.
+
+        Corrected period_end is derived as Q3's own period_end + 3 months (the same quarterly
+        cadence _sweep_derive_missing_q4()'s FY-9mo identity already assumes), not trusted
+        from any stored fact - there is no real per-quarter Q4 fact to read the date from
+        (same reason revenue/net_income are derived rather than fetched).
+        """
+        with _database_context()("write") as cur:
+            cur.execute(
+                """
+                UPDATE quarterly_income_statement q4
+                   SET period_end = (q3.period_end + INTERVAL '3 months')::date,
+                       data_source = 'derived_fy_minus_9m'
+                  FROM quarterly_income_statement q3
+                 WHERE q3.symbol = q4.symbol
+                   AND q3.fiscal_year = q4.fiscal_year
+                   AND q3.fiscal_quarter = 3
+                   AND q4.fiscal_quarter = 4
+                   AND EXTRACT(MONTH FROM q4.period_end) = EXTRACT(MONTH FROM q3.period_end)
+                   AND EXTRACT(YEAR FROM q4.period_end) = EXTRACT(YEAR FROM q3.period_end) + 1
+                """
+            )
+            if cur.rowcount:
+                logger.warning(
+                    f"[quarterly_income_statement] post_run(): corrected {cur.rowcount} Q4 "
+                    "period_end value(s) left stale by the frame-derived-fp bug (now derived "
+                    "as Q3's period_end + 3 months instead of a mislabeled Oct-Dec fact's own "
+                    "end date)."
+                )
 
     def _sweep_derive_missing_q4_income_remaining_fields(self) -> None:
         """Derive operating_income/gross_profit/cost_of_revenue/depreciation_expense/
