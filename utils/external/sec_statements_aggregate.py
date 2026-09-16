@@ -21,6 +21,7 @@ from utils.external.sec_statements_entry_resolution import (
 from utils.external.sec_statements_fy_stub_period_guard import apply_fy_stub_period_guard
 from utils.external.sec_statements_shared import (
     _ANNUAL_REPORT_FORMS,
+    _PRIMARY_STATEMENT_FORMS,
     _extract_currency_code,
     _is_genuine_fy_duration_span,
 )
@@ -216,7 +217,9 @@ def _aggregate_concepts_widen_to_alias_group(
     return True, max_annual_report_end
 
 
-def _aggregate_concepts_correct_period_end_anchor(row: dict[str, Any], entry: Any, end_date: Any) -> bool:
+def _aggregate_concepts_correct_period_end_anchor(
+    row: dict[str, Any], entry: Any, end_date: Any, has_annual_report_form: bool = False
+) -> bool:
     """True if `entry` corrected `row`'s period_end anchor (mutates `row` in place) instead
     of being a mismatch this row should reject.
 
@@ -239,10 +242,45 @@ def _aggregate_concepts_correct_period_end_anchor(row: dict[str, Any], entry: An
     it, but only once (a row already anchored by a real annual-report-form entry keeps that
     anchor - this never lets a SECOND, different-period annual-form entry re-anchor an
     already-correct row).
+
+    FIXED 2026-09-16 (same goal session continuation, HMH/YSWY live-confirmed via real SEC
+    companyfacts JSON, CIKs 0002021880/0001859836): the CHKP fix above only ever lets an
+    ANNUAL-report-form entry re-anchor - correct for a filer that eventually files a real
+    10-K/20-F, but both HMH ("HMH Holding Inc.") and YSWY ("Yesway, Inc.") are brand-new
+    post-business-combination registrants that have filed ONLY 10-Qs so far
+    (`has_annual_report_form` is False for every concept - no 10-K/20-F exists anywhere in
+    their history yet), so this "annual" bucket has no genuine fiscal-year-end to protect at
+    all; it can only ever be "whichever quarter's instant fact got processed first". Both
+    filers' EARLIEST 10-Q (their Q1) tags Assets/StockholdersEquity/AccountsReceivable with a
+    placeholder val=10/val=1 across multiple unrelated concepts (a real filer-side XBRL
+    template error, not a units/scale issue - live-confirmed: their VERY NEXT 10-Q corrects
+    the exact same concepts to real, consistent 9-10-figure values). Once that placeholder
+    10-Q's val=10 fact anchors period_end to its own (earlier) quarter-end, the later 10-Q's
+    own real, current-quarter instant fact - for a LATER quarter-end, not a backward-looking
+    comparative - gets silently rejected as "disagreeing", leaking the placeholder into
+    Assets/StockholdersEquity/AccountsReceivable forever. When there is no annual-report-form
+    history to protect, a later-filed 10-Q's own current-period instant fact whose end date is
+    chronologically AFTER the existing anchor is exactly the same "time has genuinely moved
+    forward, update the anchor" case the annual-report-form branch already handles for a
+    10-K/20-F - scoped to `_PRIMARY_STATEMENT_FORMS` (still never an 8-K/DEF14A/S-1) and to a
+    LATER end date only (a comparative fact reaching backward into an already-anchored period
+    still correctly falls through to `_aggregate_concepts_should_replace_entry`'s ordinary
+    tiebreak, unaffected). A filer with real 10-K/20-F history is entirely unaffected -
+    `has_annual_report_form` is only False in the narrow pre-first-annual-report window this
+    fixes.
     """
     if entry.get("form") in _ANNUAL_REPORT_FORMS and not row.get("_period_end_from_annual_form"):
         row["period_end"] = end_date
         row["_period_end_from_annual_form"] = True
+        return True
+    if (
+        not has_annual_report_form
+        and not row.get("_period_end_from_annual_form")
+        and entry.get("form") in _PRIMARY_STATEMENT_FORMS
+        and row.get("period_end") is not None
+        and end_date > row["period_end"]
+    ):
+        row["period_end"] = end_date
         return True
     return False
 
@@ -518,7 +556,7 @@ def _aggregate_concepts(
                     and not start_date
                     and source != "dei"
                     and row["period_end"] != end_date
-                    and not _aggregate_concepts_correct_period_end_anchor(row, entry, end_date)
+                    and not _aggregate_concepts_correct_period_end_anchor(row, entry, end_date, has_annual_report_form)
                 ):
                     continue
                 col = target_key
