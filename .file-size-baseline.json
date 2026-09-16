@@ -693,6 +693,7 @@
   "scripts/record_capital_flow.py": 192,
   "scripts/repair_all_scale_errors_gt_100x.py": 152,
   "scripts/repair_depreciation_and_ar_scale_errors.py": 146,
+  "scripts/repair_minor_2_10x_errors.py": 149,
   "scripts/repair_missing_capex_and_debt.py": 141,
   "scripts/repair_moderate_10_50x_errors.py": 151,
   "scripts/repair_moderate_50_100x_errors.py": 143,
