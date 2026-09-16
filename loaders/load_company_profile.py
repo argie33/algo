@@ -126,6 +126,18 @@ SIC_TO_GICS = {
     1381: "Energy",  # Drilling oil & gas wells
     1382: "Energy",  # Oil & gas exploration services
     2911: "Energy",  # Petroleum refining
+    # FIXED 2026-09-11 (goal: "why is HNRG/quality outliers" investigation): SIC groups
+    # royalty trusts under its Finance division (68xx/69xx) by legal-structure convention,
+    # but they're commodity pass-through vehicles, not financial companies - live-confirmed
+    # PBT/CRT/LB/TPL/NRT (all SIC 6792) and RGLD/SSRM/TFPM/VMET (all SIC 6795) already carry
+    # a real yfinance sector of Energy/Materials respectively whenever yfinance data happens
+    # to be available for them; SJT/SBR/EROK (also 6792) and MSB/SRL (also 6795) fell back to
+    # this file's own SIC_TO_GICS map instead purely because their yfinance_snapshot row had
+    # data_available=false that day, landing them in "Financial Services" - same SIC code,
+    # same real business, inconsistent sector purely from a data-availability quirk. Was
+    # previously listed under Financial Services just below (see 6794's own comment for the
+    # one entry that correctly stays there).
+    6792: "Energy",  # Oil royalty traders
     # Utilities
     4911: "Utilities",  # Electric services
     4922: "Utilities",  # Natural gas transmission
@@ -149,6 +161,22 @@ SIC_TO_GICS = {
     4200: "Industrials",  # Trucking & warehousing
     4400: "Industrials",  # Water transportation
     4500: "Industrials",  # Transportation by air
+    # FIXED 2026-09-11 (goal: "why is HNRG/quality outliers" investigation, same bug class as
+    # 6792/6795 above): SIC's 49xx division groups waste/sanitation services alongside real
+    # electric/gas/water utilities (division convention, not a business-model match), and none
+    # of these 3 codes had an explicit SIC_TO_GICS entry - they fell through to
+    # SIC_MAJOR_GROUP_FALLBACK's division-49 vote, which is dominated by genuine utilities and
+    # so defaults them to "Utilities". Live-confirmed CLH (real yfinance data available) is
+    # Industrials/Waste Management - the same real business as QRHC/NVRI/DXST/PESI (same SIC
+    # codes, yfinance data_available=false for all four), which fell back to "Utilities"
+    # purely from that data-availability quirk, not a real classification difference. Same
+    # "sector split by data-availability coin flip, not real business" pattern that inflated
+    # these symbols' Quality/Growth sector-neutral z-scores against a mismatched utility peer
+    # group (live-confirmed: QRHC/NVRI were 2 of the most extreme asset_turnover/gross_
+    # profitability outliers found in the whole "Utilities" sector).
+    4950: "Industrials",  # Sanitary services
+    4953: "Industrials",  # Refuse systems
+    4955: "Industrials",  # Hazardous waste management
     # Communication Services
     4812: "Communication Services",  # Radiotelephone communication
     4813: "Communication Services",  # Telephone communication
@@ -187,11 +215,10 @@ SIC_TO_GICS = {
     6163: "Financial Services",  # Loan brokers
     6199: "Financial Services",  # Finance services n.e.c.
     6411: "Financial Services",  # Insurance agents, brokers & service
-    6792: "Financial Services",  # Oil royalty traders
     6794: "Financial Services",  # Patent owners & lessors
-    6795: "Financial Services",  # Mineral royalty traders
     6799: "Financial Services",  # Investors, n.e.c.
     # Materials (metal/nonmetallic mining 10xx/14xx, wood/paper/leather 24xx/26xx/31xx)
+    6795: "Materials",  # Mineral royalty traders - see 6792's own comment above
     1000: "Materials",  # Metal mining (broad)
     1040: "Materials",  # Gold mining
     1090: "Materials",  # Metal mining services
