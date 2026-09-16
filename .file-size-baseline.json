@@ -442,7 +442,7 @@
   "lambda/api/routes/economic.py": 690,
   "lambda/api/routes/financials.py": 294,
   "lambda/api/routes/health.py": 552,
-  "lambda/api/routes/industries.py": 443,
+  "lambda/api/routes/industries.py": 445,
   "lambda/api/routes/logs.py": 196,
   "lambda/api/routes/market/__init__.py": 134,
   "lambda/api/routes/market/_shared.py": 88,
