@@ -1,5 +1,5 @@
 """Regression test for a cross-concept fiscal-year-end conflict in
-_aggregate_concepts_detect_cross_concept_fye_conflict()/_aggregate_concepts
+_aggregate_concepts_detect_cross_concept_fye()/_aggregate_concepts
 (utils/external/sec_statements_aggregate.py):
 
 Live-verified 2026-09-15 via Summit Therapeutics (SMMT, CIK 0001599298) real SEC

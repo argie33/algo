@@ -279,6 +279,41 @@ needing neither the scheduler lock nor network access). `algo/monitoring/data_pa
 staleness.py` also now carries a `score_realized_ic_log` entry (2-day threshold) so a broken
 schedule surfaces in DataPatrol instead of silently going dark again.
 
+**Price-source independent cross-check (added 2026-09-16 — the XBRL "second opinion" pattern
+applied to price data, not a bug-report-driven thing, run it periodically):**
+```bash
+python scripts/price_source_crosscheck.py               # samples 25 symbols, writes findings
+python scripts/price_source_crosscheck.py --limit 50
+python scripts/price_source_crosscheck.py --symbols AAPL,MSFT,KO
+python scripts/price_source_crosscheck.py --dry-run      # print only, don't write to data_patrol_log
+```
+An audit of the XBRL data-quality stack (7+ layers of cross-provider/self-consistency checks)
+found that price data — which feeds every scoring/trading decision at least as directly as any
+XBRL field — had zero cross-provider validation, only internal self-consistency
+(`PriceSanityChecker`). This is the price-data sibling of `xbrl_yfinance_crosscheck.py`: for a
+small daily rotating sample of active symbols, it compares our stored close
+(`price_daily_split_adjusted.close_adjusted`, not raw `price_daily.close` — see the script's
+own docstring for why raw-vs-adjusted would produce a false divergence for any symbol with a
+split in its history) against an independently-fetched yfinance close for the same trading day,
+flagging a >1% divergence as WARN into the same `data_patrol_log`/`data_patrol_review` triage
+workflow as every other check. Same rate-limit discipline as the XBRL yfinance layer (small
+rotating sample, not full-universe — see
+`yfinance_validation_calls_self_triggered_ban_during_reload_20260903` in memory for why). Also
+surfaces (INFO) any sampled symbol with a NULL `price_daily.data_source` on its latest row,
+per `steering/DATA_LOADERS.md`'s previously-open question about those rows, instead of
+silently dropping them. A prior one-off evaluation of this exact question
+(`scripts/compare_price_sources.py`, deleted 2026-07-27 per commit `f6d061869`) found 99.4%
+coverage and a 0.0000% median close diff at the time `PRICE_DATA_SOURCE` was switched to
+Alpaca — this script makes that an ongoing, scheduled check instead of a one-time snapshot.
+**Now wired into a local daily Windows Task Scheduler task (added 2026-09-16, same session
+the gap was found and closed):** `scripts/setup_windows_schedule.ps1` registers
+`\algo\price-source-crosscheck` (MON-FRI, 11:58 PM ET — 3 minutes after
+`score-realized-ic-monitor`, same S4U/battery-safe/retry settings as every other task it
+registers). `scripts/verify_windows_schedule.ps1` checks it for the same
+LogonType/battery-setting drift it checks every other task for. **Needs an elevated re-run of
+`setup_windows_schedule.ps1` to actually register on this machine — not yet applied as of this
+change landing (script change only), same as every other task added this way.**
+
 `monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use
 **different freshness methodologies** — a table can show FRESH in the monitor and still halt
 Phase 1 minutes later:

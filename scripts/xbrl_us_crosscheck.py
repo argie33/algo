@@ -44,6 +44,10 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from utils.dotenv_loader import load_env_local  # noqa: E402
+
+load_env_local()
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -128,6 +132,8 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
     flagged: dict[str, list[dict[str, Any]]] = {f"{t}:{f}": [] for t, f, _ in _FIELDS}
     sampled_count: dict[str, int] = {f"{t}:{f}": 0 for t, f, _ in _FIELDS}
     consecutive_auth_errors = 0
+    concept_fetch_errors = 0
+    concept_fetch_attempts = 0
 
     for symbol in symbols:
         if consecutive_auth_errors >= _MAX_CONSECUTIVE_AUTH_ERRORS:
@@ -158,14 +164,17 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
             # while preferring "Revenues" for REITs/lease-heavy filers where it dominates.
             best_value: float | None = None
             for concept in concepts:
+                concept_fetch_attempts += 1
                 try:
                     concept_facts = fact_search(symbol, concept, fiscal_year, fiscal_period="Y")
                     consecutive_auth_errors = 0
                 except XbrlUsAuthError as e:
                     consecutive_auth_errors += 1
+                    concept_fetch_errors += 1
                     logger.warning(f"[XBRL_US_CROSSCHECK] auth error fetching {symbol}/{concept}: {e}")
                     break
                 except RuntimeError as e:
+                    concept_fetch_errors += 1
                     logger.debug(f"[XBRL_US_CROSSCHECK] {symbol}/{concept} fetch failed (non-fatal): {e}")
                     continue
                 if not concept_facts:
@@ -196,6 +205,32 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
             )
 
     results: list[CheckResult] = []
+
+    # Every concept fetch attempted this run errored (credentials/auth/API-shape problem) and
+    # zero symbols produced a comparable value - without this, that looks identical to a
+    # genuinely clean "no divergence found" run in data_patrol_log (both emit 'info' results
+    # with 0 flagged), which is exactly how this check silently ran broken for a full day
+    # (2026-09-16 root cause: missing .env.local load meant XBRL_US_* credentials were never
+    # in the environment, so every fetch failed instantly and was swallowed at DEBUG level).
+    total_sampled = sum(sampled_count.values())
+    if concept_fetch_attempts > 0 and concept_fetch_errors == concept_fetch_attempts and total_sampled == 0:
+        logger.error(
+            f"[XBRL_US_CROSSCHECK] All {concept_fetch_attempts} concept fetch(es) failed and 0 symbols "
+            "produced a comparable value - this run found nothing to compare, not nothing to flag. "
+            "Check credentials/API connectivity, not the data."
+        )
+        results.append(
+            CheckResult(
+                "xbrl_us_independent_crosscheck_fetch_health",
+                "warn",
+                "annual_income_statement",
+                f"All {concept_fetch_attempts} XBRL US concept fetch(es) failed this run (0/{len(symbols)} "
+                "symbols sampled produced a comparable value) - likely a credentials/auth/API problem, "
+                "not a clean run. Review queue.",
+                {"attempts": concept_fetch_attempts, "errors": concept_fetch_errors, "symbols_sampled": len(symbols)},
+            )
+        )
+
     for table, field, _ in _FIELDS:
         field_key = f"{table}:{field}"
         check_name = f"xbrl_us_independent_crosscheck_{field}"

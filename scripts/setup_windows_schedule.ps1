@@ -577,6 +577,63 @@ Register-ScheduledTask `
 
 Write-Host "[OK] score-realized-ic-monitor task scheduled for 11:55 PM ET (MON-FRI)"
 
+# Task 8: Price-source independent cross-check - daily, price-data sibling of xbrl-second-opinion
+Write-Host ""
+Write-Host "Task 8: Price-Source Cross-Check (MON-FRI, 11:58 PM ET)"
+Write-Host "  - our stored OHLCV vs an independent yfinance read, small daily rotating sample"
+
+# ADDED 2026-09-16 (goal: "make sure we're doing all we need with the xbrl.org stuff ...
+# apply it across the landscape" follow-up audit): the XBRL side of this repo has 7+ layers
+# of cross-provider/self-consistency checks; price data - which feeds every scoring/trading
+# decision at least as directly as any XBRL field - had none. scripts/price_source_crosscheck.py
+# closes that gap the same way xbrl_us_crosscheck.py's gap was closed earlier this session:
+# built, tested live, and scheduled immediately rather than left to a human to remember.
+# Scheduled 3 minutes after score-realized-ic-monitor (11:55 PM ET) so it never competes with
+# it, xbrl-second-opinion, or the reference-pipeline loader (11:30 PM ET) for anything - this
+# script needs no algo-scheduler.lock either, it only reads price_daily/price_daily_split_adjusted
+# already in the DB plus a small rotating-sample yfinance fetch (same rate-limit discipline as
+# the XBRL yfinance layer - see that script's own docstring).
+$priceCrosscheckLocalTime = Convert-EasternTimeToLocal -Hour 23 -Minute 58
+Write-Host "[INFO] ET 23:58 -> local $priceCrosscheckLocalTime"
+
+$priceCrosscheckAction = New-ScheduledTaskAction `
+    -Execute $pythonExe `
+    -Argument "scripts/price_source_crosscheck.py" `
+    -WorkingDirectory $algoPath
+
+$priceCrosscheckTrigger = New-ScheduledTaskTrigger `
+    -Weekly `
+    -At $priceCrosscheckLocalTime `
+    -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
+
+$priceCrosscheckSettings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries:$true `
+    -DontStopIfGoingOnBatteries `
+    -Compatibility Win8 `
+    -MultipleInstances IgnoreNew `
+    -WakeToRun `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 20)
+
+if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "price-source-crosscheck" -ErrorAction SilentlyContinue) {
+    Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "price-source-crosscheck" -Confirm:$false
+    Write-Host "[OK] Replaced existing price-source-crosscheck task"
+} else {
+    Write-Host "[INFO] No existing price-source-crosscheck task found"
+}
+
+Register-ScheduledTask `
+    -TaskName "price-source-crosscheck" `
+    -TaskPath $taskFolder `
+    -Action $priceCrosscheckAction `
+    -Trigger $priceCrosscheckTrigger `
+    -Settings $priceCrosscheckSettings `
+    -Principal $taskPrincipal `
+    -Description "Independent price-source cross-check: our stored OHLCV vs yfinance, small daily rotating sample" `
+    -ErrorAction Stop | Out-Null
+
+Write-Host "[OK] price-source-crosscheck task scheduled for 11:58 PM ET (MON-FRI)"
+
 # BUG FIX (2026-08-17): the actual trading orchestrator's own scheduled tasks
 # (AlgoTrading_Orchestrator_930AM/1PM/3PM, under \AlgoTrading\ - registered separately from
 # this script, no repo script ever managed them) were live-confirmed to have the exact same

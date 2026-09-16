@@ -676,6 +676,7 @@
   "scripts/monitor_data_staleness.py": 932,
   "scripts/options_data_loader.py": 381,
   "scripts/orchestrator_scheduler.py": 199,
+  "scripts/price_source_crosscheck.py": 257,
   "scripts/prune_stale_snapshot_symbols.py": 105,
   "scripts/record_capital_flow.py": 192,
   "scripts/restore_raw_close_after_split_fix.py": 100,

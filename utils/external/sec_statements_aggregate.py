@@ -62,15 +62,21 @@ def _aggregate_concepts_build_alias_group_history(
     return group_max_annual_report_end
 
 
-def _aggregate_concepts_detect_cross_concept_fye_conflict(
+def _aggregate_concepts_detect_cross_concept_fye(
     concept_specs: list[tuple[str, str, str]],
     us_gaap_facts: dict[str, Any] | None,
     ifrs_facts: dict[str, Any] | None,
     dei_facts: dict[str, Any] | None,
-) -> bool:
-    """True if this filer's real fiscal-year-end month is NOT a single stable answer across
-    its WHOLE history, once every concept/taxonomy is considered together - not just within
-    one concept's own local view.
+) -> tuple[bool, int | None]:
+    """Returns (conflict, consistent_month): whether this filer's real fiscal-year-end month
+    is NOT a single stable answer across its WHOLE history once every concept/taxonomy is
+    considered together (not just within one concept's own local view), and if it IS a single
+    stable answer, what that month is.
+
+    consistent_month is only ever set when exactly one distinct FYE month is found across
+    every concept's genuine FY-span facts combined - i.e. whenever conflict is False AND at
+    least one genuine FY-span fact exists anywhere. It is None when conflicting (ambiguous) or
+    when no concept has any genuine FY-span evidence at all (nothing to conclude from).
 
     FIXED 2026-09-15 (goal: data-issue coordination session, SMMT live-confirmed via real SEC
     companyfacts JSON, CIK 0001599298): `_aggregate_concepts_build_unit_context`'s existing
@@ -114,22 +120,76 @@ def _aggregate_concepts_detect_cross_concept_fye_conflict(
                     and len(entry["end"]) >= 7
                 ):
                     months.add(int(entry["end"][5:7]))
-    return len(months) > 1
+    if len(months) > 1:
+        return True, None
+    if len(months) == 1:
+        return False, next(iter(months))
+    return False, None
 
 
 def _aggregate_concepts_apply_cross_concept_fye_override(
     cross_concept_fye_conflict: bool,
     fye_month: int | None,
     has_december_fiscal_year_end: bool,
+    cross_concept_consistent_fye_month: int | None = None,
 ) -> tuple[int | None, bool]:
     """Suppress a per-concept fye_month/has_december_fiscal_year_end determination once
-    `_aggregate_concepts_detect_cross_concept_fye_conflict` has found conflicting evidence
-    elsewhere in this filer's history - see that function's own docstring. Extracted purely to
-    keep `_aggregate_concepts`'s own cyclomatic complexity under the repo's ruff C901 ratchet,
-    same rationale as its sibling `_aggregate_concepts_widen_to_alias_group`.
+    `_aggregate_concepts_detect_cross_concept_fye` has found conflicting evidence elsewhere in
+    this filer's history - see that function's own docstring. Extracted purely to keep
+    `_aggregate_concepts`'s own cyclomatic complexity under the repo's ruff C901 ratchet, same
+    rationale as its sibling `_aggregate_concepts_widen_to_alias_group`.
+
+    FIXED 2026-09-16 (goal session continuation, CSCO live-confirmed via real SEC companyfacts
+    JSON, CIK 0000858877): a concept with too few of its OWN genuine FY-span facts to determine
+    fye_month locally (e.g. CSCO's "ProfitLoss" concept, tagged in only one 10-Q ever, with no
+    FY-duration fact of its own at all) fell back to fye_month=None - meaning
+    `_aggregate_concepts_resolve_entry_period`'s non-December-FYE quarter year-shift correction
+    never applied to THAT concept's entries, even though every other concept for the same
+    symbol (e.g. "SalesRevenueNet", richly tagged) confidently and correctly determined
+    fye_month=7 and got the correction. Two genuinely different real quarters (CSCO's real
+    fiscal Q1 FY2009, end=2008-10-25, correctable to fiscal_year=2009; and real fiscal Q1
+    FY2010, end=2009-10-24, naively already computing to 2009 with NO correction applied) then
+    collided onto the identical (fiscal_year=2009, fp='Q1') row key - live-confirmed: CSCO's
+    ProfitLoss values 2201000000 (real FY2009 Q1) and 1787000000 (real FY2010 Q1, mislabeled)
+    both landed under fiscal_year=2009, producing two DB rows for that key. When there's no
+    cross-concept CONFLICT (i.e. every concept that does have genuine FY-span evidence agrees
+    on a single month - the same evidence this function's conflict check already computes),
+    that one globally-agreed month is exactly as trustworthy for a sparse concept as it is for
+    the concept(s) that happened to independently derive it - this only ever fills in a gap the
+    per-concept detection left as "no evidence", never overrides a concept's own confident
+    (and, by construction of the conflict check, agreeing) determination.
+
+    FIXED 2026-09-16 (same goal session continuation, ALNY live-confirmed via real SEC
+    companyfacts JSON, CIK 0001178670): a per-concept determination can be confidently WRONG,
+    not just absent - `_aggregate_concepts_build_unit_context`'s instant-fact FYE heuristic
+    (built for balance-sheet-shaped concepts like Assets/StockholdersEquity, where an
+    annual-report-form instant fact genuinely marks the fiscal year end) doesn't check whether
+    the concept it's looking at is actually instant-shaped at all. ALNY's
+    "RevenueFromContractWithCustomerExcludingAssessedTax" - an ordinary DURATION revenue
+    concept - carries one genuine filer-side XBRL tagging error: an instant-shaped fact dated
+    2018-01-01 (frame='CY2017Q4I', the "I" marking it instant) that has no business existing on
+    a revenue concept at all. Unanimous-agreement gating (only one distinct instant month ever
+    seen) makes this single bad fact look exactly as trustworthy as WEC's real balance-sheet
+    case, confidently producing fye_month=1 for this one concept - even though ALNY's real FYE
+    is December, and the SAME concept's own genuine FY-duration facts (all ending 2016-12-31
+    through 2025-12-31, unanimous) prove it. Two genuinely different real quarters (calendar
+    Q2 2017, and the comparative Q2 fact inside ALNY's real FY2018 Q2 10-Q) then collided:
+    the concept's own correct duration-fact-derived fye_month was overwritten by 1 earlier in
+    this same function by whichever evidence happened to be checked first.
+
+    When the cross-concept-agreed month (from the broader, more robust set of every concept's
+    own genuine FY-DURATION facts, symbol-wide) DISAGREES with a per-concept determination
+    (not just fills a gap), and there is no cross-concept conflict, prefer the broader evidence
+    - a single concept's own signal (especially one derived from the narrower, more error-prone
+    instant-fact heuristic) is not a substitute for what every other concept's real annual
+    filings agree on. Still fully gated behind "no conflict" - a filer with a genuine historical
+    FYE change makes month-counting itself ambiguous (SMMT-shaped), in which case this override
+    stays out of the way entirely, same as the gap-filling case above.
     """
     if cross_concept_fye_conflict:
         return None, False
+    if cross_concept_consistent_fye_month is not None and fye_month != cross_concept_consistent_fye_month:
+        return cross_concept_consistent_fye_month, cross_concept_consistent_fye_month == 12
     return fye_month, has_december_fiscal_year_end
 
 
@@ -185,6 +245,24 @@ def _aggregate_concepts_correct_period_end_anchor(row: dict[str, Any], entry: An
         row["_period_end_from_annual_form"] = True
         return True
     return False
+
+
+def _aggregate_concepts_cross_concept_fye_for_period(
+    period: str,
+    concept_specs: list[tuple[str, str, str]],
+    us_gaap_facts: dict[str, Any] | None,
+    ifrs_facts: dict[str, Any] | None,
+    dei_facts: dict[str, Any] | None,
+) -> tuple[bool, int | None]:
+    """Only meaningful for quarterly aggregation - see
+    `_aggregate_concepts_detect_cross_concept_fye`'s own docstring. Extracted purely to keep
+    `_aggregate_concepts`'s own cyclomatic complexity under the repo's ruff C901 ratchet, same
+    rationale as its siblings `_aggregate_concepts_widen_to_alias_group` and
+    `_aggregate_concepts_apply_cross_concept_fye_override`.
+    """
+    if period != "quarterly":
+        return False, None
+    return _aggregate_concepts_detect_cross_concept_fye(concept_specs, us_gaap_facts, ifrs_facts, dei_facts)
 
 
 def _aggregate_concepts(
@@ -273,14 +351,20 @@ def _aggregate_concepts(
     )
 
     # FIXED 2026-09-15 (goal: data-issue coordination session, SMMT live-confirmed) - see
-    # _aggregate_concepts_detect_cross_concept_fye_conflict's own docstring for the full SMMT
-    # writeup. Computed once per symbol (same cost class as the alias-group scan just above)
-    # and only ever used to SUPPRESS a per-concept fye_month/has_december_fiscal_year_end
+    # _aggregate_concepts_detect_cross_concept_fye's own docstring for the full SMMT writeup
+    # (and its CSCO addendum, 2026-09-16, for _cross_concept_consistent_fye_month below).
+    # Computed once per symbol (same cost class as the alias-group scan just above).
+    # cross_concept_fye_conflict SUPPRESSES a per-concept fye_month/has_december_fiscal_year_end
     # determination that would otherwise be trusted despite the filer's real history spanning
     # two genuinely different fiscal-year-end regimes (e.g. a foreign-private-issuer-to-
     # domestic-filer conversion that also changed the fiscal year end).
-    _cross_concept_fye_conflict = period == "quarterly" and _aggregate_concepts_detect_cross_concept_fye_conflict(
-        concept_specs, us_gaap_facts, ifrs_facts, dei_facts
+    # _cross_concept_consistent_fye_month FILLS IN a per-concept determination that came back
+    # with no evidence of its own (too few genuine FY-span facts for that one concept, e.g.
+    # CSCO's sparsely-tagged "ProfitLoss") using the same globally-agreed month every other
+    # concept for this symbol already confirms - see
+    # _aggregate_concepts_apply_cross_concept_fye_override's own docstring.
+    _cross_concept_fye_conflict, _cross_concept_consistent_fye_month = _aggregate_concepts_cross_concept_fye_for_period(
+        period, concept_specs, us_gaap_facts, ifrs_facts, dei_facts
     )
 
     for concept, target_key, source in concept_specs:
@@ -348,7 +432,10 @@ def _aggregate_concepts(
             ) = _aggregate_concepts_build_unit_context(entries)
 
             _fye_month, has_december_fiscal_year_end = _aggregate_concepts_apply_cross_concept_fye_override(
-                _cross_concept_fye_conflict, _fye_month, has_december_fiscal_year_end
+                _cross_concept_fye_conflict,
+                _fye_month,
+                has_december_fiscal_year_end,
+                _cross_concept_consistent_fye_month,
             )
 
             # Widen to the alias-group's confirmed annual-report history (see this

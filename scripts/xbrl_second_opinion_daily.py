@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Daily entrypoint for XBRL data-quality layers 4, 5, 6 and 8 (see MEMORY.md's
+"""Daily entrypoint for XBRL data-quality layers 4, 5, 6, 8 and the XBRL US cross-check
+(see MEMORY.md's
 xbrl_calculation_linkbase_check_landed_20260910 and the "7 layers" docstring in
 scripts/xbrl_calculation_linkbase_check.py for the full architecture).
 
@@ -54,7 +55,7 @@ but not yet applied - needs real AWS access, unrelated to whether local automati
 Same small-rotating-sample posture as running each script by hand, just no longer
 dependent on anyone remembering to.
 
-All four underlying scripts already write their own findings straight to
+All five underlying scripts already write their own findings straight to
 data_patrol_log (WARN severity, same data_patrol_review triage queue as every other
 DataPatrol check) - this wrapper just calls their `run()` functions back to back with
 the same defaults the docstrings recommend for a periodic pass, and lets any one
@@ -111,6 +112,7 @@ def _run_dqc_layer(*, limit: int, symbols_override: list[str] | None, dry_run: b
 def main(argv: list[str] | None = None) -> None:
     from scripts.xbrl_calculation_linkbase_check import run as run_calc_linkbase
     from scripts.xbrl_unavailable_reason_audit import run as run_reason_audit
+    from scripts.xbrl_us_crosscheck import run as run_xbrl_us_crosscheck
     from scripts.xbrl_yfinance_crosscheck import run as run_yfinance_crosscheck
 
     # BUG FIX (2026-09-13): this wrapper had NO argument parsing at all - `--dry-run` was
@@ -147,6 +149,15 @@ def main(argv: list[str] | None = None) -> None:
         # here directly instead - one schedule, one failure policy, one exit code, no new
         # automation surface to maintain.
         ("unavailable_reason_audit", run_reason_audit, 40),
+        # ADDED 2026-09-16 (fixed the same day it was found broken - see
+        # scripts/xbrl_us_crosscheck.py's own fix comment): the 4th independent
+        # cross-check layer, against XBRL US's own parse of the same filings. Same
+        # `fn(limit=..., symbols_override=..., dry_run=...)` call signature as the other
+        # four, so it slots in here directly rather than getting its own standalone
+        # schedule - same reasoning as unavailable_reason_audit above. Authenticated live
+        # API calls per symbol (OAuth2 token dance + up to 3 concept lookups per field),
+        # so kept at the same default 25-symbol sample as yfinance_crosscheck.
+        ("xbrl_us_crosscheck", run_xbrl_us_crosscheck, 25),
     )
     for label, fn, limit in layers:
         try:
