@@ -208,6 +208,10 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     gm.forward_revenue_growth_next_fy_unavailable_reason,
                     gm.eps_estimate_revision_90d_pct,
                     gm.eps_estimate_revision_90d_pct_unavailable_reason,
+                    gm.eps_growth_trend_5y,
+                    gm.eps_growth_trend_5y_unavailable_reason,
+                    gm.sps_growth_trend_5y,
+                    gm.sps_growth_trend_5y_unavailable_reason,
                     sm.beta AS beta_val,
                     sm.beta_unavailable_reason,
                     sm.volatility_252d AS volatility_12m_val,
@@ -679,6 +683,15 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 # for quality_inputs above, reused here under the growth_inputs section too.
                 "eps_growth_stability": data.get("eps_growth_stability"),
                 "eps_growth_stability_unavailable_reason": data.get("eps_growth_stability_unavailable_reason"),
+                # ADDED 2026-09-16: eps_growth_trend_5y/sps_growth_trend_5y are the real
+                # MSCI/Barra-formula OLS growth-trend fields now in GROWTH_SCORE_FIELDS (see
+                # loaders/helpers/growth_trend.py) - frontend keys match the column names
+                # verbatim (no separate "_val"/"_pct"/"_cagr" suffix convention needed since
+                # these are new, not legacy-named).
+                "eps_growth_trend_5y": data.get("eps_growth_trend_5y"),
+                "eps_growth_trend_5y_unavailable_reason": data.get("eps_growth_trend_5y_unavailable_reason"),
+                "sps_growth_trend_5y": data.get("sps_growth_trend_5y"),
+                "sps_growth_trend_5y_unavailable_reason": data.get("sps_growth_trend_5y_unavailable_reason"),
             }
 
             # Positioning Inputs

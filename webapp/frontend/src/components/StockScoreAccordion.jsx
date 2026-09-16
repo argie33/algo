@@ -863,7 +863,7 @@ const StockScoreAccordion = ({
 };
 
 export default StockScoreAccordion;
-export { QUALITY_SCHEMA, RISK_SCHEMA, PILLAR_COMPOSITE_WEIGHTS };
+export { QUALITY_SCHEMA, RISK_SCHEMA, GROWTH_SCHEMA, PILLAR_COMPOSITE_WEIGHTS };
 
 // ─── Input Schemas ──────────────────────────────────────────────────────────
 // Ground-truthed against loaders/load_stock_scores.py and

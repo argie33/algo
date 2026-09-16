@@ -225,6 +225,10 @@ def _build_stock_scores_query(
                 gm.forward_revenue_growth_next_fy_unavailable_reason,
                 gm.eps_estimate_revision_90d_pct,
                 gm.eps_estimate_revision_90d_pct_unavailable_reason,
+                gm.eps_growth_trend_5y,
+                gm.eps_growth_trend_5y_unavailable_reason,
+                gm.sps_growth_trend_5y,
+                gm.sps_growth_trend_5y_unavailable_reason,
                 sm.beta AS beta_val,
                 sm.beta_unavailable_reason,
                 sm.volatility_252d AS volatility_12m_val,
@@ -617,6 +621,11 @@ def _build_stock_score_factor_inputs(d: dict[str, Any]) -> None:
         # ADDED 2026-08-31 (see matching comment on the details-endpoint copy above).
         "eps_growth_stability": d.get("eps_growth_stability"),
         "eps_growth_stability_unavailable_reason": d.get("eps_growth_stability_unavailable_reason"),
+        # ADDED 2026-09-16 (see matching comment on the details-endpoint copy above).
+        "eps_growth_trend_5y": d.get("eps_growth_trend_5y"),
+        "eps_growth_trend_5y_unavailable_reason": d.get("eps_growth_trend_5y_unavailable_reason"),
+        "sps_growth_trend_5y": d.get("sps_growth_trend_5y"),
+        "sps_growth_trend_5y_unavailable_reason": d.get("sps_growth_trend_5y_unavailable_reason"),
     }
 
     # Positioning Inputs: Ownership and short interest
