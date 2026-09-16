@@ -119,30 +119,48 @@ class FyeFlipReconcileMixin:
         BUGFIX 2026-09-16 (0 matches across a 665-symbol run): `rows` is PRE-transform, so
         canonical names like "total_assets" never appear directly - resolve via
         self._field_mapping's raw concept keys instead, same as required_raw_keys elsewhere.
+        BUGFIX 2026-09-16 (2nd fix, live-confirmed via BABA/MUFG/GGAL real SEC companyfacts
+        JSON + a live re-run of this exact reconcile): the raw-key resolve above still matched
+        0 rows for a 63/29-group residual that skewed heavily toward FPI/ADR filers (a second
+        forced full-historical refetch made zero further progress on it). Live-testing showed
+        the raw pre-transform value for these filers doesn't reliably equal the canonical
+        value transform() ultimately computes and stores (foreign-currency FX conversion,
+        IFRS/alternate-concept aliasing, and unit-scale normalization all happen downstream of
+        this raw resolve, not before it) - so an exact-equality raw-vs-DB comparison could
+        silently never match for exactly the population most likely to hit this bug. Runs the
+        same rows through self.transform() first and compares POST-transform canonical values
+        instead (live-confirmed: this alone took the 63/29 residual to 2/4, both further
+        refetch-confirmed as a distinct, unrelated pattern - see this fix's memory entry) -
+        transform() is pure (no DB writes, no additional network calls beyond what fetch
+        already triggered; FX lookups hit fx_rates.py's on-disk cache) and appends exactly one
+        output row
+        per input row in order, so this is safe to call here in addition to the pipeline's own
+        later transform() call. Uses a small relative tolerance instead of exact equality since
+        FX-converted floats (unlike the original raw SEC integer values) can pick up
+        last-bit rounding noise between two runs that resolve the same underlying fact via
+        different intermediate float operations.
         """
         quarter_map = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
         fields = VALUE_FINGERPRINT_FIELDS[self.table_name]
-        field_mapping = getattr(self, "_field_mapping", None) or {}
-        raw_keys_by_field: dict[str, list[str]] = {f: [] for f in fields}
-        for raw, mapped in field_mapping.items():
-            if mapped in raw_keys_by_field:
-                raw_keys_by_field[mapped].append(raw)
-
-        def _resolve(row: dict[str, Any], field: str) -> Any:
-            for raw_key in raw_keys_by_field[field]:
-                val = row.get(raw_key)
-                if val is not None:
-                    return val
-            return None
+        try:
+            transformed_rows = self.transform(list(rows))  # type: ignore[attr-defined]
+        except Exception:
+            logger.warning(
+                f"[{self.table_name}] {symbol}: transform() failed during value-fingerprint "
+                "reconcile precheck - skipping this symbol's reconcile.",
+                exc_info=True,
+            )
+            return
 
         candidates = []
-        for row in rows:
-            raw_period = row.get("fiscal_period")
-            fiscal_quarter = quarter_map.get(raw_period) if isinstance(raw_period, str) else None
+        for row in transformed_rows:
             fiscal_year = row.get("fiscal_year")
-            if fiscal_quarter is None or fiscal_year is None:
+            fiscal_quarter = row.get("fiscal_quarter")
+            if isinstance(fiscal_quarter, str):
+                fiscal_quarter = quarter_map.get(fiscal_quarter)
+            if fiscal_year is None or fiscal_quarter is None:
                 continue
-            values = tuple(_resolve(row, f) for f in fields)
+            values = tuple(row.get(f) for f in fields)
             if any(v is None for v in values):
                 continue
             candidates.append({"fiscal_year": fiscal_year, "fiscal_quarter": fiscal_quarter, "values": values})
@@ -160,6 +178,17 @@ class FyeFlipReconcileMixin:
                 (symbol, list(adjacent_years)),
             )
             existing = cur.fetchall()
+
+        def _values_match(a: tuple[Any, ...], b: tuple[Any, ...]) -> bool:
+            for x, y in zip(a, b, strict=True):
+                try:
+                    xf, yf = float(x), float(y)
+                except (TypeError, ValueError):
+                    return False
+                if abs(xf - yf) > max(abs(xf), abs(yf)) * 1e-6 + 0.01:
+                    return False
+            return True
+
         stale_keys = []
         for existing_fy, existing_fq, *existing_values in existing:
             existing_values_t = tuple(existing_values)
@@ -167,7 +196,7 @@ class FyeFlipReconcileMixin:
                 if (
                     candidate["fiscal_quarter"] == existing_fq
                     and abs(candidate["fiscal_year"] - existing_fy) == 1
-                    and candidate["values"] == existing_values_t
+                    and _values_match(candidate["values"], existing_values_t)
                     and (candidate["fiscal_year"], candidate["fiscal_quarter"]) != (existing_fy, existing_fq)
                 ):
                     stale_keys.append((existing_fy, existing_fq))

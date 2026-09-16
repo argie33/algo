@@ -41,6 +41,17 @@ fact via its core reported values (_VALUE_FINGERPRINT_FIELDS) matching exactly u
 adjacent fiscal_year label instead of via period_end.
 test_other_quarterly_tables_never_trigger_this_guard (renamed
 test_balance_cashflow_use_value_fingerprint_reconcile below) now pins the new behavior.
+
+BUGFIX 2026-09-16 (same session, follow-up fork - FPI/foreign-currency residual): the
+value-fingerprint variant above still compared RAW pre-transform concept values, which don't
+reliably equal the canonical value transform() ultimately computes and stores (FX conversion,
+IFRS/alternate-concept aliasing, unit-scale normalization all happen downstream of the raw
+resolve) - live-confirmed via BABA/MUFG/GGAL real SEC data this made the reconcile match 0 of a
+63/29-group balance_sheet/cash_flow residual that skewed heavily toward FPI/ADR filers. Fixed
+by running the same rows through self.transform() first and comparing POST-transform values
+with a small relative tolerance instead of exact raw equality (live-confirmed: took the
+residual to 2/4, a distinct, separately-characterized pattern - see this fix's memory entry).
+test_value_fingerprint_uses_transformed_values_not_raw below pins this.
 """
 
 from datetime import date
@@ -231,6 +242,55 @@ class TestStaleFiscalYearDuplicateReconciled:
         ):
             result = loader.fetch_incremental("FLAT", None)
         assert result == [fresh_row]
+
+    def test_value_fingerprint_uses_transformed_values_not_raw(self) -> None:
+        """BABA-shaped case: the RAW pre-transform value (e.g. a foreign filer's own local-
+        currency fact) does not equal the existing DB row's value, but the POST-transform
+        canonical value (what self.transform() actually computes, e.g. after FX conversion)
+        does - the reconcile must delete the stale row based on the transformed comparison,
+        not the raw one (which would find no match at all and leave the duplicate in place)."""
+        loader = _make_loader(statement_type="balance", table_name="quarterly_balance_sheet")
+        fresh_row = {
+            "symbol": "BABA",
+            "fiscal_year": 2021,
+            "fiscal_period": "Q2",
+            "assets": 1_433_626_000_000,  # raw CNY-denominated fact - must NOT be compared directly
+            "liabilities": 900_000_000_000,
+            "stockholders_equity": 533_626_000_000,
+        }
+        # DB already has this exact fact filed under the stale fiscal_year=2020 (USD, post-FX).
+        read_ctx = _mock_read_context([(2020, 2, 210_548_685_563.23, 132_000_000_000.00, 78_548_685_563.23)])
+        write_ctx, mock_cur = _mock_write_context()
+        with (
+            patch.object(
+                ConsolidatedFinancialStatementsLoader.__mro__[1],
+                "fetch_incremental",
+                return_value=[fresh_row],
+            ),
+            patch.object(
+                loader,
+                "transform",
+                return_value=[
+                    {
+                        "symbol": "BABA",
+                        "fiscal_year": 2021,
+                        "fiscal_quarter": 2,
+                        "total_assets": 210_548_685_563.23,
+                        "total_liabilities": 132_000_000_000.00,
+                        "stockholders_equity": 78_548_685_563.23,
+                    }
+                ],
+            ),
+            patch(
+                "loaders.load_financial_statements.DatabaseContext",
+                side_effect=[read_ctx, write_ctx],
+            ),
+        ):
+            result = loader.fetch_incremental("BABA", None)
+        assert result == [fresh_row]
+        delete_sql, delete_params = mock_cur.execute.call_args_list[0][0]
+        assert "DELETE FROM quarterly_balance_sheet" in delete_sql
+        assert delete_params == ("BABA", 2020, 2)
 
     def test_row_missing_period_end_is_skipped(self) -> None:
         """A row without a resolved period_end can't safely be reconciled - must not crash
