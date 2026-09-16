@@ -243,7 +243,9 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 "rank_4w_ago": rank_4w if rank_4w else None,
                 "rank_12w_ago": rank_12w if rank_12w else None,
                 "stock_count": stock_count,
-                "composite_score": avg_score if avg_score is not None else momentum,
+                # FIX 2026-09-15: no longer falls back to `momentum` (a different pillar) when
+                # avg_score is NULL - that silently mislabeled momentum_score as composite_score.
+                "composite_score": avg_score,
                 "momentum_score": momentum,
                 "value_score": None,
                 "quality_score": None,
