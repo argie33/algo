@@ -356,7 +356,34 @@ def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-exis
                 except ValueError:
                     _frame_span_days = None
                 if _frame_span_days is not None and 80 <= _frame_span_days <= 100:
-                    derived_fp = f"Q{_frame[7]}"
+                    # FIXED 2026-09-16 (goal session: data-patrol/XBRL findings sweep, AGYS
+                    # live-confirmed via real SEC companyfacts JSON, CIK 0000078749): SEC's
+                    # `frame` label (e.g. 'CY2017Q4') always names the CALENDAR quarter, not
+                    # the filer's own fiscal quarter - the two only coincide for a December
+                    # fiscal-year-end filer. Treating `_frame[7]` as the fiscal quarter number
+                    # directly (the original 2026-09-15 ARQ fix) mislabeled AGYS's real fiscal
+                    # Q3 (Oct-Dec, since AGYS's FYE is March) as fiscal "Q4" whenever a 10-K's
+                    # "Selected Quarterly Financial Data" footnote echoed a prior Oct-Dec
+                    # quarter tagged fp='FY' with frame='CYyyyyQ4' - live-confirmed: AGYS's
+                    # RevenueFromContractWithCustomerExcludingAssessedTax frame='CY2017Q4' fact
+                    # (start=2017-10-01/end=2017-12-31, val=31,310,000, a genuine discrete
+                    # fiscal-Q3 result) landed in a synthetic (fiscal_year, fiscal_quarter=4)
+                    # bucket instead, seeding a Q4 row whose period_end (Dec 31) stayed wrong
+                    # release after release even once _sweep_derive_missing_q4() later
+                    # overwrote its *value* via the FY-minus-9mo identity - the sweep only ever
+                    # UPDATEs an existing row, it doesn't touch period_end. When fye_month is
+                    # known and non-December, translate the frame's calendar-quarter number
+                    # into the filer's real fiscal-quarter number using the same
+                    # end-month-relative-to-fye_month cadence already trusted for the
+                    # analogous non-Dec fiscal-year quarter/year correction above (see
+                    # "FIXED 2026-09-13/14" comment below) instead of trusting SEC's calendar
+                    # framing verbatim.
+                    if fye_month is None or fye_month == 12:
+                        derived_fp = f"Q{_frame[7]}"
+                    else:
+                        _calendar_quarter_end_month = int(_frame[7]) * 3
+                        _fiscal_quarter_num = ((_calendar_quarter_end_month - fye_month - 1) % 12) // 3 + 1
+                        derived_fp = f"Q{_fiscal_quarter_num}"
         if derived_fp is None:
             return None
         fp = derived_fp
