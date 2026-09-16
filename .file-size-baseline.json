@@ -675,7 +675,7 @@
   "scripts/fix_balance_sheet_nci_double_count.py": 143,
   "scripts/fix_crwd_hypr_balance_sheet_period_mismatch.py": 87,
   "scripts/fix_loader_status_drift.py": 259,
-  "scripts/fix_missing_stock_splits.py": 248,
+  "scripts/fix_missing_stock_splits.py": 293,
   "scripts/fix_shares_outstanding_scale_errors.py": 136,
   "scripts/fix_stuck_available_but_null_financial_statement_flags.py": 236,
   "scripts/flatten_all_positions.py": 384,
