@@ -722,6 +722,7 @@
   "scripts/xbrl_dera_bulk_scan.py": 206,
   "scripts/xbrl_dqc_arelle_check.py": 588,
   "scripts/xbrl_frames_check.py": 99,
+  "scripts/xbrl_line_item_report.py": 147,
   "scripts/xbrl_scored_headline_count.py": 133,
   "scripts/xbrl_second_opinion_daily.py": 188,
   "scripts/xbrl_segment_sum_reconciliation.py": 390,
