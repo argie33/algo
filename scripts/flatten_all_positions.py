@@ -31,13 +31,15 @@ Usage:
 import argparse
 import logging
 import sys
+from typing import Any
 
 import requests
 
 from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
 from algo.infrastructure.config import AlgoConfig
 from algo.orchestration.halt_flag_manager import HaltFlagManager
-from algo.reporting import AlertManager
+from algo.reporting import AlertManager, notify
+from algo.trading.exceptions import NotificationError
 from algo.trading.executor import TradeExecutor
 from algo.trading.quote_fetcher import fetch_live_quote
 from utils.db import DatabaseContext
@@ -50,19 +52,30 @@ def _noop_log_phase_result(*args: object, **kwargs: object) -> None:
     pass
 
 
-def _fetch_open_trades() -> list[tuple[int, str, str]]:
-    """(trade_id, symbol, status) for every non-terminal trade - same status set
-    exit_engine.py's own core exit-candidate query uses (TradeStatus.all_open()), so this
-    sees exactly the same positions the normal automated exit path would eventually act on.
+def _fetch_open_trades() -> list[tuple[int, str, str, str]]:
+    """(trade_id, symbol, status, alpaca_order_id) for every non-terminal trade - same
+    status set exit_engine.py's own core exit-candidate query uses (TradeStatus.all_open()),
+    so this sees exactly the same positions the normal automated exit path would eventually
+    act on. alpaca_order_id is needed to cancel a still-unfilled entry order by its own order
+    id rather than by symbol - see the unfilled_trades loop in main() for why.
     """
     open_statuses = TradeStatus.all_open()
     placeholders = ", ".join(["%s"] * len(open_statuses))
     with DatabaseContext("read") as cur:
         cur.execute(
-            f"SELECT trade_id, symbol, status FROM algo_trades WHERE status IN ({placeholders}) ORDER BY trade_date ASC",
+            f"SELECT trade_id, symbol, status, alpaca_order_id FROM algo_trades "
+            f"WHERE status IN ({placeholders}) ORDER BY trade_date ASC",
             open_statuses,
         )
-        return [(row[0], row[1], row[2]) for row in cur.fetchall()]
+        return [(row[0], row[1], row[2], row[3]) for row in cur.fetchall()]
+
+
+def _fetch_broker_positions(config: AlgoConfig) -> list[dict[str, Any]]:
+    """Every open position Alpaca reports right now - the one ground-truth seam both the
+    start-of-run divergence check and the end-of-run post-flatten verification call through,
+    so both get the same real /v2/positions data and both are equally easy to mock in tests.
+    """
+    return AlpacaBrokerAdapter(config).fetch_positions()
 
 
 def _fetch_broker_only_symbols(config: AlgoConfig, db_tracked_symbols: set[str]) -> list[tuple[str, float]]:
@@ -79,7 +92,7 @@ def _fetch_broker_only_symbols(config: AlgoConfig, db_tracked_symbols: set[str])
     flatten" while it sits fully exposed. Always cross-check against Alpaca's own
     /v2/positions directly - the actual ground truth - not just internal bookkeeping.
     """
-    positions = AlpacaBrokerAdapter(config).fetch_positions()
+    positions = _fetch_broker_positions(config)
     return [(p["symbol"], p["qty"]) for p in positions if p["symbol"] not in db_tracked_symbols and p["qty"] != 0]
 
 
@@ -124,6 +137,124 @@ def _flatten_untracked_broker_positions(
     return closed, failed
 
 
+def _cancel_unfilled_trades(
+    executor: TradeExecutor, unfilled_trades: list[tuple[int, str, str]], reason: str
+) -> tuple[list[str], list[tuple[str, str]]]:
+    """Cancel each still-unfilled entry by its own alpaca_order_id.
+
+    REAL-MONEY-READINESS FIX (2026-09-10 /goal pre-live-money audit): this used to call
+    cancel_all_open_orders_for_symbol(symbol), which - per its own docstring - is only
+    safe when the position is confirmed CLOSED. Pyramiding means an already-FILLED
+    position's live protective stop-loss/take-profit can rest at the broker for the same
+    symbol as this still-unfilled entry; cancelling by symbol here would strip that
+    already-filled leg's stop during an emergency flatten, exactly when the system is
+    trying to get safer, not less safe (order_manager_stop_repair.py's
+    cancel_pending_entry_order fixed this same bug class on the halt path 2026-09-07 -
+    this script never got the equivalent fix). Cancel by this trade's own alpaca_order_id
+    instead, and handle the fill-vs-cancel race explicitly: cancel_bracket_orders reports
+    filled_qty/filled_avg_price whenever the entry actually filled before the cancel
+    landed, and executor_entry_handler.py's own race-recovery logic proves that value must
+    never be silently discarded (a real, unrecorded, unprotected fill left in the account
+    while the operator believes the flatten cancelled it away).
+    """
+    closed: list[str] = []
+    failed: list[tuple[str, str]] = []
+    for trade_id, symbol, alpaca_order_id in unfilled_trades:
+        if not alpaca_order_id:
+            failed.append((symbol, f"trade_id={trade_id} has no alpaca_order_id on file - cannot cancel safely"))
+            print(f"  FAILED to cancel unfilled order for {symbol} (trade_id={trade_id}): no alpaca_order_id on file")
+            continue
+
+        cancel_result = executor.order_manager.cancel_bracket_orders(alpaca_order_id)
+        raced_filled_qty = cancel_result.get("filled_qty")
+        if raced_filled_qty:
+            logger.critical(
+                f"[FLATTEN_ALL] {symbol} {alpaca_order_id}: fill-vs-cancel race - "
+                f"{raced_filled_qty} shares filled despite attempting to cancel this unfilled "
+                f"entry. Closing the resulting position immediately via the broker's own "
+                f"close-position endpoint rather than leaving it live."
+            )
+            close_result = _close_untracked_broker_position(
+                executor, symbol, reason=f"MANUAL_EMERGENCY_FLATTEN_RACE_FILL: {reason}"
+            )
+            try:
+                notify(
+                    "critical",
+                    title=f"Flatten-all fill-vs-cancel race: {symbol}",
+                    message=(
+                        f"trade_id={trade_id} order {alpaca_order_id}: {raced_filled_qty} shares filled "
+                        f"during flatten's cancel attempt. Immediate broker-side close "
+                        f"{'succeeded' if close_result.get('success') else 'FAILED: ' + str(close_result.get('message'))}."
+                    ),
+                )
+            except NotificationError as e:
+                logger.warning(f"Failed to send flatten-all race-fill alert for {symbol}: {e}")
+            if close_result.get("success"):
+                closed.append(symbol)
+                print(f"  RACE-FILLED then CLOSED {symbol} (trade_id={trade_id}): {close_result.get('message')}")
+            else:
+                failed.append((symbol, f"race-filled but close failed: {close_result.get('message')}"))
+                print(f"  RACE-FILLED and FAILED to close {symbol} (trade_id={trade_id}) - NEEDS MANUAL ATTENTION")
+            continue
+
+        # Paper/local mode never has a real Alpaca order to cancel - cancel_bracket_orders
+        # reports success=False with this specific message for that case (see its own
+        # docstring / executor_exit_handler.py's identical handling of the same message),
+        # which is not a real failure here.
+        if cancel_result.get("success") or "Paper mode" in str(cancel_result.get("message", "")):
+            closed.append(symbol)
+            print(f"  CANCELLED unfilled order for {symbol} (trade_id={trade_id}, order={alpaca_order_id})")
+        else:
+            failed.append((symbol, str(cancel_result.get("message"))))
+            print(
+                f"  FAILED to cancel unfilled order for {symbol} (trade_id={trade_id}, order={alpaca_order_id}): "
+                f"{cancel_result.get('message')}"
+            )
+    return closed, failed
+
+
+def _verify_flat_at_broker(config: AlgoConfig) -> list[tuple[str, str]]:
+    """Re-query Alpaca's own /v2/positions and return a failed-style list for anything
+    still open there.
+
+    REAL-MONEY-READINESS FIX (2026-09-10 /goal pre-live-money audit): every step in main()
+    trusts its OWN success signal (exit_trade()'s return dict, a cancel result, a
+    close-position response) - none of that proves the account is actually flat at the
+    broker afterward. A step can report success while a race, a partial fill, or a
+    broker-side quirk this script didn't anticipate leaves real shares behind. Re-query
+    the same ground-truth cross-check _fetch_broker_only_symbols already uses at the START
+    of this script - one more time at the END, and treat ANY remaining broker position as
+    a failure regardless of what every step above believed it accomplished.
+    """
+    try:
+        remaining_positions = _fetch_broker_positions(config)
+    except Exception as e:
+        print(
+            f"WARNING: Could not verify the account is actually flat after flattening "
+            f"({type(e).__name__}: {e}) - the steps above reported success/failure, but this "
+            f"could not be independently confirmed against the broker. Check /v2/positions "
+            f"manually.",
+            file=sys.stderr,
+        )
+        return []
+
+    still_open = [p for p in remaining_positions if p.get("qty") not in (0, 0.0, None)]
+    if not still_open:
+        return []
+    print(
+        f"POST-FLATTEN VERIFICATION FAILED: {len(still_open)} position(s) still live at "
+        f"the broker despite this run's own success reporting:",
+        file=sys.stderr,
+    )
+    verification_failed = []
+    for p in still_open:
+        print(f"  {p.get('symbol')}: qty={p.get('qty')}", file=sys.stderr)
+        verification_failed.append(
+            (str(p.get("symbol")), "still open at broker after flatten (post-flatten verification)")
+        )
+    return verification_failed
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Emergency: close every open position immediately")
     parser.add_argument("--status", action="store_true", help="List open positions without closing anything")
@@ -144,7 +275,7 @@ def main() -> int:
     # Fails closed: if we can't reach the broker to verify, we refuse to report "nothing to
     # flatten" on DB state alone.
     try:
-        broker_only = _fetch_broker_only_symbols(config, {symbol for _, symbol, _ in open_trades})
+        broker_only = _fetch_broker_only_symbols(config, {symbol for _, symbol, _, _ in open_trades})
     except Exception as e:
         print(
             f"ERROR: Could not verify against broker's actual positions ({type(e).__name__}: {e}). "
@@ -156,7 +287,7 @@ def main() -> int:
 
     if args.status:
         print(f"Open positions (DB-tracked): {len(open_trades)}")
-        for trade_id, symbol, status in open_trades:
+        for trade_id, symbol, status, _alpaca_order_id in open_trades:
             print(f"  trade_id={trade_id} symbol={symbol} status={status}")
         if broker_only:
             print(f"UNTRACKED broker-only positions (no DB record): {len(broker_only)}")
@@ -202,19 +333,14 @@ def main() -> int:
     # new, unprotected position (no bracket attached, since Phase 8 already ran) after the
     # operator believed the account was flat. These must be cancelled at the broker instead.
     unfilled_statuses = {TradeStatus.PENDING.value, TradeStatus.OPEN.value}
-    unfilled_trades = [(tid, sym) for tid, sym, status in open_trades if status in unfilled_statuses]
-    filled_trades = [(tid, sym) for tid, sym, status in open_trades if status not in unfilled_statuses]
+    unfilled_trades = [
+        (tid, sym, order_id) for tid, sym, status, order_id in open_trades if status in unfilled_statuses
+    ]
+    filled_trades = [(tid, sym) for tid, sym, status, _order_id in open_trades if status not in unfilled_statuses]
 
-    for trade_id, symbol in unfilled_trades:
-        cancel_result = executor.order_manager.cancel_all_open_orders_for_symbol(symbol)
-        if cancel_result.get("success"):
-            closed.append(symbol)
-            print(f"  CANCELLED unfilled order(s) for {symbol} (trade_id={trade_id}): {cancel_result.get('message')}")
-        else:
-            failed.append((symbol, str(cancel_result.get("message"))))
-            print(
-                f"  FAILED to cancel unfilled order for {symbol} (trade_id={trade_id}): {cancel_result.get('message')}"
-            )
+    cancel_closed, cancel_failed = _cancel_unfilled_trades(executor, unfilled_trades, args.reason)
+    closed.extend(cancel_closed)
+    failed.extend(cancel_failed)
 
     for trade_id, symbol in filled_trades:
         try:
@@ -240,6 +366,12 @@ def main() -> int:
             print(f"  FAILED {symbol} (trade_id={trade_id}): {result.get('message')}")
 
     print(f"\nFlatten complete: {len(closed)} closed, {len(failed)} failed.")
+
+    verification_failed = _verify_flat_at_broker(config)
+    failed.extend(verification_failed)
+    if not verification_failed and not failed:
+        print("Post-flatten verification: broker confirms zero open positions.")
+
     if failed:
         print("STILL OPEN - needs manual attention:", file=sys.stderr)
         for symbol, message in failed:

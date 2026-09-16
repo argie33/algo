@@ -1311,6 +1311,55 @@ class ExitHandler:
                 if not error_message:
                     logger.error(f"[EXIT_HANDLER] Exit order result missing error message for {symbol}")
                     error_message = "Exit order failed (no error message provided)"
+
+                # REAL-MONEY-READINESS FIX (2026-09-10 /goal pre-live-money audit): when
+                # `full_exit` is True, the bracket/standalone-stop cancellation above has
+                # ALREADY happened at the broker before this replacement sell was even
+                # attempted - cancel_standalone_stop_on_full_exit already nulled
+                # algo_positions.standalone_stop_order_id in this same DB transaction. Falling
+                # through to a plain failure return below does NOT roll back the transaction
+                # (only a raised exception does, per executor.py's _with_cursor), so the
+                # NULLed stop column would COMMIT alongside a position that's still live at
+                # the broker with NO protective stop and status still "open" - a real naked
+                # position with no forced escalation path. Raising here instead rolls the DB
+                # write back, restoring the OLD standalone_stop_order_id value - which no
+                # longer matches the broker (already cancelled) - so Phase 9's
+                # is_order_still_live check correctly detects the mismatch and
+                # auto-remediates with a fresh protective stop, instead of this call silently
+                # committing a state that looks unprotected-by-design.
+                if full_exit:
+                    logger.critical(
+                        f"[EXIT_HANDLER CRITICAL] {trade_id} {symbol}: full-exit order FAILED "
+                        f"({error_message}) AFTER this call already cancelled the position's "
+                        f"protective stop at the broker. Rolling back this transaction rather "
+                        f"than committing a naked-looking position - Phase 9 reconciliation "
+                        f"will detect the broker-side cancellation is real and re-protect it."
+                    )
+                    try:
+                        notify(
+                            "critical",
+                            title=f"EXIT ORDER FAILED after stop cancelled: {symbol}",
+                            message=(
+                                f"Trade {trade_id}: failed to exit {shares_to_exit}sh after "
+                                f"cancelling this position's protective stop ({error_message}). "
+                                f"Rolled back - Phase 9 reconciliation will re-protect it, but "
+                                f"the position is unprotected at the broker until that runs. "
+                                f"Needs immediate manual attention."
+                            ),
+                            strict=True,
+                        )
+                    except NotificationError as e:
+                        raise RuntimeError(
+                            f"CRITICAL: Failed to send exit-failed-after-stop-cancelled alert "
+                            f"for {symbol} trade {trade_id}: {e}. Trader was NOT notified that "
+                            f"this position is naked at the broker."
+                        ) from e
+                    raise RuntimeError(
+                        f"[EXIT_HANDLER CRITICAL] {trade_id} {symbol}: full-exit order failed "
+                        f"after protective stop cancellation ({error_message}) - rolled back, "
+                        f"see alert for manual-attention details."
+                    )
+
                 try:
                     notify(
                         "critical",

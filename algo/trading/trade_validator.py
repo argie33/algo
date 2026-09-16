@@ -232,7 +232,17 @@ class TradeValidator:
                     portfolio_value=float(portfolio_value_dec),
                     side="BUY",
                 )
-            except ValueError as e:
+            # REAL-MONEY-READINESS FIX (2026-09-10 /goal pre-live-money audit): pretrade_checks.py
+            # deliberately raises a bare KeyError (not ValueError) for a missing/misspelled
+            # algo_config key (~8 call sites: max_position_correlation, sector caps, VaR/beta
+            # thresholds, etc) - correct fail-fast design at that layer, but this call site only
+            # caught ValueError, so the KeyError propagated uncaught out of this function. Phase 8's
+            # per-signal exception handler (phase8_entry_execution.py's entry loop) also doesn't
+            # catch KeyError, so a single missing config key would silently abort entry processing
+            # for every remaining signal that day, not just the one signal being checked. Catching
+            # it here turns that into the same clean "Pre-trade check failed" rejection every other
+            # pretrade-check failure already produces, scoped to this one signal.
+            except (ValueError, KeyError) as e:
                 return False, f"Pre-trade check failed: {e!s}", {}
             if not pretrade_passed:
                 return False, f"Pre-trade check failed: {pretrade_reason}", {}

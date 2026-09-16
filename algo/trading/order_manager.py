@@ -433,6 +433,25 @@ class OrderManager(StopLossRepairMixin):
             _notify_bracket_validation_failure(symbol, error_msg)
             return {"success": False, "message": error_msg}
 
+        # REAL-MONEY-READINESS FIX (2026-09-10 /goal pre-live-money audit): every price
+        # field above was validated individually (finite, positive, in-range), but nothing
+        # ever checked the RELATIONSHIP between stop_loss_price and entry_price for this
+        # long-only, buy-side bracket. A stop_loss_price >= entry_price is satisfiable the
+        # instant the buy fills (Alpaca's sell-stop triggers at or above the current price),
+        # causing an immediate real-money round-trip loss with no protective distance at
+        # all. Fail-fast here, matching every other invalid-input case in this function,
+        # rather than letting a corrupted upstream stop calculation reach the broker.
+        if stop_loss_price >= entry_price:
+            error_msg = (
+                f"[SEND_ORDER CRITICAL] {symbol}: Cannot send bracket order - "
+                f"stop_loss_price={stop_loss_price} is not below entry_price={entry_price}. "
+                f"A long-side stop must sit below entry or it can trigger immediately on "
+                f"fill. Refusing to submit a self-liquidating bracket order."
+            )
+            logger.critical(error_msg)
+            _notify_bracket_validation_failure(symbol, error_msg)
+            return {"success": False, "message": error_msg}
+
         # BUG FOUND 2026-08-11: take_profit_price was never validated at all. A NaN
         # take_profit_price doesn't crash (float NaN comparisons are always False, so
         # `take_profit_price > entry_price` below silently evaluates False) - but it's

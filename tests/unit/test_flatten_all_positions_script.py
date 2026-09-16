@@ -21,10 +21,15 @@ import pytest
 import scripts.flatten_all_positions as flatten_all_positions
 
 
-def _run(argv, broker_only=()):
+def _run(argv, broker_only=(), remaining_after_flatten=()):
+    """remaining_after_flatten: positions the broker still reports once the run finishes -
+    feeds the post-flatten verification pass (2026-09-10 fix). Defaults to empty, i.e. the
+    broker confirms the account is actually flat, independent of whatever the run's own
+    per-step success/failure accounting believed."""
     with (
         patch.object(sys, "argv", ["flatten_all_positions.py", *argv]),
         patch.object(flatten_all_positions, "_fetch_broker_only_symbols", return_value=list(broker_only)),
+        patch.object(flatten_all_positions, "_fetch_broker_positions", return_value=list(remaining_after_flatten)),
     ):
         return flatten_all_positions.main()
 
@@ -48,7 +53,7 @@ class TestStatusMode:
         with patch.object(
             flatten_all_positions,
             "_fetch_open_trades",
-            return_value=[(1, "AAPL", "filled"), (2, "MSFT", "filled")],
+            return_value=[(1, "AAPL", "filled", "ord-a"), (2, "MSFT", "filled", "ord-m")],
         ):
             with (
                 patch.object(flatten_all_positions, "HaltFlagManager") as mock_halt_cls,
@@ -87,7 +92,7 @@ class TestFlattenFlow:
         mock_executor.exit_trade.side_effect = lambda **k: call_order.append("exit") or {"success": True}
 
         with (
-            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled")]),
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled", "ord-a")]),
             patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
             patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
             patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
@@ -104,7 +109,7 @@ class TestFlattenFlow:
         mock_executor = MagicMock()
 
         with (
-            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled")]),
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled", "ord-a")]),
             patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
             patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
         ):
@@ -123,7 +128,7 @@ class TestFlattenFlow:
             patch.object(
                 flatten_all_positions,
                 "_fetch_open_trades",
-                return_value=[(1, "AAPL", "filled"), (2, "MSFT", "filled")],
+                return_value=[(1, "AAPL", "filled", "ord-a"), (2, "MSFT", "filled", "ord-m")],
             ),
             patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
             patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
@@ -144,7 +149,7 @@ class TestFlattenFlow:
         mock_executor.exit_trade.return_value = {"success": True}
 
         with (
-            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled")]),
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled", "ord-a")]),
             patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
             patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
             patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
@@ -172,7 +177,7 @@ class TestFlattenFlow:
             patch.object(
                 flatten_all_positions,
                 "_fetch_open_trades",
-                return_value=[(1, "AAPL", "filled"), (2, "MSFT", "filled")],
+                return_value=[(1, "AAPL", "filled", "ord-a"), (2, "MSFT", "filled", "ord-m")],
             ),
             patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
             patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
@@ -195,7 +200,7 @@ class TestFlattenFlow:
         mock_executor.exit_trade.return_value = {"success": False, "message": "broker rejected order"}
 
         with (
-            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled")]),
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled", "ord-a")]),
             patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
             patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
             patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
@@ -216,7 +221,7 @@ class TestFlattenFlow:
         mock_executor = MagicMock()
 
         with (
-            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled")]),
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled", "ord-a")]),
             patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
             patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
             patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
@@ -325,20 +330,30 @@ class TestUnfilledOrderCancellation:
     position yet, so routing them through exit_trade() always failed with "Position quantity
     unavailable" while leaving the resting broker order live - it could fill minutes later
     with no bracket/stop protection attached, right after an operator believed the account
-    was flat. These must be cancelled at the broker instead of routed through exit_trade."""
+    was flat. These must be cancelled at the broker instead of routed through exit_trade.
 
-    def test_open_status_trade_cancels_broker_order_not_exit_trade(self, capsys):
+    2026-09-10 real-money-readiness audit FOLLOW-UP: cancelling by symbol
+    (cancel_all_open_orders_for_symbol) is unsafe here - per that function's own docstring
+    it's only safe once a position is confirmed CLOSED, and pyramiding means an
+    already-FILLED sibling position's live protective stop can rest at the broker for the
+    same symbol as this still-unfilled entry. Cancellation must be scoped to this trade's
+    own alpaca_order_id (cancel_bracket_orders), and a fill-vs-cancel race (the entry
+    actually filled before the cancel landed) must be recovered by closing the resulting
+    position immediately, never silently reported as "cancelled"."""
+
+    def test_open_status_trade_cancels_by_order_id_not_by_symbol(self, capsys):
         mock_halt_manager = MagicMock()
         mock_halt_manager.set_halt_flag.return_value = True
         mock_executor = MagicMock()
-        mock_executor.order_manager.cancel_all_open_orders_for_symbol.return_value = {
+        mock_executor.order_manager.cancel_bracket_orders.return_value = {
             "success": True,
-            "cancelled_order_ids": ["ord-1"],
-            "message": "Cancelled 1 stale order(s) for AAPL",
+            "message": "Order cancelled",
+            "filled_qty": None,
+            "filled_avg_price": None,
         }
 
         with (
-            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "open")]),
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "open", "ord-a")]),
             patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
             patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
             patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
@@ -347,7 +362,8 @@ class TestUnfilledOrderCancellation:
 
         assert exit_code == 0
         mock_executor.exit_trade.assert_not_called()
-        mock_executor.order_manager.cancel_all_open_orders_for_symbol.assert_called_once_with("AAPL")
+        mock_executor.order_manager.cancel_bracket_orders.assert_called_once_with("ord-a")
+        mock_executor.order_manager.cancel_all_open_orders_for_symbol.assert_not_called()
         out = capsys.readouterr().out
         assert "1 closed, 0 failed" in out
 
@@ -355,14 +371,15 @@ class TestUnfilledOrderCancellation:
         mock_halt_manager = MagicMock()
         mock_halt_manager.set_halt_flag.return_value = True
         mock_executor = MagicMock()
-        mock_executor.order_manager.cancel_all_open_orders_for_symbol.return_value = {
+        mock_executor.order_manager.cancel_bracket_orders.return_value = {
             "success": True,
-            "cancelled_order_ids": [],
-            "message": "No open orders for MSFT",
+            "message": "Order cancelled",
+            "filled_qty": None,
+            "filled_avg_price": None,
         }
 
         with (
-            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(2, "MSFT", "pending")]),
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(2, "MSFT", "pending", "ord-m")]),
             patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
             patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
             patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
@@ -371,20 +388,21 @@ class TestUnfilledOrderCancellation:
 
         assert exit_code == 0
         mock_executor.exit_trade.assert_not_called()
-        mock_executor.order_manager.cancel_all_open_orders_for_symbol.assert_called_once_with("MSFT")
+        mock_executor.order_manager.cancel_bracket_orders.assert_called_once_with("ord-m")
 
     def test_cancel_failure_for_unfilled_order_reported_and_nonzero_exit(self, capsys):
         mock_halt_manager = MagicMock()
         mock_halt_manager.set_halt_flag.return_value = True
         mock_executor = MagicMock()
-        mock_executor.order_manager.cancel_all_open_orders_for_symbol.return_value = {
+        mock_executor.order_manager.cancel_bracket_orders.return_value = {
             "success": False,
-            "cancelled_order_ids": [],
-            "message": "Could not list open orders for AAPL: timeout",
+            "message": "Could not cancel order ord-a: timeout",
+            "filled_qty": None,
+            "filled_avg_price": None,
         }
 
         with (
-            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "open")]),
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "open", "ord-a")]),
             patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
             patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
             patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
@@ -395,14 +413,97 @@ class TestUnfilledOrderCancellation:
         out = capsys.readouterr().out
         assert "timeout" in out
 
+    def test_missing_alpaca_order_id_fails_safe_without_calling_broker(self, capsys):
+        """A PENDING/OPEN trade with no alpaca_order_id on file must never fall back to a
+        symbol-wide cancel (the unsafe pre-fix behavior) - fail closed and surface it."""
+        mock_halt_manager = MagicMock()
+        mock_halt_manager.set_halt_flag.return_value = True
+        mock_executor = MagicMock()
+
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "open", None)]),
+            patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
+            patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
+        ):
+            exit_code = _run(["--confirm", "--reason", "test emergency"])
+
+        assert exit_code == 1
+        mock_executor.order_manager.cancel_bracket_orders.assert_not_called()
+        mock_executor.order_manager.cancel_all_open_orders_for_symbol.assert_not_called()
+        out = capsys.readouterr().out
+        assert "no alpaca_order_id on file" in out
+
+    def test_fill_vs_cancel_race_closes_the_new_fill_instead_of_reporting_cancelled(self, capsys):
+        """The entry actually filled during the cancel attempt - must not be silently
+        reported as 'cancelled' while a real, unprotected position sits at the broker."""
+        mock_halt_manager = MagicMock()
+        mock_halt_manager.set_halt_flag.return_value = True
+        mock_executor = MagicMock()
+        mock_executor.order_manager.cancel_bracket_orders.return_value = {
+            "success": False,
+            "message": "order already filled",
+            "filled_qty": 10.0,
+            "filled_avg_price": 150.0,
+        }
+
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "open", "ord-a")]),
+            patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "auto"}),
+            patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
+            patch.object(
+                flatten_all_positions,
+                "_close_untracked_broker_position",
+                return_value={"success": True, "message": "closed via broker"},
+            ) as mock_close,
+        ):
+            exit_code = _run(["--confirm", "--reason", "test emergency"])
+
+        assert exit_code == 0
+        mock_executor.exit_trade.assert_not_called()
+        mock_close.assert_called_once()
+        assert mock_close.call_args.args[1] == "AAPL"
+        out = capsys.readouterr().out
+        assert "RACE-FILLED then CLOSED AAPL" in out
+
+    def test_fill_vs_cancel_race_close_failure_is_reported_needs_manual_attention(self, capsys):
+        mock_halt_manager = MagicMock()
+        mock_halt_manager.set_halt_flag.return_value = True
+        mock_executor = MagicMock()
+        mock_executor.order_manager.cancel_bracket_orders.return_value = {
+            "success": False,
+            "message": "order already filled",
+            "filled_qty": 10.0,
+            "filled_avg_price": 150.0,
+        }
+
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "open", "ord-a")]),
+            patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "auto"}),
+            patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
+            patch.object(
+                flatten_all_positions,
+                "_close_untracked_broker_position",
+                return_value={"success": False, "message": "broker rejected close"},
+            ),
+        ):
+            exit_code = _run(["--confirm", "--reason", "test emergency"])
+
+        assert exit_code == 1
+        out = capsys.readouterr().out
+        assert "NEEDS MANUAL ATTENTION" in out
+
     def test_mixed_unfilled_and_filled_trades_both_handled(self):
         mock_halt_manager = MagicMock()
         mock_halt_manager.set_halt_flag.return_value = True
         mock_executor = MagicMock()
-        mock_executor.order_manager.cancel_all_open_orders_for_symbol.return_value = {
+        mock_executor.order_manager.cancel_bracket_orders.return_value = {
             "success": True,
-            "cancelled_order_ids": ["ord-1"],
-            "message": "Cancelled 1 stale order(s) for AAPL",
+            "message": "Order cancelled",
+            "filled_qty": None,
+            "filled_avg_price": None,
         }
         mock_executor.exit_trade.return_value = {"success": True}
 
@@ -410,7 +511,7 @@ class TestUnfilledOrderCancellation:
             patch.object(
                 flatten_all_positions,
                 "_fetch_open_trades",
-                return_value=[(1, "AAPL", "open"), (2, "MSFT", "filled")],
+                return_value=[(1, "AAPL", "open", "ord-a"), (2, "MSFT", "filled", "ord-m")],
             ),
             patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
             patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
@@ -420,6 +521,99 @@ class TestUnfilledOrderCancellation:
             exit_code = _run(["--confirm", "--reason", "test emergency"])
 
         assert exit_code == 0
-        mock_executor.order_manager.cancel_all_open_orders_for_symbol.assert_called_once_with("AAPL")
+        mock_executor.order_manager.cancel_bracket_orders.assert_called_once_with("ord-a")
         mock_executor.exit_trade.assert_called_once()
         assert mock_executor.exit_trade.call_args.kwargs["trade_id"] == 2
+
+
+class TestPostFlattenVerification:
+    """REAL-MONEY-READINESS FIX (2026-09-10 /goal pre-live-money audit): every step above
+    trusts its OWN success signal - none of that proves the account is actually flat at the
+    broker afterward. Re-query /v2/positions one more time at the end and treat any
+    remaining position as a failure regardless of what every step above believed."""
+
+    def test_verification_confirms_flat_when_broker_reports_nothing(self, capsys):
+        mock_halt_manager = MagicMock()
+        mock_halt_manager.set_halt_flag.return_value = True
+        mock_executor = MagicMock()
+        mock_executor.exit_trade.return_value = {"success": True}
+
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled", "ord-a")]),
+            patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
+            patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
+            patch.object(flatten_all_positions, "fetch_live_quote", return_value=150.0),
+        ):
+            exit_code = _run(["--confirm", "--reason", "test emergency"], remaining_after_flatten=[])
+
+        assert exit_code == 0
+        assert "broker confirms zero open positions" in capsys.readouterr().out
+
+    def test_verification_catches_a_position_every_step_believed_was_closed(self, capsys):
+        """The core case this fix exists for: every per-symbol step reports success, but the
+        broker still shows a live position - must be surfaced as a failure, not missed."""
+        mock_halt_manager = MagicMock()
+        mock_halt_manager.set_halt_flag.return_value = True
+        mock_executor = MagicMock()
+        mock_executor.exit_trade.return_value = {"success": True}
+
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled", "ord-a")]),
+            patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
+            patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
+            patch.object(flatten_all_positions, "fetch_live_quote", return_value=150.0),
+        ):
+            exit_code = _run(
+                ["--confirm", "--reason", "test emergency"],
+                remaining_after_flatten=[{"symbol": "AAPL", "qty": 5.0}],
+            )
+
+        assert exit_code == 1
+        err = capsys.readouterr().err
+        assert "POST-FLATTEN VERIFICATION FAILED" in err
+        assert "AAPL" in err
+
+    def test_zero_qty_broker_rows_are_not_treated_as_still_open(self):
+        mock_halt_manager = MagicMock()
+        mock_halt_manager.set_halt_flag.return_value = True
+        mock_executor = MagicMock()
+        mock_executor.exit_trade.return_value = {"success": True}
+
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled", "ord-a")]),
+            patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
+            patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
+            patch.object(flatten_all_positions, "fetch_live_quote", return_value=150.0),
+        ):
+            exit_code = _run(
+                ["--confirm", "--reason", "test emergency"],
+                remaining_after_flatten=[{"symbol": "AAPL", "qty": 0.0}],
+            )
+
+        assert exit_code == 0
+
+    def test_verification_fetch_failure_warns_but_does_not_mask_other_failures(self, capsys):
+        mock_halt_manager = MagicMock()
+        mock_halt_manager.set_halt_flag.return_value = True
+        mock_executor = MagicMock()
+        mock_executor.exit_trade.return_value = {"success": False, "message": "broker rejected order"}
+
+        with (
+            patch.object(flatten_all_positions, "_fetch_open_trades", return_value=[(1, "AAPL", "filled", "ord-a")]),
+            patch.object(flatten_all_positions, "HaltFlagManager", return_value=mock_halt_manager),
+            patch.object(flatten_all_positions, "AlgoConfig", return_value={"execution_mode": "paper"}),
+            patch.object(flatten_all_positions, "TradeExecutor", return_value=mock_executor),
+            patch.object(flatten_all_positions, "fetch_live_quote", return_value=150.0),
+            patch.object(sys, "argv", ["flatten_all_positions.py", "--confirm", "--reason", "test emergency"]),
+            patch.object(flatten_all_positions, "_fetch_broker_only_symbols", return_value=[]),
+            patch.object(flatten_all_positions, "_fetch_broker_positions", side_effect=RuntimeError("network down")),
+        ):
+            exit_code = flatten_all_positions.main()
+
+        assert exit_code == 1
+        err = capsys.readouterr().err
+        assert "Could not verify the account is actually flat" in err
+        assert "broker rejected order" in err
