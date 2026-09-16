@@ -136,11 +136,11 @@ class QualityScoringMixin:
         says to never trust without checking live code): ROCE and Asset Turnover were REMOVED
         from quality_components entirely that day (two-layer validation policy - no real
         institutional Quality definition scores them; raw roce_pct/asset_turnover still
-        computed/persisted for other consumers, just not scored). Live is now a flat 1/6
-        (~16.7%) equal weight across ROE/ROA/FCF Margin/Debt-to-Equity/Margin Volatility/Gross
-        Profitability - check `vqg_quality_score.py`'s own `quality_components` list for the
-        current authoritative weights rather than trusting this paragraph's numbers going
-        forward. Renormalized over whichever are available for a given symbol, with a
+        computed/persisted for other consumers, just not scored). Live is 15/15/15/15/25/15
+        across ROE/ROA/FCF Margin/Debt-to-Equity/Margin Volatility/Gross Profitability - NOT
+        flat equal-weight (Margin Volatility is deliberately overweighted per AQR QMJ's Safety
+        leg / MSCI's earnings-variability weighting - see vqg_quality_score.py's own
+        MARGIN_VOLATILITY REWEIGHTED note, not this paragraph). Renormalized over whichever are available for a given symbol, with a
         40-point minimum-available-weight floor (below that, quality_score is None rather than
         a thin-sample extrapolation - see vqg_quality_score.py's quality_components comment).
         Weights are set from both full-sample t-stat magnitude AND a half-split time-stability
