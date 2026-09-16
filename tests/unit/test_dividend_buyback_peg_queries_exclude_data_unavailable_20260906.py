@@ -14,7 +14,10 @@ data_unavailable guard.
 sec_valuations_income_context.py: the "re-fetch a genuinely older year" PEG prior_year_eps
 fallback (used when income_rows[1] was already consumed as the ttm_eps substitute) - reads
 annual_income_statement.earnings_per_share with no data_unavailable guard, feeding directly into
-the PEG ratio's growth-rate leg.
+the PEG ratio's growth-rate leg. (Updated 2026-09-16, basic-vs-diluted EPS factor-purity fix:
+this query now selects COALESCE(diluted_eps, earnings_per_share) - diluted preferred, basic as
+fallback, same institutional convention already applied to ttm_eps_basic/prior_year_eps
+elsewhere in this file - the data_unavailable guard itself is unchanged.)
 
 A mocked cursor can't exercise Postgres's real WHERE evaluation, so - matching this cascade's
 established sibling tests - this asserts the query text itself contains the exclusion clause,
@@ -52,7 +55,7 @@ class TestDividendAndBuybackQueriesExcludeDataUnavailable:
 
 class TestPegRatioOlderFiscalYearFallbackExcludesDataUnavailable:
     def test_re_fetched_older_eps_query_excludes_data_unavailable(self) -> None:
-        anchor = "SELECT fiscal_year, earnings_per_share FROM annual_income_statement"
+        anchor = "SELECT fiscal_year, COALESCE(diluted_eps, earnings_per_share) FROM annual_income_statement"
         assert anchor in _INCOME_CONTEXT_SOURCE
         idx = _INCOME_CONTEXT_SOURCE.index(anchor)
         clause = _INCOME_CONTEXT_SOURCE[idx : idx + 300]

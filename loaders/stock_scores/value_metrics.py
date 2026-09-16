@@ -647,9 +647,7 @@ class ValueMetricsMixin:
                 )
                 return
 
-            pe_raw: dict[str, float] = {}
             pb_raw: dict[str, float] = {}
-            fwd_pe_raw: dict[str, float] = {}
             # cash_yield_raw_map: MSCI Enhanced Value's real third leg is Enterprise
             # Value-to-Cash-Flow-from-Operations (EV/CFO), not a price/equity-basis metric -
             # confirmed against MSCI's own published fact sheet for the real MSCI USA Enhanced
@@ -704,17 +702,13 @@ class ValueMetricsMixin:
                 # COALESCE(cis.is_foreign_private_issuer, false) per this query's SELECT above.
                 if len(row) > 22:
                     is_fpi[symbol] = bool(row[22])
-                if pe is not None and float(pe) > 0:
-                    pe_raw[symbol] = float(pe)
-                elif pe_reason == "unprofitable_stock":
+                if pe_reason == "unprofitable_stock":
                     unprofitable_symbols.add(symbol)
                 if pb is not None and float(pb) > 0:
                     pb_raw[symbol] = float(pb)
                 elif pb_reason == "negative_book_value":
                     negative_book_value_symbols.add(symbol)
-                if fwd_pe is not None and float(fwd_pe) > 0:
-                    fwd_pe_raw[symbol] = float(fwd_pe)
-                elif fwd_pe_reason == "negative_forward_eps":
+                if fwd_pe_reason == "negative_forward_eps":
                     negative_fwd_symbols.add(symbol)
                 if fwd_pe is not None and float(fwd_pe) > 0:
                     earnings_yield_raw[symbol] = float(fwd_pe)
@@ -745,9 +739,7 @@ class ValueMetricsMixin:
                         # price-basis fcf_yield proxy rather than dropping the leg entirely.
                         cash_yield_raw_map[symbol] = float(fcf_yield_raw)
 
-            pe_pct = self._percent_rank_cheap_high_sector_relative(pe_raw, sector_map, is_fpi)
             pb_pct = self._percent_rank_cheap_high_sector_relative(pb_raw, sector_map, is_fpi)
-            fwd_pe_pct = self._percent_rank_cheap_high_sector_relative(fwd_pe_raw, sector_map, is_fpi)
             earnings_pct = self._percent_rank_cheap_high_sector_relative(earnings_yield_raw, sector_map, is_fpi)
             # BARRA-STYLE SIZE NEUTRALIZATION (added 2026-09-15, goal-session "scores way off
             # from industry lists" directive): sector_neutral_zscore alone standardizes within
@@ -763,23 +755,16 @@ class ValueMetricsMixin:
                     cash_yield_raw_map, sector_map, market_cap_map, is_foreign_private_issuer=is_fpi
                 )
             )
-            for symbol in unprofitable_symbols:
-                pe_pct[symbol] = 0.0
-            for symbol in negative_fwd_symbols:
-                fwd_pe_pct[symbol] = 0.0
             for symbol in negative_book_value_symbols:
                 pb_pct[symbol] = 0.0
             # Both earnings measures unusable (unprofitable trailing AND negative forward
-            # estimate) - genuinely the worst possible Earnings/Price outcome, same floor
-            # convention as pe_pct/fwd_pe_pct above.
+            # estimate) - genuinely the worst possible Earnings/Price outcome floor.
             for symbol in unprofitable_symbols & negative_fwd_symbols:
                 earnings_pct[symbol] = 0.0
             logger.info(
                 f"[STOCK_SCORES] Value multiples percentile universe (sector-relative, "
                 f"{len(sector_map)}/{len(rows)} symbols mapped to a GICS sector): "
-                f"P/E {len(pe_pct)} ({len(unprofitable_symbols)} floored unprofitable), "
                 f"P/B {len(pb_pct)} ({len(negative_book_value_symbols)} floored negative-book-value), "
-                f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast), "
                 f"Earnings/Price (scored) {len(earnings_pct)}, Cash-Earnings/Price (scored) {len(cash_yield_pct)}"
             )
 

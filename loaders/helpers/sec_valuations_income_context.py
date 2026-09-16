@@ -420,7 +420,8 @@ class IncomeStatementContextMixin:
                 cis.is_foreign_private_issuer,
                 cis.sic_code,
                 ais.interest_expense,
-                cis.shares_outstanding
+                cis.shares_outstanding,
+                ais.diluted_eps
             FROM annual_income_statement ais
             LEFT JOIN company_info_sec cis ON cis.symbol = ais.symbol
             WHERE ais.symbol = %s AND ais.data_unavailable IS NOT TRUE
@@ -429,6 +430,16 @@ class IncomeStatementContextMixin:
             """,
             (symbol,),
         )
+        # ais.diluted_eps (15th column, appended 2026-09-16) - pe_ratio/peg_ratio are the
+        # ONLY consumers of ttm_eps_basic/prior_year_eps built below (this method's return
+        # value feeds straight into _compute_pe_ratio/_compute_peg_ratio in
+        # load_sec_valuations.py, nothing else). Institutional convention prices P/E and
+        # PEG off DILUTED EPS (accounts for options/RSU/convertible dilution; basic EPS
+        # overstates true per-share earnings power) - same bug class and same fix already
+        # applied to eps_growth_trend_5y in 41e80b9ca. Appended (not replacing the existing
+        # earnings_per_share column) so every pre-existing positional income_rows[i][0..13]
+        # read below is unaffected; only the new diluted-preferring assignments introduced
+        # here actually consume index 14.
         # LIMIT raised from 2 to 6 on 2026-08-25 (goal: "finance best practices"
         # methodology audit, deferred item - multi-year EPS CAGR for the DCF): purely
         # additive - every fallback below still only ever reads income_rows[0]/[1],
@@ -535,6 +546,12 @@ class IncomeStatementContextMixin:
             reported_shares_outstanding,
             income_tax_expense,
         ) = income_rows[0][:10]
+        # Prefer diluted EPS (index 14) over basic (index 3) for the anchor row - see the
+        # income_rows query comment above for why (pe_ratio/peg_ratio-only consumer, real
+        # institutional convention). Falls back to basic when a filer's diluted concept
+        # isn't tagged for this fiscal year (basic is still tagged far more consistently).
+        if len(income_rows[0]) > 14 and income_rows[0][14] is not None:
+            ttm_eps_basic = income_rows[0][14]
 
         # FIXED 2026-08-18 (goal: "no SEC data" audit): the ORDER BY above ranks a row
         # tier-0 if ANY of revenue/EPS/net_income is present - not specifically revenue -
@@ -586,7 +603,10 @@ class IncomeStatementContextMixin:
         ttm_eps_fiscal_year = ttm_fiscal_year
         eps_substituted_from_row1 = False
         if ttm_eps_basic is None and len(income_rows) > 1 and income_rows[1][3] is not None:
-            ttm_eps_basic = income_rows[1][3]
+            # Prefer diluted here too (index 14), same rationale as the anchor-row read above.
+            ttm_eps_basic = (
+                income_rows[1][14] if len(income_rows[1]) > 14 and income_rows[1][14] is not None else income_rows[1][3]
+            )
             ttm_eps_fiscal_year = income_rows[1][0]
             eps_substituted_from_row1 = True
 
@@ -687,15 +707,21 @@ class IncomeStatementContextMixin:
         # A missing second fiscal year (new filer, gap) leaves it None, which
         # _compute_valuations already handles by leaving peg_ratio NULL.
         if len(income_rows) > 1 and not eps_substituted_from_row1:
-            prior_year_eps = income_rows[1][3]  # Index 3 = earnings_per_share
+            # Index 3 = earnings_per_share (basic); prefer diluted (index 14) - same
+            # convention as ttm_eps_basic above, so PEG's growth-rate leg compares two
+            # values on the same basic-vs-diluted basis, not a mismatched mix.
+            prior_year_eps = (
+                income_rows[1][14] if len(income_rows[1]) > 14 and income_rows[1][14] is not None else income_rows[1][3]
+            )
             prior_year_eps = _split_adjusted_eps(symbol, prior_year_eps, income_rows[1][0])
             prior_year_eps = _fpi_ads_adjusted_eps(symbol, prior_year_eps, income_rows[1][0])
         elif eps_substituted_from_row1:
             # income_rows[1] was itself consumed above as the ttm_eps substitute (the
             # premature-stub case) - re-fetch a genuinely older year rather than reuse it.
+            # COALESCE prefers diluted_eps, same convention as everywhere else in this method.
             cur.execute(
                 """
-                SELECT fiscal_year, earnings_per_share FROM annual_income_statement
+                SELECT fiscal_year, COALESCE(diluted_eps, earnings_per_share) FROM annual_income_statement
                 WHERE symbol = %s AND fiscal_year < %s AND earnings_per_share IS NOT NULL
                 AND data_unavailable IS NOT TRUE
                 ORDER BY fiscal_year DESC LIMIT 1
