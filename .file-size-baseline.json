@@ -10,7 +10,7 @@
   ".pre-commit-scripts/check-strict-safe-conversion.py": 136,
   ".pre-commit-scripts/check-strict-validation-tests.py": 103,
   ".pre-commit-scripts/check_file_size_ratchet.py": 298,
-  ".pre-commit-scripts/check_phantom_file_refs.py": 73,
+  ".pre-commit-scripts/check_phantom_file_refs.py": 74,
   ".vulture_whitelist.py": 811,
   "algo/__init__.py": 0,
   "algo/algo_data_patrol.py": 52,
