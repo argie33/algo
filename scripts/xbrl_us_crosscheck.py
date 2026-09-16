@@ -144,10 +144,22 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
                 continue
             fiscal_year, our_value = ours
 
-            facts: list[dict[str, Any]] = []
+            # Try every concept in the chain (not just the first hit) and keep the
+            # largest-magnitude fact. FIXED 2026-09-16 (live-caught on REXR): a REIT's
+            # "RevenueFromContractWithCustomerExcludingAssessedTax" is real and correctly
+            # tagged but ASC 606 explicitly excludes lease income (ASC 842), so for a
+            # lease-revenue-heavy filer it's a small non-lease sliver ($589K), not the
+            # total - the true top-line total is still tagged under "Revenues" ($1.003B,
+            # exactly matching our own value). Stopping at the first concept with ANY fact
+            # produced a false >1000x divergence WARN. Picking the max magnitude across all
+            # concepts in the chain generalizes correctly for both directions this file's own
+            # docstring already documents: it still prefers the ASC-606 concept for AAPL
+            # (where "Revenues" is untagged and returns zero facts, so it can't win a max()),
+            # while preferring "Revenues" for REITs/lease-heavy filers where it dominates.
+            best_value: float | None = None
             for concept in concepts:
                 try:
-                    facts = fact_search(symbol, concept, fiscal_year, fiscal_period="Y")
+                    concept_facts = fact_search(symbol, concept, fiscal_year, fiscal_period="Y")
                     consecutive_auth_errors = 0
                 except XbrlUsAuthError as e:
                     consecutive_auth_errors += 1
@@ -156,12 +168,15 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
                 except RuntimeError as e:
                     logger.debug(f"[XBRL_US_CROSSCHECK] {symbol}/{concept} fetch failed (non-fatal): {e}")
                     continue
-                if facts:
-                    break
+                if not concept_facts:
+                    continue
+                candidate = float(concept_facts[0]["fact.value"])
+                if best_value is None or abs(candidate) > abs(best_value):
+                    best_value = candidate
 
-            if not facts:
+            if best_value is None:
                 continue
-            xbrl_us_value = float(facts[0]["fact.value"])
+            xbrl_us_value = best_value
 
             field_key = f"{table}:{field}"
             sampled_count[field_key] += 1
