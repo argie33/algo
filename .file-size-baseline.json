@@ -546,7 +546,7 @@
   "loaders/helpers/financial_statements_income_config.py": 682,
   "loaders/helpers/financial_statements_prefetch.py": 90,
   "loaders/helpers/financial_statements_q4_sweeps.py": 1174,
-  "loaders/helpers/financial_statements_share_count_validation.py": 666,
+  "loaders/helpers/financial_statements_share_count_validation.py": 687,
   "loaders/helpers/financial_statements_value_validation.py": 956,
   "loaders/helpers/growth_trend.py": 91,
   "loaders/helpers/market_constituents_name_filters.py": 31,
