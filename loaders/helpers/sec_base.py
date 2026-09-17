@@ -1517,8 +1517,30 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and (
                     db_field in row or revenue_total_source.get(db_field) == "negative_total_rejected"
                 ):
+                    # FIXED 2026-09-16 (same sweep, MYFW live-confirmed via real SEC
+                    # companyfacts JSON, CIK 0001327607): a plain (non-fallback) concept's
+                    # own real "$0 of this narrow instrument category" fact (MYFW's
+                    # LongTermDebt=0 FY2024) was permanently blocking a LATER, genuinely
+                    # nonzero fallback-only concept (FederalHomeLoanBankAdvancesLongTerm=
+                    # $10,000,000, same fiscal year, same filing) from ever writing - the
+                    # `db_field in row` check above treats an already-stored exact 0 the
+                    # same as "a real total already resolved," which is wrong for these
+                    # multi-instrument debt/capex fields (same "component, not total"
+                    # ambiguity already documented on _DEBT_FALLBACK_ONLY_FIELDS/
+                    # _CAPEX_FALLBACK_ONLY_FIELDS - a filer can report one instrument at
+                    # $0 and another, real one nonzero, simultaneously). Scoped to exactly
+                    # the fields this ambiguity applies to; does not touch revenue/EPS/
+                    # anything else routed through fallback_only_fields.
+                    existing = row.get(db_field)
+                    zero_blocking_real_value = (
+                        db_field in ("long_term_debt", "short_term_debt", "capex")
+                        and isinstance(existing, (int, float, Decimal))
+                        and float(existing) == 0.0
+                        and isinstance(value, (int, float, Decimal))
+                        and float(value) != 0.0
+                    )
                     # See should_override_fallback_field_for_depository_institution's docstring.
-                    if not should_override_fallback_field_for_depository_institution(
+                    if not zero_blocking_real_value and not should_override_fallback_field_for_depository_institution(
                         sec_field, db_field, value, row, r, _eligible_interest_income_symbols
                     ):
                         continue  # A higher-priority concept already populated this field
@@ -1691,6 +1713,79 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # Left NULL rather than storing a mismatched entity-wide total under
                     # shares_outstanding_basic - same "don't fabricate, leave unavailable"
                     # discipline as every other guard in this method.
+                    continue
+                elif (
+                    db_field in ("long_term_debt", "short_term_debt", "capex")
+                    and sec_field in getattr(self, "_fallback_only_fields", frozenset())
+                    and db_field not in row
+                    and isinstance(value, (int, float, Decimal))
+                    and float(value) == 0.0
+                ):
+                    # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-
+                    # vs-real-yfinance-value audit): the fallback-only guard above (db_field
+                    # in row) only protects a value ALREADY written from being overwritten -
+                    # it does nothing when a fallback concept is the FIRST one processed and
+                    # its own real value happens to be 0. Several _DEBT_FALLBACK_ONLY_FIELDS
+                    # concepts (subordinated_debt, advances_from_federal_home_loan_banks,
+                    # senior_notes, notes_payable, unsecured_debt, ...) represent ONE
+                    # instrument type among several a filer may report simultaneously, not
+                    # the filer's total debt - a real "$0 of this particular instrument" fact
+                    # was silently claiming the whole long_term_debt/short_term_debt slot and
+                    # permanently blocking every later, genuinely nonzero alternative concept
+                    # from ever being considered (the existing `db_field in row` fallback
+                    # guard treats 0 as "already resolved", same class of bug as this
+                    # session's earlier LongTermDebtCurrent=0 fix in
+                    # sec_balance_sheet.py's _fill_long_term_debt_from_noncurrent_current_
+                    # split, just at this transform-level layer instead). Live-confirmed via
+                    # BANR/AMTB/IBCP/MPB (all bank holding companies): each tags
+                    # "SubordinatedDebt"=0 (processed first, dict-insertion order) alongside a
+                    # real, nonzero "AdvancesFromFederalHomeLoanBanks" fact ($150,000,000 for
+                    # BANR FY2025) that never got a chance to write. Skipping this write (not
+                    # marking data_unavailable) lets a later concept still claim the field; if
+                    # nothing ever does, long_term_debt honestly stays None rather than a
+                    # confidently-wrong 0 - the more holistic "confirmed structurally
+                    # debt-free" determination (never tagged ANY debt component across full
+                    # history AND no interest_expense) already lives downstream in
+                    # load_value_quality_growth_metrics.py, unaffected by this change.
+                    #
+                    # EXTENDED to "capex" same day: identical shape via
+                    # financial_statements_cashflow_config.py's fallback-only capex concepts
+                    # (payments_to_acquire_land, payments_to_acquire_other_productive_assets,
+                    # ...) - a filer's real "$0 spent on land this year" fact must not lock
+                    # out a later, genuinely nonzero capex concept the same way a debt
+                    # instrument's real $0 must not lock out a later debt concept.
+                    continue
+                elif (
+                    db_field in ("long_term_debt", "short_term_debt", "capex", "dividends_paid")
+                    and db_field in row
+                    and isinstance(row[db_field], (int, float, Decimal))
+                    and float(row[db_field]) != 0.0
+                    and isinstance(value, (int, float, Decimal))
+                    and float(value) == 0.0
+                ):
+                    # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-
+                    # vs-real-yfinance-value audit): the mirror image of the fallback-only
+                    # zero-write guard above - this one fires regardless of fallback_only
+                    # status, for a concept (fallback-only OR plain) that would overwrite an
+                    # ALREADY-resolved, genuinely nonzero total with its own real "$0 of this
+                    # one narrow sub-category" fact. Live-confirmed via CMCT (Creative Media &
+                    # Community Trust, a REIT): "PaymentsOfDividendsPreferredStockAndPreference
+                    # Stock" (fallback-only, processed first) correctly resolves
+                    # dividends_paid=$21,959,000 (its real preferred distribution, exactly
+                    # matching the yfinance-flagged value - CMCT paid no common dividend that
+                    # year), but "PaymentsOfDividendsCommonStock" - a PLAIN, non-fallback
+                    # concept processed later - then unconditionally overwrote it with its own
+                    # real $0 common-dividend fact via ordinary last-processed-wins, since a
+                    # plain concept's write was never gated by fallback-only membership at
+                    # all. Common and preferred dividends are genuinely ADDITIVE (a filer can
+                    # pay both, or either alone), not either/or alternatives like the
+                    # CommercialPaper/ShortTermBorrowings pattern this field_mapping otherwise
+                    # assumes - this loader has no per-field summing mechanism (same
+                    # structural gap already documented for O&G capex above), so preserving
+                    # the larger, already-resolved figure rather than zeroing it out is the
+                    # safer of the two available options. Never fires the reverse direction
+                    # (a real nonzero value always still overwrites an existing 0, since 0 was
+                    # never a case this guard blocks writing FROM).
                     continue
                 else:
                     precision_scale = self._get_field_precision_scale(db_field)

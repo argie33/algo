@@ -159,6 +159,73 @@ class TestDksUnsecuredDebtConceptFixed:
         assert transformed[0]["long_term_debt"] == 95_281_000_000.0
 
 
+class TestPnbkSeniorNotesFallbackOnlyFixed:
+    """Regression test for the 2026-09-16 fix (goal: SEC-vs-yfinance divergence sweep):
+    PNBK tags a real, complete "LongTermDebt" ($16,446,000 FY2025, live-confirmed via SEC
+    companyfacts JSON, exactly matching the yfinance-flagged value) AND a smaller
+    "SeniorNotes" fact for one specific tranche ($0 FY2025) at the same time. Before this
+    fix, "senior_notes" was treated as a plain (non-fallback) concept - since it's
+    processed after "long_term_debt" in dict-insertion order, it unconditionally
+    overwrote the real total with the smaller/zero component.
+    """
+
+    def _make_loader(self):
+        from loaders.helpers.sec_base import SecEdgarStatementLoader
+
+        loader = SecEdgarStatementLoader.__new__(SecEdgarStatementLoader)
+        loader.table_name = "annual_balance_sheet"
+        loader.period = "annual"
+        loader.statement_type = "balance"
+        loader._schema_cols = frozenset(
+            {"symbol", "fiscal_year", "long_term_debt", "short_term_debt", "data_unavailable", "reason"}
+        )
+        loader._field_mapping = {
+            "long_term_debt": "long_term_debt",
+            "senior_notes": "long_term_debt",
+            "data_unavailable": "data_unavailable",
+            "reason": "reason",
+        }
+        loader._fallback_only_fields = frozenset({"senior_notes"})
+        loader._reit_only_fallback_fields = frozenset()
+        loader._reit_symbols = frozenset()
+        loader._insurance_symbols = frozenset()
+        return loader
+
+    def test_field_mapping_wires_senior_notes_fallback_only(self) -> None:
+        from loaders.load_financial_statements import _BALANCE_FIELD_MAPPING, _DEBT_FALLBACK_ONLY_FIELDS
+
+        assert _BALANCE_FIELD_MAPPING["senior_notes"] == "long_term_debt"
+        assert "senior_notes" in _DEBT_FALLBACK_ONLY_FIELDS
+
+    def test_pnbk_style_component_never_overwrites_the_real_total(self) -> None:
+        loader = self._make_loader()
+        row = {
+            "symbol": "PNBK",
+            "fiscal_year": 2025,
+            "long_term_debt": 16_446_000.0,
+            "senior_notes": 0.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["long_term_debt"] == 16_446_000.0
+
+    def test_senior_notes_still_recovered_when_no_other_concept_present(self) -> None:
+        """VRSN case (2026-09-03 original fix) must keep working: fallback-only still
+        fills long_term_debt when nothing else already populated it.
+        """
+        loader = self._make_loader()
+        row = {
+            "symbol": "VRSN",
+            "fiscal_year": 2025,
+            "senior_notes": 1_788_200_000.0,
+        }
+
+        transformed = loader.transform([row])
+
+        assert transformed[0]["long_term_debt"] == 1_788_200_000.0
+
+
 class TestUsGaapLeaseLiabilityCurrentNoncurrentSplitFallback:
     def test_mwg_shaped_finance_and_operating_lease_split(self):
         facts = {

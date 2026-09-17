@@ -72,6 +72,12 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # already reflects the fuller combined-distribution figure whenever tagged.
         "dividends_preferred_stock_cash",
         "dividends_preferred_stock",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): CMCT real preferred-
+        # distribution concept - see sec_cash_flow.py's get_cash_flow() comment on
+        # "PaymentsOfDividendsPreferredStockAndPreferenceStock" for the live evidence. Same
+        # never-overwrite-a-real-common-dividend-total convention as
+        # dividends_preferred_stock_cash above.
+        "payments_of_dividends_preferred_stock_and_preference_stock",
         # ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 500" push, dcf_fcf
         # missing_cash_flow_data investigation): TALK's capitalized-software-development
         # concept - see sec_cash_flow.py's get_cash_flow() comment for the live evidence.
@@ -84,6 +90,37 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # it never overwrites a real DividendsCommonStock*/PaymentsOfDividends*/
         # PaymentsOfCapitalDistribution value for a filer that reports any of those.
         "dividends",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-vs-real-
+        # yfinance-value audit): DRH (DiamondRock Hospitality, a REIT) tags a real capex
+        # figure under "PaymentsForCapitalImprovements" ($81,563,000 FY2025, live-confirmed
+        # via SEC companyfacts JSON, exactly matching the yfinance-flagged value) AND a
+        # narrower "$0 spent on land this year" fact under "PaymentsToAcquireLand" at the
+        # same time. "PaymentsToAcquireLand" was a plain (non-fallback) concept - since it's
+        # processed after PaymentsForCapitalImprovements/RealEstateImprovements in
+        # sec_cash_flow.py's concept-list order, its real $0 land-purchases fact
+        # unconditionally overwrote the correct, larger total capex figure via ordinary
+        # last-processed-wins. Same bug class as this session's senior_notes/long_term_debt
+        # fix in financial_statements_balance_config.py (PNBK) - a concept representing one
+        # narrow acquisition category, not the filer's total capex, must never be allowed to
+        # clobber a more complete concept already resolved.
+        "payments_to_acquire_land",
+        # FIXED 2026-09-16 (same sweep, NSC/SNPS live-confirmed via real SEC companyfacts
+        # JSON): both tag a real, complete "PaymentsToAcquirePropertyPlantAndEquipment"
+        # ($2,204,000,000 for NSC FY2025, $169,454,000 for SNPS FY2025 - both exactly
+        # matching the yfinance-flagged value) AND a real "$0 spent on other productive
+        # assets this year" fact under "PaymentsToAcquireOtherProductiveAssets" at the same
+        # time. Same bug as payments_to_acquire_land above - a plain (non-fallback) concept
+        # listed after the standard PP&E concept unconditionally overwrote the correct total
+        # with 0 via last-processed-wins.
+        "payments_to_acquire_other_productive_assets",
+        # FIXED 2026-09-16 (same sweep, VICI live-confirmed): tags a real
+        # "PaymentsToAcquireOtherPropertyPlantAndEquipment" ($1,335,000 FY2025, matching the
+        # yfinance-flagged value) AND a real "$0 real estate acquired this year" fact under
+        # "PaymentsToAcquireRealEstate" at the same time - same overwrite bug. Fallback-only
+        # membership preserves the REIT case this concept was added for (AHR/ABR, 2026-08-24
+        # fix - reports ONLY this concept, no PP&E-family concept at all): still fills capex
+        # when nothing else did, never overwrites a real PP&E-family value.
+        "payments_to_acquire_real_estate",
     }
 )
 
@@ -300,6 +337,9 @@ _CASHFLOW_FIELD_MAPPING = {
     # fallback-only.
     "dividends_preferred_stock_cash": "dividends_paid",
     "dividends_preferred_stock": "dividends_paid",
+    # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): see
+    # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS above for why this is fallback-only (CMCT).
+    "payments_of_dividends_preferred_stock_and_preference_stock": "dividends_paid",
     # ADDED 2026-09-07 (goal: "SEC/XBRL missing data" + tie-out sweep): net_change_cash was
     # a declared schema column with zero rows ever populated (0/66,580) - fetched by none of
     # sec_cash_flow.py's concepts and mapped by no entry here. See that file's get_cash_flow()

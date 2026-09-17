@@ -43,6 +43,11 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # of which tag plain "LongTermDebt").
         "long_term_debt_noncurrent",
         "long_term_debt_and_capital_lease_obligations",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): FAF/CZFS real combined-
+        # total concept - see sec_balance_sheet.py's get_balance_sheet() comment on
+        # "DebtAndCapitalLeaseObligations" for the live evidence. Same fallback-only
+        # convention as long_term_debt_and_capital_lease_obligations above.
+        "debt_and_capital_lease_obligations",
         # FIXED 2026-08-18 (missing factor inputs audit, roic_pct/total_debt follow-up):
         # net-lease REITs (ADC/Agree Realty live-confirmed via real SEC companyfacts
         # JSON) stop tagging "LongTermDebt" mid-history (ADC's last real fact under that
@@ -100,6 +105,22 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # evidence) - must never win over a real, more complete LongTermDebt/SeniorNotes/
         # NotesPayable value.
         "unsecured_debt",
+        # FIXED 2026-09-16 (same sweep, PNBK live-confirmed via real SEC companyfacts JSON,
+        # CIK 0001609065): "senior_notes" was ORIGINALLY left out of this set on the
+        # 2026-09-03 VRSN theory that it's a "plain, either/or-alternative" concept like
+        # CommercialPaper/ShortTermBorrowings - safe to let last-processed-wins, since a
+        # filer tags one or the other, never both with conflicting figures. PNBK breaks that
+        # assumption: it tags a real, complete "LongTermDebt" ($33,068,000 FY2024,
+        # $16,446,000 FY2025 - exactly matching xbrl_yfinance_line_item_report's flagged
+        # value) AND a smaller "SeniorNotes" fact for a specific tranche ($11,861,000
+        # FY2024, $0 FY2025) at the same time - SeniorNotes is a COMPONENT here, not an
+        # alternative total, and since dict-insertion order puts it after LongTermDebt
+        # (SeniorNotes is listed later in sec_balance_sheet.py's concept list), the
+        # unconditional plain-concept overwrite clobbered the correct total with the
+        # smaller/zero component every time. Fallback-only closes this without touching the
+        # VRSN case (VRSN tags no LongTermDebt at all in any year it reports SeniorNotes, so
+        # `db_field in row` is False and this fallback-only membership is a no-op for it).
+        "senior_notes",
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "DebtLongtermAndShorttermCombinedAmount" (PGR live evidence) - must
         # never win over a real LongTermDebt value from an earlier fiscal year.
@@ -176,6 +197,11 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # Fallback-only, same single-figure convention as notes_payable/subordinated_debt
         # above (target: long_term_debt).
         "advances_from_federal_home_loan_banks",
+        # FIXED 2026-09-16 (same sweep, follow-up pass): sibling FHLB concept (CBNK/MYFW) -
+        # see federal_home_loan_bank_advances_long_term's field-mapping comment below for
+        # the live evidence. Same fallback-only convention as
+        # advances_from_federal_home_loan_banks above.
+        "federal_home_loan_bank_advances_long_term",
         # FIXED 2026-09-05 (same continuation): KBDC (Kayne Anderson BDC) real fair-value
         # credit-facility concept - see sec_statements.py's get_balance_sheet() comment on
         # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and
@@ -343,6 +369,9 @@ _BALANCE_FIELD_MAPPING = {
     # _DEBT_FALLBACK_ONLY_FIELDS comment above (CAT/SLB/XOM live evidence).
     "long_term_debt_noncurrent": "long_term_debt",
     "long_term_debt_and_capital_lease_obligations": "long_term_debt",
+    # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): see
+    # _DEBT_FALLBACK_ONLY_FIELDS comment above (FAF/CZFS live evidence).
+    "debt_and_capital_lease_obligations": "long_term_debt",
     # FIXED 2026-08-18 (missing factor inputs audit): see _DEBT_FALLBACK_ONLY_FIELDS
     # comment above (ADC/net-lease-REIT live evidence - taxonomy switch mid-history, not
     # a genuine debt-free filer).
@@ -466,6 +495,11 @@ _BALANCE_FIELD_MAPPING = {
     # comment on "AdvancesFromFederalHomeLoanBanks" for the live evidence (BANR FY2025
     # $150,000,000). Fallback-only, single-figure convention as above.
     "advances_from_federal_home_loan_banks": "long_term_debt",
+    # FIXED 2026-09-16 (same sweep, follow-up pass): sibling FHLB concept - see
+    # sec_balance_sheet.py's get_balance_sheet() comment on
+    # "FederalHomeLoanBankAdvancesLongTerm" for the live evidence (CBNK/MYFW).
+    # Fallback-only, single-figure convention as above.
+    "federal_home_loan_bank_advances_long_term": "long_term_debt",
     # FIXED 2026-09-05 (same sweep): KBDC (Kayne Anderson BDC) real fair-value credit-
     # facility balance - see sec_statements.py's get_balance_sheet() comment on
     # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and

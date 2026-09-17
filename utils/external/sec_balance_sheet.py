@@ -566,6 +566,15 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # Both fallback-only, same convention as the rest of this block.
         "LongTermDebtNoncurrent",
         "LongTermDebtAndCapitalLeaseObligations",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-vs-real-
+        # yfinance-value audit): FAF (First American Financial) and CZFS (Citizens Financial
+        # Services) both tag their real combined debt-plus-lease total under the sibling
+        # concept "DebtAndCapitalLeaseObligations" (no "LongTerm" prefix, a distinct concept
+        # from "LongTermDebtAndCapitalLeaseObligations" above) - live-confirmed via real SEC
+        # companyfacts JSON: FAF $1,545,400,000 FY2025 (exact match to the yfinance-flagged
+        # value), CZFS $309,448,000 FY2025. Never previously fetched at all. Fallback-only,
+        # same single-figure-total convention as the concept above.
+        "DebtAndCapitalLeaseObligations",
         # FIXED 2026-09-07 (goal session: XBRL concept-coverage backlog sweep): the SAME
         # "noncurrent-alone understates real debt" gap the LongTermDebtCurrent fix above
         # already closed for the plain LongTermDebtNoncurrent concept, but for THIS
@@ -896,6 +905,15 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # convention as OtherLongTermDebt/SecuredLongTermDebt above (target:
         # long_term_debt).
         "AdvancesFromFederalHomeLoanBanks",
+        # FIXED 2026-09-16 (same sweep, follow-up pass): confirms the "sibling FHLB
+        # concept" the comment above flagged as unverified. CBNK (Capital Bancorp, CIK
+        # 0001419536) and MYFW (Mid-Southern Savings, CIK 0001327607) both tag their real
+        # borrowed-funds debt under this DIFFERENT bank-specific concept instead of
+        # AdvancesFromFederalHomeLoanBanks above - live-confirmed via real SEC
+        # companyfacts JSON: CBNK FY2025 $50,000,000, MYFW FY2024 $10,000,000, neither
+        # ever tags AdvancesFromFederalHomeLoanBanks or any of the standard debt concepts.
+        # Same fallback-only, single-figure convention (target: long_term_debt).
+        "FederalHomeLoanBankAdvancesLongTerm",
         # ADDED 2026-08-26 (Quality pillar literature audit): needed for Altman Z''-Score's
         # Retained Earnings/Total Assets term (the one term not derivable from concepts
         # already fetched above). Standard, near-universal US-GAAP concept - every filer with

@@ -763,6 +763,17 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # distributions if this simply won the ordinary last-listed-wins overwrite.
         "DividendsPreferredStockCash",
         "DividendsPreferredStock",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-vs-real-
+        # yfinance-value audit): CMCT (Creative Media & Community Trust, a REIT) tags its
+        # real preferred distributions under this standard us-gaap concept instead of either
+        # DividendsPreferredStockCash/DividendsPreferredStock above - live-confirmed via real
+        # SEC companyfacts JSON: $21,959,000 FY2025, exactly matching the yfinance-flagged
+        # value, with no DividendsCommonStock*/PaymentsOfDividends* concept tagged at all
+        # that year (its own PaymentsOfDividendsCommonStock fact is a real $0 - CMCT paid no
+        # common dividend that year, only preferred). Same fallback-only, preferred-only-
+        # distributor convention as DividendsPreferredStockCash immediately above - never
+        # overwrites a real common-dividend total.
+        "PaymentsOfDividendsPreferredStockAndPreferenceStock",
         "DividendsCommonStockCash",
         "DividendsCommonStock",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,
