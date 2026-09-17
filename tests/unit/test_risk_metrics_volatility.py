@@ -112,11 +112,14 @@ class TestVolatility252dRequiresMeaningfulSample:
     of price history got a "252-day" figure confidently reported and given the most
     influence over its stability score."""
 
-    def _rows(self, n: int, today: date) -> list[tuple[date, float, float]]:
-        # 3-tuple (date, close, adj_close) matching the SELECT date, close, adj_close shape
-        # _compute_stability_row now queries (2026-09-01 adj_close fix) - adj_close equals
+    def _rows(self, n: int, today: date) -> list[tuple[date, float, float, float]]:
+        # 4-tuple (date, adj_close_adjusted, close_adjusted, volume_adjusted) matching the
+        # SELECT _compute_stability_row now queries (2026-09-17 Amihud illiquidity fix added
+        # close_adjusted/volume_adjusted for dollar-volume computation) - adj_close equals
         # close here since these synthetic rows have no real corporate action to adjust for.
-        return [(today - timedelta(days=i), 100.0 + (i % 7), 100.0 + (i % 7)) for i in range(n)]
+        # A constant, comfortably-liquid volume so Amihud illiquidity has real dollar volume
+        # to divide by, not a distraction from what this test class actually checks.
+        return [(today - timedelta(days=i), 100.0 + (i % 7), 100.0 + (i % 7), 1_000_000.0) for i in range(n)]
 
     def test_small_sample_leaves_volatility_252d_unavailable(self):
         today = date(2026, 7, 20)
@@ -158,8 +161,8 @@ class TestZeroVolatilityIsPreservedNotDiscarded:
     `is not None` to decide whether to include each component, so this dropped a real,
     meaningful "very low volatility" reading from the risk score entirely."""
 
-    def _flat_rows(self, n: int, today: date, price: float = 100.0) -> list[tuple[date, float, float]]:
-        return [(today - timedelta(days=i), price, price) for i in range(n)]
+    def _flat_rows(self, n: int, today: date, price: float = 100.0) -> list[tuple[date, float, float, float]]:
+        return [(today - timedelta(days=i), price, price, 1_000_000.0) for i in range(n)]
 
     def test_flat_price_stock_reports_zero_not_none(self):
         today = date(2026, 7, 20)

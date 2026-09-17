@@ -399,8 +399,18 @@ class RiskMetricsLoader(OptimalLoader):
                 # price_daily_split_adjusted's adj_close_adjusted instead, which covers both
                 # vendors correctly (see migration 1298 and _compute_momentum_row's matching fix
                 # above for the full rationale).
+                # close_adjusted/volume_adjusted (added alongside adj_close_adjusted for the
+                # Amihud illiquidity computation below): their PRODUCT is dollar volume, and
+                # both move oppositely for the same split (see migration 1298's own docstring:
+                # volume divided by the same factor price is multiplied by), so the product is
+                # split-invariant - dollar volume genuinely shouldn't jump around a split, and
+                # this way it doesn't. Uses close_adjusted (raw close * split factor), not
+                # adj_close_adjusted (also dividend-adjusted) - real daily dollar volume is
+                # actual shares traded times the actual price that day, not a dividend-adjusted
+                # synthetic price no trade ever executed at.
                 cur.execute(
-                    "SELECT date, adj_close_adjusted FROM price_daily_split_adjusted "
+                    "SELECT date, adj_close_adjusted, close_adjusted, volume_adjusted "
+                    "FROM price_daily_split_adjusted "
                     "WHERE symbol = %s ORDER BY date DESC LIMIT 252",
                     (symbol,),
                 )
@@ -417,6 +427,8 @@ class RiskMetricsLoader(OptimalLoader):
                                 )
                             ),
                             row[1],
+                            row[2],
+                            row[3],
                         )
                         for row in rows
                     ]
@@ -465,6 +477,8 @@ class RiskMetricsLoader(OptimalLoader):
                             "downside_volatility_60d_unavailable_reason": "stale_price_data",
                             "downside_volatility_252d_unavailable_reason": "stale_price_data",
                             "max_drawdown_1y_unavailable_reason": "stale_price_data",
+                            "amihud_illiquidity_60d": None,
+                            "amihud_illiquidity_60d_unavailable_reason": "stale_price_data",
                             "created_at": datetime.now(timezone.utc).isoformat(),
                             "data_unavailable": debt_to_assets is None,
                             "reason": reason if debt_to_assets is None else None,
@@ -527,18 +541,29 @@ class RiskMetricsLoader(OptimalLoader):
                     "downside_volatility_60d_unavailable_reason": "insufficient_history",
                     "downside_volatility_252d_unavailable_reason": "insufficient_history",
                     "max_drawdown_1y_unavailable_reason": "insufficient_history",
+                    "amihud_illiquidity_60d": None,
+                    "amihud_illiquidity_60d_unavailable_reason": "insufficient_history",
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "data_unavailable": debt_to_assets is None,  # All metrics failed; only debt_to_assets attempted
                     "reason": reason if debt_to_assets is None else None,
                 }
 
-            prices = sorted([(row[0], float(row[1])) for row in rows])
+            sorted_rows = sorted(rows, key=lambda r: r[0])
+            prices = [(r[0], float(r[1])) for r in sorted_rows]
 
             returns = []
+            # dollar_volumes[k] is index-aligned with returns[k] (both computed on the same
+            # iteration, for the same day prices[i]) - required by
+            # _calculate_amihud_illiquidity's own same-length-alignment contract.
+            dollar_volumes: list[float | None] = []
             for i in range(1, len(prices)):
                 if prices[i - 1][1] > 0:
                     ret = math.log(prices[i][1] / prices[i - 1][1])
                     returns.append(ret)
+                    close_i, volume_i = sorted_rows[i][2], sorted_rows[i][3]
+                    dollar_volumes.append(
+                        float(close_i) * float(volume_i) if close_i is not None and volume_i is not None else None
+                    )
 
             if not returns:
                 reason = "invalid_price_data: no valid price transitions"
@@ -562,10 +587,19 @@ class RiskMetricsLoader(OptimalLoader):
                     "downside_volatility_60d_unavailable_reason": "insufficient_history",
                     "downside_volatility_252d_unavailable_reason": "insufficient_history",
                     "max_drawdown_1y_unavailable_reason": "insufficient_history",
+                    "amihud_illiquidity_60d": None,
+                    "amihud_illiquidity_60d_unavailable_reason": "insufficient_history",
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "data_unavailable": debt_to_assets is None,  # All metrics failed; only debt_to_assets attempted
                     "reason": reason if debt_to_assets is None else None,
                 }
+
+            # Calculate Amihud (2002) illiquidity - same 60-trading-day floor as vol_60d (its
+            # own minimum meaningful-sample threshold, see _calculate_amihud_illiquidity's
+            # docstring for the full rationale/citation).
+            amihud_illiquidity_60d = (
+                self._calculate_amihud_illiquidity(returns[-60:], dollar_volumes[-60:]) if len(returns) >= 60 else None
+            )
 
             # Calculate volatilities
             vol_30d = self._calculate_volatility(returns[-30:]) if len(returns) >= 30 else None
@@ -643,6 +677,7 @@ class RiskMetricsLoader(OptimalLoader):
                     downside_vol_60d,
                     downside_vol_252d,
                     max_drawdown_252d,
+                    amihud_illiquidity_60d,
                 ]
             )
             data_unavailable = not has_any_metric
@@ -668,6 +703,9 @@ class RiskMetricsLoader(OptimalLoader):
                 "downside_volatility_60d": round(downside_vol_60d, 4) if downside_vol_60d is not None else None,
                 "downside_volatility_252d": round(downside_vol_252d, 4) if downside_vol_252d is not None else None,
                 "max_drawdown_1y": round(max_drawdown_252d, 2) if max_drawdown_252d is not None else None,
+                "amihud_illiquidity_60d": (
+                    round(amihud_illiquidity_60d, 10) if amihud_illiquidity_60d is not None else None
+                ),
                 "beta": round(beta, 4) if isinstance(beta, float) else None,
                 "debt_to_assets": debt_to_assets,
                 # Session 395+: Add unavailable_reason for each metric
@@ -685,6 +723,9 @@ class RiskMetricsLoader(OptimalLoader):
                 if downside_vol_252d is None
                 else None,
                 "max_drawdown_1y_unavailable_reason": "insufficient_history" if max_drawdown_252d is None else None,
+                "amihud_illiquidity_60d_unavailable_reason": (
+                    "insufficient_history" if amihud_illiquidity_60d is None else None
+                ),
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": data_unavailable,
                 "reason": unavailability_reason,
@@ -712,6 +753,8 @@ class RiskMetricsLoader(OptimalLoader):
                 "downside_volatility_60d_unavailable_reason": "insufficient_history",
                 "downside_volatility_252d_unavailable_reason": "insufficient_history",
                 "max_drawdown_1y_unavailable_reason": "insufficient_history",
+                "amihud_illiquidity_60d": None,
+                "amihud_illiquidity_60d_unavailable_reason": "insufficient_history",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": debt_to_assets is None,  # All metrics failed; only debt_to_assets attempted
                 "reason": reason if debt_to_assets is None else None,
@@ -737,6 +780,8 @@ class RiskMetricsLoader(OptimalLoader):
                 "downside_volatility_60d_unavailable_reason": "insufficient_history",
                 "downside_volatility_252d_unavailable_reason": "insufficient_history",
                 "max_drawdown_1y_unavailable_reason": "insufficient_history",
+                "amihud_illiquidity_60d": None,
+                "amihud_illiquidity_60d_unavailable_reason": "insufficient_history",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": debt_to_assets is None,
                 "reason": f"unexpected_error: {type(e).__name__}" if debt_to_assets is None else None,
@@ -758,15 +803,16 @@ class RiskMetricsLoader(OptimalLoader):
                     INSERT INTO stability_metrics
                     (symbol, volatility_30d, volatility_60d, volatility_252d,
                      downside_volatility_30d, downside_volatility_60d, downside_volatility_252d,
-                     max_drawdown_1y, beta, debt_to_assets,
+                     max_drawdown_1y, amihud_illiquidity_60d, beta, debt_to_assets,
                      created_at, data_unavailable, reason, reason_type, data_source,
                      beta_unavailable_reason, volatility_30d_unavailable_reason,
                      volatility_60d_unavailable_reason, volatility_252d_unavailable_reason,
                      downside_volatility_30d_unavailable_reason,
                      downside_volatility_60d_unavailable_reason,
                      downside_volatility_252d_unavailable_reason,
-                     max_drawdown_1y_unavailable_reason)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     max_drawdown_1y_unavailable_reason,
+                     amihud_illiquidity_60d_unavailable_reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (symbol) DO UPDATE SET
                       volatility_30d = EXCLUDED.volatility_30d,
                       volatility_60d = EXCLUDED.volatility_60d,
@@ -775,6 +821,7 @@ class RiskMetricsLoader(OptimalLoader):
                       downside_volatility_60d = EXCLUDED.downside_volatility_60d,
                       downside_volatility_252d = EXCLUDED.downside_volatility_252d,
                       max_drawdown_1y = EXCLUDED.max_drawdown_1y,
+                      amihud_illiquidity_60d = EXCLUDED.amihud_illiquidity_60d,
                       beta = EXCLUDED.beta,
                       debt_to_assets = EXCLUDED.debt_to_assets,
                       created_at = EXCLUDED.created_at,
@@ -790,6 +837,7 @@ class RiskMetricsLoader(OptimalLoader):
                       downside_volatility_60d_unavailable_reason = EXCLUDED.downside_volatility_60d_unavailable_reason,
                       downside_volatility_252d_unavailable_reason = EXCLUDED.downside_volatility_252d_unavailable_reason,
                       max_drawdown_1y_unavailable_reason = EXCLUDED.max_drawdown_1y_unavailable_reason,
+                      amihud_illiquidity_60d_unavailable_reason = EXCLUDED.amihud_illiquidity_60d_unavailable_reason,
                       updated_at = CURRENT_TIMESTAMP
                     """,
                     (
@@ -801,6 +849,7 @@ class RiskMetricsLoader(OptimalLoader):
                         row.get("downside_volatility_60d"),
                         row.get("downside_volatility_252d"),
                         row.get("max_drawdown_1y"),
+                        row.get("amihud_illiquidity_60d"),
                         row.get("beta"),
                         row.get("debt_to_assets"),
                         row.get("created_at"),
@@ -820,6 +869,7 @@ class RiskMetricsLoader(OptimalLoader):
                         row.get("downside_volatility_60d_unavailable_reason"),
                         row.get("downside_volatility_252d_unavailable_reason"),
                         row.get("max_drawdown_1y_unavailable_reason"),
+                        row.get("amihud_illiquidity_60d_unavailable_reason"),
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -932,6 +982,44 @@ class RiskMetricsLoader(OptimalLoader):
                     peak = price
 
         return max_drawdown if max_drawdown < 0 else None
+
+    @staticmethod
+    def _calculate_amihud_illiquidity(returns: list[float], dollar_volumes: list[float | None]) -> float | None:
+        """Amihud (2002) illiquidity: mean(|daily return| / daily dollar volume) over the
+        trailing window - one of the most replicated liquidity-premium measures in empirical
+        finance (Amihud, Y., "Illiquidity and stock returns: cross-section and time-series
+        effects", Journal of Financial Markets, 2002). Live-tested against this repo's own
+        price_daily data before implementation (126 months, 2016-2026, median ~3,866
+        symbols/month): t=3.34, positive - more illiquid genuinely predicts higher forward
+        return here, matching the literature's direction. Flagged as an OPEN QUESTION in
+        risk_scoring.py's own module docstring (2026-08-25) and left unimplemented pending
+        this genuine new computation - unlike Size, which only needed reading an already-
+        stored field.
+
+        `returns` and `dollar_volumes` must be the SAME length and index-aligned (returns[i]
+        is the return realized on the same trading day dollar_volumes[i] is the dollar volume
+        for) - callers are responsible for that alignment; this function does not re-derive it.
+
+        A day with zero or unknown dollar volume is skipped entirely (not treated as
+        infinitely illiquid) - a real Amihud reading needs both a real return AND a real
+        volume figure for that day, and this repo already treats "unknown" as "skip its
+        contribution," never as a fabricated extreme (same governance principle
+        RISK_MIN_WEIGHT_AVAILABLE/GROWTH_MIN_FIELDS_AVAILABLE apply elsewhere in this pillar's
+        own scoring layer).
+
+        Returns None if fewer than 2 valid (return, dollar_volume) pairs remain - the same
+        minimum-sample floor _calculate_volatility applies.
+        """
+        if not returns or not dollar_volumes or len(returns) != len(dollar_volumes):
+            return None
+
+        daily_illiquidity = [
+            abs(r) / dv for r, dv in zip(returns, dollar_volumes, strict=True) if dv is not None and dv > 0
+        ]
+        if len(daily_illiquidity) < 2:
+            return None
+
+        return sum(daily_illiquidity) / len(daily_illiquidity)
 
     @staticmethod
     def _get_beta_from_db(

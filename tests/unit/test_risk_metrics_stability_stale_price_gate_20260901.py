@@ -19,9 +19,12 @@ from unittest.mock import MagicMock, patch
 from loaders.load_risk_metrics_daily import STALE_PRICE_TRADING_DAYS_THRESHOLD, RiskMetricsLoader
 
 
-def _rows(n: int, last_date: date, price: float = 100.0) -> list[tuple[date, float, float]]:
-    # 3-tuple (date, close, adj_close), most recent first (DESC) matching the real query shape.
-    return [(last_date - timedelta(days=i), price + (i % 7), price + (i % 7)) for i in range(n)]
+def _rows(n: int, last_date: date, price: float = 100.0) -> list[tuple[date, float, float, float]]:
+    # 4-tuple (date, adj_close_adjusted, close_adjusted, volume_adjusted), most recent first
+    # (DESC) matching the real query shape (2026-09-17 Amihud illiquidity fix added
+    # close_adjusted/volume_adjusted for dollar-volume computation) - a constant, comfortably-
+    # liquid volume so it never interferes with what this file actually tests.
+    return [(last_date - timedelta(days=i), price + (i % 7), price + (i % 7), 1_000_000.0) for i in range(n)]
 
 
 def _db_context_mock(price_rows, spy_rows, debt_to_assets=None):
