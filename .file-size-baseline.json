@@ -182,6 +182,7 @@
   "algo/research/composite_weights_shrinkage_optimal.py": 249,
   "algo/research/cross_pillar_interaction_sweep_20260828.py": 258,
   "algo/research/ev_multiples_pillar_classification_20260828.py": 140,
+  "algo/research/fama_macbeth_amihud_illiquidity.py": 153,
   "algo/research/fama_macbeth_composite_weights.py": 1206,
   "algo/research/fama_macbeth_growth_factors.py": 422,
   "algo/research/fama_macbeth_liquidity_factor.py": 228,

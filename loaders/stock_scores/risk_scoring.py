@@ -518,6 +518,32 @@ class RiskScoringMixin:
         price_daily where the raw OHLCV is), a bigger scope than a stock_scores.py-only
         change - flagged as the clearest remaining structural gap after Size, not rushed in.
 
+        IMPLEMENTED, THEN NOT SCORED, 2026-09-17 (factor-purity sweep follow-up).
+        RiskMetricsLoader._calculate_amihud_illiquidity now computes and stores
+        stability_metrics.amihud_illiquidity_60d (migration 1305) - the genuine new
+        computation this note above said was needed. Before assigning it any live scoring
+        weight, re-ran it through this repo's OWN required bar for a new factor (multi-block
+        era-robustness + FDR, per the WEIGHT-REVISION GOVERNANCE POLICY in pillar_weights.py)
+        rather than trusting the single ad hoc t=3.34 figure above - the same
+        "independently re-verify before acting" standard already applied to the PE-vs-PB/PS
+        and max_drawdown sub-period findings elsewhere in this file, and for the same reason:
+        that number didn't survive contact with proper scrutiny. `python -m
+        algo.research.fama_macbeth_amihud_illiquidity --start-date 2019-01-01` (91 months,
+        median 6,154 symbols, using the EXACT live production formula - trailing-21-day
+        mean(|log return|/dollar volume), log-transformed for its heavy right skew before
+        winsorizing/z-scoring - not the original ad hoc script's own construction, which this
+        repo no longer has a copy of to compare directly): full-sample t=0.59 (fails FDR),
+        and 4-block era-robustness shows the sign flipping across blocks (only 1/4 clears
+        |t|>=1.5, blocks read +1.58/-0.77/-0.23/+0.46) - the identical "era-flips sign, no
+        stable predictive power" failure shape max_drawdown_1y was cut for above, not the
+        clean, robust signal the original single-number claim suggested. CONCLUSION: Amihud
+        illiquidity does NOT clear this repo's own bar for a scored factor. It stays
+        computed/persisted (informational, matching how max_drawdown_1y/Liquidity remain
+        available to other consumers after their own removal from scoring) but deliberately
+        gets NO weight in risk_score or any other pillar - not an oversight or unfinished
+        work, a real conclusion from real re-verification. Re-open only with fresh evidence,
+        not by re-trusting the 2026-08-25 number above.
+
         NEAR-ZERO-LIQUIDITY PRICE-STAT GATE, ADDED 2026-09-01 (see NEAR_ZERO_LIQUIDITY_THRESHOLD's
         own docstring): volatility_60d/volatility_252d/beta are skipped (weight not counted) when
         avg_dollar_volume_20d is known and below $2,000/day - below that, the price series is
