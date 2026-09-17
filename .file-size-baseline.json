@@ -660,7 +660,7 @@
   "scripts/backtest_regime_reconstruction.py": 453,
   "scripts/balance_sheet_identity_residual_classifier.py": 199,
   "scripts/block_seed_prices.py": 107,
-  "scripts/categorize_remaining_divergences.py": 167,
+  "scripts/categorize_remaining_divergences.py": 174,
   "scripts/check_loader_status_schema.py": 26,
   "scripts/check_options_approval_status.py": 110,
   "scripts/check_pdt_field_status.py": 123,
