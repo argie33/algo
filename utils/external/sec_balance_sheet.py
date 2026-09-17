@@ -716,6 +716,21 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # name that a filer reporting a real, more complete LongTermDebt/SeniorNotes figure
         # must always keep that value instead.
         "NotesPayable",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-vs-real-
+        # yfinance-value audit): DKS (Dick's Sporting Goods, CIK 0001089063) tags its real
+        # $1.484B senior notes exclusively under plain "UnsecuredDebt" - live-confirmed via
+        # real companyfacts JSON (FY2023 period end 2024-02-03: $1,483,260,000; FY2024
+        # period end 2025-02-01: $1,484,217,000) - never tagging LongTermDebt/SeniorNotes/
+        # NotesPayable/DebtInstrumentCarryingAmount/any other concept already fetched above.
+        # This concept was never fetched at all (unlike "SecuredDebt", its short-term-debt
+        # sibling, already mapped above), so DKS's long_term_debt fell through to the
+        # LongTermDebtCurrent=0 misread this same sweep fixed in
+        # _fill_long_term_debt_from_noncurrent_current_split, landing on a false debt-free
+        # 0 instead of its real ~$1.48B unsecured notes. Same single-figure, generic-name-
+        # caution fallback convention as NotesPayable immediately above (target:
+        # long_term_debt, fallback-only via _DEBT_FALLBACK_ONLY_FIELDS - never overwrites a
+        # more specific concept already resolved).
+        "UnsecuredDebt",
         # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
         # total_debt_not_itemized investigation): ETS real short-term-loan concept - live-
         # confirmed via ETS's real companyfacts JSON tagging "LoansPayable"/"LoansPayableCurrent"
@@ -1617,7 +1632,24 @@ def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]
         # populated for every fiscal year but long_term_debt stayed NULL throughout. Same
         # "single figure better than a false NULL" convention as every other fallback-only
         # concept in the caller's own list (NotesPayable/SeniorNotes/LineOfCredit, etc.).
-        elif row.get("long_term_debt") is None and current is not None:
+        #
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-vs-real-
+        # yfinance-value audit): this branch fired for `current == 0` too - `is not None`
+        # treats a real "$0 due within 12 months" fact as if it meant "total long-term debt
+        # is $0", asserting debt-free status for filers with genuine, large noncurrent debt
+        # that this pipeline simply never resolved a value for. Live-confirmed via PGR
+        # (Progressive Corp, CIK 0000080661) real companyfacts JSON: FY2024/FY2025 both tag
+        # LongTermDebtCurrent=0 (no near-term maturities) with no LongTermDebtNoncurrent
+        # fact ever, while carrying a real, continuous ~$6.9B under
+        # "DebtLongtermAndShorttermCombinedAmount" - this branch overwrote that with 0
+        # whenever the combined-total concept's own aggregation pass hadn't already landed
+        # in "long_term_debt" first. Same false-debt-free pattern hit WTFC/DKS/AMP/IBKR
+        # (xbrl_yfinance_line_item_report sweep, 2026-09-16). A real $0 current-portion
+        # fact is only informative about near-term maturities, never a stand-in for the
+        # total - restrict this fallback to a genuinely nonzero current figure (the DCX case
+        # this was written for), and leave long_term_debt None on 0 so a later, more
+        # specific fallback concept (or an honest NULL) isn't clobbered.
+        elif row.get("long_term_debt") is None and current:
             row["long_term_debt"] = current
 
         combined_current = row.pop("long_term_debt_and_capital_lease_obligations_current", None)

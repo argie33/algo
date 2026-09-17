@@ -95,6 +95,11 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # comment on "NotesPayable" (AFL/MAA live evidence) - must never win over a real,
         # more complete LongTermDebt/SeniorNotes value.
         "notes_payable",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): see
+        # sec_balance_sheet.py's get_balance_sheet() comment on "UnsecuredDebt" (DKS live
+        # evidence) - must never win over a real, more complete LongTermDebt/SeniorNotes/
+        # NotesPayable value.
+        "unsecured_debt",
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "DebtLongtermAndShorttermCombinedAmount" (PGR live evidence) - must
         # never win over a real LongTermDebt value from an earlier fiscal year.
@@ -408,6 +413,11 @@ _BALANCE_FIELD_MAPPING = {
     # "NotesPayable" for the live evidence. Same either/or-alternative, plain-mapping
     # convention as senior_notes above.
     "notes_payable": "long_term_debt",
+    # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): DKS (Dick's Sporting
+    # Goods) real debt concept - see sec_balance_sheet.py's get_balance_sheet() comment on
+    # "UnsecuredDebt" for the live evidence. Same either/or-alternative, plain-mapping
+    # convention as notes_payable above.
+    "unsecured_debt": "long_term_debt",
     # ADDED 2026-09-09 (goal session: SEC/XBRL missing-data count under 700,
     # total_debt_not_itemized investigation): ETS real short-term-loan concept - see
     # sec_balance_sheet.py's get_balance_sheet() comment on "LoansPayable"/
