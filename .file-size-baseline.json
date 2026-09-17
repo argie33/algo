@@ -807,7 +807,7 @@
   "utils/external/openfigi_crosswalk.py": 549,
   "utils/external/sec_balance_sheet.py": 1732,
   "utils/external/sec_calculation_linkbase.py": 171,
-  "utils/external/sec_cash_flow.py": 898,
+  "utils/external/sec_cash_flow.py": 905,
   "utils/external/sec_custom_xbrl_concepts.py": 1349,
   "utils/external/sec_custom_xbrl_currency_duration.py": 209,
   "utils/external/sec_edgar.py": 10,
