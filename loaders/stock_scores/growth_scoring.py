@@ -299,21 +299,18 @@ class GrowthScoringMixin:
         """Score growth metrics on 0-100 scale via a multi-input blend. Returns marker dict if
         no real data.
 
-        RESTORED TO MULTI-INPUT 2026-08-28 (user directive, /goal session: "get the rest of the
-        growth inputs back in there the ones that are in the react" + explicit pushback that
-        revenue_growth_1y's sign-flip "shouldn't be inverted"). This pillar had been rebuilt 3
-        times in 48h into an increasingly narrow single-input, sign-flipped design (the original
-        11-input blend -> book_value_growth alone -> revenue_growth_1y alone, each justified by
-        isolated Fama-MacBeth "winner take all" testing - see git history for that evidence
-        trail, not repeated here since it no longer describes the live formula). A same-day
-        re-test of a genuine multi-input blend (algo/research/growth_multi_input_blend_test_20260828.py)
-        found neither the single-input nor an equal-weighted 5-candidate blend era-robust once
-        controlled for the other 5 pillars (see
-        growth_multi_input_blend_tested_not_robust_reit_signal_backwards_20260828 in memory) -
-        so this restore is NOT an evidence-driven reversal, it's an explicit user override of
-        that evidence, the same footing as this file's Dividend-Yield-over-Net-Payout-Yield
-        precedent (_score_value's docstring: "REVERTED back to Dividend Yield 2026-08-28 on
-        explicit user directive").
+        STALE SUMMARY FIXED (this pass, /goal factor-purity audit) - this paragraph used to
+        describe the 2026-08-28 "restored to multi-input, explicit user override of the
+        evidence" state (11/12-field equal-weighted blend, kept as an explicit deliberate
+        exception to this file's normal evidence bar). SUPERSEDED 2026-09-16 (factor-purity
+        sweep, /goal session: "assume any previous decisions in memory are wrong... do what is
+        proven best and right in the industry") - see GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE above
+        for the full evidence trail (MSCI GIMIVG methodology + Barra US-E3 EGRO/AGRO, fetched
+        and read directly). GROWTH_SCORE_FIELDS is now exactly MSCI's/Barra's real 4 verifiable
+        descriptors - eps_growth_trend_5y, sps_growth_trend_5y, forward_eps_growth_current_fy,
+        sustainable_growth_rate - not a homegrown 11/12-field blend. This is no longer an
+        explicit-override exception to the evidence bar; it IS the evidence-driven, real-
+        methodology construction this file's other pillars already use.
 
         Scores every growth field the frontend's Growth tab displays (GROWTH_SCHEMA in
         StockScoreAccordion.jsx / GROWTH_SCORE_FIELDS above) - the single-input design was
@@ -420,8 +417,8 @@ class GrowthScoringMixin:
             # Positive growth: map [0, cap] → [40, 100]
             return min(100.0, 40 + (val / cap) * 60)
 
-        # Equal-weighted blend, NOT sign-flipped (see docstring - explicit user override of
-        # this file's own growth-reversal research). Cap of 30% reused across every signed-rate
+        # Equal-weighted blend over GROWTH_SCORE_FIELDS' real MSCI/Barra 4 descriptors, NOT
+        # sign-flipped (see GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE above). Cap of 30% reused across every signed-rate
         # candidate: all of them share the same _cagr()/YoY-%-derived percentage-point scale
         # this file has always used that cap for (domain judgment, not separately fit per
         # field - same caveat already applied elsewhere in this file, e.g. asset_turnover,

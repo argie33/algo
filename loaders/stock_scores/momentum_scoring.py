@@ -279,13 +279,19 @@ class MomentumScoringMixin:
     def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: Momentum 3m (20%) + 12-1 skip-month momentum (45%) + RSI(14)/
-        MACD-sign technical-trend confirmation (15% combined, averaged - see CONSOLIDATED
-        2026-08-28 note below) + SMA positioning (20%) - see "MOM_12_1 RE-EMPHASIZED, TECH_TREND
-        DEMOTED" note below for the 2026-09-14 industry-consensus rationale. Normalizes by total
-        weight of available components so partial data doesn't deflate the score. Raw
-        momentum_6m/momentum_12m REPLACED 2026-08-25 by a derived 12-1 construction - see
-        RESOLVED note below.
+        STALE SUMMARY FIXED (this pass, /goal factor-purity audit) - this paragraph used to
+        describe a 20/45/15/20 momentum_3m + mom_12_1 + RSI/MACD + SMA blend. That is no
+        longer what the code below does - see "WEIGHTS REBALANCED 2026-09-15" note further
+        down for the actual live construction and evidence trail. Current live scoring:
+        risk-adjusted momentum_6m (50%) + risk-adjusted 12-1 skip-month momentum (50%),
+        matching MSCI's own published "6- and 12-month holding period returns... using
+        modified Sharpe ratios" Momentum Index description. momentum_3m/RSI(14)/MACD-sign/
+        SMA-50/200 positioning are fetched/persisted/displayed but NOT scored (informational-
+        only) - none of them are part of any convergent institutional/academic Momentum
+        factor definition (Jegadeesh-Titman, Carhart UMD, AQR, MSCI, S&P all construct purely
+        from risk-adjusted return-lookback windows). Normalizes by total weight of available
+        components so partial data doesn't deflate the score. Raw momentum_6m/momentum_12m
+        REPLACED 2026-08-25 by a derived 12-1 construction - see RESOLVED note below.
 
         CONSOLIDATED 2026-08-28 (goal: momentum/risk factor-interaction review, closing a gap
         this file's own 2026-08-25 audit flagged and never finished - see "OPEN QUESTION

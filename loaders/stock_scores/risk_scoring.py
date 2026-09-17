@@ -352,14 +352,18 @@ class RiskScoringMixin:
     def _score_risk(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score risk metrics on 0-100 scale using price volatility / risk-of-loss signals only.
 
-        UNIFORM EQUAL-WEIGHT (2026-09-11, user directive - see pillar_weights.py's
-        BASE_PILLAR_WEIGHTS comment for the full rationale): the magnitude-tuned 45/15/15/10/15
-        split documented below traced to the same isolated-backtest/contaminated-FM-data family
-        that forced Growth and Value off similar weighting. All 5 components (Volatility 60D,
-        Volatility 252D, Beta, Max Drawdown 1Y, Liquidity) are now flat 20% each. The component
-        LIST and every curve/gate below (NEAR_ZERO_LIQUIDITY_THRESHOLD, the beta sign fix, the
-        max_drawdown sign guard) are unchanged - only the combination weights are. The historical
-        reasoning below is kept as the audit trail, not as justification for today's live weights.
+        STALE SUMMARY FIXED (this pass, /goal factor-purity audit) - this paragraph used to
+        describe a 5-component flat-20%-each blend (Volatility 60D/252D, Beta, Max Drawdown 1Y,
+        Liquidity). REBUILT FURTHER 2026-09-16 (factor-purity sweep) - see RISK_COMPONENT_WEIGHT's
+        own docstring for the evidence trail. Current live Risk scoring is 3 components only,
+        equal-weighted 1/3 each: Volatility 60D, Volatility 252D, and Beta. Max Drawdown 1Y and
+        Liquidity were REMOVED from scoring - neither appears in a real Barra/MSCI-style market-
+        model volatility construction (raw values stay computed/persisted/displayed for other
+        consumers). Beta is now scored per the real, published low-beta anomaly (Frazzini &
+        Pedersen 2014, "Betting Against Beta") - LOWER beta scores better, not "beta near 1.0"
+        (see the beta-scoring code below for the current linear curve). The historical reasoning
+        below (45/15/15/10/15, then 5-way equal-weight) is kept as audit trail, not as
+        justification for today's live weights/components.
 
         RENAMED 2026-08-26 (user directive): Stability -> Risk. Same computation
         (volatility/beta/downside-vol/max-drawdown), name only - the underlying
@@ -950,15 +954,21 @@ class RiskScoringMixin:
         """Batch pass: replace Risk's Pass-1 PROVISIONAL fixed-breakpoint curve scores
         (`_vol_curve_score`/`_max_drawdown_curve_score`, calibrated to invented thresholds that
         this module's own docstring shows badly miscalibrated against the live universe) with a
-        real winsorize+z-score against the current run's universe for Volatility 60D/252D/Max
-        Drawdown, then FULLY RECOMPUTES risk_score and composite_score from scratch off the raw
-        stored stability_metrics/price_daily columns - mirrors
-        `update_momentum_sector_neutral_scores()`'s pure-overwrite pattern (and, as of the
-        2026-09-13 REVERSAL documented in this module's own top-of-file docstring, now also
-        matches its sector-relative grouping - see that docstring for the fresh non-circular
-        evidence behind the reversal), plus a MIN_TRADING_DAYS_FOR_DRAWDOWN gate on
-        max_drawdown_1y that Pass 1 does not have (found during this pass's own pre-ship
-        verification - see that constant's docstring).
+        real winsorize+z-score against the current run's universe for Volatility 60D/252D, then
+        FULLY RECOMPUTES risk_score and composite_score from scratch off the raw stored
+        stability_metrics/price_daily columns - mirrors `update_momentum_sector_neutral_scores()`'s
+        pure-overwrite pattern.
+
+        STALE SUMMARY FIXED (this pass, /goal factor-purity audit) - this paragraph used to claim
+        this pass sector-neutralizes, per the 2026-09-13 reversal. That was itself PARTIALLY
+        RE-REVERSED 2026-09-15 (see `_compute_risk_absolute_zscore_percentiles`'s own docstring
+        for the full evidence trail) - vol_60d/vol_252d went back to universe-wide (empty sectors
+        dict), and max_drawdown_1y (which stayed sector-neutral) was removed from this pass
+        entirely 2026-09-16 (factor-purity sweep). Current live grouping for both scored inputs
+        is universe-wide, matching the same real, whole-universe-significant low-volatility
+        anomaly (Ang et al. 2006; Frazzini & Pedersen 2014) this module's top-of-file docstring
+        describes - not sector-relative. No MIN_TRADING_DAYS_FOR_DRAWDOWN gate applies here any
+        more (that constant and its only consumer were removed alongside max_drawdown_1y).
 
         WHY the z-score transform exists at all (2026-09-13, /goal "question the scoring
         methodology" session): live-checked `_vol_curve_score`'s breakpoints (0.15/0.30/0.60)

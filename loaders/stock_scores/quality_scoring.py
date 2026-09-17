@@ -124,27 +124,23 @@ class QualityScoringMixin:
         computation - if pre-computed score missing, returns explicit data_unavailable marker.
         For financial accuracy, missing scores are better than fabricated heuristics.
 
-        REBUILT 2026-08-26, EXTENDED 2026-08-27 (Quality pillar exhaustive-input review,
-        user-directed - supersedes this docstring's earlier "9-weighted-component cluster
-        blend" description, which described the c568eccfe state, not the current one). The
-        upstream quality_score (loaders/helpers/vqg_quality_score.py) was an 8-weighted-
-        component blend as of 2026-08-27: ROA 18%, ROCE 18% (replaced ROIC - fixed ROIC's
-        cash-netting coverage gap), Debt-to-Equity 18% (replaced Debt-to-Assets - tested
-        stronger, t=3.12 vs 2.18), FCF Margin 15% (replaced Accruals Ratio - independent
-        signal, corr=0.13), ROE 11%, Margin Volatility (3Y)/Asset Turnover/Gross Profitability
-        ~7% each. STALE AS OF 2026-09-15 (per-docstring drift this repo's own standing rule
-        says to never trust without checking live code): ROCE and Asset Turnover were REMOVED
-        from quality_components entirely that day (two-layer validation policy - no real
-        institutional Quality definition scores them; raw roce_pct/asset_turnover still
-        computed/persisted for other consumers, just not scored). Live is 15/15/15/15/25/15
-        across ROE/ROA/FCF Margin/Debt-to-Equity/Margin Volatility/Gross Profitability - NOT
-        flat equal-weight (Margin Volatility is deliberately overweighted per AQR QMJ's Safety
-        leg / MSCI's earnings-variability weighting - see vqg_quality_score.py's own
-        MARGIN_VOLATILITY REWEIGHTED note, not this paragraph). Renormalized over whichever are available for a given symbol, with a
-        40-point minimum-available-weight floor (below that, quality_score is None rather than
-        a thin-sample extrapolation - see vqg_quality_score.py's quality_components comment).
-        Weights are set from both full-sample t-stat magnitude AND a half-split time-stability
-        check, not raw t-stat alone.
+        STALE SUMMARY FIXED (this pass, /goal factor-purity audit) - this paragraph used to
+        describe an intermediate 8-component and then 6-component (15/15/15/15/25/15
+        ROE/ROA/FCF Margin/Debt-to-Equity/Margin Volatility/Gross Profitability) AQR/MSCI
+        synthesis blend. REBUILT AGAIN 2026-09-16 (factor-purity sweep, user: "we do what the
+        industry does only") - see vqg_quality_score.py's "REBUILT TO MSCI'S EXACT 3-VARIABLE
+        QUALITY INDEX" note for the full evidence trail. Current live upstream quality_score
+        (loaders/helpers/vqg_quality_score.py, mirrored by the Pass-2 batch overwrite in
+        vqg_quality_batch.py's update_quality_sector_neutral_scores) is MSCI's real, published
+        3-variable Quality Index exactly: Return on Equity, Debt to Equity, and Earnings
+        Variability, equal-weighted 33.34/33.33/33.33. ROA/FCF Margin/Gross Profitability/
+        Margin Volatility/ROCE/Asset Turnover are all REMOVED from scoring (not part of MSCI's
+        index) - raw values remain computed/persisted/displayed for other consumers. ROE is
+        MANDATORY per MSCI's own substitution rules (Appendix II) - missing ROE means no
+        quality_score at all, not a renormalization over the other two. Renormalized over
+        whichever of the other two are available otherwise, with a 40-point minimum-available-
+        weight floor (below that, quality_score is None rather than a thin-sample
+        extrapolation - see vqg_quality_score.py's quality_components comment).
 
         Interest Coverage/Payout Ratio REMOVED 2026-08-27: both were live at 5% each on
         nothing but legacy assumption - properly isolated FM re-testing (own dropna scope, not
