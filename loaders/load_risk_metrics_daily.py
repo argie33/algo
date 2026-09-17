@@ -479,6 +479,13 @@ class RiskMetricsLoader(OptimalLoader):
                             "max_drawdown_1y_unavailable_reason": "stale_price_data",
                             "amihud_illiquidity_60d": None,
                             "amihud_illiquidity_60d_unavailable_reason": "stale_price_data",
+                            "cmra_12m": None,
+                            "cmra_12m_unavailable_reason": "stale_price_data",
+                            "beta_bab": None,
+                            "beta_bab_ts": None,
+                            "beta_bab_rho": None,
+                            "beta_bab_sigma_ratio": None,
+                            "beta_bab_unavailable_reason": "stale_price_data",
                             "created_at": datetime.now(timezone.utc).isoformat(),
                             "data_unavailable": debt_to_assets is None,
                             "reason": reason if debt_to_assets is None else None,
@@ -518,6 +525,18 @@ class RiskMetricsLoader(OptimalLoader):
                         else []
                     )
 
+                # CMRA raw inputs fetched here (still inside this `with` block - the cursor is
+                # closed once it exits) - only `_calculate_cmra` itself (a pure function, no DB
+                # access) runs later outside it. See `_get_cmra_monthly_inputs`'s own docstring.
+                cmra_inputs = self._get_cmra_monthly_inputs(symbol, cur) if rows else None
+
+                # BAB (Betting-Against-Beta, Frazzini & Pedersen 2014) fetch - still inside this
+                # `with` block for the same reason cmra_inputs is (cursor closes once it exits;
+                # `_calculate_beta_bab` itself is a pure function, no DB access). Separate, wider
+                # (5yr) query from the 252-day window above - existing volatility/beta/CMRA
+                # computations must not regress, so this does not reuse or resize `rows`.
+                bab_series = self._fetch_bab_price_series(symbol, cur) if rows else None
+
             if not rows or len(rows) < 5:
                 actual_rows = len(rows) if rows else 0
                 reason = f"insufficient_price_history: {actual_rows}/5 days available"
@@ -543,6 +562,13 @@ class RiskMetricsLoader(OptimalLoader):
                     "max_drawdown_1y_unavailable_reason": "insufficient_history",
                     "amihud_illiquidity_60d": None,
                     "amihud_illiquidity_60d_unavailable_reason": "insufficient_history",
+                    "cmra_12m": None,
+                    "cmra_12m_unavailable_reason": "insufficient_history",
+                    "beta_bab": None,
+                    "beta_bab_ts": None,
+                    "beta_bab_rho": None,
+                    "beta_bab_sigma_ratio": None,
+                    "beta_bab_unavailable_reason": "insufficient_history",
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "data_unavailable": debt_to_assets is None,  # All metrics failed; only debt_to_assets attempted
                     "reason": reason if debt_to_assets is None else None,
@@ -589,6 +615,13 @@ class RiskMetricsLoader(OptimalLoader):
                     "max_drawdown_1y_unavailable_reason": "insufficient_history",
                     "amihud_illiquidity_60d": None,
                     "amihud_illiquidity_60d_unavailable_reason": "insufficient_history",
+                    "cmra_12m": None,
+                    "cmra_12m_unavailable_reason": "insufficient_history",
+                    "beta_bab": None,
+                    "beta_bab_ts": None,
+                    "beta_bab_rho": None,
+                    "beta_bab_sigma_ratio": None,
+                    "beta_bab_unavailable_reason": "insufficient_history",
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "data_unavailable": debt_to_assets is None,  # All metrics failed; only debt_to_assets attempted
                     "reason": reason if debt_to_assets is None else None,
@@ -600,6 +633,14 @@ class RiskMetricsLoader(OptimalLoader):
             amihud_illiquidity_60d = (
                 self._calculate_amihud_illiquidity(returns[-60:], dollar_volumes[-60:]) if len(returns) >= 60 else None
             )
+
+            # Calculate CMRA (Barra US-E3's real Cumulative Range Volatility descriptor - see
+            # `_calculate_cmra`'s own docstring for the primary-source citation). Genuinely
+            # separate query/window from the 252-daily-return `returns` list above - CMRA needs
+            # 13 real MONTH-END closes, not a slice of the daily series (fetched above, still
+            # inside the `with DatabaseContext` block - `_calculate_cmra` itself is a pure
+            # function and needs no DB access here).
+            cmra_12m = self._calculate_cmra(*cmra_inputs) if cmra_inputs is not None else None
 
             # Calculate volatilities
             vol_30d = self._calculate_volatility(returns[-30:]) if len(returns) >= 30 else None
@@ -627,6 +668,9 @@ class RiskMetricsLoader(OptimalLoader):
             max_drawdown_252d = self._calculate_max_drawdown([p[1] for p in prices]) if len(prices) >= 5 else None
 
             beta: float | dict[str, Any] | None = self._get_beta_from_db(symbol, prices, spy_rows)
+
+            bab_result = self._calculate_beta_bab(*bab_series) if bab_series is not None else None
+            beta_bab_reason: str | None = None if bab_result is not None else "insufficient_history"
 
             # Build unavailability reasons for any missing components
             unavailability_reasons = []
@@ -678,6 +722,7 @@ class RiskMetricsLoader(OptimalLoader):
                     downside_vol_252d,
                     max_drawdown_252d,
                     amihud_illiquidity_60d,
+                    cmra_12m,
                 ]
             )
             data_unavailable = not has_any_metric
@@ -706,7 +751,13 @@ class RiskMetricsLoader(OptimalLoader):
                 "amihud_illiquidity_60d": (
                     round(amihud_illiquidity_60d, 10) if amihud_illiquidity_60d is not None else None
                 ),
+                "cmra_12m": round(cmra_12m, 8) if cmra_12m is not None else None,
                 "beta": round(beta, 4) if isinstance(beta, float) else None,
+                "beta_bab": bab_result["beta_bab"] if bab_result else None,
+                "beta_bab_ts": bab_result["beta_bab_ts"] if bab_result else None,
+                "beta_bab_rho": bab_result["beta_bab_rho"] if bab_result else None,
+                "beta_bab_sigma_ratio": bab_result["beta_bab_sigma_ratio"] if bab_result else None,
+                "beta_bab_unavailable_reason": beta_bab_reason,
                 "debt_to_assets": debt_to_assets,
                 # Session 395+: Add unavailable_reason for each metric
                 "beta_unavailable_reason": beta_reason if beta is None else None,
@@ -726,6 +777,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "amihud_illiquidity_60d_unavailable_reason": (
                     "insufficient_history" if amihud_illiquidity_60d is None else None
                 ),
+                "cmra_12m_unavailable_reason": "insufficient_history" if cmra_12m is None else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": data_unavailable,
                 "reason": unavailability_reason,
@@ -755,6 +807,13 @@ class RiskMetricsLoader(OptimalLoader):
                 "max_drawdown_1y_unavailable_reason": "insufficient_history",
                 "amihud_illiquidity_60d": None,
                 "amihud_illiquidity_60d_unavailable_reason": "insufficient_history",
+                "cmra_12m": None,
+                "cmra_12m_unavailable_reason": "insufficient_history",
+                "beta_bab": None,
+                "beta_bab_ts": None,
+                "beta_bab_rho": None,
+                "beta_bab_sigma_ratio": None,
+                "beta_bab_unavailable_reason": "insufficient_history",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": debt_to_assets is None,  # All metrics failed; only debt_to_assets attempted
                 "reason": reason if debt_to_assets is None else None,
@@ -782,6 +841,13 @@ class RiskMetricsLoader(OptimalLoader):
                 "max_drawdown_1y_unavailable_reason": "insufficient_history",
                 "amihud_illiquidity_60d": None,
                 "amihud_illiquidity_60d_unavailable_reason": "insufficient_history",
+                "cmra_12m": None,
+                "cmra_12m_unavailable_reason": "insufficient_history",
+                "beta_bab": None,
+                "beta_bab_ts": None,
+                "beta_bab_rho": None,
+                "beta_bab_sigma_ratio": None,
+                "beta_bab_unavailable_reason": "insufficient_history",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": debt_to_assets is None,
                 "reason": f"unexpected_error: {type(e).__name__}" if debt_to_assets is None else None,
@@ -803,7 +869,8 @@ class RiskMetricsLoader(OptimalLoader):
                     INSERT INTO stability_metrics
                     (symbol, volatility_30d, volatility_60d, volatility_252d,
                      downside_volatility_30d, downside_volatility_60d, downside_volatility_252d,
-                     max_drawdown_1y, amihud_illiquidity_60d, beta, debt_to_assets,
+                     max_drawdown_1y, amihud_illiquidity_60d, cmra_12m, beta,
+                     beta_bab, beta_bab_ts, beta_bab_rho, beta_bab_sigma_ratio, debt_to_assets,
                      created_at, data_unavailable, reason, reason_type, data_source,
                      beta_unavailable_reason, volatility_30d_unavailable_reason,
                      volatility_60d_unavailable_reason, volatility_252d_unavailable_reason,
@@ -811,8 +878,9 @@ class RiskMetricsLoader(OptimalLoader):
                      downside_volatility_60d_unavailable_reason,
                      downside_volatility_252d_unavailable_reason,
                      max_drawdown_1y_unavailable_reason,
-                     amihud_illiquidity_60d_unavailable_reason)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     amihud_illiquidity_60d_unavailable_reason,
+                     cmra_12m_unavailable_reason, beta_bab_unavailable_reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (symbol) DO UPDATE SET
                       volatility_30d = EXCLUDED.volatility_30d,
                       volatility_60d = EXCLUDED.volatility_60d,
@@ -822,7 +890,12 @@ class RiskMetricsLoader(OptimalLoader):
                       downside_volatility_252d = EXCLUDED.downside_volatility_252d,
                       max_drawdown_1y = EXCLUDED.max_drawdown_1y,
                       amihud_illiquidity_60d = EXCLUDED.amihud_illiquidity_60d,
+                      cmra_12m = EXCLUDED.cmra_12m,
                       beta = EXCLUDED.beta,
+                      beta_bab = EXCLUDED.beta_bab,
+                      beta_bab_ts = EXCLUDED.beta_bab_ts,
+                      beta_bab_rho = EXCLUDED.beta_bab_rho,
+                      beta_bab_sigma_ratio = EXCLUDED.beta_bab_sigma_ratio,
                       debt_to_assets = EXCLUDED.debt_to_assets,
                       created_at = EXCLUDED.created_at,
                       data_unavailable = EXCLUDED.data_unavailable,
@@ -838,6 +911,8 @@ class RiskMetricsLoader(OptimalLoader):
                       downside_volatility_252d_unavailable_reason = EXCLUDED.downside_volatility_252d_unavailable_reason,
                       max_drawdown_1y_unavailable_reason = EXCLUDED.max_drawdown_1y_unavailable_reason,
                       amihud_illiquidity_60d_unavailable_reason = EXCLUDED.amihud_illiquidity_60d_unavailable_reason,
+                      cmra_12m_unavailable_reason = EXCLUDED.cmra_12m_unavailable_reason,
+                      beta_bab_unavailable_reason = EXCLUDED.beta_bab_unavailable_reason,
                       updated_at = CURRENT_TIMESTAMP
                     """,
                     (
@@ -850,7 +925,12 @@ class RiskMetricsLoader(OptimalLoader):
                         row.get("downside_volatility_252d"),
                         row.get("max_drawdown_1y"),
                         row.get("amihud_illiquidity_60d"),
+                        row.get("cmra_12m"),
                         row.get("beta"),
+                        row.get("beta_bab"),
+                        row.get("beta_bab_ts"),
+                        row.get("beta_bab_rho"),
+                        row.get("beta_bab_sigma_ratio"),
                         row.get("debt_to_assets"),
                         row.get("created_at"),
                         row["data_unavailable"],
@@ -870,6 +950,8 @@ class RiskMetricsLoader(OptimalLoader):
                         row.get("downside_volatility_252d_unavailable_reason"),
                         row.get("max_drawdown_1y_unavailable_reason"),
                         row.get("amihud_illiquidity_60d_unavailable_reason"),
+                        row.get("cmra_12m_unavailable_reason"),
+                        row.get("beta_bab_unavailable_reason"),
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -1020,6 +1102,255 @@ class RiskMetricsLoader(OptimalLoader):
             return None
 
         return sum(daily_illiquidity) / len(daily_illiquidity)
+
+    @staticmethod
+    def _calculate_cmra(monthly_returns: list[float], monthly_rf_rates: list[float]) -> float | None:
+        """Barra US-E3's real Cumulative Range descriptor (Appendix A, "US-E3 Descriptor
+        Definitions", Section 1 "Volatility", item v "CMRA") - fetched and read directly from
+        the primary source this session (United States Equity Version 3 (E3) Risk Model
+        Handbook, p.94), not recalled/paraphrased from a secondary description. Verbatim
+        formula: let Z_t = sum_{s=1}^{t} [log(1+r_i,s) - log(1+r_f,s)] for t=1,...,12 (the
+        cumulative return of the stock over the risk-free rate through month t); CMRA =
+        log((1+Zmax)/(1+Zmin)) where Zmax/Zmin are the maximum/minimum values of Z_t over the
+        last 12 months. Unlike DASTD (see `_calculate_volatility`'s own docstring for its
+        undisclosed half-life), this formula has no undisclosed parameters - a genuine,
+        fully-specified real-methodology descriptor, not an approximation of one.
+
+        `monthly_returns`/`monthly_rf_rates` must both be exactly 12 elements, chronological
+        ascending (index 0 = 12 months ago, index 11 = the most recently completed month) -
+        `monthly_returns[s]` is the stock's arithmetic return for month s+1, `monthly_rf_rates[s]`
+        the risk-free rate for that same month, matching the primary source's r_i,s/r_f,s
+        pairing exactly.
+
+        Returns None if either list isn't exactly 12 elements (this repo's own
+        insufficient-history convention, same floor every other stability metric uses) or if
+        any monthly return/rate is so extreme (<=-100%) that log(1+x) is undefined - a
+        genuinely corrupt or delisted-mid-month price series, not a real CMRA reading.
+        """
+        if len(monthly_returns) != 12 or len(monthly_rf_rates) != 12:
+            return None
+
+        z_values = []
+        z = 0.0
+        try:
+            for r, rf in zip(monthly_returns, monthly_rf_rates, strict=True):
+                z += math.log(1.0 + r) - math.log(1.0 + rf)
+                z_values.append(z)
+            z_max = max(z_values)
+            z_min = min(z_values)
+            # PRE-SHIP VERIFICATION GUARD (found while live-checking this formula against the
+            # real universe before wiring it into scoring, not assumed safe from the design
+            # alone - same discipline this codebase applies elsewhere, e.g.
+            # MIN_TRADING_DAYS_FOR_DRAWDOWN in risk_scoring.py). Zmax >= Zmin always (same set),
+            # so (1+Zmax)/(1+Zmin) is a well-defined ratio >= 1 (CMRA >= 0) ONLY when 1+Zmin is
+            # positive. When a symbol's cumulative log-excess return has fallen below -100% at
+            # its worst point in the trailing 12 months (1+Zmin <= 0) - live-confirmed on real
+            # distressed/delisting-adjacent penny stocks (DCX, LXEH, QTI: single months of
+            # -70% to -96%) - the ratio can flip to a small POSITIVE number even though both
+            # terms are negative, producing a spuriously NEGATIVE "CMRA" (as low as -3.3,
+            # live-observed) that would make the most distressed stock in the universe look
+            # like the single safest one under this pillar's "lower is better" scoring
+            # convention - the exact "artifact tops the safest list" failure mode this file's
+            # own NEAR_ZERO_LIQUIDITY_THRESHOLD/RISK_MIN_WEIGHT_AVAILABLE gates already exist to
+            # catch elsewhere. Not a real CMRA reading - the range measurement itself is
+            # undefined once cumulative excess return breaches -100%, so this returns None
+            # (insufficient/invalid) rather than fabricate a number.
+            if 1.0 + z_min <= 0:
+                return None
+            return math.log((1.0 + z_max) / (1.0 + z_min))
+        except (ValueError, ZeroDivisionError):
+            return None
+
+    def _get_dgs3mo_series(self, cur: Any) -> list[tuple[Any, float]]:
+        """Lazily fetches and caches the FULL historical DGS3MO (3-month Treasury) series once
+        per loader run - CMRA needs the risk-free rate AS OF each of the trailing 12 month-end
+        dates (not just today's latest value, unlike momentum_scoring.py's
+        `_get_risk_free_rate_annual`, which only ever needs "now"). Same real series
+        algo/reporting/performance.py and momentum_scoring.py's own risk-free netting already
+        use, not a new data source. Cached on the instance so a full-universe run queries this
+        once, not once per symbol."""
+        cached: list[tuple[Any, float]] | None = getattr(self, "_dgs3mo_series_cache", None)
+        if cached is not None:
+            return cached
+        cur.execute(
+            "SELECT date, value::float FROM economic_data WHERE series_id = 'DGS3MO' "
+            "AND value IS NOT NULL ORDER BY date ASC"
+        )
+        series = [(row[0].date() if hasattr(row[0], "date") else row[0], float(row[1])) for row in cur.fetchall()]
+        self._dgs3mo_series_cache = series
+        return series
+
+    @staticmethod
+    def _dgs3mo_rate_at(series: list[tuple[Any, float]], target_date: Any) -> float | None:
+        """Most recent DGS3MO annual rate (raw percentage point, e.g. 4.07) on or before
+        `target_date`, via binary search over the chronologically-sorted series from
+        `_get_dgs3mo_series`. Returns None if `target_date` predates every DGS3MO observation
+        on file - same graceful "no rate available" fallback every other DGS3MO consumer in
+        this codebase uses (see momentum_scoring.py's own `_get_risk_free_rate_annual`)."""
+        import bisect
+
+        dates = [d for d, _ in series]
+        idx = bisect.bisect_right(dates, target_date) - 1
+        if idx < 0:
+            return None
+        return series[idx][1]
+
+    def _get_cmra_monthly_inputs(self, symbol: str, cur: Any) -> tuple[list[float], list[float]] | None:
+        """Fetches the trailing 13 real month-end adjusted closes (giving 12 monthly returns)
+        and each month's DGS3MO-derived monthly risk-free rate, for `_calculate_cmra`. Returns
+        None if fewer than 13 distinct months of price history exist yet (same "insufficient
+        history" treatment as every other stability metric in this file - a young IPO simply
+        doesn't have a CMRA reading yet, not a fabricated one from a partial window).
+
+        Uses price_daily_split_adjusted's adj_close_adjusted (same split+dividend-adjusted,
+        cross-vendor-consistent series `_compute_stability_row`'s own daily-return computation
+        already uses, and for the identical reason - see that method's own ADJ_CLOSE FIX
+        docstring).
+        """
+        cur.execute(
+            """
+            SELECT date, adj_close_adjusted FROM (
+                SELECT date, adj_close_adjusted,
+                       ROW_NUMBER() OVER (PARTITION BY date_trunc('month', date) ORDER BY date DESC) AS rn
+                FROM price_daily_split_adjusted
+                WHERE symbol = %s AND date >= CURRENT_DATE - INTERVAL '400 days'
+                  AND adj_close_adjusted IS NOT NULL AND adj_close_adjusted > 0
+            ) sub
+            WHERE rn = 1
+            ORDER BY date DESC
+            LIMIT 13
+            """,
+            (symbol,),
+        )
+        rows = cur.fetchall()
+        if len(rows) < 13:
+            return None
+        rows = sorted(rows, key=lambda r: r[0])
+        dates = [r[0].date() if hasattr(r[0], "date") else r[0] for r in rows]
+        closes = [float(r[1]) for r in rows]
+
+        monthly_returns = [closes[i] / closes[i - 1] - 1.0 for i in range(1, len(closes))]
+
+        dgs3mo_series = self._get_dgs3mo_series(cur)
+        monthly_rf_rates = []
+        for d in dates[1:]:
+            rate_annual_pct = self._dgs3mo_rate_at(dgs3mo_series, d)
+            monthly_rf_rates.append((rate_annual_pct / 100.0) / 12.0 if rate_annual_pct is not None else 0.0)
+
+        return monthly_returns, monthly_rf_rates
+
+    @staticmethod
+    def _fetch_bab_price_series(symbol: str, cur: Any) -> tuple[list[Any], list[float], list[float]] | None:
+        """5-year, common-date-aligned adjusted-close series for `symbol` and SPY, for BAB beta
+        (Frazzini & Pedersen 2014, "Betting Against Beta") - a separate, wider fetch from
+        `_compute_stability_row`'s own 252-day window used by volatility/CMRA/the existing naive
+        `beta` column (those are unchanged by this addition - see migration 1307's docstring for
+        why `beta` is not overwritten). 5 years is needed for the paper's own correlation-window
+        spec (750+ overlapping 3-day return observations); the 1-year volatility leg is sliced
+        from the same series in `_calculate_beta_bab` rather than fetched separately.
+
+        Returns None if fewer than 121 common trading dates exist (matches
+        `_calculate_beta_bab`'s own minimum-history floor) - a young IPO or thin/gapped SPY
+        overlap simply doesn't have a BAB reading yet, not a fabricated one from a partial window.
+        """
+        cur.execute(
+            "SELECT date, adj_close_adjusted FROM price_daily_split_adjusted "
+            "WHERE symbol = %s AND date >= CURRENT_DATE - INTERVAL '1830 days' "
+            "AND adj_close_adjusted IS NOT NULL AND adj_close_adjusted > 0 ORDER BY date ASC",
+            (symbol,),
+        )
+        stock_rows = cur.fetchall()
+        if not stock_rows:
+            return None
+
+        cur.execute(
+            "SELECT date, adj_close_adjusted FROM price_daily_split_adjusted "
+            "WHERE symbol = 'SPY' AND date >= %s AND date <= %s "
+            "AND adj_close_adjusted IS NOT NULL AND adj_close_adjusted > 0 ORDER BY date ASC",
+            (stock_rows[0][0], stock_rows[-1][0]),
+        )
+        spy_rows = cur.fetchall()
+        if not spy_rows:
+            return None
+
+        stock_by_date = {r[0]: float(r[1]) for r in stock_rows}
+        spy_by_date = {r[0]: float(r[1]) for r in spy_rows}
+        common_dates = sorted(set(stock_by_date) & set(spy_by_date))
+        if len(common_dates) < 121:
+            return None
+
+        return common_dates, [stock_by_date[d] for d in common_dates], [spy_by_date[d] for d in common_dates]
+
+    @staticmethod
+    def _calculate_beta_bab(
+        common_dates: list[Any],
+        stock_prices: list[float],
+        spy_prices: list[float],
+    ) -> dict[str, float] | None:
+        """Frazzini & Pedersen (2014, "Betting Against Beta", Journal of Financial Economics
+        111(1)) shrinkage beta estimator, verified against the actual published paper (section
+        3.1-3.2) rather than a secondary description:
+
+            beta_ts = rho * (sigma_i / sigma_m)
+            beta_bab = w * beta_ts + (1 - w) * beta_XS,  w = 0.6, beta_XS = 1.0 (fixed constants
+            the paper applies to every asset/period - not fitted to this repo's own data)
+
+        sigma_i/sigma_m are each series' own std dev of daily log returns over the trailing
+        ~1 year (>=120 obs required, the paper's own stated minimum). rho is the correlation of
+        OVERLAPPING 3-day log returns (r_3d_t = ln(P_t/P_(t-3))) over the full 5-year window
+        (>=750 obs required, the paper's own stated minimum) - 3-day, not 1-day, returns
+        specifically because the paper uses them to reduce the effect of nonsynchronous/thin
+        trading on the correlation estimate; this is the estimator's own design, not this repo's
+        approximation of it.
+
+        `common_dates`/`stock_prices`/`spy_prices` must be the same length, index-aligned,
+        chronological ascending, and come from `_fetch_bab_price_series` (or an equivalent
+        common-trading-date join) - contiguous-index 3-day steps assume a shared trading
+        calendar between the two series, the same practical simplification most real-world BAB
+        implementations use (trading-day index, not calendar date).
+
+        Returns None if either volatility leg has fewer than 120 observations, the correlation
+        leg has fewer than 750, sigma_m is exactly 0, or rho is undefined (e.g. a
+        constant-price series) - an honest "not enough real history yet", not a fabricated beta.
+        """
+        import numpy as np
+
+        if len(common_dates) < 121 or len(stock_prices) != len(common_dates) or len(spy_prices) != len(common_dates):
+            return None
+
+        stock_arr = np.array(stock_prices, dtype=float)
+        spy_arr = np.array(spy_prices, dtype=float)
+
+        daily_stock_ret = np.diff(np.log(stock_arr))
+        daily_spy_ret = np.diff(np.log(spy_arr))
+        if len(daily_stock_ret) < 120 or len(daily_spy_ret) < 120:
+            return None
+
+        sigma_i = float(np.std(daily_stock_ret[-252:], ddof=1))
+        sigma_m = float(np.std(daily_spy_ret[-252:], ddof=1))
+        if sigma_m == 0:
+            return None
+
+        r3_stock = np.log(stock_arr[3:]) - np.log(stock_arr[:-3])
+        r3_spy = np.log(spy_arr[3:]) - np.log(spy_arr[:-3])
+        if len(r3_stock) < 750:
+            return None
+
+        with np.errstate(invalid="ignore"):
+            rho = float(np.corrcoef(r3_stock, r3_spy)[0, 1])
+        if np.isnan(rho):
+            return None
+
+        sigma_ratio = sigma_i / sigma_m
+        beta_ts = rho * sigma_ratio
+        beta_bab = 0.6 * beta_ts + 0.4 * 1.0
+
+        return {
+            "beta_bab": round(beta_bab, 4),
+            "beta_bab_ts": round(beta_ts, 4),
+            "beta_bab_rho": round(rho, 6),
+            "beta_bab_sigma_ratio": round(sigma_ratio, 6),
+        }
 
     @staticmethod
     def _get_beta_from_db(

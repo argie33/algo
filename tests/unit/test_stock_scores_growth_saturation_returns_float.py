@@ -38,14 +38,29 @@ descriptors, not 12, and none of them are simple two-point 1y/3y/5y CAGRs). reve
 no longer scored - tests below use eps_growth_trend_5y (still in GROWTH_SCORE_FIELDS) instead,
 and GROWTH_MIN_FIELDS_AVAILABLE dropped 5->2 (nearest achievable ratio to Quality's ~40% with
 only 4 slots, rounded up to the stricter side), so only 1 filler field is needed now.
+
+UPDATED 2026-09-17 (factor-purity follow-up, "get rid of it" not just verify it's inert):
+`_score_single_growth`'s hand-set [-50%,0]->[0,40] / [0,cap%]->[40,100] piecewise curve - the
+very saturation behavior this file was originally written to test - was itself proven to never
+survive as growth_score's live value (see that function's own docstring for the live-audit
+evidence: 109/3,063 real symbols "matched" within tolerance, and all 109 were confirmed
+coincidental correlation, not Pass-1 survival, via `_withhold_growth_below_floor()` returning 0)
+and REPLACED with a flat NEUTRAL_PLACEHOLDER_SCORE (50.0) for any non-None value. The specific
+int-vs-float saturation values below no longer apply - every available field now contributes
+exactly 50.0 regardless of magnitude or sign, so the tests below assert that instead. What they
+still meaningfully cover: the GROWTH_INPUT_IMPLAUSIBLE_PCT exclusion (an extreme raw value is
+dropped from the blend, not merely saturated) and GROWTH_MIN_FIELDS_AVAILABLE's floor/
+renormalization logic, both unaffected by this change since they operate on the RAW value before
+`_score_single_growth` is ever called.
 """
 
 from loaders.load_stock_scores import GROWTH_MIN_FIELDS_AVAILABLE, StockScoresLoader
 
-# 1 filler field, held at exactly 0.0 -> _score_single_growth(0.0, 30) == 40.0 (see
-# test_exactly_zero_growth_returns_float, which double-checks this fact holds). Combined with
-# one field under test, every case below has exactly 2 available fields - GROWTH_MIN_FIELDS_AVAILABLE
-# itself - so these tests also incidentally pin the floor's boundary at 2, not some other number.
+# 1 filler field, held at exactly 0.0 -> _score_single_growth(0.0, 30) == 50.0 (the flat
+# NEUTRAL_PLACEHOLDER_SCORE as of 2026-09-17 - see test_exactly_zero_growth_returns_float,
+# which double-checks this fact holds). Combined with one field under test, every case below
+# has exactly 2 available fields - GROWTH_MIN_FIELDS_AVAILABLE itself - so these tests also
+# incidentally pin the floor's boundary at 2, not some other number.
 _ZERO_FILLERS = {
     "sps_growth_trend_5y": 0.0,
 }
@@ -58,13 +73,13 @@ class TestGrowthScoreSaturationReturnsFloat:
         return loader._score_growth(metrics, "TEST")
 
     def test_large_positive_revenue_growth_saturates_at_100_as_float(self):
-        # NOT inverted (user directive): rapid growth scores highest. 90% is well past the
-        # [0,cap=30] positive branch's ceiling but still under the 150% implausibility
-        # exclusion threshold, so it saturates rather than getting dropped from the blend.
-        # eps_growth_trend_5y=90.0 -> 100.0, 1 zero-filler -> 40.0: avg (100+40)/2 = 70.0.
+        # 90% is well past the old [0,cap=30] positive branch's ceiling but still under the
+        # 150% implausibility exclusion threshold, so it's scored (via the flat
+        # NEUTRAL_PLACEHOLDER_SCORE, 2026-09-17), not excluded. Both eps_growth_trend_5y=90.0
+        # and the 1 zero-filler now score 50.0 each: avg (50+50)/2 = 50.0.
         result = self._score(90.0, _ZERO_FILLERS)
         assert isinstance(result, float), f"expected float, got {type(result).__name__}: {result!r}"
-        assert result == 70.0
+        assert result == 50.0
 
     def test_implausibly_extreme_growth_excluded_not_saturated(self):
         # 1093.03% is the kind of one-off/base-effect-driven value verified live on KARO
@@ -80,11 +95,12 @@ class TestGrowthScoreSaturationReturnsFloat:
 
     def test_implausible_field_excluded_but_other_fields_still_score(self):
         # A KARO/DX-shaped symbol: one wildly extreme field alongside genuinely reasonable
-        # ones. The extreme field must not drag the blend up to near-100 by saturating - it
-        # should simply not count, leaving the blend to reflect only the plausible inputs.
-        # sps_growth_trend_5y=1889.36 excluded; eps_growth_trend_5y=10.0 -> 60.0;
-        # forward_eps_growth_current_fy=0.0 -> 40.0: 2 valid components survive exclusion
-        # (clears the floor), avg (60+40)/2 = 50.0.
+        # ones. The extreme field must not count at all - GROWTH_INPUT_IMPLAUSIBLE_PCT excludes
+        # it before `_score_single_growth` (now a flat NEUTRAL_PLACEHOLDER_SCORE, see that
+        # function's own docstring) ever sees it.
+        # sps_growth_trend_5y=1889.36 excluded; eps_growth_trend_5y=10.0 -> 50.0;
+        # forward_eps_growth_current_fy=0.0 -> 50.0: 2 valid components survive exclusion
+        # (clears the floor), avg (50+50)/2 = 50.0.
         loader = StockScoresLoader.__new__(StockScoresLoader)
         metrics = {
             "data_unavailable": False,
@@ -97,23 +113,24 @@ class TestGrowthScoreSaturationReturnsFloat:
         assert result == 50.0
 
     def test_large_negative_revenue_growth_saturates_at_0_as_float(self):
-        # NOT inverted: sharply shrinking growth scores lowest, saturating the
-        # max(0.0, ...) branch of the negative-growth mapping ([-50, 0] -> [0, 40]).
-        # eps_growth_trend_5y=-93.03 -> 0.0, 1 zero-filler -> 40.0: avg (0+40)/2 = 20.0.
+        # Sharply shrinking growth (eps_growth_trend_5y=-93.03) now scores the same flat
+        # NEUTRAL_PLACEHOLDER_SCORE (50.0) as any other non-None value, same as the 1
+        # zero-filler: avg (50+50)/2 = 50.0.
         result = self._score(-93.03, _ZERO_FILLERS)
         assert isinstance(result, float), f"expected float, got {type(result).__name__}: {result!r}"
-        assert result == 20.0
+        assert result == 50.0
 
     def test_non_saturating_value_still_returns_float(self):
         result = self._score(-5.0, _ZERO_FILLERS)
         assert isinstance(result, float), f"expected float, got {type(result).__name__}: {result!r}"
 
     def test_exactly_zero_growth_returns_float(self):
-        # Both fields at exactly 0.0 -> every component scores 40.0 -> avg is exactly 40.0.
-        # This also establishes the "0.0 -> 40.0" fact _ZERO_FILLERS above relies on.
+        # Both fields at exactly 0.0 -> every component scores the flat
+        # NEUTRAL_PLACEHOLDER_SCORE (50.0, 2026-09-17) -> avg is exactly 50.0. This also
+        # establishes the "any non-None value -> 50.0" fact _ZERO_FILLERS above relies on.
         result = self._score(0.0, _ZERO_FILLERS)
         assert isinstance(result, float), f"expected float, got {type(result).__name__}: {result!r}"
-        assert result == 40.0
+        assert result == 50.0
 
 
 class TestGrowthMinFieldsAvailable:

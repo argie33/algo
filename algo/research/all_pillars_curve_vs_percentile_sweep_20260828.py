@@ -172,7 +172,20 @@ def curve_score(label: str, val: float) -> float | None:
             return max(0.0, 40 + (flipped / 50) * 40)
         return min(100.0, 40 + (flipped / 30) * 60)
     if label == "volatility_60d" or label == "downside_volatility_60d":
-        return StockScoresLoader._vol_curve_score(max(0.0, val))
+        # Inlined from risk_scoring.py's former _vol_curve_score (removed from production
+        # 2026-09-17, AQR pivot to beta_bab - Risk's fixed volatility curve is dead code now,
+        # same "kept here verbatim so this completed sweep still reproduces" treatment as
+        # max_drawdown_pct below).
+        vol = max(0.0, val)
+        if vol <= 0.15:
+            _vol_curve_result = 100.0
+        elif vol <= 0.30:
+            _vol_curve_result = 100 - ((vol - 0.15) / 0.15) * 50
+        elif vol <= 0.60:
+            _vol_curve_result = 50 - ((vol - 0.30) / 0.30) * 40
+        else:
+            _vol_curve_result = max(0.0, 10 - (vol - 0.60) * 20)
+        return _vol_curve_result
     if label == "max_drawdown_pct":
         # Inlined from risk_scoring.py's former _max_drawdown_curve_score (removed from
         # production in the 2026-09-16/17 factor-purity sweep - Risk's fixed drawdown curve is

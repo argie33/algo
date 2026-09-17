@@ -136,12 +136,52 @@ logger = logging.getLogger(__name__)
 
 NPORT_CACHE = Path(os.environ.get("TEMP", "/tmp")) / "algo-nport-cache"
 
-PILLARS: dict[str, dict[str, str]] = {
-    "momentum": {"etf": "MTUM", "file": "mtum_nport.xml", "score_col": "momentum_score"},
-    "quality": {"etf": "QUAL", "file": "qual_nport.xml", "score_col": "quality_score"},
-    "value": {"etf": "VLUE", "file": "vlue_nport.xml", "score_col": "value_score"},
-    "growth": {"etf": "QGRO", "file": "qgro_nport.xml", "score_col": "growth_score"},
-    "risk": {"etf": "USMV", "file": "usmv_nport.xml", "score_col": "risk_score"},
+PILLARS: dict[str, list[dict[str, str]]] = {
+    "momentum": [{"etf": "MTUM", "file": "mtum_nport.xml", "score_col": "momentum_score"}],
+    "quality": [{"etf": "QUAL", "file": "qual_nport.xml", "score_col": "quality_score"}],
+    "value": [{"etf": "VLUE", "file": "vlue_nport.xml", "score_col": "value_score"}],
+    "growth": [{"etf": "QGRO", "file": "qgro_nport.xml", "score_col": "growth_score"}],
+    # AQRDEF added 2026-09-17 (user asked for an AQR crosscheck alongside the MSCI-family
+    # reference ETFs, moving toward AQR/Fama-style factor construction). AQR's own single-style
+    # mutual fund lineup is NOT a clean per-pillar match the way MTUM/QUAL/VLUE/QGRO are:
+    # AQR Large Cap Momentum Style Fund (AMOMX/QMORX) was reorganized into the blended AQR
+    # Large Cap Multi-Style Fund as of 2026-04-27 (closed to new investment - live-confirmed via
+    # SEC filings this session), and no live AQR Large Cap Value Style Fund exists at all
+    # (web search found none currently offered) - comparing Momentum/Value against AQR's
+    # blended Multi-Style fund would be the same category error this module's own "COMPOSITE IS
+    # DELIBERATELY NOT INCLUDED HERE" docstring note already refuses to make (an undisclosed
+    # multi-factor blend isn't a single-factor ground truth). AQR Large Cap Defensive Style Fund
+    # (AUENX/AUEIX/QUERX, CIK 1444822, series S000037429) is the one AQR fund that IS still a
+    # clean single-style product - a long/short low-vol/defensive equity fund - so it's added
+    # here as a SECOND, independent reference for Risk only, alongside USMV. Two independently-
+    # constructed defensive/low-vol products (MSCI-family USMV vs. AQR's own) agreeing on a name
+    # is stronger signal than either alone; disagreement between them is worth a look, not
+    # necessarily a bug in either.
+    #
+    # AQR's N-PORT holdings include real SHORT positions (negative pctVal - this is a long/short
+    # 130/30-style fund, unlike the long-only iShares ETFs above) - no special-casing needed in
+    # check_pillar/parse_cusip_weights for this: a short position naturally gets a negative
+    # tilt (wt / market_cap) and sorts to the bottom of etf_ranked, which is directionally
+    # correct (AQR is betting AGAINST this name's defensiveness, so it belongs nowhere near our
+    # own risk_score's own top ranks either).
+    #
+    # No daily-holdings CSV exists for AQR funds (that's an iShares-ETF-specific publication,
+    # not a mutual-fund one) - only quarterly N-PORT, same staleness caveat _load_ticker_weights
+    # already documents for the N-PORT fallback path generally. Fetched manually this session
+    # (SEC rate-limits scripted EDGAR access - this script deliberately does not auto-fetch, see
+    # module docstring) from https://www.sec.gov/Archives/edgar/data/1444822/000207169126020767/
+    # primary_doc.xml (accession 0002071691-26-020767, filed 2026-08-27, repPdDate 2026-06-30) -
+    # re-fetch the latest NPORT-P filing under CIK 1444822 series S000037429 periodically the
+    # same manual way the other cached files here are refreshed.
+    "risk": [
+        {"etf": "USMV", "file": "usmv_nport.xml", "score_col": "risk_score"},
+        {
+            "etf": "AQRDEF",
+            "file": "aqrdef_nport.xml",
+            "score_col": "risk_score",
+            "label": "AQR Large Cap Defensive Style Fund",
+        },
+    ],
 }
 
 TOP_N_UNIVERSE = 800  # top-N-by-market-cap non-ETF universe, matches the ad hoc script's band
@@ -361,10 +401,11 @@ def main() -> None:
 
     results = []
     with DatabaseContext("read") as cur:
-        for pillar, cfg in targets.items():
-            result = check_pillar(cur, pillar, cfg, args.top_n)
-            if result:
-                results.append(result)
+        for pillar, fund_cfgs in targets.items():
+            for cfg in fund_cfgs:
+                result = check_pillar(cur, pillar, cfg, args.top_n)
+                if result:
+                    results.append(result)
 
     def _pct(v: object) -> str:
         return f"{v * 100:.0f}%" if isinstance(v, float) else "n/a"

@@ -45,7 +45,7 @@ class TestPerDaySignalFloorRecalibration:
 
     def test_genuine_collapse_still_halts(self):
         """A real data-quality collapse (e.g. today's 42-signal technical_data_daily gap)
-        must still halt under the lowered floor."""
+        must still halt under the floor."""
         cur = MagicMock()
         cur.fetchall.return_value = [(date(2026, 8, 18), 20)]
 
@@ -53,7 +53,11 @@ class TestPerDaySignalFloorRecalibration:
             is_ok, msg = _check_per_day_signal_counts(date(2026, 8, 19), MagicMock())
 
         assert is_ok is False
-        assert "per-day threshold of 40" in (msg or "")
+        # FIX 2026-09-15 (see phase7_signal_generation.py's own comment on this floor):
+        # raised from this test's original 40 to 80 when the underlying query switched from
+        # BUY-only to TOTAL (BUY+SELL) daily counts - the floor number itself changed as a
+        # direct consequence, not a regression of this test's original intent.
+        assert "per-day threshold of 80" in (msg or "")
 
 
 class TestDynamicAnomalyThresholdFloor:

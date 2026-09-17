@@ -90,19 +90,30 @@ class QualityScoreMixin:
         # interest_coverage was dropped from quality_components) - metrics
         # ["interest_coverage"] is still persisted independently.
 
-        # roe/roa/operating_margin/net_margin are rescaled onto domain-informed curves
-        # (not fed in as raw percentage points) - a flat 0-100=percentage mapping requires
-        # a 100% margin to hit 100, a threshold no real business reaches, which
-        # structurally compressed quality_score toward ~20-50 regardless of actual quality
-        # and defeated min_composite_score's intended selectivity. This is a scale fix only
-        # - the underlying roe/roa/operating_margin/net_margin values feeding
-        # fama_macbeth_quality_factors.py are untouched. Thresholds are hand-set, not
-        # FM-backtested (calibration, not a new empirical claim).
-        roe_score = (
-            self._margin_curve(metrics["roe"], [(10.0, 50.0), (20.0, 85.0), (40.0, 100.0)])
-            if metrics["roe"] is not None
-            else None
-        )
+        # NEUTRAL PLACEHOLDER, NOT A CURVE (2026-09-17, factor-purity follow-up - "get rid of
+        # it," not just verify it's inert). roe_score/debt_to_equity_score/
+        # earnings_variability_score below used to be hand-set piecewise curves (breakpoints
+        # e.g. 10/20/40 for ROE) - invented thresholds with no citation, "calibration, not an
+        # empirical claim" per this block's own prior comment. Live-audited before removing,
+        # not assumed safe: reconstructed the FULL 3-leg Pass-1 composite (this exact formula,
+        # all three legs, real industry-conditional debt_to_equity divisor) for every one of
+        # 3,305 real symbols and diffed against the actual stored quality_score (the real MSCI
+        # 3-variable Quality Index z-score composite, computed by
+        # update_quality_sector_neutral_scores() in vqg_quality_batch.py) - 87/3,305 landed
+        # within 0.5 points, and checking every one of those 87 against
+        # `_withhold_quality_below_floor()` confirmed NONE are sub-floor Pass-1 leftovers -
+        # coincidental correlation (both formulas are monotonic in the same raw ROE/D2E/
+        # earnings-variability inputs), not the curve surviving as a live score. This
+        # function's only real job is providing a non-NULL placeholder so (1) a symbol never
+        # shows a blank quality_score mid-run and (2) update_quality_sector_neutral_scores()'s
+        # own SELECT (`WHERE ss.quality_score IS NOT NULL`, via
+        # update_quality_from_source()'s re-sync) has a row to correct at all - a flat neutral
+        # value does that identical plumbing job without pretending to encode a methodology it
+        # doesn't. The negative-equity distress floor directly below (0.0) is UNCHANGED - a
+        # real sentinel value, not a calibrated curve breakpoint, matching Pass 2's own
+        # negative-ROE/ROA floor treatment.
+        neutral_placeholder_score = 50.0
+        roe_score = neutral_placeholder_score if metrics["roe"] is not None else None
         if stockholders_equity is not None and stockholders_equity <= 0:
             # Negative/zero book equity: net_income/equity can land positive when both are
             # negative (distressed co. with a loss on a negative equity base), which the
@@ -401,20 +412,20 @@ class QualityScoreMixin:
         # uses the SAME debt_to_equity value (long_term_debt-based, not total_liabilities) -
         # utilities don't get the deposit/reserve-style debt_for_roic override, so no
         # separate inflated-input caveat applies here, just a rescaled curve.
+        # NEUTRAL PLACEHOLDER, NOT A CURVE (2026-09-17 - see roe_score's own comment above for
+        # the full live-audit evidence this whole function's curves are proven never to survive
+        # as a live score). The industry-conditional divisors (20/12/4/2x) removed here were
+        # exactly the "hand-set thresholds, calibration not an empirical claim" pattern that
+        # audit targeted - `_get_symbol_industry` is no longer needed for this leg at all.
+        # Negative D/E (real financial distress) still floors to 0.0 - a genuine sentinel,
+        # matching Pass 2's own negative-book-value treatment, not a calibrated breakpoint.
         debt_to_equity_val = metrics.get("debt_to_equity")
-        _symbol_industry_for_de = self._get_symbol_industry(symbol)
         if debt_to_equity_val is None:
             debt_to_equity_score = None
         elif debt_to_equity_val < 0:
             debt_to_equity_score = 0.0
-        elif _symbol_industry_for_de in _owner().DEPOSITORY_BANK_INDUSTRIES:
-            debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 20.0) * 100.0))
-        elif _symbol_industry_for_de in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
-            debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 12.0) * 100.0))
-        elif _symbol_industry_for_de in _owner().UTILITY_INDUSTRIES:
-            debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 4.0) * 100.0))
         else:
-            debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 2.0) * 100.0))
+            debt_to_equity_score = neutral_placeholder_score
         # margin_volatility_score REMOVED 2026-09-16 (factor-purity sweep, MSCI 3-variable
         # Quality Index rebuild - see quality_components' own docstring note below):
         # margin_volatility was this repo's own AQR-Safety-leg stand-in for MSCI's real
@@ -426,19 +437,14 @@ class QualityScoreMixin:
         # Earnings Variability (MSCI's real 3rd Quality fundamental variable - see
         # loaders/helpers/quality_variability.py's own citation): same "precomputed by the
         # caller from multi-year income_rows this function doesn't have" shape as
-        # margin_volatility directly above. Inverted curve: LOWER variability (more stable YoY
-        # EPS growth) scores higher - same PROVISIONAL-only status as every other curve here
-        # (update_quality_sector_neutral_scores() below always overwrites with the real
-        # universe-wide z-score MSCI's methodology actually calls for). Breakpoints hand-set,
-        # not FM-backtested (calibration, not an empirical claim) - stdev of YoY EPS GROWTH
-        # RATES runs to much larger percentage-point magnitudes than margin_volatility's stdev
-        # of MARGIN LEVELS, so this curve's breakpoints are wider, not a copy of that one's.
+        # margin_volatility directly above.
+        # NEUTRAL PLACEHOLDER, NOT A CURVE (2026-09-17 - see roe_score's own comment above for
+        # the full live-audit evidence). The inverted piecewise curve removed here (breakpoints
+        # 20/50/100) was the same "hand-set, calibration not an empirical claim" pattern - this
+        # leg's only real job is the non-NULL placeholder every other leg in this function now
+        # provides.
         earnings_variability_val = earnings_variability
-        earnings_variability_score = (
-            100.0 - self._margin_curve(earnings_variability_val, [(20.0, 20.0), (50.0, 60.0), (100.0, 100.0)])
-            if earnings_variability_val is not None
-            else None
-        )
+        earnings_variability_score = neutral_placeholder_score if earnings_variability_val is not None else None
 
         # operating_margin_trend/net_margin_trend/roe_trend/payout_ratio/interest_coverage
         # score curves, equity_cluster/asset_cluster, debt_to_assets_score, roic_score, and

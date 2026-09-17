@@ -30,7 +30,16 @@ def _mock_cursor(
     today_count,
     loader_status_row=("COMPLETED", None, 999999),
     scores_loader_status_row=("COMPLETED", None, 999999),
+    today_total_count=None,
 ):
+    # today_total_count defaults to today_count: the anomaly checks below query the day's
+    # TOTAL buy_sell_daily row count (not just BUY-only) in addition to today_count - see
+    # phase7_signal_generation.py's own 2026-09-15 fix comment on why. Defaulting the two to
+    # the same value keeps every existing test's healthy/anomalous intent unchanged (BUY count
+    # and total moving together is the realistic shape for both a healthy day and a genuine
+    # near-zero-rows loader failure); tests that need to distinguish them pass it explicitly.
+    if today_total_count is None:
+        today_total_count = today_count
     cur = MagicMock()
     cur.fetchone.side_effect = [
         (stock_scores_count,),
@@ -39,6 +48,7 @@ def _mock_cursor(
         loader_status_row,
         buysell_freshness_row,
         (today_count,),
+        (today_total_count,),
     ]
     return cur
 

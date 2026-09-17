@@ -21,9 +21,15 @@ single component can clear the floor alone).
 
 MAX_DRAWDOWN_1Y REMOVED FROM SCORING 2026-09-16 (factor-purity sweep - see _score_risk's own
 docstring: never a real Barra/MSCI risk descriptor, era-flipped sign with no stable predictive
-power). Only 3 components remain (Volatility 60D/252D, Beta), each RISK_COMPONENT_WEIGHT=1/3 -
-RISK_MIN_WEIGHT_AVAILABLE=0.40 now always requires >=2 of 3. max_drawdown_1y values passed into
-`_score()` below are now inert (no vote in the score) - expected values updated accordingly.
+power). max_drawdown_1y values passed into `_score()` below are now inert (no vote in the
+score) - expected values updated accordingly.
+
+AQR PIVOT 2026-09-17 (see risk_scoring.py's own module docstring): Risk's scored input is now
+`beta_bab` alone (RISK_COMPONENT_WEIGHT=1.0) - volatility_60d/cmra_12m/beta are informational
+only, no longer scoring inputs at all. A symbol either has beta_bab (weight 1.0, clears the
+0.40 floor outright) or doesn't (weight 0) - the "combine 2 of N thin components to clear the
+floor" scenario this file was originally written to guard no longer exists, since there is only
+one component to have or not have. Assertions below are updated for that binary gate.
 """
 
 from loaders.load_stock_scores import RISK_MIN_WEIGHT_AVAILABLE, StockScoresLoader
@@ -47,35 +53,40 @@ class TestRiskMinWeightAvailable:
         assert result["data_unavailable"] is True
         assert result["reason"] == "no_risk_scores_computed"
 
-    def test_beta_alone_returns_thin_sample_marker(self):
-        """Beta alone is 1/3 of nominal weight, below the 0.40 floor."""
+    def test_beta_alone_returns_no_scores_marker(self):
+        """Plain `beta` is no longer read by _score_risk at all (superseded by beta_bab for
+        scoring, AQR PIVOT 2026-09-17) - providing only it is equivalent to providing nothing."""
         result = self._score({"beta": 1.0})
         assert isinstance(result, dict)
         assert result["data_unavailable"] is True
-        assert result["reason"] == "insufficient_risk_inputs_thin_sample"
+        assert result["reason"] == "no_risk_scores_computed"
 
-    def test_beta_and_volatility_60d_together_clear_floor(self):
-        """1/3 + 1/3 = 2/3 of nominal weight - clears the 0.40 floor. max_drawdown_1y is passed
-        too but must not contribute (removed from scoring 2026-09-16)."""
-        result = self._score({"beta": 1.0, "volatility_60d": 0.20, "max_drawdown_1y": -10.0})
+    def test_beta_bab_alone_clears_floor(self):
+        """beta_bab is the pillar's sole scored input (weight 1.0) - alone, it clears the 0.40
+        floor outright. max_drawdown_1y/beta are passed too but must not contribute."""
+        result = self._score({"beta_bab": 1.0, "beta": 1.0, "max_drawdown_1y": -10.0})
         assert isinstance(result, float)
 
-    def test_volatility_60d_alone_returns_thin_sample_marker(self):
-        """volatility_60d alone is 1/3 of nominal weight - does not clear the 0.40 floor on its
-        own."""
+    def test_volatility_60d_alone_returns_no_scores_marker(self):
+        """volatility_60d is informational only now (not a scoring input at all, AQR PIVOT
+        2026-09-17) - providing only it is equivalent to providing nothing."""
         result = self._score({"volatility_60d": 0.20})
         assert isinstance(result, dict)
         assert result["data_unavailable"] is True
-        assert result["reason"] == "insufficient_risk_inputs_thin_sample"
+        assert result["reason"] == "no_risk_scores_computed"
 
-    def test_volatility_252d_and_beta_together_clear_floor(self):
-        """1/3 + 1/3 = 2/3 of nominal weight - clears the 0.40 floor. max_drawdown_1y is passed
-        too but must not contribute."""
-        result = self._score({"volatility_252d": 0.20, "beta": 1.0, "max_drawdown_1y": -10.0})
-        assert isinstance(result, float)
+    def test_cmra_12m_alone_returns_no_scores_marker(self):
+        """cmra_12m is informational only now (not a scoring input at all, AQR PIVOT
+        2026-09-17)."""
+        result = self._score({"cmra_12m": 0.20, "max_drawdown_1y": -10.0})
+        assert isinstance(result, dict)
+        assert result["data_unavailable"] is True
+        assert result["reason"] == "no_risk_scores_computed"
 
     def test_full_coverage_still_returns_real_score(self):
-        result = self._score({"volatility_60d": 0.20, "volatility_252d": 0.20, "beta": 1.0, "max_drawdown_1y": -10.0})
+        result = self._score(
+            {"volatility_60d": 0.20, "cmra_12m": 0.20, "beta": 1.0, "beta_bab": 1.0, "max_drawdown_1y": -10.0}
+        )
         assert isinstance(result, float)
 
     def test_zero_fields_available_returns_no_scores_marker_not_thin_sample(self):

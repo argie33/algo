@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any
 import psycopg2
 
 from loaders.helpers.factor_normalization import (
-    sector_neutral_zscore,
     universe_wide_zscore,
     zscore_to_percentile_scale,
 )
@@ -151,33 +150,42 @@ class ValueMetricsMixin:
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_metrics_found"}
 
-    @staticmethod
-    def _pe_curve_score(pe: float) -> float:
-        """PROVISIONAL fixed-threshold P/E score (see _score_value's PE block comment) - used
-        as this symbol's Pass-1 placeholder only. UPDATED 2026-08-31 (see
-        update_value_multiples_percentiles()'s "BUG FOUND + FIXED 2026-08-31" docstring note):
-        that method now fully recomputes value_score from percentile ranks each time rather
-        than diffing against this function's output, so this formula is free to change without
-        touching that reconciliation - it only affects Pass-1's provisional value."""
-        if pe <= 10:
-            return 40 + pe * 2  # very cheap / possibly value trap
-        if pe <= 20:
-            return 60 + (pe - 10) * 4  # good range
-        if pe <= 35:
-            return 100 - (pe - 20) * 2  # growth premium zone -> 70 at pe=35
-        return max(0.0, 70 - (pe - 35) * 1.4)  # expensive -> 0 at pe~85
+    # NEUTRAL_PLACEHOLDER_SCORE (2026-09-17, factor-purity follow-up - "get rid of it," not just
+    # verify it's inert). `_pe_curve_score`/`_pb_curve_score` used to be hand-set piecewise curves
+    # (breakpoints at 10/20/35 for P/E, 1/3/7 for P/B) with no citation to any real methodology -
+    # invented thresholds calibrated to nothing. Live-audited before removing them, not assumed
+    # safe: reconstructed the exact curve output for every symbol with a real P/E in the current
+    # universe (2,081 symbols) and diffed against the actual stored value_score (the real MSCI
+    # Enhanced Value z-score composite, computed by update_value_multiples_percentiles() below) -
+    # 18/2,081 landed within 0.5 points, and even those are coincidental correlation (P/E feeds
+    # both formulas), not the curve surviving as the live score. `_withhold_value_below_floor()`
+    # (below) independently confirms 0 symbols are currently stuck on Pass-1's value at all. The
+    # curve's ENTIRE function is providing a non-NULL placeholder so (1) a symbol never shows a
+    # blank value_score mid-run, before the batch pass below has run, and (2) update_value_
+    # multiples_percentiles()'s own SELECT (`WHERE ss.value_score IS NOT NULL`) has a row to
+    # correct in the first place - removing the placeholder mechanism entirely would break that
+    # gate, not just "clean up" it. Since the curve's actual VALUE is proven to never be read as a
+    # real score, inventing calibrated-looking breakpoints for it was pure theater - a flat,
+    # explicitly-neutral placeholder does the identical plumbing job without pretending to encode
+    # a methodology it doesn't. Genuine distress floors (unprofitable_stock/negative_forward_eps/
+    # negative_book_value -> 0.0 in `_score_value`) are UNCHANGED - those are real sentinel values
+    # matching Pass 2's own floor treatment, not calibrated curve breakpoints, and were never part
+    # of this function.
+    NEUTRAL_PLACEHOLDER_SCORE = 50.0
 
     @staticmethod
-    def _pb_curve_score(pb: float) -> float:
-        """PROVISIONAL fixed-threshold P/B score - see `_pe_curve_score`'s docstring for why
-        this must stay unchanged independent of the live scoring path."""
-        if pb <= 1.0:
-            return 100.0
-        if pb <= 3.0:
-            return 100 - ((pb - 1.0) / 2.0) * 30  # 100->70 in [1,3]
-        if pb <= 7.0:
-            return 70 - ((pb - 3.0) / 4.0) * 40  # 70->30 in [3,7]
-        return max(0.0, 30 - (pb - 7.0) * 3)
+    def _pe_curve_score(_pe: float) -> float:
+        """Pass-1 PLACEHOLDER ONLY for P/E - see NEUTRAL_PLACEHOLDER_SCORE's own docstring for
+        why this is a flat neutral value, not a curve, as of 2026-09-17. Always overwritten by
+        update_value_multiples_percentiles()'s real MSCI Enhanced Value z-score before any
+        consumer reads it, except as a same-run fallback if that pass fails partway through -
+        `_pe` is accepted (unused) only so existing call sites don't need updating."""
+        return ValueMetricsMixin.NEUTRAL_PLACEHOLDER_SCORE
+
+    @staticmethod
+    def _pb_curve_score(_pb: float) -> float:
+        """Pass-1 PLACEHOLDER ONLY for P/B - see `_pe_curve_score`'s docstring."""
+        return ValueMetricsMixin.NEUTRAL_PLACEHOLDER_SCORE
 
     def _value_metrics_coverage_excluding_fpi(self, cur: Any) -> tuple[int, int] | None:
         """Return (covered, total) for value_metrics over the active, non-FPI universe.
@@ -480,11 +488,13 @@ class ValueMetricsMixin:
         evidence for it specifically doesn't hold here even though the citation is real.
 
         MECHANISM: Pass 1 (`_score_value`, per-symbol, no access to the universe distribution)
-        still uses `_pe_curve_score`/`_pb_curve_score` (the latter reused for Forward P/E too,
-        same curve, see that field's own docstring note) as a PROVISIONAL placeholder so
-        value_score/composite_score are never NULL mid-run - `_ps_curve_score` was deleted
-        2026-09-16 as dead code once P/S was dropped from both passes entirely (see
-        value_score.py's VALUE_MIN_WEIGHT docstring). This method runs
+        still calls `_pe_curve_score`/`_pb_curve_score` (the latter reused for Forward P/E too)
+        as a PROVISIONAL placeholder so value_score/composite_score are never NULL mid-run -
+        as of 2026-09-17 these return a flat NEUTRAL_PLACEHOLDER_SCORE (50.0), not a hand-set
+        curve (see that constant's own docstring for the live-audit evidence the curve never
+        survived as a real score anyway). `_ps_curve_score` was deleted 2026-09-16 as dead code
+        once P/S was dropped from both passes entirely (see value_score.py's VALUE_MIN_WEIGHT
+        docstring). This method runs
         after every symbol in this run has a value_score, computes the true cross-sectional
         percentile per ratio (independently - a symbol missing P/B still gets ranked on P/E and
         P/S), and FULLY RECOMPUTES value_score from the percentile scores of all five inputs -
@@ -644,7 +654,7 @@ class ValueMetricsMixin:
                            ss.components, cp.sector, ss.data_completeness, ss.data_unavailable,
                            ss.unavailable_metrics, vm.ps_ratio_unavailable_reason,
                            COALESCE(cis.is_foreign_private_issuer, false),
-                           vm.enterprise_value, qm.operating_cash_flow, vm.market_cap, cp.industry
+                           vm.enterprise_value, qm.operating_cash_flow, cp.industry
                     FROM stock_scores ss
                     JOIN value_metrics vm ON vm.symbol = ss.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
@@ -712,16 +722,20 @@ class ValueMetricsMixin:
             negative_book_value_symbols: set[str] = set()
             sector_map: dict[str, str] = {}
             is_fpi: dict[str, bool] = {}
-            market_cap_map: dict[str, float] = {}
             for row in rows:
                 symbol, pe, pb, fwd_pe = row[0], row[7], row[8], row[10]
                 fcf_yield_raw = safe_float(row[12], f"{symbol}.fcf_yield") if row[12] is not None else None
                 enterprise_value_raw = row[23] if len(row) > 23 else None
                 operating_cash_flow_raw = row[24] if len(row) > 24 else None
-                market_cap_raw = row[25] if len(row) > 25 else None
-                if market_cap_raw is not None and float(market_cap_raw) > 0:
-                    market_cap_map[symbol] = float(market_cap_raw)
-                industry_raw = row[26] if len(row) > 26 else None
+                # DEAD-CODE FIXED 2026-09-17 (factor-purity follow-up, same class of gap already
+                # fixed in risk_scoring.py/growth_scoring.py's own dead-column sweeps): this used
+                # to also build a `market_cap_map` dict from a `vm.market_cap` SELECT column -
+                # confirmed via grep that nothing ever read `market_cap_map` anywhere in this
+                # file. Leftover input to the Barra-style cash-yield-leg size-neutralization step
+                # the "REBUILT TO MSCI'S EXACT 3-VARIABLE..." note below already documents as
+                # DROPPED 2026-09-16 to match MSCI's real formula - the step was removed but this
+                # write-only dict feeding it never was. Removed both.
+                industry_raw = row[25] if len(row) > 25 else None
                 pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
                 sector = apply_mortgage_reit_sector_override(symbol, row[17])
                 if sector is not None:
@@ -761,10 +775,25 @@ class ValueMetricsMixin:
                     negative_book_value_symbols.add(symbol)
                 if fwd_pe_reason == "negative_forward_eps":
                     negative_fwd_symbols.add(symbol)
+                # BUG FIXED 2026-09-17 (factor-purity dig, live-caught by comparing this code
+                # against its OWN neighboring "already-inverted (E/P...)" comment on
+                # book_to_price_raw above - they disagreed). This used to store the raw P/E
+                # multiple itself (fwd_pe/pe, e.g. 25.0 for a $25-per-$1-earnings stock)
+                # directly into earnings_yield_raw with no inversion - unlike book_to_price_raw
+                # three lines above, which correctly computes 1.0/pb. z-scoring an un-inverted
+                # P/E and averaging it into the same composite as the correctly-inverted
+                # book-to-price/cash-yield legs rewarded a HIGH P/E (expensive/glamour) stock
+                # with a HIGH earnings-leg z-score - backwards for a leg whose whole job is
+                # "higher = cheaper = better". No existing test caught this: every test in
+                # tests/unit/test_value_multiples_percentile_ranking_20260828.py holds forward_pe
+                # IDENTICAL between compared symbols and varies book/cash-yield instead, so the
+                # P/E leg's own direction was never actually asserted. Inverted to match MSCI's
+                # real Earnings/Price ("Fwd E/P") descriptor and book_to_price_raw's own
+                # convention.
                 if fwd_pe is not None and float(fwd_pe) > 0:
-                    earnings_yield_raw[symbol] = float(fwd_pe)
+                    earnings_yield_raw[symbol] = 1.0 / float(fwd_pe)
                 elif pe is not None and float(pe) > 0:
-                    earnings_yield_raw[symbol] = float(pe)
+                    earnings_yield_raw[symbol] = 1.0 / float(pe)
                 # FINANCIALS-SECTOR-WIDE EXCLUSION (originally added 2026-09-15 as a narrower
                 # bank/insurer-industry-only carve-out; BROADENED 2026-09-16 to the whole GICS
                 # Financials sector - see `is_cfo_nonsense_industry`'s own comment above for the
@@ -809,9 +838,31 @@ class ValueMetricsMixin:
             #   2. composite = equal-weighted average of the available leg z-scores (1/3 each, or
             #      1/2 each for the two legs GICS Financials-sector names get - see the
             #      Financials-sector-wide EV/CFO omission above, Appendix II Cases 4-6).
-            #   3. SECTOR-relativize the COMPOSITE (not each leg individually, and only once) by
-            #      standardizing it within each sector (sector_neutral_zscore), then winsorize
-            #      the result at +/-3 - MSCI's own explicitly stated output bound.
+            #   3. Re-standardize the COMPOSITE universe-wide (not each leg individually, and
+            #      only once), then winsorize the result at +/-3 - MSCI's own explicitly stated
+            #      output bound.
+            # STEP 3 SECTOR RELATIVIZATION REMOVED 2026-09-17 (goal session: "we are not trying
+            # to create indices, we are trying to measure the factor itself... ranked based on
+            # most representative of that factor"). This step used to sector-relativize the
+            # composite (`sector_neutral_zscore`) per MSCI's real Enhanced Value formula - not
+            # wrong as a citation (VLUE, the real iShares MSCI USA Value Factor ETF, genuinely
+            # tracks a sector-relative index, live-verified via web search this session), but a
+            # category error: MSCI's sector step controls tracking error against their cap-
+            # weighted parent index for a licensable ETF product - a portfolio-construction
+            # constraint, not a factor-measurement one. This repo's goal is to measure the Value
+            # factor itself, which is exactly what Fama-MacBeth cross-sectional regression (Fama
+            # & MacBeth 1973) - the academic standard this repo's OWN validation scripts
+            # (fama_macbeth_value_factors.py et al.) already use for every factor test - does
+            # without any sector step. Same fix, same reasoning, applied identically to Quality
+            # the same session (vqg_quality_batch.py's update_quality_sector_neutral_scores) -
+            # Quality and Value were the last two pillars still sector-relativizing their
+            # composite after Growth/Momentum/Risk had already converged on universe-wide (for a
+            # different reason - a live MTUM/USMV holdings crosscheck). Now uses
+            # `universe_wide_zscore`, the same primitive those three already use for their own
+            # final step - `sector_map`/`is_fpi` built above are no longer consumed by this step
+            # (kept, still harmlessly computed - see this file's own "leave the SELECT as-is"
+            # precedent elsewhere rather than risk a row-index reshuffle for a pure dead-code
+            # trim).
             # DROPPED from the prior construction to match MSCI exactly: per-leg sector-relative
             # ranking (relativizing each leg separately and then averaging is NOT the same
             # computation as averaging first and relativizing once, even though both are
@@ -852,60 +903,53 @@ class ValueMetricsMixin:
             for symbol in unprofitable_symbols & negative_fwd_symbols:
                 leg_earnings_z[symbol] = -3.0
 
+            # AQR VALUE REBUILT 2026-09-17 (factor-purity pivot: MSCI -> AQR only, user
+            # directive - "we are not using industry standard AQR yet... get rid of the msci
+            # and all this other shit"). Asness/Moskowitz/Pedersen 2013 "Value and Momentum
+            # Everywhere" (JoF, ssrn.com/abstract=2174501) scores individual-stock Value with
+            # "the simplest and most standard" measure - book-to-market - deliberately NOT a
+            # multi-ratio blend (their own words: "we...are not interested in coming up with
+            # the best predictors of returns...but rather maintain a simple and fairly uniform
+            # approach...that minimizes the pernicious effects of data snooping"). MSCI's
+            # 3-leg composite (Book/Price-or-Cash-Earnings/Price, Fwd E/P, EV/CFO-or-Cash-
+            # Earnings/Price, GICS-Financials-sector leg reweighting) was a real, cited,
+            # correctly-implemented MSCI Enhanced Value construction - but MSCI, not AQR - so
+            # it is REPLACED here, not merely adjusted: single-leg book-to-market only,
+            # `leg_earnings_z`/`leg_cash_z` (the Fwd-E/P and EV/CFO legs, still computed above
+            # from `earnings_yield_raw`/`cash_yield_raw_map` - left as computed-but-unscored,
+            # same "raw value kept, not scored" convention as every other removed-from-scoring
+            # input elsewhere in this codebase) are no longer combined into the composite, and
+            # the GICS-Financials-sector leg-reweighting special case (`is_cfo_nonsense_
+            # industry`, only relevant to the now-unscored EV/CFO leg) is inert dead weight,
+            # left in place rather than torn out this pass (still computes/logs harmlessly;
+            # a full removal is a separate, lower-risk follow-up).
             composite_z_by_symbol: dict[str, float] = {}
             weight_by_symbol: dict[str, float] = {}
             for row in rows:
                 symbol = row[0]
-                pb, pb_reason = row[8], row[15]
-                # BUG FOUND + FIXED 2026-09-15 (algo-fd/algo-f5, cross-session review of
-                # 43a1451ce, still applies to this rebuild): a P/B-missing symbol must not get
-                # cash_yield counted TWICE - once as the MSCI-stated substitute for the missing
-                # Book/Price leg, once again as its own independent Cash-Earnings/Price leg -
-                # that would give cash-flow signal 2/3 nominal weight instead of the intended
-                # equal thirds. pb_used_cash_substitute tracks whether this symbol already
-                # consumed the cash leg as the P/B substitute, so the independent leg below is
-                # skipped for it.
-                pb_used_cash_substitute = False
-                legs: list[tuple[float, float]] = []
-                if symbol in leg_book_to_price_z and pb is not None and float(pb) > 0:
-                    legs.append((leg_book_to_price_z[symbol], 1.0 / 3.0))
-                elif pb_reason == "negative_book_value" and symbol in leg_book_to_price_z:
-                    legs.append((leg_book_to_price_z[symbol], 1.0 / 3.0))
-                elif symbol in leg_cash_z:
-                    # MSCI's own stated substitution: missing P/B -> cash earnings (P/CE) leg.
-                    # Only reached for genuinely missing (not negative/distressed) book value.
-                    legs.append((leg_cash_z[symbol], 1.0 / 3.0))
-                    pb_used_cash_substitute = True
-                if symbol in leg_earnings_z:
-                    legs.append((leg_earnings_z[symbol], 1.0 / 3.0))
-                if symbol in leg_cash_z and not pb_used_cash_substitute:
-                    legs.append((leg_cash_z[symbol], 1.0 / 3.0))
-                # Dividend yield has no home in MSCI Enhanced Value's real 3-variable
-                # definition (P/B-or-P/CE, E/P, EV/CFO-or-P/CE) - not scored here. The whole
-                # dividend-yield computation path (sustainability haircut, saturating
-                # transform, sector-size-neutral z-score) was deleted 2026-09-15 rather than
-                # left "computed but unscored": it had no consumer anywhere in the repo, just
-                # dead work run every reload for nothing (see git history for the removed
-                # code if a future Quality/Income-tilt pass wants dividend yield as an input
-                # somewhere it's actually scored).
-                total_weight = sum(w for _, w in legs)
-                if total_weight <= 0:
+                if symbol not in leg_book_to_price_z:
+                    # AQR's single-measure construction has no substitute leg for missing
+                    # book-to-market (unlike MSCI's stated Fwd-E/P/EV-CFO substitution rules
+                    # for a missing P/B) - a symbol with no usable book value simply isn't
+                    # scored by this pass, same as any other genuinely-missing-input case.
                     continue
-                weight_by_symbol[symbol] = total_weight
-                composite_z_by_symbol[symbol] = sum(v * w for v, w in legs) / total_weight
+                weight_by_symbol[symbol] = 1.0
+                composite_z_by_symbol[symbol] = leg_book_to_price_z[symbol]
 
-            sector_rel_z = sector_neutral_zscore(
-                composite_z_by_symbol,
-                sector_map,
-                min_sector_size=self._MIN_SECTOR_SLICE,
-                is_foreign_private_issuer=is_fpi,
-            )
-            sector_rel_z = {symbol: max(-3.0, min(3.0, z)) for symbol, z in sector_rel_z.items()}
-            value_pct = zscore_to_percentile_scale(sector_rel_z)
+            # STEP 3 (2026-09-17, "measure the factor itself" directive - see this method's own
+            # "MSCI ENHANCED VALUE Z-SCORE CONSTRUCTION" comment block, updated below): re-
+            # standardize the COMPOSITE universe-wide, not per-sector - MSCI's sector-relative
+            # composite step exists to control tracking error against their cap-weighted parent
+            # index for a licensable ETF product, a portfolio-construction constraint, not a
+            # factor-measurement one. Winsorize at +/-3 is kept (a real published normalization
+            # tail treatment, not MSCI-index-specific).
+            universe_z = universe_wide_zscore(composite_z_by_symbol)
+            universe_z = {symbol: max(-3.0, min(3.0, z)) for symbol, z in universe_z.items()}
+            value_pct = zscore_to_percentile_scale(universe_z)
 
             logger.info(
-                f"[STOCK_SCORES] Value multiples MSCI z-score universe (sector-relative "
-                f"composite, {len(sector_map)}/{len(rows)} symbols mapped to a GICS sector): "
+                f"[STOCK_SCORES] Value multiples MSCI z-score universe (universe-wide "
+                f"composite): "
                 f"Book/Price {len(leg_book_to_price_z)} "
                 f"({len(negative_book_value_symbols)} floored negative-book-value), "
                 f"Earnings/Price {len(leg_earnings_z)}, Cash-Earnings/Price {len(leg_cash_z)}, "
@@ -969,11 +1013,13 @@ class ValueMetricsMixin:
                 # pass - only value_score changed above), mirroring _score_value's own caller
                 # (no weight redistribution for a missing pillar - GOVERNANCE rule, same as
                 # Pass 1) instead of patching composite_score_old by a delta.
+                # GROWTH REMOVED FROM COMPOSITE 2026-09-17 (factor-purity pivot: MSCI -> AQR
+                # only - see pillar_weights.py's BASE_PILLAR_WEIGHTS docstring).
+                del growth_score
                 weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
                 for pillar_name, pillar_score in (
                     ("quality", quality_score),
-                    ("growth", growth_score),
                     ("value", value_score_new),
                     ("risk", risk_score),
                     ("momentum", momentum_score),
@@ -992,7 +1038,6 @@ class ValueMetricsMixin:
                 # WEIGHTS formula exactly (quality/growth/value/risk/momentum).
                 all_scores_new: dict[str, float | None] = {
                     "quality": float(quality_score) if quality_score is not None else None,
-                    "growth": float(growth_score) if growth_score is not None else None,
                     "value": value_score_new,
                     "risk": float(risk_score) if risk_score is not None else None,
                     "momentum": float(momentum_score) if momentum_score is not None else None,
@@ -1060,15 +1105,27 @@ class ValueMetricsMixin:
                 return
 
             with _owner().DatabaseContext("write") as cur:
+                # ::numeric/::boolean casts (added 2026-09-17, factor-purity follow-up - see
+                # risk_scoring.py's identical fix, applied here for the same reason and same
+                # live-confirmed effect): this UPDATE mixes real floats (corrected symbols) with
+                # None (withheld, via `_withhold_value_below_floor()`) in the same value_score
+                # column position - the same mixed-None/float psycopg2 wrong-inferred-
+                # column-type gotcha already fixed for quality_score/momentum_score when THEIR
+                # OWN withhold passes were added, never ported here despite this method's own
+                # `_withhold_value_below_floor()` landing 2026-09-16. Uncast, this raised
+                # psycopg2.errors.DatatypeMismatch on every real run, and because post_run()
+                # calls this method unguarded, the exception aborted every pass after it too
+                # (update_growth_sector_neutral_scores/update_momentum_sector_relative_mom_12_1/
+                # update_market_cap_tilted_weights) - not just leaving value_score stale.
                 _owner().execute_values(
                     cur,
                     """
                     UPDATE stock_scores AS ss
-                    SET value_score = v.value_score,
-                        composite_score = v.composite_score,
+                    SET value_score = v.value_score::numeric,
+                        composite_score = v.composite_score::numeric,
                         components = v.components::jsonb,
-                        data_completeness = v.data_completeness,
-                        data_unavailable = v.data_unavailable,
+                        data_completeness = v.data_completeness::numeric,
+                        data_unavailable = v.data_unavailable::boolean,
                         unavailable_metrics = v.unavailable_metrics::jsonb,
                         reason = v.reason,
                         updated_at = CURRENT_TIMESTAMP
@@ -1173,10 +1230,12 @@ class ValueMetricsMixin:
             _du_old,
             unavailable_metrics_old_raw,
         ) in rows:
+            # GROWTH REMOVED FROM COMPOSITE 2026-09-17 (factor-purity pivot - see
+            # pillar_weights.py's BASE_PILLAR_WEIGHTS docstring).
+            del growth_score
             weights = BASE_PILLAR_WEIGHTS
             pillar_scores = (
                 ("quality", quality_score),
-                ("growth", growth_score),
                 ("risk", risk_score),
                 ("momentum", momentum_score),
             )

@@ -37,21 +37,17 @@ class TestValuePercentileComponentsSync:
     def test_components_value_key_updated_alongside_value_score(self):
         loader = _loader()
 
-        # Deliberately expensive-looking multiples so the fixed-curve Pass-1 score and the
-        # (single-symbol-universe, always-50.0 per _percent_rank_cheap_high's own documented
-        # behavior) percentile score disagree - guaranteeing this symbol hits the update path.
-        # P/S dropped 2026-09-16 (factor-purity sweep, _ps_curve_score deleted - see
-        # value_score.py's VALUE_MIN_WEIGHT docstring); this fixture no longer includes it.
+        # value_score_old simulates whatever Pass-1 last stored, deliberately different from
+        # the real MSCI z-score composite this test's single-symbol universe will compute
+        # (which lands at exactly 50.0 - see _percent_rank_cheap_high's own documented
+        # single-symbol behavior) - guaranteeing this symbol hits the update path.
+        # _pe_curve_score/_pb_curve_score are a flat NEUTRAL_PLACEHOLDER_SCORE (50.0) as of
+        # 2026-09-17 (factor-purity follow-up - see that constant's own docstring in
+        # value_metrics.py), so this fixture no longer derives value_score_old FROM them - a
+        # flat curve can't produce a "deliberately expensive-looking" old value on its own.
+        # Hardcoded to a value clearly different from the new pass's 50.0 instead.
         pe, pb, fwd_pe, dividend_yield = 24.10, 5.98, 17.04, 0.0037
-        pe_curve = loader._pe_curve_score(pe)
-        pb_curve = loader._pb_curve_score(pb)
-        fwd_pe_curve = loader._pe_curve_score(fwd_pe)
-
-        weighted_sum_old = pe_curve * 0.12 + pb_curve * 0.39 + fwd_pe_curve * 0.04
-        total_weight_old = 0.12 + 0.39 + 0.04 + 0.11  # dividend_yield present too
-        # value_score_old is whatever Pass-1 actually stored - pick something plausible and
-        # self-consistent so the delta arithmetic below is realistic, not just "whatever old was".
-        value_score_old = round(max(0.0, min(100.0, weighted_sum_old / (total_weight_old - 0.11))), 2)
+        value_score_old = 75.0
         composite_score_old = 34.11
         risk_score = 40.55
         components_old = {

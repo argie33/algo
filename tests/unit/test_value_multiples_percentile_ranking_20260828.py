@@ -114,31 +114,42 @@ class TestPercentRankCheapHighSectorRelative:
         assert result["RE0"] == 100.0  # cheapest within its own 25-symbol sector
 
 
-class TestPeCurveScoreUnchanged:
-    """_pe_curve_score/_pb_curve_score must stay byte-for-byte the OLD formulas -
-    update_value_multiples_percentiles()'s reconciliation diffs against whatever they return,
-    so a change here silently breaks the correction math, not just Pass 1. _ps_curve_score was
-    deleted 2026-09-16 (factor-purity sweep, P/S dropped from scoring entirely - see
-    value_score.py's VALUE_MIN_WEIGHT docstring), so its own pinning test is gone with it."""
+class TestPeCurveScoreIsNeutralPlaceholder:
+    """_pe_curve_score/_pb_curve_score used to be hand-set piecewise curves - REPLACED
+    2026-09-17 (factor-purity follow-up, "get rid of it" not just verify it's inert) with a
+    flat NEUTRAL_PLACEHOLDER_SCORE (50.0), after live-auditing the real DB and confirming the
+    old curve's output never survives as a live value_score for any current symbol (see
+    NEUTRAL_PLACEHOLDER_SCORE's own docstring in value_metrics.py for the full evidence trail).
+    update_value_multiples_percentiles() fully recomputes value_score from the real MSCI
+    z-score composite on every run (not a diff against Pass-1's output, see that method's own
+    "BUG FOUND + FIXED 2026-08-31" docstring note) - these functions' only remaining job is
+    providing SOME non-NULL placeholder so a symbol is never blank mid-run and Pass 2's own
+    `WHERE value_score IS NOT NULL` gate has a row to correct. _ps_curve_score was deleted
+    2026-09-16 (factor-purity sweep, P/S dropped from scoring entirely - see value_score.py's
+    VALUE_MIN_WEIGHT docstring), so its own pinning test is gone with it."""
 
-    def test_pe_curve_known_points(self) -> None:
-        assert StockScoresLoader._pe_curve_score(10.0) == 60.0
-        assert StockScoresLoader._pe_curve_score(20.0) == 100.0
-        assert StockScoresLoader._pe_curve_score(35.0) == 70.0
+    def test_pe_curve_is_flat_neutral_placeholder(self) -> None:
+        assert StockScoresLoader._pe_curve_score(10.0) == 50.0
+        assert StockScoresLoader._pe_curve_score(20.0) == 50.0
+        assert StockScoresLoader._pe_curve_score(35.0) == 50.0
 
-    def test_pb_curve_known_points(self) -> None:
-        assert StockScoresLoader._pb_curve_score(1.0) == 100.0
-        assert StockScoresLoader._pb_curve_score(3.0) == 70.0
-        assert StockScoresLoader._pb_curve_score(7.0) == 30.0
+    def test_pb_curve_is_flat_neutral_placeholder(self) -> None:
+        assert StockScoresLoader._pb_curve_score(1.0) == 50.0
+        assert StockScoresLoader._pb_curve_score(3.0) == 50.0
+        assert StockScoresLoader._pb_curve_score(7.0) == 50.0
 
 
 class TestMsciThreeLegConstruction:
     """Exercises the REAL, LIVE construction `update_value_multiples_percentiles()` uses today
-    (loaders/stock_scores/value_metrics.py) - MSCI Enhanced Value's actual published 3-variable
-    definition (Price-to-Book-or-Cash-Earnings, Price-to-Forward-Earnings-or-trailing, EV/CFO-
-    or-Cash-Earnings), each an equal 1/3 weight, verified against MSCI_Enhanced_Value_Index_
-    Meth_Aug14.pdf (msci.com/eqb/methodology) - see that method's own "MSCI ENHANCED VALUE
-    CONSTRUCTION FIDELITY" docstring note for the full citation and evidence trail.
+    (loaders/stock_scores/value_metrics.py).
+
+    AQR VALUE REBUILT 2026-09-17 (factor-purity pivot: MSCI -> AQR only - see that method's own
+    "AQR VALUE REBUILT" docstring note, citing Asness/Moskowitz/Pedersen 2013 "Value and
+    Momentum Everywhere"). Value is now a SINGLE book-to-market leg (weight 1.0 when scored) -
+    MSCI's old 3-leg equal-1/3-weight construction (Price-to-Book-or-Cash-Earnings, Price-to-
+    Forward-Earnings-or-trailing, EV/CFO-or-Cash-Earnings) is retired. `leg_earnings_z`/
+    `leg_cash_z` are still computed (informational, unscored) but no longer move value_score -
+    the class name is kept for git-blame continuity across this rewrite rather than renamed.
 
     REPLACES the former TestValueMultiplesReconciliationMath class (removed 2026-09-16,
     factor-purity sweep, /goal: "we should only have one common set of scores... like the
@@ -153,8 +164,19 @@ class TestMsciThreeLegConstruction:
     row-shaped fixtures - same convention as TestUpdateValueMultiplesPercentilesEndToEnd below)
     and assert on its actual UPDATE payload.
 
-    Row shape matches the real SELECT in `update_value_multiples_percentiles()` exactly (27
-    columns, indices 0-26) - see `_ROW_COLUMNS` below and that method's own column list.
+    Row shape matches the real SELECT in `update_value_multiples_percentiles()` exactly (26
+    columns, indices 0-25) - see `_ROW_COLUMNS` below and that method's own column list.
+
+    DEAD-COLUMN SWEEP 2026-09-17 (factor-purity follow-up): `market_cap` dropped from this
+    fixture's column list - the real SELECT never fed it anywhere (a write-only
+    `market_cap_map` dict, leftover input to a Barra-style size-neutralization step removed
+    2026-09-16 - see value_metrics.py's own DEAD-CODE FIXED note) and has been removed from
+    the query. This fixture used to still include it (with `industry` shifted one column
+    later than the real, current query), which `test_bank_industry_omits_ev_cfo_leg_entirely`
+    below was silently NOT actually exercising as a result (industry_raw read this fixture's
+    dead market_cap slot, always None) - masked only because that test's own EV/CFO leg
+    happens to z-score to a trivial 0 for a single-symbol population regardless, not because
+    the industry-omission path was verified. Fixed here so the fixture matches reality again.
     """
 
     # Mirrors the real SELECT's column order exactly (update_value_multiples_percentiles()).
@@ -184,7 +206,6 @@ class TestMsciThreeLegConstruction:
         "is_foreign_private_issuer",
         "enterprise_value",
         "operating_cash_flow",
-        "market_cap",
         "industry",
     ]
 
@@ -223,7 +244,6 @@ class TestMsciThreeLegConstruction:
             "is_foreign_private_issuer": False,
             "enterprise_value": None,
             "operating_cash_flow": None,
-            "market_cap": None,
             "industry": None,
         }
         defaults.update(overrides)
@@ -256,29 +276,35 @@ class TestMsciThreeLegConstruction:
         updates = mock_execute_values.call_args.args[2]
         return {u[0]: u for u in updates}
 
-    def test_ev_cfo_leg_moves_the_score_between_otherwise_identical_peers(self) -> None:
-        # GOODCASH and BADCASH share IDENTICAL P/B and Forward P/E raw ratios (so those two
-        # legs alone can't differentiate them) - only their EV/CFO leg differs (cheap vs. rich
-        # relative to enterprise value). GOODCASH's value_score must come out strictly higher,
-        # proving the 3rd leg (added 2026-09-15, the EV/CFO fidelity fix - real CFO/EV, not the
-        # old price-basis fcf_yield proxy) actually moves the score, not just gets computed and
-        # discarded.
+    @classmethod
+    def _updates_by_symbol_or_none(cls, mock_execute_values: MagicMock) -> dict[str, tuple[Any, ...]] | None:
+        """Same as `_updates_by_symbol` but tolerates the legitimate "nothing scoreable at all,
+        no UPDATE issued" outcome (AQR's single book-to-market leg has no substitute, so a row
+        set where every symbol lacks book value produces no update whatsoever)."""
+        if not mock_execute_values.called:
+            return None
+        updates = mock_execute_values.call_args.args[2]
+        return {u[0]: u for u in updates}
+
+    def test_ev_cfo_leg_no_longer_moves_the_score(self) -> None:
+        # AQR VALUE REBUILT: GOODCASH and BADCASH share IDENTICAL P/B (the only scored leg now)
+        # and differ only in their (unscored) EV/CFO inputs - value_score must come out
+        # IDENTICAL, proving the old 3rd leg (real CFO/EV) no longer moves the score at all,
+        # the opposite property this test asserted before the AQR pivot.
         rows = [
             self._row(
                 symbol="GOODCASH",
                 pb_ratio=2.0,
                 forward_pe=15.0,
                 enterprise_value=100.0,
-                operating_cash_flow=40.0,  # CFO/EV = 0.40, cheap
-                market_cap=90.0,
+                operating_cash_flow=40.0,  # CFO/EV = 0.40, cheap - no longer scored
             ),
             self._row(
                 symbol="BADCASH",
                 pb_ratio=2.0,
                 forward_pe=15.0,
                 enterprise_value=100.0,
-                operating_cash_flow=5.0,  # CFO/EV = 0.05, rich
-                market_cap=90.0,
+                operating_cash_flow=5.0,  # CFO/EV = 0.05, rich - no longer scored
             ),
         ]
         updates = self._updates_by_symbol(self._run(rows))
@@ -286,7 +312,31 @@ class TestMsciThreeLegConstruction:
         badcash_value_score = updates["BADCASH"][1]
         assert goodcash_value_score is not None
         assert badcash_value_score is not None
-        assert goodcash_value_score > badcash_value_score
+        assert goodcash_value_score == badcash_value_score, (
+            "EV/CFO no longer feeds value_score under AQR's single book-to-market leg - "
+            "identical P/B must score identically regardless of cash-yield differences"
+        )
+
+    def test_earnings_leg_no_longer_moves_the_score(self) -> None:
+        # AQR VALUE REBUILT: CHEAP and RICH share IDENTICAL P/B (the only scored leg now) and
+        # differ only in their (unscored) Forward P/E - value_score must come out IDENTICAL,
+        # proving the old earnings-yield leg no longer moves the score at all. (Formerly this
+        # test guarded the 2026-09-17 earnings-yield inversion bug fix; that fix is now moot
+        # since the leg isn't scored, but the earnings_yield_raw computation itself - still
+        # present, informational only - keeps the correct 1/PE inversion, not a raw P/E copy.)
+        rows = [
+            self._row(symbol="CHEAP", pb_ratio=2.0, forward_pe=10.0),
+            self._row(symbol="RICH", pb_ratio=2.0, forward_pe=40.0),
+        ]
+        updates = self._updates_by_symbol(self._run(rows))
+        cheap_value_score = updates["CHEAP"][1]
+        rich_value_score = updates["RICH"][1]
+        assert cheap_value_score is not None
+        assert rich_value_score is not None
+        assert cheap_value_score == rich_value_score, (
+            "Forward P/E no longer feeds value_score under AQR's single book-to-market leg - "
+            "identical P/B must score identically regardless of earnings-yield differences"
+        )
 
     def test_negative_book_value_floor_beats_cash_yield_substitute(self) -> None:
         # NEGBOOK has a real, cheap fcf_yield (the price-basis EV/CFO fallback) AND negative
@@ -311,13 +361,12 @@ class TestMsciThreeLegConstruction:
             "P/B data only, per MSCI's own stated rule"
         )
 
-    def test_missing_book_value_falls_back_to_cash_earnings_substitute(self) -> None:
-        # GENUINELYMISSING has pb_ratio=None with NO unavailable_reason at all (a real "we
-        # never computed this" gap, not a known-worst negative-equity signal) - MSCI's stated
-        # substitution rule (missing P/B -> P/CE) should apply: the leg is filled from
-        # cash_yield_pct, still counting as 1/3 weight, not floored and not dropped/renormalized
-        # away. Confirms the symbol still clears VALUE_MIN_WEIGHT and gets a real, non-floored
-        # score even with only Forward P/E + the substituted leg (P/B genuinely absent).
+    def test_missing_book_value_is_not_scored_at_all(self) -> None:
+        # AQR VALUE REBUILT: GENUINELYMISSING has pb_ratio=None with NO unavailable_reason at
+        # all (a real "we never computed this" gap, not a known-worst negative-equity signal).
+        # AQR's single book-to-market leg has NO substitute for a missing P/B (unlike MSCI's old
+        # stated "missing P/B -> P/CE" rule) - the symbol must not appear in the UPDATE at all,
+        # not be filled in from cash yield.
         rows = [
             self._row(
                 symbol="GENUINELYMISSING",
@@ -327,15 +376,23 @@ class TestMsciThreeLegConstruction:
                 enterprise_value=100.0,
                 operating_cash_flow=20.0,
             ),
-            # A peer so the percentile ranking has more than one symbol to rank against.
+            # A peer WITH book-to-market data, so the run still emits an UPDATE for the mock's
+            # `_updates_by_symbol` assertion to look at.
             self._row(symbol="PEER", pb_ratio=3.0, forward_pe=20.0, enterprise_value=100.0, operating_cash_flow=5.0),
         ]
         updates = self._updates_by_symbol(self._run(rows))
-        assert updates["GENUINELYMISSING"][1] is not None
+        assert "GENUINELYMISSING" not in updates, (
+            "a symbol with no book-to-market leg and no substitute must not be updated at all "
+            "under AQR's single-measure construction"
+        )
+        assert updates["PEER"][1] is not None
 
-    def test_double_unprofitable_symbol_floors_earnings_leg(self) -> None:
-        # Both trailing P/E (unprofitable) AND forward P/E (negative forecast) unusable - the
-        # worst possible Earnings/Price outcome, floored at 0.0, not excluded/renormalized.
+    def test_double_unprofitable_symbol_scores_identically_on_book_value_alone(self) -> None:
+        # AQR VALUE REBUILT: both trailing P/E (unprofitable) AND forward P/E (negative
+        # forecast) unusable - under the old MSCI 3-leg construction this floored the
+        # Earnings/Price leg at 0.0. That leg isn't scored at all any more, and both symbols
+        # share the same P/B, so they must now score IDENTICALLY - profitability status no
+        # longer affects value_score at all.
         rows = [
             self._row(symbol="HEALTHY", pb_ratio=2.0, forward_pe=15.0),
             self._row(
@@ -348,7 +405,7 @@ class TestMsciThreeLegConstruction:
             ),
         ]
         updates = self._updates_by_symbol(self._run(rows))
-        assert updates["DOUBLYUNPROFITABLE"][1] < updates["HEALTHY"][1]
+        assert updates["DOUBLYUNPROFITABLE"][1] == updates["HEALTHY"][1]
 
     def test_bank_industry_omits_ev_cfo_leg_entirely(self) -> None:
         # A depository bank's operating_cash_flow/enterprise_value are not comparable
@@ -397,35 +454,35 @@ class TestMsciThreeLegConstruction:
         updates = self._updates_by_symbol(self._run(rows))
         assert updates["ASSETMANAGER"][1] == updates["ORDINARYCO"][1]
 
-    def test_single_leg_below_value_min_weight_is_withheld(self) -> None:
-        # Only Forward P/E available (1/3 = 0.333 nominal weight) - below VALUE_MIN_WEIGHT
-        # (0.40) - value_score must be withheld (None), the same "insufficient data, don't
-        # fabricate a score" treatment Pass 1 uses (VALUE_MIN_WEIGHT's own docstring in
-        # value_score.py), not a thin-sample score built off one metric.
+    def test_symbol_with_no_book_to_market_leg_is_not_scored(self) -> None:
+        # AQR VALUE REBUILT: neither symbol has pb_ratio, so neither has a book-to-market leg
+        # at all (Forward P/E is no longer scored, and there's no substitute leg) - ONLYFWDPE
+        # must not appear in the UPDATE at all, the same "no scoreable leg, don't fabricate a
+        # score" outcome as test_missing_book_value_is_not_scored_at_all above, just with a
+        # peer that also lacks book-to-market so nothing in this row set gets updated.
         rows = [
             self._row(symbol="ONLYFWDPE", pb_ratio=None, forward_pe=15.0),
             self._row(symbol="PEER", pb_ratio=None, forward_pe=25.0),
         ]
-        updates = self._updates_by_symbol(self._run(rows))
-        assert updates["ONLYFWDPE"][1] is None
+        updates = self._updates_by_symbol_or_none(self._run(rows))
+        assert updates is None or "ONLYFWDPE" not in updates
 
-    def test_two_legs_at_two_thirds_weight_clears_value_min_weight(self) -> None:
-        # P/B + Forward P/E (2/3 = 0.667 nominal weight) clears VALUE_MIN_WEIGHT (0.40) - a
-        # real, non-withheld score, unlike the single-leg case above.
+    def test_symbol_with_book_to_market_leg_scores(self) -> None:
+        # P/B present (the only leg AQR's construction needs) - a real, non-withheld score.
         rows = [
-            self._row(symbol="TWOLEG", pb_ratio=2.0, forward_pe=15.0),
+            self._row(symbol="HASBOOK", pb_ratio=2.0, forward_pe=15.0),
             self._row(symbol="PEER", pb_ratio=4.0, forward_pe=25.0),
         ]
         updates = self._updates_by_symbol(self._run(rows))
-        assert updates["TWOLEG"][1] is not None
+        assert updates["HASBOOK"][1] is not None
 
     def test_base_pillar_weights_value_unchanged_by_this_feature(self) -> None:
         # This feature changes HOW value_score's multiples are computed, not the top-level
-        # Value pillar weight itself. That weight moved 0.23 -> 0.27 -> 0.20 across two later,
-        # unrelated changes (Size's composite-pillar retirement, then the 2026-09-11
-        # uniform-equal-weight move - see BASE_PILLAR_WEIGHTS's own comment for the full
-        # trail), neither a percentile-ranking side effect.
-        assert BASE_PILLAR_WEIGHTS["value"] == 0.20
+        # Value pillar weight itself. BASE_PILLAR_WEIGHTS["value"]=0.25 reflects the separate,
+        # concurrent Growth-folded-into-Quality composite consolidation (pillar_weights.py) -
+        # not a side effect of this percentile-ranking/leg-construction feature, so this test
+        # only pins that the two changes are independent, not a specific literal value.
+        assert BASE_PILLAR_WEIGHTS["value"] == BASE_PILLAR_WEIGHTS["risk"] == BASE_PILLAR_WEIGHTS["momentum"]
 
 
 class TestUpdateValueMultiplesPercentilesEndToEnd:

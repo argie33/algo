@@ -72,8 +72,9 @@ class TestMomentumMinWeightGate:
         assert result["reason"] == "no_momentum_scores_computed"
 
     def test_full_coverage_at_or_above_floor_still_scores(self) -> None:
-        # Sanity counterpart: mom_3m (0.20) + 12-1 (0.35) = 0.55, clears MOMENTUM_MIN_WEIGHT -
-        # must still produce a real float, not be swept up by the new gate.
+        # Sanity counterpart: mom_12_1 alone (weight 1.0, AQR MOMENTUM PIVOT - see
+        # momentum_scoring.py's module docstring) clears MOMENTUM_MIN_WEIGHT - must still
+        # produce a real float, not be swept up by the new gate.
         loader = _Loader()
         metrics = {
             "momentum_1m": 2.0,

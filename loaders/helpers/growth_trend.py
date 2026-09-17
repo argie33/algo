@@ -16,11 +16,25 @@ fields all are) - it's an OLS regression slope through every available year in t
 is far less sensitive to a single anomalous endpoint than a two-point calculation. Confirmed
 against MSCI's own worked numerical example (same document, Appendix, "Calculating Long-term
 historical EPS and SPS growth trend"): 5 fiscal year-end EPS values (-1.11, -0.51, 0.29, 0.92,
-1.41) at t=0,12,24,36,48 months give a monthly slope a=0.05, ANNUALIZED (a*12) to 0.60, divided
-by mean(|EPS|)=0.85, giving a growth trend of 70.6% - reproduced exactly by
-`test_growth_trend.py`'s `test_matches_msci_own_worked_example_eps`/`..._sps`. The "annualize by
-multiplying the monthly slope by 12" step is itself confirmed by that worked example (0.05*12 =
-0.60), not this module's own invention.
+1.41) at t=0,12,24,36,48 months.
+
+DOCSTRING FIXED 2026-09-17 (factor-purity follow-up, found while re-verifying every "matches the
+cited source exactly" claim in this pass): this paragraph used to claim this module's own
+`ols_growth_trend` "reproduced exactly" MSCI's published 70.6% figure - false, and the real
+verification test (misnamed here too - the actual file is
+`tests/unit/test_growth_trend_msci_ols_formula_20260916.py`, not `test_growth_trend.py`, which
+doesn't exist) proves the OPPOSITE on purpose: MSCI's own published 70.6% only comes out of
+replicating their worked example's own intermediate ROUNDING (monthly slope displayed/used as
+0.05, mean(|EPS|) as 0.85 - see that test's own `_msci_published_example_with_intermediate_
+rounding` helper, test-only code, never called by production). `ols_growth_trend` below
+deliberately does NOT round intermediate values - the mathematically correct choice for a real
+pipeline scoring thousands of symbols without compounding rounding error, not a discrepancy to
+paper over - and produces a materially different, more precise 76.3% for this exact same input
+(true monthly slope 0.053917, not MSCI's rounded 0.05). The FORMULA is verified identical
+(same OLS-slope-over-mean-absolute-level construction, same "annualize by multiplying the
+monthly slope by 12" step); the FIGURE only matches after replicating MSCI's own rounding, which
+production code intentionally does not do. See that test's own docstring for the full
+before/after arithmetic.
 """
 
 MIN_YEARS_FOR_TREND = 4

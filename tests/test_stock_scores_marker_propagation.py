@@ -141,10 +141,16 @@ class TestMarkerPropagation(unittest.TestCase):
         been caught by anything in this file.
 
         Mocks only the DB-touching fetch methods and DatabaseContext (no real DB needed) -
-        the five _score_* calls and the aggregation loop itself are the real production code.
+        the four _score_* calls and the aggregation loop itself are the real production code.
         risk_score=50.0 keeps _value_risk_adjusted_weights at its unmodified base weights
         (see pillar_weights.py: risk_score=50 is this function's own documented neutral
         point), so the expected composite is computable directly from BASE_PILLAR_WEIGHTS.
+
+        UPDATED 2026-09-17 (factor-purity pivot: Growth retired as a composite pillar - see
+        pillar_weights.py's BASE_PILLAR_WEIGHTS docstring). growth_score is still computed and
+        stored for display, but no longer participates in unavailable_metrics/composite_score
+        at all - a growth marker (missing growth data) has ZERO effect on either, unlike the
+        4 real composite pillars (quality/value/risk/momentum) this test still exercises below.
         """
         from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
 
@@ -169,12 +175,15 @@ class TestMarkerPropagation(unittest.TestCase):
             mock_db_context.return_value.__enter__.return_value = MagicMock()
             result = loader._compute_stock_score("TESTSYM")
 
-        import json
+        # growth_marker never appears in unavailable_metrics - growth isn't one of the 4
+        # composite pillars any more, so its own unavailability is invisible to this dict.
+        # An empty unavailable_metrics dict serializes to None, not "{}" (see
+        # _compute_stock_score's own `json.dumps(...) if unavailable_metrics else None`).
+        self.assertIsNone(result["unavailable_metrics"])
+        self.assertIsNone(result["growth_score"])
 
-        self.assertEqual(json.loads(result["unavailable_metrics"]), {"growth": "no_growth_metrics_data"})
-
-        # No redistribution: growth's 0.24 weight is simply dropped, not handed to the other
-        # 4 pillars - composite is the raw sum of (available_score * base_weight).
+        # No redistribution: composite is the raw sum of (available_score * base_weight)
+        # over the 4 AQR pillars only - growth contributes nothing, available or not.
         expected_composite = (
             80.0 * BASE_PILLAR_WEIGHTS["quality"]
             + 70.0 * BASE_PILLAR_WEIGHTS["value"]
@@ -183,11 +192,13 @@ class TestMarkerPropagation(unittest.TestCase):
         )
         self.assertAlmostEqual(result["composite_score"], round(expected_composite, 2), places=2)
 
-        # A renormalized-over-available-weight composite would be meaningfully higher -
-        # pin the two apart so a reintroduced redistribution bug can't hide by coincidence.
+        # No renormalization-vs-raw-sum distinction is possible in this scenario any more:
+        # all 4 real composite pillars (quality/value/risk/momentum) are available here, so
+        # available_weight already sums to 1.0 - see test_nan_pillar_score_is_rejected_
+        # not_clamped_to_100 below for the redistribution-vs-no-redistribution pin, which
+        # still has a genuinely unavailable composite pillar (quality) to test against.
         available_weight = sum(BASE_PILLAR_WEIGHTS[p] for p in ("quality", "value", "risk", "momentum"))
-        renormalized = expected_composite / available_weight
-        self.assertLess(result["composite_score"], renormalized)
+        self.assertAlmostEqual(available_weight, 1.0, places=9)
 
     def test_data_completeness_is_weighted_not_flat_count(self) -> None:
         """REAL-MONEY-READINESS FIX (2026-09-07 pre-live audit): data_completeness used to
@@ -345,10 +356,11 @@ class TestMarkerPropagation(unittest.TestCase):
         )
 
         # Quality's weight must be excluded from the composite entirely, not contributed
-        # at 100.0 * weight.
+        # at 100.0 * weight. growth_score (mocked at 70.0 here) is display-only since the
+        # 2026-09-17 factor-purity pivot (see BASE_PILLAR_WEIGHTS docstring) and never
+        # participates in the composite at all - only value/risk/momentum remain.
         expected_composite = (
-            70.0 * BASE_PILLAR_WEIGHTS["growth"]
-            + 60.0 * BASE_PILLAR_WEIGHTS["value"]
+            60.0 * BASE_PILLAR_WEIGHTS["value"]
             + 50.0 * BASE_PILLAR_WEIGHTS["risk"]
             + 50.0 * BASE_PILLAR_WEIGHTS["momentum"]
         )

@@ -556,10 +556,17 @@ class StockScoresLoader(
             # CLEANUP 2026-08-16 (later): debt_to_assets dropped from this SELECT - Stability no
             # longer scores it (moved to Quality, which reads its own debt_to_assets directly
             # from quality_metrics), so fetching it here was dead weight.
+            # cmra_12m (added 2026-09-17): Barra US-E3's real Cumulative Range descriptor -
+            # computed/persisted as informational only (see risk_scoring.py's own docstring for
+            # the 2026-09-17 AQR pivot: Barra descriptors no longer carry Risk-pillar scoring
+            # weight). Appended after data_unavailable (index 9), not interleaved with the
+            # original 9 columns, so _get_stability_metrics's existing row[0..8] indices stay
+            # unchanged. beta_bab (index 10, same pivot) is AQR's real Betting-Against-Beta
+            # shrinkage beta (Frazzini & Pedersen 2014) - the actual scored Risk-pillar input now.
             cur.execute(
                 "SELECT symbol, volatility_252d, volatility_60d, volatility_30d, beta, "
                 "downside_volatility_252d, downside_volatility_60d, downside_volatility_30d, max_drawdown_1y, "
-                "data_unavailable "
+                "data_unavailable, cmra_12m, beta_bab "
                 "FROM stability_metrics"
             )
             self._stability_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
@@ -776,13 +783,16 @@ class StockScoresLoader(
             # Count data completeness: only float scores count as "real data"
             # Markers (dicts with data_unavailable=True) are excluded from count
             # Session 260: Momentum loader now fixed and included in completeness calculation
-            # 5 pillars are evaluated: quality, growth, value, risk, momentum (Positioning
-            # retired as a composite pillar 2026-08-27; Size retired as a composite pillar
-            # 2026-08-28 - see BASE_PILLAR_WEIGHTS)
-            # Minimum 70% completeness (3.5/5 metrics) required per GOVERNANCE.md
+            # 4 pillars are evaluated in the composite: quality, value, risk, momentum
+            # (Positioning retired as a composite pillar 2026-08-27; Size retired 2026-08-28;
+            # Growth retired 2026-09-17, factor-purity pivot to AQR-only - see
+            # pillar_weights.py's BASE_PILLAR_WEIGHTS docstring. growth_score is still computed
+            # above and shown in components/data_sources below for display, it just no longer
+            # counts toward data_completeness/composite_score - AQR's real factor set has no
+            # standalone Growth factor).
+            # Minimum 70% completeness (3/4 metrics) required per GOVERNANCE.md
             all_scores = {
                 "quality": quality_score,
-                "growth": growth_score,
                 "value": value_score,
                 "risk": risk_score,
                 "momentum": momentum_score,
@@ -795,17 +805,17 @@ class StockScoresLoader(
 
             # CRITICAL FIX 2026-07-19: Log when scores computed with <5 metrics for visibility.
             # Traders need to see completeness % in dashboards to filter based on GOVERNANCE entry gates.
-            if data_count < 5 and data_count >= 4:
+            if data_count < 4 and data_count >= 3:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.info(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/5 metrics ({100.0 * data_count / 5:.1f}% complete). "
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/4 metrics ({100.0 * data_count / 4:.1f}% complete). "
                     f"Missing: {', '.join(missing)}. Trading filter gate: completeness >= 70% per GOVERNANCE."
                 )
-            elif data_count < 4:
+            elif data_count < 3:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.warning(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/5 metrics ({100.0 * data_count / 5:.1f}% complete). "
-                    f"Minimum 4 metrics ensures diversity against single-metric bias."
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/4 metrics ({100.0 * data_count / 4:.1f}% complete). "
+                    f"Minimum 3 metrics ensures diversity against single-metric bias."
                 )
 
             # NUMERIC(4,2) schema constraint: max 99.99 (not 100.0)
@@ -843,7 +853,7 @@ class StockScoresLoader(
             if data_count < min_required_metrics:
                 raise RuntimeError(
                     f"[STOCK_SCORES] {symbol}: CRITICAL - zero metrics available. "
-                    f"Got {data_count}/5 metrics. Cannot compute score with no metric data."
+                    f"Got {data_count}/4 metrics. Cannot compute score with no metric data."
                 )
 
             # GOVERNANCE COMPLIANCE: Compute scores with 4+/5 metrics (sufficient diversity).
@@ -853,7 +863,6 @@ class StockScoresLoader(
 
             score_availability = {
                 "quality": is_real_score(quality_score),
-                "growth": is_real_score(growth_score),
                 "value": is_real_score(value_score),
                 "risk": is_real_score(risk_score),
                 "momentum": is_real_score(momentum_score),
@@ -871,20 +880,20 @@ class StockScoresLoader(
                 missing_metrics = [k for k, v in score_availability.items() if not v]
                 logger.error(
                     f"[STOCK_SCORES] {symbol}: CRITICAL - zero real metrics available. "
-                    f"Available {real_metric_count}/5. "
+                    f"Available {real_metric_count}/4. "
                     f"Missing: {', '.join(missing_metrics)}. "
                     f"Cannot compute even degraded score without any real data."
                 )
                 raise ValueError(
-                    f"{symbol}: zero metrics ({real_metric_count}/5, impossible to score). "
+                    f"{symbol}: zero metrics ({real_metric_count}/4, impossible to score). "
                     f"Cannot compute score with zero available metrics."
                 )
 
             if real_metric_count < 2:
                 # Degraded mode: score with 1 metric only (for SPACs/new listings)
                 logger.info(
-                    f"[STOCK_SCORES] {symbol}: DEGRADED MODE - {real_metric_count}/5 metrics available. "
-                    f"Computing partial score (dashboard will show data_completeness={int(real_metric_count / 5 * 100)}%)"
+                    f"[STOCK_SCORES] {symbol}: DEGRADED MODE - {real_metric_count}/4 metrics available. "
+                    f"Computing partial score (dashboard will show data_completeness={int(real_metric_count / 4 * 100)}%)"
                 )
 
             # Fixed base weights (no redistribution per GOVERNANCE fail-fast rule)
@@ -1000,7 +1009,6 @@ class StockScoresLoader(
             composite_score_value = 0.0
             for metric_name, clamped_value_score in [
                 ("quality", clamped_quality),
-                ("growth", clamped_growth),
                 ("value", clamped_value),
                 ("risk", clamped_risk),
                 ("momentum", clamped_momentum),
@@ -1411,7 +1419,9 @@ class StockScoresLoader(
     # MIN_SECTOR_SLICE: a sector/GICS group needs at least this many symbols in the current
     # run's universe before its own within-sector percentile is trusted; smaller groups fall
     # back to the plain universe-wide percentile for just their members (fails open, mirrors
-    # `_get_symbol_sector`'s own fail-open convention in load_value_quality_growth_metrics.py).
+    # `sector_neutral_zscore`'s own residual-pool fail-open convention in
+    # loaders/helpers/factor_normalization.py - `_get_symbol_sector` was removed 2026-09-17 as
+    # dead code, see vqg_shared.py's own SectorIndustryCacheMixin docstring).
     # Live sector sizes in the scored universe are all far above this (smallest ~117 symbols,
     # see SECTOR-RELATIVE VALUE RANKING docstring note below) - this floor exists for
     # 'Unclassified' (company_profile.sector missing/NULL) and any genuinely thin group, not

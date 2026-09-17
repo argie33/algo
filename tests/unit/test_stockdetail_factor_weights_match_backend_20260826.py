@@ -11,6 +11,12 @@ rid of size", triggered by its imputed-regime evidence not surviving a strict co
 retest even after fixing the data-coverage bugs that retest required first) - see
 loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS for the full history.
 
+Growth REMOVED 2026-09-17 (factor-purity pivot: MSCI/homegrown -> AQR-only - see
+loaders/stock_scores/pillar_weights.py's BASE_PILLAR_WEIGHTS docstring). AQR's real factor
+taxonomy (Value, Momentum, Quality-Minus-Junk, Betting-Against-Beta) has no standalone Growth
+factor - its signal now lives inside Quality's QMJ Growth sub-score. growth_score is still
+computed/displayed on the page, it just no longer earns a FACTOR_WEIGHTS radar slot.
+
 Found live 2026-08-26 (goal: reconstruct a composite-weights reweight lost to an uncommitted-
 work race, verify nothing else drifted while at it): StockDetail.jsx's FACTOR_WEIGHTS was
 already stale BEFORE that reweight (growth=0.2/positioning=0.15/stability=0.12/momentum=0.08
@@ -31,7 +37,6 @@ with open("webapp/frontend/src/pages/StockDetail.jsx", encoding="utf-8") as f:
 
 _PILLAR_TO_JSX_KEY = {
     "quality": "quality_score",
-    "growth": "growth_score",
     "value": "value_score",
     "risk": "risk_score",
     "momentum": "momentum_score",

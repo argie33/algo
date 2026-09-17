@@ -35,9 +35,11 @@ with open("webapp/frontend/src/components/StockScoreAccordion.jsx", encoding="ut
 
 
 def _weight_for_score_var(source: str, score_var: str) -> float:
-    """Find `<score_var> * 0.NN` (the weighted_sum accumulation line) in a function's source."""
-    match = re.search(r"\b" + re.escape(score_var) + r"\s*\*\s*(0\.\d+)\b", source)
-    assert match, f"expected to find `{score_var} * 0.NN` in source - has the code been restructured?"
+    """Find `<score_var> * 0.NN` or `<score_var> * 1.0` (a full-weight single-component pillar,
+    e.g. momentum's AQR-pivot mom_12_1-only construction) - the weighted_sum accumulation line -
+    in a function's source."""
+    match = re.search(r"\b" + re.escape(score_var) + r"\s*\*\s*(0\.\d+|1\.0)\b", source)
+    assert match, f"expected to find `{score_var} * 0.NN` or `* 1.0` in source - has the code been restructured?"
     return float(match.group(1))
 
 
@@ -65,23 +67,33 @@ def _assert_pct_matches(jsx_key: str, py_weight: float) -> None:
 
 class TestValueScoreWeightBadges:
     def test_weights_match_code(self):
-        """UPDATED 2026-09-16 (factor-purity sweep): the JSX badges now describe the REAL,
-        live-persisted value_score - Pass 2's MSCI Enhanced Value 3-leg construction in
-        value_metrics.py's update_value_multiples_percentiles (Book/Price-or-Cash-Earnings/
-        Price, a single Earnings/Price leg, EV/CFO-or-Cash-Earnings/Price - each 1/3 weight),
-        not Pass-1's _score_value provisional curve (which only exists as a same-run interim
-        value until Pass 2 overwrites it - see value_score.py's own docstring). stock_pe has
-        no row anymore (trailing P/E is folded into the single Earnings/Price leg, never a
-        second independent leg) - see TestUnscoredValueFieldsNotDisplayed below.
+        """AQR VALUE REBUILT 2026-09-17 (factor-purity pivot: MSCI -> AQR only - see
+        value_metrics.py's own "AQR VALUE REBUILT" comment for the full Asness/Moskowitz/
+        Pedersen 2013 citation). Pass 2's update_value_multiples_percentiles no longer blends
+        3 MSCI legs at 1/3 each - AQR's Value factor is a single book-to-market measure, so
+        `weight_by_symbol[symbol] = 1.0` (P/B-or-book-to-price is the ONLY scored leg). stock_pe
+        has no row (trailing P/E is folded into the unscored Earnings/Price leg) - see
+        TestUnscoredValueFieldsNotDisplayed below.
         """
         src = inspect.getsource(ValueMetricsMixin.update_value_multiples_percentiles)
-        assert src.count("1.0 / 3.0") >= 3, (
-            "expected update_value_multiples_percentiles's 3 real components (P/B-or-P/CE, "
-            "Earnings/Price, EV/CFO-or-P/CE) to each still be weighted 1/3"
+        assert "weight_by_symbol[symbol] = 1.0" in src, (
+            "expected update_value_multiples_percentiles's single AQR book-to-market leg to be "
+            "the pillar's full weight (1.0), not a fractional MSCI-style blend"
         )
-        for jsx_key in ("stock_pb", "stock_forward_pe", "fcf_yield"):
-            jsx_pct = int(re.match(r"(\d+)%", _jsx_weight_for_key(jsx_key)).group(1))
-            assert jsx_pct == 33, f"{jsx_key}: JSX badge should say 33% (1/3 of Pass 2's real 3-leg formula)"
+        jsx_pct = int(re.match(r"(\d+)%", _jsx_weight_for_key("stock_pb")).group(1))
+        assert jsx_pct == 100, "stock_pb: JSX badge should say 100% (AQR's sole book-to-market Value leg)"
+
+    def test_forward_pe_and_fcf_yield_no_longer_scored(self):
+        """AQR VALUE REBUILT 2026-09-17: stock_forward_pe/fcf_yield (MSCI's old Earnings/Price
+        and EV/CFO legs) stay computed/displayed (leg_earnings_z/leg_cash_z, still computed in
+        value_metrics.py) but no longer feed value_score - informational only now, same
+        used:false/weight:null convention every other removed-from-scoring field in this
+        codebase uses."""
+        for key in ("stock_forward_pe", "fcf_yield"):
+            match = re.search(r"key:\s*[\"']" + re.escape(key) + r"[\"'].*?\n\s*\},", _JSX_SOURCE, re.DOTALL)
+            assert match, f"expected a {key} VALUE_SCHEMA entry"
+            assert "used: false" in match.group(0), f"{key} must be used: false"
+            assert "weight: null" in match.group(0), f"{key} must be weight: null"
 
 
 class TestUnscoredValueFieldsNotDisplayed:
@@ -277,25 +289,25 @@ class TestPositioningScoreRemoved:
 
 
 class TestRiskScoreWeightBadges:
-    def test_volatility_and_beta_weights_match_code(self):
-        """LIQUIDITY REMOVED 2026-09-15, MAX_DRAWDOWN_1Y REMOVED 2026-09-16 (factor-purity
-        sweep - see _score_risk's own docstring: never a real Barra/MSCI risk descriptor, era-
-        flipped sign with no stable predictive power). The remaining 3 genuine risk-of-loss
-        inputs (Volatility 60D/252D, Beta) split `RISK_COMPONENT_WEIGHT` (1/3) each, a shared
-        named constant rather than a per-line literal - so this checks the JSX badge against
-        that constant directly instead of `_weight_for_score_var`'s literal-`0.NN` regex."""
+    def test_beta_bab_weight_matches_code(self):
+        """AQR PIVOT 2026-09-17 (see risk_scoring.py's own module docstring): beta_bab
+        (Frazzini & Pedersen 2014's Betting-Against-Beta shrinkage estimator) is now the
+        pillar's SOLE scored input, `RISK_COMPONENT_WEIGHT` = 1.0 (100%) - a shared named
+        constant rather than a per-line literal, so this checks the JSX badge against that
+        constant directly instead of `_weight_for_score_var`'s literal-`0.NN` regex."""
         from loaders.stock_scores.risk_scoring import RISK_COMPONENT_WEIGHT
 
-        for jsx_key in ("volatility_60d", "volatility_12m", "beta"):
-            _assert_pct_matches(jsx_key, RISK_COMPONENT_WEIGHT)
+        _assert_pct_matches("beta_bab", RISK_COMPONENT_WEIGHT)
 
-    def test_max_drawdown_no_longer_scored(self):
-        """max_drawdown_1y is informational-only now (used:false) - see this class's own
+    def test_volatility_beta_and_max_drawdown_no_longer_scored(self):
+        """volatility_60d/cmra_12m/raw beta/max_drawdown_1y are informational-only now
+        (used:false) - beta_bab is the pillar's only scored input, see this class's own
         docstring above."""
-        match = re.search(r"key:\s*[\"']max_drawdown_1y[\"'].*?\n\s*\},", _JSX_SOURCE, re.DOTALL)
-        assert match, "expected a max_drawdown_1y RISK_SCHEMA entry"
-        assert "used: false" in match.group(0)
-        assert "weight: null" in match.group(0)
+        for key in ("volatility_60d", "cmra_12m", "beta", "max_drawdown_1y"):
+            match = re.search(r"key:\s*[\"']" + re.escape(key) + r"[\"'].*?\n\s*\},", _JSX_SOURCE, re.DOTALL)
+            assert match, f"expected a {key} RISK_SCHEMA entry"
+            assert "used: false" in match.group(0), f"{key} must be used: false"
+            assert "weight: null" in match.group(0), f"{key} must be weight: null"
 
     def test_liquidity_no_longer_scored(self):
         """Liquidity is fetched/displayed informationally only - no longer a weight-badged
@@ -329,38 +341,34 @@ class TestRiskScoreWeightBadges:
 
 
 class TestMomentumScoreWeightBadges:
-    def test_price_return_weights_match_code(self):
-        """UPDATED 2026-09-15 (WEIGHTS REBALANCED, see momentum_scoring.py's own docstring):
-        momentum_3m/RSI/MACD/SMA-position removed from scoring entirely - momentum_score is
-        now purely mom_6m (from the `weights = {"momentum_6m": 0.50}` dict literal) + mom_12_1
-        (a standalone `mom_12_1_score * 0.50` line, same pattern eve_score/evr_score use)."""
+    def test_mom_12_1_weight_matches_code(self):
+        """AQR MOMENTUM PIVOT (2026-09-17, see momentum_scoring.py's own module docstring):
+        momentum_6m and the risk-adjustment machinery are gone - momentum_score is now purely
+        mom_12_1 (a standalone `mom_12_1_score * 1.0` line), weight 100%."""
         src = inspect.getsource(StockScoresLoader._score_momentum)
-        dict_match = re.search(r"weights = \{([\s\S]*?)\}", src)
-        assert dict_match, "expected a `weights = {...}` dict literal in _score_momentum"
-        dict_weights = {k: float(v) for k, v in re.findall(r'"(\w+)":\s*(0\.\d+)', dict_match.group(1))}
-
-        _assert_pct_matches("momentum_6m", dict_weights["momentum_6m"])
+        assert 'metrics.get("momentum_6m")' not in src and 'metrics["momentum_6m"]' not in src, (
+            "momentum_6m should no longer be a scored momentum_score component"
+        )
         _assert_pct_matches("momentum_12_1", _weight_for_score_var(src, "mom_12_1_score"))
 
     def test_technical_indicators_no_longer_scored_or_displayed(self):
-        """UPDATED 2026-09-15 (WEIGHTS REBALANCED): RSI(14)/MACD/SMA-50/SMA-200 are no longer
-        part of momentum_score at all (see momentum_scoring.py's own docstring for the full
-        evidence trail - none of them are part of any convergent institutional Momentum
-        factor definition, and empirically diluted real-fund rank correlation). Guards that
-        the rows were actually removed from MOMENTUM_SCHEMA, not just left stale (same
-        "no display row for a no-longer-scored field" convention RISK_SCHEMA's
-        test_debt_to_assets_not_scored already checks for debt_to_assets)."""
+        """UPDATED 2026-09-17 (AQR MOMENTUM PIVOT): RSI(14)/MACD/SMA-50/SMA-200/momentum_6m are
+        no longer part of momentum_score at all (see momentum_scoring.py's own docstring for
+        the full evidence trail). Guards that the rows were actually removed from
+        MOMENTUM_SCHEMA, not just left stale (same "no display row for a no-longer-scored
+        field" convention RISK_SCHEMA's test_debt_to_assets_not_scored already checks for
+        debt_to_assets)."""
         src = inspect.getsource(StockScoresLoader._score_momentum)
         assert "tech_trend_scores" not in src, "RSI/MACD should no longer be scored momentum_score components"
         assert "sma_scores" not in src, "SMA positioning should no longer be a scored momentum_score component"
         schema_match = re.search(r"const MOMENTUM_SCHEMA = \[([\s\S]*?)\n\];", _JSX_SOURCE)
         assert schema_match, "expected MOMENTUM_SCHEMA to still exist"
         schema_body = schema_match.group(1)
-        for removed_key in ("momentum_3m", "rsi", "macd", "price_vs_sma_50", "price_vs_sma_200"):
+        for removed_key in ("momentum_3m", "rsi", "macd", "price_vs_sma_50", "price_vs_sma_200", "momentum_6m"):
             assert f'key: "{removed_key}"' not in schema_body, (
                 f"{removed_key} should have no MOMENTUM_SCHEMA row (not scored, so not displayed on this tab)"
             )
-        assert 'key: "momentum_6m"' in schema_body, "momentum_6m should now have a MOMENTUM_SCHEMA row (scored)"
+        assert 'key: "momentum_12_1"' in schema_body, "momentum_12_1 should have a MOMENTUM_SCHEMA row (scored)"
 
 
 class TestCompositeWeightBadges:
@@ -386,20 +394,26 @@ class TestCompositeWeightBadges:
             "the same single source of truth instead of hand-copying it"
         )
 
-    def test_positioning_and_size_have_no_composite_weight(self):
-        """Positioning and Size are retired composite pillars. Positioning still has an
-        informational-only InputsCard, which must not pass a pillarWeight prop (would wrongly
-        imply it still feeds composite_score). Size's own informational card was removed
-        entirely 2026-08-31 (commit 3cf5bf937, user directive) - if it ever reappears, it must
-        not be weight-badged either."""
+    def test_positioning_size_and_growth_have_no_composite_weight(self):
+        """Positioning and Size are retired composite pillars. Growth (settled 2026-09-17,
+        "Growth visible, not double-weighted" - see BASE_PILLAR_WEIGHTS' own comment in
+        pillar_weights.py) is visible on its own real tab but deliberately not a separate
+        composite input either, since its real predictive content already lives in Quality's
+        own QMJ Growth sub-score - counting both would double-weight the same underlying
+        signal. All three still have real InputsCards, which must not pass a pillarWeight prop
+        (would wrongly imply they feed composite_score). Size's own informational card was
+        removed entirely 2026-08-31 (commit 3cf5bf937, user directive) - if it ever reappears,
+        it must not be weight-badged either."""
         positioning_call = re.search(r'<InputsCard\s+title="Positioning \(informational\)"[\s\S]*?/>', _JSX_SOURCE)
+        growth_call = re.search(r'<InputsCard\s+title="Growth"[\s\S]*?/>', _JSX_SOURCE)
         size_call = re.search(r'<InputsCard\s+title="Size \(informational\)"[\s\S]*?/>', _JSX_SOURCE)
         assert positioning_call and "pillarWeight" not in positioning_call.group(0)
+        assert growth_call and "pillarWeight" not in growth_call.group(0)
         if size_call:
             assert "pillarWeight" not in size_call.group(0)
 
-    def test_all_five_composite_pillars_wire_a_pillar_weight(self):
-        for key in ("quality", "growth", "value", "risk", "momentum"):
+    def test_all_four_composite_pillars_wire_a_pillar_weight(self):
+        for key in ("quality", "value", "risk", "momentum"):
             assert re.search(r"pillarWeight=\{PILLAR_COMPOSITE_WEIGHTS\." + key + r"\}", _JSX_SOURCE), (
                 f"expected InputsCard for '{key}' to wire pillarWeight={{PILLAR_COMPOSITE_WEIGHTS.{key}}}"
             )

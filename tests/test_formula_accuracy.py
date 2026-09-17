@@ -469,9 +469,14 @@ class TestROECalculation:
 class TestRebalanceLogic:
     """Verify weight redistribution when metrics missing."""
 
-    def test_weight_redistribution_three_of_six_metrics(self) -> None:
-        """When 3 of 6 stock score metrics available, redistribute weights."""
-        available = ["quality", "growth", "value"]
+    def test_weight_redistribution_two_of_four_pillars(self) -> None:
+        """When 2 of 4 AQR pillars (quality/value/risk/momentum) are available, redistribute
+        weights. Growth was retired as a standalone composite pillar 2026-09-17 (AQR's real
+        factor taxonomy - Value, Momentum, Quality-Minus-Junk, Betting-Against-Beta - has no
+        separate Growth factor; its signal now lives inside Quality's QMJ Growth sub-score) -
+        see loaders/stock_scores/pillar_weights.py's BASE_PILLAR_WEIGHTS docstring.
+        """
+        available = ["quality", "value"]
         available_weight = sum(BASE_PILLAR_WEIGHTS[m] for m in available)
 
         # Normalize to 100%
@@ -482,6 +487,6 @@ class TestRebalanceLogic:
         assert abs(sum(normalized.values()) - 1.0) < 0.001
 
     def test_minimum_completeness_threshold(self) -> None:
-        """Require >= 50% (3 of 6) metrics for stock score."""
-        min_completeness = 3 / 6
+        """Require >= 50% (2 of 4) pillars for stock score."""
+        min_completeness = 2 / 4
         assert abs(min_completeness - 0.5) < 0.001

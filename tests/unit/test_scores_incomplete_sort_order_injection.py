@@ -30,7 +30,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 def _mock_cursor(rows):
     cursor = Mock()
     cursor.fetchone.return_value = [len(rows)]
-    cursor.fetchall.return_value = rows
+    # _get_stock_scores's default (2026-09-15) IBD-style liquidity screen runs a first,
+    # separate `SELECT key, value FROM algo_config ...` fetchall (tuple rows, `row[0]`/`row[1]`
+    # indexed) before the main results fetchall - only reachable via handle()'s main "/api/
+    # scores" path, not _get_incomplete_stocks (which never joins that query and only ever
+    # makes one fetchall call). Returning [] for that first call falls back to this function's
+    # own hardcoded defaults (see its except KeyError/TypeError/ValueError branches) rather
+    # than crashing on a dict row's `[0]` access; `rows` (the real payload, possibly dict rows)
+    # is then returned on the actual results fetchall.
+    cursor.fetchall.side_effect = [[], rows]
     return cursor
 
 

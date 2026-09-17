@@ -97,7 +97,14 @@ class TestCalculateVolatilityUsesEwmaWeighting:
 def _db_context_mock(price_rows, spy_rows, debt_to_assets=None):
     mock_cur = MagicMock()
     mock_cur.fetchone.return_value = (debt_to_assets,) if debt_to_assets is not None else None
-    mock_cur.fetchall.side_effect = [price_rows, spy_rows]
+    # 5 fetchall() calls total inside _compute_stability_row's `with DatabaseContext` block:
+    # 1) the 252-day price_daily_split_adjusted window, 2) the matching SPY window, 3)
+    # `_get_cmra_monthly_inputs`'s month-end-close query (added 2026-09-17, CMRA), 4)/5)
+    # `_fetch_bab_price_series`'s own stock/SPY 5-year queries (added 2026-09-17, BAB - see
+    # risk_scoring.py's own docstring). CMRA/BAB default to empty so both are unavailable
+    # (insufficient history) rather than breaking every existing mock's call-count assumption;
+    # tests that care about CMRA/BAB specifically pass their own rows.
+    mock_cur.fetchall.side_effect = [price_rows, spy_rows, [], [], []]
     mock_ctx = MagicMock()
     mock_ctx.__enter__.return_value = mock_cur
     return mock_ctx

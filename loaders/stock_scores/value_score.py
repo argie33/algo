@@ -76,19 +76,21 @@ class ValueScoreMixin:
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
-        This is the Pass-1 PROVISIONAL scorer only. It scores PE/PB/Forward-PE with fixed
-        piecewise curves (`_pe_curve_score`/`_pb_curve_score`, each 20% of a 0.60 nominal max
-        weight - see VALUE_MIN_WEIGHT's module docstring) as a placeholder value. The REAL,
-        live score is a cross-sectional percentile rank against the current run's universe,
-        computed by `value_metrics.update_value_multiples_percentiles()` (post_run(), a batch
-        pass that overwrites value_score/composite_score after every symbol has been scored)
-        using MSCI Enhanced Value's actual 3-leg definition (Book/Price-or-Cash-Earnings/Price,
-        Forward Earnings/Price, EV/CFO-or-Cash-Earnings/Price) - see that function's own
-        docstring. This function's provisional value only ever persists as the real score if
-        Pass 2 fails partway through a run.
+        This is the Pass-1 PROVISIONAL scorer only. Since 2026-09-17 (factor-purity pivot,
+        MSCI -> AQR-only), `_pe_curve_score`/`_pb_curve_score` are flat NEUTRAL_PLACEHOLDER_
+        SCORE placeholders (see value_metrics.py's own NEUTRAL_PLACEHOLDER_SCORE docstring),
+        not the hand-set piecewise curves this docstring used to describe. The REAL, live score
+        is computed by `value_metrics.update_value_multiples_percentiles()` (post_run(), a
+        batch pass that overwrites value_score/composite_score after every symbol has been
+        scored) using AQR's actual single-variable definition of the Value factor - a
+        universe-wide z-score of book-to-market (Asness, Moskowitz, Pedersen 2013, "Value and
+        Momentum Everywhere") - see that function's own docstring for the citation and
+        construction detail. This function's provisional value only ever persists as the real
+        score if Pass 2 fails partway through a run.
 
-        P/S and Dividend Yield are NOT scored here or in Pass 2 - MSCI Enhanced Value's real
-        methodology has no home for either. PEG, FCF yield, Margin of Safety, Net Payout Yield,
+        P/S, Dividend Yield, Forward P/E, and EV/CFO are NOT scored here or in Pass 2 - AQR's
+        real Value factor construction has no home for any of them; it is book-to-market alone,
+        not a multi-leg composite. PEG, FCF yield, Margin of Safety, Net Payout Yield,
         EV/EBITDA, EV/Revenue, Amihud illiquidity, and a standalone Size factor were all
         evaluated and removed from Value scoring over the course of this repo's history (each
         either duplicated an existing multiple, isn't part of any mainstream systematic Value

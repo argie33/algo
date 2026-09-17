@@ -298,6 +298,27 @@ from loaders.load_stock_scores and must keep working unchanged.
 # whenever a prior sector-neutrality decision predates this bar, and always note the
 # survivorship-bias caveat (`SURVIVORSHIP_BIAS_CAVEAT` in fama_macbeth_price_factors.py) on the
 # result - it limits confidence in every such test, not just weight decisions.
+#
+# SECOND VIOLATION FOUND AND FIXED 2026-09-17 (factor-purity follow-up, user: "where we
+# inaccurately mixing industry things to a point where it doesn't make sense"): Growth
+# (growth_scoring.py's update_growth_sector_neutral_scores) was STILL sector-relative, and had
+# never actually cleared this policy's own bar - it was never independently tested, sector-
+# relative or otherwise. It was built 2026-09-08 by copying Quality's THEN-current
+# sector-relative implementation (a real precedent at the time), but Quality was itself REBUILT
+# to a cited, universe-wide MSCI z-score on 2026-09-16 - Growth's own construction was never
+# revisited alongside it, so it kept inheriting a rationale that had since been retracted at the
+# source. A later docstring pass papered over the gap by claiming universe-wide-vs-sector-relative
+# "matches MSCI's real Growth-trend methodology (this file's own top-of-file citation)" - false on
+# inspection: that citation (GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE) is entirely about which 4
+# descriptors match MSCI GIMIVG/Barra EGRO, and says nothing about sector relativity at all. This
+# is the exact failure mode this policy exists to catch - a plausible-sounding citation standing
+# in for an actual test - just one level removed (citing a DIFFERENT document's unrelated finding,
+# rather than citing the right document's own literature argument, the way Risk's original mistake
+# did). Reverted to `universe_wide_zscore`, matching Quality/Momentum/Risk's own converged
+# position - see update_growth_sector_neutral_scores()'s own "REVERSED TO UNIVERSE-WIDE" docstring
+# note for the full detail. Value remains the one deliberate exception (sector-relativized, but
+# only at the COMPOSITE stage, per MSCI Enhanced Value Appendix II - a different, cited, real
+# document describing a different index family from the other four pillars' plain style indexes).
 # ============================================================================================
 # TWO-LAYER VALIDATION POLICY (added 2026-09-15, user directive - supersedes the implicit
 # assumption behind the SECTOR-NEUTRALITY GOVERNANCE POLICY above and every pillar-level
@@ -362,12 +383,33 @@ from loaders.load_stock_scores and must keep working unchanged.
 # throwaway/investigative branch or worktree to test a candidate against this file, delete it
 # (or merge it, if it clears the bar) before ending the task that created it - do not leave it
 # for a future session to rediscover. See scripts/check_worktree_health.py.
+# GROWTH: VISIBLE, NOT DOUBLE-WEIGHTED (decided 2026-09-17, explicit user choice among 3
+# options presented live - see /goal transcript: "Growth visible, not double-weighted" over (a)
+# restoring Growth as a 5th equal-weighted pillar with Quality's QMJ Growth leg dropped to
+# compensate, or (b) keeping both and accepting the overlap). growth_score stays fully computed,
+# stored, and displayed (GrowthScoringMixin/_score_growth, update_growth_sector_neutral_scores,
+# the Growth tab in StockScoreAccordion.jsx - real content, not a stub) - it is just NOT one of
+# BASE_PILLAR_WEIGHTS' own keys, because its real predictive content already has a home in
+# Quality's own QMJ Growth sub-score (Asness/Frazzini/Pedersen 2019 "Quality Minus Junk," Table
+# 2: 5-year change in each Profitability-leg measure - see vqg_quality_batch.py's
+# update_quality_sector_neutral_scores). Also counting a second, separately-weighted top-level
+# Growth pillar in composite_score would double-weight the same underlying "growth-ness" signal
+# (correlated, not identical measures, but not independent either) - this was the user's own
+# explicit reasoning for this choice, not an AQR-purism argument alone.
+# NOTE: this exact dict flip-flopped between this 4-key form and a 5-key growth-included form
+# multiple times on 2026-09-17 because more than one concurrent session was editing this file at
+# once - if you find this dict disagreeing with the "GROWTH: VISIBLE, NOT DOUBLE-WEIGHTED" note
+# above, or vice versa, treat that as a live collision to resolve (check the other session's
+# state, don't just silently pick one), not as this comment being stale.
+# Every composite-recompute call site (this file, load_stock_scores.py, quality_scoring.py,
+# momentum_scoring.py, risk_scoring.py, value_metrics.py, growth_scoring.py's OWN pass,
+# algo/monitoring/data_patrol/checks/composite_score_reconciliation.py) must exclude "growth"
+# from BASE_PILLAR_WEIGHTS-keyed lookups.
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
-    "quality": 0.20,
-    "growth": 0.20,
-    "value": 0.20,
-    "risk": 0.20,
-    "momentum": 0.20,
+    "quality": 0.25,
+    "value": 0.25,
+    "risk": 0.25,
+    "momentum": 0.25,
 }
 # VALUE x RISK INTERACTION - REMOVED ENTIRELY 2026-09-15 (user directive: "get rid of all the
 # extra shit beyond the barra and the industry guys" - real Barra-style multi-factor models

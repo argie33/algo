@@ -228,6 +228,10 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     sm.downside_volatility_252d_unavailable_reason,
                     sm.max_drawdown_1y,
                     sm.max_drawdown_1y_unavailable_reason,
+                    sm.cmra_12m,
+                    sm.cmra_12m_unavailable_reason,
+                    sm.beta_bab,
+                    sm.beta_bab_unavailable_reason,
                     liq.avg_dollar_volume_20d,
                     pm.institutional_ownership_pct AS inst_own_val,
                     pm.institutional_ownership_pct_unavailable_reason AS institutional_ownership_unavailable_reason,
@@ -745,6 +749,14 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "avg_dollar_volume_20d": data.get("avg_dollar_volume_20d"),
                 "beta": data.get("beta_val"),
                 "beta_unavailable_reason": data.get("beta_unavailable_reason"),
+                # AQR PIVOT 2026-09-17 (see loaders/stock_scores/risk_scoring.py's own module
+                # docstring): beta_bab (Frazzini & Pedersen 2014 Betting-Against-Beta shrinkage
+                # estimator) is now the pillar's sole SCORED input - cmra_12m stays
+                # computed/persisted informational only, same as volatility_60d/beta above.
+                "cmra_12m": data.get("cmra_12m"),
+                "cmra_12m_unavailable_reason": data.get("cmra_12m_unavailable_reason"),
+                "beta_bab": data.get("beta_bab"),
+                "beta_bab_unavailable_reason": data.get("beta_bab_unavailable_reason"),
                 # debt_to_assets briefly RESTORED HERE 2026-08-30, then REMOVED AGAIN the same
                 # day (user directive) - a balance-sheet solvency ratio doesn't fit this
                 # pillar's price-volatility/risk-of-loss character, same CLEANUP 2026-08-16

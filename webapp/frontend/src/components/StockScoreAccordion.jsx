@@ -210,14 +210,19 @@ const FACTORS = [
 // and Size are retired composite pillars (informational-only tabs below, not part of
 // composite_score) and have no entry here.
 // UNIFORM EQUAL-WEIGHT 2026-09-11 (see BASE_PILLAR_WEIGHTS' own comment in
-// loaders/stock_scores/pillar_weights.py for the full rationale): flat 20% each, replacing the
-// prior backtest-tuned 20/24/27/19/10 split.
+// loaders/stock_scores/pillar_weights.py for the full rationale): flat weight each, replacing
+// the prior backtest-tuned 20/24/27/19/10 split.
+// GROWTH RETIRED AS A STANDALONE COMPOSITE PILLAR 2026-09-17 (factor-purity pivot, MSCI -> AQR
+// only - AQR's real single-stock factor set has no standalone Growth factor; its real
+// predictive content moved into Quality's own QMJ Growth sub-score). Settled 2026-09-17
+// (explicit user directive, "Growth visible, not double-weighted"): growth_score stays fully
+// computed/stored/displayed on its own tab below, it's just no longer one of the 4 keys here -
+// matches BASE_PILLAR_WEIGHTS exactly (quality/value/risk/momentum, 25% each).
 const PILLAR_COMPOSITE_WEIGHTS = {
-  quality: 0.2,
-  growth: 0.2,
-  value: 0.2,
-  risk: 0.2,
-  momentum: 0.2,
+  quality: 0.25,
+  value: 0.25,
+  risk: 0.25,
+  momentum: 0.25,
 };
 
 // ─── Empty state ────────────────────────────────────────────────────────────
@@ -750,8 +755,10 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
         <div style={{ marginBottom: "4px" }}>
           • <strong>Outlined tag</strong> = that input's effective share of the
           full composite score (factor weight × its weight within the factor) -
-          Positioning and Size don't feed the composite, so they have no
-          outlined tag
+          Positioning, Size, and Growth (visible on its own tab, but not a
+          separate composite input - its real predictive content already lives
+          in Quality's own QMJ Growth sub-score, see BASE_PILLAR_WEIGHTS' own
+          comment) don't feed the composite, so they have no outlined tag
         </div>
         <div style={{ marginBottom: "4px" }}>
           • <strong style={{ color: "var(--success)" }}>Value</strong> = data
@@ -813,7 +820,6 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
           stock={stock}
           schema={GROWTH_SCHEMA}
           inputsKey="growth_inputs"
-          pillarWeight={PILLAR_COMPOSITE_WEIGHTS.growth}
         />
         <InputsCard
           title="Positioning (informational)"
@@ -1089,36 +1095,20 @@ const QUALITY_SCHEMA = [
 // avg) cut 25%->15%, momentum_3m/SMA-avg landed at 20% each.
 const MOMENTUM_SCHEMA = [
   {
-    key: "momentum_6m",
-    label: "Momentum (6M, risk-adjusted)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "50%",
-  },
-  {
     key: "momentum_12_1",
     label: "Momentum (12-1, skip-month)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "50%",
+    weight: "100%",
   },
-  // WEIGHTS REBALANCED 2026-09-15 (user directive: "do what is needed so we get ours like
-  // theirs", after live-verifying against fresh MTUM daily holdings). momentum_3m/RSI(14)/
-  // MACD/price_vs_sma_50/200 REMOVED from this schema (not just reweighted to 0%) - none of
-  // them are part of any convergent institutional Momentum factor definition (Jegadeesh-
-  // Titman, Carhart UMD, AQR, MSCI, S&P all construct purely from risk-adjusted return-
-  // lookback windows, never RSI/MACD/SMA-crossover technical indicators - already noted in
-  // momentum_scoring.py's own 2026-09-14 docstring, which stopped short of actually acting on
-  // it that day). Fresh empirical test against real MTUM closed that gap: cap-neutral
-  // Spearman rank correlation (controlling for market cap) was 0.235-0.430 for the
-  // then-current 45/20/15/20 blend, but 0.564 using ONLY risk-adjusted 6m + 12-1 month
-  // momentum (50/50, matching MSCI's own published "looking at both 6- and 12-month holding
-  // period returns... using modified Sharpe ratios" description exactly) - every tested
-  // configuration that added momentum_3m/tech_trend/sma_avg back in monotonically hurt the
-  // correlation, never helped. momentum_6m ADDED (was previously fetched but never scored or
-  // shown - see the now-superseded 2026-08-28 comment this block replaces, which excluded it
-  // as "redundant with 3m/12-1" under the old formula; it's now one of only two scored
-  // inputs). momentum_3m/rsi/macd/price_vs_sma_50/200 raw values remain available via the API
+  // AQR MOMENTUM PIVOT (2026-09-17, /goal directive: "moving away from the msci and towards
+  // the aqr for the factors"). momentum_6m and the risk-adjustment/risk-free-netting machinery
+  // it depended on are REMOVED entirely - AQR's momentum factor (Asness, Moskowitz & Pedersen
+  // 2013, "Value and Momentum Everywhere," JF 68(3)) is a single RAW 12-1 skip-month return,
+  // not MSCI's risk-adjusted 6m+12-1 blend (Sharpe-ratio-style division by realized
+  // volatility, risk-free-rate netting - none of that appears in AQR's or Carhart's UMD
+  // construction). mom_12_1 alone now carries the full 100% weight. momentum_3m/RSI(14)/
+  // MACD/price_vs_sma_50/200/momentum_6m remain fetched/persisted and available via the API
   // response's own top-level fields even though no longer shown on this tab, same
   // "informational, not delete" treatment RISK_SCHEMA already uses for debt_to_assets.
   // - current_price: not a signal, a display-only fact. Never a scoring candidate.
@@ -1234,20 +1224,26 @@ const MOMENTUM_SCHEMA = [
 // 60% (20+20+20), not 100%, and had no row at all for the EV/CFO leg. P/E is no longer an
 // independently-weighted row; trailing_pe is still shown in the raw metrics table elsewhere on
 // this page for reference.
+// AQR VALUE REBUILT 2026-09-17 (factor-purity pivot: MSCI -> AQR only, see
+// value_metrics.py's own "AQR VALUE REBUILT" comment for the full citation). Asness/Moskowitz/
+// Pedersen 2013's Value factor is a single book-to-market measure, not MSCI's 3-leg blend -
+// stock_pb (this pass's book-to-price leg) is now the ONLY scored Value input, weight 100%.
+// stock_forward_pe/fcf_yield stay computed/displayed but no longer feed value_score - still
+// computed above (leg_earnings_z/leg_cash_z), just not combined into the composite any more.
 const VALUE_SCHEMA = [
   {
     key: "stock_pb",
-    label: "P/B",
+    label: "P/B (Book-to-Market)",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "33%",
+    weight: "100%",
   },
   {
     key: "stock_forward_pe",
     label: "Earnings/Price (Forward P/E; trailing P/E substitute)",
     fmt: (v) => num(v, 2),
-    used: true,
-    weight: "33%",
+    used: false,
+    weight: null,
   },
   // No distinct EV/CFO ratio is exposed by the API today - `fcf_yield` (FCF/market_cap) is
   // the same proxy value_metrics.py's cash_yield_raw_map falls back to when
@@ -1257,8 +1253,8 @@ const VALUE_SCHEMA = [
     key: "fcf_yield",
     label: "Cash-Earnings/Price (EV/CFO)",
     fmt: (v) => pct(v, 1),
-    used: true,
-    weight: "33%",
+    used: false,
+    weight: null,
   },
   // market_cap moved to the Size pillar 2026-08-26, since retired entirely (see comment above).
   // amihud_illiquidity NOT added below - value_inputs (lambda/api/routes/scores.py) doesn't
@@ -1547,25 +1543,32 @@ const POSITIONING_SCHEMA = [
 // stays displayed. Volatility 60D/252D and Beta now split the full weight equally, 1/3 each.
 const RISK_SCHEMA = [
   {
+    key: "beta_bab",
+    label: "Beta (BAB, shrunk)",
+    fmt: (v) => num(v, 3),
+    used: true,
+    weight: "100%",
+  },
+  {
     key: "volatility_60d",
     label: "Volatility (60D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "33%",
+    used: false,
+    weight: null,
   },
   {
-    key: "volatility_12m",
-    label: "Volatility (252D)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "33%",
+    key: "cmra_12m",
+    label: "CMRA (12M)",
+    fmt: (v) => num(v, 3),
+    used: false,
+    weight: null,
   },
   {
     key: "beta",
-    label: "Beta vs Market",
+    label: "Beta vs Market (raw)",
     fmt: (v) => num(v, 2),
-    used: true,
-    weight: "33%",
+    used: false,
+    weight: null,
   },
   {
     key: "max_drawdown_1y",
@@ -1581,12 +1584,13 @@ const RISK_SCHEMA = [
     used: false,
     weight: null,
   },
-  // Volatility 30D and downside volatility (252d/60d/30d) are NOT part of the current
-  // 4-input formula - still fetched/persisted for reference. Debt-to-Assets is scored under
-  // Quality instead, not this price-volatility/risk-of-loss pillar. avg_dollar_volume_20d is
-  // still displayed (informational only, used:false) - it still gates the
-  // NEAR_ZERO_LIQUIDITY_THRESHOLD measurement-validity check and remains the system's real
-  // trade-eligibility floor elsewhere, it just no longer contributes to risk_score itself.
+  // AQR PIVOT 2026-09-17 (see loaders/stock_scores/risk_scoring.py's own module docstring):
+  // beta_bab (Frazzini & Pedersen 2014's Betting-Against-Beta shrinkage estimator) is now the
+  // pillar's SOLE scored input (RISK_COMPONENT_WEIGHT=1.0). volatility_60d/cmra_12m/raw beta/
+  // max_drawdown_1y/avg_dollar_volume_20d stay displayed informationally (still
+  // computed/persisted, avg_dollar_volume_20d still gates the NEAR_ZERO_LIQUIDITY_THRESHOLD
+  // measurement-validity check and remains the system's real trade-eligibility floor
+  // elsewhere) but none of them contribute to risk_score any more.
   // segment_count/largest_segment_revenue_pct/is_diversified also stay off this tab - the
   // underlying XBRL segment-dimension extraction always comes back empty.
 ];

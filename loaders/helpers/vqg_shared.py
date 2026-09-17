@@ -552,39 +552,25 @@ def apply_mortgage_reit_sector_override(symbol: str, sector: str | None) -> str 
 
 
 class SectorIndustryCacheMixin:
-    """Lazy, once-per-run symbol->sector/industry caches shared by the value/quality/growth mixins.
+    """Lazy, once-per-run symbol->industry cache shared by the value/quality/growth mixins.
 
     Extracted from load_value_quality_growth_metrics.py (see MOVED HERE comment above) - added
-    to ValueQualityGrowthMetricsLoader's base classes so self._get_symbol_sector/_get_symbol_industry
-    keep resolving exactly as before for every mixin that calls them.
+    to ValueQualityGrowthMetricsLoader's base classes so self._get_symbol_industry keeps
+    resolving exactly as before for every mixin that calls it.
+
+    DEAD-CODE REMOVED 2026-09-17 (factor-purity follow-up): this mixin used to also carry
+    `_get_symbol_sector`/`_sector_cache`, backing a "Financial Services/Real Estate get a
+    7-input variant of quality_score that drops asset_turnover_score" formula - confirmed via
+    repo-wide grep to have ZERO real callers left anywhere (only a `TYPE_CHECKING`-only stub in
+    vqg_quality.py/vqg_quality_batch.py and defensive mocks in
+    test_depository_bank_debt_to_equity_override_20260906.py that don't actually need it).
+    That sector-conditional formula was superseded by the 2026-09-16 MSCI 3-variable Quality
+    Index rebuild (see vqg_quality_batch.py's own docstring) - one flat formula for every
+    sector now, no sector-conditional branch at all - and this method was simply never removed
+    alongside it. Removed rather than left as inert machinery, same "computed but unscored"
+    convention doesn't apply here since nothing ever reads it at all, unlike a genuinely
+    computed-and-displayed raw metric.
     """
-
-    def _get_symbol_sector(self, symbol: str) -> str | None:
-        """Lazily fetches and caches symbol -> company_profile.sector (GICS) once per loader
-        run, reused across every _compute_quality_metrics call (no per-symbol query).
-
-        Financial Services and Real Estate get a 7-input variant of quality_score (see
-        quality_components below) that drops asset_turnover_score - Revenue/Total Assets isn't a
-        coherent "operating efficiency" measure for a bank's loan book or a REIT's portfolio the
-        way it is for an operating company (confirmed via isolated testing, matches Fama-French's
-        practice of excluding financials from similar factor constructions).
-
-        Returns None (falls through to the universal formula) if the sector map can't be
-        fetched or the symbol isn't in company_profile - fails open to the well-tested
-        universal formula rather than silently miscategorizing a symbol."""
-        if not hasattr(self, "_sector_cache"):
-            self._sector_cache: dict[str, str] = {}
-            try:
-                with DatabaseContext("read") as cur:
-                    cur.execute("SELECT symbol, sector FROM company_profile WHERE sector IS NOT NULL")
-                    self._sector_cache = dict(cur.fetchall())
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(
-                    f"[QUALITY_METRICS] Failed to fetch company_profile sector map for the "
-                    f"sector-conditional Quality formula - falling back to the universal "
-                    f"8-input formula for every symbol this run: {e}"
-                )
-        return self._sector_cache.get(symbol)
 
     def _get_symbol_industry(self, symbol: str) -> str | None:
         """Lazily fetches and caches symbol -> company_profile.industry (SIC-derived) once per

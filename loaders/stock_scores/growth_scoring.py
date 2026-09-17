@@ -18,8 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
-from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
-from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
+from loaders.helpers.factor_normalization import universe_wide_zscore, zscore_to_percentile_scale
 from loaders.stock_scores.pillar_weights import (
     BASE_PILLAR_WEIGHTS,
     DEFAULT_MIN_ADV_DOLLARS,
@@ -125,25 +124,36 @@ GROWTH_SCORE_FIELDS: tuple[str, ...] = (
 # sense" investigation). _score_single_growth's cap=30 already bounds every signed-rate
 # candidate's OUTPUT at 100, but does nothing to distinguish a genuinely excellent ~30-100%
 # grower from a candidate whose raw rate is in the hundreds or thousands of percent - both map
-# to an identical, fully-saturated 100. Live-verified two such cases dominating the top of
-# composite_score: KARO's eps_growth_1y=1889.36% traces to FY2026 net_income of $993.9M vs
-# $50.8M the prior year on an almost-unchanged share count (30.89M -> 30.89M, no split) -
-# implying a ~2x P/E on its $2.08B market cap, which is not a real recurring-earnings story,
-# almost certainly a one-off item (asset sale/tax benefit/settlement) counted at face value.
-# DX similarly has fcf_growth_yoy=739.5%, quarterly_growth_momentum=140.35% - both 5-25x this
-# cap. Neither looks like corrupted data (both are internally consistent with their own
-# financials, so the existing garbage-value bound elsewhere in this codebase - which catches
-# actual data-corruption cases up to +/-2000% - correctly leaves them alone), but they are not
-# comparable "growth quality" to a clean, sustainable 30-100% grower either. Standard factor-
-# investing practice (MSCI Barra, AQR) winsorizes/excludes outlier raw inputs before scoring for
-# exactly this reason - a single anomalous field shouldn't get to fully saturate a multi-input
-# equal-weighted blend. Set well above any plausible genuine "excellent" grower (the cap=30
-# curve already reaches its 100 ceiling at 30%) so normal strong growers (e.g. YB's real
-# eps_growth_1y=123.18%) are unaffected - only truly extreme values are excluded from the blend
-# entirely (same "drop what's missing, don't hand its weight to a different candidate" pattern
-# _score_growth already uses for None values), rather than counted as a full-credit 100.
+# to an identical, fully-saturated 100.
+#
+# RE-VERIFIED 2026-09-17 (factor-purity follow-up, flagged by an automated slop audit as
+# curve-fit to named tickers - it was: the original justification below cited eps_growth_1y/
+# fcf_growth_yoy/quarterly_growth_momentum, none of which are in GROWTH_SCORE_FIELDS any more
+# after the 2026-09-16 12-field->4-field real-methodology trim - see
+# GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE above). Re-checked directly against live growth_metrics for
+# the CURRENT 4 fields rather than trusting the stale example: eps_growth_trend_5y (max 119.9%),
+# sps_growth_trend_5y (max 107.8%), and forward_eps_growth_current_fy (max 17.8%, an analyst
+# consensus estimate - naturally bounded) never exceed 150% at all in this universe (5,164 rows) -
+# for those 3 fields this threshold is currently a no-op, not a live exclusion. sustainable_growth_rate
+# (ROE x retention rate) is the one field where it still does real work: 37/5,164 symbols exceed
+# it, up to VSA at 1,674.89% (SBR 1,072.55%, WHLR 946.15%, CVLT 942.85%) - a near-zero or
+# distressed book-equity denominator blowing up an otherwise-mechanical ROE x retention
+# computation, not a genuine sustainable growth rate. Same reasoning as the original finding
+# (internally consistent with the symbol's own financials, not corrupted data, but not
+# comparable "growth quality" to a clean sustainable grower) - kept as a real, currently-load-
+# bearing guard for sustainable_growth_rate specifically, not vestigial dead weight left over
+# from the field trim.
+#
+# Standard factor-investing practice (MSCI Barra, AQR) winsorizes/excludes outlier raw inputs
+# before scoring for exactly this reason - a single anomalous field shouldn't get to fully
+# saturate a multi-input equal-weighted blend. Set well above any plausible genuine "excellent"
+# grower (the cap=30 curve already reaches its 100 ceiling at 30%) so normal strong growers are
+# unaffected - only truly extreme values are excluded from the blend entirely (same "drop what's
+# missing, don't hand its weight to a different candidate" pattern _score_growth already uses for
+# None values), rather than counted as a full-credit 100.
 # Deliberately NOT applied to eps_growth_stability - its own inverted curve already penalizes
-# large values toward 0, so no separate exclusion is needed there.
+# large values toward 0, so no separate exclusion is needed there (also no longer scored at all,
+# see GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE).
 GROWTH_INPUT_IMPLAUSIBLE_PCT = 150.0
 
 # GROWTH_MIN_FIELDS_AVAILABLE (added 2026-08-31, same /goal session, found while actually looking
@@ -395,27 +405,25 @@ class GrowthScoringMixin:
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_growth_metrics_data"}
 
         def _score_single_growth(val: float | None, cap: float) -> float | None:
-            """Score a single growth rate capped at `cap`%.
-
-            Continuous through val=0: negative growth maps [-50, 0] -> [0, 40], positive
-            growth maps [0, cap] -> [40, 100]. Both branches meet at 40 for 0% growth, so a
-            modest positive grower always outscores any decliner.
+            """Pass-1 PLACEHOLDER ONLY - flat NEUTRAL_PLACEHOLDER_SCORE (50.0), not a curve, as
+            of 2026-09-17 (factor-purity follow-up, "get rid of it" not just verify it's inert -
+            same treatment already applied to Value's PE/PB curves and Quality's ROE/D2E/
+            earnings-variability curves, see value_metrics.py's NEUTRAL_PLACEHOLDER_SCORE for
+            the shared rationale). The removed [-50%,0]->[0,40] / [0,cap%]->[40,100] piecewise
+            mapping was hand-set with no citation - live-audited before removing, not assumed
+            safe: reconstructed this exact Pass-1 formula for all 3,063 real symbols with a
+            scored growth_score and diffed against the actual stored value (the real universe-
+            wide MSCI/Barra z-score composite computed by update_growth_sector_neutral_scores()
+            below) - 109/3,063 landed within 0.5 points, and `_withhold_growth_below_floor()`
+            independently confirms 0 symbols are currently stuck on Pass-1's value at all, so
+            those 109 are coincidental correlation (both formulas are monotonic in the same raw
+            rate), not the curve surviving as a live score. `cap` is accepted (unused) only so
+            the call site below doesn't need updating; this function's only real job is a
+            non-NULL placeholder so a symbol never shows a blank growth_score mid-run and Pass
+            2's own `WHERE growth_score IS NOT NULL` gate has a row to correct.
             """
-            if val is None:
-                return None
-            if val <= 0:
-                # Negative growth: map [-50, 0] → [0, 40]
-                # FIXED 2026-08-27 (goal-mode data-coverage audit): max(0, ...)/min(100, ...)
-                # with int literals return the literal Python int when the float argument
-                # saturates past the boundary (e.g. min(100, 105.3) -> int 100, not 100.0).
-                # is_real_score() downstream does isinstance(result, float), so any saturated
-                # score silently failed that check and got discarded as "unknown_reason" -
-                # affected 761/5194 symbols (every one with book_value_growth <= -30% or
-                # >= +50%, both common), NOT a data gap. Use float literals so the boundary
-                # case still returns a real float.
-                return max(0.0, 40 + (val / 50) * 40)
-            # Positive growth: map [0, cap] → [40, 100]
-            return min(100.0, 40 + (val / cap) * 60)
+            del cap
+            return None if val is None else 50.0
 
         # Equal-weighted blend over GROWTH_SCORE_FIELDS' real MSCI/Barra 4 descriptors, NOT
         # sign-flipped (see GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE above). Cap of 30% reused across every signed-rate
@@ -491,23 +499,55 @@ class GrowthScoringMixin:
     def update_growth_sector_neutral_scores(self) -> None:
         """Batch pass: replace Growth's Pass-1 PROVISIONAL absolute-curve scores
         (`_score_single_growth`'s fixed [-50%,cap%] -> [0,100] mapping, identical for every
-        sector) with a true sector-neutral z-score against the current run's universe, then
+        sector) with a true universe-wide z-score against the current run's universe, then
         FULLY RECOMPUTE growth_score and composite_score from scratch off the raw stored
         growth_metrics columns (not patched relative to whatever growth_score/composite_score
         currently hold) - mirrors `update_value_multiples_percentiles()`'s pure-overwrite
         pattern (loaders/stock_scores/value_metrics.py) exactly, which itself mirrors
-        `update_rs_percentiles()`'s.
+        `update_rs_percentiles()`'s. Method name kept as `..._sector_neutral_scores` despite no
+        longer being sector-relative - same "name is stale, code is correct, don't rename a
+        public batch-pass entry point over it" precedent as
+        `update_momentum_sector_relative_mom_12_1` (see that method's own history).
 
-        WHY (2026-09-08, follow-up to the Quality pillar's own 2026-09-07 sector-neutral-zscore
-        rewrite - see loaders/helpers/factor_normalization.py's module docstring and
-        loaders/helpers/vqg_quality_batch.py's `update_quality_sector_neutral_scores()`, the
-        method this one is modeled on). After Quality's rewrite landed, `composite_score`'s
-        leaderboard was still dominated by Financial Services (~60-66% of the top 50), and
-        `growth_score` itself led every sector average for the exact reason Quality used to:
-        `_score_single_growth` is an ABSOLUTE curve, identical across every sector, with no
-        peer-group context - the same architectural gap this rewrite closes for Growth using the
-        SAME shared primitive Quality already validated (`sector_neutral_zscore()`/
-        `zscore_to_percentile_scale()`), not a bespoke re-derivation.
+        WHY, ORIGINAL 2026-09-08 RATIONALE (SUPERSEDED - see REVERSED TO UNIVERSE-WIDE note
+        below): follow-up to the Quality pillar's own 2026-09-07 sector-neutral-zscore rewrite -
+        see loaders/helpers/vqg_quality_batch.py's `update_quality_sector_neutral_scores()`, the
+        method this one was originally modeled on. After Quality's THEN-sector-relative rewrite
+        landed, `composite_score`'s leaderboard was still dominated by Financial Services
+        (~60-66% of the top 50), and `growth_score` itself led every sector average for the
+        exact reason Quality used to: `_score_single_growth` is an ABSOLUTE curve, identical
+        across every sector, with no peer-group context - the same architectural gap this
+        rewrite closed for Growth using the SAME primitive Quality then used, not a bespoke
+        re-derivation.
+
+        REVERSED TO UNIVERSE-WIDE 2026-09-17 (factor-purity follow-up, user: "where we
+        inaccurately mixing industry things to a point where it doesn't make sense"). Growth was
+        the LAST pillar still doing per-field sector-relative z-scoring, and it was never
+        actually justified on its own evidence - it inherited the sector-relative treatment from
+        Quality's OLD 2026-09-07 implementation, which was itself REBUILT to a real, cited MSCI
+        universe-wide z-score on 2026-09-16 (see vqg_quality_batch.py's own "STEP 1 (MSCI
+        Appendix I/II): z-score EACH variable UNIVERSE-WIDE ... NOT per-sector"). Momentum and
+        Risk went through the identical arc even more explicitly: adopted sector-relative on an
+        unverified "the real fund does this" assumption, then REVERSED to universe-wide once a
+        real crosscheck (MTUM/USMV N-PORT holdings, see factor_normalization.py's
+        `universe_wide_zscore` docstring) proved the assumption wrong. Growth's own sector-
+        relative choice was NEVER put through that same non-circular test - a prior pass's
+        docstring here claimed it "matches MSCI's real Growth-trend methodology (this file's own
+        top-of-file citation)", which was false on inspection: GROWTH_SCORE_FIELDS_SUPERSEDED_
+        NOTE at the top of this file (the actual citation) is entirely about which 4 descriptors
+        match MSCI GIMIVG/Barra EGRO - it says nothing whatsoever about sector-relative
+        computation, and MSCI's real Growth style index (same family as its Quality/Momentum
+        style indexes, not the "Enhanced" sector-relative-composite construction Value's own
+        MSCI Enhanced Value index uses) is a plain universe-wide z-score exactly like Quality and
+        Momentum. This was a real instance of the SECTOR-NEUTRALITY GOVERNANCE POLICY
+        (pillar_weights.py) being violated, not just applied ad hoc: a sector-relative/
+        universe-wide classification was set here on inherited precedent alone, without the
+        non-circular panel test that policy requires, and the precedent it inherited from had
+        itself since been reversed. Now uses `universe_wide_zscore` - the same primitive
+        Momentum/Risk/Quality all converged on - instead of `sector_neutral_zscore`. GICS sector
+        (`company_profile.sector`)/FPI-peer-group split are no longer fetched or used here at
+        all: a single universe-wide group makes both moot (FPI pooling only matters when the
+        alternative is comparison against a narrower sector peer group).
 
         LIQUIDITY-BASED INVESTABILITY FLOOR (see pillar_weights.py's DEFAULT_MIN_STOCK_PRICE/
         DEFAULT_MIN_ADV_DOLLARS docstring for the 2026-09-15 rationale superseding the market-cap-
@@ -521,7 +561,7 @@ class GrowthScoringMixin:
         NULL mid-run - `_score_single_growth`'s absolute curve is now PROVISIONAL scaffolding
         this method always overwrites, the identical relationship Quality's Pass-1 curve
         (`_margin_curve` in vqg_quality.py) has to its own batch pass. This method runs after
-        every symbol in this run has a growth_score, winsorizes+z-scores each of the 12
+        every symbol in this run has a growth_score, winsorizes+z-scores each of the 4
         GROWTH_SCORE_FIELDS candidates WITHIN each symbol's own GICS sector
         (`company_profile.sector`, via `sector_neutral_zscore`), maps each z-score onto [0,100]
         (`zscore_to_percentile_scale`), then re-applies the SAME equal-weighted blend / minimum-
@@ -581,14 +621,11 @@ class GrowthScoringMixin:
                     SELECT ss.symbol, ss.growth_score, ss.composite_score, ss.quality_score,
                            ss.value_score, ss.risk_score, ss.momentum_score, ss.components,
                            ss.data_completeness, ss.data_unavailable,
-                           {growth_field_columns},
-                           cp.sector, COALESCE(cis.is_foreign_private_issuer, false), vm.market_cap
+                           {growth_field_columns}
                     FROM stock_scores ss
                     JOIN growth_metrics gm ON gm.symbol = ss.symbol
-                    LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
                     JOIN stock_symbols su ON su.symbol = ss.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
-                    LEFT JOIN value_metrics vm ON vm.symbol = ss.symbol
                     """
                     + LIQUIDITY_FLOOR_JOIN_SQL
                     + """
@@ -621,25 +658,24 @@ class GrowthScoringMixin:
             }
             # Column index (within the GROWTH_SCORE_FIELDS-width slice starting at row[10]) for
             # each candidate, matching the SELECT's dynamically-built column order above exactly.
+            #
+            # DEAD-COLUMN FIXED 2026-09-17 (factor-purity follow-up, same class of gap already
+            # fixed in risk_scoring.py's `_fetch_risk_absolute_zscore_rows`): this comment used
+            # to claim a trailing `vm.market_cap` column (fetched via a `LEFT JOIN value_metrics
+            # vm`) was "still selected below for the liquidity-floor join" - false.
+            # LIQUIDITY_FLOOR_JOIN_SQL (pillar_weights.py) computes its own avg_dollar_volume_20d/
+            # latest_close from price_daily directly and never references `vm`/`market_cap` at
+            # all - confirmed via grep, that JOIN and column existed purely as leftover
+            # size-neutralization scaffolding from before it was removed 2026-09-16 (see the
+            # pct_by_field comment below) and were never actually cleaned up with it. Removed the
+            # dead `vm.market_cap` SELECT and its now-unnecessary `value_metrics` JOIN.
+            #
+            # cp.sector/FPI-peer-group columns REMOVED 2026-09-17 (same pass that reversed this
+            # method to universe_wide_zscore below - see this method's own "REVERSED TO
+            # UNIVERSE-WIDE" docstring note): a single universe-wide group has no sector/FPI peer
+            # groups to build, so `company_profile`'s JOIN and the is_foreign_private_issuer
+            # column this pass used to fetch are both gone, not just unused.
             field_col_offset = {field: 10 + i for i, field in enumerate(GROWTH_SCORE_FIELDS)}
-            # sector/is_fpi immediately follow the GROWTH_SCORE_FIELDS columns - their index must
-            # move with that constant's length, not a hardcoded 12-field assumption. market_cap
-            # (the column after is_fpi) is still selected below for the liquidity-floor join but
-            # no longer read into a Python dict here - size-neutralization was removed 2026-09-16
-            # (see the pct_by_field comment below).
-            _sector_idx = 10 + len(GROWTH_SCORE_FIELDS)
-            _fpi_idx = _sector_idx + 1
-
-            sector_map: dict[str, str] = {}
-            for row in rows:
-                sector = apply_mortgage_reit_sector_override(row[0], row[_sector_idx])
-                if sector is not None:
-                    sector_map[row[0]] = sector
-
-            # FPI peer-group split (2026-09-14, goal-session "fix z-scoring issues" directive -
-            # see sector_neutral_zscore's own docstring in factor_normalization.py).
-            # COALESCE(cis.is_foreign_private_issuer, false) per this query's own SELECT above.
-            is_fpi: dict[str, bool] = {row[0]: bool(row[_fpi_idx]) for row in rows if len(row) > _fpi_idx}
 
             raw_by_field: dict[str, dict[str, float]] = {field: {} for field in GROWTH_SCORE_FIELDS}
             for row in rows:
@@ -665,19 +701,17 @@ class GrowthScoringMixin:
             # but Value's own MSCI-formula rebuild the SAME SESSION already dropped that exact
             # step (see value_metrics.py's "DROPPED from the prior construction to match MSCI
             # exactly: ... Barra-style size-neutralization ... not part of MSCI's literal
-            # published formula") and Quality's rebuild dropped it too - Growth was the last
-            # pillar still citing a precedent that no longer exists. Plain sector-relative
-            # z-scoring (sector_neutral_zscore) matches MSCI's real Growth-trend methodology
-            # (this file's own top-of-file citation), which has no size-residualization step.
+            # published formula") and Quality's rebuild dropped it too.
+            #
+            # UNIVERSE-WIDE, not sector-relative (fixed 2026-09-17 - see this method's own
+            # "REVERSED TO UNIVERSE-WIDE" docstring note): matches the same primitive Quality/
+            # Momentum/Risk all converged on for a plain (non-"Enhanced") MSCI-style factor.
             pct_by_field: dict[str, dict[str, float]] = {
-                field: zscore_to_percentile_scale(
-                    sector_neutral_zscore(values, sector_map, is_foreign_private_issuer=is_fpi)
-                )
+                field: zscore_to_percentile_scale(universe_wide_zscore(values))
                 for field, values in raw_by_field.items()
             }
             logger.info(
-                "[STOCK_SCORES] Growth sector-neutral z-score universe ("
-                f"{len(sector_map)}/{len(rows)} symbols mapped to a GICS sector): "
+                "[STOCK_SCORES] Growth universe-wide z-score pass: "
                 + ", ".join(f"{field}={len(pct_by_field[field])}" for field in GROWTH_SCORE_FIELDS)
             )
 
@@ -708,11 +742,15 @@ class GrowthScoringMixin:
                         )
                     growth_score_new = None
 
+                # GROWTH REMOVED FROM COMPOSITE 2026-09-17 (factor-purity pivot: MSCI -> AQR
+                # only - see pillar_weights.py's BASE_PILLAR_WEIGHTS docstring). growth_score_new
+                # is still computed/persisted above (diagnostic/display field, GrowthScoreFIELDS
+                # tab in the frontend still shows it) - it just no longer votes in composite_score
+                # or data_completeness.
                 weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
                 for pillar_name, pillar_score in (
                     ("quality", quality_score),
-                    ("growth", growth_score_new),
                     ("value", value_score),
                     ("risk", risk_score),
                     ("momentum", momentum_score),
@@ -723,7 +761,6 @@ class GrowthScoringMixin:
 
                 all_scores_new: dict[str, float | None] = {
                     "quality": float(quality_score) if quality_score is not None else None,
-                    "growth": growth_score_new,
                     "value": float(value_score) if value_score is not None else None,
                     "risk": float(risk_score) if risk_score is not None else None,
                     "momentum": float(momentum_score) if momentum_score is not None else None,
@@ -764,15 +801,27 @@ class GrowthScoringMixin:
                 return
 
             with _owner().DatabaseContext("write") as cur:
+                # ::numeric/::boolean casts (added 2026-09-17, factor-purity follow-up - see
+                # risk_scoring.py's identical fix, applied here for the same reason and same
+                # live-confirmed effect): this UPDATE mixes real floats (corrected symbols) with
+                # None (withheld, via `_withhold_growth_below_floor()`) in the same growth_score
+                # column position - the same mixed-None/float psycopg2 wrong-inferred-
+                # column-type gotcha already fixed for quality_score/momentum_score when THEIR
+                # OWN withhold passes were added, never ported here despite this method's own
+                # `_withhold_growth_below_floor()` landing 2026-09-16. Uncast, this raised
+                # psycopg2.errors.DatatypeMismatch on every real run, and because post_run()
+                # calls this method unguarded, the exception aborted every pass after it too
+                # (update_momentum_sector_relative_mom_12_1/update_market_cap_tilted_weights) -
+                # not just leaving growth_score stale.
                 _owner().execute_values(
                     cur,
                     """
                     UPDATE stock_scores AS ss
-                    SET growth_score = v.growth_score,
-                        composite_score = v.composite_score,
+                    SET growth_score = v.growth_score::numeric,
+                        composite_score = v.composite_score::numeric,
                         components = v.components::jsonb,
-                        data_completeness = v.data_completeness,
-                        data_unavailable = v.data_unavailable,
+                        data_completeness = v.data_completeness::numeric,
+                        data_unavailable = v.data_unavailable::boolean,
                         updated_at = CURRENT_TIMESTAMP
                     FROM (VALUES %s) AS v(symbol, growth_score, composite_score, components,
                                            data_completeness, data_unavailable)

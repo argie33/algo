@@ -127,20 +127,25 @@ class QualityScoringMixin:
         STALE SUMMARY FIXED (this pass, /goal factor-purity audit) - this paragraph used to
         describe an intermediate 8-component and then 6-component (15/15/15/15/25/15
         ROE/ROA/FCF Margin/Debt-to-Equity/Margin Volatility/Gross Profitability) AQR/MSCI
-        synthesis blend. REBUILT AGAIN 2026-09-16 (factor-purity sweep, user: "we do what the
-        industry does only") - see vqg_quality_score.py's "REBUILT TO MSCI'S EXACT 3-VARIABLE
-        QUALITY INDEX" note for the full evidence trail. Current live upstream quality_score
-        (loaders/helpers/vqg_quality_score.py, mirrored by the Pass-2 batch overwrite in
-        vqg_quality_batch.py's update_quality_sector_neutral_scores) is MSCI's real, published
-        3-variable Quality Index exactly: Return on Equity, Debt to Equity, and Earnings
-        Variability, equal-weighted 33.34/33.33/33.33. ROA/FCF Margin/Gross Profitability/
-        Margin Volatility/ROCE/Asset Turnover are all REMOVED from scoring (not part of MSCI's
-        index) - raw values remain computed/persisted/displayed for other consumers. ROE is
-        MANDATORY per MSCI's own substitution rules (Appendix II) - missing ROE means no
-        quality_score at all, not a renormalization over the other two. Renormalized over
-        whichever of the other two are available otherwise, with a 40-point minimum-available-
-        weight floor (below that, quality_score is None rather than a thin-sample
-        extrapolation - see vqg_quality_score.py's quality_components comment).
+        synthesis blend, then a since-superseded MSCI-only 3-variable rebuild (see
+        vqg_quality_score.py's own "REBUILT TO MSCI'S EXACT 3-VARIABLE QUALITY INDEX" note,
+        history only as of the pivot below).
+
+        REBUILT AGAIN 2026-09-17 (factor-purity pivot, user directive: "get rid of the MSCI...
+        use industry standard AQR"). `vqg_quality_score.py`'s per-symbol Pass 1 is PROVISIONAL
+        SCAFFOLDING ONLY - every sub-score there (roe_score/debt_to_equity_score/earnings_
+        variability_score/etc.) is a flat NEUTRAL_PLACEHOLDER_SCORE (50.0) when its input is
+        present, same inert-placeholder pattern already used for Value's `_pe_curve_score`/
+        `_pb_curve_score` (see value_metrics.py's own NEUTRAL_PLACEHOLDER_SCORE docstring) -
+        its historical MSCI-3-variable-weighting comments describe dead scaffolding, not a
+        live formula. The REAL, live quality_score is computed by `vqg_quality_batch.py`'s
+        `update_quality_sector_neutral_scores()` (post_run(), overwrites quality_score/
+        composite_score after every symbol has a Pass-1 placeholder) using AQR's real
+        Quality-Minus-Junk composite (Asness, Frazzini, Pedersen 2019) - four legs
+        (Profitability, Growth, Safety, Payout), each a re-standardized sum of z-scored
+        sub-components - see that method's own docstring for the citation and full
+        construction detail, including which QMJ sub-components this schema can and can't
+        compute.
 
         Interest Coverage/Payout Ratio REMOVED 2026-08-27: both were live at 5% each on
         nothing but legacy assumption - properly isolated FM re-testing (own dropna scope, not
@@ -284,11 +289,13 @@ class QualityScoringMixin:
                 data_completeness_old = float(data_completeness_old) if data_completeness_old is not None else None
                 data_unavailable_old = bool(data_unavailable_old) if data_unavailable_old is not None else False
 
+                # GROWTH REMOVED FROM COMPOSITE 2026-09-17 (factor-purity pivot: MSCI -> AQR
+                # only - see pillar_weights.py's BASE_PILLAR_WEIGHTS docstring).
+                del growth_score
                 weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
                 for pillar_name, pillar_score in (
                     ("quality", quality_score_new),
-                    ("growth", growth_score),
                     ("value", value_score),
                     ("risk", risk_score),
                     ("momentum", momentum_score),
@@ -299,7 +306,6 @@ class QualityScoringMixin:
 
                 all_scores_new: dict[str, float | None] = {
                     "quality": quality_score_new,
-                    "growth": float(growth_score) if growth_score is not None else None,
                     "value": float(value_score) if value_score is not None else None,
                     "risk": float(risk_score) if risk_score is not None else None,
                     "momentum": float(momentum_score) if momentum_score is not None else None,

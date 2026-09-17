@@ -39,71 +39,28 @@ logger = logging.getLogger("loaders.load_stock_scores")
 # construction, not a fragment of it").
 MOMENTUM_MIN_WEIGHT = 0.40
 
-# RISK-ADJUSTED MOMENTUM (added 2026-09-14, goal-session backtest validation): MSCI's real
-# Momentum Index construction divides each price-return window by realized volatility before
-# combining (a Sharpe-ratio-style risk adjustment), not raw returns - see
-# algo/research/momentum_risk_adjusted_ic_test_20260914.py for the isolated fit(2017-2021)/
-# holdout(2022-2026) backtest that validated this: real, consistent, modest IC improvement in
-# every period tested before this was ported to live scoring (composite IC 0.0130->0.0140 full
-# sample, 0.0058->0.0069 fit, 0.0200->0.0209 holdout).
+# AQR MOMENTUM PIVOT (2026-09-17, /goal directive: "moving away from the msci and towards the
+# aqr for the factors"). REPLACES the entire risk-adjusted-Sharpe-ratio / 6m+12-1 blend
+# construction below (kept in git history, not here, per this repo's own "delete dead
+# mechanisms rather than leave them inert" convention - see e.g. pillar_weights.py's
+# VALUE_RISK_INTERACTION removal). Same pivot pattern already applied to Risk
+# (risk_scoring.py's beta_bab, 2026-09-17): stop citing/approximating MSCI's published index
+# methodology, replace with the actual academic AQR factor definition.
 #
-# PASS-1 SCAFFOLDING NOTE: `_pct_to_score`'s curve is calibrated for raw percentage returns
-# (-20%=0, +20%=100), and a risk-adjusted ratio (return/vol, e.g. 0.15/0.30=0.5) is on a
-# completely different numeric scale that would miscalibrate that curve if fed in directly.
-# MEDIAN_UNIVERSE_VOL_252D (0.5447, live-measured from stability_metrics.volatility_252d across
-# 5,040 real scored symbols, 2026-09-14) renormalizes the risk-adjusted ratio back up into
-# "percentage-return-equivalent" units so Pass-1's curve stays valid there.
-#
-# CLARIFIED 2026-09-16 (factor-purity sweep, re-audit of this mechanism against the real MSCI
-# Sharpe-ratio-style construction): this renormalization matters ONLY for Pass-1's fixed curve.
-# `update_momentum_sector_relative_mom_12_1`'s batch pass - the real, live-scoring transform,
-# always overwrites Pass-1 - feeds this same risk-adjusted value straight into
-# `universe_wide_zscore` with no curve in between. A z-score is invariant to multiplying every
-# value in the population by the same positive constant ((c*x - mean(c*x))/std(c*x) = (x-mean(x))
-# /std(x)), so multiplying by MEDIAN_UNIVERSE_VOL_252D there is a no-op on the resulting ranking -
-# the batch pass's output is already mathematically equivalent to a genuine return/vol_252d
-# Sharpe-style ratio (winsorized via the [1st,99th]-percentile multiplier bounds, a legitimate
-# outlier treatment, not a departure from it). This constant/mechanism is NOT a live-scoring
-# workaround masquerading as the real formula, as it might look in isolation - it is real only in
-# Pass-1, which is provisional scaffolding by design (see this file's own convention elsewhere).
-MEDIAN_UNIVERSE_VOL_252D = 0.5447
-# FROZEN-CONSTANT DRIFT (flagged by peer review same day, fixed before shipping): real factor
-# indices recompute this kind of cross-sectional statistic at every rebalance rather than
-# freezing it - a hardcoded snapshot would silently drift stale as the universe's volatility
-# regime shifts (e.g. a broad low-vol stretch would push every symbol's multiplier the same
-# direction, not stay centered). `_get_median_vol_252d` below recomputes this from
-# self._stability_cache (already batch-loaded by _prepare_batch_context) fresh on every scoring
-# run - this constant now only serves as the fallback for contexts where that cache isn't
-# populated (isolated unit tests, or a genuinely empty batch), not as the value live scoring
-# actually uses.
-# Floor on vol_252d before using it as a divisor - guards the same near-zero-volatility
-# measurement-validity concern already documented for Risk's own vol scoring
-# (risk_scoring.py's NEAR_ZERO_LIQUIDITY_THRESHOLD/frozen-price gate): a frozen/near-frozen
-# price would otherwise blow up the risk-adjustment ratio, not reflect a genuinely safer return.
-MIN_VOL_252D_FOR_RISK_ADJUSTMENT = 0.05
-# Cap on the risk-adjustment MULTIPLIER itself (MEDIAN_UNIVERSE_VOL_252D / vol_252d), not just
-# the floor on vol_252d - live-caught 2026-09-14 sanity check BEFORE this shipped: a real
-# low-vol utility (TXNM, vol_252d=0.051, just above the floor) got amplified 10.7x
-# (0.5447/0.051), pushing a modest raw return straight to curve saturation (delta +25.85 on a
-# 0-100 score from one sub-component) - not a genuine risk-adjustment signal, an artifact of
-# dividing by a number close to the floor. Same "winsorize extreme ratios" discipline this
-# codebase already applies everywhere else a peer-relative ratio is computed
-# (_winsorize_group/_winsorize_group_values clip to [1st,99th] percentile).
-#
-# FIXED same day (goal-session code-quality pass): the original version of this fix hardcoded
-# [0.5x, 2.0x] here, reasoning "this pillar scores one symbol against a fixed curve, not a peer
-# group, so there's no cross-sectional population to compute a percentile from" - but that's
-# wrong. self._stability_cache already holds the WHOLE batch's vol_252d values (that's exactly
-# what MEDIAN_UNIVERSE_VOL_252D's own median is computed from, one function below), so the
-# batch's own distribution of median_vol/vol_252d ratios is available for a real [1st,99th]
-# percentile clip via _winsorize_group's same _percentile() method - the exact "population will
-# drift, hardcoded number won't" risk this same commit already called out and fixed for the
-# median one paragraph above, left unaddressed for the cap. `_get_risk_adjustment_multiplier_bounds`
-# below computes that live; these two constants are now only the fallback for an unpopulated
-# batch (isolated unit tests) or a batch too thin to trust a percentile from (<5 symbols, same
-# floor _winsorize_group itself uses).
-MAX_RISK_ADJUSTMENT_MULTIPLIER = 2.0
-MIN_RISK_ADJUSTMENT_MULTIPLIER = 0.5
+# AQR's momentum factor - Asness, Moskowitz & Pedersen (2013), "Value and Momentum Everywhere,"
+# Journal of Finance 68(3), Section I.B, and consistently the same construction used in
+# Jegadeesh & Titman (1993) and Carhart's UMD (1997) that AMP's paper builds on - is the
+# cumulative RAW (not risk-adjusted, not vol-scaled) return from 12 months ago to 1 month ago
+# (the "12-1" skip-month window), cross-sectionally ranked/z-scored. No Sharpe-ratio-style
+# division by realized volatility, no blend with a separate 6-month window, no risk-free-rate
+# netting - none of those appear anywhere in AMP's or Carhart's construction. Per this repo's
+# TWO-LAYER VALIDATION POLICY (pillar_weights.py): a pillar-level construction is validated
+# against fidelity to the real, sourced factor definition, not its own standalone IC - the
+# MSCI-Sharpe construction's real MTUM-holdings validation (0.564 cap-neutral correlation,
+# cited in this file's git history) was evidence FOR that MSCI-specific construction, not
+# evidence against AQR's different, differently-defined factor; the two are answering different
+# questions ("does this resemble MSCI's index" vs. "does this resemble AQR's factor"), so that
+# number doesn't need to be re-cleared to make this switch.
 
 
 def _owner() -> Any:
@@ -142,9 +99,6 @@ class MomentumScoringMixin:
     if TYPE_CHECKING:
         _technical_cache: dict[str, tuple[Any, ...]]
         _momentum_cache: dict[str, tuple[Any, ...]]
-        _stability_cache: dict[str, tuple[Any, ...]]
-        _median_vol_252d_cache: float | None
-        _risk_adjustment_multiplier_bounds_cache: tuple[float, float] | None
 
     def _get_momentum_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch momentum/RS metrics for symbol from momentum_metrics table.
@@ -208,16 +162,6 @@ class MomentumScoringMixin:
             price_vs_sma_50 = (close - sma_50) / sma_50 if close is not None and sma_50 else None
             price_vs_sma_200 = (close - sma_200) / sma_200 if close is not None and sma_200 else None
 
-            # vol_252d (annualized, decimal fraction e.g. 0.30 = 30%) from stability_metrics,
-            # already batch-loaded onto self._stability_cache by _prepare_batch_context (see
-            # load_stock_scores.py's own SELECT - index 0 of the cached tuple is volatility_252d,
-            # the query's first column after symbol). Used below to risk-adjust mom_3m/mom_12_1 -
-            # see RISK-ADJUSTED MOMENTUM docstring note in _score_momentum for why.
-            stability_row = getattr(self, "_stability_cache", {}).get(symbol)
-            vol_252d = (
-                safe_float(stability_row[0], f"{symbol}.volatility_252d", allow_none=True) if stability_row else None
-            )
-
             row = self._momentum_cache.get(symbol, None)
 
             if row is not None:
@@ -259,7 +203,6 @@ class MomentumScoringMixin:
                     "macd": macd,
                     "price_vs_sma_50": price_vs_sma_50,
                     "price_vs_sma_200": price_vs_sma_200,
-                    "vol_252d": vol_252d,
                 }
 
             return {
@@ -271,7 +214,6 @@ class MomentumScoringMixin:
                 "macd": macd,
                 "price_vs_sma_50": price_vs_sma_50,
                 "price_vs_sma_200": price_vs_sma_200,
-                "vol_252d": vol_252d,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
@@ -279,19 +221,16 @@ class MomentumScoringMixin:
     def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
 
-        STALE SUMMARY FIXED (this pass, /goal factor-purity audit) - this paragraph used to
-        describe a 20/45/15/20 momentum_3m + mom_12_1 + RSI/MACD + SMA blend. That is no
-        longer what the code below does - see "WEIGHTS REBALANCED 2026-09-15" note further
-        down for the actual live construction and evidence trail. Current live scoring:
-        risk-adjusted momentum_6m (50%) + risk-adjusted 12-1 skip-month momentum (50%),
-        matching MSCI's own published "6- and 12-month holding period returns... using
-        modified Sharpe ratios" Momentum Index description. momentum_3m/RSI(14)/MACD-sign/
-        SMA-50/200 positioning are fetched/persisted/displayed but NOT scored (informational-
-        only) - none of them are part of any convergent institutional/academic Momentum
-        factor definition (Jegadeesh-Titman, Carhart UMD, AQR, MSCI, S&P all construct purely
-        from risk-adjusted return-lookback windows). Normalizes by total weight of available
-        components so partial data doesn't deflate the score. Raw momentum_6m/momentum_12m
-        REPLACED 2026-08-25 by a derived 12-1 construction - see RESOLVED note below.
+        STALE SUMMARY FIXED (2026-09-17, AQR MOMENTUM PIVOT - see module docstring) - this
+        paragraph used to describe a risk-adjusted momentum_6m (50%) + risk-adjusted 12-1 (50%)
+        blend matching MSCI's Momentum Index methodology. That is no longer what the code below
+        does. Current live scoring: RAW (not risk-adjusted) 12-1 skip-month momentum, weight
+        1.0 - the only scored input, matching AQR's actual published momentum factor (Asness,
+        Moskowitz & Pedersen 2013, "Value and Momentum Everywhere"). momentum_6m/momentum_3m/
+        RSI(14)/MACD-sign/SMA-50/200 positioning are fetched/persisted/displayed but NOT scored
+        (informational-only) - none of them are part of AQR's or Carhart's UMD momentum
+        construction. Raw momentum_6m/momentum_12m REPLACED 2026-08-25 by a derived 12-1
+        construction - see RESOLVED note below.
 
         CONSOLIDATED 2026-08-28 (goal: momentum/risk factor-interaction review, closing a gap
         this file's own 2026-08-25 audit flagged and never finished - see "OPEN QUESTION
@@ -514,40 +453,23 @@ class MomentumScoringMixin:
         # then-current 45/20/15/20 blend, but 0.564 using ONLY risk-adjusted 6m + 12-1 month
         # momentum (50/50, matching MSCI's own published "looking at both 6- and 12-month
         # holding period returns... using modified Sharpe ratios" description exactly) -
-        # every tested configuration that added momentum_3m/tech_trend/sma_avg back in
-        # monotonically hurt the correlation, never helped. momentum_3m/RSI/MACD/SMA-position
-        # remain fetched/persisted/displayed (informational, not scored - same convention
-        # already used elsewhere in this codebase for demoted fields) - just no longer part
-        # of momentum_score itself.
-        weights = {
-            "momentum_6m": 0.50,
-        }
-
-        vol_252d = metrics.get("vol_252d")
-        median_vol_252d = self._get_median_vol_252d()
-        min_mult, max_mult = self._get_risk_adjustment_multiplier_bounds()
-
+        # AQR MOMENTUM PIVOT (see module docstring): momentum_6m's risk-adjusted leg is gone -
+        # AQR's factor (Asness/Moskowitz/Pedersen 2013) is a single raw 12-1 return, not a
+        # 6m+12-1 blend. momentum_3m/RSI/MACD/SMA-position remain fetched/persisted/displayed
+        # (informational, not scored - same convention already used elsewhere in this codebase
+        # for demoted fields).
         weighted_sum = 0.0
         total_weight = 0.0
-        for key, w in weights.items():
-            if metrics.get(key) is not None:
-                score = self._pct_to_score(
-                    self._risk_adjust_pct(metrics[key], vol_252d, median_vol_252d, min_mult, max_mult)
-                )
-                if (
-                    score is not None
-                ):  # _pct_to_score no longer returns None (dead-zone removed 2026-09-16) - guard kept, harmless
-                    weighted_sum += score * w
-                    total_weight += w
 
-        # 12-1 momentum (skip most-recent-month, Jegadeesh 1990 standard construction) -
-        # REPLACES raw momentum_6m/momentum_12m 2026-08-25 (see docstring RESOLVED note).
-        # Derived rather than requiring a new stored field: cumulative return from 12mo-ago to
-        # 1mo-ago is algebraically (1+momentum_12m/100)/(1+momentum_1m/100) - 1, converted back
-        # to a percentage number to match _pct_to_score's expected input convention. Guarded
-        # against a near-zero denominator (would require momentum_1m ~ -100%, a stock price
-        # going to ~zero in a month - not realistic for a scoreable position, but NaN/Infinity
-        # guarded both directions per this codebase's standard convention regardless).
+        # 12-1 momentum (skip most-recent-month, Jegadeesh 1990 / AMP 2013 standard
+        # construction) - the ONLY scored input now (weight 1.0). Derived rather than requiring
+        # a new stored field: cumulative return from 12mo-ago to 1mo-ago is algebraically
+        # (1+momentum_12m/100)/(1+momentum_1m/100) - 1, converted back to a percentage number to
+        # match _pct_to_score's expected input convention. RAW, not risk-adjusted (see module
+        # docstring's AQR MOMENTUM PIVOT note). Guarded against a near-zero denominator (would
+        # require momentum_1m ~ -100%, a stock price going to ~zero in a month - not realistic
+        # for a scoreable position, but NaN/Infinity guarded both directions per this codebase's
+        # standard convention regardless).
         mom_12m_raw = metrics.get("momentum_12m")
         mom_1m_raw = metrics.get("momentum_1m")
         if mom_12m_raw is not None and mom_1m_raw is not None:
@@ -555,14 +477,12 @@ class MomentumScoringMixin:
             if abs(denom) > 1e-6:
                 mom_12_1 = ((1.0 + mom_12m_raw / 100.0) / denom - 1.0) * 100.0
                 if math.isfinite(mom_12_1):
-                    mom_12_1_score = self._pct_to_score(
-                        self._risk_adjust_pct(mom_12_1, vol_252d, median_vol_252d, min_mult, max_mult)
-                    )
+                    mom_12_1_score = self._pct_to_score(mom_12_1)
                     if (
                         mom_12_1_score is not None
                     ):  # _pct_to_score no longer returns None (dead-zone removed 2026-09-16) - guard kept, harmless
-                        weighted_sum += mom_12_1_score * 0.50
-                        total_weight += 0.50
+                        weighted_sum += mom_12_1_score * 1.0
+                        total_weight += 1.0
 
         # RSI(14) + MACD sign, CONSOLIDATED (see CONSOLIDATED 2026-08-28 docstring note):
         # averaged into one "technical trend confirmation" slot, combined weight 0.37
@@ -623,89 +543,6 @@ class MomentumScoringMixin:
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_scores_computed"}
 
-    def _get_median_vol_252d(self) -> float:
-        """Batch-computed median volatility_252d across self._stability_cache (recomputed fresh
-        on every scoring run, not frozen - see MEDIAN_UNIVERSE_VOL_252D's own FROZEN-CONSTANT
-        DRIFT docstring note for why a snapshot constant would go stale). Falls back to that
-        live-measured constant when _stability_cache is empty/unpopulated (isolated unit tests
-        that never run `_prepare_batch_context`, or a genuinely empty batch) - same graceful-
-        degradation convention this pillar already uses everywhere else. Cached on the instance
-        after first computation - the batch doesn't change mid-run, so recomputing per-symbol
-        would be wasted work across thousands of calls.
-        """
-        cached: float | None = getattr(self, "_median_vol_252d_cache", None)
-        if cached is not None:
-            return cached
-        stability_cache = getattr(self, "_stability_cache", None)
-        vols = sorted(
-            float(row[0])
-            for row in (stability_cache or {}).values()
-            if row and row[0] is not None and float(row[0]) > 0
-        )
-        median = vols[len(vols) // 2] if vols else MEDIAN_UNIVERSE_VOL_252D
-        self._median_vol_252d_cache = median
-        return median
-
-    def _get_risk_adjustment_multiplier_bounds(self) -> tuple[float, float]:
-        """Batch-computed [1st, 99th] percentile of median_vol_252d/vol_252d across
-        self._stability_cache - see MAX_RISK_ADJUSTMENT_MULTIPLIER's own docstring for why this
-        replaced a hardcoded [0.5x, 2.0x]. Same _percentile() interpolation as
-        factor_normalization.py's `_winsorize_group`, and the same <5-symbols "too few peers to
-        trust a percentile from" fallback to the static constants - not just an empty-cache
-        fallback, an actual replay of that helper's own threshold.
-        """
-        cached: tuple[float, float] | None = getattr(self, "_risk_adjustment_multiplier_bounds_cache", None)
-        if cached is not None:
-            return cached
-        stability_cache = getattr(self, "_stability_cache", None)
-        median_vol_252d = self._get_median_vol_252d()
-        ratios = sorted(
-            median_vol_252d / float(row[0])
-            for row in (stability_cache or {}).values()
-            if row and row[0] is not None and float(row[0]) >= MIN_VOL_252D_FOR_RISK_ADJUSTMENT
-        )
-        n = len(ratios)
-        if n < 5:
-            bounds = (MIN_RISK_ADJUSTMENT_MULTIPLIER, MAX_RISK_ADJUSTMENT_MULTIPLIER)
-        else:
-
-            def _percentile(pct: float) -> float:
-                rank = pct / 100.0 * (n - 1)
-                lo = int(rank)
-                hi = min(lo + 1, n - 1)
-                frac = rank - lo
-                return ratios[lo] + (ratios[hi] - ratios[lo]) * frac
-
-            bounds = (_percentile(1.0), _percentile(99.0))
-        self._risk_adjustment_multiplier_bounds_cache = bounds
-        return bounds
-
-    @staticmethod
-    def _risk_adjust_pct(
-        raw_pct: float,
-        vol_252d: float | None,
-        median_vol_252d: float = MEDIAN_UNIVERSE_VOL_252D,
-        min_multiplier: float = MIN_RISK_ADJUSTMENT_MULTIPLIER,
-        max_multiplier: float = MAX_RISK_ADJUSTMENT_MULTIPLIER,
-    ) -> float:
-        """Risk-adjust a raw percentage return for feeding into `_pct_to_score` - see
-        RISK-ADJUSTED MOMENTUM module-level docstring for the full rationale. Returns raw_pct
-        unchanged when vol_252d is missing or below MIN_VOL_252D_FOR_RISK_ADJUSTMENT (graceful
-        degradation, same "score what's available" convention as every other input in this
-        pillar - a missing/unreliable volatility reading isn't a reason to withhold the
-        momentum reading itself).
-
-        median_vol_252d/min_multiplier/max_multiplier default to the frozen module constants
-        (kept for direct unit testing of this method in isolation) - `_score_momentum` always
-        passes the freshly-computed `_get_median_vol_252d()`/`_get_risk_adjustment_multiplier_
-        bounds()` values instead, per those methods' own docstrings.
-        """
-        if vol_252d is None or vol_252d < MIN_VOL_252D_FOR_RISK_ADJUSTMENT:
-            return raw_pct
-        multiplier = median_vol_252d / vol_252d
-        multiplier = max(min_multiplier, min(max_multiplier, multiplier))
-        return raw_pct * multiplier
-
     @staticmethod
     def _pct_to_score(pct_return: float) -> float | None:
         """Convert percentage return to 0-100 score. PASS-1 PROVISIONAL ONLY - always
@@ -730,9 +567,22 @@ class MomentumScoringMixin:
         else - it doesn't clear it, so it's gone. `update_momentum_sector_relative_mom_12_1`'s
         own batch pass (the real, live-scoring transform) already had no equivalent dead zone -
         this fixes only the Pass-1 scaffolding curve to match.
+
+        REPLACED WITH A FLAT NEUTRAL PLACEHOLDER 2026-09-17 (factor-purity follow-up, "get rid
+        of it" not just verify it's inert - same treatment already applied to Value/Quality/
+        Growth's own Pass-1 curves, see value_metrics.py's NEUTRAL_PLACEHOLDER_SCORE for the
+        shared rationale). The linear -20%/+20%->0/100 mapping removed here was itself hand-set
+        (no cited source for that specific slope/range). Live-audited before removing: this
+        exact Pass-1 formula (risk-adjusted momentum_6m + mom_12_1, 50/50, run through this
+        function) reconstructed for all 3,241 real symbols with a scored momentum_score and
+        diffed against the actual stored value (the real universe-wide z-score computed by
+        update_momentum_sector_relative_mom_12_1() below) - 53/3,241 landed within 0.5 points,
+        coincidental correlation (confirmed via `_withhold_momentum_below_floor()` returning 0
+        symbols currently stuck on Pass-1's value), not survival. `pct_return` is accepted
+        (unused) only so call sites don't need updating.
         """
-        score = 50 + (pct_return / 0.4)
-        return max(0, min(100, score))
+        del pct_return
+        return 50.0
 
     @staticmethod
     def _components_with_corrected_momentum(components_old: Any, momentum_score_new: float | None) -> str:
@@ -754,34 +604,19 @@ class MomentumScoringMixin:
         self,
         symbol: str,
         mom_12_1_pct: dict[str, float],
-        mom_6m_pct: dict[str, float],
     ) -> float | None:
         """Recompute a single symbol's full momentum_score for
         update_momentum_sector_relative_mom_12_1() - split out purely to keep that method's
-        cyclomatic complexity within this repo's ruff C901 bound. Same weights/gate as
-        `_score_momentum`'s 2026-09-15 WEIGHTS REBALANCED note: mom_6m 50% + mom_12_1 50%
-        (both from the pre-computed universe-wide pct maps) - momentum_3m/tech_trend/sma_avg
-        are no longer scored at all, so their raw inputs are never passed here.
+        cyclomatic complexity within this repo's ruff C901 bound. AQR MOMENTUM PIVOT (see module
+        docstring): mom_12_1 alone, weight 1.0 (from the pre-computed universe-wide pct map) -
+        momentum_6m/momentum_3m/tech_trend/sma_avg are no longer scored at all.
         """
-        weighted_sum = 0.0
-        total_weight = 0.0
-
-        if symbol in mom_6m_pct:
-            weighted_sum += mom_6m_pct[symbol] * 0.50
-            total_weight += 0.50
-
         if symbol in mom_12_1_pct:
-            weighted_sum += mom_12_1_pct[symbol] * 0.50
-            total_weight += 0.50
-
-        if total_weight >= MOMENTUM_MIN_WEIGHT:
-            return round(weighted_sum / total_weight, 2)
-        if total_weight > 0:
-            logger.debug(
-                f"[STOCK_SCORES] {symbol} momentum_score withheld in sector-relative pass: "
-                f"only {total_weight:.2f} weight available, below MOMENTUM_MIN_WEIGHT="
-                f"{MOMENTUM_MIN_WEIGHT}."
-            )
+            return round(mom_12_1_pct[symbol], 2)
+        logger.debug(
+            f"[STOCK_SCORES] {symbol} momentum_score withheld in universe-wide pass: "
+            f"mom_12_1 not computable (below MOMENTUM_MIN_WEIGHT={MOMENTUM_MIN_WEIGHT})."
+        )
         return None
 
     @staticmethod
@@ -793,11 +628,16 @@ class MomentumScoringMixin:
         update_momentum_sector_relative_mom_12_1()'s complexity within this repo's ruff C901
         bound, no behavior change. Mirrors update_growth_sector_neutral_scores()'s identical
         inline block exactly."""
+        # GROWTH REMOVED FROM COMPOSITE 2026-09-17 (factor-purity pivot: MSCI -> AQR only - see
+        # pillar_weights.py's BASE_PILLAR_WEIGHTS docstring for the full citation/rationale).
+        # AQR's real factor set has no standalone Growth factor; `growth_score` param is kept
+        # (still fetched by the caller for its own unrelated bookkeeping) but no longer feeds
+        # composite_score or data_completeness.
+        del growth_score
         weights = BASE_PILLAR_WEIGHTS
         composite_val = 0.0
         for pillar_name, pillar_score in (
             ("quality", quality_score),
-            ("growth", growth_score),
             ("value", value_score),
             ("risk", risk_score),
             ("momentum", momentum_score_new),
@@ -808,7 +648,6 @@ class MomentumScoringMixin:
 
         all_scores_new: dict[str, float | None] = {
             "quality": float(quality_score) if quality_score is not None else None,
-            "growth": float(growth_score) if growth_score is not None else None,
             "value": float(value_score) if value_score is not None else None,
             "risk": float(risk_score) if risk_score is not None else None,
             "momentum": momentum_score_new,
@@ -921,40 +760,26 @@ class MomentumScoringMixin:
         return withheld
 
     def update_momentum_sector_relative_mom_12_1(self) -> None:
-        """Batch pass: replace mom_12_1's AND mom_6m's Pass-1 PROVISIONAL absolute-curve scores
-        (raw risk-adjusted return fed through `_pct_to_score`'s fixed +-20%-saturation curve,
-        same for every sector) with universe-wide z-scores against the current run's universe,
-        then FULLY RECOMPUTE momentum_score/composite_score from scratch - mirrors
+        """Batch pass: replace mom_12_1's Pass-1 PROVISIONAL flat-placeholder score with a
+        universe-wide z-score against the current run's universe, then FULLY RECOMPUTE
+        momentum_score/composite_score from scratch - mirrors
         `update_growth_sector_neutral_scores()`'s pure-overwrite pattern (loaders/stock_scores/
         growth_scoring.py) exactly, which itself mirrors Quality's, minus the sector grouping.
 
-        NAME IS STALE, KEPT FOR CALL-SITE STABILITY (see `PARTIAL RE-REVERSAL 2026-09-15` note
-        near the actual z-score calls below for the full evidence trail - same reversal
-        risk_scoring.py's vol_60d/vol_252d went through the same day, see that file's own
-        version of this note). A 2026-09-15 attempt DID make this pass genuinely sector-relative
-        for mom_12_1 (citing MTUM's real MSCI USA Momentum SR "Sector-Relative" Variant
-        methodology, and an initial dry-run overlap improvement vs MTUM/XMMO/DWAS top-25 holdings
-        of 1/25->6/25 large-cap, 1/25->4/25 mid, 0/25->6/25 small) - found later the SAME DAY to
-        have halved real cap-neutral rank correlation vs fresh MTUM once measured properly
-        (0.235 sector-relative vs 0.558 universe-wide), the same "sector diversification is a
-        portfolio-construction-level exposure cap, not a stock-scoring-level per-sector z-score"
-        misread of MTUM's methodology risk_scoring.py's own reversal note describes. Both
-        mom_12_1 and mom_6m are UNIVERSE-WIDE (`universe_wide_zscore`, not `sector_neutral_zscore`
-        - that import was removed from this file) as of that reversal - do not trust this
-        function's own name or reintroduce `sector_neutral_zscore` here without re-clearing the
-        same live-fund-holdings bar that reversed it, not just a citation to MTUM's published
-        methodology text (which is exactly what led to this mistake the first time).
+        NAME IS STALE, KEPT FOR CALL-SITE STABILITY - mom_12_1 is, and remains, UNIVERSE-WIDE
+        (`universe_wide_zscore`, not `sector_neutral_zscore` - see this repo's own live-MTUM-
+        holdings reversal history in git for why sector-relative was tried and rejected for this
+        pillar). Do not reintroduce `sector_neutral_zscore` here without clearing that same bar.
 
-        MECHANISM: risk-adjust each symbol's raw mom_12_1 return AND raw mom_6m return via the
-        existing `_risk_adjust_pct` (normalize each for the stock's own idiosyncratic volatility
-        first), then `universe_wide_zscore`/`zscore_to_percentile_scale` (loaders/helpers/
-        factor_normalization.py) in place of `_pct_to_score`'s fixed curve, blended 50/50 - see
-        the WEIGHTS REBALANCED note on `_score_momentum` above for the full evidence trail.
-        momentum_3m/tech_trend/sma_avg are NOT scored here (mom_6m 50% + mom_12_1 50% only, same
-        as `_score_momentum`) so this pass is a full, consistent momentum_score recompute, not a
-        partial patch - same reason Quality/Growth's sector-neutral passes fully recompute rather
-        than patch one component (only the final blended score is stored, not per-component
-        sub-scores).
+        AQR MOMENTUM PIVOT (2026-09-17, see module docstring's own AQR MOMENTUM PIVOT note):
+        mom_6m and the risk-adjustment/risk-free-netting machinery that used to sit here are
+        gone - AQR's momentum factor (Asness, Moskowitz & Pedersen 2013, "Value and Momentum
+        Everywhere") is a single RAW 12-1 skip-month return, not a risk-adjusted 6m+12-1 blend.
+        momentum_3m/tech_trend/sma_avg remain unscored, same as before.
+
+        MECHANISM: compute each symbol's raw mom_12_1 return, then `universe_wide_zscore`/
+        `zscore_to_percentile_scale` (loaders/helpers/factor_normalization.py) in place of
+        `_pct_to_score`'s flat placeholder - weight 1.0, the only scored input.
 
         INVESTABILITY FLOOR: liquidity-based (algo_config.min_stock_price/min_adv_dollars,
         same as every other sector-neutral pass - REPLACED the market-cap floor 2026-09-15,
@@ -1003,15 +828,11 @@ class MomentumScoringMixin:
                     SELECT ss.symbol, ss.momentum_score, ss.composite_score, ss.quality_score,
                            ss.growth_score, ss.value_score, ss.risk_score, ss.components,
                            ss.data_completeness, ss.data_unavailable,
-                           mm.momentum_1m, mm.momentum_12m,
-                           sm.volatility_252d, cp.sector, COALESCE(cis.is_foreign_private_issuer, false),
-                           mm.momentum_6m
+                           mm.momentum_1m, mm.momentum_12m
                     FROM stock_scores ss
                     JOIN momentum_metrics mm ON mm.symbol = ss.symbol
                     JOIN stock_symbols su ON su.symbol = ss.symbol
-                    LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
-                    LEFT JOIN stability_metrics sm ON sm.symbol = ss.symbol
                     """
                     + LIQUIDITY_FLOOR_JOIN_SQL
                     + """
@@ -1035,76 +856,25 @@ class MomentumScoringMixin:
                 )
                 return
 
-            # Median vol_252d for this batch (same convention as _get_median_vol_252d, computed
-            # fresh here since this pass runs off its own dedicated query, not self._stability_cache).
-            vols = sorted(float(row[12]) for row in rows if row[12] is not None and float(row[12]) > 0)
-            median_vol_252d = vols[len(vols) // 2] if vols else MEDIAN_UNIVERSE_VOL_252D
-
-            # Dynamic risk-adjustment multiplier bounds ([1st,99th] percentile of median_vol/
-            # vol_252d across THIS pass's own row set) - same algorithm as
-            # _get_risk_adjustment_multiplier_bounds(), replicated locally rather than called
-            # directly: that method reads self._stability_cache (Pass 1's population), which
-            # this pass never populates (it runs off its own separately-queried, differently-
-            # filtered row set with a different median_vol_252d baseline) - calling it as-is
-            # would clip against bounds derived from a population this pass doesn't actually
-            # use. Keeps Pass 1 and this pass internally consistent with EACH OTHER'S OWN
-            # population, not silently falling back to the static [0.5x,2.0x] constants by
-            # omission (caught in review before this landed).
-            ratios = sorted(
-                median_vol_252d / float(row[12])
-                for row in rows
-                if row[12] is not None and float(row[12]) >= MIN_VOL_252D_FOR_RISK_ADJUSTMENT
-            )
-            n_ratios = len(ratios)
-            if n_ratios < 5:
-                min_mult, max_mult = MIN_RISK_ADJUSTMENT_MULTIPLIER, MAX_RISK_ADJUSTMENT_MULTIPLIER
-            else:
-
-                def _percentile(pct: float, _ratios: list[float] = ratios, _n: int = n_ratios) -> float:
-                    rank = pct / 100.0 * (_n - 1)
-                    lo = int(rank)
-                    hi = min(lo + 1, _n - 1)
-                    frac = rank - lo
-                    return _ratios[lo] + (_ratios[hi] - _ratios[lo]) * frac
-
-                min_mult, max_mult = _percentile(1.0), _percentile(99.0)
-
-            # Risk-adjust each symbol's raw mom_12_1 (skip-month construction) and mom_6m, same
-            # derivation as _score_momentum's inline version. Both fed into the same
-            # universe-wide z-score treatment and blended 50/50 (see WEIGHTS REBALANCED note
-            # on _score_momentum above for the full evidence trail - fresh MTUM validation,
-            # not internal IC alone).
-            mom_12_1_risk_adj: dict[str, float] = {}
-            mom_6m_risk_adj: dict[str, float] = {}
+            # Raw mom_12_1 (skip-month construction, AQR MOMENTUM PIVOT - see module docstring):
+            # no risk-adjustment, no risk-free-rate netting, no mom_6m blend.
+            mom_12_1_raw: dict[str, float] = {}
             for row in rows:
-                symbol, m1_raw, m12_raw, vol252, m6_raw = row[0], row[10], row[11], row[12], row[15]
-                vol = float(vol252) if vol252 is not None else None
+                symbol, m1_raw, m12_raw = row[0], row[10], row[11]
                 if m1_raw is not None and m12_raw is not None:
                     m1f, m12f = float(m1_raw), float(m12_raw)
                     denom = 1.0 + m1f / 100.0
                     if abs(denom) > 1e-6:
                         mom_12_1 = ((1.0 + m12f / 100.0) / denom - 1.0) * 100.0
                         if math.isfinite(mom_12_1):
-                            mom_12_1_risk_adj[symbol] = self._risk_adjust_pct(
-                                mom_12_1, vol, median_vol_252d, min_mult, max_mult
-                            )
-                if m6_raw is not None:
-                    mom_6m_risk_adj[symbol] = self._risk_adjust_pct(
-                        float(m6_raw), vol, median_vol_252d, min_mult, max_mult
-                    )
+                            mom_12_1_raw[symbol] = mom_12_1
 
-            # UNIVERSE-WIDE, not sector-relative (fixed 2026-09-15 - see this module's own
+            # UNIVERSE-WIDE, not sector-relative - see this module's own
             # update_momentum_sector_relative_mom_12_1 docstring and universe_wide_zscore's
-            # docstring in factor_normalization.py for the full evidence trail: sector-relative
-            # z-scoring was based on a misread of MTUM's real methodology - "sector
-            # diversification" there is a portfolio-construction-level exposure CAP, not a
-            # stock-scoring-level per-sector z-score - and empirically halved cap-neutral rank
-            # correlation vs fresh MTUM holdings, 0.235 vs 0.558 universe-wide).
-            mom_12_1_pct = zscore_to_percentile_scale(universe_wide_zscore(mom_12_1_risk_adj))
-            mom_6m_pct = zscore_to_percentile_scale(universe_wide_zscore(mom_6m_risk_adj))
+            # docstring in factor_normalization.py for the full evidence trail.
+            mom_12_1_pct = zscore_to_percentile_scale(universe_wide_zscore(mom_12_1_raw))
             logger.info(
-                f"[STOCK_SCORES] Momentum universe-wide mom_12_1 z-score ({len(mom_12_1_pct)}/{len(rows)} scored), "
-                f"mom_6m z-score ({len(mom_6m_pct)}/{len(rows)} scored)"
+                f"[STOCK_SCORES] Momentum universe-wide mom_12_1 z-score ({len(mom_12_1_pct)}/{len(rows)} scored)"
             )
 
             min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
@@ -1124,16 +894,11 @@ class MomentumScoringMixin:
                     data_unavailable_old,
                     _m1_raw,
                     _m12_raw,
-                    _vol252,
-                    _sector,
-                    _is_fpi,
-                    _m6_raw,
                 ) = row
 
                 momentum_score_new = self._recompute_momentum_score_for_row(
                     symbol,
                     mom_12_1_pct,
-                    mom_6m_pct,
                 )
                 composite_score_new, data_completeness_new = self._recompute_composite_for_row(
                     quality_score, growth_score, value_score, risk_score, momentum_score_new

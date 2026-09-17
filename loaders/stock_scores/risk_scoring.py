@@ -14,15 +14,69 @@ value_metrics.py/momentum_scoring.py).
 
 MAX_DRAWDOWN_1Y REMOVED FROM SCORING 2026-09-16 (factor-purity sweep, user: "we do what the
 industry does only" - SUPERSEDES every "Volatility/Max Drawdown" reference in the history below,
-which describes an earlier, now-corrected state). It was never a named descriptor in Barra
-USE4's real Volatility factor (Beta + DASTD/CMRA/HSIGMA) or MSCI's Min Vol/BAB literature - an
-invented addition this file's own evidence (below) already shows era-flips sign with no stable
-predictive power in either direction. See `_score_risk`'s own current docstring note for the
-full citation. Volatility 60D/252D and Beta now split Risk's weight equally (1/3 each,
-`RISK_COMPONENT_WEIGHT`) instead of the 4-way 1/4 split described throughout the history section
-below. The real Barra Volatility construction (EWMA DASTD/CMRA/HSIGMA-residualized-against-market,
-none of which volatility_60d/252d actually compute) is a separate, larger, NOT-YET-ADDRESSED gap
-- flagged here rather than silently left implied-fixed by this pass.
+which describes an earlier, now-corrected state). It was never a named descriptor in Barra's
+real Volatility factor or MSCI's Min Vol/BAB literature - an invented addition this file's own
+evidence (below) already shows era-flips sign with no stable predictive power in either
+direction. See `_score_risk`'s own current docstring note for the full citation. Volatility
+60D/252D and Beta now split Risk's weight equally (1/3 each, `RISK_COMPONENT_WEIGHT`) instead of
+the 4-way 1/4 split described throughout the history section below.
+
+BARRA VOLATILITY DESCRIPTORS - CORRECTED CITATION + CMRA IMPLEMENTED, 2026-09-17 (factor-purity
+follow-up). This paragraph previously attributed "Beta + DASTD/CMRA/HSIGMA" to "Barra USE4" and
+flagged the real construction as a NOT-YET-ADDRESSED gap - both claims were themselves unverified
+(recalled/paraphrased from a secondary description, not fetched and read directly), the exact
+practice this file's own governance elsewhere warns against. Fetched and read the Barra US-E3
+Risk Model Handbook directly this session (Appendix A, "US-E3 Descriptor Definitions", Section 1
+"Volatility"): the real descriptor list is BTSG (Beta-times-sigma, sqrt(beta*residual_sigma)),
+DASTD (EWMA daily stdev), HILO, LPRI, CMRA (12-month cumulative range), VOLBT, SERDP, and OPSTD -
+not "Beta + DASTD/CMRA/HSIGMA" (HSIGMA doesn't appear as a named US-E3 descriptor at all; that
+name surfaced in a secondary/USE4-era description this file never verified against a primary
+source). The handbook states explicitly: "The method of combining these descriptors into risk
+indices is proprietary to BARRA" - there is no public combining formula for any Barra model
+version to replicate, for any subset of these descriptors. Given that, and per user directive
+2026-09-17 ("make sure we don't require Fama-MacBeth [for this], that seems silly" - adopting a
+real per-descriptor formula in place of a homegrown proxy is a FIDELITY change, not a magnitude/
+weighting claim needing backtest validation, per pillar_weights.py's own TWO-LAYER VALIDATION
+POLICY): DASTD (already faithfully implemented as volatility_60d's EWMA fix, see
+`_calculate_volatility`'s own docstring) and CMRA (newly implemented, `stability_metrics.cmra_12m`,
+see loaders/load_risk_metrics_daily.py's `_calculate_cmra` for the full formula/citation) now
+REPLACE volatility_60d+volatility_252d in this pillar's scoring, equal-weighted with Beta (this
+repo's own established convention when no institutional combining weight exists - see
+pillar_weights.py's UNIFORM EQUAL-WEIGHT policy). BTSG (beta times residual sigma) is NOT
+implemented - Beta is instead scored via the real, independently-cited low-beta anomaly
+(Frazzini & Pedersen 2014, "Betting Against Beta", see `_score_risk`'s own docstring), a
+defensible, already-evidenced alternative rather than reverse-engineering BTSG's regression
+window (beta/residual-sigma lookback), which the primary source does not fully specify either.
+HILO/LPRI/VOLBT/SERDP/OPSTD are not implemented - none have a clean mapping onto data this
+system already computes, and (VOLBT/SERDP especially) measure something other than price
+volatility (aggregate trading-volume sensitivity, residual serial dependence) not obviously
+within this pillar's own scope.
+
+AQR PIVOT 2026-09-17 (user directive: move Risk scoring to AQR, not a Barra homegrown replica -
+"i want the aqr and not the mess we have... no ai slop only what is best in the industry proven").
+SUPERSEDES the "BARRA VOLATILITY DESCRIPTORS" paragraph above for scoring purposes (kept below,
+unedited, as audit trail - the CMRA implementation and citation work described there was real and
+correct, it just no longer carries Risk-pillar scoring weight). An independent verification pass
+this session fact-checked every claim in that paragraph against the primary sources directly
+(not recalled): DASTD/CMRA are real Barra US-E3 descriptors, but volatility_60d (a 60-day,
+mean-centered, 42-day-half-life EWMA vol) is NOT actually E3's DASTD (real DASTD: 65-day window,
+UNCENTERED second moment, sqrt(23*sum(w*r^2)) - a materially different formula) - it was a
+faithful-*sounding* but mislabeled approximation, the exact "cites the right paper, wrong formula"
+failure this codebase's own governance exists to catch. The "no public combining formula for any
+Barra model version" claim was also an overgeneralization - USE4/CNE5 publish one
+(Residual Volatility = 0.74*DASTD + 0.16*CMRA + 0.10*HSIGMA) even though E3 itself doesn't.
+Given the user's explicit direction to run on AQR's own published methodology rather than a
+Barra-descriptor composite (real or approximated), Risk's scored input is now AQR's actual named
+low-beta-anomaly construction: `beta_bab` (Frazzini & Pedersen 2014, "Betting Against Beta" -
+verified against the real published paper this session, section 3.1-3.2), a shrinkage beta
+(beta_ts = rho*(sigma_i/sigma_m) from 1yr vol + 5yr overlapping-3-day-return correlation,
+beta_bab = 0.6*beta_ts + 0.4) - see loaders/load_risk_metrics_daily.py's `_calculate_beta_bab`
+for the full formula. volatility_60d and cmra_12m stay computed/persisted (informational only,
+same "compute it, don't score it" treatment this file already gives amihud_illiquidity_60d after
+it failed the FDR bar) - RISK_COMPONENT_WEIGHT is now 1.0 (a single scored component, matching
+BAB's own real construction: one low-beta-anomaly factor, not a multi-descriptor composite).
+The naive-OLS `beta` column is unchanged and still fetched for other consumers (dashboard,
+coverage reports) - only `_score_risk`'s scoring input changed, not that column's computation.
 
 SECTOR-NEUTRAL z-score batch pass for Volatility 60D/252D/Max Drawdown, REVERSING an earlier
 2026-09-13 decision to leave them universe-wide (see the git history/memory trail below for the
@@ -142,7 +196,7 @@ from typing import TYPE_CHECKING, Any
 import psycopg2
 
 from loaders.helpers.factor_normalization import (
-    sector_neutral_zscore,
+    universe_wide_zscore,
     zscore_to_percentile_scale,
 )
 from loaders.stock_scores.pillar_weights import (
@@ -155,12 +209,16 @@ from utils.type_conversion import safe_float
 
 logger = logging.getLogger("loaders.load_stock_scores")
 
-# RISK_COMPONENT_WEIGHT (2026-09-16, factor-purity sweep): Volatility 60D/252D and Beta are the
+# RISK_COMPONENT_WEIGHT (2026-09-16, factor-purity sweep): Volatility 60D/252D and Beta were the
 # 3 remaining, industry-traceable Risk inputs after max_drawdown_1y's removal (see _score_risk's
 # own docstring) - UNIFORM EQUAL-WEIGHT per the 2026-09-11 directive, now 1/3 each instead of
 # 1/4. MIN_TRADING_DAYS_FOR_DRAWDOWN (the old max_drawdown-only IPO-history gate) is removed
 # along with its only consumer - see git history if a future pass wants it back.
-RISK_COMPONENT_WEIGHT = 1.0 / 3.0
+# UPDATED 2026-09-17 (AQR PIVOT, see module docstring): Risk is now a single scored component,
+# beta_bab (AQR's real Betting-Against-Beta shrinkage beta) - volatility_60d/cmra_12m dropped
+# from scoring (Barra-descriptor composite, not AQR's own construction; kept computed/persisted
+# informational only). Weight is the full 1.0, not a fractional split.
+RISK_COMPONENT_WEIGHT = 1.0
 
 
 def _owner() -> Any:
@@ -284,9 +342,10 @@ class RiskScoringMixin:
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 9 columns (volatility_252d, volatility_60d,
+        - Row length validation: Must have >=9 columns (volatility_252d, volatility_60d,
           volatility_30d, beta, downside_volatility_252d/60d/30d, max_drawdown_1y,
-          data_unavailable)
+          data_unavailable) - cmra_12m (index 9, added 2026-09-17) is read only when present
+          (len(row) > 9), so pre-existing 9-element test fixtures keep working unchanged.
         - Schema mismatch (len(row) < 9) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
@@ -312,8 +371,9 @@ class RiskScoringMixin:
         D/E, not both") and deleted that now-dead function; revenue_concentration_hhi was
         dropped from scoring entirely per user request (not a stability signal).
 
-        MINIMUM DATA REQUIREMENT: Row must have exactly 9 columns. Missing columns causes immediate
-        fail-fast ValueError. Required metric for stock scoring (critical upstream loader).
+        MINIMUM DATA REQUIREMENT: Row must have at least 9 columns. Fewer columns causes
+        immediate fail-fast ValueError. Required metric for stock scoring (critical upstream
+        loader).
         """
         row = self._stability_cache.get(symbol)
         if row:
@@ -341,6 +401,19 @@ class RiskScoringMixin:
                 "downside_volatility_60d": safe_float(row[5], f"{symbol}.downside_volatility_60d", allow_none=True),
                 "downside_volatility_30d": safe_float(row[6], f"{symbol}.downside_volatility_30d", allow_none=True),
                 "max_drawdown_1y": safe_float(row[7], f"{symbol}.max_drawdown_1y", allow_none=True),
+                # cmra_12m (index 9, added 2026-09-17) - Barra US-E3's real Cumulative Range
+                # Volatility descriptor, see loaders/load_risk_metrics_daily.py's
+                # `_calculate_cmra` for the full citation. Index 8 is data_unavailable (checked
+                # above), so this is appended after it, not interleaved with the original 9.
+                # Computed/persisted informational only (AQR PIVOT, see _score_risk's docstring)
+                # - no scoring weight.
+                "cmra_12m": safe_float(row[9], f"{symbol}.cmra_12m", allow_none=True) if len(row) > 9 else None,
+                # beta_bab (index 10, added 2026-09-17, AQR PIVOT) - Frazzini & Pedersen (2014)
+                # "Betting Against Beta" shrinkage beta, see loaders/load_risk_metrics_daily.py's
+                # `_calculate_beta_bab` for the full formula/citation - the real, scored
+                # Risk-pillar low-beta-anomaly input, replacing the naive-OLS `beta` field below
+                # for scoring purposes (that field is unchanged/still fetched for other consumers).
+                "beta_bab": safe_float(row[10], f"{symbol}.beta_bab", allow_none=True) if len(row) > 10 else None,
             }
             return metrics
         # No row exists at all
@@ -356,7 +429,9 @@ class RiskScoringMixin:
         describe a 5-component flat-20%-each blend (Volatility 60D/252D, Beta, Max Drawdown 1Y,
         Liquidity). REBUILT FURTHER 2026-09-16 (factor-purity sweep) - see RISK_COMPONENT_WEIGHT's
         own docstring for the evidence trail. Current live Risk scoring is 3 components only,
-        equal-weighted 1/3 each: Volatility 60D, Volatility 252D, and Beta. Max Drawdown 1Y and
+        equal-weighted 1/3 each: Volatility 60D (Barra's real DASTD), CMRA 12M (Barra's real
+        Cumulative Range descriptor, replacing the homegrown volatility_252d 2026-09-17 - see
+        `_cmra_curve_score`'s own docstring), and Beta. Max Drawdown 1Y and
         Liquidity were REMOVED from scoring - neither appears in a real Barra/MSCI-style market-
         model volatility construction (raw values stay computed/persisted/displayed for other
         consumers). Beta is now scored per the real, published low-beta anomaly (Frazzini &
@@ -545,7 +620,7 @@ class RiskScoringMixin:
         not by re-trusting the 2026-08-25 number above.
 
         NEAR-ZERO-LIQUIDITY PRICE-STAT GATE, ADDED 2026-09-01 (see NEAR_ZERO_LIQUIDITY_THRESHOLD's
-        own docstring): volatility_60d/volatility_252d/beta are skipped (weight not counted) when
+        own docstring): volatility_60d/cmra_12m/beta are skipped (weight not counted) when
         avg_dollar_volume_20d is known and below $2,000/day - below that, the price series is
         frozen or near-frozen and these read as mechanically-suppressed noise (e.g. exactly 0.0
         volatility), not a genuine low-risk signal. A measurement-validity fix, distinct from and
@@ -564,7 +639,7 @@ class RiskScoringMixin:
         - Type conversion errors → RuntimeError (via _safe_float)
         - Negative volatility → treated as 0 (impossible case, but defensive)
 
-        MINIMUM DATA REQUIREMENT: available weight (volatility_60d/volatility_252d/beta/
+        MINIMUM DATA REQUIREMENT: available weight (volatility_60d/cmra_12m/beta/
         max_drawdown_1y/Liquidity, each 0.20 - UNIFORM EQUAL-WEIGHT per the 2026-09-11 user
         directive described in this method's own "UNIFORM EQUAL-WEIGHT" docstring section
         above; a prior Fama-MacBeth-tuned 0.45/0.15/0.15/0.10/0.15 split predates that
@@ -580,48 +655,34 @@ class RiskScoringMixin:
         weighted_sum = 0.0
         total_weight = 0.0
 
-        # REWORKED 2026-08-30 (later same day, user directive: full delegation to figure out
-        # the best combination - see this method's docstring for the per-input reasoning).
-        # Volatility 60D 45% + Volatility 252D 20% + Beta 20% + Max Drawdown 1Y 15%.
-        # Volatility 30D dropped (most redundant of the three windows). Debt-to-Assets stays
-        # fetched via Quality's own debt_to_assets read (quality_inputs on the scores API) -
-        # not merged into or scored by this pillar.
+        # AQR PIVOT 2026-09-17 (see this module's own top-of-file docstring for the full
+        # citation/evidence trail): volatility_60d/cmra_12m are computed/persisted informational
+        # only now - NOT scored - RISK_COMPONENT_WEIGHT is 1.0, a single component (beta_bab).
+        # Debt-to-Assets stays fetched via Quality's own debt_to_assets read (quality_inputs on
+        # the scores API) - not merged into or scored by this pillar.
 
         # NEAR_ZERO_LIQUIDITY_THRESHOLD gate (see that constant's own docstring): a near-zero
-        # or frozen-price series makes volatility_60d/volatility_252d/beta measurement noise,
-        # not a real signal - skip their weight here rather than trust a fabricated "calm"
-        # reading. Only gates when avg_dollar_volume_20d is actually known; missing liquidity
-        # data doesn't imply thin trading, so it leaves these inputs untouched.
+        # or frozen-price series makes beta_bab's own inputs (correlation/volatility vs SPY)
+        # measurement noise, not a real signal - skip its weight here rather than trust a
+        # fabricated "calm" reading. Only gates when avg_dollar_volume_20d is actually known;
+        # missing liquidity data doesn't imply thin trading, so it leaves this input untouched.
         adv20 = metrics.get("avg_dollar_volume_20d")
         price_stats_unreliable = adv20 is not None and 0 <= adv20 < NEAR_ZERO_LIQUIDITY_THRESHOLD
 
-        if not price_stats_unreliable and metrics.get("volatility_60d") is not None:
-            v60_score = self._vol_curve_score(max(0, metrics["volatility_60d"]))
-            weighted_sum += v60_score * RISK_COMPONENT_WEIGHT
-            total_weight += RISK_COMPONENT_WEIGHT
-
-        if not price_stats_unreliable and metrics.get("volatility_252d") is not None:
-            v252_score = self._vol_curve_score(max(0, metrics["volatility_252d"]))
-            weighted_sum += v252_score * RISK_COMPONENT_WEIGHT
-            total_weight += RISK_COMPONENT_WEIGHT
-
-        # Beta: LOW beta is best, matching the real published anomaly - Frazzini & Pedersen 2014
-        # "Betting Against Beta" and MSCI Minimum Volatility's own methodology both harvest low
-        # systematic risk directly, not closeness to a fixed 1.0 target. CHANGED 2026-09-15
-        # (user directive: "get rid of all the extra shit beyond the barra and the industry
-        # guys") - this pillar previously scored beta for "market-correlated swing-trading fit"
-        # (a made-up target with no counterpart in any published factor methodology at all,
-        # neither low-beta nor raw-beta-exposure) rather than the real anomaly. Linear reward
-        # for lower beta: beta<=0 scores 100 (fully defensive/inverse-correlated), beta>=2.0
-        # scores 0, linear in between (beta=1.0 -> 50) - same 50-point-per-unit slope magnitude
-        # as the prior distance-from-1.0 formula, just re-anchored to reward LOW beta instead of
-        # beta NEAR ONE. Negative beta is a real, legitimate (if uncommon) signed regression
-        # coefficient (not a magnitude to clip toward 0) and now correctly scores ABOVE a
-        # beta=0 name, not merely not-worse - the more negative, the better, symmetric with how
-        # this same low-beta anomaly is harvested in the literature.
-        if not price_stats_unreliable and metrics.get("beta") is not None:
-            beta = metrics["beta"]
-            beta_score = max(0.0, min(100.0, 100 - beta * 50))
+        # Beta_bab: LOW beta is best, matching the real published anomaly - Frazzini & Pedersen
+        # 2014 "Betting Against Beta" (Journal of Financial Economics 111(1)). beta_bab is
+        # ALREADY the paper's own shrinkage estimator (beta_ts = rho*(sigma_i/sigma_m),
+        # beta_bab = 0.6*beta_ts + 0.4*1.0 - see loaders/load_risk_metrics_daily.py's
+        # `_calculate_beta_bab`), replacing the naive-OLS `beta` column this scoring formula
+        # used until the 2026-09-17 AQR pivot (that column is unchanged/still fetched for other
+        # consumers, e.g. dashboard/coverage reports - only this pillar's scoring input changed).
+        # Linear reward for lower beta_bab: beta_bab<=0 scores 100 (fully defensive/inverse-
+        # correlated), beta_bab>=2.0 scores 0, linear in between (beta_bab=1.0 -> 50) - same
+        # formula shape the pre-pivot raw-beta version used, just fed the real shrinkage
+        # estimator instead of a noisy raw covariance beta.
+        if not price_stats_unreliable and metrics.get("beta_bab") is not None:
+            beta_bab = metrics["beta_bab"]
+            beta_score = max(0.0, min(100.0, 100 - beta_bab * 50))
             weighted_sum += beta_score * RISK_COMPONENT_WEIGHT
             total_weight += RISK_COMPONENT_WEIGHT
 
@@ -677,19 +738,18 @@ class RiskScoringMixin:
         logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for risk_score({symbol}) - no scoreable fields")
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_risk_scores_computed"}
 
-    @staticmethod
-    def _vol_curve_score(vol: float) -> float:
-        """Fixed-threshold volatility score for volatility_60d (downside_volatility_60d REMOVED
-        from scoring 2026-08-28 - see _score_risk's docstring - this curve no longer scores it,
-        though the same threshold family as `_pe_curve_score`/`_pb_curve_score` still applies).
-        `vol` must already be non-negative (callers clamp via max(0, ...))."""
-        if vol <= 0.15:
-            return 100.0
-        if vol <= 0.30:
-            return 100 - ((vol - 0.15) / 0.15) * 50
-        if vol <= 0.60:
-            return 50 - ((vol - 0.30) / 0.30) * 40
-        return max(0.0, 10 - (vol - 0.60) * 20)
+    # _vol_curve_score/_cmra_curve_score/NEUTRAL_PLACEHOLDER_SCORE DELETED 2026-09-17 (AQR
+    # purity cleanup, user: "get the aqr down to its purest form... extra shit mixing with
+    # msci"). These were Pass-1 placeholders for volatility_60d/cmra_12m scoring - already
+    # flattened to an inert neutral 50.0 earlier the same day once the real batch z-score pass
+    # made them unreachable in practice (see git history for that live-audit evidence). The AQR
+    # pivot immediately after removed volatility_60d/cmra_12m from Risk-pillar scoring entirely
+    # (beta_bab is now the sole scored input, RISK_COMPONENT_WEIGHT=1.0) - confirmed via grep
+    # before deleting, not assumed: zero remaining callers anywhere in this file. The one
+    # external caller (algo/research/all_pillars_curve_vs_percentile_sweep_20260828.py, a
+    # completed one-off research sweep) got the real historical curve formula inlined verbatim
+    # first, same "kept here so a completed sweep still reproduces" precedent that script's own
+    # max_drawdown_pct branch already established when _max_drawdown_curve_score was cut.
 
     @staticmethod
     def _components_with_corrected_risk(components_old: Any, risk_score_new: float | None) -> str:
@@ -712,23 +772,40 @@ class RiskScoringMixin:
         no behavior change). Re-derives avg_dollar_volume_20d the same way
         `load_stock_scores.py`'s own Pass-1 liquidity cache does (45-calendar-day price_daily
         lookback, last 20 real trading days) rather than depending on that cache's instance
-        lifetime - this method runs as an independent, self-contained batch pass. Also counts
-        each symbol's total real price_daily rows (`trading_days_history`) - see
-        MIN_TRADING_DAYS_FOR_DRAWDOWN's own docstring for why max_drawdown_1y needs this gate.
+        lifetime - this method runs as an independent, self-contained batch pass.
 
-        INVESTABILITY FLOOR ADDED 2026-09-13 (`vm.market_cap >= %s`, algo_config.min_market_
-        cap_millions, same $300M threshold LiquidityChecks._check_market_cap() now enforces at
-        trade entry): orthogonal to the sector-neutral-vs-universe-wide question this pillar's
-        own module docstring covers (as of later the same session, Risk IS sector-relative for
-        vol/drawdown, same as Quality/Growth/Value - see that docstring's REVERSED note) - this
-        is about WHICH symbols are in the scored population at all, independent of grouping.
-        Reinforces the
-        same failure mode MIN_TRADING_DAYS_FOR_DRAWDOWN above was added to catch ("a shitty
-        microcap with no real track record dominates the safest list") one level earlier: an
-        illiquid-but-technically-scored nanocap's more extreme volatility/drawdown reading
-        shouldn't set the percentile curve real, investable companies get ranked against
-        either. Sub-floor symbols simply aren't included in this pass and keep whatever Pass-1
-        already gave them."""
+        DEAD-COLUMN SWEEP 2026-09-17 (factor-purity follow-up, user: "places where we
+        incorrectly mixing concepts" - this was the same class of gap, just via omission
+        rather than a wrong formula: a docstring implying live enforcement of something the
+        query doesn't actually do). Removed 3 things this method fetched but nothing ever
+        consumed:
+          - `history` CTE / `trading_days_history` - only consumer was
+            MIN_TRADING_DAYS_FOR_DRAWDOWN's max_drawdown_1y gate, itself removed 2026-09-16
+            when max_drawdown_1y was cut from scoring entirely (see _score_risk's docstring).
+            Confirmed dead via grep - no `row[15]` reference left anywhere in this file.
+          - `cp.sector` (company_profile JOIN) - `_compute_risk_absolute_zscore_percentiles`
+            calls `sector_neutral_zscore(raw_*, {})` with an EMPTY sector map (universe-wide,
+            per the PARTIAL RE-REVERSAL note on that method), so this column was fetched via a
+            JOIN and never read - `row[16]` had zero references.
+          - `vm.market_cap` (value_metrics JOIN) - see below, never read (`row[18]`).
+        Confirmed via grep, not assumed: searching this file for row-index references 15
+        through 18 (the dropped columns' old positions) returned nothing before this cleanup.
+        `company_info_sec` (`cis`)
+        stays JOINed - still needed for NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE's WHERE
+        clause below, even though its own SELECTed `is_foreign_private_issuer` column (former
+        `row[17]`) was equally dead and is removed too.
+
+        STALE DOCSTRING FIXED (same pass): this docstring used to describe an "INVESTABILITY
+        FLOOR ADDED 2026-09-13 (`vm.market_cap >= %s`...)" - but the WHERE clause below has
+        never had a `vm.market_cap >=` condition; only `liq.latest_close >=`/
+        `liq.avg_dollar_volume_20d >=` (the liquidity floor). That market-cap floor was real
+        once, then REPLACED by the liquidity-based floor 2026-09-15 (see pillar_weights.py's
+        own DEFAULT_MIN_INVESTABLE_MARKET_CAP retirement note for the full history) - this
+        docstring paragraph was simply never updated to match, silently implying a market-cap
+        gate was still enforced here when it never was after that replacement. The liquidity
+        floor (`liq.latest_close`/`liq.avg_dollar_volume_20d` below) is the real, current
+        investability gate for this pass, same as every sibling pillar's own batch pass.
+        """
         with _owner().DatabaseContext("write") as cur:
             cur.execute(
                 """
@@ -746,27 +823,16 @@ class RiskScoringMixin:
                     ) ranked
                     WHERE rn <= 20
                     GROUP BY symbol
-                ),
-                history AS (
-                    SELECT symbol, COUNT(*) AS trading_days_history
-                    FROM price_daily
-                    WHERE COALESCE(data_unavailable, false) = false
-                    GROUP BY symbol
                 )
                 SELECT ss.symbol, ss.risk_score, ss.composite_score, ss.quality_score,
                        ss.growth_score, ss.value_score, ss.momentum_score, ss.components,
                        ss.data_completeness, ss.data_unavailable,
-                       sm.volatility_60d, sm.volatility_252d, sm.beta, sm.max_drawdown_1y,
-                       liq.avg_dollar_volume_20d, COALESCE(hist.trading_days_history, 0),
-                       cp.sector, COALESCE(cis.is_foreign_private_issuer, false), vm.market_cap
+                       liq.avg_dollar_volume_20d, sm.beta_bab
                 FROM stock_scores ss
                 JOIN stability_metrics sm ON sm.symbol = ss.symbol
                 JOIN liquidity liq ON liq.symbol = ss.symbol
-                LEFT JOIN history hist ON hist.symbol = ss.symbol
                 JOIN stock_symbols su ON su.symbol = ss.symbol
                 LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
-                LEFT JOIN company_profile cp ON cp.symbol = ss.symbol
-                LEFT JOIN value_metrics vm ON vm.symbol = ss.symbol
                 WHERE ss.risk_score IS NOT NULL
                   AND COALESCE(sm.data_unavailable, false) = false
                   AND liq.latest_close >= %s
@@ -786,96 +852,62 @@ class RiskScoringMixin:
     def _compute_risk_absolute_zscore_percentiles(
         rows: list[tuple[Any, ...]],
     ) -> dict[str, dict[str, float]]:
-        """Winsorize+z-score Risk's 2 remaining "lower raw value is better" inputs
-        (volatility_60d, volatility_252d), UNIVERSE-WIDE (empty sectors dict) - see this
-        module's own top-of-file docstring for the live USMV/Fama-MacBeth evidence that
-        absolute, not sector-relative, is the real min-vol anomaly. Split out of
+        """Winsorize+z-score beta_bab (AQR's Betting-Against-Beta shrinkage estimator,
+        Frazzini & Pedersen 2014), Risk's ONE scored input as of the 2026-09-17 AQR pivot -
+        UNIVERSE-WIDE, via `universe_wide_zscore` (not sector-relative - see this module's own
+        top-of-file docstring for the live USMV N-PORT evidence that the low-beta anomaly is
+        harvested on an absolute basis in the real literature, not per-sector). Split out of
         `update_risk_absolute_zscore_scores` for C901, pure function of its inputs.
 
-        max_drawdown_1y REMOVED from this pass 2026-09-16 (factor-purity sweep - see
-        _score_risk's own docstring): it was never a real Barra/MSCI risk descriptor, and this
-        module's own docstring already documents it as not stably predictive either direction.
-        Its sector-relative z-score / MIN_TRADING_DAYS_FOR_DRAWDOWN gate / size-neutralization
-        machinery is removed along with it, not left as unused scaffolding.
+        Negated before z-scoring so a symbol with LOW beta_bab - the desirable direction for
+        this pillar - gets a HIGH z-score and therefore a HIGH percentile score, matching
+        `zscore_to_percentile_scale`'s "higher input -> higher output" convention.
 
-        REVERSED 2026-09-13 (composite-score structural audit, same session as the promotion
-        above): this was universe-wide (empty sector map) on the argument that the low-volatility
-        anomaly (Ang et al. 2006; Frazzini & Pedersen 2014) is harvested on an ABSOLUTE basis in
-        the literature - see this module's own top-of-file docstring for that argument in full.
-        That argument was never tested against this repo's own data before being acted on. Fresh
-        non-circular test this session (`python -m algo.research.fama_macbeth_price_factors
-        --industries banks|insurers|reits` - a genuine point-in-time monthly panel from
-        price_daily, not the circular snapshot-vs-trailing-return shortcut) found vol/downside_vol/
-        beta/max_dd have ZERO robust forward-return edge in exactly the 3 industries whose
-        elevated absolute Risk-pillar scores were driving the leaderboard's FS/REIT/bank/insurer
-        overweight (see [[reit_risk_pillar_concentration_not_fixable_by_sector_relative_20260911]]
-        / [[financial_services_and_reit_risk_concentration_redone_noncircular_20260912b]] in
-        memory for the earlier, staler versions of this same finding): every one of those 4
-        factors failed FDR correction in all 3 industries, and cleared the 4-block era-robustness
-        bar (|t|>=1.5 in >=3/4 blocks, consistent sign) in ZERO of the 12 industry x factor cells
-        tested. The "real, sector-independent signal" defense for leaving Risk absolute does not
-        hold up in this repo's own data for the industries it actually matters for - so this pass
-        now sector-neutralizes, matching Quality/Growth/Value's own methodology. Beta (a direct
-        linear transform, not z-scored - low-beta-reward per `_score_risk`'s 2026-09-15 BAB/
-        Min-Vol change, see `update_risk_absolute_zscore_scores`'s docstring) and Liquidity
-        (anchored to a real system constant, not an academic anomaly) are NOT changed by this
-        reversal and stay on their existing curves.
-
-        Each raw value is NEGATED before z-scoring so a symbol with a LOW volatility/drawdown -
-        the desirable direction for this pillar - gets a HIGH z-score and therefore a HIGH
-        percentile score, matching `zscore_to_percentile_scale`'s "higher input -> higher
-        output" convention (used as-is, un-negated, by Momentum's own z-score pass, where higher
-        raw momentum genuinely IS the desirable direction).
-
-        Same NEAR_ZERO_LIQUIDITY_THRESHOLD measurement-validity gate `_score_risk` applies to
-        volatility_60d/252d (not max_drawdown, which that gate never covered): a frozen/near-
-        frozen-price symbol's mechanically-suppressed near-zero volatility is excluded from the
+        NEAR_ZERO_LIQUIDITY_THRESHOLD measurement-validity gate (see that constant's own
+        docstring): a frozen/near-frozen-price symbol's beta_bab is excluded from the
         population entirely here, not just from its own score - including it would bias every
-        OTHER symbol's z-score against a fabricated data point, not just fail to score the thin
-        symbol itself. max_drawdown_1y gets its OWN, separate MIN_TRADING_DAYS_FOR_DRAWDOWN gate
-        (see that constant's docstring) for the same population-bias reason: a brand-new IPO's
-        artificially-tiny drawdown (not enough elapsed time to have lived through a real one)
-        would otherwise skew every other symbol's drawdown z-score too, not just its own.
+        OTHER symbol's z-score against a fabricated data point.
+
+        HISTORY: this pass previously scored 3 separate Barra-descriptor-style inputs
+        (volatility_60d/DASTD, cmra_12m/CMRA, raw OLS beta) equal-weighted, with a real
+        back-and-forth over sector-relative vs. universe-wide grouping driven by live USMV/
+        Fama-MacBeth evidence - see git history for that full trail if it's ever relevant again.
+        The 2026-09-17 AQR pivot (user: "i want the aqr and not the mess we have") replaced all
+        of that with AQR's own single, real published construction rather than layering a
+        fourth input alongside three homegrown-Barra-descriptor ones - volatility_60d/cmra_12m
+        are computed/persisted informational only now, not part of this pass at all.
         """
-        raw_vol60: dict[str, float] = {}
-        raw_vol252: dict[str, float] = {}
+        # AQR PIVOT 2026-09-17 (see this module's own top-of-file docstring): beta_bab
+        # (Frazzini & Pedersen 2014 shrinkage beta) is now the ONLY scored Risk input -
+        # volatility_60d/cmra_12m are computed/persisted informational only, matching
+        # `_score_risk`'s own Pass-1 formula. Population is a single dict, not three.
+        raw_beta_bab: dict[str, float] = {}
 
         for row in rows:
             symbol = row[0]
-            vol_60d, vol_252d, adv20 = row[10], row[11], row[14]
+            adv20, beta_bab = row[10], row[11]
             price_stats_unreliable = adv20 is not None and 0 <= float(adv20) < NEAR_ZERO_LIQUIDITY_THRESHOLD
-            if not price_stats_unreliable:
-                if vol_60d is not None:
-                    raw_vol60[symbol] = -max(0.0, float(vol_60d))
-                if vol_252d is not None:
-                    raw_vol252[symbol] = -max(0.0, float(vol_252d))
+            if not price_stats_unreliable and beta_bab is not None:
+                # Negated, not clamped to >=0, since a negative beta_bab is a real signed
+                # reading that should score ABOVE beta_bab=0, not be floored to it (see
+                # `_score_risk`'s own beta_bab comment) - matches zscore_to_percentile_scale's
+                # "higher input -> higher output" convention (lower/more-negative raw beta_bab
+                # is the desirable direction for this pillar).
+                raw_beta_bab[symbol] = -float(beta_bab)
 
-        # PARTIAL RE-REVERSAL 2026-09-15 (goal session: "the scores need to be right, not the
-        # display" - user rejected treating Risk's weak real-fund agreement as an unfixable
-        # structural gap). The 2026-09-13 reversal above sector-neutralized vol_60d/vol_252d/
-        # max_drawdown together based on a --industries banks|insurers|reits Fama-MacBeth run
-        # finding zero forward-return edge for vol/downside_vol/beta/max_dd in those 3
-        # industries specifically - true, but that result was generalized to "sector-neutralize
-        # everywhere" without testing the WHOLE universe first. Live-verified this session
-        # (`python -m algo.research.fama_macbeth_price_factors --start-date 2019-01-01`, no
-        # --industries filter, 68 months / ~6,665 median cross-section): vol has a real,
-        # consistent, strongly significant NEGATIVE forward-return relationship broadly
-        # (multivariate t=-5.80, correct sign in all 4 era-robustness blocks) - the low-
-        # volatility anomaly genuinely holds universe-wide even though it doesn't hold within
-        # banks/insurers/REITs specifically. max_dd shows no robust signal either direction at
-        # the whole-universe level either (univariate t=1.45, WRONG sign, era-robustness
-        # 1/4 blocks) - unlike vol, evidence doesn't support un-sector-neutralizing it, so it
-        # stays as-is. Real fund cross-check (USMV's actual N-PORT holdings, fetched fresh
-        # this session) independently confirms the same direction: genuinely low-absolute-
-        # volatility defensives (DUK vol=0.18, KO vol=0.22) are what a real min-vol product
-        # holds, not a merely-calmer-than-its-sector name (UBER vol=0.41) that sector-neutral
-        # scoring was elevating. vol_60d/vol_252d go back to universe-wide (empty sectors dict
-        # -> sector_neutral_zscore's own residual-pool fallback, same mechanism the pre-
-        # 2026-09-13 version used) while max_drawdown stays sector-neutral - a surgical,
-        # evidence-driven fix per-component, not a blanket revert of the whole 2026-09-13 pass.
+        # UNIVERSE-WIDE, via the dedicated primitive (fixed 2026-09-17, AQR purity cleanup) -
+        # this used to call `sector_neutral_zscore(raw_beta_bab, {})`, the SECTOR-relative
+        # primitive faked into universe-wide behavior with an empty sectors dict. Mathematically
+        # identical output (every symbol falls through to that function's own residual-pool
+        # branch when sectors={}), but this is the exact "wrong-named primitive left over from
+        # an abandoned per-sector methodology" pattern `universe_wide_zscore`'s own docstring
+        # already flags as "a real, recurring methodology-translation error in this codebase,
+        # not a one-off" - for this EXACT Risk/USMV case, specifically. Matches this module's
+        # own top-of-file docstring evidence (live USMV N-PORT crosscheck) that the low-beta
+        # anomaly is harvested on an absolute, not sector-relative, basis in the literature this
+        # pillar is now built directly from (Frazzini & Pedersen 2014).
         return {
-            "vol_60d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol60, {})),
-            "vol_252d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol252, {})),
+            "beta_bab": zscore_to_percentile_scale(universe_wide_zscore(raw_beta_bab)),
         }
 
     def _recompute_risk_row(
@@ -885,15 +917,17 @@ class RiskScoringMixin:
         min_completeness_threshold: float,
     ) -> tuple[str, float | None, float, str | None, float, bool] | None:
         """Recompute one symbol's risk_score/composite_score from the absolute z-score
-        percentiles (Volatility 60D/252D) plus Beta's UNCHANGED existing curve score, and diff
-        against its current stored values. Returns None if nothing changed. Split out of
-        `update_risk_absolute_zscore_scores` for C901, pure function of its inputs - mirrors
+        percentile of beta_bab (AQR's Betting-Against-Beta shrinkage estimator, the pillar's
+        ONE scored input - see `_compute_risk_absolute_zscore_percentiles`'s own docstring),
+        and diff against its current stored values. Returns None if nothing changed. Split out
+        of `update_risk_absolute_zscore_scores` for C901, pure function of its inputs - mirrors
         MomentumScoringMixin._recompute_momentum_row's structure.
 
-        max_drawdown_1y REMOVED from scoring 2026-09-16 (factor-purity sweep - see
-        _score_risk's own docstring: never a real Barra/MSCI descriptor, not stably
-        predictive). row[13]/row[15] (max_drawdown_1y/trading_days_history) are no longer read
-        here."""
+        Barra-descriptor scoring (Volatility 60D/DASTD, CMRA 12M) and the raw-OLS `beta` linear
+        map are HISTORICAL ONLY as of the 2026-09-17 AQR pivot (see this module's own
+        top-of-file docstring) - superseded entirely by beta_bab, not layered alongside it. See
+        git history for the prior 3-component construction if a future pass wants that context.
+        """
         symbol = row[0]
         risk_score_old = float(row[1])
         composite_score_old = float(row[2])
@@ -901,22 +935,21 @@ class RiskScoringMixin:
         components_old = row[7]
         data_completeness_old = float(row[8]) if row[8] is not None else None
         data_unavailable_old = bool(row[9]) if row[9] is not None else False
-        beta, adv20 = row[12], row[14]
+        # DEAD-COLUMN SWEEP 2026-09-17 (AQR purity cleanup): volatility_60d/cmra_12m/beta (raw)
+        # were dropped from _fetch_risk_absolute_zscore_rows' own SELECT - nothing in this
+        # batch pass ever read them once beta_bab became the sole scored input. adv20 is now
+        # row[10], beta_bab row[11] (was row[13]/row[14] when those 3 dead columns still sat
+        # ahead of them in the SELECT).
+        adv20 = row[10]
 
         price_stats_unreliable = adv20 is not None and 0 <= float(adv20) < NEAR_ZERO_LIQUIDITY_THRESHOLD
 
         weighted_sum = 0.0
         total_weight = 0.0
-        if symbol in pct_by_field["vol_60d"]:
-            weighted_sum += pct_by_field["vol_60d"][symbol] * RISK_COMPONENT_WEIGHT
-            total_weight += RISK_COMPONENT_WEIGHT
-        if symbol in pct_by_field["vol_252d"]:
-            weighted_sum += pct_by_field["vol_252d"][symbol] * RISK_COMPONENT_WEIGHT
-            total_weight += RISK_COMPONENT_WEIGHT
-        if not price_stats_unreliable and beta is not None:
-            # Same low-beta-reward formula as _score_risk's own Pass-1 beta scoring - see that
-            # method's docstring for why (real BAB/Min-Vol anomaly, not closeness to 1.0).
-            weighted_sum += max(0.0, min(100.0, 100 - float(beta) * 50)) * RISK_COMPONENT_WEIGHT
+        # AQR PIVOT 2026-09-17: beta_bab is the sole scored Risk input (RISK_COMPONENT_WEIGHT
+        # = 1.0) - see _compute_risk_absolute_zscore_percentiles's own docstring.
+        if not price_stats_unreliable and symbol in pct_by_field["beta_bab"]:
+            weighted_sum += pct_by_field["beta_bab"][symbol] * RISK_COMPONENT_WEIGHT
             total_weight += RISK_COMPONENT_WEIGHT
         # Liquidity is no longer a scored Risk component (see _score_risk's own note) - adv20 is
         # still fetched above only for the NEAR_ZERO_LIQUIDITY_THRESHOLD price_stats_unreliable
@@ -933,11 +966,13 @@ class RiskScoringMixin:
                 )
             risk_score_new = None
 
+        # GROWTH REMOVED FROM COMPOSITE 2026-09-17 (factor-purity pivot: MSCI -> AQR only - see
+        # pillar_weights.py's BASE_PILLAR_WEIGHTS docstring).
+        del growth_score
         weights = BASE_PILLAR_WEIGHTS
         composite_val = 0.0
         for pillar_name, pillar_score in (
             ("quality", quality_score),
-            ("growth", growth_score),
             ("value", value_score),
             ("risk", risk_score_new),
             ("momentum", momentum_score),
@@ -948,7 +983,6 @@ class RiskScoringMixin:
 
         all_scores_new: dict[str, float | None] = {
             "quality": float(quality_score) if quality_score is not None else None,
-            "growth": float(growth_score) if growth_score is not None else None,
             "value": float(value_score) if value_score is not None else None,
             "risk": risk_score_new,
             "momentum": float(momentum_score) if momentum_score is not None else None,
@@ -980,7 +1014,8 @@ class RiskScoringMixin:
         """Batch pass: replace Risk's Pass-1 PROVISIONAL fixed-breakpoint curve scores
         (`_vol_curve_score`/`_max_drawdown_curve_score`, calibrated to invented thresholds that
         this module's own docstring shows badly miscalibrated against the live universe) with a
-        real winsorize+z-score against the current run's universe for Volatility 60D/252D, then
+        real winsorize+z-score against the current run's universe for Volatility 60D (DASTD) and
+        CMRA 12M (volatility_252d's real-methodology replacement, 2026-09-17), then
         FULLY RECOMPUTES risk_score and composite_score from scratch off the raw stored
         stability_metrics/price_daily columns - mirrors `update_momentum_sector_neutral_scores()`'s
         pure-overwrite pattern.
@@ -1027,14 +1062,26 @@ class RiskScoringMixin:
         a fabricated top-15 safety score. Re-verified after adding the gate: none of the 13
         symbols above remain in the top 200 of the corrected risk_score.
 
-        Beta is UNCHANGED by this pass - recomputed here using the same low-beta-reward formula
-        `_score_risk` uses (100 - beta*50, per Frazzini & Pedersen 2014 "Betting Against Beta"/
-        MSCI Min Vol, not closeness to 1.0 - see `_score_risk`'s 2026-09-15 change), purely so
-        this pass can fully recompute risk_score/composite_score without depending on Pass-1's
-        now-partially-stale value. It's a direct linear transform, not a z-scored population
-        member, so it doesn't have the miscalibration problem this pass exists to fix. Liquidity
-        is no longer a scored Risk component at all (see `_score_risk`'s own note) - `adv20` is
-        still fetched here only for the NEAR_ZERO_LIQUIDITY_THRESHOLD measurement-validity gate.
+        Beta now JOINS this pass 2026-09-17 (factor-purity follow-up - live-caught by the same
+        automated slop audit that originally motivated this file's other fixes): it was the only
+        one of Risk's 3 remaining inputs still left on `_score_risk`'s Pass-1 raw linear map
+        (100 - beta*50) with no corrective batch pass at all, unlike vol_60d/vol_252d which this
+        method already corrects. There was never a principled reason for the asymmetry - low
+        beta is rewarded per the same real, published anomaly (Frazzini & Pedersen 2014 "Betting
+        Against Beta"/MSCI Min Vol) as low volatility, and a raw linear map has the identical
+        "not derived from this universe's actual distribution" problem the vol/max_drawdown
+        curves were fixed for, just never checked because the formula LOOKS more principled
+        (it cites a real anomaly) than an admittedly-arbitrary breakpoint curve does - citing the
+        right paper doesn't make an un-z-scored raw linear transform statistically sound. Beta is
+        now winsorize+z-scored universe-wide (negated so lower/more-negative beta scores higher,
+        matching vol_60d/vol_252d's own convention - see `_compute_risk_absolute_zscore_percentiles`),
+        gated by the same NEAR_ZERO_LIQUIDITY_THRESHOLD measurement-validity check `_score_risk`
+        already applies to it. `_score_risk`'s own Pass-1 linear formula is unchanged (still a
+        reasonable provisional value before this pass runs, same relationship Pass-1's vol/growth/
+        value curves already have to their own batch corrections) - only the FINAL, live value
+        changes. Liquidity is no longer a scored Risk component at all (see `_score_risk`'s own
+        note) - `adv20` is still fetched here only for the NEAR_ZERO_LIQUIDITY_THRESHOLD
+        measurement-validity gate.
 
         Runs FIRST in `post_run()`, ahead of `update_momentum_sector_neutral_scores()` and every
         other batch pass that recomputes composite_score from the pillar scores as they currently
@@ -1081,15 +1128,37 @@ class RiskScoringMixin:
                 return
 
             with _owner().DatabaseContext("write") as cur:
+                # ::numeric/::boolean casts on the VALUES columns (added 2026-09-17, factor-
+                # purity follow-up, live-caught: this UPDATE was crashing on EVERY real pipeline
+                # run since `_withhold_risk_below_floor()` was added 2026-09-16 -
+                # "psycopg2.errors.DatatypeMismatch: column "risk_score" is of type numeric but
+                # expression is of type text", because `updates` now mixes real floats
+                # (corrected symbols) with None (withheld symbols) in the same risk_score column
+                # position - the identical mixed-None/float wrong-inferred-column-type psycopg2
+                # gotcha already hit and fixed for quality_score (vqg_quality_batch.py) and
+                # momentum_score (momentum_scoring.py's update_momentum_sector_relative_
+                # mom_12_1()) when THEIR OWN withhold-below-floor passes were added, but never
+                # ported here despite Risk's own withhold pass landing the very next day. Because
+                # post_run() calls this method unguarded and its own exception handler re-raises
+                # (RuntimeError), this single missing cast was aborting post_run() ENTIRELY
+                # before update_value_multiples_percentiles/update_growth_sector_neutral_scores/
+                # update_momentum_sector_relative_mom_12_1/update_market_cap_tilted_weights ever
+                # ran - not just leaving risk_score stale, but the whole downstream pillar
+                # correction chain for every scoring run since 2026-09-16. This is very likely
+                # the root cause of "the right list of stocks per factor isn't coming through"
+                # (user, 2026-09-17): closed-end funds/trusts (BTT, IGI, NXP, TVC, and 127 more
+                # live-confirmed, non-operating-excluded but still-scored symbols) were sitting
+                # at the top of risk_score because the ONE pass that would have withheld them
+                # never successfully wrote its results.
                 _owner().execute_values(
                     cur,
                     """
                     UPDATE stock_scores AS ss
-                    SET risk_score = v.risk_score,
-                        composite_score = v.composite_score,
+                    SET risk_score = v.risk_score::numeric,
+                        composite_score = v.composite_score::numeric,
                         components = v.components::jsonb,
-                        data_completeness = v.data_completeness,
-                        data_unavailable = v.data_unavailable,
+                        data_completeness = v.data_completeness::numeric,
+                        data_unavailable = v.data_unavailable::boolean,
                         updated_at = CURRENT_TIMESTAMP
                     FROM (VALUES %s) AS v(symbol, risk_score, composite_score, components,
                                            data_completeness, data_unavailable)
@@ -1190,10 +1259,12 @@ class RiskScoringMixin:
             _dc_old,
             _du_old,
         ) in rows:
+            # GROWTH REMOVED FROM COMPOSITE 2026-09-17 (factor-purity pivot - see
+            # pillar_weights.py's BASE_PILLAR_WEIGHTS docstring).
+            del growth_score
             weights = BASE_PILLAR_WEIGHTS
             pillar_scores = (
                 ("quality", quality_score),
-                ("growth", growth_score),
                 ("value", value_score),
                 ("momentum", momentum_score),
             )
