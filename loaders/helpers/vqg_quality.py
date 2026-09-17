@@ -136,6 +136,7 @@ class QualityMetricsMixin(
         quality_row: Any,
         ev_metrics: Any = None,
         margin_volatility: float | None = None,
+        earnings_variability: float | None = None,
     ) -> dict[str, Any]:
         """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
 
@@ -144,6 +145,10 @@ class QualityMetricsMixin(
         callers/tests still passing a 3-tuple.
         margin_volatility: trailing-3yr net_margin stdev, precomputed by the caller (see
         _compute_margin_volatility) from multi-year income_rows this function doesn't have.
+        earnings_variability: MSCI's real Quality fundamental variable (stdev of YoY diluted
+        EPS growth, last 5 fiscal years - see loaders/helpers/quality_variability.py),
+        precomputed by the caller (_compute_earnings_variability) for the same reason
+        margin_volatility is.
         """
         if not quality_row:
             # FIXED 2026-09-06 (goal: "SEC/XBRL missing data to zero" sweep): this early
@@ -1847,6 +1852,7 @@ class QualityMetricsMixin(
                 revenue,
                 free_cash_flow,
                 margin_volatility,
+                earnings_variability,
                 failed_metrics,
                 implausible_ratio_metrics,
             )
@@ -1869,6 +1875,7 @@ class QualityMetricsMixin(
                 operating_profitability=operating_profitability,
                 accruals_ratio=accruals_ratio,
                 margin_volatility=margin_volatility,
+                earnings_variability=earnings_variability,
                 fcf_margin=fcf_margin,
                 asset_turnover=asset_turnover,
                 no_gross_profit_concept=no_gross_profit_concept,

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
-from loaders.helpers.factor_normalization import sector_size_neutral_zscore, zscore_to_percentile_scale
+from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
 from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
 from loaders.stock_scores.pillar_weights import (
     BASE_PILLAR_WEIGHTS,
@@ -679,13 +679,18 @@ class GrowthScoringMixin:
         list, the weighting, or either guard. This is an explicit, non-negotiable user directive
         (see GROWTH_SCORE_FIELDS/_score_growth's own docstrings) - not re-litigated here.
 
-        GROWTH_INPUT_IMPLAUSIBLE_PCT is still applied BEFORE the z-score (a raw value more than
-        150% away from 0% is excluded from a field's z-score population entirely, same as Pass
-        1's exclusion from the curve-blend) - `sector_neutral_zscore`'s own [1st,99th] percentile
-        winsorization is a separate, milder safeguard against ordinary sector-distribution tails
-        and does not substitute for excluding a value this codebase has already identified as a
-        likely one-off (KARO's eps_growth_1y=1889%, DX's fcf_growth_yoy=739.5% - see that
-        constant's own docstring for the full evidence).
+        STALE CLAIM REMOVED 2026-09-16 (factor-purity sweep, found while re-auditing this exact
+        docstring against the code below it, not the focus of that pass): this used to claim
+        "GROWTH_INPUT_IMPLAUSIBLE_PCT is still applied BEFORE the z-score" - false since
+        2026-09-15, when that hard exclusion was deliberately REMOVED from this pass (see the
+        code's own "GROWTH_INPUT_IMPLAUSIBLE_PCT's hard exclusion REMOVED from this pass" comment
+        a few lines below) as redundant with `sector_neutral_zscore`'s own [1st,99th] percentile
+        winsorization - the real MSCI/Barra/AQR-standard outlier treatment. The constant is NOT
+        applied in this batch pass at all; it is still applied in Pass 1 (`_score_growth` above),
+        which necessarily differs (see that function's own docstring) - a per-symbol Pass-1 call
+        never sees the population, so it cannot winsorize against sector peers the way this
+        population-level pass can. This docstring simply never got updated after the 2026-09-15
+        change - the code has been correct since then, only this paragraph was lying about it.
 
         GROWTH_MIN_FIELDS_AVAILABLE is preserved exactly: a symbol with fewer than 2/4 fields
         available (after implausible-value exclusion) gets growth_score=None here (withheld,
@@ -766,11 +771,13 @@ class GrowthScoringMixin:
             # Column index (within the GROWTH_SCORE_FIELDS-width slice starting at row[10]) for
             # each candidate, matching the SELECT's dynamically-built column order above exactly.
             field_col_offset = {field: 10 + i for i, field in enumerate(GROWTH_SCORE_FIELDS)}
-            # sector/is_fpi/market_cap immediately follow the GROWTH_SCORE_FIELDS columns - their
-            # index must move with that constant's length, not a hardcoded 12-field assumption.
+            # sector/is_fpi immediately follow the GROWTH_SCORE_FIELDS columns - their index must
+            # move with that constant's length, not a hardcoded 12-field assumption. market_cap
+            # (the column after is_fpi) is still selected below for the liquidity-floor join but
+            # no longer read into a Python dict here - size-neutralization was removed 2026-09-16
+            # (see the pct_by_field comment below).
             _sector_idx = 10 + len(GROWTH_SCORE_FIELDS)
             _fpi_idx = _sector_idx + 1
-            _market_cap_idx = _sector_idx + 2
 
             sector_map: dict[str, str] = {}
             for row in rows:
@@ -782,11 +789,6 @@ class GrowthScoringMixin:
             # see sector_neutral_zscore's own docstring in factor_normalization.py).
             # COALESCE(cis.is_foreign_private_issuer, false) per this query's own SELECT above.
             is_fpi: dict[str, bool] = {row[0]: bool(row[_fpi_idx]) for row in rows if len(row) > _fpi_idx}
-            market_cap_map: dict[str, float] = {
-                row[0]: float(row[_market_cap_idx])
-                for row in rows
-                if len(row) > _market_cap_idx and row[_market_cap_idx] is not None and float(row[_market_cap_idx]) > 0
-            }
 
             raw_by_field: dict[str, dict[str, float]] = {field: {} for field in GROWTH_SCORE_FIELDS}
             for row in rows:
@@ -807,12 +809,18 @@ class GrowthScoringMixin:
                     # second layer of protection.
                     raw_by_field[field][symbol] = val_f
 
-            # Barra-style size neutralization (same as Value's div/cash-yield legs, 2026-09-15 -
-            # regress each field on log(market_cap) within its sector peer group, z-score the
-            # residual) - see sector_size_neutral_zscore's own docstring.
+            # SIZE NEUTRALIZATION REMOVED 2026-09-16 (factor-purity sweep - this leftover was
+            # justified purely by pointing at "same as Value's div/cash-yield legs, 2026-09-15",
+            # but Value's own MSCI-formula rebuild the SAME SESSION already dropped that exact
+            # step (see value_metrics.py's "DROPPED from the prior construction to match MSCI
+            # exactly: ... Barra-style size-neutralization ... not part of MSCI's literal
+            # published formula") and Quality's rebuild dropped it too - Growth was the last
+            # pillar still citing a precedent that no longer exists. Plain sector-relative
+            # z-scoring (sector_neutral_zscore) matches MSCI's real Growth-trend methodology
+            # (this file's own top-of-file citation), which has no size-residualization step.
             pct_by_field: dict[str, dict[str, float]] = {
                 field: zscore_to_percentile_scale(
-                    sector_size_neutral_zscore(values, sector_map, market_cap_map, is_foreign_private_issuer=is_fpi)
+                    sector_neutral_zscore(values, sector_map, is_foreign_private_issuer=is_fpi)
                 )
                 for field, values in raw_by_field.items()
             }
@@ -893,6 +901,8 @@ class GrowthScoringMixin:
                         )
                     )
 
+            updates.extend(self._withhold_growth_below_floor())
+
             if not updates:
                 logger.info(
                     "[STOCK_SCORES] Growth sector-neutral z-score pass: no symbol's growth_score/"
@@ -928,3 +938,125 @@ class GrowthScoringMixin:
             error_msg = f"Growth sector-neutral z-score batch update failed - stock scores cannot be finalized: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
+
+    def _withhold_growth_below_floor(
+        self,
+    ) -> list[tuple[str, float | None, float, str | None, float, bool]]:
+        """Companion to update_growth_sector_neutral_scores(): finds the COMPLEMENT of that
+        method's own correction population - symbols with a real growth_score but ineligible for
+        correction (below the liquidity floor, or excluded by
+        NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE) - and withholds growth_score (NULL) plus
+        recomputes composite_score/data_completeness/data_unavailable to match, rather than
+        leaving Pass 1's stale, potentially-saturated absolute-curve value (`_score_single_growth`,
+        including a value GROWTH_INPUT_IMPLAUSIBLE_PCT would otherwise have excluded) in place
+        indefinitely.
+
+        PORTED 2026-09-16 (factor-purity sweep - this exact bug class was already found and fixed
+        for Quality (vqg_quality_batch.py's `_withhold_quality_below_floor`) and Momentum
+        (momentum_scoring.py's `_withhold_momentum_below_floor`, commit c1a3dd899) but never
+        ported here or to Value/Risk - see those two methods' own docstrings for the shared
+        rationale. Same gap, same fix, same shape.
+
+        Returns tuples in the same (symbol, growth_score, composite_score, components,
+        data_completeness, data_unavailable) shape update_growth_sector_neutral_scores()'s own
+        `updates` list uses, so the caller can extend one batch UPDATE with both.
+        """
+        with _owner().DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                SELECT ss.symbol, ss.composite_score, ss.quality_score, ss.value_score,
+                       ss.risk_score, ss.momentum_score, ss.components,
+                       ss.data_completeness, ss.data_unavailable
+                FROM stock_scores ss
+                JOIN growth_metrics gm ON gm.symbol = ss.symbol
+                JOIN stock_symbols su ON su.symbol = ss.symbol
+                LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                LEFT JOIN (
+                    SELECT symbol,
+                           AVG(volume * close) AS avg_dollar_volume_20d,
+                           (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
+                    FROM (
+                        SELECT symbol, volume, close, date,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM price_daily
+                        WHERE date >= CURRENT_DATE - INTERVAL '45 days'
+                          AND COALESCE(data_unavailable, false) = false
+                          AND volume IS NOT NULL AND close IS NOT NULL
+                    ) ranked
+                    WHERE rn <= 20
+                    GROUP BY symbol
+                ) liq_floor ON liq_floor.symbol = ss.symbol
+                WHERE ss.growth_score IS NOT NULL
+                  AND (
+                        liq_floor.latest_close IS NULL
+                        OR liq_floor.latest_close < %s
+                        OR liq_floor.avg_dollar_volume_20d IS NULL
+                        OR liq_floor.avg_dollar_volume_20d < %s
+                        OR NOT ("""
+                + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                + """)
+                  )
+                """,
+                (
+                    getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
+                    getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                ),
+            )
+            rows = cur.fetchall()
+
+        if not rows:
+            return []
+
+        min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
+        withheld: list[tuple[str, float | None, float, str | None, float, bool]] = []
+        for (
+            symbol,
+            _composite_score_old,
+            quality_score,
+            value_score,
+            risk_score,
+            momentum_score,
+            components_old,
+            _dc_old,
+            _du_old,
+        ) in rows:
+            weights = BASE_PILLAR_WEIGHTS
+            composite_val = 0.0
+            for pillar_name, pillar_score in (
+                ("quality", quality_score),
+                ("value", value_score),
+                ("risk", risk_score),
+                ("momentum", momentum_score),
+            ):
+                if pillar_score is not None:
+                    composite_val += float(pillar_score) * weights[pillar_name]
+            composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+            available_weight = sum(
+                weights[p]
+                for p, s in (
+                    ("quality", quality_score),
+                    ("value", value_score),
+                    ("risk", risk_score),
+                    ("momentum", momentum_score),
+                )
+                if s is not None
+            )
+            data_completeness_new = min(99.99, round(available_weight * 100, 2))
+            data_unavailable_new = data_completeness_new < min_completeness_threshold
+            components_json = self._components_with_corrected_growth(components_old, None)
+            withheld.append(
+                (
+                    symbol,
+                    None,
+                    composite_score_new,
+                    components_json,
+                    data_completeness_new,
+                    data_unavailable_new,
+                )
+            )
+        logger.info(
+            f"[STOCK_SCORES] Growth: withheld growth_score for {len(withheld)} symbols below the "
+            f"liquidity floor / excluded from the scoring population (never reached by the "
+            f"correction pass above) - see _withhold_growth_below_floor's docstring."
+        )
+        return withheld

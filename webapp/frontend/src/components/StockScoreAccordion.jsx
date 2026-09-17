@@ -1536,36 +1536,43 @@ const POSITIONING_SCHEMA = [
 // barra and the industry guys" - see _score_risk's own docstring in risk_scoring.py). Real
 // Barra-style Minimum-Volatility/low-risk factor construction never folds tradability into
 // the risk-anomaly score itself - that's a separate execution-eligibility screen (still
-// enforced elsewhere: algo_config.min_adv_dollars, Phase 7/8's LiquidityChecks). The
-// remaining 4 genuine risk-of-loss inputs now split the full weight equally, 25% each.
+// enforced elsewhere: algo_config.min_adv_dollars, Phase 7/8's LiquidityChecks).
+//
+// MAX_DRAWDOWN_1Y REMOVED FROM SCORING 2026-09-16 (factor-purity sweep, user: "we do what the
+// industry does only" - see _score_risk's own docstring in risk_scoring.py for the full
+// citation): never a real Barra USE4 Volatility descriptor (Beta + DASTD/CMRA/HSIGMA) or MSCI
+// Min Vol/BAB literature input, and this file's own history already showed it era-flips sign
+// with no stable predictive power. Demoted to informational-only (used:false), same
+// "computed but unscored" convention as avg_dollar_volume_20d below - not deleted, raw value
+// stays displayed. Volatility 60D/252D and Beta now split the full weight equally, 1/3 each.
 const RISK_SCHEMA = [
   {
     key: "volatility_60d",
     label: "Volatility (60D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "25%",
+    weight: "33%",
   },
   {
     key: "volatility_12m",
     label: "Volatility (252D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "25%",
+    weight: "33%",
   },
   {
     key: "beta",
     label: "Beta vs Market",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "25%",
+    weight: "33%",
   },
   {
     key: "max_drawdown_1y",
     label: "Max Drawdown (1Y)",
     fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "25%",
+    used: false,
+    weight: null,
   },
   {
     key: "avg_dollar_volume_20d",

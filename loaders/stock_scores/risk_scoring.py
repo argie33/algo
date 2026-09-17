@@ -12,6 +12,18 @@ Mixed into StockScoresLoader alongside the other stock_scores/*.py pillar mixins
 defines it. No database access here, so no `_owner()` indirection is needed (unlike
 value_metrics.py/momentum_scoring.py).
 
+MAX_DRAWDOWN_1Y REMOVED FROM SCORING 2026-09-16 (factor-purity sweep, user: "we do what the
+industry does only" - SUPERSEDES every "Volatility/Max Drawdown" reference in the history below,
+which describes an earlier, now-corrected state). It was never a named descriptor in Barra
+USE4's real Volatility factor (Beta + DASTD/CMRA/HSIGMA) or MSCI's Min Vol/BAB literature - an
+invented addition this file's own evidence (below) already shows era-flips sign with no stable
+predictive power in either direction. See `_score_risk`'s own current docstring note for the
+full citation. Volatility 60D/252D and Beta now split Risk's weight equally (1/3 each,
+`RISK_COMPONENT_WEIGHT`) instead of the 4-way 1/4 split described throughout the history section
+below. The real Barra Volatility construction (EWMA DASTD/CMRA/HSIGMA-residualized-against-market,
+none of which volatility_60d/252d actually compute) is a separate, larger, NOT-YET-ADDRESSED gap
+- flagged here rather than silently left implied-fixed by this pass.
+
 SECTOR-NEUTRAL z-score batch pass for Volatility 60D/252D/Max Drawdown, REVERSING an earlier
 2026-09-13 decision to leave them universe-wide (see the git history/memory trail below for the
 full reasoning arc - kept for context, not because the conclusion still stands).
@@ -131,7 +143,6 @@ import psycopg2
 
 from loaders.helpers.factor_normalization import (
     sector_neutral_zscore,
-    sector_size_neutral_zscore,
     zscore_to_percentile_scale,
 )
 from loaders.stock_scores.pillar_weights import (
@@ -144,13 +155,12 @@ from utils.type_conversion import safe_float
 
 logger = logging.getLogger("loaders.load_stock_scores")
 
-# MIN_TRADING_DAYS_FOR_DRAWDOWN (added 2026-09-13, same session - see this module's own docstring
-# "MIN_TRADING_DAYS_FOR_DRAWDOWN gate" note for the full live-verified evidence trail: brand-new
-# IPOs with 5-55 days of history were landing in the top 15 of the corrected risk_score purely off
-# max_drawdown_1y (populated over whatever partial history exists) + Liquidity, with
-# volatility_60d/beta both correctly NULL for insufficient history. 60 matches
-# volatility_60d's own minimum window - not a new number invented for this gate.
-MIN_TRADING_DAYS_FOR_DRAWDOWN = 60
+# RISK_COMPONENT_WEIGHT (2026-09-16, factor-purity sweep): Volatility 60D/252D and Beta are the
+# 3 remaining, industry-traceable Risk inputs after max_drawdown_1y's removal (see _score_risk's
+# own docstring) - UNIFORM EQUAL-WEIGHT per the 2026-09-11 directive, now 1/3 each instead of
+# 1/4. MIN_TRADING_DAYS_FOR_DRAWDOWN (the old max_drawdown-only IPO-history gate) is removed
+# along with its only consumer - see git history if a future pass wants it back.
+RISK_COMPONENT_WEIGHT = 1.0 / 3.0
 
 
 def _owner() -> Any:
@@ -557,13 +567,13 @@ class RiskScoringMixin:
 
         if not price_stats_unreliable and metrics.get("volatility_60d") is not None:
             v60_score = self._vol_curve_score(max(0, metrics["volatility_60d"]))
-            weighted_sum += v60_score * 0.25
-            total_weight += 0.25
+            weighted_sum += v60_score * RISK_COMPONENT_WEIGHT
+            total_weight += RISK_COMPONENT_WEIGHT
 
         if not price_stats_unreliable and metrics.get("volatility_252d") is not None:
             v252_score = self._vol_curve_score(max(0, metrics["volatility_252d"]))
-            weighted_sum += v252_score * 0.25
-            total_weight += 0.25
+            weighted_sum += v252_score * RISK_COMPONENT_WEIGHT
+            total_weight += RISK_COMPONENT_WEIGHT
 
         # Beta: LOW beta is best, matching the real published anomaly - Frazzini & Pedersen 2014
         # "Betting Against Beta" and MSCI Minimum Volatility's own methodology both harvest low
@@ -582,36 +592,28 @@ class RiskScoringMixin:
         if not price_stats_unreliable and metrics.get("beta") is not None:
             beta = metrics["beta"]
             beta_score = max(0.0, min(100.0, 100 - beta * 50))
-            weighted_sum += beta_score * 0.25
-            total_weight += 0.25
+            weighted_sum += beta_score * RISK_COMPONENT_WEIGHT
+            total_weight += RISK_COMPONENT_WEIGHT
 
-        # Max drawdown (1y): peak-to-trough decline, stored as a negative percentage
-        # (e.g. -34.63 = a 34.63% decline from peak). Distinct signal from volatility (a
-        # stock can have low day-to-day volatility yet still suffer one deep sustained
-        # drawdown). Scored as a loss-severity characterization, not a return-prediction bet -
-        # see this method's docstring for why (not stably predictive either direction).
-        raw_max_drawdown = metrics.get("max_drawdown_1y")
-        if raw_max_drawdown is not None:
-            # REAL-MONEY-READINESS FIX (2026-09-10, financial-calc integrity audit):
-            # `abs(min(0.0, raw_max_drawdown))` silently treated a positive/corrupted value
-            # (e.g. a future writer storing an unsigned magnitude instead of this column's
-            # documented negative-percentage convention) as a real 0.0 drawdown - the best
-            # possible score, with no warning. load_risk_metrics_daily.py's own
-            # _calculate_max_drawdown() can only ever return strictly negative or None today,
-            # so this hasn't fired in practice, but this pillar must not silently reward what
-            # would actually be a data-integrity violation if that producer ever changed.
-            if raw_max_drawdown > 0:
-                logger.critical(
-                    f"[RISK SCORING] {symbol}: max_drawdown_1y={raw_max_drawdown} is positive - "
-                    f"this column's convention is a negative percentage (peak-to-trough decline). "
-                    f"Treating as a data-integrity violation, excluding from Risk score rather than "
-                    f"scoring as a favorable (zero) drawdown."
-                )
-            else:
-                drawdown_pct = abs(raw_max_drawdown)
-                dd_score = self._max_drawdown_curve_score(drawdown_pct)
-                weighted_sum += dd_score * 0.25
-                total_weight += 0.25
+        # max_drawdown_1y REMOVED as a scored Risk component 2026-09-16 (factor-purity sweep,
+        # user: "we do what the industry does only"). It was never a named Barra/MSCI risk
+        # descriptor to begin with - the real Barra USE4 Volatility descriptor is Beta + DASTD
+        # (EWMA daily stdev) + CMRA (cumulative range) + HSIGMA (historical sigma from a
+        # market-model regression); max drawdown appears in neither that nor MSCI's own
+        # Min Vol/BAB literature. This file's own docstring already documents (see the
+        # 2026-08-25/RESOLVED and INDEPENDENT RE-VERIFICATION sections above) that
+        # max_drawdown_1y era-flips sign with no stable predictive power in either direction -
+        # the identical "not stably predictive, invented input" shape Growth's rebuild already
+        # used to cut fcf_growth_yoy this same session, just with weaker evidence there than
+        # here. Kept anyway for years on a "genuinely distinct loss-severity dimension" framing
+        # that was never checked against a real published descriptor list - held to the same
+        # bar Growth/Quality/Value's fields were just held to, it doesn't clear it. Raw
+        # max_drawdown_1y stays computed/persisted/displayed (RISK_SCHEMA, informational) - only
+        # its vote in risk_score is removed. Volatility 60D/252D and Beta now split the full
+        # weight equally (1/3 each, still UNIFORM EQUAL-WEIGHT per the 2026-09-11 directive -
+        # just over 3 genuine, industry-traceable inputs instead of 4). MIN_TRADING_DAYS_FOR_
+        # DRAWDOWN/`_max_drawdown_curve_score` are dead code now (removed) - see git history if
+        # a future pass wants to resurrect this input with real evidence behind it.
 
         # Liquidity REMOVED as a scored Risk component 2026-09-15 (user directive: "get rid of
         # all the extra shit beyond the barra and the industry guys"). Real Barra-style
@@ -623,14 +625,11 @@ class RiskScoringMixin:
         # LIQUIDITY_FLOOR_JOIN_SQL gating every batch pass's peer population above) - folding
         # it into Risk's own 20%-weighted score meant "Risk" was answering two different
         # questions (is this stock low-risk vs. can I trade it) with one number, unlike any
-        # real published risk-factor definition. Volatility 60D/252D, Beta, and Max Drawdown
-        # 1Y now split the full weight equally (0.25 each, still UNIFORM EQUAL-WEIGHT per the
-        # 2026-09-11 directive - just over 4 genuine risk-of-loss inputs instead of 4 + a
-        # tradability input). `avg_dollar_volume_20d` is still fetched/used for the
-        # NEAR_ZERO_LIQUIDITY_THRESHOLD measurement-validity gate above (a data-reliability
-        # check, not a scored factor) and remains the system's real trade-eligibility gate
-        # everywhere else - `_liquidity_curve_score` itself is now dead code (also unused by
-        # the batch-pass recompute below) and was removed.
+        # real published risk-factor definition. `avg_dollar_volume_20d` is still fetched/used
+        # for the NEAR_ZERO_LIQUIDITY_THRESHOLD measurement-validity gate above (a data-
+        # reliability check, not a scored factor) and remains the system's real trade-
+        # eligibility gate everywhere else - `_liquidity_curve_score` itself is dead code (also
+        # unused by the batch-pass recompute below) and was removed.
 
         if total_weight >= RISK_MIN_WEIGHT_AVAILABLE:
             return weighted_sum / total_weight
@@ -661,19 +660,6 @@ class RiskScoringMixin:
         if vol <= 0.60:
             return 50 - ((vol - 0.30) / 0.30) * 40
         return max(0.0, 10 - (vol - 0.60) * 20)
-
-    @staticmethod
-    def _max_drawdown_curve_score(drawdown_pct: float) -> float:
-        """Fixed-threshold max-drawdown score. `drawdown_pct` is a non-negative magnitude
-        (e.g. 34.63 for a 34.63% peak-to-trough decline) - callers pass
-        `abs(min(0.0, max_drawdown_1y))`."""
-        if drawdown_pct <= 10:
-            return 100 - drawdown_pct * 2  # 100->80
-        if drawdown_pct <= 25:
-            return 80 - (drawdown_pct - 10) * 2  # 80->50
-        if drawdown_pct <= 50:
-            return 50 - (drawdown_pct - 25) * 1.2  # 50->20
-        return max(0.0, 20 - (drawdown_pct - 50) * 0.4)
 
     @staticmethod
     def _components_with_corrected_risk(components_old: Any, risk_score_new: float | None) -> str:
@@ -770,14 +756,17 @@ class RiskScoringMixin:
     def _compute_risk_absolute_zscore_percentiles(
         rows: list[tuple[Any, ...]],
     ) -> dict[str, dict[str, float]]:
-        """Winsorize+z-score Risk's 3 "lower raw value is better" inputs (volatility_60d,
-        volatility_252d, max_drawdown_1y magnitude). As of 2026-09-15, volatility_60d/252d are
-        UNIVERSE-WIDE z-scores (empty sectors dict) and max_drawdown_1y is SECTOR-RELATIVE (via
-        `sector_neutral_zscore` with a real symbol->sector map, min_sector_size defaulting to
-        15, the same primitive Momentum/Growth/Value use) - see the per-field comment at the
-        return statement below for why they now differ; this is a deliberate, evidence-driven
-        split, not an oversight. Split out of `update_risk_absolute_zscore_scores` for C901,
-        pure function of its inputs.
+        """Winsorize+z-score Risk's 2 remaining "lower raw value is better" inputs
+        (volatility_60d, volatility_252d), UNIVERSE-WIDE (empty sectors dict) - see this
+        module's own top-of-file docstring for the live USMV/Fama-MacBeth evidence that
+        absolute, not sector-relative, is the real min-vol anomaly. Split out of
+        `update_risk_absolute_zscore_scores` for C901, pure function of its inputs.
+
+        max_drawdown_1y REMOVED from this pass 2026-09-16 (factor-purity sweep - see
+        _score_risk's own docstring): it was never a real Barra/MSCI risk descriptor, and this
+        module's own docstring already documents it as not stably predictive either direction.
+        Its sector-relative z-score / MIN_TRADING_DAYS_FOR_DRAWDOWN gate / size-neutralization
+        machinery is removed along with it, not left as unused scaffolding.
 
         REVERSED 2026-09-13 (composite-score structural audit, same session as the promotion
         above): this was universe-wide (empty sector map) on the argument that the low-volatility
@@ -820,49 +809,16 @@ class RiskScoringMixin:
         """
         raw_vol60: dict[str, float] = {}
         raw_vol252: dict[str, float] = {}
-        raw_drawdown: dict[str, float] = {}
-        sectors: dict[str, str] = {}
-        is_fpi: dict[str, bool] = {}
-        # SIZE NEUTRALIZATION (2026-09-15, consistency follow-up to the same Barra-style fix
-        # already applied to Value/Growth/Quality - see sector_size_neutral_zscore's own
-        # docstring). Only feeds max_drawdown below - vol_60d/vol_252d are deliberately
-        # UNIVERSE-WIDE (see this method's own docstring for the live USMV/Fama-MacBeth
-        # evidence that absolute, not sector- or size-relative, is the real min-vol anomaly);
-        # regressing out size there would undo evidence-tested behavior, not fix slop.
-        market_cap_map: dict[str, float] = {}
 
         for row in rows:
             symbol = row[0]
-            vol_60d, vol_252d, _beta, max_drawdown_1y, adv20, trading_days_history, sector = (
-                row[10],
-                row[11],
-                row[12],
-                row[13],
-                row[14],
-                row[15],
-                row[16],
-            )
-            if sector is not None:
-                sectors[symbol] = sector
-            # FPI peer-group split (2026-09-14, goal-session "fix z-scoring issues" directive -
-            # see sector_neutral_zscore's own docstring in factor_normalization.py). row[17] is
-            # COALESCE(cis.is_foreign_private_issuer, false) per this query's own SELECT above.
-            if len(row) > 17:
-                is_fpi[symbol] = bool(row[17])
-            if len(row) > 18 and row[18] is not None and float(row[18]) > 0:
-                market_cap_map[symbol] = float(row[18])
+            vol_60d, vol_252d, adv20 = row[10], row[11], row[14]
             price_stats_unreliable = adv20 is not None and 0 <= float(adv20) < NEAR_ZERO_LIQUIDITY_THRESHOLD
             if not price_stats_unreliable:
                 if vol_60d is not None:
                     raw_vol60[symbol] = -max(0.0, float(vol_60d))
                 if vol_252d is not None:
                     raw_vol252[symbol] = -max(0.0, float(vol_252d))
-            if (
-                max_drawdown_1y is not None
-                and float(max_drawdown_1y) <= 0
-                and int(trading_days_history) >= MIN_TRADING_DAYS_FOR_DRAWDOWN
-            ):
-                raw_drawdown[symbol] = -abs(float(max_drawdown_1y))
 
         # PARTIAL RE-REVERSAL 2026-09-15 (goal session: "the scores need to be right, not the
         # display" - user rejected treating Risk's weak real-fund agreement as an unfixable
@@ -890,9 +846,6 @@ class RiskScoringMixin:
         return {
             "vol_60d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol60, {})),
             "vol_252d": zscore_to_percentile_scale(sector_neutral_zscore(raw_vol252, {})),
-            "max_drawdown": zscore_to_percentile_scale(
-                sector_size_neutral_zscore(raw_drawdown, sectors, market_cap_map, is_foreign_private_issuer=is_fpi)
-            ),
         }
 
     def _recompute_risk_row(
@@ -902,10 +855,15 @@ class RiskScoringMixin:
         min_completeness_threshold: float,
     ) -> tuple[str, float | None, float, str | None, float, bool] | None:
         """Recompute one symbol's risk_score/composite_score from the absolute z-score
-        percentiles (Volatility 60D/252D/Max Drawdown) plus Beta/Liquidity's UNCHANGED existing
-        curve scores, and diff against its current stored values. Returns None if nothing
-        changed. Split out of `update_risk_absolute_zscore_scores` for C901, pure function of
-        its inputs - mirrors MomentumScoringMixin._recompute_momentum_row's structure."""
+        percentiles (Volatility 60D/252D) plus Beta's UNCHANGED existing curve score, and diff
+        against its current stored values. Returns None if nothing changed. Split out of
+        `update_risk_absolute_zscore_scores` for C901, pure function of its inputs - mirrors
+        MomentumScoringMixin._recompute_momentum_row's structure.
+
+        max_drawdown_1y REMOVED from scoring 2026-09-16 (factor-purity sweep - see
+        _score_risk's own docstring: never a real Barra/MSCI descriptor, not stably
+        predictive). row[13]/row[15] (max_drawdown_1y/trading_days_history) are no longer read
+        here."""
         symbol = row[0]
         risk_score_old = float(row[1])
         composite_score_old = float(row[2])
@@ -913,39 +871,23 @@ class RiskScoringMixin:
         components_old = row[7]
         data_completeness_old = float(row[8]) if row[8] is not None else None
         data_unavailable_old = bool(row[9]) if row[9] is not None else False
-        beta, max_drawdown_1y, adv20, trading_days_history = row[12], row[13], row[14], row[15]
+        beta, adv20 = row[12], row[14]
 
         price_stats_unreliable = adv20 is not None and 0 <= float(adv20) < NEAR_ZERO_LIQUIDITY_THRESHOLD
 
         weighted_sum = 0.0
         total_weight = 0.0
         if symbol in pct_by_field["vol_60d"]:
-            weighted_sum += pct_by_field["vol_60d"][symbol] * 0.25
-            total_weight += 0.25
+            weighted_sum += pct_by_field["vol_60d"][symbol] * RISK_COMPONENT_WEIGHT
+            total_weight += RISK_COMPONENT_WEIGHT
         if symbol in pct_by_field["vol_252d"]:
-            weighted_sum += pct_by_field["vol_252d"][symbol] * 0.25
-            total_weight += 0.25
+            weighted_sum += pct_by_field["vol_252d"][symbol] * RISK_COMPONENT_WEIGHT
+            total_weight += RISK_COMPONENT_WEIGHT
         if not price_stats_unreliable and beta is not None:
             # Same low-beta-reward formula as _score_risk's own Pass-1 beta scoring - see that
             # method's docstring for why (real BAB/Min-Vol anomaly, not closeness to 1.0).
-            weighted_sum += max(0.0, min(100.0, 100 - float(beta) * 50)) * 0.25
-            total_weight += 0.25
-        if symbol in pct_by_field["max_drawdown"]:
-            weighted_sum += pct_by_field["max_drawdown"][symbol] * 0.25
-            total_weight += 0.25
-        elif max_drawdown_1y is not None and float(max_drawdown_1y) > 0:
-            logger.critical(
-                f"[RISK SCORING] {symbol}: max_drawdown_1y={max_drawdown_1y} is positive in the "
-                f"absolute z-score pass - data-integrity violation, excluding from Risk score "
-                f"(same guard _score_risk's Pass-1 curve applies)."
-            )
-        elif max_drawdown_1y is not None and int(trading_days_history) < MIN_TRADING_DAYS_FOR_DRAWDOWN:
-            logger.debug(
-                f"[STOCK_SCORES] {symbol} max_drawdown_1y excluded from absolute z-score pass: "
-                f"only {trading_days_history} trading days of history, below "
-                f"MIN_TRADING_DAYS_FOR_DRAWDOWN={MIN_TRADING_DAYS_FOR_DRAWDOWN} - not enough "
-                f"elapsed time for this reading to reflect a real drawdown."
-            )
+            weighted_sum += max(0.0, min(100.0, 100 - float(beta) * 50)) * RISK_COMPONENT_WEIGHT
+            total_weight += RISK_COMPONENT_WEIGHT
         # Liquidity is no longer a scored Risk component (see _score_risk's own note) - adv20 is
         # still fetched above only for the NEAR_ZERO_LIQUIDITY_THRESHOLD price_stats_unreliable
         # gate.
@@ -1091,6 +1033,8 @@ class RiskScoringMixin:
                 if update is not None:
                     updates.append(update)
 
+            updates.extend(self._withhold_risk_below_floor())
+
             if not updates:
                 logger.info(
                     "[STOCK_SCORES] Risk absolute z-score pass: no symbol's risk_score/"
@@ -1126,3 +1070,116 @@ class RiskScoringMixin:
             error_msg = f"Risk absolute z-score batch update failed - stock scores cannot be finalized: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
+
+    def _withhold_risk_below_floor(
+        self,
+    ) -> list[tuple[str, float | None, float, str | None, float, bool]]:
+        """Companion to update_risk_absolute_zscore_scores(): finds the COMPLEMENT of that
+        method's own correction population - symbols with a real risk_score but ineligible for
+        correction (below the liquidity floor, missing/data_unavailable stability_metrics, or
+        excluded by NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE) - and withholds risk_score
+        (NULL) plus recomputes composite_score/data_completeness/data_unavailable to match,
+        rather than leaving Pass 1's stale, potentially-mega-cap-calibrated curve value
+        (`_vol_curve_score`/`_max_drawdown_curve_score` - see this module's own top-of-file
+        docstring on how poorly those fixed breakpoints fit this universe) in place indefinitely.
+
+        PORTED 2026-09-16 (factor-purity sweep - this exact bug class was already found and
+        fixed for Quality (vqg_quality_batch.py's `_withhold_quality_below_floor`) and Momentum
+        (momentum_scoring.py's `_withhold_momentum_below_floor`, commit c1a3dd899) but never
+        ported here or to Growth/Value - see those two methods' own docstrings for the shared
+        rationale. Same gap, same fix, same shape.
+
+        Returns tuples in the same (symbol, risk_score, composite_score, components,
+        data_completeness, data_unavailable) shape update_risk_absolute_zscore_scores()'s own
+        `updates` list uses, so the caller can extend one batch UPDATE with both.
+        """
+        with _owner().DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                SELECT ss.symbol, ss.composite_score, ss.quality_score, ss.growth_score,
+                       ss.value_score, ss.momentum_score, ss.components,
+                       ss.data_completeness, ss.data_unavailable
+                FROM stock_scores ss
+                JOIN stock_symbols su ON su.symbol = ss.symbol
+                LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                LEFT JOIN stability_metrics sm ON sm.symbol = ss.symbol
+                LEFT JOIN (
+                    SELECT symbol,
+                           AVG(volume * close) AS avg_dollar_volume_20d,
+                           (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
+                    FROM (
+                        SELECT symbol, volume, close, date,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM price_daily
+                        WHERE date >= CURRENT_DATE - INTERVAL '45 days'
+                          AND COALESCE(data_unavailable, false) = false
+                          AND volume IS NOT NULL AND close IS NOT NULL
+                    ) ranked
+                    WHERE rn <= 20
+                    GROUP BY symbol
+                ) liq_floor ON liq_floor.symbol = ss.symbol
+                WHERE ss.risk_score IS NOT NULL
+                  AND (
+                        liq_floor.latest_close IS NULL
+                        OR liq_floor.latest_close < %s
+                        OR liq_floor.avg_dollar_volume_20d IS NULL
+                        OR liq_floor.avg_dollar_volume_20d < %s
+                        OR sm.symbol IS NULL
+                        OR COALESCE(sm.data_unavailable, false) = true
+                        OR NOT ("""
+                + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                + """)
+                  )
+                """,
+                (
+                    getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
+                    getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                ),
+            )
+            rows = cur.fetchall()
+
+        if not rows:
+            return []
+
+        min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
+        withheld: list[tuple[str, float | None, float, str | None, float, bool]] = []
+        for (
+            symbol,
+            _composite_score_old,
+            quality_score,
+            growth_score,
+            value_score,
+            momentum_score,
+            components_old,
+            _dc_old,
+            _du_old,
+        ) in rows:
+            weights = BASE_PILLAR_WEIGHTS
+            pillar_scores = (
+                ("quality", quality_score),
+                ("growth", growth_score),
+                ("value", value_score),
+                ("momentum", momentum_score),
+            )
+            composite_val = sum(float(s) * weights[p] for p, s in pillar_scores if s is not None)
+            composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+            available_weight = sum(weights[p] for p, s in pillar_scores if s is not None)
+            data_completeness_new = min(99.99, round(available_weight * 100, 2))
+            data_unavailable_new = data_completeness_new < min_completeness_threshold
+            components_json = self._components_with_corrected_risk(components_old, None)
+            withheld.append(
+                (
+                    symbol,
+                    None,
+                    composite_score_new,
+                    components_json,
+                    data_completeness_new,
+                    data_unavailable_new,
+                )
+            )
+        logger.info(
+            f"[STOCK_SCORES] Risk: withheld risk_score for {len(withheld)} symbols below the "
+            f"liquidity floor / excluded from the scoring population (never reached by the "
+            f"correction pass above) - see _withhold_risk_below_floor's docstring."
+        )
+        return withheld

@@ -43,6 +43,7 @@ from typing import Any, cast
 import psycopg2  # noqa: F401 - used via _owner().psycopg2 in vqg_quality_batch.py
 from psycopg2.extras import execute_values  # noqa: F401 - used via _owner().execute_values in vqg_quality_batch.py
 
+from loaders.helpers.quality_variability import earnings_variability_from_income_rows
 from loaders.helpers.vqg_growth import GrowthMetricsMixin, is_split_or_share_count_scale_error
 from loaders.helpers.vqg_inserts import insert_growth_metrics, insert_quality_metrics, insert_value_metrics
 from loaders.helpers.vqg_quality import QualityMetricsMixin
@@ -730,7 +731,19 @@ class ValueQualityGrowthMetricsLoader(
             # _compute_quality_metrics, because it needs the multi-year income_rows history
             # already fetched above - _compute_quality_metrics only sees a single fiscal year's row.
             margin_volatility, margin_volatility_unavailable_reason = self._compute_margin_volatility(income_rows)
-            quality_dict = self._compute_quality_metrics(symbol, quality_row_db, ev_metrics, margin_volatility)
+            # earnings_variability: MSCI's real 3rd Quality fundamental variable (ROE/Debt-to-
+            # Equity/Earnings Variability) - see earnings_variability_from_income_rows's own
+            # docstring (loaders/helpers/quality_variability.py, an adapter kept out of this
+            # already-oversized file per the file-size ratchet) and that module's top-of-file
+            # docstring for the MSCI citation. Same "needs multi-year income_rows the single-
+            # fiscal-year quality_row doesn't have" reason margin_volatility is computed here
+            # rather than inside _compute_quality_metrics. Reason is always "insufficient_history"
+            # when None - _apply_quality_profitability_reasons already writes that same default,
+            # so only the value is threaded through here.
+            earnings_var, _earnings_var_unavailable_reason = earnings_variability_from_income_rows(income_rows)
+            quality_dict = self._compute_quality_metrics(
+                symbol, quality_row_db, ev_metrics, margin_volatility, earnings_var
+            )
             if margin_volatility is None and isinstance(quality_dict, dict):
                 quality_dict["margin_volatility_unavailable_reason"] = self._recategorize_margin_volatility_reason(
                     symbol, margin_volatility_unavailable_reason

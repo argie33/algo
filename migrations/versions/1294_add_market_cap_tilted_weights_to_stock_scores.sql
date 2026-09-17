@@ -24,12 +24,15 @@
 -- NOT a change to composite_score/pillar scores themselves, which stay pure factor-merit and
 -- continue to drive live Phase 7/8 trading decisions unchanged - Size was deliberately
 -- retired as a scoring PILLAR (2026-08-28, Fama-MacBeth evidence it hurt forward returns) and
--- this does not reverse that. These columns are a DISPLAY/comparison construction only:
--- weight = market_cap * GREATEST(0.1, 1 + k * z_score_of_[composite|pillar]_score_within_the_
--- eligible_universe), k=0.2 (the value independently converged on and verified this session -
--- two independently-built measurements got 84%/76% top-25 overlap vs real LRGF+GSLC holdings
--- at k=0.2, see [[overlap_bottom25_exclusion_baserate_caveat_20260915]] in memory for the
--- honest caveat on the bottom-25 side of that same measurement).
+-- this does not reverse that. These columns are a DISPLAY/comparison construction only.
+-- FORMULA REPLACED 2026-09-16 (user directive: "get rid of all the extra shit beyond ... the
+-- industry guys") - the original weight = market_cap * GREATEST(0.1, 1 + k * z_score) with a
+-- fitted k=0.2 (chosen by trying values until output matched real LRGF/GSLC holdings overlap)
+-- was itself exactly this "shit": a curve-fit constant, not a sourced formula. Replaced with
+-- MSCI's own real, published Momentum Tilt Index formula (MSCI Momentum Indexes Methodology,
+-- August 2021, section 2.2.2): z-score winsorized at +/-3, then
+-- Score = 1+Z (Z>0) or (1-Z)^-1 (Z<0), weight = market_cap * Score. No fitted constant. See
+-- loaders/stock_scores/market_cap_tilt.py's module comment for the full citation.
 --
 -- One column per pillar (not just composite) because real ActiveBeta-style construction
 -- tilts EACH factor sub-index independently by that factor's own z-score before combining -

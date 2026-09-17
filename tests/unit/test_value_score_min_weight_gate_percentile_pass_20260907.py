@@ -41,11 +41,24 @@ class _Loader:
     update_value_multiples_percentiles = ValueMetricsMixin.update_value_multiples_percentiles
     _components_with_corrected_value = staticmethod(ValueMetricsMixin._components_with_corrected_value)
     _percent_rank_cheap_high_sector_relative = staticmethod(ValueMetricsMixin._percent_rank_cheap_high_sector_relative)
+    # _withhold_value_below_floor (added 2026-09-16, factor-purity sweep) is called
+    # unconditionally at the end of update_value_multiples_percentiles() now - this stand-in
+    # needs it bound too, same reason as every other method above.
+    _withhold_value_below_floor = ValueMetricsMixin._withhold_value_below_floor
+    # MSCI Z-SCORE REBUILD 2026-09-16 (see update_value_multiples_percentiles' own "MSCI
+    # ENHANCED VALUE Z-SCORE CONSTRUCTION" docstring note): the rebuilt method reads
+    # `self._MIN_SECTOR_SLICE` directly (not just through a bound helper method) when calling
+    # `sector_neutral_zscore` on the composite - this minimal stand-in needs the plain class
+    # constant bound too, not just methods, or `self._MIN_SECTOR_SLICE` raises AttributeError.
+    _MIN_SECTOR_SLICE = ValueMetricsMixin._MIN_SECTOR_SLICE
 
 
 def _make_mock_cursor(rows: list[tuple[Any, ...]]) -> MagicMock:
     cur = MagicMock()
-    cur.fetchall.return_value = rows
+    # side_effect [rows, []]: first fetchall() is the correction pass's own SELECT, second is
+    # _withhold_value_below_floor()'s own SELECT (added 2026-09-16, factor-purity sweep) - []
+    # means no symbol is below the liquidity floor in this test's fixture population.
+    cur.fetchall.side_effect = [rows, []]
     return cur
 
 

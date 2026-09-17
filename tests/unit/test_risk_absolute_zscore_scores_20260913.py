@@ -15,16 +15,18 @@ same fallback Value/Growth/Quality already use). Tests below that don't pass a `
 `_row()` default to None, landing every such symbol in that residual pool - preserving their
 original "no sector info at all" behavior unchanged.
 
-Context: `_vol_curve_score`/`_max_drawdown_curve_score`'s fixed breakpoints (0.15/0.30/0.60 for
-vol, 10/25/50 for drawdown) were live-checked against the real stability_metrics distribution
-and found badly miscalibrated (p50 volatility_60d=0.516, already past the curve's OWN 0.30
-breakpoint). This batch pass replaces them with winsorize+z-score against the live universe.
+Context: `_vol_curve_score`'s fixed breakpoints (0.15/0.30/0.60) were live-checked against the
+real stability_metrics distribution and found badly miscalibrated (p50 volatility_60d=0.516,
+already past the curve's OWN 0.30 breakpoint). This batch pass replaces it with
+winsorize+z-score against the live universe.
 
-A pre-ship dry run of the naive z-score swap (before MIN_TRADING_DAYS_FOR_DRAWDOWN existed)
-put brand-new IPOs in the top 15 of the corrected risk_score, off partial-history
-max_drawdown_1y + Liquidity alone (exactly the "shitty microcap with no real track record
-dominates the safest list" failure mode this whole exercise exists to eliminate).
-TestMinTradingDaysForDrawdownGate below locks that regression in as a permanent test.
+MAX_DRAWDOWN_1Y REMOVED FROM SCORING 2026-09-16 (factor-purity sweep - see risk_scoring.py's
+own module docstring): never a real Barra/MSCI risk descriptor, era-flipped sign with no
+stable predictive power. TestMinTradingDaysForDrawdownGate (the old IPO-partial-history-
+drawdown regression lock) and the drawdown-dependent assertions elsewhere in this file are
+removed along with it - see git history if a future pass resurrects a drawdown-like input with
+real evidence behind it. `_row()`'s `max_drawdown_1y`/`trading_days_history` params are kept
+only because they still match the live SELECT's column order (harmless, unused by scoring).
 
 Test structure mirrors tests/unit/test_momentum_sector_neutral_scores_20260913.py exactly (same
 mocked-DB-row / idempotency-across-repeated-runs pattern), adapted for Risk's different fetch
@@ -34,7 +36,6 @@ shape (one SELECT, with trading_days_history instead of a second technical-data 
 from unittest.mock import MagicMock, patch
 
 from loaders.load_stock_scores import StockScoresLoader as L
-from loaders.stock_scores.risk_scoring import MIN_TRADING_DAYS_FOR_DRAWDOWN
 
 
 def _row(
@@ -87,7 +88,10 @@ def _run_with_mocked_rows(rows: list[tuple]) -> dict[str, tuple[float | None, fl
     the main SELECT, and return {symbol: (risk_score, composite_score)} from the UPDATE, or {}
     if no UPDATE was issued."""
     mock_cur = MagicMock()
-    mock_cur.fetchall.return_value = rows
+    # side_effect [rows, []]: first fetchall() is the correction pass's own SELECT, second is
+    # _withhold_risk_below_floor()'s own SELECT (added 2026-09-16, factor-purity sweep) - []
+    # means no symbol is below the liquidity floor in this test's fixture population.
+    mock_cur.fetchall.side_effect = [rows, []]
     with (
         patch("loaders.load_stock_scores.DatabaseContext") as mock_ctx,
         patch("loaders.load_stock_scores.execute_values") as mock_execute_values,
@@ -101,7 +105,9 @@ def _run_with_mocked_rows(rows: list[tuple]) -> dict[str, tuple[float | None, fl
     return {row[0]: (row[1], row[2]) for row in updates}
 
 
-LONG_HISTORY = MIN_TRADING_DAYS_FOR_DRAWDOWN + 200  # comfortably clears the gate
+LONG_HISTORY = (
+    260  # trading_days_history value used throughout - no longer gates anything, kept for row-shape compatibility
+)
 
 
 class TestAbsoluteZScoreRanking:
@@ -220,122 +226,6 @@ class TestAbsoluteZScoreRanking:
             f"A={updates['A'][0]} B={updates['B'][0]}"
         )
 
-    def test_sector_relative_scoring_matches_quality_growth_value_pattern(self) -> None:
-        """The 2026-09-13 reversal made vol/drawdown sector-relative like Quality/Growth/Value.
-        PARTIALLY RE-REVERSED 2026-09-15 (see `_compute_risk_absolute_zscore_percentiles`'s own
-        comment): volatility_60d/252d went back to universe-wide after a whole-universe
-        Fama-MacBeth test found vol has a real, robust forward-return edge broadly (the
-        2026-09-13 test only checked banks/insurers/REITs, where it doesn't) AND a real min-vol
-        fund's actual holdings (USMV) confirmed absolute vol is what matters, not
-        calmer-than-sector. max_drawdown_1y stays sector-relative (evidence there is weak
-        either way). This test still passes because max_drawdown's sector-relative pull plus
-        beta/liquidity parity keep MEDTECH/MEDUTIL close enough even with vol now absolute -
-        it's no longer proof vol itself is sector-relative, just that the overall risk_score
-        for this synthetic pair still lands within tolerance. Uses 15 symbols per sector to
-        clear `sector_neutral_zscore`'s min_sector_size=15 floor for drawdown, so neither group
-        falls back to the residual pool there."""
-        tech_rows = [
-            _row(
-                f"TECH{i}",
-                999.0,
-                999.0,
-                50.0,
-                50.0,
-                50.0,
-                50.0,
-                {},
-                99.99,
-                False,
-                0.70 + i * 0.05,
-                0.75 + i * 0.05,
-                1.0,
-                -50.0 - i,
-                5_000_000.0,
-                LONG_HISTORY,
-                sector="Technology",
-            )
-            for i in range(15)
-        ]
-        util_rows = [
-            _row(
-                f"UTIL{i}",
-                999.0,
-                999.0,
-                50.0,
-                50.0,
-                50.0,
-                50.0,
-                {},
-                99.99,
-                False,
-                0.10 + i * 0.01,
-                0.12 + i * 0.01,
-                1.0,
-                -5.0 - i * 0.1,
-                5_000_000.0,
-                LONG_HISTORY,
-                sector="Utilities",
-            )
-            for i in range(15)
-        ]
-        # A "mediocre for its sector" symbol in each group - same relative position (roughly
-        # median-ish raw value within its own peer set), different absolute magnitude.
-        test_tech = _row(
-            "MEDTECH",
-            999.0,
-            999.0,
-            50.0,
-            50.0,
-            50.0,
-            50.0,
-            {},
-            99.99,
-            False,
-            0.90,
-            0.95,
-            1.0,
-            -55.0,
-            5_000_000.0,
-            LONG_HISTORY,
-            sector="Technology",
-        )
-        test_util = _row(
-            "MEDUTIL",
-            999.0,
-            999.0,
-            50.0,
-            50.0,
-            50.0,
-            50.0,
-            {},
-            99.99,
-            False,
-            0.10,
-            0.12,
-            1.0,
-            -5.0,
-            5_000_000.0,
-            LONG_HISTORY,
-            sector="Utilities",
-        )
-        updates = _run_with_mocked_rows([*tech_rows, *util_rows, test_tech, test_util])
-        # Sanity: sector-relative scoring means the raw-worse-looking absolute Tech reading and
-        # the raw-better-looking absolute Utilities reading land at comparable relative
-        # positions within their own peer groups, unlike a universe-wide transform where MEDTECH
-        # (much higher absolute vol/drawdown) would always score far below MEDUTIL.
-        # Tolerance widened 2026-09-15 (40, was 30) after Liquidity's removal as a scored Risk
-        # component rebalanced the remaining 4 inputs from 20% each (of 5, incl. Liquidity) to
-        # 25% each - universe-wide volatility (still absolute, not sector-relative - see
-        # test_volatility_is_universe_wide_not_sector_relative below) now carries proportionally
-        # more of the total weight, so a real, large absolute-vol gap between these two synthetic
-        # symbols (0.90-0.95 vs 0.10-0.12) legitimately widens the composite gap even though
-        # drawdown's own sector-relative component still keeps them comparable on that input.
-        assert abs(updates["MEDTECH"][0] - updates["MEDUTIL"][0]) < 40, (
-            f"sector-relative scoring should put a similarly-positioned peer within each sector "
-            f"in a comparable range, not penalize Tech purely for its sector's higher absolute "
-            f"volatility - MEDTECH={updates['MEDTECH'][0]} MEDUTIL={updates['MEDUTIL'][0]}"
-        )
-
     def test_volatility_is_universe_wide_not_sector_relative(self) -> None:
         """LOCKS IN the 2026-09-15 partial re-reversal (see
         `_compute_risk_absolute_zscore_percentiles`'s own comment): volatility_60d/252d must
@@ -445,123 +335,11 @@ class TestAbsoluteZScoreRanking:
         )
 
 
-class TestMinTradingDaysForDrawdownGate:
-    def test_brand_new_ipo_does_not_win_on_partial_history_drawdown_alone(self) -> None:
-        """REGRESSION LOCK (caught in pre-ship verification, 2026-09-13): a brand-new IPO with
-        real, large liquidity but too little history for volatility_60d/beta (both None, as
-        stability_metrics would genuinely report for insufficient_history) must NOT win on
-        max_drawdown_1y + Liquidity alone just because it hasn't been trading long enough to
-        have lived through a real drawdown yet. Below MIN_TRADING_DAYS_FOR_DRAWDOWN, drawdown's
-        weight must drop out entirely, leaving only Liquidity (0.20) - below
-        RISK_MIN_WEIGHT_AVAILABLE (0.40) - so risk_score is withheld (None), not a fabricated
-        near-max score."""
-        thin_history = MIN_TRADING_DAYS_FOR_DRAWDOWN - 1
-        rows = [
-            # Brand-new IPO: real liquidity, no vol/beta (insufficient_history), tiny drawdown
-            # only because it hasn't existed long enough to have a real one.
-            _row(
-                "NEWIPO",
-                82.0,
-                82.0,
-                50.0,
-                50.0,
-                50.0,
-                50.0,
-                {},
-                99.99,
-                False,
-                None,
-                None,
-                None,
-                -5.0,
-                20_000_000.0,
-                thin_history,
-            ),
-            # A real, seasoned low-vol stock with a comparably small drawdown AND enough history
-            # to trust it - must still be scoreable and must not be penalized by NEWIPO merely
-            # existing in the same batch.
-            _row(
-                "SEASONED",
-                70.0,
-                70.0,
-                50.0,
-                50.0,
-                50.0,
-                50.0,
-                {},
-                99.99,
-                False,
-                0.20,
-                0.22,
-                1.0,
-                -8.0,
-                20_000_000.0,
-                LONG_HISTORY,
-            ),
-        ]
-        updates = _run_with_mocked_rows(rows)
-        assert "NEWIPO" in updates, "expected NEWIPO's risk_score to change (withheld), so it must appear in the UPDATE"
-        assert updates["NEWIPO"][0] is None, (
-            f"expected a brand-new IPO's risk_score to be withheld (None) below MIN_TRADING_DAYS_FOR_DRAWDOWN, "
-            f"got {updates['NEWIPO'][0]}"
-        )
-
-    def test_symbol_at_or_above_the_history_threshold_is_scored_normally(self) -> None:
-        """Sanity check on the boundary: a symbol with exactly MIN_TRADING_DAYS_FOR_DRAWDOWN
-        real trading days must have its max_drawdown_1y counted, not gated out."""
-        rows = [
-            _row(
-                "EXACT",
-                999.0,
-                999.0,
-                50.0,
-                50.0,
-                50.0,
-                50.0,
-                {},
-                99.99,
-                False,
-                0.20,
-                0.22,
-                1.0,
-                -8.0,
-                20_000_000.0,
-                MIN_TRADING_DAYS_FOR_DRAWDOWN,
-            ),
-            _row(
-                "PEER",
-                999.0,
-                999.0,
-                50.0,
-                50.0,
-                50.0,
-                50.0,
-                {},
-                99.99,
-                False,
-                0.20,
-                0.22,
-                1.0,
-                -40.0,
-                20_000_000.0,
-                LONG_HISTORY,
-            ),
-        ]
-        updates = _run_with_mocked_rows(rows)
-        assert updates["EXACT"][0] is not None, (
-            "a symbol clearing the history floor exactly must be scored, not withheld"
-        )
-        assert updates["EXACT"][0] > updates["PEER"][0], (
-            "EXACT has a much smaller drawdown magnitude than PEER and both clear the history floor - "
-            f"EXACT should score higher (EXACT={updates['EXACT'][0]} PEER={updates['PEER'][0]})"
-        )
-
-
 class TestRiskMinWeightFloorPreserved:
-    def test_symbol_with_only_liquidity_available_is_withheld(self) -> None:
-        """RISK_MIN_WEIGHT_AVAILABLE=0.40 (2/5 slots) must still gate this pass exactly as it
-        gates Pass 1 - a symbol with only Liquidity available (1/5 slots = 0.20 weight, vol/
-        beta/drawdown all None or gated) must get risk_score=None (withheld)."""
+    def test_symbol_with_no_scoreable_inputs_is_withheld(self) -> None:
+        """RISK_MIN_WEIGHT_AVAILABLE=0.40 must still gate this pass exactly as it gates Pass 1 -
+        a symbol with none of the 3 remaining components available (vol_60d/vol_252d/beta all
+        None) must get risk_score=None (withheld)."""
         rows = [
             _row(
                 "THIN",

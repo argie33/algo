@@ -308,13 +308,23 @@ from loaders.load_stock_scores and must keep working unchanged.
 #
 #   PILLAR level (quality_score/growth_score/value_score/risk_score/momentum_score): the job
 #   is to accurately MEASURE that factor, the same way real institutional single-factor
-#   products/indexes measure it (MSCI/Barra/AQR published methodology - e.g. MTUM's real
-#   underlying index, MSCI USA Momentum SR Variant, z-scores momentum WITHIN each GICS sector,
-#   confirmed via direct primary-source methodology PDF 2026-09-15). Validate a pillar
+#   products/indexes measure it (MSCI/Barra/AQR published methodology). Validate a pillar
 #   construction choice against fidelity to the real, sourced factor definition - NOT whether
 #   it individually predicts forward returns. A pillar with zero standalone IC is not
 #   automatically wrong; a pillar that doesn't resemble how the real factor is actually defined
 #   IS wrong, regardless of its own IC.
+#   EXAMPLE, KEPT CORRECTED (2026-09-16 factor-purity sweep): this policy block originally cited
+#   "MTUM's real underlying index... z-scores momentum WITHIN each GICS sector" as its
+#   illustrative example - that claim was itself a real-money-readiness-pass finding from
+#   2026-09-15 that got REVERSED the same day (live-verified against fresh MTUM daily holdings:
+#   sector-relative cap-neutral rank correlation 0.235 vs. universe-wide 0.558 - see
+#   momentum_scoring.py's own history) and independently RE-CONFIRMED 2026-09-16 by fetching
+#   MSCI's real Momentum Indexes Methodology PDF directly (Aug 2021, Section 2.2): momentum is
+#   z-scored ONCE, UNIVERSE-WIDE within the Parent Index - no sector grouping anywhere in the
+#   document. This policy block's own worked example was left citing the pre-reversal claim
+#   until now, the identical "docstring lied, code was already right" gap already found once
+#   this session for Value - fixed here rather than left to mislead a future reader who trusts
+#   this file's own precedent-setting example over the pillar's own (correct) live code.
 #
 #   COMPOSITE level (composite_score): the job is to identify the best actual stock
 #   opportunity. Validate composite-level changes (pillar weights, cross-pillar interactions

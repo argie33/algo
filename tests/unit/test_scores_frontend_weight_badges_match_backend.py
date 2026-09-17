@@ -277,23 +277,25 @@ class TestPositioningScoreRemoved:
 
 
 class TestRiskScoreWeightBadges:
-    def test_volatility_beta_and_max_drawdown_weights_match_code(self):
-        """LIQUIDITY REMOVED 2026-09-15 (user directive: "get rid of all the extra shit beyond
-        the barra and the industry guys" - see _score_risk's own docstring). Real Barra-style
-        risk-factor construction doesn't fold tradability into the risk score itself. The
-        remaining 4 genuine risk-of-loss inputs (Volatility 60D/252D, Beta, Max Drawdown 1Y)
-        are flat 25% each (UNIFORM EQUAL-WEIGHT, 2026-09-11). Volatility 30D dropped (most
-        redundant of the three windows). Debt-to-Assets stays out - see
-        test_debt_to_assets_not_scored below."""
-        src = inspect.getsource(StockScoresLoader._score_risk)
-        score_var_to_jsx_key = {
-            "v60_score": "volatility_60d",
-            "v252_score": "volatility_12m",  # API key "volatility_12m" actually carries volatility_252d
-            "beta_score": "beta",
-            "dd_score": "max_drawdown_1y",
-        }
-        for score_var, jsx_key in score_var_to_jsx_key.items():
-            _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
+    def test_volatility_and_beta_weights_match_code(self):
+        """LIQUIDITY REMOVED 2026-09-15, MAX_DRAWDOWN_1Y REMOVED 2026-09-16 (factor-purity
+        sweep - see _score_risk's own docstring: never a real Barra/MSCI risk descriptor, era-
+        flipped sign with no stable predictive power). The remaining 3 genuine risk-of-loss
+        inputs (Volatility 60D/252D, Beta) split `RISK_COMPONENT_WEIGHT` (1/3) each, a shared
+        named constant rather than a per-line literal - so this checks the JSX badge against
+        that constant directly instead of `_weight_for_score_var`'s literal-`0.NN` regex."""
+        from loaders.stock_scores.risk_scoring import RISK_COMPONENT_WEIGHT
+
+        for jsx_key in ("volatility_60d", "volatility_12m", "beta"):
+            _assert_pct_matches(jsx_key, RISK_COMPONENT_WEIGHT)
+
+    def test_max_drawdown_no_longer_scored(self):
+        """max_drawdown_1y is informational-only now (used:false) - see this class's own
+        docstring above."""
+        match = re.search(r"key:\s*[\"']max_drawdown_1y[\"'].*?\n\s*\},", _JSX_SOURCE, re.DOTALL)
+        assert match, "expected a max_drawdown_1y RISK_SCHEMA entry"
+        assert "used: false" in match.group(0)
+        assert "weight: null" in match.group(0)
 
     def test_liquidity_no_longer_scored(self):
         """Liquidity is fetched/displayed informationally only - no longer a weight-badged

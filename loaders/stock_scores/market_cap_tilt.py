@@ -35,13 +35,53 @@ from utils.loaders.helpers import NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE
 
 logger = logging.getLogger("loaders.load_stock_scores")
 
-# MARKET_CAP_TILT_K: weight = market_cap * max(0.1, 1 + k * z_score). Independently converged
-# on and verified this session (two independently-built measurements: 84%/76% top-25 overlap
-# vs real LRGF+GSLC holdings at k=0.2, up from 68% at k=0.0/pure-cap - see
-# [[overlap_bottom25_exclusion_baserate_caveat_20260915]] in memory for the honest caveat on
-# the bottom-25 side of that same measurement: report lift over the ~75% null base rate, not
-# the raw percentage, for that half).
-MARKET_CAP_TILT_K = 0.2
+# TILT_ZSCORE_WINSORIZE_BOUND / _tilt_score_from_zscore: REPLACES the fitted MARKET_CAP_TILT_K
+# damping constant (k=0.2, reverse-engineered 2026-09-15 by trying values until the output
+# matched ~84%/76% of two real ETFs' actual holdings - see git history for that superseded
+# version) with MSCI's own real, published Tilt Index formula (user directive 2026-09-16:
+# "get rid of all the extra shit beyond ... the industry guys"; a fitted constant tuned to
+# match an outcome is exactly that "shit", however well it happened to score). Verified
+# directly against MSCI Momentum Indexes Methodology, August 2021, section 2.2.2 (fetched and
+# read this session, not recalled from memory):
+#
+#   Momentum Z-score winsorized at +/-3 (values above 3 capped to 3, below -3 capped to -3)
+#   Momentum Score = 1 + Z              if Z > 0
+#   Momentum Score = (1 - Z)^-1         if Z < 0
+#   Tilt Weight = Momentum Score * Market-Cap-Weight-in-Parent-Index (then renormalized)
+#
+# Asymmetric on purpose (MSCI's own construction, not this repo's invention) - it keeps the
+# multiplier strictly positive across the full winsorized range (0.25x at Z=-3 to 4x at Z=+3)
+# with no separate floor constant needed, unlike the old max(0.1, ...) clamp that existed only
+# to patch the old symmetric formula's ability to go negative below z=-4.5 (an artifact of the
+# old formula, not something the real one needs). No fitted scaling constant anywhere - the
+# z-score itself (after winsorization) IS the tilt strength, exactly as published. Renormalizing
+# to 100% doesn't change relative ORDER (a uniform divisor across every row) - these columns are
+# read only via ORDER BY, never as real portfolio weights, so renormalization is correctly
+# omitted here, same simplification already applied to the pre-existing market_cap multiplication
+# (also not divided by total universe market cap for the same reason).
+TILT_ZSCORE_WINSORIZE_BOUND = 3.0
+
+
+def _tilt_score_from_zscore(z: float) -> float:
+    """MSCI's published Momentum Tilt Index Score formula (see module-level comment above),
+    applied generically to every pillar's z-score here.
+
+    CROSS-FACTOR REUSE - NOW EQUATION-LEVEL VERIFIED FOR A SECOND FACTOR (2026-09-16,
+    factor-purity sweep follow-up): fetched MSCI's Quality Indexes Methodology, May 2022
+    (msci.com/eqb/methodology/meth_docs/MSCI_Quality_Indexes_Methodology_May2022.pdf) directly
+    this session. Section 2.2.3 gives the IDENTICAL piecewise formula already implemented here
+    (Quality Score = 1+Z for Z>=0, (1-Z)^-1 for Z<0), and Appendix VI's sector-relative variant
+    is winsorized at the same +/-3 bound. Appendix V ("Constructing MSCI Quality Tilt Index")
+    states in plain text: "The MSCI Quality Tilt Index follows the same weighting scheme as the
+    MSCI Quality Index" - the same "[Factor] Tilt Index reuses [Factor] Index's own Score-to-
+    Weight construction" pattern already confirmed for Momentum, now confirmed equation-level
+    (not just structural) for a second, independently-documented factor. Still not independently
+    checked for Value/Volatility/Size/Dividend specifically, but two-for-two on the exact same
+    formula/bound is strong evidence this is MSCI's genuinely shared Tilt Index construction,
+    not something this repo invented and is calling "MSCI" without support."""
+    z = max(-TILT_ZSCORE_WINSORIZE_BOUND, min(TILT_ZSCORE_WINSORIZE_BOUND, z))
+    return 1 + z if z > 0 else 1 / (1 - z)
+
 
 # The 6 (score_column, weight_column) pairs this pass computes - one per pillar plus
 # composite, matching how real ActiveBeta-style construction tilts EACH factor sub-index
@@ -66,8 +106,10 @@ def _owner() -> Any:
 
 class MarketCapTiltMixin:
     def update_market_cap_tilted_weights(self) -> None:
-        """Batch pass: compute market_cap * max(0.1, 1 + k*z) for composite_score and each of
-        the 5 pillar scores, over the same eligible universe convention every sibling
+        """Batch pass: compute market_cap * _tilt_score_from_zscore(z) (MSCI's real published
+        Tilt Index piecewise formula - see this module's own top-of-file comment, replacing the
+        old fitted `max(0.1, 1 + k*z)` damping constant 2026-09-16) for composite_score and each
+        of the 5 pillar scores, over the same eligible universe convention every sibling
         sector-neutral pass already uses (investability floor, non-ETF, non-operating-company
         exclusion), and store the result in stock_scores' 6 *_tilted_weight columns (migration
         1294). Pure overwrite every run (same "restart-only, not incremental" pattern as
@@ -156,7 +198,7 @@ class MarketCapTiltMixin:
                     if score is None or market_cap is None or float(market_cap) <= 0:
                         continue
                     z = (float(score) - mean) / stdev
-                    tilt = max(0.1, 1 + MARKET_CAP_TILT_K * z)
+                    tilt = _tilt_score_from_zscore(z)
                     weights[symbol] = float(market_cap) * tilt
                 tilted_by_column[score_col] = weights
 

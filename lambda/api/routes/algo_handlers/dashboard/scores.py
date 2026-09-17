@@ -8,7 +8,6 @@ positions.py's module docstring for the full split rationale). This module holds
 from __future__ import annotations
 
 import logging
-import math
 from typing import Any
 
 import psycopg2
@@ -29,60 +28,59 @@ from algo.signals.investable_universe import investable_universe_conditions
 
 logger = logging.getLogger(__name__)
 
-# See SECTOR-WEIGHT DEVIATION BAND comment in _get_dashboard_scores for the full rationale.
-_SECTOR_CAP_MULTIPLIER = 2.0
-_MIN_SECTOR_SLOTS = 3
+# SECTOR-WEIGHT DEVIATION BAND REMOVED 2026-09-16 (user directive: "we not doing the scores
+# like the industry guys we have extra slop"). _apply_sector_weight_cap (added 2026-09-14)
+# was homegrown, uncited machinery - a 2.0x-of-eligible-universe-share multiplier and a
+# 3-slot floor invented for this repo, never checked against any real published index
+# provider's actual sector-deviation-band formula (unlike composite_tilted_weight just below,
+# which WAS live-verified against real LRGF/GSLC holdings overlap before being kept). It was
+# also the exact bug class migration 1294 exists to prevent: added only to THIS endpoint,
+# never ported to lambda/api/routes/scores_handlers/stock_scores.py, so the two endpoints
+# silently disagreed on which stocks appear in the leaderboard. Removed rather than fixed by
+# porting - "we have extra slop" was about this filter's existence, not just its uneven
+# rollout. Both endpoints now order by composite_tilted_weight alone, with zero endpoint-
+# specific display machinery layered on top of the one shared, already-validated column.
 
-# MARKET-CAP WEIGHTED TILT (added 2026-09-15, moved into a stored column same day - see
-# below). Same category of fix as the sector-weight cap above - the DISPLAYED leaderboard
-# resembling a real institutional multi-factor product's published holdings list, not a
-# pillar/composite_score change (composite_score itself stays pure factor merit for Phase
-# 7/8's real trading decisions, per this repo's own Size-retirement precedent - see
-# loaders/stock_scores/pillar_weights.py's BASE_PILLAR_WEIGHTS history). Evidence trail (why
-# k=0.2, the 76% top-25/structural bottom-25 ceiling, the ELV portfolio-optimizer finding) is
-# preserved in loaders/stock_scores/market_cap_tilt.py's own module docstring.
+# MARKET-CAP WEIGHTED TILT - THIS ENDPOINT'S DEFAULT SORT KEY (added 2026-09-15, moved into a
+# stored column same day; briefly changed to raw composite_score 2026-09-16, REVERTED BACK
+# the same day - see "DEFAULT SORT ORDER" note below for why). Formula REPLACED 2026-09-16 -
+# see loaders/stock_scores/market_cap_tilt.py's own module comment for the switch from a
+# fitted k=0.2 damping constant to MSCI's real, published Momentum Tilt Index formula. Not a
+# pillar/composite_score change (composite_score itself stays pure factor merit for Phase 7/8's
+# real trading decisions, per this repo's own Size-retirement precedent - see
+# loaders/stock_scores/pillar_weights.py's BASE_PILLAR_WEIGHTS history) - purely a DISPLAY
+# ordering choice for this "top stocks" leaderboard.
 #
-# MOVED OUT OF THIS ENDPOINT 2026-09-15: was computed at request time here via
-# _apply_market_cap_tilt() (removed) - live-caught bug: that Python computation only ever
-# reached this endpoint, not /api/scores/stockscores (the endpoint the actual dashboard page
-# calls), so the tilt silently never applied to what the user was looking at. Now computed
-# ONCE by loaders/stock_scores/market_cap_tilt.py's update_market_cap_tilted_weights() batch
-# pass and stored in stock_scores.composite_tilted_weight (migration 1294) - this endpoint
-# just orders by that column directly, same as every other consumer, so this specific class
-# of "one path got the fix, another didn't" bug is now structurally impossible.
-
-
-def _apply_sector_weight_cap(
-    rows: list[tuple[Any, ...]],
-    description: Any,
-    sector_caps: dict[str, int],
-    limit: int,
-) -> list[tuple[Any, ...]]:
-    """Filter an already composite_score-DESC-sorted row set down to `limit` rows, skipping
-    rows once their sector hits its cap and backfilling from later (lower-ranked) rows -
-    extracted from _get_dashboard_scores to keep that function's cyclomatic complexity in
-    check (ruff C901). See SECTOR-WEIGHT DEVIATION BAND there for the full rationale.
-    """
-    if not sector_caps or not rows:
-        return rows[:limit]
-
-    sector_idx = next((i for i, col in enumerate(description or []) if col[0] == "sector"), None)
-    if sector_idx is None:
-        return rows[:limit]
-
-    capped_rows = []
-    sector_seen: dict[str, int] = {}
-    for row in rows:
-        sector = row[sector_idx]
-        cap = sector_caps.get(sector) if sector else None
-        if cap is not None:
-            if int(sector_seen.get(sector, 0)) >= cap:
-                continue
-            sector_seen[sector] = sector_seen.get(sector, 0) + 1
-        capped_rows.append(row)
-        if len(capped_rows) >= limit:
-            break
-    return capped_rows
+# DEFAULT SORT ORDER (final, 2026-09-16, user: "we don't make shit up, we do what the industry
+# does only"). This endpoint briefly defaulted to raw composite_score DESC earlier the same day
+# (to match a UI-consistency fix already made in the webapp's Rankings tab - see git history)
+# - REVERTED after live-verified evidence that raw ranking is not what real factor-index
+# products actually publish: top 50 by raw composite_score was 29/50 Financial Services
+# micro/small-cap banks and thrifts, essentially none of them recognizable, because this
+# system's composite has no Size dimension at all (Size was retired as a pillar - see
+# BASE_PILLAR_WEIGHTS history) and an unweighted factor score mechanically favors small caps'
+# more extreme ratios. Checked MSCI's own primary-source methodology directly
+# (MSCI_Enhanced_Value_Index_Meth_Aug14.pdf, Section 2.4 "Weighting Scheme") rather than
+# guessing: "The securities selected... are assigned weights in the proportion of market cap
+# weight * Final Value Score." Real MSCI/iShares factor index holdings tables are published
+# ordered by that resulting WEIGHT, never by the raw factor score alone - this is not a style
+# preference, it is the actual, stated construction of the real products this system is
+# modeling itself on. composite_tilted_weight (this same formula, computed once by
+# loaders/stock_scores/market_cap_tilt.py's update_market_cap_tilted_weights() batch pass and
+# stored, migration 1294) is therefore the industry-correct default ordering for a "top
+# stocks" leaderboard, not raw composite_score - the earlier "sorted highest to lowest by the
+# visible badge" UX concern doesn't apply here the same way it does in a React page with an
+# interactive toggle (this is a fixed TUI panel), and in any case matches how real fund fact
+# sheets already work: holdings ordered by weight, with the underlying factor exposure shown
+# as a separate, non-ordering column.
+#
+# MOVED OUT OF THIS ENDPOINT 2026-09-15: computing the tilt at request time here via
+# _apply_market_cap_tilt() (removed) was a live-caught bug - that Python computation only ever
+# reached this endpoint, not /api/scores/stockscores, so the tilt silently never applied to
+# what the user was looking at. Now computed ONCE by loaders/stock_scores/market_cap_tilt.py's
+# update_market_cap_tilted_weights() batch pass and stored, available to any consumer that
+# wants it - the exact same column both endpoints now order by, so they can't silently
+# disagree on ordering again.
 
 
 @db_route_handler("fetch dashboard scores")
@@ -93,86 +91,34 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         # Allow 25 seconds for query to complete (safe before API Gateway limit)
         cur.execute("SET LOCAL statement_timeout = '25000ms'")
 
-        # TRADABILITY FLOOR (added 2026-09-07, /goal session - "the stocks I would expect
-        # up there are nowhere to be found"). This endpoint had NO investability screen at
-        # all - live-verified the top of the composite_score ranking was dominated by
-        # nano/micro-caps and near-untradeable names (JFIN $43M mkt cap, XYF $114M, KINS
-        # $278M; CIG.C $3.1B market cap but only ~$10K/day average dollar volume - a real
-        # company whose US ADR class share is functionally dead). A near-identical floor
-        # was already built for the separate /api/scores endpoint
-        # (lambda/api/routes/scores_handlers/stock_scores.py's min_market_cap query param,
-        # 2026-08-31) but that fix never reached THIS handler - /api/algo/scores is the one
-        # the dashboard's "top stocks" panel actually calls
-        # (dashboard/fetchers_signals.py's fetch_scores -> /api/algo/scores), so the
-        # safeguard existed in the codebase but wasn't wired into the view anyone was
-        # actually looking at. Reusing the same thresholds already governing real trade
-        # ELIGIBILITY (algo_config min_market_cap_millions/min_adv_dollars, algo/risk/
-        # liquidity_checks.py) rather than inventing a new number - this makes the
-        # dashboard's "best stocks" list consistent with what the system would actually be
-        # willing to trade, instead of surfacing names Phase 8 entry would reject anyway.
-        cur.execute("SELECT key, value FROM algo_config WHERE key IN ('min_market_cap_millions', 'min_adv_dollars')")
+        # TRADABILITY FLOOR: IBD-STYLE LIQUIDITY SCREEN (originally added 2026-09-07 as a
+        # market-cap floor; REPLACED 2026-09-16, same "filtering in place in python
+        # dashboard.py scores" sweep that removed the homegrown sector-weight cap above -
+        # live-caught divergence: this endpoint (what the TUI dashboard's scores panel
+        # calls) kept a $300M min_market_cap_millions floor as its default investability
+        # screen, while lambda/api/routes/scores_handlers/stock_scores.py (what the webapp's
+        # /app/scores page actually calls) had that SAME floor deliberately REMOVED
+        # 2026-09-15 on live-verified evidence that real IBD screens (IBD 50) have no
+        # market-cap floor at all - only a minimum share price (~$10) and minimum average
+        # dollar volume, spanning small/mid/large-cap by design (see that file's own
+        # "IBD-STYLE LIQUIDITY SCREEN" comment for the full citation). That fix never
+        # reached THIS handler, so the two UIs were silently screening different
+        # populations and showing different top-N stocks for the identical scores table -
+        # the exact "one path got the fix, another didn't" bug class already flagged for the
+        # sector-cap and tilt-weight issues elsewhere in this file, just a third instance of
+        # it. Reuses the identical algo_config keys/thresholds/query shape as
+        # stock_scores.py's default screen (min_stock_price, min_adv_dollars) rather than
+        # inventing a parallel implementation, so the two endpoints can't drift again.
+        cur.execute("SELECT key, value FROM algo_config WHERE key IN ('min_stock_price', 'min_adv_dollars')")
         config_rows = {row[0]: row[1] for row in cur.fetchall()}
         try:
-            min_market_cap_dollars = float(config_rows["min_market_cap_millions"]) * 1_000_000
+            min_stock_price = float(config_rows["min_stock_price"])
         except (KeyError, TypeError, ValueError):
-            min_market_cap_dollars = 300_000_000.0
+            min_stock_price = 5.0
         try:
             min_adv_dollars = float(config_rows["min_adv_dollars"])
         except (KeyError, TypeError, ValueError):
             min_adv_dollars = 500_000.0
-
-        # SECTOR-WEIGHT DEVIATION BAND (added 2026-09-14, /goal session -
-        # [[sector_weight_cap_missing_vs_realindex_20260914]]). This endpoint's real traded
-        # capital already has a separate sector cap (algo/orchestrator/phase8_entry_execution.py's
-        # `max_positions_per_sector` entry-side gate) - this fix is specifically for the
-        # DISPLAYED leaderboard, which had no equivalent: live-verified ranking by raw
-        # composite_score DESC alone let Healthcare go from 19.4% of the eligible universe to
-        # 34% of the top-100 (Materials 6.5%->15%, driven by 8 gold miners riding 2026's
-        # commodity rally), nothing close to how a real MSCI/AQR factor index's published
-        # holdings list looks even though the underlying per-pillar scores are independently
-        # validated. Real factor indices (MTUM/QUAL/VLUE) solve this with a published sector
-        # weight DEVIATION BAND vs. the parent cap-weighted index at each rebalance, not a
-        # flat count cap - mirrored here as each sector's SHARE of the *eligible universe*
-        # (same investable_universe_conditions/data_completeness/market-cap/liquidity filters
-        # as the main query, computed fresh each call rather than hardcoded) times a fixed
-        # multiplier band, floored so a small real sector isn't rounded to zero slots.
-        cur.execute(
-            """
-            SELECT c.sector, COUNT(*) AS n
-            FROM stock_scores s
-            JOIN stock_symbols sy ON sy.symbol = s.symbol
-            LEFT JOIN company_profile c ON s.symbol = c.symbol
-            LEFT JOIN value_metrics vm ON vm.symbol = s.symbol
-            LEFT JOIN LATERAL (
-                SELECT AVG(volume * close) AS avg_dollar_volume_20d
-                FROM (
-                    SELECT volume, close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                    FROM price_daily
-                    WHERE symbol = s.symbol
-                      AND date >= CURRENT_DATE - INTERVAL '45 days'
-                      AND COALESCE(data_unavailable, false) = false
-                      AND volume IS NOT NULL AND close IS NOT NULL
-                ) ranked
-                WHERE rn <= 20
-            ) liq ON true
-            WHERE """
-            + investable_universe_conditions("s", "sy")
-            + """
-                AND s.data_completeness >= 70
-                AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
-                AND COALESCE(vm.market_cap, 0) >= %s
-                AND COALESCE(liq.avg_dollar_volume_20d, 0) >= %s
-            GROUP BY c.sector
-            """,
-            (min_market_cap_dollars, min_adv_dollars),
-        )
-        sector_universe_counts = {row[0]: int(row[1]) for row in cur.fetchall() if row[0]}
-        universe_total = sum(sector_universe_counts.values())
-        sector_caps: dict[str, int] = {}
-        if universe_total > 0:
-            for sector, n in sector_universe_counts.items():
-                weight = n / universe_total
-                sector_caps[sector] = max(_MIN_SECTOR_SLOTS, math.ceil(weight * limit * _SECTOR_CAP_MULTIPLIER))
 
         # PERFORMANCE: filter/sort/limit in a CTE first, then run per-symbol LATERAL
         # lookups (price_daily/technical_data_daily) only against that small row set -
@@ -184,9 +130,10 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 SELECT MAX(date) AS max_date FROM price_daily
             ),
             liquidity AS (
-                SELECT symbol, AVG(volume * close) AS avg_dollar_volume_20d
+                SELECT symbol, AVG(volume * close) AS avg_dollar_volume_20d,
+                       (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
                 FROM (
-                    SELECT symbol, volume, close,
+                    SELECT symbol, volume, close, date,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
                     FROM price_daily
                     WHERE date >= CURRENT_DATE - INTERVAL '45 days'
@@ -201,14 +148,13 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 FROM stock_scores s
                 JOIN stock_symbols sy ON sy.symbol = s.symbol
                 LEFT JOIN company_profile c ON s.symbol = c.symbol
-                LEFT JOIN value_metrics vm ON vm.symbol = s.symbol
                 LEFT JOIN liquidity liq ON liq.symbol = s.symbol
                 WHERE """
             + investable_universe_conditions("s", "sy")
             + """
                 AND s.data_completeness >= 70
                 AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
-                AND COALESCE(vm.market_cap, 0) >= %s
+                AND COALESCE(liq.latest_close, 0) >= %s
                 AND COALESCE(liq.avg_dollar_volume_20d, 0) >= %s
                 ORDER BY s.composite_tilted_weight DESC NULLS LAST, s.composite_score DESC
                 LIMIT %s
@@ -245,24 +191,13 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             ) tl ON true
             ORDER BY fs.composite_tilted_weight DESC NULLS LAST, fs.composite_score DESC
         """,
-            # Fetch a wider candidate pool than the requested `limit` so the sector cap below
-            # has room to skip over-represented names and still backfill from further down the
-            # composite_score ranking, rather than just truncating the display to fewer than
-            # `limit` results whenever a sector is capped. Bounded (not unlimited) because this
-            # CTE's LIMIT gates how many rows pay for the three per-symbol LATERAL joins below -
-            # this endpoint's own prior comment already flags that cost. 6x covers the observed
-            # skew (Healthcare 19%->34% of top-100, well under 2x) without materially changing
-            # the query's LATERAL join volume versus before this fix (was a flat 50).
-            (min_market_cap_dollars, min_adv_dollars, min(limit * 6, 400)),
+            (min_stock_price, min_adv_dollars, limit),
         )
         rows = cur.fetchall()
         logger.debug(f"[SCORES_DASHBOARD] Query returned {len(rows)} rows for /api/algo/scores endpoint")
 
-        # Rows already arrive ordered by composite_tilted_weight (computed once by
-        # loaders/stock_scores/market_cap_tilt.py's batch pass, not here - see this module's
-        # own MARKET-CAP WEIGHTED TILT comment above) - only the sector cap is still applied
-        # in Python.
-        rows = _apply_sector_weight_cap(rows, cur.description, sector_caps, limit)
+        # Rows already arrive ordered by composite_tilted_weight (see this module's own
+        # "DEFAULT SORT ORDER" comment above for why) - no further Python-side filtering.
 
         top_scores = []
         for row in rows:
@@ -375,9 +310,10 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         cur.execute(
             """
             WITH liquidity AS (
-                SELECT symbol, AVG(volume * close) AS avg_dollar_volume_20d
+                SELECT symbol, AVG(volume * close) AS avg_dollar_volume_20d,
+                       (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
                 FROM (
-                    SELECT symbol, volume, close,
+                    SELECT symbol, volume, close, date,
                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
                     FROM price_daily
                     WHERE date >= CURRENT_DATE - INTERVAL '45 days'
@@ -395,16 +331,15 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 COUNT(*) FILTER (WHERE s.composite_score >= 40 AND s.composite_score < 60) AS c,
                 COUNT(*) FILTER (WHERE s.composite_score < 40) AS d
             FROM stock_scores s
-            LEFT JOIN value_metrics vm ON vm.symbol = s.symbol
             LEFT JOIN liquidity liq ON liq.symbol = s.symbol
             WHERE s.composite_score > 0
               AND s.data_completeness >= 70
               AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
               AND s.symbol NOT IN (SELECT symbol FROM etf_symbols)
-              AND COALESCE(vm.market_cap, 0) >= %s
+              AND COALESCE(liq.latest_close, 0) >= %s
               AND COALESCE(liq.avg_dollar_volume_20d, 0) >= %s
         """,
-            (min_market_cap_dollars, min_adv_dollars),
+            (min_stock_price, min_adv_dollars),
         )
         summary_row = cur.fetchone()
         if summary_row is None:

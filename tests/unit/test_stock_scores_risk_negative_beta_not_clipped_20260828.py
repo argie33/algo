@@ -19,9 +19,13 @@ the "don't clip negative beta before scoring" property this file guards is other
 unchanged - a negative beta must still be treated as the real signed number it is instead of
 floored to 0.
 
-UNIFORM EQUAL-WEIGHT 2026-09-11, LIQUIDITY REMOVED 2026-09-15 (see pillar_weights.py's
-BASE_PILLAR_WEIGHTS comment and risk_scoring.py's own _score_risk docstring): Risk's 4
-remaining components (Volatility 60D/252D, Beta, Max Drawdown 1Y) are flat 25% each.
+UNIFORM EQUAL-WEIGHT 2026-09-11, LIQUIDITY REMOVED 2026-09-15, MAX_DRAWDOWN_1Y REMOVED
+2026-09-16 (factor-purity sweep - never a real Barra/MSCI risk descriptor, see
+risk_scoring.py's own _score_risk docstring): Risk's 3 remaining components (Volatility
+60D/252D, Beta) are flat RISK_COMPONENT_WEIGHT (1/3) each. The weighted-average assertions
+below (e.g. test_positive_beta_scores_linearly_lower_beta_wins) are unaffected by the exact
+weight value when only 2 equally-weighted components are present - a weighted average of two
+equal weights reduces to a simple average regardless of what that shared weight is.
 """
 
 import pytest
@@ -102,16 +106,18 @@ class TestRiskMinWeightAvailable:
 
         assert RISK_MIN_WEIGHT_AVAILABLE == pytest.approx(0.40)
 
-    def test_max_drawdown_alone_is_below_floor_returns_thin_sample_marker(self):
-        # max_drawdown_1y is 0.25 weight alone, under the 0.40 floor.
+    def test_max_drawdown_alone_returns_no_scores_marker(self):
+        # max_drawdown_1y is no longer a scoreable input (removed 2026-09-16, factor-purity
+        # sweep - never a real Barra/MSCI risk descriptor). Providing only it is equivalent to
+        # providing nothing.
         loader = StockScoresLoader()
         result = loader._score_risk({"max_drawdown_1y": -34.63}, "TEST")
         assert isinstance(result, dict)
         assert result["data_unavailable"] is True
-        assert result["reason"] == "insufficient_risk_inputs_thin_sample"
+        assert result["reason"] == "no_risk_scores_computed"
 
     def test_beta_alone_is_below_floor_returns_thin_sample_marker(self):
-        # beta is 0.25 weight alone, under the 0.40 floor.
+        # beta is 1/3 weight alone, under the 0.40 floor.
         loader = StockScoresLoader()
         result = loader._score_risk({"beta": 1.0}, "TEST")
         assert isinstance(result, dict)
@@ -119,21 +125,22 @@ class TestRiskMinWeightAvailable:
         assert result["reason"] == "insufficient_risk_inputs_thin_sample"
 
     def test_volatility_60d_alone_is_below_floor_returns_thin_sample_marker(self):
-        # volatility_60d is 0.25 weight alone - below the 0.40 floor by itself.
+        # volatility_60d is 1/3 weight alone - below the 0.40 floor by itself.
         loader = StockScoresLoader()
         result = loader._score_risk({"volatility_60d": 0.10}, "TEST")
         assert isinstance(result, dict)
         assert result["reason"] == "insufficient_risk_inputs_thin_sample"
 
-    def test_beta_plus_max_drawdown_together_clear_floor(self):
-        # 0.25 + 0.25 = 0.50 - clears the 0.40 floor.
+    def test_beta_plus_volatility_60d_together_clear_floor(self):
+        # 1/3 + 1/3 = 2/3 - clears the 0.40 floor. max_drawdown_1y is passed too but must not
+        # contribute (removed from scoring 2026-09-16).
         loader = StockScoresLoader()
-        result = loader._score_risk({"beta": 1.0, "max_drawdown_1y": -10.0}, "TEST")
+        result = loader._score_risk({"beta": 1.0, "volatility_60d": 0.10, "max_drawdown_1y": -10.0}, "TEST")
         assert isinstance(result, float)
 
-    def test_volatility_252d_plus_beta_plus_drawdown_clears_floor(self):
-        # 0.25 (volatility_252d) + 0.25 (beta) + 0.25 (max_drawdown_1y) = 0.75, well above
-        # the 0.40 floor.
+    def test_volatility_252d_plus_beta_clears_floor(self):
+        # 1/3 (volatility_252d) + 1/3 (beta) = 2/3, well above the 0.40 floor. max_drawdown_1y
+        # is passed too but must not contribute.
         loader = StockScoresLoader()
         result = loader._score_risk({"volatility_252d": 0.10, "beta": 1.0, "max_drawdown_1y": -0.05}, "TEST")
         assert isinstance(result, float)

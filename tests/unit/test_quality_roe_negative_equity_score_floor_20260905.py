@@ -96,11 +96,11 @@ class TestQualityRoeNegativeEquityScoreFloor:
         assert metrics["roe"] == 10.0
 
     def test_negative_equity_floors_roe_score_component_to_zero(self, monkeypatch):
-        # Isolates the actual quality_score composition call (6 components since the
-        # 2026-09-15 ASSET_TURNOVER + ROCE REMOVED ENTIRELY change, the universal
-        # non-financial-sector branch) and asserts the roe_score fed into it is exactly 0.0 -
-        # not the ~50 _margin_curve([(10.0, 50.0), ...]) would otherwise give a genuine +10%
-        # value, which is what metrics["roe"] equals here (see previous test).
+        # Isolates the actual quality_score composition call (3 components since the
+        # 2026-09-16 MSCI 3-variable rebuild - see vqg_quality_score.py's quality_components
+        # docstring) and asserts the roe_score fed into it is exactly 0.0 - not the ~50
+        # _margin_curve([(10.0, 50.0), ...]) would otherwise give a genuine +10% value, which
+        # is what metrics["roe"] equals here (see previous test).
         loader = _make_loader(monkeypatch)
         import loaders.load_value_quality_growth_metrics as mod
 
@@ -115,6 +115,6 @@ class TestQualityRoeNegativeEquityScoreFloor:
 
         loader._compute_quality_metrics("DISTRESSEDCO", _distressed_row(), ev_metrics=None)
 
-        quality_composition_call = next(c for c in captured_calls if len(c) == 6)
+        quality_composition_call = next(c for c in captured_calls if len(c) == 3)
         roe_score = quality_composition_call[0][0]
         assert roe_score == 0.0

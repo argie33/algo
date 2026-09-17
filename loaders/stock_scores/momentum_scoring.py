@@ -47,17 +47,25 @@ MOMENTUM_MIN_WEIGHT = 0.40
 # every period tested before this was ported to live scoring (composite IC 0.0130->0.0140 full
 # sample, 0.0058->0.0069 fit, 0.0200->0.0209 holdout).
 #
-# Live scoring has no z-score step to plug a risk-adjusted RATIO into unlike that research
-# script's cross-sectional pipeline - _pct_to_score's curve is calibrated for raw percentage
-# returns (-20%=0, +20%=100), and a risk-adjusted ratio (return/vol, e.g. 0.15/0.30=0.5) is on
-# a completely different numeric scale that would silently miscalibrate the whole curve if fed
-# in directly. MEDIAN_UNIVERSE_VOL_252D (0.5447, live-measured from stability_metrics.
-# volatility_252d across 5,040 real scored symbols, 2026-09-14) is the renormalization anchor:
-# multiplying the risk-adjusted ratio back up by this constant converts it back into
-# "percentage-return-equivalent" units so the EXISTING curve stays valid - an exactly-average-
-# volatility stock's score is unchanged from before this fix, a below-median-vol stock's same
-# raw return now scores HIGHER (cheaper per unit risk), and an above-median-vol stock's same
-# raw return scores LOWER - the intended risk adjustment, without redesigning the curve itself.
+# PASS-1 SCAFFOLDING NOTE: `_pct_to_score`'s curve is calibrated for raw percentage returns
+# (-20%=0, +20%=100), and a risk-adjusted ratio (return/vol, e.g. 0.15/0.30=0.5) is on a
+# completely different numeric scale that would miscalibrate that curve if fed in directly.
+# MEDIAN_UNIVERSE_VOL_252D (0.5447, live-measured from stability_metrics.volatility_252d across
+# 5,040 real scored symbols, 2026-09-14) renormalizes the risk-adjusted ratio back up into
+# "percentage-return-equivalent" units so Pass-1's curve stays valid there.
+#
+# CLARIFIED 2026-09-16 (factor-purity sweep, re-audit of this mechanism against the real MSCI
+# Sharpe-ratio-style construction): this renormalization matters ONLY for Pass-1's fixed curve.
+# `update_momentum_sector_relative_mom_12_1`'s batch pass - the real, live-scoring transform,
+# always overwrites Pass-1 - feeds this same risk-adjusted value straight into
+# `universe_wide_zscore` with no curve in between. A z-score is invariant to multiplying every
+# value in the population by the same positive constant ((c*x - mean(c*x))/std(c*x) = (x-mean(x))
+# /std(x)), so multiplying by MEDIAN_UNIVERSE_VOL_252D there is a no-op on the resulting ranking -
+# the batch pass's output is already mathematically equivalent to a genuine return/vol_252d
+# Sharpe-style ratio (winsorized via the [1st,99th]-percentile multiplier bounds, a legitimate
+# outlier treatment, not a departure from it). This constant/mechanism is NOT a live-scoring
+# workaround masquerading as the real formula, as it might look in isolation - it is real only in
+# Pass-1, which is provisional scaffolding by design (see this file's own convention elsewhere).
 MEDIAN_UNIVERSE_VOL_252D = 0.5447
 # FROZEN-CONSTANT DRIFT (flagged by peer review same day, fixed before shipping): real factor
 # indices recompute this kind of cross-sectional statistic at every rebalance rather than
@@ -520,7 +528,9 @@ class MomentumScoringMixin:
                 score = self._pct_to_score(
                     self._risk_adjust_pct(metrics[key], vol_252d, median_vol_252d, min_mult, max_mult)
                 )
-                if score is not None:  # Skip weak momentum (score=None)
+                if (
+                    score is not None
+                ):  # _pct_to_score no longer returns None (dead-zone removed 2026-09-16) - guard kept, harmless
                     weighted_sum += score * w
                     total_weight += w
 
@@ -542,7 +552,9 @@ class MomentumScoringMixin:
                     mom_12_1_score = self._pct_to_score(
                         self._risk_adjust_pct(mom_12_1, vol_252d, median_vol_252d, min_mult, max_mult)
                     )
-                    if mom_12_1_score is not None:  # Skip weak momentum (score=None)
+                    if (
+                        mom_12_1_score is not None
+                    ):  # _pct_to_score no longer returns None (dead-zone removed 2026-09-16) - guard kept, harmless
                         weighted_sum += mom_12_1_score * 0.50
                         total_weight += 0.50
 
@@ -690,27 +702,29 @@ class MomentumScoringMixin:
 
     @staticmethod
     def _pct_to_score(pct_return: float) -> float | None:
-        """Convert percentage return to 0-100 score.
+        """Convert percentage return to 0-100 score. PASS-1 PROVISIONAL ONLY - always
+        overwritten by `update_momentum_sector_relative_mom_12_1`'s universe-wide z-score pass,
+        same "Pass-1 curve is scaffolding" relationship every other pillar's absolute curve has
+        to its own batch pass (see e.g. growth_scoring.py's `_score_single_growth`).
 
-        Returns None if momentum is weak (< ±3%), as this indicates
-        insufficient conviction. Fail-fast: weak signal is missing data, not low score.
-        -20% = 0, ±3% = None, +20% = 100.
+        -20% = 0, +20% = 100, linear in between.
 
         pct_return is a percentage NUMBER (e.g. 20.0 for +20%), not a fraction - matches
         load_risk_metrics_daily.py's ret_pct = (price_new - price_old) / price_old * 100,
         which is what momentum_1m/3m/6m/12m are computed as and stored as.
-        """
-        # Weak momentum zone: -3% to +3% lacks conviction. This previously checked
-        # -0.03 <= pct_return <= 0.03 - a threshold 100x too small for the percentage-number
-        # scale pct_return is actually on, so it matched essentially no real momentum value
-        # (typical 1m/3m/6m/12m returns are single-to-double-digit percent) and this weak-
-        # signal exclusion never fired in practice - every momentum reading, however weak,
-        # was scored instead of being excluded as insufficient conviction per the documented
-        # design intent.
-        if -3 <= pct_return <= 3:
-            return None
 
-        # Map momentum: -20% = 0, +20% = 100
+        WEAK-MOMENTUM "DEAD ZONE" REMOVED 2026-09-16 (factor-purity sweep, user: "we do what
+        the industry does only"). This used to return None for -3% <= pct_return <= 3%
+        ("insufficient conviction") - an invented exclusion zone with no counterpart in any
+        published momentum construction (Jegadeesh-Titman, Carhart UMD, AQR, MSCI, S&P all
+        z-score/rank the FULL continuous distribution of returns, including near-zero ones;
+        "near-zero momentum" is itself real information - a stock going nowhere - not a
+        conviction threshold to gate on). Held to the same "must trace to a real published
+        methodology, not an invented threshold" bar this session already applied everywhere
+        else - it doesn't clear it, so it's gone. `update_momentum_sector_relative_mom_12_1`'s
+        own batch pass (the real, live-scoring transform) already had no equivalent dead zone -
+        this fixes only the Pass-1 scaffolding curve to match.
+        """
         score = 50 + (pct_return / 0.4)
         return max(0, min(100, score))
 
