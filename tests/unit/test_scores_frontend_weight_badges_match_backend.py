@@ -28,6 +28,7 @@ import inspect
 import re
 
 from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS, GROWTH_SCORE_FIELDS, StockScoresLoader
+from loaders.stock_scores.value_metrics import ValueMetricsMixin
 
 with open("webapp/frontend/src/components/StockScoreAccordion.jsx", encoding="utf-8") as f:
     _JSX_SOURCE = f.read()
@@ -64,58 +65,23 @@ def _assert_pct_matches(jsx_key: str, py_weight: float) -> None:
 
 class TestValueScoreWeightBadges:
     def test_weights_match_code(self):
-        src = inspect.getsource(StockScoresLoader._score_value)
-        # eve_score/evr_score (EV/EBITDA, EV/Revenue) removed 2026-08-25 - r=1.00/0.93
-        # duplicates of ps_ratio/pe_ratio respectively, see _score_value's docstring RESOLVED
-        # note. Confirmed 2026-08-28 (classification research) they belong to Value
-        # conceptually but their non-PE/PS content is already covered by Quality's
-        # debt_to_equity - stays unscored, not a re-add candidate.
-        # size_score (market_cap) MOVED OUT 2026-08-26 - promoted to its own top-level "Size"
-        # pillar (StockScoresLoader._score_size), no longer part of _score_value at all. See
-        # TestSizeScoreWeightBadges below for its (trivial, single-input) coverage.
-        # illiq_score (amihud_illiquidity) ADDED 2026-08-26, REMOVED same day (user directive)
-        # - see _score_value's "AMIHUD ILLIQUIDITY" docstring note.
-        # div_score (dividend_yield) briefly REPLACED by payout_score (net_payout_yield =
-        # dividends + buybacks) 2026-08-26 on statistical grounds, then REVERTED back to
-        # div_score/dividend_yield 2026-08-28 on explicit user directive - see
-        # load_stock_scores.py's _score_value docstring for the full history.
-        # FCF yield REMOVED 2026-08-28 (independently re-verified robustly wrong-signed, see
-        # "FCF YIELD - RESOLVED 2026-08-28" docstring note). Forward P/E ADDED same pass
-        # (fwd_pe_score, MSCI Value index core descriptor, user directive - see "FORWARD P/E -
-        # ADDED 2026-08-28" docstring note). PB/PS weights bumped with FCF's freed weight.
-        # PEG REMOVED FROM SCORING ENTIRELY 2026-08-28 (later same day, goal: "is this value
-        # score right per industry best practice... lets figure out the right best for the
-        # value and lets go") - a growth-ADJUSTED earnings multiple (PE / growth rate) is, by
-        # design, a Value/Growth hybrid; no mainstream systematic Value methodology (MSCI
-        # Enhanced Value/World Value, Russell, S&P Style, Barra, Fama-French/AQR) includes one,
-        # and this repo's own 15-pair pillar-interaction sweep confirms Growth x Value isn't
-        # era-robust either - see _score_value's "PEG - REMOVED FROM SCORING 2026-08-28"
-        # docstring note. `_peg_to_score` was deleted (dead code, nothing calls it anymore).
-        # Freed 3% went to Dividend Yield (8% -> 11%).
-        # margin_of_safety (mos_score) REMOVED FROM SCORING 2026-08-28 (same day, earlier pass,
-        # goal: "is margin of safety typically a metric used in the value factor score... or is
-        # it typically used some other way") - industry-standard systematic Value factors
-        # (MSCI/Russell/S&P/Fama-French/AQR) are built from accounting yield ratios, not DCF
-        # intrinsic-value estimates; margin of safety is a Graham/Klarman per-stock deep-value
-        # screening tool by convention, not a cross-sectional ranking input - see _score_value's
-        # "MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28" docstring note. Freed 11% went to
-        # PB (+6, now 39%) and PS (+5, now 34%) above.
-        # Both PEG and margin_of_safety, along with the already-unscored fcf_yield/ev_ebitda/
-        # ev_revenue, were FULLY REMOVED FROM DISPLAY on this tab too (user directive: "if we
-        # not scoring it we dont want to display it") - see TestUnscoredValueFieldsNotDisplayed
-        # below. All five stay fully computed/stored/API-served; margin_of_safety and
-        # intrinsic_value are the Deep Value Picks page's primary metrics instead.
-        # ps_score/div_score REMOVED 2026-09-16 (factor-purity sweep) - P/S and Dividend Yield
-        # are no longer scored inputs at all (backend deleted the whole Pass-1 block, see
-        # value_score.py's VALUE_MIN_WEIGHT docstring), so there's no weight to check anymore -
-        # see TestUnscoredValueFieldsNotDisplayed below for their coverage instead.
-        score_var_to_jsx_key = {
-            "pe_score": "stock_pe",
-            "pb_score": "stock_pb",
-            "fwd_pe_score": "stock_forward_pe",
-        }
-        for score_var, jsx_key in score_var_to_jsx_key.items():
-            _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
+        """UPDATED 2026-09-16 (factor-purity sweep): the JSX badges now describe the REAL,
+        live-persisted value_score - Pass 2's MSCI Enhanced Value 3-leg construction in
+        value_metrics.py's update_value_multiples_percentiles (Book/Price-or-Cash-Earnings/
+        Price, a single Earnings/Price leg, EV/CFO-or-Cash-Earnings/Price - each 1/3 weight),
+        not Pass-1's _score_value provisional curve (which only exists as a same-run interim
+        value until Pass 2 overwrites it - see value_score.py's own docstring). stock_pe has
+        no row anymore (trailing P/E is folded into the single Earnings/Price leg, never a
+        second independent leg) - see TestUnscoredValueFieldsNotDisplayed below.
+        """
+        src = inspect.getsource(ValueMetricsMixin.update_value_multiples_percentiles)
+        assert src.count("1.0 / 3.0") >= 3, (
+            "expected update_value_multiples_percentiles's 3 real components (P/B-or-P/CE, "
+            "Earnings/Price, EV/CFO-or-P/CE) to each still be weighted 1/3"
+        )
+        for jsx_key in ("stock_pb", "stock_forward_pe", "fcf_yield"):
+            jsx_pct = int(re.match(r"(\d+)%", _jsx_weight_for_key(jsx_key)).group(1))
+            assert jsx_pct == 33, f"{jsx_key}: JSX badge should say 33% (1/3 of Pass 2's real 3-leg formula)"
 
 
 class TestUnscoredValueFieldsNotDisplayed:
@@ -134,9 +100,17 @@ class TestUnscoredValueFieldsNotDisplayed:
     def test_unscored_value_fields_have_no_display_row_at_all(self):
         """Guards the 2026-08-28 "if we not scoring it we dont want to display it" directive -
         unlike the prior convention (unscored fields stayed visible as informational rows),
-        PEG/margin_of_safety/intrinsic_value/fcf_yield/ev_ebitda/ev_revenue should have NO row
-        in VALUE_SCHEMA at all now, scored or not. Data itself is untouched - still computed/
-        stored/API-served - this only guards the display layer."""
+        PEG/margin_of_safety/intrinsic_value/ev_ebitda/ev_revenue should have NO row in
+        VALUE_SCHEMA at all now, scored or not. Data itself is untouched - still computed/
+        stored/API-served - this only guards the display layer.
+
+        fcf_yield is NO LONGER in this removed-list as of the 2026-09-16 factor-purity sweep:
+        it's back as the displayable proxy for Pass 2's real EV/CFO leg (value_metrics.py's
+        cash_yield_raw_map falls back to it when operating_cash_flow/enterprise_value aren't
+        both available) - a genuinely-scored input again, just under a different economic
+        role than its old (removed) standalone price-basis leg. stock_pe is added instead -
+        trailing P/E is folded into the single Earnings/Price leg (stock_forward_pe's row),
+        never displayed as its own independent leg anymore."""
         schema_match = re.search(r"const VALUE_SCHEMA = \[([\s\S]*?)\n\];", _JSX_SOURCE)
         assert schema_match, "expected VALUE_SCHEMA to still exist"
         schema_src = schema_match.group(1)
@@ -144,11 +118,11 @@ class TestUnscoredValueFieldsNotDisplayed:
             "peg_ratio",
             "stock_margin_of_safety",
             "stock_intrinsic_value",
-            "fcf_yield",
             "stock_ev_ebitda",
             "stock_ev_revenue",
             "stock_ps",
             "stock_dividend_yield",
+            "stock_pe",
         ]
         for key in removed_keys:
             assert f'key: "{key}"' not in schema_src and f"key: '{key}'" not in schema_src, (
@@ -175,18 +149,10 @@ class TestGrowthScoreWeightBadges:
     # displays it (StockScoreAccordion.jsx's GROWTH_SCHEMA). Kept explicit (not derived) so a
     # field renamed on one side without the other fails loudly here.
     _PY_FIELD_TO_JSX_KEY = {
-        "revenue_growth_1y": "revenue_growth_1y_pct",
-        "eps_growth_1y": "eps_growth_1y_pct",
-        "revenue_growth_3y": "revenue_growth_3y_cagr",
-        "eps_growth_3y": "eps_growth_3y_cagr",
-        "revenue_growth_5y": "revenue_growth_5y_cagr",
-        "eps_growth_5y": "eps_growth_5y_cagr",
+        "eps_growth_trend_5y": "eps_growth_trend_5y",
+        "sps_growth_trend_5y": "sps_growth_trend_5y",
         "forward_eps_growth_current_fy": "forward_eps_growth_current_fy",
-        "forward_eps_growth_next_fy": "forward_eps_growth_next_fy",
-        "forward_revenue_growth_next_fy": "forward_revenue_growth_next_fy",
         "sustainable_growth_rate": "sustainable_growth_rate",
-        "quarterly_growth_momentum": "quarterly_growth_momentum",
-        "earnings_growth_4q_avg": "earnings_growth_4q_avg",
     }
 
     def test_growth_score_fields_match_jsx_key_map(self):
@@ -311,23 +277,25 @@ class TestPositioningScoreRemoved:
 
 
 class TestRiskScoreWeightBadges:
-    def test_volatility_beta_and_max_drawdown_weights_match_code(self):
-        """LIQUIDITY REMOVED 2026-09-15 (user directive: "get rid of all the extra shit beyond
-        the barra and the industry guys" - see _score_risk's own docstring). Real Barra-style
-        risk-factor construction doesn't fold tradability into the risk score itself. The
-        remaining 4 genuine risk-of-loss inputs (Volatility 60D/252D, Beta, Max Drawdown 1Y)
-        are flat 25% each (UNIFORM EQUAL-WEIGHT, 2026-09-11). Volatility 30D dropped (most
-        redundant of the three windows). Debt-to-Assets stays out - see
-        test_debt_to_assets_not_scored below."""
-        src = inspect.getsource(StockScoresLoader._score_risk)
-        score_var_to_jsx_key = {
-            "v60_score": "volatility_60d",
-            "v252_score": "volatility_12m",  # API key "volatility_12m" actually carries volatility_252d
-            "beta_score": "beta",
-            "dd_score": "max_drawdown_1y",
-        }
-        for score_var, jsx_key in score_var_to_jsx_key.items():
-            _assert_pct_matches(jsx_key, _weight_for_score_var(src, score_var))
+    def test_volatility_and_beta_weights_match_code(self):
+        """LIQUIDITY REMOVED 2026-09-15, MAX_DRAWDOWN_1Y REMOVED 2026-09-16 (factor-purity
+        sweep - see _score_risk's own docstring: never a real Barra/MSCI risk descriptor, era-
+        flipped sign with no stable predictive power). The remaining 3 genuine risk-of-loss
+        inputs (Volatility 60D/252D, Beta) split `RISK_COMPONENT_WEIGHT` (1/3) each, a shared
+        named constant rather than a per-line literal - so this checks the JSX badge against
+        that constant directly instead of `_weight_for_score_var`'s literal-`0.NN` regex."""
+        from loaders.stock_scores.risk_scoring import RISK_COMPONENT_WEIGHT
+
+        for jsx_key in ("volatility_60d", "volatility_12m", "beta"):
+            _assert_pct_matches(jsx_key, RISK_COMPONENT_WEIGHT)
+
+    def test_max_drawdown_no_longer_scored(self):
+        """max_drawdown_1y is informational-only now (used:false) - see this class's own
+        docstring above."""
+        match = re.search(r"key:\s*[\"']max_drawdown_1y[\"'].*?\n\s*\},", _JSX_SOURCE, re.DOTALL)
+        assert match, "expected a max_drawdown_1y RISK_SCHEMA entry"
+        assert "used: false" in match.group(0)
+        assert "weight: null" in match.group(0)
 
     def test_liquidity_no_longer_scored(self):
         """Liquidity is fetched/displayed informationally only - no longer a weight-badged

@@ -14,7 +14,6 @@ write-only once the final weighted_score is produced, so it stays inside this me
 
 from typing import TYPE_CHECKING, Any
 
-from loaders.helpers.vqg_shared import BROKER_DEALER_INDUSTRIES
 from utils.type_conversion import safe_float
 
 
@@ -52,7 +51,7 @@ class QualityScoreMixin:
             self, components: list[tuple[float | None, float]], min_weight_pct: float = 0.0
         ) -> float | None: ...
 
-    def _compute_quality_composite_score(  # noqa: C901
+    def _compute_quality_composite_score(
         self,
         symbol: str,
         metrics: dict[str, Any],
@@ -66,6 +65,7 @@ class QualityScoreMixin:
         revenue: float | None,
         free_cash_flow: float | None,
         margin_volatility: float | None,
+        earnings_variability: float | None,
         failed_metrics: list[str],
         implausible_ratio_metrics: list[str],
     ) -> dict[str, Any]:
@@ -111,38 +111,14 @@ class QualityScoreMixin:
             # meaningless. Floors to worst score rather than inverting into a spuriously
             # high one, same treatment as debt_to_equity_score below for the same reason.
             roe_score = 0.0
-        # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, JPM/BAC/WFC/C/GS
-        # live-confirmed): same industrial-curve-applied-to-every-sector bug class as
-        # debt_to_equity_score below, for a DIFFERENT input - ROA (net_income/total_assets)
-        # is structurally deflated for depository banks by their huge deposit-funded balance
-        # sheet (a healthy bank's ROA is ~1-1.5%; the (3.0,40)/(8.0,80)/(15.0,100) industrial
-        # curve, calibrated for asset-light industrial/services margins, floors JPM's real
-        # ROA=1.29% to a ~17 score, WFC's 0.99% to ~13, etc.) - not a quality problem, the same
-        # leverage-by-design fact the debt_to_equity bank/insurer curve fix already accounts
-        # for on the liability side. Insurers get their own, less extreme curve: P&C
-        # underwriters (PGR/TRV/ALL live-confirmed ROA 4.4-9.2%) run meaningfully higher than
-        # life insurers (MET/PRU live-confirmed ROA ~0.45%) whose reserve-heavy balance sheets
-        # behave more bank-like - INSURANCE_UNDERWRITER_INDUSTRIES lumps both (same precedent
-        # as debt_to_equity_score's single blended insurer curve just below), hand-calibrated
-        # to credit P&C-typical ROA highly without being so generous it validates a genuinely
-        # weak life-insurer ROA. Thresholds hand-set (not FM-backtested), same as every other
-        # curve in this function.
-        # FIXED 2026-09-07 (goal: stock_scores factor/composite sanity audit, 10-electric-
-        # utility + water/gas-distribution live-confirmed): same bug class again, for
-        # regulated rate-base utilities - see UTILITY_INDUSTRIES's own comment for the full
-        # live-verified evidence (ROA clustered 2.26-3.67% across 16 symbols).
-        _symbol_industry_for_roa = self._get_symbol_industry(symbol)
-        if _symbol_industry_for_roa in _owner().DEPOSITORY_BANK_INDUSTRIES:
-            _roa_breakpoints = [(0.85, 40.0), (1.3, 80.0), (1.7, 100.0)]  # recalibrated+IC-validated 20260907
-        elif _symbol_industry_for_roa in _owner().INSURANCE_UNDERWRITER_INDUSTRIES:
-            _roa_breakpoints = [(2.5, 40.0), (5.5, 80.0), (10.0, 100.0)]
-        elif _symbol_industry_for_roa in _owner().UTILITY_INDUSTRIES:
-            _roa_breakpoints = [(2.2, 40.0), (3.3, 80.0), (5.0, 100.0)]
-        else:
-            _roa_breakpoints = [(3.0, 40.0), (8.0, 80.0), (15.0, 100.0)]
-        roa_score = self._margin_curve(metrics["roa"], _roa_breakpoints) if metrics["roa"] is not None else None
-        if total_assets is not None and total_assets <= 0:
-            roa_score = 0.0
+        # roa_score REMOVED 2026-09-16 (factor-purity sweep, MSCI 3-variable Quality Index
+        # rebuild - see quality_components' own docstring note below for the full citation):
+        # ROA is not one of MSCI's 3 fundamental variables (ROE/Debt-to-Equity/Earnings
+        # Variability). The bank/insurer/utility-specific curve calibration this block used to
+        # contain (live-verified JPM/WFC/PGR/TRV/regulated-utility ROA figures) is preserved in
+        # git history if a future pass ever wants a scored ROA input again - metrics["roa"]
+        # itself is still computed/persisted/displayed, only its own dedicated scoring curve
+        # was removed along with its only consumer.
         # operating_margin_score/net_margin_score are not scored - operating_margin and
         # net_margin are still fetched/stored/displayed for reference, but neither carries
         # independent signal once ROA is controlled for (see
@@ -209,13 +185,11 @@ class QualityScoreMixin:
                 implausible_ratio_metrics.append("gross_profitability")
             else:
                 gross_profitability = float(computed_gross_profitability)
-        # Breakpoints are a domain-judgment fit to the live distribution, not FM-fit to
-        # inflection points.
-        gross_profitability_score = (
-            self._margin_curve(gross_profitability, [(10.0, 40.0), (25.0, 75.0), (50.0, 100.0)])
-            if gross_profitability is not None
-            else None
-        )
+        # gross_profitability_score REMOVED 2026-09-16 (factor-purity sweep, MSCI 3-variable
+        # Quality Index rebuild - see quality_components' own docstring note below): Novy-Marx
+        # gross profitability is an AQR QMJ Profitability-leg input, not one of MSCI's 3
+        # fundamental variables. gross_profitability itself is still computed/persisted/
+        # displayed above - only its dedicated scoring curve was removed.
         # Near-zero total_assets can blow this ratio up arbitrarily; same |ratio|>1000 guard
         # as gross_profitability/operating_profitability/fcf_margin.
         accruals_ratio = None
@@ -377,13 +351,12 @@ class QualityScoreMixin:
         # utilities. See UTILITY_INDUSTRIES's own comment for the full evidence.
         # FIXED 2026-09-08: broker-dealers (GS/MS) never got this exclusion - see
         # BROKER_DEALER_INDUSTRIES's own comment in vqg_shared.py.
-        fcf_margin_score = (
-            self._margin_curve(fcf_margin, [(5.0, 40.0), (15.0, 75.0), (30.0, 100.0)])
-            if fcf_margin is not None
-            and self._get_symbol_industry(symbol)
-            not in (_owner().DEPOSITORY_BANK_INDUSTRIES | _owner().UTILITY_INDUSTRIES | BROKER_DEALER_INDUSTRIES)
-            else None
-        )
+        # fcf_margin_score REMOVED 2026-09-16 (factor-purity sweep, MSCI 3-variable Quality
+        # Index rebuild - see quality_components' own docstring note below): FCF margin is an
+        # AQR QMJ Profitability-leg input, not one of MSCI's 3 fundamental variables. The
+        # bank/utility/broker-dealer exclusion calibration above is preserved in git history;
+        # fcf_margin itself is still computed/persisted/displayed - only its dedicated scoring
+        # curve was removed.
         # Asset Turnover (Revenue / Total Assets, x100 - same "ratio-as-percentage" storage
         # convention as gross_profitability). Breakpoints: 0.3x (capital-intensive/utilities)
         # maps to 40, 0.8x (typical industrial) to 75, 1.5x+ (retail/services) to 100 -
@@ -442,16 +415,28 @@ class QualityScoreMixin:
             debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 4.0) * 100.0))
         else:
             debt_to_equity_score = max(0.0, min(100.0, 100.0 - (debt_to_equity_val / 2.0) * 100.0))
-        # Margin volatility (QMJ 2013 Safety leg proxy): precomputed by the caller from
-        # multi-year income_rows this function doesn't have (see _compute_margin_volatility).
-        # Inverted curve: LOWER volatility (more stable margins) scores higher.
-        # Must read the `margin_volatility` parameter directly, NOT `metrics.get(
-        # "margin_volatility")` - that dict key is only written later in this function (see
-        # the PERSISTED block below), so reading it here always returns None.
-        margin_volatility_val = margin_volatility
-        margin_volatility_score = (
-            100.0 - self._margin_curve(margin_volatility_val, [(5.0, 20.0), (15.0, 60.0), (30.0, 100.0)])
-            if margin_volatility_val is not None
+        # margin_volatility_score REMOVED 2026-09-16 (factor-purity sweep, MSCI 3-variable
+        # Quality Index rebuild - see quality_components' own docstring note below):
+        # margin_volatility was this repo's own AQR-Safety-leg stand-in for MSCI's real
+        # Earnings Variability, a related-but-distinct metric (margin stability, not
+        # EPS-growth-rate stability) - earnings_variability directly below is the correctly-
+        # sourced replacement. margin_volatility itself is still computed/persisted/displayed
+        # (still a real, evidenced QMJ Safety-leg proxy) - only its dedicated scoring curve
+        # was removed.
+        # Earnings Variability (MSCI's real 3rd Quality fundamental variable - see
+        # loaders/helpers/quality_variability.py's own citation): same "precomputed by the
+        # caller from multi-year income_rows this function doesn't have" shape as
+        # margin_volatility directly above. Inverted curve: LOWER variability (more stable YoY
+        # EPS growth) scores higher - same PROVISIONAL-only status as every other curve here
+        # (update_quality_sector_neutral_scores() below always overwrites with the real
+        # universe-wide z-score MSCI's methodology actually calls for). Breakpoints hand-set,
+        # not FM-backtested (calibration, not an empirical claim) - stdev of YoY EPS GROWTH
+        # RATES runs to much larger percentage-point magnitudes than margin_volatility's stdev
+        # of MARGIN LEVELS, so this curve's breakpoints are wider, not a copy of that one's.
+        earnings_variability_val = earnings_variability
+        earnings_variability_score = (
+            100.0 - self._margin_curve(earnings_variability_val, [(20.0, 20.0), (50.0, 60.0), (100.0, 100.0)])
+            if earnings_variability_val is not None
             else None
         )
 
@@ -537,33 +522,55 @@ class QualityScoreMixin:
         # equally-weighted BINARY signals in a different (non-continuous, non-index-provider)
         # framework; ROCE has no home in any of the three checked. Both raw values
         # (asset_turnover, roce_pct) are UNCHANGED - still computed/persisted/displayed for
-        # other consumers, only their vote in quality_score is removed. The remaining 6
-        # components (the ones that DO map onto AQR/MSCI/Novy-Marx) are renormalized: the
-        # non-margin_volatility pool stays at its already-decided 75 points, now split 5 ways
-        # (roe/roa/fcf_margin/debt_to_equity/gross_profitability) at 15.0 each instead of 6
-        # ways at 11.54. margin_volatility is untouched at 25.0 (AQR Safety-leg-derived,
-        # unrelated to this change). Pass-2's sector-neutral overwrite (vqg_quality_batch.py)
-        # mirrors this exact scheme - keep both in sync if either changes.
+        # other consumers, only their vote in quality_score is removed.
         #
-        # (Prior episode, kept for history: ASSET_TURNOVER DEMOTED 10.71->5.77 on 2026-09-14
-        # via per-component univariate Spearman IC on a real point-in-time panel, fit
-        # 2017-2021 vs holdout 2022-2026 - the only one of Quality's 8 components to fail this
-        # repo's own |t|>=2-both-eras bar in BOTH eras (fit_t=1.91, hold_t=1.24), a materially
-        # weaker finding than Risk/Value's fit-weak-but-holdout-strong near-misses. That test
-        # wasn't wrong on its own terms, it was answering a question the policy above now says
-        # isn't the right one for this decision.)
-        quality_components = [
-            (roe_score, 15.0),
-            (roa_score, 15.0),
-            (fcf_margin_score, 15.0),
-            (debt_to_equity_score, 15.0),
-            (margin_volatility_score, 25.0),
-            (gross_profitability_score, 15.0),
-        ]
+        # REBUILT TO MSCI'S EXACT 3-VARIABLE QUALITY INDEX 2026-09-16 (factor-purity sweep,
+        # user: "we do what the industry does only" - SUPERSEDES the 6-component AQR/MSCI
+        # blend directly above, which the note itself already flagged as a deliberate
+        # SYNTHESIS of two different institutions' methodologies, not either one alone).
+        # Fetched and read MSCI's real, published Quality Indexes Methodology directly this
+        # session (msci.com/eqb/methodology/meth_docs/MSCI_Quality_Indexes_Methodology_
+        # May2022.pdf, Section 2.2 + Appendix I): "The Quality score for each security is
+        # calculated by combining Z-Scores of three winsorized fundamental variables, namely
+        # Return on Equity, Debt to Equity and Earnings Variability" - equal-weighted, nothing
+        # else. roa/fcf_margin/gross_profitability (AQR QMJ Profitability-leg additions, not
+        # part of MSCI's index) are REMOVED from scoring here to match - same "computed but
+        # unscored" convention as every other removed-from-scoring input elsewhere in this
+        # codebase (ev_ebitda/ev_revenue/dividend_yield in Value, etc.), not deleted: their
+        # raw values stay computed/persisted/displayed for other consumers. margin_volatility
+        # is ALSO removed from THIS pillar's scoring - it was this repo's own AQR-Safety-leg
+        # stand-in for MSCI's Earnings Variability, a related-but-distinct metric (margin
+        # stability, not EPS-growth-rate stability); earnings_variability (loaders/helpers/
+        # quality_variability.py, MSCI's own stated stdev-of-YoY-EPS-growth formula) replaces
+        # it as the real, correctly-sourced third leg. Equal-weighted 1/3 each (33.34/33.33/
+        # 33.33) - Pass-1 provisional only (see this function's own docstring: Pass 2's
+        # update_quality_sector_neutral_scores() in vqg_quality_batch.py is the real, live
+        # z-score-based score and has been rebuilt to match - keep both in sync if either
+        # changes).
+        # MSCI'S OWN STATED SUBSTITUTION RULES (Appendix II, Cases 1-5): ROE is MANDATORY -
+        # "If ROE is missing, Composite Quality Z Score is not calculated and the security
+        # will not be part of the MSCI Quality Index" - even when BOTH Debt-to-Equity and
+        # Earnings Variability are present (Case 4 is explicit: ROE present but both others
+        # missing is ALSO "not calculated", so it's not simply "any 2 of 3"). D/E or Earnings
+        # Variability missing ALONE still scores from ROE + the other one (Cases 2/3). Forcing
+        # this here rather than relying on the generic min_quality_weight_pct floor below
+        # matters: 33.34+33.33=66.67% nominal weight would otherwise clear that floor even
+        # with ROE missing, silently violating MSCI's Case 1 rule.
+        quality_components = (
+            [
+                (roe_score, 33.34),
+                (debt_to_equity_score, 33.33),
+                (earnings_variability_score, 33.33),
+            ]
+            if roe_score is not None
+            else []
+        )
         # COMPLETENESS FLOOR: without it, renormalizing over 1-3 available components lets
         # a single extreme raw ratio (e.g. an oil/gas royalty trust's ROA of 700%+) drive
         # quality_score to 100.00 even though data_completeness/GOVERNANCE's eligibility
-        # floor should treat this as thin data.
+        # floor should treat this as thin data. With MSCI's ROE-mandatory rule above already
+        # enforced, this floor's remaining job is just Case 4 (ROE alone, both others missing,
+        # 33.34% < 40%) - unchanged threshold, narrower remaining purpose.
         min_quality_weight_pct = 40.0
         available_quality_weight = sum(w for v, w in quality_components if v is not None)
         weighted_score = self._weighted_avg(quality_components, min_weight_pct=min_quality_weight_pct)

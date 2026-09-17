@@ -64,7 +64,10 @@ def _run_with_mocked_rows(rows: list[tuple]) -> dict[str, tuple[float | None, fl
     the SELECT, and return {symbol: (growth_score, composite_score)} from the UPDATE, or {} if
     no UPDATE was issued."""
     mock_cur = MagicMock()
-    mock_cur.fetchall.return_value = rows
+    # side_effect [rows, []]: first fetchall() is the correction pass's own SELECT, second is
+    # _withhold_growth_below_floor()'s own SELECT (added 2026-09-16, factor-purity sweep) - []
+    # means no symbol is below the liquidity floor in this test's fixture population.
+    mock_cur.fetchall.side_effect = [rows, []]
     with (
         patch("loaders.load_stock_scores.DatabaseContext") as mock_ctx,
         patch("loaders.load_stock_scores.execute_values") as mock_execute_values,

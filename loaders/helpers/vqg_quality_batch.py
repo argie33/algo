@@ -21,9 +21,13 @@ import itertools
 import logging
 from typing import TYPE_CHECKING, Any
 
-from loaders.helpers.factor_normalization import sector_size_neutral_zscore, zscore_to_percentile_scale
+from loaders.helpers.factor_normalization import (
+    sector_neutral_zscore,
+    universe_wide_zscore,
+    zscore_to_percentile_scale,
+)
 from loaders.helpers.vqg_quality_debt_fallback import DebtComponentsFallbackMixin
-from loaders.helpers.vqg_shared import BROKER_DEALER_INDUSTRIES, apply_mortgage_reit_sector_override
+from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
 from loaders.stock_scores.pillar_weights import (
     DEFAULT_MIN_ADV_DOLLARS,
     DEFAULT_MIN_STOCK_PRICE,
@@ -163,18 +167,50 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
         scored symbol in every sector - mirrors `update_rs_percentiles()`'s pure-overwrite
         pattern, NOT `update_value_multiples_percentiles()`'s additive-delta one.
 
-        REWRITE 2026-09-07 ("best and brightest" scoring-methodology directive): published
-        multi-factor methodology (MSCI Barra USE4/Factor Indexes, AQR Quality Minus Junk,
-        Fama-French profitability construction) converges on ONE transform - winsorize, then
-        z-score, computed within each symbol's own GICS sector as the peer group - for every
-        raw ratio, not hand-tuned absolute curves whose SHAPE varies by industry/sector. This
-        supersedes the prior scope of this method (ROE/ROCE percentile-ranked universe-wide,
-        Financial Services/Real Estate/Utilities excluded entirely, the other 6 components
-        left on their Pass-1 industry-curve scores): all 8 Quality sub-metrics, all sectors,
-        via `sector_neutral_zscore()`/`zscore_to_percentile_scale()`
-        (loaders/helpers/factor_normalization.py). This is now the sole authoritative source
-        of quality_score - `_compute_quality_metrics`'s own curve-based composite
-        (vqg_quality.py) is Pass-1 PROVISIONAL scaffolding this method always overwrites.
+        REBUILT TO MSCI'S EXACT 3-VARIABLE QUALITY INDEX 2026-09-16 (factor-purity sweep,
+        user: "we do what the industry does only" - SUPERSEDES the 8-metric AQR/MSCI blend
+        this method used from 2026-09-07 through 2026-09-15, see git history for that version).
+        Fetched and read MSCI's real, published Quality Indexes Methodology directly this
+        session (msci.com/eqb/methodology/meth_docs/MSCI_Quality_Indexes_Methodology_
+        May2022.pdf, Section 2.2 + Appendix I/II) - not recalled/paraphrased. MSCI's real
+        3-step construction (identical shape to Value's own MSCI-formula rebuild the same
+        session - see loaders/stock_scores/value_metrics.py's update_value_multiples_
+        percentiles() for the sibling implementation):
+          1. z-score EACH of the 3 fundamental variables (Return on Equity, Debt to Equity,
+             Earnings Variability - see loaders/helpers/quality_variability.py for the 3rd)
+             UNIVERSE-WIDE (within the whole eligible universe, "the MSCI Parent Index" - NOT
+             per-sector - see universe_wide_zscore below). "Lower is better" variables
+             (Debt to Equity, Earnings Variability) are negated before z-scoring so a higher
+             z always means better quality, matching ROE's own direction.
+          2. composite = equal-weighted average of the available variable z-scores (1/3 each,
+             or 1/2 for the 2-of-3 substitution cases MSCI's Appendix II states - Cases 2/3).
+             ROE IS MANDATORY (Appendix II Cases 1/4: missing ROE means no score at all, even
+             if the other two are both present) - enforced explicitly, not just via the
+             completeness floor below.
+          3. SECTOR-relativize the COMPOSITE (not each variable individually, and only once)
+             by standardizing it within each GICS sector (sector_neutral_zscore - MSCI's own
+             separate "Sector Neutral Quality Index" variant, Appendix VI, which this repo's
+             cross-sector-comparability goals already lean toward, same choice Value made),
+             then winsorize the result at +/-3 - MSCI's own explicitly stated output bound.
+        Final 0-100 conversion uses zscore_to_percentile_scale (the same normal-CDF transform
+        this codebase already uses to bound every other z-score-based pillar/leg to [0,100]),
+        not MSCI's own "Quality Score" piecewise transform (1+Z / (1-Z)^-1) - see Value's own
+        rebuild docstring for why: that transform is a PORTFOLIO-WEIGHTING construction, not a
+        rating scale, and stays reserved for loaders/stock_scores/market_cap_tilt.py's
+        *_tilted_weight columns, its correct domain.
+
+        DROPPED to match MSCI exactly: roa/fcf_margin/gross_profitability (AQR QMJ
+        Profitability-leg additions, not part of MSCI's 3-variable index) and margin_volatility
+        (this repo's own AQR-Safety-leg stand-in for Earnings Variability, a related-but-
+        distinct metric - margin stability, not EPS-growth-rate stability). All 4 raw values
+        stay computed/persisted/displayed - same "computed but unscored" convention as every
+        other removed-from-scoring input elsewhere in this codebase (Value's ev_ebitda/
+        ev_revenue/dividend_yield, etc.) - only their vote in quality_score is removed. The
+        FS-bank/insurance/utility industry-split peer groups this method used to build for
+        roe/roa/d2e's z-scoring are no longer needed: MSCI's real construction z-scores each
+        variable universe-wide (step 1), not per-sector at all, so a finer sub-sector split at
+        that stage has no analog in the real methodology - dropped along with the components
+        that needed it, not carried forward as unused machinery.
 
         MUST be a pure function of the raw stored ratio columns, never reading quality_score
         itself as an input: an earlier additive-delta design read/wrote the same mutable
@@ -182,34 +218,22 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
         each pipeline cycle with no convergence except the 0/100 clamp - over time this
         pinned ~30% of the universe at exactly 100.00.
 
-        "Lower is better" metrics (debt_to_equity, margin_volatility) are z-scored on their
-        NEGATED raw value, so a higher z-score means better quality for every component alike.
-
-        Non-negative-domain metrics were historically floored to 0.0 for negative values
-        (matching Pass-1 `_margin_curve`'s `if value < 0: return 0.0`) - justified by ROE's
-        sign-flip artifact (below), then copied onto the rest without checking each needed it.
-
-        FLOOR REMOVED FOR roa/roce/fcf_margin ONLY (2026-09-13, evidence trail in memory:
-        quality_roa_roce_fcf_margin_floor_removed_20260913) - a real point-in-time panel test
-        shows continuous z-scoring (negatives included) beats the floor on era-robust
-        forward-return prediction for these 3. debt_to_equity's apparently bigger gap was
-        RETRACTED (test-script sign bug) - floor UNCHANGED there, and for gross_profitability
-        (no material difference) and margin_volatility/asset_turnover (untested). ROE keeps
-        its own floor/sign-flip guard (independent justification, not the copied pattern here).
-
         Sign-flip distress guard (live-confirmed 2026-09-07, 274 universe symbols, e.g. ROC
         roe=915.88%/roa=-38.43%): a negative-ROA (loss-making) company can only show a
         POSITIVE ROE when shareholders_equity is ALSO negative - a double-negative sign
-        flip, not genuine profitability. The ROE component is omitted entirely if roa is
-        missing, and floored to 0.0 (not z-scored) if roe<0 OR roa<0 - unchanged from the
-        prior ROE/ROCE-only version of this method.
+        flip, not genuine profitability. roa is READ here purely as this data-quality gate on
+        ROE (not itself scored, per the DROPPED note above) - the ROE component is omitted
+        entirely if roa is missing, and floored to the worst z-score (-3, MSCI's own
+        winsorization bound, the natural "worst" sentinel - same convention Value's rebuild
+        established) if roe<0 OR roa<0, unchanged reasoning from the prior version of this
+        method.
 
         INVESTABILITY FLOOR ADDED 2026-09-13 (`vm.market_cap >= %s`, algo_config.min_market_
         cap_millions, same $300M threshold LiquidityChecks._check_market_cap() now enforces at
-        trade entry): the sector-neutral z-score's peer group is the current run's universe -
-        if that includes sub-floor nanocaps, their more extreme ratios distort the percentile
-        boundaries real, investable companies get ranked against. Sub-floor symbols simply
-        aren't included in this pass and keep whatever Pass-1 already gave them.
+        trade entry): the z-score's peer population is the current run's universe - if that
+        includes sub-floor nanocaps, their more extreme ratios distort the boundaries real,
+        investable companies get ranked against. Sub-floor symbols simply aren't included in
+        this pass and keep whatever Pass-1 already gave them.
 
         Raises on failure, same as every other post_run() batch pass - an inconsistent
         quality_score is a live-trading-relevant correctness issue.
@@ -229,7 +253,8 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                     """
                     SELECT qm.symbol, cp.sector, cp.industry, qm.roe, qm.roa, qm.roce_pct, qm.fcf_margin,
                            qm.debt_to_equity, qm.margin_volatility, qm.asset_turnover, qm.gross_profitability,
-                           qm.quality_score, COALESCE(cis.is_foreign_private_issuer, false), vm.market_cap
+                           qm.quality_score, COALESCE(cis.is_foreign_private_issuer, false), vm.market_cap,
+                           qm.earnings_variability
                     FROM quality_metrics qm
                     JOIN stock_scores ss ON ss.symbol = qm.symbol
                     LEFT JOIN company_profile cp ON cp.symbol = qm.symbol
@@ -259,14 +284,14 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                 )
                 return
 
-            # Sector peer group for the z-score - a symbol with no company_profile.sector row
-            # simply has no entry here, which sector_neutral_zscore() pools into its residual
-            # group rather than dropping (see that function's own docstring).
-            # Mortgage/commercial-mortgage REITs are split out of "Real Estate" into their own
-            # peer group (see apply_mortgage_reit_sector_override's docstring in vqg_shared.py) -
-            # same "Real Estate" sector-conflation bug class as the FS bank/insurer carve-out
-            # just below, found 2026-09-12 while investigating why the live REIT leaderboard
-            # topped mortgage REITs (DX/ORC/NLY/AGNC) instead of real REIT industry leaders.
+            # Sector peer group for the COMPOSITE's sector-relative step (MSCI Appendix VI) - a
+            # symbol with no company_profile.sector row simply has no entry here, which
+            # sector_neutral_zscore() pools into its residual group rather than dropping (see
+            # that function's own docstring). Mortgage/commercial-mortgage REITs are split out
+            # of "Real Estate" into their own peer group (see apply_mortgage_reit_sector_
+            # override's docstring in vqg_shared.py) - found 2026-09-12 while investigating why
+            # the live REIT leaderboard topped mortgage REITs (DX/ORC/NLY/AGNC) instead of real
+            # REIT industry leaders.
             sectors: dict[str, str] = {
                 row[0]: (apply_mortgage_reit_sector_override(row[0], row[1]) or row[1]) for row in rows if row[1]
             }
@@ -275,207 +300,79 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
             # see sector_neutral_zscore's own docstring in factor_normalization.py for the full
             # rationale/evidence). row[12] is COALESCE(cis.is_foreign_private_issuer, false) per
             # this query's own SELECT above - len(row) guard keeps pre-existing shorter unit-test
-            # fixture rows passing unchanged (same fail-open convention `industries` above uses).
+            # fixture rows passing unchanged.
             is_fpi: dict[str, bool] = {row[0]: bool(row[12]) for row in rows if len(row) > 12}
 
-            # BARRA-STYLE SIZE NEUTRALIZATION (2026-09-15, "get rid of the extra shit beyond
-            # Barra and the industry guys" directive - consistency follow-up to the same fix
-            # already applied to Value/Growth, see sector_size_neutral_zscore's own docstring).
-            # Real Barra/Axioma multi-factor construction regresses every style factor
-            # (Quality included) on sector dummies + log market cap before z-scoring, not just
-            # Value/Growth - AQR's published QMJ methodology doesn't do this size step at all,
-            # but this codebase already committed to the Barra convention elsewhere, so Quality
-            # now matches rather than being the one pillar left on the older sector-only
-            # transform. len(row) guard keeps pre-existing shorter unit-test fixture rows
-            # passing unchanged (same fail-open convention as is_fpi above) - a missing
-            # market_cap simply skips size-neutralization for that symbol (see
-            # _residualize_on_log_market_cap's own pass-through-unchanged fallback).
-            market_cap_map: dict[str, float] = {
-                row[0]: float(row[13]) for row in rows if len(row) > 13 and row[13] is not None and float(row[13]) > 0
-            }
+            def _negated_raw(idx: int) -> dict[str, float]:
+                # "Lower is better" variables (Debt to Equity, Earnings Variability): negate
+                # before z-scoring so a higher z always means better quality, matching ROE's
+                # own direction.
+                return {row[0]: -float(row[idx]) for row in rows if row[idx] is not None}
 
-            # D2E/ROA/ROCE/ROE/asset_turnover peer-group refinement (2026-09-08, quality_value_
-            # sector_neutral_zscore_rewrite follow-up; extended 2026-09-11 - see
-            # roe_asset_turnover_fs_coarse_peer_group_bias_20260911): the single "Financial
-            # Services" GICS sector z-score bucket mixes deposit-funded banks, reserve-funded
-            # insurers, and unregulated other-FS (asset managers, payment networks, brokers)
-            # whose leverage and capital-efficiency profiles aren't comparable -
-            # DEPOSITORY_BANK_INDUSTRIES/INSURANCE_UNDERWRITER_INDUSTRIES already carve out for
-            # the Pass-1 curves in vqg_quality.py (banks/insurers understate leverage against
-            # total_liabilities the same way against each other's capital structure).
-            # ROE was originally left on the coarse sector alongside fcf_margin/margin_
-            # volatility/gross_profitability, but it's the MOST leverage-sensitive of the group
-            # (ROE = ROA x leverage multiplier) - live-measured 2026-09-11: coarse-FS-grouped
-            # bank ROE averaged the 36.6th percentile (vs the split group's neutral 49.9th) and
-            # asset_turnover showed the same 4-5x median gap between banks (structurally huge
-            # balance sheets relative to revenue) and "Other FS" that originally justified the
-            # ROA/ROCE/D2E split - both moved onto the same split peer group here. fcf_margin
-            # doesn't need this: banks/insurers are excluded from its z-score population
-            # entirely (see _fcf_excluded_industries below). margin_volatility/gross_
-            # profitability's cross-bucket gap was weaker (outlier-driven, not median-driven)
-            # and gross_profitability's tiny per-bucket bank/insurer sample (n=11/13) would fall
-            # under sector_neutral_zscore's own min_sector_size=15 floor and residual-pool right
-            # back out anyway - left on the coarse sector, not flagged.
-            _fs_industry_peer_group: dict[str, str] = {
-                symbol: (
-                    "Financial Services - Banks"
-                    if industry in _owner().DEPOSITORY_BANK_INDUSTRIES
-                    else (
-                        "Financial Services - Insurance"
-                        if industry in _owner().INSURANCE_UNDERWRITER_INDUSTRIES
-                        else "Financial Services - Other"
-                    )
-                )
-                for symbol, sector, industry, *_ in rows
-                if sector == "Financial Services"
-            }
-            d2e_roa_roce_sectors: dict[str, str] = {
-                symbol: _fs_industry_peer_group.get(symbol, sector) for symbol, sector in sectors.items()
-            }
-
-            # fcf_margin exclusion (2026-09-08, absorbed from Pass-1's already-live-confirmed
-            # fix - see vqg_quality_score.py's fcf_margin_score comment): depository banks,
-            # insurance underwriters, regulated utilities, and broker-dealers
-            # (BROKER_DEALER_INDUSTRIES added 2026-09-08, GS/MS live-confirmed) have
-            # free_cash_flow dominated by loan/deposit/capex/repo-funding swings unrelated to
-            # real operating profitability (JPM -81%, GS -81.02%, WFC -22.70%, NEE -42%
-            # live-confirmed) - not distress, a structural artifact excluded from both the
-            # z-score population and each excluded symbol's own component list (same "omit,
-            # don't floor" treatment as missing data). See BROKER_DEALER_INDUSTRIES's own
-            # comment in vqg_shared.py.
-            _fcf_excluded_industries = (
-                _owner().DEPOSITORY_BANK_INDUSTRIES
-                | _owner().INSURANCE_UNDERWRITER_INDUSTRIES
-                | _owner().UTILITY_INDUSTRIES
-                | BROKER_DEALER_INDUSTRIES
-            )
-            # len(row) guard keeps pre-existing unit test fixtures (3-tuple/11-tuple rows, no
-            # industry column) passing unchanged - a missing industry fails open to "no
-            # exclusion", the same fail-open contract _get_symbol_industry's own docstring
-            # documents. industry lives at row[2] in this query's own column order (see SELECT
-            # above), not appended at the end.
-            industries: dict[str, str] = {row[0]: row[2] for row in rows if len(row) > 2 and row[2]}
-
-            def _nonneg_raw(idx: int) -> dict[str, float]:
-                return {row[0]: float(row[idx]) for row in rows if row[idx] is not None and float(row[idx]) >= 0.0}
-
-            def _negated_nonneg_raw(idx: int) -> dict[str, float]:
-                # "lower is better" metrics: negate before z-scoring so a higher z always
-                # means better quality, matching every other component's direction.
-                return {row[0]: -float(row[idx]) for row in rows if row[idx] is not None and float(row[idx]) >= 0.0}
-
-            def _continuous_raw(idx: int) -> dict[str, float]:  # no floor - see "FLOOR REMOVED" note above
-                return {row[0]: float(row[idx]) for row in rows if row[idx] is not None}
-
-            # roe additionally requires roa present/non-negative (sign-flip guard), floored
-            # to 0.0 in the loop below - independent of roa's own component (continuous above).
-            # roce_raw/asset_turnover_raw (and their z-scored *_pct dicts) REMOVED 2026-09-15 -
-            # see the ASSET_TURNOVER + ROCE REMOVED ENTIRELY comment in the component-weighting
-            # loop below for the full rationale. qm.roce_pct/qm.asset_turnover (row[5]/row[9])
-            # are still SELECTed and displayed elsewhere - only the now-unused z-scoring here is
-            # gone.
+            # roe additionally requires roa present/non-negative (sign-flip distress guard,
+            # see this method's own docstring) - roa itself is NOT a scored MSCI variable, read
+            # here purely as that data-quality gate.
             roe_raw = {
                 row[0]: float(row[3])
                 for row in rows
                 if row[3] is not None and row[4] is not None and float(row[3]) >= 0.0 and float(row[4]) >= 0.0
             }
-            roa_raw = _continuous_raw(4)
-            fcf_margin_raw = {
-                symbol: val
-                for symbol, val in _continuous_raw(6).items()
-                if industries.get(symbol) not in _fcf_excluded_industries
-            }
-            d2e_raw = _negated_nonneg_raw(7)
-            margin_vol_raw = _negated_nonneg_raw(8)
-            gross_prof_raw = _nonneg_raw(10)
+            d2e_raw = _negated_raw(7)
+            earnings_var_raw = _negated_raw(14)
 
-            roe_pct = zscore_to_percentile_scale(
-                sector_size_neutral_zscore(
-                    roe_raw, d2e_roa_roce_sectors, market_cap_map, is_foreign_private_issuer=is_fpi
-                )
-            )
-            roa_pct = zscore_to_percentile_scale(
-                sector_size_neutral_zscore(
-                    roa_raw, d2e_roa_roce_sectors, market_cap_map, is_foreign_private_issuer=is_fpi
-                )
-            )
-            fcf_margin_pct = zscore_to_percentile_scale(
-                sector_size_neutral_zscore(fcf_margin_raw, sectors, market_cap_map, is_foreign_private_issuer=is_fpi)
-            )
-            d2e_pct = zscore_to_percentile_scale(
-                sector_size_neutral_zscore(
-                    d2e_raw, d2e_roa_roce_sectors, market_cap_map, is_foreign_private_issuer=is_fpi
-                )
-            )
-            margin_vol_pct = zscore_to_percentile_scale(
-                sector_size_neutral_zscore(margin_vol_raw, sectors, market_cap_map, is_foreign_private_issuer=is_fpi)
-            )
-            gross_prof_pct = zscore_to_percentile_scale(
-                sector_size_neutral_zscore(gross_prof_raw, sectors, market_cap_map, is_foreign_private_issuer=is_fpi)
-            )
+            # STEP 1 (MSCI Appendix I/II): z-score EACH variable UNIVERSE-WIDE (within the
+            # whole eligible universe, "the MSCI Parent Index" - NOT per-sector).
+            leg_roe_z = universe_wide_zscore(roe_raw)
+            leg_d2e_z = universe_wide_zscore(d2e_raw)
+            leg_earnings_var_z = universe_wide_zscore(earnings_var_raw)
             logger.info(
-                f"[QUALITY_METRICS] sector-neutral z-score universe: roe={len(roe_pct)} roa={len(roa_pct)} "
-                f"fcf_margin={len(fcf_margin_pct)} debt_to_equity={len(d2e_pct)} "
-                f"margin_volatility={len(margin_vol_pct)} gross_profitability={len(gross_prof_pct)}"
+                f"[QUALITY_METRICS] MSCI z-score universe: roe={len(leg_roe_z)} "
+                f"debt_to_equity={len(leg_d2e_z)} earnings_variability={len(leg_earnings_var_z)}"
             )
+
+            # STEP 2: equal-weighted composite, ROE MANDATORY (Appendix II Cases 1/4 - see this
+            # method's own docstring), D/E or Earnings Variability alone still scores (Cases
+            # 2/3). Distress floors use -3.0 (MSCI's own winsorization bound, the natural
+            # "worst" sentinel) rather than an arbitrary number - same convention Value's
+            # rebuild established.
+            composite_z_by_symbol: dict[str, float] = {}
+            for row in rows:
+                symbol = row[0]
+                roe, roa, d2e = row[3], row[4], row[7]
+                roe_is_sign_flip_distress = (
+                    roe is not None and roa is not None and (float(roe) < 0.0 or float(roa) < 0.0)
+                )
+                if roe_is_sign_flip_distress:
+                    roe_z: float | None = -3.0
+                elif symbol in leg_roe_z:
+                    roe_z = leg_roe_z[symbol]
+                else:
+                    roe_z = None  # ROE genuinely missing (not just sign-flip-floored) -> no score at all
+                if roe_z is None:
+                    continue
+                legs: list[float] = [roe_z]
+                if symbol in leg_d2e_z:
+                    legs.append(-3.0 if float(d2e) < 0.0 else leg_d2e_z[symbol])  # negative D/E = real distress
+                if symbol in leg_earnings_var_z:
+                    legs.append(leg_earnings_var_z[symbol])
+                composite_z_by_symbol[symbol] = sum(legs) / len(legs)
+
+            # STEP 3: sector-relativize the COMPOSITE (not each variable individually, and only
+            # once) - MSCI's real "Sector Neutral Quality Index" construction (Appendix VI) -
+            # then winsorize at +/-3, MSCI's own stated output bound.
+            sector_rel_z = sector_neutral_zscore(
+                composite_z_by_symbol, sectors, min_sector_size=15, is_foreign_private_issuer=is_fpi
+            )
+            sector_rel_z = {symbol: max(-3.0, min(3.0, z)) for symbol, z in sector_rel_z.items()}
+            quality_pct = zscore_to_percentile_scale(sector_rel_z)
+            logger.info(f"[QUALITY_METRICS] MSCI composite scored, sector-relativized: {len(quality_pct)} symbols")
 
             updates: list[tuple[str, float | None]] = []
             for row in rows:
                 symbol, quality_score_old = row[0], float(row[11])
-                # roce_pct_val/asset_turnover (row[5]/row[9]) unpacked but intentionally unused -
-                # see the ASSET_TURNOVER + ROCE REMOVED comment below.
-                roe, roa, _roce_pct_val, fcf_margin, d2e, margin_vol, _asset_turnover, gross_prof = row[3:11]
-
-                components: list[tuple[float, float]] = []
-
-                # ASSET_TURNOVER + ROCE REMOVED ENTIRELY (2026-09-15, TWO-LAYER VALIDATION
-                # POLICY - see vqg_quality_score.py Pass-1's own comment on its
-                # quality_components list for the full rationale: neither maps to a real
-                # institutional Quality definition (AQR QMJ/MSCI/Novy-Marx), unlike the
-                # remaining 6 components, so they're dropped rather than reweighted based on
-                # this repo's own IC - the wrong bar for a pillar-fidelity question. The
-                # remaining 5 non-margin_volatility components move from 11.54 to 15.0 each
-                # (75/5) to keep the already-decided 75-point non-margin_volatility pool
-                # exactly matching its own total; margin_volatility stays at 25.0. Mirrors
-                # vqg_quality_score.py Pass-1's own weights exactly - keep both passes' in
-                # sync if either changes. roce_pct_val/asset_turnover are still read from
-                # `row` above (unpacking stays aligned to the SELECT's column order) but no
-                # longer feed a component here - both raw columns remain available for other
-                # consumers via quality_metrics itself.
-                if roe is not None and roa is not None:  # roa<0 = sign-flip distress artifact; missing roa omits it
-                    roe_component = 0.0 if float(roe) < 0.0 or float(roa) < 0.0 else roe_pct[symbol]
-                    components.append((roe_component, 15.0))
-                if roa is not None:  # continuous, no floor
-                    components.append((roa_pct[symbol], 15.0))
-                if fcf_margin is not None and industries.get(symbol) not in _fcf_excluded_industries:
-                    components.append((fcf_margin_pct[symbol], 15.0))  # continuous, no floor
-                if d2e is not None:  # negative D/E = real distress, floored to 0.0 - UNCHANGED
-                    d2e_component = 0.0 if float(d2e) < 0.0 else d2e_pct[symbol]
-                    components.append((d2e_component, 15.0))
-                if margin_vol is not None:
-                    # Volatility can't be genuinely negative - no floor case, just z-scored.
-                    components.append((margin_vol_pct[symbol], 25.0))
-                if gross_prof is not None:
-                    gp_component = 0.0 if float(gross_prof) < 0.0 else gross_prof_pct[symbol]
-                    components.append((gp_component, 15.0))
-
-                # COMPLETENESS FLOOR (2026-09-10 real-money-readiness re-audit): mirrors
-                # vqg_quality_score.py's Pass-1 `min_quality_weight_pct=40.0` floor on the
-                # identical 8-component/101-point weight scheme. Without it, a symbol that
-                # legitimately clears Pass-1's 40% floor (e.g. via ROE+ROA+ROCE+FCF-margin+
-                # D/E) but has some of those individually None in THIS pass's stricter
-                # inclusion rules (e.g. this pass's roe_component additionally requires roa
-                # is not None, line 266 above) can fall below 40% available weight here and
-                # still get a full sum(v*w)/total_weight extrapolated to 0-100 - unconditionally
-                # overwriting Pass-1's more conservative (possibly None/insufficient-
-                # completeness) score. Below the floor, skip the overwrite and leave whatever
-                # Pass-1 already wrote (real score or None) untouched, same as this loop
-                # already does for the total_weight<=0 case.
-                total_weight = sum(w for _, w in components)
-                if total_weight <= 0 or total_weight < 40.0:
+                if symbol not in quality_pct:
                     continue
-
-                quality_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
+                quality_score_new = round(max(0.0, min(100.0, quality_pct[symbol])), 2)
                 if quality_score_new != quality_score_old:
                     updates.append((symbol, quality_score_new))
 

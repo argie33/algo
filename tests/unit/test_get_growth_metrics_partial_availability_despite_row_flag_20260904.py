@@ -12,19 +12,21 @@ Live-confirmed 121 growth_metrics rows have data_unavailable=TRUE but a real mir
 
 from loaders.load_stock_scores import StockScoresLoader
 
-# 25-column row shape: revenue_growth_1y/3y/5y, eps_growth_1y/3y/5y, book_value_growth,
-# net_income_growth_yoy, operating_income_growth_yoy, sustainable_growth_rate, fcf_growth_yoy,
-# ocf_growth_yoy, gross/operating/net_margin_trend, roe_trend, asset_growth_yoy,
-# eps_growth_stability, quarterly_growth_momentum, earnings_growth_4q_avg,
-# forward_eps_growth_current_fy, forward_eps_growth_next_fy, forward_revenue_growth_next_fy,
-# eps_estimate_revision_90d_pct, data_unavailable.
+# 27-column row shape (2026-09-16 MSCI/Barra OLS-trend extension - see growth_scoring.py's
+# _get_growth_metrics docstring): revenue_growth_1y/3y/5y, eps_growth_1y/3y/5y,
+# book_value_growth, net_income_growth_yoy, operating_income_growth_yoy,
+# sustainable_growth_rate, fcf_growth_yoy, ocf_growth_yoy, gross/operating/net_margin_trend,
+# roe_trend, asset_growth_yoy, eps_growth_stability, quarterly_growth_momentum,
+# earnings_growth_4q_avg, forward_eps_growth_current_fy, forward_eps_growth_next_fy,
+# forward_revenue_growth_next_fy, eps_estimate_revision_90d_pct, eps_growth_trend_5y,
+# sps_growth_trend_5y, data_unavailable.
 
 
 def _row(quarterly_growth_momentum=None, earnings_growth_4q_avg=None, data_unavailable=True):
-    row = [None] * 25
+    row = [None] * 27
     row[18] = quarterly_growth_momentum
     row[19] = earnings_growth_4q_avg
-    row[24] = data_unavailable
+    row[26] = data_unavailable
     return tuple(row)
 
 

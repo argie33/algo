@@ -132,233 +132,292 @@ class TestPeCurveScoreUnchanged:
         assert StockScoresLoader._pb_curve_score(7.0) == 30.0
 
 
-class TestValueMultiplesReconciliationMath:
-    """Reimplements the reconciliation formula from update_value_multiples_percentiles() in
-    isolation (same arithmetic, no DB) to pin its exactness against hand-computed examples.
+class TestMsciThreeLegConstruction:
+    """Exercises the REAL, LIVE construction `update_value_multiples_percentiles()` uses today
+    (loaders/stock_scores/value_metrics.py) - MSCI Enhanced Value's actual published 3-variable
+    definition (Price-to-Book-or-Cash-Earnings, Price-to-Forward-Earnings-or-trailing, EV/CFO-
+    or-Cash-Earnings), each an equal 1/3 weight, verified against MSCI_Enhanced_Value_Index_
+    Meth_Aug14.pdf (msci.com/eqb/methodology) - see that method's own "MSCI ENHANCED VALUE
+    CONSTRUCTION FIDELITY" docstring note for the full citation and evidence trail.
 
-    UPDATED 2026-08-28 (goal: "aligned with industry standards and best practices" - forward
-    P/E added, FCF yield removed from Value scoring, see load_stock_scores.py's "FORWARD
-    P/E - ADDED 2026-08-28" / "FCF YIELD - RESOLVED 2026-08-28" docstring notes): fcf_yield
-    param removed (no longer a Value input at all); fwd_pe/fwd_pe_pct added (joins the
-    percentile-reconciled multiples, same treatment as pe/pb/ps).
+    REPLACES the former TestValueMultiplesReconciliationMath class (removed 2026-09-16,
+    factor-purity sweep, /goal: "we should only have one common set of scores... like the
+    industry guys"). That class hand-reimplemented an ADDITIVE-DELTA reconciliation over a
+    5-input flat-20%-each construction (P/E/P/B/P/S/Forward-P/E/Dividend-Yield) in its own
+    `_reconcile()` helper - an architecture superseded TWICE in the live code (2026-08-31:
+    additive-delta -> full-recompute; 2026-09-15: 5-input flat-weight -> MSCI's real 3-leg
+    1/3-weight-each P/B, E/P, EV/CFO formula, no P/S or dividend-yield leg at all) without the
+    test ever being updated to match, or ever calling the real method - it tested only itself,
+    giving false confidence that Pass 2's reconciliation was covered. These tests instead drive
+    the real `update_value_multiples_percentiles()` end-to-end (mocked DatabaseContext, real
+    row-shaped fixtures - same convention as TestUpdateValueMultiplesPercentilesEndToEnd below)
+    and assert on its actual UPDATE payload.
 
-    UPDATED AGAIN 2026-08-28 (later same day, goal: "is this value score right per industry
-    best practice... lets figure out the right best for the value and lets go"): peg and mos
-    params REMOVED ENTIRELY - both fully removed from Value scoring (see "PEG - REMOVED FROM
-    SCORING 2026-08-28" / "MARGIN OF SAFETY - REMOVED FROM SCORING 2026-08-28" docstring
-    notes), no longer part of total_weight_old at all. Weights: PB 33%->39%, PS 29%->34%
-    (absorbed margin_of_safety's freed 11%), Dividend Yield 8%->11% (absorbed PEG's freed 3%).
-
-    UPDATED AGAIN 2026-08-31 (goal: factor-score review, "do what is best here maybe 7-8%" -
-    Dividend Yield's own predictive evidence never cleared full significance and vanished in
-    the best-covered sub-period, see load_stock_scores.py's "DIVIDEND YIELD - TRIMMED
-    2026-08-31" docstring note): Dividend Yield 11%->8%, freed 3pts split PB 39%->41% (+2),
-    PS 34%->35% (+1), proportional to their t-stat magnitudes.
-
-    UPDATED AGAIN 2026-09-01 (goal: factor-score review, "lets get the weightings more normal
-    the 41% still seems wacky... is that what the industry players set these at too?" - see
-    load_stock_scores.py's matching "EQUAL-WEIGHTED 2026-09-01" docstring note): PE/PB/PS
-    equal-weighted at 27% each (was 12/41/35, a data-driven skew this repo's own regression
-    produced, not how real multi-metric Value composites like AQR's are actually built).
-    Forward P/E 4%->9%, Dividend Yield 8%->10% - both stay smaller satellite weights, not
-    equal to the 3 core multiples.
-    pe_reason/fwd_pe_reason params ADDED - the "UNPROFITABLE-COMPANY FLOOR ADDED 2026-08-28" /
-    "UNPROFITABLE-FORECAST FLOOR ADDED 2026-08-28" fix: an unprofitable/negative-forecast
-    symbol now counts toward total_weight_old at the normal weight with BOTH old and new
-    contributions floored at 0.0 (matching _score_value's Pass-1 treatment), instead of being
-    excluded from total_weight_old entirely.
+    Row shape matches the real SELECT in `update_value_multiples_percentiles()` exactly (27
+    columns, indices 0-26) - see `_ROW_COLUMNS` below and that method's own column list.
     """
 
+    # Mirrors the real SELECT's column order exactly (update_value_multiples_percentiles()).
+    _ROW_COLUMNS = [
+        "symbol",
+        "value_score",
+        "composite_score",
+        "risk_score",
+        "quality_score",
+        "growth_score",
+        "momentum_score",
+        "pe_ratio",
+        "pb_ratio",
+        "ps_ratio",
+        "forward_pe",
+        "dividend_yield",
+        "fcf_yield",
+        "pe_ratio_unavailable_reason",
+        "forward_pe_unavailable_reason",
+        "pb_ratio_unavailable_reason",
+        "components",
+        "sector",
+        "data_completeness",
+        "data_unavailable",
+        "unavailable_metrics",
+        "ps_ratio_unavailable_reason",
+        "is_foreign_private_issuer",
+        "enterprise_value",
+        "operating_cash_flow",
+        "market_cap",
+        "industry",
+    ]
+
+    @classmethod
+    def _row(cls, **overrides: Any) -> tuple[Any, ...]:
+        defaults: dict[str, Any] = {
+            "symbol": "SYM",
+            # Deliberately NOT 50.0 (or any value a real computed score could plausibly land
+            # on by coincidence) - update_value_multiples_percentiles() only appends a symbol
+            # to its UPDATE batch when the recomputed value differs from this "old" value, so
+            # a coincidental match here would silently hide a symbol from `updates` and turn a
+            # real bug into a confusing KeyError instead of a clear assertion failure.
+            "value_score": 1.0,
+            "composite_score": 1.0,
+            "risk_score": 50.0,
+            "quality_score": 50.0,
+            "growth_score": 50.0,
+            "momentum_score": 50.0,
+            "pe_ratio": None,
+            "pb_ratio": None,
+            "ps_ratio": None,
+            "forward_pe": None,
+            "dividend_yield": None,
+            "fcf_yield": None,
+            "pe_ratio_unavailable_reason": None,
+            "forward_pe_unavailable_reason": None,
+            "pb_ratio_unavailable_reason": None,
+            "components": None,
+            "sector": "Consumer Defensive",  # thin/mixed sectors -> residual pool, same
+            # convention TestNegativeBookValueFloorSurvivesPercentilePass already used, so
+            # every symbol in a test's row set is ranked against every other one directly.
+            "data_completeness": 99.99,
+            "data_unavailable": False,
+            "unavailable_metrics": {},
+            "ps_ratio_unavailable_reason": None,
+            "is_foreign_private_issuer": False,
+            "enterprise_value": None,
+            "operating_cash_flow": None,
+            "market_cap": None,
+            "industry": None,
+        }
+        defaults.update(overrides)
+        return tuple(defaults[col] for col in cls._ROW_COLUMNS)
+
     @staticmethod
-    def _reconcile(
-        value_score_old: float,
-        composite_score_old: float,
-        risk_score: float | None,
-        pe: float | None,
-        pb: float | None,
-        fwd_pe: float | None,
-        dividend_yield: float | None,
-        pe_pct: float | None,
-        pb_pct: float | None,
-        fwd_pe_pct: float | None,
-        pe_reason: str | None = None,
-        fwd_pe_reason: str | None = None,
-    ) -> tuple[float, float]:
-        total_weight_old = 0.0
-        weighted_sum_multiples_old = 0.0
-        weighted_sum_multiples_new = 0.0
-        if pe is not None and pe > 0:
-            total_weight_old += 0.27
-            weighted_sum_multiples_old += StockScoresLoader._pe_curve_score(pe) * 0.27
-            weighted_sum_multiples_new += pe_pct * 0.27  # type: ignore[operator]
-        elif pe_reason == "unprofitable_stock":
-            total_weight_old += 0.27
-        if pb is not None and pb > 0:
-            total_weight_old += 0.27
-            weighted_sum_multiples_old += StockScoresLoader._pb_curve_score(pb) * 0.27
-            weighted_sum_multiples_new += pb_pct * 0.27  # type: ignore[operator]
-        if fwd_pe is not None and fwd_pe > 0:
-            total_weight_old += 0.09
-            weighted_sum_multiples_old += StockScoresLoader._pe_curve_score(fwd_pe) * 0.09
-            weighted_sum_multiples_new += fwd_pe_pct * 0.09  # type: ignore[operator]
-        elif fwd_pe_reason == "negative_forward_eps":
-            total_weight_old += 0.09
-        if dividend_yield is not None and dividend_yield > 0:
-            total_weight_old += 0.10
+    def _run(rows: list[tuple[Any, ...]]) -> MagicMock:
+        """Runs the real method against `rows`, returns the mocked execute_values call (or a
+        Mock with `.called = False` if nothing changed - a legitimate outcome for some cases)."""
+        cur = MagicMock()
+        # side_effect [rows, []]: first fetchall() is the correction pass's own SELECT, second
+        # is _withhold_value_below_floor()'s own SELECT (added 2026-09-16, factor-purity sweep)
+        # - [] means no symbol is below the liquidity floor in this test's fixture population.
+        cur.fetchall.side_effect = [rows, []]
+        mock_db_context = MagicMock()
+        mock_db_context.__enter__ = MagicMock(return_value=cur)
+        mock_db_context.__exit__ = MagicMock(return_value=False)
 
-        delta = (weighted_sum_multiples_new - weighted_sum_multiples_old) / total_weight_old
-        value_score_new = round(max(0.0, min(100.0, value_score_old + delta)), 2)
-        value_weight = BASE_PILLAR_WEIGHTS["value"]
-        composite_score_new = round(
-            max(0.0, min(100.0, composite_score_old + value_weight * (value_score_new - value_score_old))), 2
-        )
-        return value_score_new, composite_score_new
+        loader = StockScoresLoader.__new__(StockScoresLoader)
+        with (
+            patch("loaders.load_stock_scores.DatabaseContext", return_value=mock_db_context),
+            patch("loaders.load_stock_scores.execute_values") as mock_execute_values,
+        ):
+            loader.update_value_multiples_percentiles()
+        return mock_execute_values
 
-    def test_percentile_agrees_with_curve_no_change(self) -> None:
-        # If the new percentile score happens to equal the old curve score for every
-        # available multiple, value_score/composite_score must be unchanged (delta=0).
-        pe_curve = StockScoresLoader._pe_curve_score(15.0)
-        pb_curve = StockScoresLoader._pb_curve_score(2.0)
-        fwd_pe_curve = StockScoresLoader._pe_curve_score(18.0)
-        value_new, composite_new = self._reconcile(
-            value_score_old=72.5,
-            composite_score_old=64.0,
-            risk_score=50.0,
-            pe=15.0,
-            pb=2.0,
-            fwd_pe=18.0,
-            dividend_yield=0.02,
-            pe_pct=pe_curve,
-            pb_pct=pb_curve,
-            fwd_pe_pct=fwd_pe_curve,
-        )
-        assert value_new == 72.5
-        assert composite_new == 64.0
+    @classmethod
+    def _updates_by_symbol(cls, mock_execute_values: MagicMock) -> dict[str, tuple[Any, ...]]:
+        assert mock_execute_values.called, "expected at least one symbol's value_score to change"
+        updates = mock_execute_values.call_args.args[2]
+        return {u[0]: u for u in updates}
 
-    def test_higher_percentile_than_curve_raises_value_score(self) -> None:
-        # All 3 multiples percentile-rank HIGHER (cheaper-relative-to-peers) than their curve
-        # score -> value_score must strictly increase.
-        value_new, _ = self._reconcile(
-            value_score_old=50.0,
-            composite_score_old=50.0,
-            risk_score=50.0,
-            pe=25.0,
-            pb=4.0,
-            fwd_pe=22.0,
-            dividend_yield=None,
-            pe_pct=100.0,
-            pb_pct=100.0,
-            fwd_pe_pct=100.0,
-        )
-        assert value_new > 50.0
+    def test_ev_cfo_leg_moves_the_score_between_otherwise_identical_peers(self) -> None:
+        # GOODCASH and BADCASH share IDENTICAL P/B and Forward P/E raw ratios (so those two
+        # legs alone can't differentiate them) - only their EV/CFO leg differs (cheap vs. rich
+        # relative to enterprise value). GOODCASH's value_score must come out strictly higher,
+        # proving the 3rd leg (added 2026-09-15, the EV/CFO fidelity fix - real CFO/EV, not the
+        # old price-basis fcf_yield proxy) actually moves the score, not just gets computed and
+        # discarded.
+        rows = [
+            self._row(
+                symbol="GOODCASH",
+                pb_ratio=2.0,
+                forward_pe=15.0,
+                enterprise_value=100.0,
+                operating_cash_flow=40.0,  # CFO/EV = 0.40, cheap
+                market_cap=90.0,
+            ),
+            self._row(
+                symbol="BADCASH",
+                pb_ratio=2.0,
+                forward_pe=15.0,
+                enterprise_value=100.0,
+                operating_cash_flow=5.0,  # CFO/EV = 0.05, rich
+                market_cap=90.0,
+            ),
+        ]
+        updates = self._updates_by_symbol(self._run(rows))
+        goodcash_value_score = updates["GOODCASH"][1]
+        badcash_value_score = updates["BADCASH"][1]
+        assert goodcash_value_score is not None
+        assert badcash_value_score is not None
+        assert goodcash_value_score > badcash_value_score
 
-    def test_only_pe_available_isolates_weight_correctly(self) -> None:
-        # Only P/E available (weight 0.12 of total_weight_old=0.12) - the ENTIRE delta between
-        # curve and percentile should flow straight through unscaled (total_weight_old cancels).
-        pe_curve = StockScoresLoader._pe_curve_score(15.0)
-        value_new, _ = self._reconcile(
-            value_score_old=pe_curve,
-            composite_score_old=50.0,
-            risk_score=50.0,
-            pe=15.0,
-            pb=None,
-            fwd_pe=None,
-            dividend_yield=None,
-            pe_pct=90.0,
-            pb_pct=None,
-            fwd_pe_pct=None,
+    def test_negative_book_value_floor_beats_cash_yield_substitute(self) -> None:
+        # NEGBOOK has a real, cheap fcf_yield (the price-basis EV/CFO fallback) AND negative
+        # book value - MSCI's stated "missing P/B -> P/CE" substitution rule must NOT apply
+        # here (negative equity is a real, known-worst signal, not missing data): the P/B leg
+        # must be FLOORED at 0.0, not filled in with the flattering cash-yield number. POSBOOK
+        # has an ordinary positive P/B and no cash-yield data at all. Identical Forward P/E.
+        rows = [
+            self._row(symbol="POSBOOK", pb_ratio=2.0, forward_pe=15.0),
+            self._row(
+                symbol="NEGBOOK",
+                pb_ratio=None,
+                pb_ratio_unavailable_reason="negative_book_value",
+                forward_pe=15.0,
+                fcf_yield=0.50,  # would otherwise look extremely cheap
+            ),
+        ]
+        updates = self._updates_by_symbol(self._run(rows))
+        assert updates["NEGBOOK"][1] < updates["POSBOOK"][1], (
+            "negative-book-value P/B leg must be floored at 0.0, not substituted with the "
+            "flattering cash-yield number - that substitution rule is for genuinely MISSING "
+            "P/B data only, per MSCI's own stated rule"
         )
-        assert value_new == round(90.0, 2)
 
-    def test_only_forward_pe_available_isolates_weight_correctly(self) -> None:
-        # Same isolation check as P/E above, but for Forward P/E specifically (new 2026-08-28
-        # input) - confirms it participates in the percentile reconciliation on equal footing.
-        fwd_pe_curve = StockScoresLoader._pe_curve_score(18.0)
-        value_new, _ = self._reconcile(
-            value_score_old=fwd_pe_curve,
-            composite_score_old=50.0,
-            risk_score=50.0,
-            pe=None,
-            pb=None,
-            fwd_pe=18.0,
-            dividend_yield=None,
-            pe_pct=None,
-            pb_pct=None,
-            fwd_pe_pct=85.0,
-        )
-        assert value_new == round(85.0, 2)
+    def test_missing_book_value_falls_back_to_cash_earnings_substitute(self) -> None:
+        # GENUINELYMISSING has pb_ratio=None with NO unavailable_reason at all (a real "we
+        # never computed this" gap, not a known-worst negative-equity signal) - MSCI's stated
+        # substitution rule (missing P/B -> P/CE) should apply: the leg is filled from
+        # cash_yield_pct, still counting as 1/3 weight, not floored and not dropped/renormalized
+        # away. Confirms the symbol still clears VALUE_MIN_WEIGHT and gets a real, non-floored
+        # score even with only Forward P/E + the substituted leg (P/B genuinely absent).
+        rows = [
+            self._row(
+                symbol="GENUINELYMISSING",
+                pb_ratio=None,
+                pb_ratio_unavailable_reason=None,
+                forward_pe=15.0,
+                enterprise_value=100.0,
+                operating_cash_flow=20.0,
+            ),
+            # A peer so the percentile ranking has more than one symbol to rank against.
+            self._row(symbol="PEER", pb_ratio=3.0, forward_pe=20.0, enterprise_value=100.0, operating_cash_flow=5.0),
+        ]
+        updates = self._updates_by_symbol(self._run(rows))
+        assert updates["GENUINELYMISSING"][1] is not None
 
-    def test_composite_delta_scaled_by_value_weight(self) -> None:
-        # composite_score's change must equal value_weight * value_score's change, using the
-        # same fixed BASE_PILLAR_WEIGHTS every pillar uses (no risk-conditioned shift).
-        risk_score = 0.0
-        value_weight = BASE_PILLAR_WEIGHTS["value"]
-        value_new, composite_new = self._reconcile(
-            value_score_old=40.0,
-            composite_score_old=60.0,
-            risk_score=risk_score,
-            pe=15.0,
-            pb=None,
-            fwd_pe=None,
-            dividend_yield=None,
-            pe_pct=80.0,
-            pb_pct=None,
-            fwd_pe_pct=None,
-        )
-        expected_composite = round(60.0 + value_weight * (value_new - 40.0), 2)
-        assert composite_new == expected_composite
+    def test_double_unprofitable_symbol_floors_earnings_leg(self) -> None:
+        # Both trailing P/E (unprofitable) AND forward P/E (negative forecast) unusable - the
+        # worst possible Earnings/Price outcome, floored at 0.0, not excluded/renormalized.
+        rows = [
+            self._row(symbol="HEALTHY", pb_ratio=2.0, forward_pe=15.0),
+            self._row(
+                symbol="DOUBLYUNPROFITABLE",
+                pb_ratio=2.0,
+                pe_ratio=None,
+                pe_ratio_unavailable_reason="unprofitable_stock",
+                forward_pe=None,
+                forward_pe_unavailable_reason="negative_forward_eps",
+            ),
+        ]
+        updates = self._updates_by_symbol(self._run(rows))
+        assert updates["DOUBLYUNPROFITABLE"][1] < updates["HEALTHY"][1]
 
-    def test_results_stay_within_0_100_bounds(self) -> None:
-        value_new, composite_new = self._reconcile(
-            value_score_old=99.0,
-            composite_score_old=99.0,
-            risk_score=0.0,
-            pe=5.0,
-            pb=None,
-            fwd_pe=None,
-            dividend_yield=None,
-            pe_pct=100.0,
-            pb_pct=None,
-            fwd_pe_pct=None,
-        )
-        assert 0.0 <= value_new <= 100.0
-        assert 0.0 <= composite_new <= 100.0
+    def test_bank_industry_omits_ev_cfo_leg_entirely(self) -> None:
+        # A depository bank's operating_cash_flow/enterprise_value are not comparable
+        # "cash generation" measures (loan-issuance/deposit-flow driven, not leverage) - the
+        # EV/CFO leg must be omitted for it entirely, not scored on a number that doesn't mean
+        # what the leg claims. With P/B and Forward P/E both present (2/3 legs, clears
+        # VALUE_MIN_WEIGHT), the bank still gets a real value_score - just never touched by its
+        # own (deliberately extreme, to make the assertion unambiguous) EV/CFO inputs.
+        rows = [
+            self._row(symbol="ORDINARYCO", pb_ratio=2.0, forward_pe=15.0),
+            self._row(
+                symbol="BIGBANK",
+                pb_ratio=2.0,
+                forward_pe=15.0,
+                enterprise_value=100.0,
+                operating_cash_flow=-500.0,  # would be a nonsensical/extreme cash yield if used
+                industry="National Commercial Banks",
+            ),
+        ]
+        updates = self._updates_by_symbol(self._run(rows))
+        # Same P/B and Forward P/E raw ratios (and same thin-universe residual pool), EV/CFO
+        # leg never applied to BIGBANK -> identical value_score to ORDINARYCO.
+        assert updates["BIGBANK"][1] == updates["ORDINARYCO"][1]
 
-    def test_unprofitable_pe_counts_toward_weight_but_contributes_zero(self) -> None:
-        # An unprofitable symbol (pe=None, reason="unprofitable_stock") must count P/E's 0.12
-        # toward total_weight_old (diluting the other components' effective share) even though
-        # it contributes nothing to either weighted_sum - both OLD and NEW are floored at 0 by
-        # _score_value's Pass-1 treatment, so this pass shouldn't move value_score on the P/E
-        # term specifically, only via the OTHER available components' renormalized share.
-        pb_curve = StockScoresLoader._pb_curve_score(2.0)
-        with_pe = self._reconcile(
-            value_score_old=pb_curve,
-            composite_score_old=50.0,
-            risk_score=50.0,
-            pe=15.0,
-            pb=2.0,
-            fwd_pe=None,
-            dividend_yield=None,
-            pe_pct=StockScoresLoader._pe_curve_score(15.0),
-            pb_pct=pb_curve,
-            fwd_pe_pct=None,
-        )
-        unprofitable = self._reconcile(
-            value_score_old=(StockScoresLoader._pe_curve_score(0.0) * 0.0 + pb_curve * 0.27) / 0.54,
-            composite_score_old=50.0,
-            risk_score=50.0,
-            pe=None,
-            pb=2.0,
-            fwd_pe=None,
-            dividend_yield=None,
-            pe_pct=None,
-            pb_pct=pb_curve,
-            fwd_pe_pct=None,
-            pe_reason="unprofitable_stock",
-        )
-        # Both scenarios produce a real, bounded float - the unprofitable case isn't blocked.
-        assert 0.0 <= with_pe[0] <= 100.0
-        assert 0.0 <= unprofitable[0] <= 100.0
+    def test_financial_services_sector_omits_ev_cfo_leg_even_outside_bank_insurer_industries(self) -> None:
+        # MSCI's real, published rule (MSCI_Enhanced_Value_Index_Meth_Aug14.pdf, Appendix II,
+        # Cases 4-6) drops the EV/CFO-or-P/CE leg for the WHOLE GICS Financials sector, not just
+        # depository banks/insurance underwriters - an asset manager or broker-dealer classified
+        # "Financial Services" but NOT in DEPOSITORY_BANK_INDUSTRIES/
+        # INSURANCE_UNDERWRITER_INDUSTRIES must still have the leg omitted (added 2026-09-16,
+        # factor-purity sweep, broadening the narrower 2026-09-15 industry-only carve-out to
+        # match the primary source exactly).
+        rows = [
+            self._row(symbol="ORDINARYCO", pb_ratio=2.0, forward_pe=15.0),
+            self._row(
+                symbol="ASSETMANAGER",
+                pb_ratio=2.0,
+                forward_pe=15.0,
+                sector="Financial Services",
+                industry="Asset Management",  # NOT in DEPOSITORY_BANK_INDUSTRIES/
+                # INSURANCE_UNDERWRITER_INDUSTRIES - only the sector-wide trigger should catch it
+                enterprise_value=100.0,
+                operating_cash_flow=-500.0,  # would be a nonsensical/extreme cash yield if used
+            ),
+        ]
+        updates = self._updates_by_symbol(self._run(rows))
+        assert updates["ASSETMANAGER"][1] == updates["ORDINARYCO"][1]
+
+    def test_single_leg_below_value_min_weight_is_withheld(self) -> None:
+        # Only Forward P/E available (1/3 = 0.333 nominal weight) - below VALUE_MIN_WEIGHT
+        # (0.40) - value_score must be withheld (None), the same "insufficient data, don't
+        # fabricate a score" treatment Pass 1 uses (VALUE_MIN_WEIGHT's own docstring in
+        # value_score.py), not a thin-sample score built off one metric.
+        rows = [
+            self._row(symbol="ONLYFWDPE", pb_ratio=None, forward_pe=15.0),
+            self._row(symbol="PEER", pb_ratio=None, forward_pe=25.0),
+        ]
+        updates = self._updates_by_symbol(self._run(rows))
+        assert updates["ONLYFWDPE"][1] is None
+
+    def test_two_legs_at_two_thirds_weight_clears_value_min_weight(self) -> None:
+        # P/B + Forward P/E (2/3 = 0.667 nominal weight) clears VALUE_MIN_WEIGHT (0.40) - a
+        # real, non-withheld score, unlike the single-leg case above.
+        rows = [
+            self._row(symbol="TWOLEG", pb_ratio=2.0, forward_pe=15.0),
+            self._row(symbol="PEER", pb_ratio=4.0, forward_pe=25.0),
+        ]
+        updates = self._updates_by_symbol(self._run(rows))
+        assert updates["TWOLEG"][1] is not None
 
     def test_base_pillar_weights_value_unchanged_by_this_feature(self) -> None:
         # This feature changes HOW value_score's multiples are computed, not the top-level
@@ -410,7 +469,10 @@ class TestUpdateValueMultiplesPercentilesEndToEnd:
     @staticmethod
     def _make_mock_cursor(rows: list[tuple[Any, ...]]) -> MagicMock:
         cur = MagicMock()
-        cur.fetchall.return_value = rows
+        # side_effect [rows, []]: first fetchall() is the correction pass's own SELECT, second
+        # is _withhold_value_below_floor()'s own SELECT (added 2026-09-16, factor-purity sweep)
+        # - [] means no symbol is below the liquidity floor in this test's fixture population.
+        cur.fetchall.side_effect = [rows, []]
         return cur
 
     def test_real_row_shape_does_not_raise_indexerror(self) -> None:
@@ -622,7 +684,10 @@ class TestNegativeBookValueFloorSurvivesPercentilePass:
             self._row("NEGBOOK", None, "negative_book_value"),
         ]
         cur = MagicMock()
-        cur.fetchall.return_value = rows
+        # side_effect [rows, []]: first fetchall() is the correction pass's own SELECT, second
+        # is _withhold_value_below_floor()'s own SELECT (added 2026-09-16, factor-purity sweep)
+        # - [] means no symbol is below the liquidity floor in this test's fixture population.
+        cur.fetchall.side_effect = [rows, []]
         mock_db_context = MagicMock()
         mock_db_context.__enter__ = MagicMock(return_value=cur)
         mock_db_context.__exit__ = MagicMock(return_value=False)

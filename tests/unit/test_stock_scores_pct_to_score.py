@@ -2,12 +2,16 @@
 """Regression test for StockScoresLoader._pct_to_score (loaders/load_stock_scores.py).
 
 momentum_1m/3m/6m/12m are computed and stored as percentage NUMBERS (e.g. 20.0 for +20%),
-per load_risk_metrics_daily.py's ret_pct = (price_new - price_old) / price_old * 100. This
-guards against a bug where the "weak momentum" exclusion band was checked on the wrong scale
-(-0.03..0.03 instead of -3..3), making it match essentially no real momentum value - the
-exclusion never actually fired, so tests/test_formula_accuracy.py's TestMomentumCalculation
-(which re-implements the ±3 threshold inline rather than calling this function) kept passing
-throughout.
+per load_risk_metrics_daily.py's ret_pct = (price_new - price_old) / price_old * 100.
+
+WEAK-MOMENTUM "DEAD ZONE" REMOVED 2026-09-16 (factor-purity sweep, see _pct_to_score's own
+docstring in momentum_scoring.py): the old -3%..+3% "insufficient conviction" exclusion had no
+counterpart in any published momentum construction (MSCI/Carhart/Jegadeesh-Titman all
+z-score/rank the full continuous distribution, including near-zero returns) - it was an
+invented threshold, not industry methodology, so it's gone. This file used to also guard
+against a bug where that band was checked on the wrong scale (-0.03..0.03 instead of -3..3,
+making it never actually fire) - that history is moot now that the band itself is removed;
+every pct_return, however small, gets a real linear score.
 """
 
 from loaders.load_stock_scores import StockScoresLoader
@@ -20,16 +24,14 @@ class TestPctToScoreScale:
     def test_minus_20_pct_maps_to_0(self):
         assert StockScoresLoader._pct_to_score(-20.0) == 0
 
-    def test_zero_return_is_weak_signal_excluded(self):
-        assert StockScoresLoader._pct_to_score(0.0) is None
+    def test_zero_return_scores_exactly_center(self):
+        assert StockScoresLoader._pct_to_score(0.0) == 50.0
 
-    def test_within_weak_band_excluded(self):
+    def test_small_returns_score_linearly_not_excluded(self):
         for pct in (-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0):
-            assert StockScoresLoader._pct_to_score(pct) is None, f"{pct}% should be excluded as weak signal"
-
-    def test_just_outside_weak_band_scored(self):
-        assert StockScoresLoader._pct_to_score(3.01) is not None
-        assert StockScoresLoader._pct_to_score(-3.01) is not None
+            score = StockScoresLoader._pct_to_score(pct)
+            assert score is not None, f"{pct}% must be scored, not excluded (dead zone removed 2026-09-16)"
+            assert score == 50.0 + pct / 0.4
 
     def test_moderate_positive_return_scores_above_50(self):
         # +5% is a real, moderate momentum signal - must not be silently excluded or

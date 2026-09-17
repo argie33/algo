@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
-from loaders.helpers.factor_normalization import sector_size_neutral_zscore, zscore_to_percentile_scale
+from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
 from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
 from loaders.stock_scores.pillar_weights import (
     BASE_PILLAR_WEIGHTS,
@@ -114,148 +114,6 @@ def _owner() -> Any:
 # symbol tried this session - MSFT/NVDA/KO/T/JPM - real per-stock long-term growth data isn't in
 # Yahoo's free tier anymore; sourcing it would need a new paid vendor integration, a separate
 # decision, not something to paper over with a wrong-horizon substitute).
-# revenue_growth_1y/3y/5y, eps_growth_1y/3y/5y, forward_eps_growth_next_fy,
-# forward_revenue_growth_next_fy, quarterly_growth_momentum, earnings_growth_4q_avg are DEMOTED
-# to informational-only: still computed/persisted in growth_metrics and still API-served, but
-# REMOVED from GROWTH_SCHEMA entirely (StockScoreAccordion.jsx) rather than kept as used:false
-# rows - this repo's own established "if we're not scoring it we don't want to display it"
-# convention (already applied to every other pillar's *_SCHEMA, see
-# TestUnscoredValueFieldsNotDisplayed/test_growth_schema_has_no_unscored_rows).
-#
-# GROWTH_SCORE_FIELDS: the multi-input equal-weighted blend _score_growth scores (RESTORED
-# 2026-08-28, user directive - see _score_growth's docstring for the full history/evidence
-# trail). Order matches GROWTH_SCHEMA in StockScoreAccordion.jsx - every field the frontend's
-# Growth tab displays is scored here, not just whichever one field last "won" an isolated
-# Fama-MacBeth test. Kept at module level (not a local inside _score_growth) so
-# tests/unit/test_scores_frontend_weight_badges_match_backend.py can import it directly instead
-# of re-deriving the field list via source-regex, same convention as BASE_PILLAR_WEIGHTS.
-#
-# ocf_growth_yoy/asset_growth_yoy REMOVED 2026-08-28 (user directive, /goal session: "remove
-# these two from growth score and from react"). Raw values remain computed/persisted in
-# growth_metrics (load_value_quality_growth_metrics.py) and available via the API for reference
-# - only the scoring input and the frontend GROWTH_SCHEMA row were removed, same
-# still-computed/no-longer-scored treatment this file already uses elsewhere (e.g. margin/ROE
-# trend fields, altman_z_score).
-#
-# book_value_growth REMOVED 2026-08-28 (user directive, /goal session: live-observed
-# persistent "No data" on StockDetail for the stock under review). Same still-computed/
-# no-longer-scored treatment as above - raw value remains in growth_metrics (migration 1242)
-# for reference, just no longer scored or shown in GROWTH_SCHEMA.
-#
-# operating_income_growth_yoy REMOVED 2026-08-28 (user directive, /goal session: "remove this
-# Operating Income Growth (YoY) ... from growth from the score and the react"). Same still-
-# computed/no-longer-scored treatment as above - raw value remains in growth_metrics
-# (load_value_quality_growth_metrics.py) for reference, just no longer scored or shown in
-# GROWTH_SCHEMA.
-#
-# 2026-08-31 INDUSTRY-ALIGNMENT REVIEW (goal session: "dig and be certain we come up with the
-# right list... best regarded metrics for identifying the growth factor"). Compared the prior
-# 11-field list against MSCI/Russell/S&P's own published Growth-factor methodologies and
-# IBD CAN SLIM, then re-verified every quantitative claim directly against the live DB (not
-# carried over from a prior memory - see feedback_verify_specific_quantitative_claims_before_trusting
-# in memory for why that matters on this exact file). Two changes:
-#
-# 1. net_income_growth_yoy REMOVED. Every major growth-style methodology (MSCI, Russell, S&P,
-#    Zacks, IBD) defines the "earnings growth" descriptor on a PER-SHARE (EPS) basis
-#    specifically because it is buyback/dilution-adjusted - a company can grow raw net income
-#    only by issuing shares (real dilution, no per-owner benefit) or shrink net income while
-#    growing EPS via buybacks (common for mature compounders). Raw net-income growth is not a
-#    named component of any of those methodologies. This is a methodological objection, NOT a
-#    redundancy fix - live Spearman correlation vs eps_growth_1y is only 0.16 (re-verified
-#    2026-08-31, matches the same-day correction in
-#    growth_pillar_industry_alignment_reviewed_no_action_20260828 - net_income_growth_yoy is
-#    NOT a near-duplicate of anything else in this blend), so it was carrying real independent
-#    variance, just not the industry-standard variance for this factor.
-# 2. forward_eps_growth_current_fy / forward_eps_growth_next_fy / forward_revenue_growth_next_fy
-#    ADDED. Forward (analyst-consensus) EPS growth is the headline Growth descriptor in MSCI's
-#    "Long Term Forward EPS Growth Rate", Russell's 2-year I/B/E/S forecast EPS growth, and
-#    S&P's growth methodology - this pillar was previously 100% backward-looking with no
-#    forward-estimate input at all (flagged as the clearest institutional-comparison gap in
-#    growth_pillar_industry_alignment_reviewed_no_action_20260828, "not fixable now" at the
-#    time). That's since changed: forward_eps_growth_current_fy/next_fy and
-#    forward_revenue_growth_next_fy were added to growth_metrics 2026-08-29 (real yfinance
-#    analyst-estimate data, not a placeholder) and now have live per-symbol coverage of
-#    73.1%/75.8%/76.7% respectively - comparable to already-scored fields like fcf_growth_yoy
-#    (72.1%) - even though analyst_earnings_estimates itself still only has ~24 distinct
-#    snapshot dates (no backfill capability), too little historical depth to backtest
-#    predictive power in this DB. Included on industry-standard-methodology grounds, consistent
-#    with this pillar's standing user override to prioritize matching well-regarded growth
-#    definitions over requiring a fresh era-robust regression result for every candidate (see
-#    growth_pillar_restored_multi_input_not_inverted_user_override_20260828). Correlate weakly
-#    with every backward-looking field already in this blend (|r|<=0.33, mostly <0.1) and with
-#    each other (0.42 forward EPS vs forward revenue) - genuinely new information, not
-#    redundant with anything already here. eps_estimate_revision_90d_pct (the 4th field on the
-#    same table) deliberately NOT added - estimate-revision momentum is a distinct factor style
-#    (Zacks Rank's basis) from a growth-RATE level, and mixing a revision-momentum metric into a
-#    naive equal-weight average of growth levels would conflate two different things this file
-#    is otherwise careful to keep separate (see Growth-vs-Momentum pillar separation elsewhere
-#    in this file) - stays informational-only in GROWTH_SCHEMA, fetched but unscored, same
-#    treatment as eps_growth_stability above.
-#
-# fcf_growth_yoy was also reviewed against this same "is it in MSCI/Russell/S&P's canon"
-# standard and is the other non-canonical member (FCF growth isn't a named Growth-factor
-# descriptor in any of the three) - kept anyway: it functions as a "quality of growth" check
-# (cash-backed earnings growth vs an accounting-only number) rather than a duplicate growth-
-# rate, is not correlated with anything else in the blend (|r|<=0.32), and this codebase
-# already trusts cash-flow-based measures elsewhere (FCF Yield in Value). Secondary/
-# supplementary rather than core-canon, but not "wrong" - left in.
-#
-# eps_growth_stability ADDED 2026-08-31 (/goal session, explicit user directive: "add earnings
-# variability as additional input to growth score"). Previously fetched into `metrics` but
-# deliberately excluded from GROWTH_SCORE_FIELDS/this blend (see the now-superseded note in
-# _score_growth's docstring) because, unlike every other candidate here, it's a dispersion
-# metric (population stddev, in percentage points, of the trailing-4-quarter YoY EPS growth
-# rates - see _compute_quarterly_metrics in load_value_quality_growth_metrics.py), always >=0
-# and "lower is better" rather than a signed growth rate on the same higher-is-better scale.
-# "Earnings variability" is itself a named signal in institutional factor methodology (e.g. it's
-# one of MSCI's own three Quality-index components, alongside ROE and leverage) - the user's
-# framing of it as a Growth input rather than Quality is an explicit, direct product decision,
-# not a methodology dispute to relitigate (same footing as this pillar's standing multi-input
-# user override - see _score_growth's docstring). Real, live-computed data: 3,879/4,862 non-
-# unavailable growth_metrics rows have a value (79.8% coverage, live-verified 2026-08-31 -
-# comparable to already-scored fcf_growth_yoy's 72.1% and quarterly_growth_momentum's 79.5%),
-# not a placeholder. Scored via a dedicated inverted piecewise curve
-# (_score_growth's _score_eps_growth_stability), NOT _score_single_growth - see that helper's
-# own docstring for why (this field's scale/shape has nothing in common with a signed growth
-# rate, so it can't reuse the shared cap=30 linear transform every other candidate does).
-# fcf_growth_yoy / eps_growth_stability REMOVED 2026-08-31 (goal session: "figure out what is
-# right and best, best proven validated best practices" - user explicitly asked to judge every
-# field on finance merit alone, not on what a prior session had already decided). Both were kept
-# through 3 earlier reviews on "real, uncorrelated signal" grounds - true, but insufficient once
-# actually held to the SAME two-part bar the other 12 fields already clear:
-# 1. fcf_growth_yoy: not a named component of MSCI/Russell/S&P/IBD's Growth methodology (cash-
-#    flow growth isn't a canonical Growth descriptor anywhere), AND its own era-split predictive
-#    evidence - independently reproduced this session via
-#    `python -m algo.research.fama_macbeth_growth_factors` (not reused from a prior claim) -
-#    actively FLIPS SIGN with real significance both ways (H1 2014-2020-06 t=-2.09, H2
-#    2020-06-2026 t=+2.45, full-sample t=0.43). This is the identical "era-inconsistent, reject"
-#    pattern this file has used to reject every other flipping candidate (e.g.
-#    net_income_growth_yoy/operating_income_growth_yoy, asset_growth_yoy under the no-flip
-#    convention) - not weak evidence, actively unstable evidence.
-# 2. eps_growth_stability: real, non-redundant signal (~0 correlation with every growth-rate
-#    field, live-checked) and legitimate, well-established methodology - but it's MSCI's own
-#    Quality-index earnings-variability component, not a Growth-factor descriptor in MSCI's,
-#    Russell's, S&P's, or IBD's published methodology. Held to the same "must be a named
-#    component of a real Growth methodology" standard as the other 12, it doesn't qualify for
-#    THIS pillar - it may belong in Quality instead (which has no earnings-variability input of
-#    its own, only the related-but-distinct Margin Volatility), but that's a separate Quality-
-#    pillar decision, not made here. Still computed/persisted in growth_metrics and displayed as
-#    a tracked-not-scored row in GROWTH_SCHEMA (frontend), per this repo's standing "convert
-#    removed fields to informational rows, don't delete" practice - not scored here.
-# Net result at the time (2026-08-31 through 2026-09-16): 12 fields, claimed canonical to a named
-# MSCI/Russell/S&P/IBD Growth-factor component. SUPERSEDED 2026-09-16 - see
-# GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE above: only 4 of these 12 survive verification against
-# MSCI's and Barra's real published methodology documents WITHOUT substituting a guess for data
-# this system doesn't actually have. forward_eps_growth_next_fy (MSCI's "long-term forward EPS
-# growth rate", normally a real 3-5yr consensus LTG estimate) was tried as a next-FY proxy and
-# then DROPPED, not shipped as a guess ("I don't like the guesses, we [need to] be right, not
-# guessing") - live-checked this session: yfinance's own `growth_estimates` property has a real
-# "LTG" row (confirming the concept exists in Yahoo's data model), but it returned NaN for every
-# symbol checked (MSFT/NVDA/KO/T/JPM) - Yahoo's free tier no longer populates real per-stock
-# long-term consensus growth. No other analyst-estimate data source is integrated into this
-# system - getting real LTG data would mean a new paid vendor integration (Zacks/FactSet/IBES/
-# Finnhub all have it), a separate scope decision, not a data-availability gap closeable here.
-# Equal-weighted (1/4 = 25% each now, not 1/12 - see GROWTH_SCHEMA/weight badges).
 GROWTH_SCORE_FIELDS: tuple[str, ...] = (
     "eps_growth_trend_5y",
     "sps_growth_trend_5y",
@@ -675,15 +533,20 @@ class GrowthScoringMixin:
         list, the weighting, or either guard. This is an explicit, non-negotiable user directive
         (see GROWTH_SCORE_FIELDS/_score_growth's own docstrings) - not re-litigated here.
 
-        GROWTH_INPUT_IMPLAUSIBLE_PCT is still applied BEFORE the z-score (a raw value more than
-        150% away from 0% is excluded from a field's z-score population entirely, same as Pass
-        1's exclusion from the curve-blend) - `sector_neutral_zscore`'s own [1st,99th] percentile
-        winsorization is a separate, milder safeguard against ordinary sector-distribution tails
-        and does not substitute for excluding a value this codebase has already identified as a
-        likely one-off (KARO's eps_growth_1y=1889%, DX's fcf_growth_yoy=739.5% - see that
-        constant's own docstring for the full evidence).
+        STALE CLAIM REMOVED 2026-09-16 (factor-purity sweep, found while re-auditing this exact
+        docstring against the code below it, not the focus of that pass): this used to claim
+        "GROWTH_INPUT_IMPLAUSIBLE_PCT is still applied BEFORE the z-score" - false since
+        2026-09-15, when that hard exclusion was deliberately REMOVED from this pass (see the
+        code's own "GROWTH_INPUT_IMPLAUSIBLE_PCT's hard exclusion REMOVED from this pass" comment
+        a few lines below) as redundant with `sector_neutral_zscore`'s own [1st,99th] percentile
+        winsorization - the real MSCI/Barra/AQR-standard outlier treatment. The constant is NOT
+        applied in this batch pass at all; it is still applied in Pass 1 (`_score_growth` above),
+        which necessarily differs (see that function's own docstring) - a per-symbol Pass-1 call
+        never sees the population, so it cannot winsorize against sector peers the way this
+        population-level pass can. This docstring simply never got updated after the 2026-09-15
+        change - the code has been correct since then, only this paragraph was lying about it.
 
-        GROWTH_MIN_FIELDS_AVAILABLE is preserved exactly: a symbol with fewer than 5/12 fields
+        GROWTH_MIN_FIELDS_AVAILABLE is preserved exactly: a symbol with fewer than 2/4 fields
         available (after implausible-value exclusion) gets growth_score=None here (withheld,
         same "thin-sample extrapolation, not an honest partial score" principle as Pass 1's
         marker-dict return, adapted to this pass's "None is a valid overwrite" convention -
@@ -709,15 +572,19 @@ class GrowthScoringMixin:
                 # universe exclusion get_active_symbols(exclude_etfs=True) enforces for the
                 # per-symbol fetch path keeps getting growth_score/composite_score freshly
                 # recomputed here forever.
+                # Growth-field column list built from GROWTH_SCORE_FIELDS itself (4 fields as of
+                # the 2026-09-16 MSCI/Barra-aligned cut - see that constant's own
+                # GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE) rather than a separately hand-maintained
+                # column literal - field_col_offset below assumes column order/count matches
+                # GROWTH_SCORE_FIELDS exactly, so a hardcoded list here could silently drift out
+                # of sync with that constant.
+                growth_field_columns = ", ".join(f"gm.{field}" for field in GROWTH_SCORE_FIELDS)
                 cur.execute(
-                    """
+                    f"""
                     SELECT ss.symbol, ss.growth_score, ss.composite_score, ss.quality_score,
                            ss.value_score, ss.risk_score, ss.momentum_score, ss.components,
                            ss.data_completeness, ss.data_unavailable,
-                           gm.revenue_growth_1y, gm.eps_growth_1y, gm.revenue_growth_3y, gm.eps_growth_3y,
-                           gm.revenue_growth_5y, gm.eps_growth_5y, gm.forward_eps_growth_current_fy,
-                           gm.forward_eps_growth_next_fy, gm.forward_revenue_growth_next_fy,
-                           gm.sustainable_growth_rate, gm.quarterly_growth_momentum, gm.earnings_growth_4q_avg,
+                           {growth_field_columns},
                            cp.sector, COALESCE(cis.is_foreign_private_issuer, false), vm.market_cap
                     FROM stock_scores ss
                     JOIN growth_metrics gm ON gm.symbol = ss.symbol
@@ -748,33 +615,34 @@ class GrowthScoringMixin:
                 )
                 return
 
-            # forward_eps_growth_current_fy/next_fy and forward_revenue_growth_next_fy are stored
-            # as raw fractions in growth_metrics (0.18 = 18%), same as _get_growth_metrics's own
-            # _scale_fraction_to_pct helper handles for Pass 1 - scale to percentage points here
-            # too so they're on the same scale as every other GROWTH_SCORE_FIELDS candidate before
-            # winsorization/z-scoring.
+            # forward_eps_growth_current_fy is stored as a raw fraction in growth_metrics
+            # (0.18 = 18%), same as _get_growth_metrics's own _scale_fraction_to_pct helper
+            # handles for Pass 1 - scale to percentage points here too so it's on the same scale
+            # as every other GROWTH_SCORE_FIELDS candidate before winsorization/z-scoring.
             fraction_fields = {
                 "forward_eps_growth_current_fy",
-                "forward_eps_growth_next_fy",
-                "forward_revenue_growth_next_fy",
             }
-            # Column index (within the 12-field slice starting at row[10]) for each
-            # GROWTH_SCORE_FIELDS candidate, matching the SELECT's column order above exactly.
+            # Column index (within the GROWTH_SCORE_FIELDS-width slice starting at row[10]) for
+            # each candidate, matching the SELECT's dynamically-built column order above exactly.
             field_col_offset = {field: 10 + i for i, field in enumerate(GROWTH_SCORE_FIELDS)}
+            # sector/is_fpi immediately follow the GROWTH_SCORE_FIELDS columns - their index must
+            # move with that constant's length, not a hardcoded 12-field assumption. market_cap
+            # (the column after is_fpi) is still selected below for the liquidity-floor join but
+            # no longer read into a Python dict here - size-neutralization was removed 2026-09-16
+            # (see the pct_by_field comment below).
+            _sector_idx = 10 + len(GROWTH_SCORE_FIELDS)
+            _fpi_idx = _sector_idx + 1
 
             sector_map: dict[str, str] = {}
             for row in rows:
-                sector = apply_mortgage_reit_sector_override(row[0], row[22])
+                sector = apply_mortgage_reit_sector_override(row[0], row[_sector_idx])
                 if sector is not None:
                     sector_map[row[0]] = sector
 
             # FPI peer-group split (2026-09-14, goal-session "fix z-scoring issues" directive -
-            # see sector_neutral_zscore's own docstring in factor_normalization.py). row[23] is
+            # see sector_neutral_zscore's own docstring in factor_normalization.py).
             # COALESCE(cis.is_foreign_private_issuer, false) per this query's own SELECT above.
-            is_fpi: dict[str, bool] = {row[0]: bool(row[23]) for row in rows if len(row) > 23}
-            market_cap_map: dict[str, float] = {
-                row[0]: float(row[24]) for row in rows if len(row) > 24 and row[24] is not None and float(row[24]) > 0
-            }
+            is_fpi: dict[str, bool] = {row[0]: bool(row[_fpi_idx]) for row in rows if len(row) > _fpi_idx}
 
             raw_by_field: dict[str, dict[str, float]] = {field: {} for field in GROWTH_SCORE_FIELDS}
             for row in rows:
@@ -795,12 +663,18 @@ class GrowthScoringMixin:
                     # second layer of protection.
                     raw_by_field[field][symbol] = val_f
 
-            # Barra-style size neutralization (same as Value's div/cash-yield legs, 2026-09-15 -
-            # regress each field on log(market_cap) within its sector peer group, z-score the
-            # residual) - see sector_size_neutral_zscore's own docstring.
+            # SIZE NEUTRALIZATION REMOVED 2026-09-16 (factor-purity sweep - this leftover was
+            # justified purely by pointing at "same as Value's div/cash-yield legs, 2026-09-15",
+            # but Value's own MSCI-formula rebuild the SAME SESSION already dropped that exact
+            # step (see value_metrics.py's "DROPPED from the prior construction to match MSCI
+            # exactly: ... Barra-style size-neutralization ... not part of MSCI's literal
+            # published formula") and Quality's rebuild dropped it too - Growth was the last
+            # pillar still citing a precedent that no longer exists. Plain sector-relative
+            # z-scoring (sector_neutral_zscore) matches MSCI's real Growth-trend methodology
+            # (this file's own top-of-file citation), which has no size-residualization step.
             pct_by_field: dict[str, dict[str, float]] = {
                 field: zscore_to_percentile_scale(
-                    sector_size_neutral_zscore(values, sector_map, market_cap_map, is_foreign_private_issuer=is_fpi)
+                    sector_neutral_zscore(values, sector_map, is_foreign_private_issuer=is_fpi)
                 )
                 for field, values in raw_by_field.items()
             }
@@ -881,6 +755,8 @@ class GrowthScoringMixin:
                         )
                     )
 
+            updates.extend(self._withhold_growth_below_floor())
+
             if not updates:
                 logger.info(
                     "[STOCK_SCORES] Growth sector-neutral z-score pass: no symbol's growth_score/"
@@ -916,3 +792,127 @@ class GrowthScoringMixin:
             error_msg = f"Growth sector-neutral z-score batch update failed - stock scores cannot be finalized: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
+
+    def _withhold_growth_below_floor(
+        self,
+    ) -> list[tuple[str, float | None, float, str | None, float, bool]]:
+        """Companion to update_growth_sector_neutral_scores(): finds the COMPLEMENT of that
+        method's own correction population - symbols with a real growth_score but ineligible for
+        correction (below the liquidity floor, or excluded by
+        NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE) - and withholds growth_score (NULL) plus
+        recomputes composite_score/data_completeness/data_unavailable to match, rather than
+        leaving Pass 1's stale, potentially-saturated absolute-curve value (`_score_single_growth`,
+        including a value GROWTH_INPUT_IMPLAUSIBLE_PCT would otherwise have excluded) in place
+        indefinitely.
+
+        PORTED 2026-09-16 (factor-purity sweep - this exact bug class was already found and fixed
+        for Quality (vqg_quality_batch.py's `_withhold_quality_below_floor`) and Momentum
+        (momentum_scoring.py's `_withhold_momentum_below_floor`, commit c1a3dd899) but never
+        ported here or to Value/Risk - see those two methods' own docstrings for the shared
+        rationale. Same gap, same fix, same shape.
+
+        Returns tuples in the same (symbol, growth_score, composite_score, components,
+        data_completeness, data_unavailable) shape update_growth_sector_neutral_scores()'s own
+        `updates` list uses, so the caller can extend one batch UPDATE with both.
+        """
+        with _owner().DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                SELECT ss.symbol, ss.composite_score, ss.quality_score, ss.value_score,
+                       ss.risk_score, ss.momentum_score, ss.components,
+                       ss.data_completeness, ss.data_unavailable
+                FROM stock_scores ss
+                JOIN growth_metrics gm ON gm.symbol = ss.symbol
+                JOIN stock_symbols su ON su.symbol = ss.symbol
+                LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                LEFT JOIN (
+                    SELECT symbol,
+                           AVG(volume * close) AS avg_dollar_volume_20d,
+                           (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
+                    FROM (
+                        SELECT symbol, volume, close, date,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM price_daily
+                        WHERE date >= CURRENT_DATE - INTERVAL '45 days'
+                          AND COALESCE(data_unavailable, false) = false
+                          AND volume IS NOT NULL AND close IS NOT NULL
+                    ) ranked
+                    WHERE rn <= 20
+                    GROUP BY symbol
+                ) liq_floor ON liq_floor.symbol = ss.symbol
+                WHERE ss.growth_score IS NOT NULL
+                  AND (
+                        liq_floor.latest_close IS NULL
+                        OR liq_floor.latest_close < %s
+                        OR liq_floor.avg_dollar_volume_20d IS NULL
+                        OR liq_floor.avg_dollar_volume_20d < %s
+                        OR NOT ("""
+                + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                + """)
+                  )
+                """,
+                (
+                    getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
+                    getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                ),
+            )
+            rows = cur.fetchall()
+
+        if not rows:
+            # No work to do - every scored symbol already cleared the liquidity floor and the
+            # non-operating exclusion, so there's nothing to withhold this run. Not an error.
+            return []
+
+        min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
+        withheld: list[tuple[str, float | None, float, str | None, float, bool]] = []
+        for (
+            symbol,
+            _composite_score_old,
+            quality_score,
+            value_score,
+            risk_score,
+            momentum_score,
+            components_old,
+            _dc_old,
+            _du_old,
+        ) in rows:
+            weights = BASE_PILLAR_WEIGHTS
+            composite_val = 0.0
+            for pillar_name, pillar_score in (
+                ("quality", quality_score),
+                ("value", value_score),
+                ("risk", risk_score),
+                ("momentum", momentum_score),
+            ):
+                if pillar_score is not None:
+                    composite_val += float(pillar_score) * weights[pillar_name]
+            composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+            available_weight = sum(
+                weights[p]
+                for p, s in (
+                    ("quality", quality_score),
+                    ("value", value_score),
+                    ("risk", risk_score),
+                    ("momentum", momentum_score),
+                )
+                if s is not None
+            )
+            data_completeness_new = min(99.99, round(available_weight * 100, 2))
+            data_unavailable_new = data_completeness_new < min_completeness_threshold
+            components_json = self._components_with_corrected_growth(components_old, None)
+            withheld.append(
+                (
+                    symbol,
+                    None,
+                    composite_score_new,
+                    components_json,
+                    data_completeness_new,
+                    data_unavailable_new,
+                )
+            )
+        logger.info(
+            f"[STOCK_SCORES] Growth: withheld growth_score for {len(withheld)} symbols below the "
+            f"liquidity floor / excluded from the scoring population (never reached by the "
+            f"correction pass above) - see _withhold_growth_below_floor's docstring."
+        )
+        return withheld

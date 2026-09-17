@@ -94,6 +94,7 @@ class QualityReasonsProfitabilityMixin:
         operating_profitability: float | None,
         accruals_ratio: float | None,
         margin_volatility: float | None,
+        earnings_variability: float | None,
         fcf_margin: float | None,
         asset_turnover: float | None,
         no_gross_profit_concept: bool,
@@ -233,6 +234,13 @@ class QualityReasonsProfitabilityMixin:
         )
         metrics["margin_volatility"] = margin_volatility
         metrics["margin_volatility_unavailable_reason"] = "insufficient_history" if margin_volatility is None else None
+        # MSCI's real 3rd Quality fundamental variable (see loaders/helpers/
+        # quality_variability.py's own citation) - same raw-value/reason write pattern as
+        # margin_volatility directly above (this function's established convention).
+        metrics["earnings_variability"] = earnings_variability
+        metrics["earnings_variability_unavailable_reason"] = (
+            "insufficient_history" if earnings_variability is None else None
+        )
         # Gate on `X is None` directly (not `"X" in failed_metrics`) - the compute blocks
         # above don't append fcf_margin/asset_turnover to failed_metrics when inputs are
         # merely missing (only when the |ratio|>1000 bound fires), so gating on

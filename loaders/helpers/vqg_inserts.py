@@ -122,8 +122,9 @@ def insert_quality_metrics(cur: Any, row: dict[str, Any]) -> None:
          roce_pct, roce_pct_unavailable_reason, fcf_margin, fcf_margin_unavailable_reason,
          asset_turnover, asset_turnover_unavailable_reason,
          earnings_surprise_avg_unavailable_reason, eps_growth_stability_unavailable_reason,
-         earnings_beat_rate_unavailable_reason, consecutive_positive_quarters_unavailable_reason)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+         earnings_beat_rate_unavailable_reason, consecutive_positive_quarters_unavailable_reason,
+         earnings_variability, earnings_variability_unavailable_reason)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (symbol) DO UPDATE SET
             roe = EXCLUDED.roe,
             roa = EXCLUDED.roa,
@@ -157,6 +158,8 @@ def insert_quality_metrics(cur: Any, row: dict[str, Any]) -> None:
             operating_profitability = EXCLUDED.operating_profitability,
             accruals_ratio = EXCLUDED.accruals_ratio,
             margin_volatility = EXCLUDED.margin_volatility,
+            earnings_variability = EXCLUDED.earnings_variability,
+            earnings_variability_unavailable_reason = EXCLUDED.earnings_variability_unavailable_reason,
             gross_margin = EXCLUDED.gross_margin,
             roic_pct = EXCLUDED.roic_pct,
             fcf_to_net_income = EXCLUDED.fcf_to_net_income,
@@ -324,6 +327,8 @@ def insert_quality_metrics(cur: Any, row: dict[str, Any]) -> None:
             row.get("eps_growth_stability_unavailable_reason"),
             row.get("earnings_beat_rate_unavailable_reason"),
             row.get("consecutive_positive_quarters_unavailable_reason"),
+            row.get("earnings_variability"),
+            row.get("earnings_variability_unavailable_reason"),
         ),
     )
 

@@ -17,7 +17,8 @@ from typing import TYPE_CHECKING, Any
 import psycopg2
 
 from loaders.helpers.factor_normalization import (
-    sector_size_neutral_zscore,
+    sector_neutral_zscore,
+    universe_wide_zscore,
     zscore_to_percentile_scale,
 )
 from loaders.helpers.vqg_shared import (
@@ -383,16 +384,21 @@ class ValueMetricsMixin:
         `update_rs_percentiles()`'s pure-overwrite pattern, not the additive-delta design this
         method used until the rewrite below - see "BUG FOUND + FIXED 2026-08-31" below.
 
-        STALE-DOCSTRING NOTE (fixed 2026-09-16, factor-purity sweep): this top section and the
-        MECHANISM paragraph below described a 5-input flat-20%-each construction (P/E/P/B/P/S/
-        Forward-P/E/Dividend-Yield) that hasn't been true since 2026-09-15 - the real, live
-        construction is the MSCI Enhanced Value 3-leg formula (P/B-or-P/CE, E/P, EV/CFO-or-P/CE,
-        each 1/3 weight, no P/S or dividend-yield leg at all) implemented further down in this
-        same method - see the "MSCI ENHANCED VALUE CONSTRUCTION FIDELITY" comment block below
-        for the actual, current logic. Left the historical MECHANISM narrative below as-is
-        (audit trail, not currently-accurate mechanism) rather than rewriting it, same
-        "superseded, kept for history" convention this file uses elsewhere - trust the
-        code/comments from "MSCI ENHANCED VALUE CONSTRUCTION FIDELITY" onward, not this
+        STALE-DOCSTRING NOTE (fixed 2026-09-16, factor-purity sweep, UPDATED same day after the
+        MSCI z-score rebuild below): this top section and the MECHANISM paragraph below described
+        a 5-input flat-20%-each construction (P/E/P/B/P/S/Forward-P/E/Dividend-Yield) that hasn't
+        been true since 2026-09-15. The real, live construction is now MSCI's actual published
+        Enhanced Value 3-leg z-score formula (P/B-or-P/CE, E/P, EV/CFO-or-P/CE, each 1/3 weight,
+        no P/S or dividend-yield leg at all - universe-wide per-leg z-score, THEN a single
+        sector-relative standardization of the equal-weighted composite, THEN +/-3 winsorization
+        and a 0-100 conversion) - see the "MSCI ENHANCED VALUE Z-SCORE CONSTRUCTION" comment block
+        further down in this same method for the actual, current logic and its primary-source
+        citation. An earlier same-day pass (percentile-rank-per-leg, sector-relativized before
+        combining) is itself now superseded - see that comment block's own "DROPPED from the
+        prior construction" note for exactly what changed and why. Left the historical MECHANISM
+        narrative below as-is (audit trail, not currently-accurate mechanism) rather than
+        rewriting it, same "superseded, kept for history" convention this file uses elsewhere -
+        trust the code/comments from "MSCI ENHANCED VALUE Z-SCORE CONSTRUCTION" onward, not this
         docstring's own top section or MECHANISM paragraph, for what's actually live.
 
         INVESTABILITY FLOOR ADDED 2026-09-13 (`vm.market_cap >= %s`, algo_config.min_market_
@@ -533,6 +539,28 @@ class ValueMetricsMixin:
         `_percent_rank_cheap_high_sector_relative`) instead of against the full cross-sector
         universe - closing the gap that research script was built to test.
 
+        PRIMARY-SOURCE CONFIRMATION 2026-09-16 (factor-purity sweep, user asked "what does the
+        industry do?" directly): at adoption time this was justified ONLY by this repo's own
+        Fama-MacBeth backtest (below) - an internal-evidence basis, the same category of
+        adoption that got Momentum's sector-relative mom_12_1 and Risk's sector-neutral
+        volatility REVERSED later after real MTUM/USMV N-PORT holdings crosschecks showed they
+        hurt real-fund agreement (see momentum_scoring.py's "REVERSAL" history and
+        risk_scoring.py's own volatility-universe-wide fix). Fetched and read MSCI's real,
+        published Enhanced Value Indexes Methodology directly this session (msci.com/eqb,
+        MSCI_Enhanced_Value_Index_Meth_Aug14.pdf, Appendix II "Value Z-Score Computation") to
+        check whether Value's sector-relative choice was the same kind of unverified internal
+        guess - it is NOT: MSCI's real construction is "compute each individual variable's
+        z-score within the [universe-wide] Parent Index, [then] a sector relative score is then
+        derived from the composite value z-score ... by standardizing the composite value
+        z-score within each sector" - MSCI genuinely sector-relativizes Value, just at the
+        COMPOSITE stage (after combining the 3 legs) rather than per-individual-variable (before
+        combining) the way this method does it. This repo's sector-relative ADOPTION is
+        therefore correct in kind, confirmed against the primary source, not merely an
+        internally-validated guess like the two reversed pillars above - the remaining
+        difference (per-variable vs. per-composite sector-relativization, and percentile rank
+        vs. MSCI's winsorized-z-score-then-piecewise-transform) is a separate, still-open
+        methodology-fidelity question, not a "was this the right call at all" one.
+
         WHY: cross-sectionally pooling all sectors before ranking P/E/P/B/P/S conflates genuine
         mispricing with persistent, structural sector-level valuation-regime differences (a
         Financial Services stock's P/E is mechanically lower than a Technology stock's for
@@ -647,9 +675,12 @@ class ValueMetricsMixin:
                 )
                 return
 
-            pe_raw: dict[str, float] = {}
-            pb_raw: dict[str, float] = {}
-            fwd_pe_raw: dict[str, float] = {}
+            # book_to_price_raw: MSCI z-scores the INVERSE of Price/Book (Appendix II: "the mean
+            # and standard deviation of the inverse of the corresponding variable") so that a
+            # higher value consistently means "cheaper" across all 3 legs, matching earnings_
+            # yield_raw/cash_yield_raw_map's own already-inverted (E/P, CFO/EV) convention -
+            # stored as book-to-price here, not raw pb_ratio, for that reason.
+            book_to_price_raw: dict[str, float] = {}
             # cash_yield_raw_map: MSCI Enhanced Value's real third leg is Enterprise
             # Value-to-Cash-Flow-from-Operations (EV/CFO), not a price/equity-basis metric -
             # confirmed against MSCI's own published fact sheet for the real MSCI USA Enhanced
@@ -691,46 +722,63 @@ class ValueMetricsMixin:
                 if market_cap_raw is not None and float(market_cap_raw) > 0:
                     market_cap_map[symbol] = float(market_cap_raw)
                 industry_raw = row[26] if len(row) > 26 else None
-                is_cfo_nonsense_industry = (
-                    industry_raw in DEPOSITORY_BANK_INDUSTRIES or industry_raw in INSURANCE_UNDERWRITER_INDUSTRIES
-                )
                 pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
                 sector = apply_mortgage_reit_sector_override(symbol, row[17])
                 if sector is not None:
                     sector_map[symbol] = sector
+                # GICS FINANCIALS SECTOR-WIDE EV/CFO OMISSION (2026-09-16, factor-purity sweep
+                # - fetched and read MSCI_Enhanced_Value_Index_Meth_Aug14.pdf directly this
+                # session, Appendix II "Value Z-Score Computation"). MSCI's real, published rule
+                # is stated purely in terms of GICS SECTOR, not a narrower industry list: "Fwd
+                # P/E, P/B for all securities in the GICS Financials Sector" (Cases 4-6) - the
+                # EV/CFO-or-P/CE leg is dropped entirely for the WHOLE Financials sector (GICS
+                # code 40), reweighting the remaining two legs to 50/50, not just for the
+                # narrower DEPOSITORY_BANK_INDUSTRIES/INSURANCE_UNDERWRITER_INDUSTRIES subset
+                # this file previously carved out (added 2026-09-15, "BANK/INSURER EXCLUSION"
+                # note below, kept for its still-valid JPM/OCF-sign-flip evidence of WHY the leg
+                # is nonsense for banks specifically - just too narrow a trigger). Under the old
+                # trigger, an asset manager, broker-dealer, or fintech classified "Financial
+                # Services" but not a depository bank or insurance underwriter would still get
+                # scored on EV/CFO (or the fcf_yield fallback) - a leg MSCI's real methodology
+                # never gives it. `components`'s existing total_weight renormalization already
+                # produces the correct MSCI 50/50 split automatically once a leg is omitted (2
+                # components at 1/3 each, total_weight=2/3, divide-through -> effective 50/50) -
+                # no separate reweighting logic needed, only the trigger condition changes.
+                is_cfo_nonsense_industry = sector == "Financial Services" or (
+                    industry_raw in DEPOSITORY_BANK_INDUSTRIES or industry_raw in INSURANCE_UNDERWRITER_INDUSTRIES
+                )
                 # FPI peer-group split (2026-09-14, goal-session "fix z-scoring issues"
                 # directive - see sector_neutral_zscore's own docstring in
                 # factor_normalization.py). row[22] is
                 # COALESCE(cis.is_foreign_private_issuer, false) per this query's SELECT above.
                 if len(row) > 22:
                     is_fpi[symbol] = bool(row[22])
-                if pe is not None and float(pe) > 0:
-                    pe_raw[symbol] = float(pe)
-                elif pe_reason == "unprofitable_stock":
+                if pe_reason == "unprofitable_stock":
                     unprofitable_symbols.add(symbol)
                 if pb is not None and float(pb) > 0:
-                    pb_raw[symbol] = float(pb)
+                    book_to_price_raw[symbol] = 1.0 / float(pb)
                 elif pb_reason == "negative_book_value":
                     negative_book_value_symbols.add(symbol)
-                if fwd_pe is not None and float(fwd_pe) > 0:
-                    fwd_pe_raw[symbol] = float(fwd_pe)
-                elif fwd_pe_reason == "negative_forward_eps":
+                if fwd_pe_reason == "negative_forward_eps":
                     negative_fwd_symbols.add(symbol)
                 if fwd_pe is not None and float(fwd_pe) > 0:
                     earnings_yield_raw[symbol] = float(fwd_pe)
                 elif pe is not None and float(pe) > 0:
                     earnings_yield_raw[symbol] = float(pe)
-                # BANK/INSURER EXCLUSION (2026-09-15, same session as the EV/CFO fix above):
-                # both EV/CFO and the FCF/market_cap fallback are nonsense for depository
-                # banks/risk-bearing insurers - operating_cash_flow for these industries is
-                # dominated by loan origination/deposit flows or reserve movements under GAAP,
-                # not a "cash generation" measure comparable to an operating company's (live-
-                # confirmed: JPM operating_cash_flow=-$147.8B despite being a normal, healthy
-                # bank), and enterprise_value is equally meaningless when "debt" includes
-                # customer deposits, not leverage - same DEPOSITORY_BANK_INDUSTRIES/
-                # INSURANCE_UNDERWRITER_INDUSTRIES carve-out this codebase already trusts for
-                # debt_for_roic (see vqg_shared.py). Leg omitted entirely for these industries -
-                # same "floored/no entry, other legs renormalize" pattern as unprofitable_symbols/
+                # FINANCIALS-SECTOR-WIDE EXCLUSION (originally added 2026-09-15 as a narrower
+                # bank/insurer-industry-only carve-out; BROADENED 2026-09-16 to the whole GICS
+                # Financials sector - see `is_cfo_nonsense_industry`'s own comment above for the
+                # MSCI Appendix II citation). Both EV/CFO and the FCF/market_cap fallback are
+                # nonsense for depository banks/risk-bearing insurers specifically - operating_
+                # cash_flow for these industries is dominated by loan origination/deposit flows
+                # or reserve movements under GAAP, not a "cash generation" measure comparable to
+                # an operating company's (live-confirmed: JPM operating_cash_flow=-$147.8B
+                # despite being a normal, healthy bank), and enterprise_value is equally
+                # meaningless when "debt" includes customer deposits, not leverage - this
+                # evidence is why MSCI's own real rule drops the leg for the sector, not just
+                # this codebase's earlier narrower guess at which industries within it are
+                # "nonsense enough" to matter. Leg omitted entirely for the whole sector - same
+                # "floored/no entry, other legs renormalize" pattern as unprofitable_symbols/
                 # negative_book_value_symbols above - rather than scored on a number that isn't
                 # measuring what the leg claims to measure.
                 if is_cfo_nonsense_industry:
@@ -745,42 +793,123 @@ class ValueMetricsMixin:
                         # price-basis fcf_yield proxy rather than dropping the leg entirely.
                         cash_yield_raw_map[symbol] = float(fcf_yield_raw)
 
-            pe_pct = self._percent_rank_cheap_high_sector_relative(pe_raw, sector_map, is_fpi)
-            pb_pct = self._percent_rank_cheap_high_sector_relative(pb_raw, sector_map, is_fpi)
-            fwd_pe_pct = self._percent_rank_cheap_high_sector_relative(fwd_pe_raw, sector_map, is_fpi)
-            earnings_pct = self._percent_rank_cheap_high_sector_relative(earnings_yield_raw, sector_map, is_fpi)
-            # BARRA-STYLE SIZE NEUTRALIZATION (added 2026-09-15, goal-session "scores way off
-            # from industry lists" directive): sector_neutral_zscore alone standardizes within
-            # sector but not within size - a megacap and a small-cap in the same sector still
-            # get compared raw, so any residual size effect in dividend/cash yield leaks into
-            # the score. sector_size_neutral_zscore additionally regresses out log(market_cap)
-            # within each peer group before z-scoring (see that function's own docstring) -
-            # same sector peer groups, no symbol excluded, just size-neutral within them.
-            # EV/CFO leg (CFO/EV, or the fcf_yield fallback - both already yield-form, higher
-            # is cheaper/better).
-            cash_yield_pct = zscore_to_percentile_scale(
-                sector_size_neutral_zscore(
-                    cash_yield_raw_map, sector_map, market_cap_map, is_foreign_private_issuer=is_fpi
-                )
-            )
-            for symbol in unprofitable_symbols:
-                pe_pct[symbol] = 0.0
-            for symbol in negative_fwd_symbols:
-                fwd_pe_pct[symbol] = 0.0
+            # MSCI ENHANCED VALUE Z-SCORE CONSTRUCTION (REBUILT 2026-09-16, factor-purity sweep -
+            # user asked directly "what does the industry do? we want to do like the industry").
+            # Fetched and read MSCI_Enhanced_Value_Index_Meth_Aug14.pdf's actual Appendix II
+            # ("Value Z-Score Computation") this session - not recalled/paraphrased - and rebuilt
+            # this method to match it exactly, replacing the prior per-leg SECTOR-RELATIVE
+            # PERCENTILE-RANK construction (adopted 2026-09-04 on this repo's own backtest
+            # evidence alone - see "SECTOR-RELATIVE RANKING ADOPTED"/"PRIMARY-SOURCE
+            # CONFIRMATION" docstring notes above: that adoption's DIRECTION was right - MSCI
+            # really does sector-relativize Value - but its MECHANICS were not quite MSCI's
+            # real ones). MSCI's real 3-step construction:
+            #   1. z-score EACH leg UNIVERSE-WIDE (within the whole eligible universe, "the MSCI
+            #      Parent Index" - NOT per-sector, NOT size-neutralized - see universe_wide_zscore
+            #      below), on the INVERSE of each ratio (book_to_price_raw above).
+            #   2. composite = equal-weighted average of the available leg z-scores (1/3 each, or
+            #      1/2 each for the two legs GICS Financials-sector names get - see the
+            #      Financials-sector-wide EV/CFO omission above, Appendix II Cases 4-6).
+            #   3. SECTOR-relativize the COMPOSITE (not each leg individually, and only once) by
+            #      standardizing it within each sector (sector_neutral_zscore), then winsorize
+            #      the result at +/-3 - MSCI's own explicitly stated output bound.
+            # DROPPED from the prior construction to match MSCI exactly: per-leg sector-relative
+            # ranking (relativizing each leg separately and then averaging is NOT the same
+            # computation as averaging first and relativizing once, even though both are
+            # "sector-aware") and Barra-style size-neutralization on the cash-yield leg (added
+            # 2026-09-15 on real evidence that residual size effects leak into cash/dividend
+            # yields - a genuine, validated enhancement, but not part of MSCI's literal published
+            # formula, and this session's directive is explicitly to match the industry's actual
+            # construction, not to keep every independently-defensible enhancement layered on
+            # top of it).
+            #
+            # Final 0-100 conversion uses zscore_to_percentile_scale (the same normal-CDF
+            # transform already used to bound every other z-score-based pillar in this codebase -
+            # Quality, Growth, Risk, Momentum - to [0,100]), NOT MSCI's own "Final Value Score"
+            # piecewise transform (1+Z / (1-Z)^-1, Section 2.2.3): that transform is a
+            # PORTFOLIO-WEIGHTING construction specific to MSCI's own index (an unbounded-above
+            # multiplier applied to market-cap weight, not a rating comparable to this system's
+            # other 0-100 pillar scores) and is already used verbatim, in its correct domain, by
+            # market_cap_tilt.py's *_tilted_weight columns - this method produces a RATING, that
+            # one produces a PORTFOLIO WEIGHT, and each uses the MSCI transform appropriate to
+            # its own job rather than reusing one formula for both.
+            leg_book_to_price_z = universe_wide_zscore(book_to_price_raw)
+            leg_earnings_z = universe_wide_zscore(earnings_yield_raw)
+            leg_cash_z = universe_wide_zscore(cash_yield_raw_map)
+            # NEGATIVE-BOOK-VALUE DISTRESS FLOOR TAKES PRIORITY OVER THE CASH-YIELD SUBSTITUTE
+            # (established 2026-09-15, live-verified value-trap gap: BHC/BMBL/EMBC scoring
+            # value_score 99.9+ despite negative stockholders' equity, ROE -13 to -85 - a
+            # distressed, heavily levered company's tiny market cap mechanically inflates its
+            # cash yield into a huge "cheap" number, e.g. BHC fcf_yield=35.8%, EMBC=49.4%). MSCI's
+            # stated "missing P/B -> P/CE" substitution rule is for genuinely MISSING data, not
+            # for a real, known, definitionally-worst signal (negative equity) - so this floor is
+            # applied here, at the leg-z level, using MSCI's own -3 winsorization bound as the
+            # natural "worst" sentinel (consistent with how every other floor in this file uses
+            # the scale's own worst value rather than an arbitrary number).
             for symbol in negative_book_value_symbols:
-                pb_pct[symbol] = 0.0
+                leg_book_to_price_z[symbol] = -3.0
             # Both earnings measures unusable (unprofitable trailing AND negative forward
-            # estimate) - genuinely the worst possible Earnings/Price outcome, same floor
-            # convention as pe_pct/fwd_pe_pct above.
+            # estimate) - genuinely the worst possible Earnings/Price outcome floor.
             for symbol in unprofitable_symbols & negative_fwd_symbols:
-                earnings_pct[symbol] = 0.0
+                leg_earnings_z[symbol] = -3.0
+
+            composite_z_by_symbol: dict[str, float] = {}
+            weight_by_symbol: dict[str, float] = {}
+            for row in rows:
+                symbol = row[0]
+                pb, pb_reason = row[8], row[15]
+                # BUG FOUND + FIXED 2026-09-15 (algo-fd/algo-f5, cross-session review of
+                # 43a1451ce, still applies to this rebuild): a P/B-missing symbol must not get
+                # cash_yield counted TWICE - once as the MSCI-stated substitute for the missing
+                # Book/Price leg, once again as its own independent Cash-Earnings/Price leg -
+                # that would give cash-flow signal 2/3 nominal weight instead of the intended
+                # equal thirds. pb_used_cash_substitute tracks whether this symbol already
+                # consumed the cash leg as the P/B substitute, so the independent leg below is
+                # skipped for it.
+                pb_used_cash_substitute = False
+                legs: list[tuple[float, float]] = []
+                if symbol in leg_book_to_price_z and pb is not None and float(pb) > 0:
+                    legs.append((leg_book_to_price_z[symbol], 1.0 / 3.0))
+                elif pb_reason == "negative_book_value" and symbol in leg_book_to_price_z:
+                    legs.append((leg_book_to_price_z[symbol], 1.0 / 3.0))
+                elif symbol in leg_cash_z:
+                    # MSCI's own stated substitution: missing P/B -> cash earnings (P/CE) leg.
+                    # Only reached for genuinely missing (not negative/distressed) book value.
+                    legs.append((leg_cash_z[symbol], 1.0 / 3.0))
+                    pb_used_cash_substitute = True
+                if symbol in leg_earnings_z:
+                    legs.append((leg_earnings_z[symbol], 1.0 / 3.0))
+                if symbol in leg_cash_z and not pb_used_cash_substitute:
+                    legs.append((leg_cash_z[symbol], 1.0 / 3.0))
+                # Dividend yield has no home in MSCI Enhanced Value's real 3-variable
+                # definition (P/B-or-P/CE, E/P, EV/CFO-or-P/CE) - not scored here. The whole
+                # dividend-yield computation path (sustainability haircut, saturating
+                # transform, sector-size-neutral z-score) was deleted 2026-09-15 rather than
+                # left "computed but unscored": it had no consumer anywhere in the repo, just
+                # dead work run every reload for nothing (see git history for the removed
+                # code if a future Quality/Income-tilt pass wants dividend yield as an input
+                # somewhere it's actually scored).
+                total_weight = sum(w for _, w in legs)
+                if total_weight <= 0:
+                    continue
+                weight_by_symbol[symbol] = total_weight
+                composite_z_by_symbol[symbol] = sum(v * w for v, w in legs) / total_weight
+
+            sector_rel_z = sector_neutral_zscore(
+                composite_z_by_symbol,
+                sector_map,
+                min_sector_size=self._MIN_SECTOR_SLICE,
+                is_foreign_private_issuer=is_fpi,
+            )
+            sector_rel_z = {symbol: max(-3.0, min(3.0, z)) for symbol, z in sector_rel_z.items()}
+            value_pct = zscore_to_percentile_scale(sector_rel_z)
+
             logger.info(
-                f"[STOCK_SCORES] Value multiples percentile universe (sector-relative, "
-                f"{len(sector_map)}/{len(rows)} symbols mapped to a GICS sector): "
-                f"P/E {len(pe_pct)} ({len(unprofitable_symbols)} floored unprofitable), "
-                f"P/B {len(pb_pct)} ({len(negative_book_value_symbols)} floored negative-book-value), "
-                f"Forward P/E {len(fwd_pe_pct)} ({len(negative_fwd_symbols)} floored negative-forecast), "
-                f"Earnings/Price (scored) {len(earnings_pct)}, Cash-Earnings/Price (scored) {len(cash_yield_pct)}"
+                f"[STOCK_SCORES] Value multiples MSCI z-score universe (sector-relative "
+                f"composite, {len(sector_map)}/{len(rows)} symbols mapped to a GICS sector): "
+                f"Book/Price {len(leg_book_to_price_z)} "
+                f"({len(negative_book_value_symbols)} floored negative-book-value), "
+                f"Earnings/Price {len(leg_earnings_z)}, Cash-Earnings/Price {len(leg_cash_z)}, "
+                f"composite scored {len(composite_z_by_symbol)}"
             )
 
             # Same configurable completeness gate load_stock_scores.py's Pass 1 uses (default
@@ -793,8 +922,6 @@ class ValueMetricsMixin:
             for row in rows:
                 symbol, value_score_old, composite_score_old, risk_score = row[0], row[1], row[2], row[3]
                 quality_score, growth_score, momentum_score = row[4], row[5], row[6]
-                pe, pb, fwd_pe = row[7], row[8], row[10]
-                pe_reason, fwd_pe_reason, pb_reason = row[13], row[14], row[15]
                 components_old = row[16]
                 data_completeness_old = float(row[18]) if row[18] is not None else None
                 data_unavailable_old = bool(row[19]) if row[19] is not None else False
@@ -802,120 +929,13 @@ class ValueMetricsMixin:
                 value_score_old = float(value_score_old)
                 composite_score_old = float(composite_score_old)
 
-                # MSCI ENHANCED VALUE CONSTRUCTION FIDELITY (2026-09-15, TWO-LAYER VALIDATION
-                # POLICY / user directive after live-verified 0/10-0/25 top-10/25 overlap vs
-                # real VLUE holdings - see pillar_weights.py's own "TWO-LAYER VALIDATION POLICY"
-                # comment block, same reasoning already applied to Momentum's mom_12_1 and
-                # Quality's ROCE/asset_turnover removal). Verified against MSCI's own primary
-                # methodology doc (MSCI_Enhanced_Value_Index_Meth_Aug14.pdf,
-                # msci.com/eqb/methodology): "the value investment style characteristics ... are
-                # defined using three variables: Price-to-Book Value, Price-to-Forward Earnings
-                # and Enterprise Value-to-Cash flow from Operations", each an EQUAL 1/3 weight
-                # z-score, WITH TWO STATED SUBSTITUTION RULES for missing data: "If the value
-                # for variable Price-to-Book is missing ... it is substituted by the value of
-                # cash earnings (P/CE)"; "If the value for Fwd P/E is missing ... substituted by
-                # ... trailing price-to-earnings (P/E)". Trailing P/E, P/S, and dividend yield
-                # have NO HOME in this real definition at all - not a retuning of weights on the
-                # inputs we already had, replacing them: P/S/dividend_yield dropped from scoring
-                # entirely (still computed/stored - value_metrics.ps_ratio/dividend_yield - same
-                # "computed but unscored" convention as ev_ebitda/ev_revenue elsewhere in this
-                # file), trailing P/E demoted from an independent input to ONLY the stated
-                # Fwd-P/E substitution role (earnings_pct above), and fcf_yield (already
-                # computed, previously excluded from scoring for correlation/redundancy reasons
-                # under the old IC-based policy - see this file's own 2026-08-25 history above -
-                # promoted to the Cash-Earnings/Price leg (proxy for EV/CFO: both are cash-flow-
-                # based valuation yields, no EV/CFO field exists in this schema) AND, per MSCI's
-                # own stated rule, the missing-P/B substitute.
-                #
-                # EV/CFO FIX (2026-09-15, cross-session review): the Cash-Earnings/Price leg
-                # above was fcf_yield (FCF/market_cap, a PRICE-basis yield) used as a stated
-                # proxy for MSCI's real EV/CFO leg because this schema had no EV/CFO field -
-                # but it does (value_metrics.enterprise_value, quality_metrics.
-                # operating_cash_flow), just not joined into this query. A price-basis yield is
-                # leverage-blind; EV/CFO isn't. Live-confirmed as the root cause of value_score's
-                # near-zero correlation with real VLUE holdings (rho=-0.063/p=0.464): JPM scored
-                # 19.09 despite normal P/E multiples purely from fcf_yield=-15.57% (a bank's
-                # loan-issuance OCF sign flip), and F/GM's fcf_yield ~21% looked extreme-cheap
-                # while EV/market_cap is 3.6x/2.3x on debt-heavy financing arms - invisible to a
-                # price-basis metric. cash_yield_raw_map now uses operating_cash_flow/
-                # enterprise_value when both are available (falls back to the old fcf_yield
-                # proxy otherwise, same graceful-degradation shape as this file's other legs).
-                #
-                # UNIFORM EQUAL-WEIGHT (3 legs, not the prior 5) - mirrors the 2026-09-11
-                # "flat weight" precedent for the base construction, just against the corrected
-                # 3-input set. _score_value's Pass-1 provisional curve was NOT updated to match
-                # (still the old 5-input curve) - Pass 1 is always immediately overwritten by
-                # this pass in the same post_run(), same "restart-only, provisional-only"
-                # precedent already documented above; a follow-up pass should still bring it in
-                # sync per this file's own "Keep both passes in sync" convention.
-                # BUG FOUND + FIXED 2026-09-15 (algo-fd/algo-f5, cross-session review of
-                # 43a1451ce): cash_yield_pct was being added TWICE for a P/B-missing symbol -
-                # once as the MSCI-stated substitute for the missing Book/Price leg, once again
-                # as its own independent Cash-Earnings/Price leg - giving cash-flow signal 2/3
-                # nominal weight instead of the intended equal thirds. This is a data-limitation
-                # artifact, not faithful to MSCI's real formula: MSCI's stated substitution rule
-                # is for two DIFFERENT variables (missing P/B -> P/CE fills that slot; the
-                # independent third variable is EV/CFO) that happen to collapse onto the same
-                # proxy field here (fcf_yield) because this schema has no separate EV/CFO -
-                # reusing that same number for both slots amplifies cash-flow signal rather than
-                # reproducing MSCI's intended equal-thirds balance. pb_used_cash_substitute
-                # tracks whether this symbol already consumed cash_yield_pct as the P/B
-                # substitute, so the independent leg below is skipped for it.
-                # NEGATIVE-BOOK-VALUE DISTRESS FLOOR TAKES PRIORITY OVER THE CASH-YIELD
-                # SUBSTITUTE (fixed 2026-09-15, same day as the MSCI fidelity rewrite above -
-                # live-verified value-trap gap: BHC/BMBL/EMBC scoring value_score 99.9+ despite
-                # negative stockholders' equity, ROE -13 to -85). Root cause: the MSCI
-                # substitution rule above ("missing P/B -> P/CE leg") was applied literally to
-                # BOTH pb_reason cases - genuinely MISSING book-value data (no balance sheet
-                # coverage at all) AND negative_book_value (distressed negative equity, a real,
-                # meaningful, definitionally-worst data point, not an absence of data). MSCI's
-                # own published substitution rule is stated for the missing-data case (e.g. a
-                # financial-services filer where the metric doesn't apply) - it says nothing
-                # about deliberately overriding an already-known "worst" signal with a
-                # potentially-inflated substitute. Live query (289 universe symbols with
-                # pb_ratio_unavailable_reason='negative_book_value'): 282/289 (97.6%) have a
-                # real fcf_yield and so silently took the cash-yield substitute path instead of
-                # the floor - exactly the classic value-trap mechanism (a distressed, heavily
-                # levered company's tiny market cap mechanically inflates FCF/price into a huge
-                # "cheap" cash yield: BHC fcf_yield=35.8%, EMBC=49.4%) reaching value_score 80-100
-                # for 16 negative-equity symbols, 99.9+ for the worst 2. This silently undid the
-                # explicit 0.0 negative-book-value floor this same file already established
-                # (2026-09-05, see _score_value's own "NEGATIVE-BOOK-VALUE FLOOR ADDED" note) for
-                # all but the ~2% of negative-equity symbols with no fcf_yield at all. Fix: check
-                # pb_reason == "negative_book_value" FIRST (definitionally worst, matching every
-                # other floor in this file - unprofitable_stock/negative_forward_eps/no-revenue -
-                # none of which get a substitute either) - the cash-yield substitute is now only
-                # used for the genuinely-missing case (pb NULL with no negative_book_value
-                # reason). Not an exclusion (still 1/3 weight, still scored, still contributes to
-                # value_score) - a correction of which value it contributes, per the standing
-                # "fix don't exclude" rule.
-                pb_used_cash_substitute = False
-                components: list[tuple[float, float]] = []
-                if pb is not None and float(pb) > 0:
-                    components.append((pb_pct[symbol], 1.0 / 3.0))
-                elif pb_reason == "negative_book_value":
-                    components.append((0.0, 1.0 / 3.0))
-                elif symbol in cash_yield_pct:
-                    # MSCI's own stated substitution: missing P/B -> cash earnings (P/CE) leg.
-                    # Only reached for genuinely missing (not negative/distressed) book value.
-                    components.append((cash_yield_pct[symbol], 1.0 / 3.0))
-                    pb_used_cash_substitute = True
-                if symbol in earnings_pct:
-                    components.append((earnings_pct[symbol], 1.0 / 3.0))
-                elif symbol in (unprofitable_symbols & negative_fwd_symbols):
-                    components.append((0.0, 1.0 / 3.0))
-                if symbol in cash_yield_pct and not pb_used_cash_substitute:
-                    components.append((cash_yield_pct[symbol], 1.0 / 3.0))
-                # Dividend yield has no home in MSCI Enhanced Value's real 3-variable
-                # definition (P/B-or-P/CE, E/P, EV/CFO-or-P/CE) - not scored here. The whole
-                # dividend-yield computation path (sustainability haircut, saturating
-                # transform, sector-size-neutral z-score) was deleted 2026-09-15 rather than
-                # left "computed but unscored": it had no consumer anywhere in the repo, just
-                # dead work run every reload for nothing (see git history for the removed
-                # code if a future Quality/Income-tilt pass wants dividend yield as an input
-                # somewhere it's actually scored).
-
-                total_weight = sum(w for _, w in components)
+                # Legs already combined into a per-sector-relativized composite z-score (and
+                # converted to 0-100) in the pass above - see this method's own "MSCI ENHANCED
+                # VALUE Z-SCORE CONSTRUCTION" comment block for the full 3-step formula and its
+                # primary-source citation. `weight_by_symbol` is the same nominal per-leg weight
+                # sum the VALUE_MIN_WEIGHT gate below needs (1/3 per leg, 1/2 for a
+                # Financials-sector symbol's 2 legs).
+                total_weight = weight_by_symbol.get(symbol, 0.0)
                 if total_weight <= 0:
                     # Defensive only - can't happen if value_score is a real float (it required
                     # total_weight > 0 to compute in the first place), but never divide by zero.
@@ -942,7 +962,7 @@ class ValueMetricsMixin:
                     )
                     value_score_new = None
                 else:
-                    value_score_new = round(max(0.0, min(100.0, sum(v * w for v, w in components) / total_weight)), 2)
+                    value_score_new = round(max(0.0, min(100.0, value_pct[symbol])), 2)
 
                 # Pure recompute of composite_score from the 5 pillar scores as they currently
                 # stand in stock_scores (quality/growth/risk/momentum are untouched by this
@@ -1029,6 +1049,8 @@ class ValueMetricsMixin:
                         )
                     )
 
+            updates.extend(self._withhold_value_below_floor())
+
             if not updates:
                 logger.info(
                     "[STOCK_SCORES] Value multiples percentile pass: no symbol's value_score/"
@@ -1066,3 +1088,128 @@ class ValueMetricsMixin:
             error_msg = f"Value multiples percentile batch update failed - stock scores cannot be finalized: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
+
+    def _withhold_value_below_floor(
+        self,
+    ) -> list[tuple[str, float | None, float, str | None, float, bool, str, str | None]]:
+        """Companion to update_value_multiples_percentiles(): finds the COMPLEMENT of that
+        method's own correction population - symbols with a real value_score but ineligible for
+        correction (below the liquidity floor, or excluded by
+        NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE) - and withholds value_score (NULL) plus
+        recomputes composite_score/data_completeness/data_unavailable/unavailable_metrics/reason
+        to match, rather than leaving Pass 1's stale, potentially-floored curve value in place
+        indefinitely.
+
+        PORTED 2026-09-16 (factor-purity sweep - this exact bug class was already found and
+        fixed for Quality (vqg_quality_batch.py's `_withhold_quality_below_floor`) and Momentum
+        (momentum_scoring.py's `_withhold_momentum_below_floor`, commit c1a3dd899) but never
+        ported here or to Growth/Risk - see those two methods' own docstrings for the shared
+        rationale. Same gap, same fix, same shape.
+
+        Returns tuples in the same (symbol, value_score, composite_score, components,
+        data_completeness, data_unavailable, unavailable_metrics, reason) shape
+        update_value_multiples_percentiles()'s own `updates` list uses, so the caller can extend
+        one batch UPDATE with both.
+        """
+        with _owner().DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                SELECT ss.symbol, ss.composite_score, ss.quality_score, ss.growth_score,
+                       ss.risk_score, ss.momentum_score, ss.components,
+                       ss.data_completeness, ss.data_unavailable, ss.unavailable_metrics
+                FROM stock_scores ss
+                JOIN value_metrics vm ON vm.symbol = ss.symbol
+                JOIN stock_symbols su ON su.symbol = ss.symbol
+                LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                LEFT JOIN (
+                    SELECT symbol,
+                           AVG(volume * close) AS avg_dollar_volume_20d,
+                           (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
+                    FROM (
+                        SELECT symbol, volume, close, date,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM price_daily
+                        WHERE date >= CURRENT_DATE - INTERVAL '45 days'
+                          AND COALESCE(data_unavailable, false) = false
+                          AND volume IS NOT NULL AND close IS NOT NULL
+                    ) ranked
+                    WHERE rn <= 20
+                    GROUP BY symbol
+                ) liq_floor ON liq_floor.symbol = ss.symbol
+                WHERE ss.value_score IS NOT NULL
+                  AND (
+                        liq_floor.latest_close IS NULL
+                        OR liq_floor.latest_close < %s
+                        OR liq_floor.avg_dollar_volume_20d IS NULL
+                        OR liq_floor.avg_dollar_volume_20d < %s
+                        OR NOT ("""
+                + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
+                + """)
+                  )
+                """,
+                (
+                    getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
+                    getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                ),
+            )
+            rows = cur.fetchall()
+
+        if not rows:
+            # No work to do - every scored symbol already cleared the liquidity floor and the
+            # non-operating exclusion, so there's nothing to withhold this run. Not an error.
+            return []
+
+        min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
+        withheld: list[tuple[str, float | None, float, str | None, float, bool, str, str | None]] = []
+        for (
+            symbol,
+            _composite_score_old,
+            quality_score,
+            growth_score,
+            risk_score,
+            momentum_score,
+            components_old,
+            _dc_old,
+            _du_old,
+            unavailable_metrics_old_raw,
+        ) in rows:
+            weights = BASE_PILLAR_WEIGHTS
+            pillar_scores = (
+                ("quality", quality_score),
+                ("growth", growth_score),
+                ("risk", risk_score),
+                ("momentum", momentum_score),
+            )
+            composite_val = sum(float(s) * weights[p] for p, s in pillar_scores if s is not None)
+            composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+            available_weight = sum(weights[p] for p, s in pillar_scores if s is not None)
+            data_completeness_new = min(99.99, round(available_weight * 100, 2))
+            data_unavailable_new = data_completeness_new < min_completeness_threshold
+
+            unavailable_metrics_new = dict(unavailable_metrics_old_raw) if unavailable_metrics_old_raw else {}
+            unavailable_metrics_new["value"] = "value_below_liquidity_floor"
+            reason_new = (
+                f"Completeness {data_completeness_new:.2f}% < {min_completeness_threshold}% "
+                f"threshold (missing metrics: {', '.join(sorted(unavailable_metrics_new.keys()))})"
+                if data_unavailable_new
+                else None
+            )
+            components_json = self._components_with_corrected_value(components_old, None)
+            withheld.append(
+                (
+                    symbol,
+                    None,
+                    composite_score_new,
+                    components_json,
+                    data_completeness_new,
+                    data_unavailable_new,
+                    json.dumps(unavailable_metrics_new),
+                    reason_new,
+                )
+            )
+        logger.info(
+            f"[STOCK_SCORES] Value: withheld value_score for {len(withheld)} symbols below the "
+            f"liquidity floor / excluded from the scoring population (never reached by the "
+            f"correction pass above) - see _withhold_value_below_floor's docstring."
+        )
+        return withheld

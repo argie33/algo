@@ -174,7 +174,16 @@ def curve_score(label: str, val: float) -> float | None:
     if label == "volatility_60d" or label == "downside_volatility_60d":
         return StockScoresLoader._vol_curve_score(max(0.0, val))
     if label == "max_drawdown_pct":
-        return StockScoresLoader._max_drawdown_curve_score(val)
+        # Inlined from risk_scoring.py's former _max_drawdown_curve_score (removed from
+        # production in the 2026-09-16/17 factor-purity sweep - Risk's fixed drawdown curve is
+        # dead code now). Kept here verbatim so this completed sweep still reproduces if re-run.
+        if val <= 10:
+            return 100 - val * 2
+        if val <= 25:
+            return 80 - (val - 10) * 2
+        if val <= 50:
+            return 50 - (val - 25) * 1.2
+        return max(0.0, 20 - (val - 50) * 0.4)
     if label in ("mom_3m_pct", "mom_12_1_pct"):
         return StockScoresLoader._pct_to_score(val)
     if label == "rsi_14":

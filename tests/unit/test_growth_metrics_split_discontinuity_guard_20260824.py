@@ -26,13 +26,16 @@ def test_eps_growth_5y_across_split_boundary_reports_discontinuity_not_a_number(
     # NVDA-shaped: FY2023-2026 restated post-10:1-split (~25B diluted shares), FY2021-2022
     # still pre-split (~2.5B diluted shares) - real fiscal_year/revenue/opinc/net_income values
     # aren't load-bearing for this test, only fiscal_year/eps/shares columns are.
+    # 9th column (diluted_eps, added 2026-09-16) - real NVDA diluted EPS, same split pattern as
+    # the basic-EPS 5th column (slightly lower, as diluted always is) - eps_growth_trend_5y uses
+    # this column, not the basic-EPS one, see vqg_growth.py's own diluted_eps_values comment.
     income_rows = [
-        (2026, 215938000000.0, None, None, 4.93, 24514000000, None),
-        (2025, 130497000000.0, None, None, 2.97, 24804000000, None),
-        (2024, 60922000000.0, None, None, 1.21, 24940000000, None),
-        (2023, 26974000000.0, None, None, 0.18, 25070000000, None),
-        (2022, 26914000000.0, None, None, 3.91, 2535000000, None),
-        (2021, 16675000000.0, None, None, 1.76, 2510000000, None),
+        (2026, 215938000000.0, None, None, 4.93, 24514000000, None, None, 4.90),
+        (2025, 130497000000.0, None, None, 2.97, 24804000000, None, None, 2.94),
+        (2024, 60922000000.0, None, None, 1.21, 24940000000, None, None, 1.19),
+        (2023, 26974000000.0, None, None, 0.18, 25070000000, None, None, 0.17),
+        (2022, 26914000000.0, None, None, 3.91, 2535000000, None, None, 3.85),
+        (2021, 16675000000.0, None, None, 1.76, 2510000000, None, None, 1.73),
     ]
 
     result = loader._compute_growth_metrics("NVDA", income_rows)

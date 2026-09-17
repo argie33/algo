@@ -114,18 +114,26 @@ class TestQualityScoreCompletenessFloor:
         assert metrics.get("quality_score") is None
         assert metrics["quality_score_unavailable_reason"] == "insufficient_completeness"
 
-    def test_three_components_clearing_floor_produces_real_score(self, monkeypatch):
-        # ROE + ROA + FCF Margin available (11% + 18% + 15% = 44%) - clears the 40% floor.
+    def test_two_of_three_msci_legs_clearing_floor_produces_real_score(self, monkeypatch):
+        # REBUILT 2026-09-16 (factor-purity sweep): quality_score's live composite is now
+        # MSCI's real 3-variable formula (ROE/Debt-to-Equity/Earnings Variability - see
+        # loaders/helpers/vqg_quality_score.py's quality_components docstring), not the old
+        # 8-component AQR/MSCI blend this test originally exercised via ROA/FCF Margin (both
+        # now computed-but-unscored). ROE (33.34%) + Debt-to-Equity (33.33%) = 66.67% clears
+        # the 40% floor - stockholders_equity alone is enough to compute both (ROE from
+        # net_income/stockholders_equity, D/E from the fixture's default total_liabilities/
+        # stockholders_equity), matching the "2 of 3 MSCI legs" Case 2/3 substitution rule.
         loader = _make_loader(monkeypatch)
-        row = _quality_row(
-            stockholders_equity=500_000_000.0,
-            revenue=1_000_000_000.0,
-            free_cash_flow=100_000_000.0,
+        row = _quality_row(stockholders_equity=500_000_000.0)
+
+        # debt_to_equity is derived from ev_metrics' total_debt (index 0), not directly from
+        # the quality_row's total_liabilities - see vqg_quality.py's debt_for_roic derivation.
+        metrics = loader._compute_quality_metrics(
+            "REALSCORECO", row, ev_metrics=(200_000_000.0, 50_000_000.0, 100_000_000.0)
         )
 
-        metrics = loader._compute_quality_metrics("REALSCORECO", row, ev_metrics=None)
-
-        assert metrics["fcf_margin"] is not None
+        assert metrics["roe"] is not None
+        assert metrics["debt_to_equity"] is not None
         assert metrics.get("quality_score") is not None
         assert 0.0 <= metrics["quality_score"] <= 100.0
         assert metrics["quality_score_unavailable_reason"] is None

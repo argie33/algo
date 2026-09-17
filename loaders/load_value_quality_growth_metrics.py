@@ -43,6 +43,7 @@ from typing import Any, cast
 import psycopg2  # noqa: F401 - used via _owner().psycopg2 in vqg_quality_batch.py
 from psycopg2.extras import execute_values  # noqa: F401 - used via _owner().execute_values in vqg_quality_batch.py
 
+from loaders.helpers.quality_variability import earnings_variability_from_income_rows
 from loaders.helpers.vqg_growth import GrowthMetricsMixin, is_split_or_share_count_scale_error
 from loaders.helpers.vqg_inserts import insert_growth_metrics, insert_quality_metrics, insert_value_metrics
 from loaders.helpers.vqg_quality import QualityMetricsMixin
@@ -688,6 +689,21 @@ class ValueQualityGrowthMetricsLoader(
                 # growth calc; book_value_growth alone goes unavailable for that year via the NULL.
                 # Appended last so existing positional reads (income_rows[i][0..6] in
                 # _compute_growth_metrics/_compute_margin_volatility) stay unchanged.
+                #
+                # ais.diluted_eps (9th column, added 2026-09-16) is a GENUINELY SEPARATE column
+                # from ais.earnings_per_share, not a naming variant - confirmed via
+                # loaders/helpers/financial_statements_income_config.py's own concept mapping:
+                # "earnings_per_share_basic" -> earnings_per_share (what this query's existing
+                # 5th column and every pre-existing eps_growth_1y/3y/5y field actually use),
+                # "earnings_per_share_diluted" -> diluted_eps. MSCI's/Barra's real EPS-growth-
+                # trend formula (loaders/helpers/growth_trend.py) specifies diluted EPS, the
+                # institutional-standard convention (accounts for options/RSU/convertible
+                # dilution; basic EPS overstates true per-share economics) - added here so the
+                # NEW eps_growth_trend_5y field can use the correct convention from day one,
+                # not inherit the pre-existing basic-EPS fields' convention. The pre-existing
+                # eps_growth_1y/3y/5y CAGR fields are NOT changed to diluted_eps in this pass -
+                # that's a separate, higher-blast-radius fix (touches already-shipped fields
+                # across the whole system) deliberately left out of scope here.
                 cur.execute(
                     """
                     SELECT ais.fiscal_year, ais.revenue, ais.operating_income, ais.net_income,
@@ -715,7 +731,19 @@ class ValueQualityGrowthMetricsLoader(
             # _compute_quality_metrics, because it needs the multi-year income_rows history
             # already fetched above - _compute_quality_metrics only sees a single fiscal year's row.
             margin_volatility, margin_volatility_unavailable_reason = self._compute_margin_volatility(income_rows)
-            quality_dict = self._compute_quality_metrics(symbol, quality_row_db, ev_metrics, margin_volatility)
+            # earnings_variability: MSCI's real 3rd Quality fundamental variable (ROE/Debt-to-
+            # Equity/Earnings Variability) - see earnings_variability_from_income_rows's own
+            # docstring (loaders/helpers/quality_variability.py, an adapter kept out of this
+            # already-oversized file per the file-size ratchet) and that module's top-of-file
+            # docstring for the MSCI citation. Same "needs multi-year income_rows the single-
+            # fiscal-year quality_row doesn't have" reason margin_volatility is computed here
+            # rather than inside _compute_quality_metrics. Reason is always "insufficient_history"
+            # when None - _apply_quality_profitability_reasons already writes that same default,
+            # so only the value is threaded through here.
+            earnings_var, _earnings_var_unavailable_reason = earnings_variability_from_income_rows(income_rows)
+            quality_dict = self._compute_quality_metrics(
+                symbol, quality_row_db, ev_metrics, margin_volatility, earnings_var
+            )
             if margin_volatility is None and isinstance(quality_dict, dict):
                 quality_dict["margin_volatility_unavailable_reason"] = self._recategorize_margin_volatility_reason(
                     symbol, margin_volatility_unavailable_reason

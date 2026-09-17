@@ -15,9 +15,15 @@ test_stock_scores_growth_saturation_returns_float.py) and the pre-existing ~40%-
 _score_quality - 0.40 mirrors both.
 
 UNIFORM EQUAL-WEIGHT 2026-09-11 (see loaders/stock_scores/pillar_weights.py's
-BASE_PILLAR_WEIGHTS comment): _score_risk's 5 components are now flat 20% each instead of
-45/15/15/10/15, so RISK_MIN_WEIGHT_AVAILABLE=0.40 now always requires >=2 of 5 components (no
-single component can clear the floor alone anymore) - expected values below updated accordingly.
+BASE_PILLAR_WEIGHTS comment): _score_risk's components were flat 20% each instead of
+45/15/15/10/15, so RISK_MIN_WEIGHT_AVAILABLE=0.40 always requires >=2 of 5 components (no
+single component can clear the floor alone).
+
+MAX_DRAWDOWN_1Y REMOVED FROM SCORING 2026-09-16 (factor-purity sweep - see _score_risk's own
+docstring: never a real Barra/MSCI risk descriptor, era-flipped sign with no stable predictive
+power). Only 3 components remain (Volatility 60D/252D, Beta), each RISK_COMPONENT_WEIGHT=1/3 -
+RISK_MIN_WEIGHT_AVAILABLE=0.40 now always requires >=2 of 3. max_drawdown_1y values passed into
+`_score()` below are now inert (no vote in the score) - expected values updated accordingly.
 """
 
 from loaders.load_stock_scores import RISK_MIN_WEIGHT_AVAILABLE, StockScoresLoader
@@ -33,38 +39,38 @@ class TestRiskMinWeightAvailable:
         # deliberately, not silently pass with a different threshold.
         assert RISK_MIN_WEIGHT_AVAILABLE == 0.40
 
-    def test_max_drawdown_alone_returns_thin_sample_marker(self):
-        """MYSZ/MVIS-shaped case: only max_drawdown_1y available (20% of nominal weight, below
-        the 0.40 floor) - must withhold a score rather than renormalize one thin-sample reading
-        up to a full 0-100 score."""
+    def test_max_drawdown_alone_returns_no_scores_marker(self):
+        """max_drawdown_1y is no longer a scoreable input (removed 2026-09-16) - providing only
+        it must behave identically to providing nothing at all."""
         result = self._score({"max_drawdown_1y": -3.08})
         assert isinstance(result, dict)
         assert result["data_unavailable"] is True
-        assert result["reason"] == "insufficient_risk_inputs_thin_sample"
+        assert result["reason"] == "no_risk_scores_computed"
 
     def test_beta_alone_returns_thin_sample_marker(self):
-        """Beta alone is 20% of nominal weight, still below the 0.40 floor."""
+        """Beta alone is 1/3 of nominal weight, below the 0.40 floor."""
         result = self._score({"beta": 1.0})
         assert isinstance(result, dict)
         assert result["data_unavailable"] is True
         assert result["reason"] == "insufficient_risk_inputs_thin_sample"
 
-    def test_beta_and_max_drawdown_together_clear_floor(self):
-        """20% + 20% = 40% of nominal weight - exactly clears the 0.40 floor under equal
-        weighting (previously 35%, below the floor, under the old 45/15/15/10/15 split)."""
-        result = self._score({"beta": 1.0, "max_drawdown_1y": -10.0})
+    def test_beta_and_volatility_60d_together_clear_floor(self):
+        """1/3 + 1/3 = 2/3 of nominal weight - clears the 0.40 floor. max_drawdown_1y is passed
+        too but must not contribute (removed from scoring 2026-09-16)."""
+        result = self._score({"beta": 1.0, "volatility_60d": 0.20, "max_drawdown_1y": -10.0})
         assert isinstance(result, float)
 
     def test_volatility_60d_alone_returns_thin_sample_marker(self):
-        """volatility_60d alone is 20% of nominal weight under equal weighting - no longer
-        clears the 0.40 floor on its own (previously 45%, cleared it, under the old split)."""
+        """volatility_60d alone is 1/3 of nominal weight - does not clear the 0.40 floor on its
+        own."""
         result = self._score({"volatility_60d": 0.20})
         assert isinstance(result, dict)
         assert result["data_unavailable"] is True
         assert result["reason"] == "insufficient_risk_inputs_thin_sample"
 
-    def test_volatility_252d_beta_and_drawdown_together_clear_floor(self):
-        """20% + 20% + 20% = 60% of nominal weight - clears the 0.40 floor."""
+    def test_volatility_252d_and_beta_together_clear_floor(self):
+        """1/3 + 1/3 = 2/3 of nominal weight - clears the 0.40 floor. max_drawdown_1y is passed
+        too but must not contribute."""
         result = self._score({"volatility_252d": 0.20, "beta": 1.0, "max_drawdown_1y": -10.0})
         assert isinstance(result, float)
 

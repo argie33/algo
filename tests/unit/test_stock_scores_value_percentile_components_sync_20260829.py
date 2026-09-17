@@ -89,9 +89,15 @@ class TestValuePercentileComponentsSync:
 
         select_cursor = MagicMock()
         select_cursor.fetchall.return_value = [row]
+        # withhold_cursor: _withhold_value_below_floor()'s own SELECT (added 2026-09-16,
+        # factor-purity sweep), a separate DatabaseContext("write") call issued between the
+        # correction pass's own SELECT and its final UPDATE - [] means no symbol is below the
+        # liquidity floor in this test's fixture population.
+        withhold_cursor = MagicMock()
+        withhold_cursor.fetchall.return_value = []
         write_cursor = MagicMock()
 
-        db_contexts = [_cursor_cm(select_cursor), _cursor_cm(write_cursor)]
+        db_contexts = [_cursor_cm(select_cursor), _cursor_cm(withhold_cursor), _cursor_cm(write_cursor)]
         with (
             patch("loaders.load_stock_scores.DatabaseContext", side_effect=db_contexts),
             patch("loaders.load_stock_scores.execute_values") as mock_execute_values,

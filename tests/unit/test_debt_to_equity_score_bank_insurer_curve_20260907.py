@@ -125,12 +125,15 @@ class TestDebtToEquityScoreBankInsurerCurve:
 
         # REWRITE 2026-09-07 (sector-neutral-zscore rewrite): the old Financial Services
         # two-cluster branch (profitability cluster called first, safety cluster second) was
-        # collapsed to the same single flat component call every sector uses. UPDATED
-        # 2026-09-15 (ASSET_TURNOVER + ROCE REMOVED ENTIRELY): that flat call now has 6
-        # components - [roe, roa, fcf_margin, debt_to_equity, margin_volatility,
-        # gross_profitability] - debt_to_equity_score is index 3.
+        # collapsed to the same single flat component call every sector uses. UPDATED AGAIN
+        # 2026-09-16 (MSCI-exact factor-purity rewrite, see vqg_quality_score.py's own
+        # "SYNTHESIS ... REMOVED" comment): the flat call now has exactly MSCI's published
+        # 3 Quality fundamental variables - [roe_score, debt_to_equity_score,
+        # earnings_variability_score], equal-weighted 33.34/33.33/33.33 - roa/fcf_margin/
+        # gross_profitability/margin_volatility are no longer scored here at all (still
+        # computed/persisted, just not part of quality_score). debt_to_equity_score is index 1.
         flat_call = captured_calls[0]
-        debt_to_equity_score = flat_call[3][0]
+        debt_to_equity_score = flat_call[1][0]
 
         assert debt_to_equity_score is not None
         assert debt_to_equity_score == 50.0  # 100 - (10.0 / 20.0) * 100

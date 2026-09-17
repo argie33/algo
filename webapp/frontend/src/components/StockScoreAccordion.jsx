@@ -863,7 +863,7 @@ const StockScoreAccordion = ({
 };
 
 export default StockScoreAccordion;
-export { QUALITY_SCHEMA, RISK_SCHEMA, PILLAR_COMPOSITE_WEIGHTS };
+export { QUALITY_SCHEMA, RISK_SCHEMA, GROWTH_SCHEMA, PILLAR_COMPOSITE_WEIGHTS };
 
 // ─── Input Schemas ──────────────────────────────────────────────────────────
 // Ground-truthed against loaders/load_stock_scores.py and
@@ -984,75 +984,68 @@ export { QUALITY_SCHEMA, RISK_SCHEMA, PILLAR_COMPOSITE_WEIGHTS };
 // across all sectors - Asset Turnover's "~7%" badge below is accurate for the universal case
 // but does not apply to Financial Services/Real Estate symbols specifically. Not worth a
 // dynamic per-sector schema for one row; flagged here so it isn't mistaken for an oversight.
-// UNIFORM EQUAL-WEIGHT 2026-09-11 (see PILLAR_COMPOSITE_WEIGHTS' own comment for the full
-// rationale): flat 12.5% each, replacing the prior t-stat-tuned 11/17/17/14/17/7/7/7 split.
+// UPDATED 2026-09-16 (goal: "take the slop out" quality/value factor-purity audit): ROCE
+// (return_on_capital_employed_pct) and Asset Turnover (asset_turnover_pct) were removed from
+// the live quality_score composite on 2026-09-15 (see loaders/helpers/vqg_quality_score.py and
+// vqg_quality_batch.py - "no home in AQR QMJ/MSCI/Novy-Marx" policy) but this schema still
+// listed both `used: true` at a stale flat 12.5% each - misrepresenting what actually drives
+// the live score, the same "wire it through" bug class fixed for Growth in c954f6a7c. Real live
+// weights (AQR QMJ/MSCI-aligned, 6 inputs): ROE 15/ROA 15/FCF-Margin 15/Debt-to-Equity 15/
+// Margin-Volatility 25/Gross-Profitability 15.
 const QUALITY_SCHEMA = [
   {
     key: "return_on_equity_pct",
     label: "ROE",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "12.5%",
+    weight: "15%",
   },
   {
     key: "return_on_assets_pct",
     label: "ROA",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "12.5%",
-  },
-  {
-    key: "return_on_capital_employed_pct",
-    label: "ROCE",
-    fmt: (v) => pct(v, 1),
-    used: true,
-    weight: "12.5%",
+    weight: "15%",
   },
   {
     key: "fcf_margin_pct",
     label: "FCF Margin",
     fmt: (v) => pct(v, 1),
     used: true,
-    weight: "12.5%",
+    weight: "15%",
   },
   {
     key: "debt_to_equity",
     label: "Debt to Equity",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "12.5%",
+    weight: "15%",
   },
   {
     key: "margin_volatility",
     label: "Margin Volatility (3Y)",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "12.5%",
-  },
-  {
-    key: "asset_turnover_pct",
-    label: "Asset Turnover",
-    fmt: (v) => pct(v, 1),
-    used: true,
-    weight: "12.5%",
+    weight: "25%",
   },
   {
     key: "gross_profitability_pct",
     label: "Gross Profitability",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "12.5%",
+    weight: "15%",
   },
-  // Every other Quality field this pipeline computes (ROIC, Operating Profitability, Accruals
-  // Ratio, Gross/Operating/Net/EBITDA Margin, FCF-NI, OCF-NI, Current/Quick Ratio, Interest
-  // Coverage, Debt to Assets, Payout Ratio, Earnings Surprise/Beat Rate, Consecutive Positive
-  // Quarters, Altman Z-Score, the 3 margin/ROE trend fields) is intentionally NOT listed here
-  // - each was isolated-Fama-MacBeth-tested and confirmed either genuinely dead, redundant
-  // with an already-scored input, or blocked on data depth rather than a scoring choice (see
-  // this file's REDESIGNED/REBUILT comments above and MEMORY.md's stock_scores_pillar_formulas
-  // section for the per-field evidence). Raw values remain computed/persisted in
-  // quality_metrics and in the API's quality_inputs payload - this tab shows only what
-  // actually drives quality_score, per user directive 2026-08-28.
+  // Every other Quality field this pipeline computes (ROCE, Asset Turnover, ROIC, Operating
+  // Profitability, Accruals Ratio, Gross/Operating/Net/EBITDA Margin, FCF-NI, OCF-NI,
+  // Current/Quick Ratio, Interest Coverage, Debt to Assets, Payout Ratio, Earnings
+  // Surprise/Beat Rate, Consecutive Positive Quarters, Altman Z-Score, the 3 margin/ROE trend
+  // fields) is intentionally NOT listed here - each was isolated-Fama-MacBeth-tested and
+  // confirmed either genuinely dead, redundant with an already-scored input, or has no home in
+  // a real published Quality factor definition (see this file's REDESIGNED/REBUILT comments
+  // above and MEMORY.md's stock_scores_pillar_formulas section for the per-field evidence).
+  // Raw values remain computed/persisted in quality_metrics and in the API's quality_inputs
+  // payload - this tab shows only what actually drives quality_score, per user directive
+  // 2026-08-28.
 ];
 
 // REDESIGNED 2026-08-25 (goal: full scoring-architecture audit): momentum_1m removed
@@ -1230,35 +1223,42 @@ const MOMENTUM_SCHEMA = [
 // they're now a CROSS-SECTIONAL PERCENTILE RANK against the current run's universe (the same
 // "rank against peers, not a fixed cutoff" convention this pillar's own PEG/margin-of-safety
 // don't use, but IBD's every SmartSelect rating and MSCI's factor construction both do).
-// UNIFORM EQUAL-WEIGHT 2026-09-11 (see PILLAR_COMPOSITE_WEIGHTS' own comment for the full
-// rationale): all 5 components now flat 20% each, replacing the prior 27/27/27/9/10 split -
-// no more smaller "satellite" weights for Forward P/E/Dividend Yield. Only how a given raw
-// ratio maps to a 0-100 sub-score (percentile rank vs. fixed curve) is otherwise unchanged.
+// REPLACED 2026-09-16 (goal: "take the slop out" quality/value factor-purity audit): this
+// schema showed P/E, P/B, and Forward P/E as three INDEPENDENT 20%-weighted legs, but the
+// real, live-persisted formula (loaders/stock_scores/value_metrics.py:892-916) is MSCI Enhanced
+// Value's actual 3-leg construction - Book/Price (or Cash-Earnings/Price when P/B is missing),
+// a SINGLE Earnings/Price leg (Forward P/E preferred, trailing P/E only as its stated
+// substitute when Forward P/E is unavailable - never a second independent leg), and
+// Enterprise-Value/Cash-Flow-from-Operations (or the fcf_yield proxy when EV/CFO inputs aren't
+// available) - each an equal 1/3 weight z-score. The old schema also silently summed to only
+// 60% (20+20+20), not 100%, and had no row at all for the EV/CFO leg. P/E is no longer an
+// independently-weighted row; trailing_pe is still shown in the raw metrics table elsewhere on
+// this page for reference.
 const VALUE_SCHEMA = [
-  {
-    key: "stock_pe",
-    label: "P/E",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "20%",
-  },
   {
     key: "stock_pb",
     label: "P/B",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "20%",
+    weight: "33%",
   },
-  // Forward P/E PROMOTED to a scored input 2026-08-28 (user directive - MSCI's Value index
-  // uses 12-month forward Earnings/Price as one of its three core descriptors; explicitly a
-  // judgment call, not evidence-based - analyst_earnings_estimates only has ~22 trading days
-  // of history and can't be backtested yet).
   {
     key: "stock_forward_pe",
-    label: "Forward P/E",
+    label: "Earnings/Price (Forward P/E; trailing P/E substitute)",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "20%",
+    weight: "33%",
+  },
+  // No distinct EV/CFO ratio is exposed by the API today - `fcf_yield` (FCF/market_cap) is
+  // the same proxy value_metrics.py's cash_yield_raw_map falls back to when
+  // operating_cash_flow/enterprise_value aren't both available, so it's the closest real
+  // displayable value for this leg. See value_metrics.py's "EV/CFO FIX (2026-09-15)" comment.
+  {
+    key: "fcf_yield",
+    label: "Cash-Earnings/Price (EV/CFO)",
+    fmt: (v) => pct(v, 1),
+    used: true,
+    weight: "33%",
   },
   // market_cap moved to the Size pillar 2026-08-26, since retired entirely (see comment above).
   // amihud_illiquidity NOT added below - value_inputs (lambda/api/routes/scores.py) doesn't
@@ -1280,12 +1280,12 @@ const VALUE_SCHEMA = [
   //     see load_stock_scores.py's `_value_risk_adjusted_weights`). See _score_value's
   //     "PEG - REMOVED FROM SCORING 2026-08-28" docstring note. Freed 3% went to Dividend
   //     Yield above.
-  //   - FCF Yield (fcf_yield): REMOVED FROM SCORING 2026-08-25 - independently re-verified
-  //     robustly wrong-signed (t=-2.43/-0.91/-2.17 full/half/half). Checked 2026-08-28
-  //     specifically for the same missing-data selection bias that flipped the PE-vs-PB/PS
-  //     ranking dispute - does NOT apply here (fcf_yield is computed unconditionally, correctly
-  //     negative for cash-burning companies, not gated to positive-only like pe_ratio was) -
-  //     see "FCF YIELD - RESOLVED 2026-08-28" docstring note.
+  //   - FCF Yield (fcf_yield): originally REMOVED FROM SCORING 2026-08-25 (wrong-signed as a
+  //     standalone PRICE-basis input, t=-2.43/-0.91/-2.17 full/half/half), then RE-ADDED
+  //     2026-09-16 - not as that same standalone leg, but as the row above's fallback proxy
+  //     for MSCI's real EV/CFO leg (value_metrics.py's cash_yield_raw_map: operating_cash_flow/
+  //     enterprise_value when available, fcf_yield otherwise) - a leverage-aware EV-basis use,
+  //     not the previously-rejected price-basis one.
   //   - EV/EBITDA (stock_ev_ebitda) / EV/Revenue (stock_ev_revenue): excluded as near-literal
   //     duplicates of P/E (r=0.93) and P/S (r=1.00) respectively - would double-weight a signal
   //     already scored, not add information.
@@ -1381,90 +1381,47 @@ const VALUE_SCHEMA = [
 // (unscored, no weight badge) - an estimate-REVISION-momentum signal is a distinct factor
 // style from a growth-rate level, not folded into this blend; already percentage-point scaled
 // (no *100 needed).
+// GROWTH_SCHEMA cut 12->4 rows 2026-09-16 (factor-purity /goal session - see
+// GROWTH_SCORE_FIELDS_SUPERSEDED_NOTE in loaders/stock_scores/growth_scoring.py). Real MSCI/
+// Barra published Growth methodology uses 5 (MSCI) / 2 (Russell) descriptors, not 12, and
+// never separately scores revenue_growth_1y/3y/5y, eps_growth_1y/3y/5y (all two-point CAGRs -
+// the real "growth trend" descriptor is an OLS regression, see eps_growth_trend_5y/
+// sps_growth_trend_5y below), forward_eps_growth_next_fy (wrong time horizon - MSCI's
+// "long-term forward EPS growth" needs a real 3-5yr consensus estimate this system doesn't
+// have; not shipped as a wrong-horizon guess), forward_revenue_growth_next_fy, or
+// quarterly_growth_momentum/earnings_growth_4q_avg. Those 8 raw fields are still
+// computed/persisted/API-served, just no longer scored, so per this repo's own "if we're not
+// scoring it we don't want to display it" rule (already applied to every other pillar - see
+// TestUnscoredValueFieldsNotDisplayed) they're removed from this display schema entirely, not
+// kept as used:false rows.
 const GROWTH_SCHEMA = [
   {
-    key: "revenue_growth_1y_pct",
-    label: "Revenue Growth (1Y)",
+    key: "eps_growth_trend_5y",
+    label: "EPS Growth Trend (5Y OLS regression)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "8%",
+    weight: "25%",
   },
   {
-    key: "eps_growth_1y_pct",
-    label: "EPS Growth (1Y)",
+    key: "sps_growth_trend_5y",
+    label: "Sales-Per-Share Growth Trend (5Y OLS regression)",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "8%",
-  },
-  {
-    key: "revenue_growth_3y_cagr",
-    label: "Revenue Growth (3Y CAGR)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "eps_growth_3y_cagr",
-    label: "EPS Growth (3Y CAGR)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "revenue_growth_5y_cagr",
-    label: "Revenue Growth (5Y CAGR)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "eps_growth_5y_cagr",
-    label: "EPS Growth (5Y CAGR)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
+    weight: "25%",
   },
   {
     key: "forward_eps_growth_current_fy",
     label: "Forward EPS Growth (Current FY, analyst consensus)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "8%",
-  },
-  {
-    key: "forward_eps_growth_next_fy",
-    label: "Forward EPS Growth (Next FY, analyst consensus)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "forward_revenue_growth_next_fy",
-    label: "Forward Revenue Growth (Next FY, analyst consensus)",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: true,
-    weight: "8%",
+    weight: "25%",
   },
   {
     key: "sustainable_growth_rate",
     label: "Sustainable Growth Rate",
     fmt: (v) => pct(v, 2),
     used: true,
-    weight: "8%",
-  },
-  {
-    key: "quarterly_growth_momentum",
-    label: "Revenue Growth (4Q YoY Avg)",
-    fmt: (v) => num(v, 2),
-    used: true,
-    weight: "8%",
-  },
-  {
-    key: "earnings_growth_4q_avg",
-    label: "Earnings Growth (4Q Avg)",
-    fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "8%",
+    weight: "25%",
   },
 ];
 // fcf_growth_yoy / eps_growth_stability / net_income_growth_yoy / eps_estimate_revision_90d_pct
@@ -1579,36 +1536,43 @@ const POSITIONING_SCHEMA = [
 // barra and the industry guys" - see _score_risk's own docstring in risk_scoring.py). Real
 // Barra-style Minimum-Volatility/low-risk factor construction never folds tradability into
 // the risk-anomaly score itself - that's a separate execution-eligibility screen (still
-// enforced elsewhere: algo_config.min_adv_dollars, Phase 7/8's LiquidityChecks). The
-// remaining 4 genuine risk-of-loss inputs now split the full weight equally, 25% each.
+// enforced elsewhere: algo_config.min_adv_dollars, Phase 7/8's LiquidityChecks).
+//
+// MAX_DRAWDOWN_1Y REMOVED FROM SCORING 2026-09-16 (factor-purity sweep, user: "we do what the
+// industry does only" - see _score_risk's own docstring in risk_scoring.py for the full
+// citation): never a real Barra USE4 Volatility descriptor (Beta + DASTD/CMRA/HSIGMA) or MSCI
+// Min Vol/BAB literature input, and this file's own history already showed it era-flips sign
+// with no stable predictive power. Demoted to informational-only (used:false), same
+// "computed but unscored" convention as avg_dollar_volume_20d below - not deleted, raw value
+// stays displayed. Volatility 60D/252D and Beta now split the full weight equally, 1/3 each.
 const RISK_SCHEMA = [
   {
     key: "volatility_60d",
     label: "Volatility (60D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "25%",
+    weight: "33%",
   },
   {
     key: "volatility_12m",
     label: "Volatility (252D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
     used: true,
-    weight: "25%",
+    weight: "33%",
   },
   {
     key: "beta",
     label: "Beta vs Market",
     fmt: (v) => num(v, 2),
     used: true,
-    weight: "25%",
+    weight: "33%",
   },
   {
     key: "max_drawdown_1y",
     label: "Max Drawdown (1Y)",
     fmt: (v) => pct(v, 2),
-    used: true,
-    weight: "25%",
+    used: false,
+    weight: null,
   },
   {
     key: "avg_dollar_volume_20d",

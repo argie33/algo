@@ -1,33 +1,18 @@
-"""Regression tests for the 2026-08-31 fix (goal session: "get all the data we need"
-full-coverage audit) to what is now update_quality_sector_neutral_scores() (loaders/
-load_value_quality_growth_metrics.py, renamed/generalized by the 2026-09-07 "best and
-brightest" scoring-methodology rewrite - the idempotency/negative-floor properties this file
-tests are unchanged by that rewrite).
+"""Regression tests for update_quality_sector_neutral_scores() (loaders/helpers/
+vqg_quality_batch.py): idempotency and the negative-ROE floor.
 
-Live-confirmed on the real local DB: this batch pass runs unconditionally on the WHOLE
-scored universe every time the loader runs (regardless of --symbols scope), and its
-original additive-delta design (`quality_score_NEW = quality_score_OLD + delta`, reading
-quality_score_OLD from the SAME mutable column it writes to) is NOT idempotent - three
-consecutive runs today with zero underlying data changes drifted a fixed sample of
-symbols upward every time (e.g. AAPL 83.57 -> 86.69, AAPG 78.57 -> 87.30), because the
-same delta gets re-added on top of the prior run's already-corrected value instead of
-being computed fresh against a stable baseline. 1,567/5,110 symbols (30.7% of the scored
-universe) were found stuck at EXACTLY quality_score=100.00 after ~3 days of this running
-in the normal pipeline cadence - including companies with deeply negative ROA/ROE/ROCE
-(e.g. GLIBK: ROE -18.31%, ROCE -11.99%, gross profitability -10.73%).
+REBUILT 2026-09-16 (factor-purity sweep, MSCI 3-variable Quality Index rebuild - see
+vqg_quality_batch.py's own docstring for the full citation) to use the new row shape and
+scored legs (ROE/Debt-to-Equity/Earnings Variability), but the two properties this file pins
+are unchanged by that rewrite and remain load-bearing:
 
-Separately: a negative raw ROE/ROCE is floored to curve-score 0.0 in Pass 1
-(`_margin_curve`'s own `if value < 0: return 0.0`), but a plain percentile rank never
-floors at 0 for a non-worst performer - live-confirmed ROE=-18.31% still ranked at the
-31st percentile of the real universe. Fixed the same way
-load_stock_scores.py's update_value_multiples_percentiles() already fixes this for
-unprofitable P/E: rank only the non-negative population, floor negative-raw-value symbols
-to percentile 0.0 explicitly.
-
-Fix: this method is now a pure, idempotent function of the raw stored ratio columns
-(matching load_stock_scores.py's update_rs_percentiles() pattern) - quality_score is only
-ever a WRITE target, never also a read input, and ROE/ROCE percentiles are floored to 0.0
-for negative raw values.
+1. IDEMPOTENCY: this pass is a pure function of the raw stored ratio columns - quality_score
+   is only ever a WRITE target, never also a read input (see git history, commit fixing the
+   original additive-delta non-idempotence bug, for why this matters: three consecutive runs
+   with zero underlying data change used to drift scores upward every time via
+   `quality_score_NEW = quality_score_OLD + delta`).
+2. NEGATIVE ROE FLOOR: a negative raw ROE (or the sign-flip-distress case) must not rank
+   favorably just because a percentile/z-score has no inherent floor at 0 the way a curve does.
 """
 
 from unittest.mock import MagicMock, patch
@@ -35,16 +20,39 @@ from unittest.mock import MagicMock, patch
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader as L
 
 
+def _row(
+    symbol: str,
+    roe: float | None,
+    roa: float | None,
+    debt_to_equity: float | None,
+    earnings_variability: float | None,
+    quality_score_old: float = 1.0,
+    sector: str = "Technology",
+) -> tuple:
+    return (
+        symbol,
+        sector,
+        None,  # industry
+        roe,
+        roa,
+        None,  # roce_pct
+        None,  # fcf_margin
+        debt_to_equity,
+        None,  # margin_volatility
+        None,  # asset_turnover
+        None,  # gross_profitability
+        quality_score_old,
+        False,  # is_fpi
+        None,  # market_cap
+        earnings_variability,
+    )
+
+
 def _run_with_mocked_rows(rows: list[tuple]) -> list[tuple[str, float]]:
-    """Run update_quality_roe_roce_percentiles() against a fully mocked DB returning `rows`
-    for both the SELECT and any subsequent call (simulating the SAME DB state persisting
-    across the run, i.e. a single pass), and return the UPDATE's (symbol, quality_score)
-    pairs, or [] if no UPDATE was issued."""
+    """Run update_quality_sector_neutral_scores() against a fully mocked DB returning `rows`
+    for the correction SELECT (and [] for _withhold_quality_below_floor()'s own SELECT), and
+    return the UPDATE's (symbol, quality_score) pairs, or [] if no UPDATE was issued."""
     mock_cur = MagicMock()
-    # side_effect, not return_value (2026-09-15): update_quality_sector_neutral_scores now
-    # ALSO calls _withhold_quality_below_floor(), a second SELECT reusing this same mocked
-    # cursor - a shared return_value would spuriously re-serve the main rows as "below the
-    # liquidity floor" too. Only the first fetchall() (the correction pass) sees `rows`.
     mock_cur.fetchall.side_effect = [rows, []]
     with (
         patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_ctx,
@@ -61,20 +69,33 @@ def _run_with_mocked_rows(rows: list[tuple]) -> list[tuple[str, float]]:
 
 class TestIdempotentAcrossRepeatedRuns:
     def test_re_running_with_the_prior_runs_output_as_input_produces_no_further_change(self) -> None:
-        """The defining symptom of the bug: feed the function's OWN prior output back in as
-        `quality_score` (simulating a second consecutive run with zero underlying data
-        change) and it must NOT drift further - a fixed point, not a ratchet."""
+        """The defining symptom of the old additive-delta bug: feed the function's OWN prior
+        output back in as quality_score (simulating a second consecutive run with zero
+        underlying data change) and it must NOT drift further - a fixed point, not a ratchet."""
         # Two symbols so z-scores aren't the single-symbol neutral-50.0 special case.
-        # quality_score placeholder
-        row_a = ("A", "Technology", None, 20.0, 10.0, 15.0, 8.0, 0.5, 10.0, 60.0, 20.0, 999.0)
-        row_b = ("B", "Technology", None, -18.31, -1.68, -11.99, -5.29, 0.0, 0.87, 97.03, None, 999.0)
+        row_a = _row("A", roe=20.0, roa=10.0, debt_to_equity=0.5, earnings_variability=10.0)
+        row_b = _row("B", roe=-18.31, roa=-1.68, debt_to_equity=0.0, earnings_variability=0.87)
 
         first_pass_updates = _run_with_mocked_rows([row_a, row_b])
         assert first_pass_updates, "expected the first pass to correct the placeholder quality_score"
         corrected = dict(first_pass_updates)
 
-        row_a_2 = ("A", "Technology", None, 20.0, 10.0, 15.0, 8.0, 0.5, 10.0, 60.0, 20.0, corrected["A"])
-        row_b_2 = ("B", "Technology", None, -18.31, -1.68, -11.99, -5.29, 0.0, 0.87, 97.03, None, corrected["B"])
+        row_a_2 = _row(
+            "A",
+            roe=20.0,
+            roa=10.0,
+            debt_to_equity=0.5,
+            earnings_variability=10.0,
+            quality_score_old=corrected["A"],
+        )
+        row_b_2 = _row(
+            "B",
+            roe=-18.31,
+            roa=-1.68,
+            debt_to_equity=0.0,
+            earnings_variability=0.87,
+            quality_score_old=corrected["B"],
+        )
         second_pass_updates = _run_with_mocked_rows([row_a_2, row_b_2])
 
         assert second_pass_updates == [], (
@@ -84,16 +105,16 @@ class TestIdempotentAcrossRepeatedRuns:
         )
 
     def test_three_consecutive_runs_converge_not_drift(self) -> None:
-        """Broader sanity check across more symbols, including a negative-ROE/ROCE one -
-        three passes in a row must reach a fixed point by pass 2, never keep moving."""
+        """Broader sanity check across more symbols, including a negative-ROE one - three
+        passes in a row must reach a fixed point by pass 2, never keep moving."""
         rows = [
-            ("POS", "Technology", None, 25.0, 12.0, 18.0, 10.0, 0.3, 5.0, 80.0, 30.0, 999.0),
-            ("NEG", "Technology", None, -30.0, -10.0, -20.0, -15.0, 1.0, 20.0, 40.0, -5.0, 999.0),
-            ("MIX", "Technology", None, 5.0, 3.0, -2.0, 2.0, 0.8, 15.0, 55.0, 12.0, 999.0),
+            _row("POS", roe=25.0, roa=12.0, debt_to_equity=0.3, earnings_variability=5.0),
+            _row("NEG", roe=-30.0, roa=-10.0, debt_to_equity=1.0, earnings_variability=20.0),
+            _row("MIX", roe=5.0, roa=3.0, debt_to_equity=0.8, earnings_variability=15.0),
         ]
 
         def _next_pass_rows(prior_rows: list[tuple], prior_updates: dict[str, float]) -> list[tuple]:
-            return [(r[0], *r[1:11], prior_updates.get(r[0], r[11])) for r in prior_rows]
+            return [(*r[:11], prior_updates.get(r[0], r[11]), *r[12:]) for r in prior_rows]
 
         pass1 = dict(_run_with_mocked_rows(rows))
         rows_after_1 = _next_pass_rows(rows, pass1)
@@ -104,64 +125,30 @@ class TestIdempotentAcrossRepeatedRuns:
         assert pass3_updates == [], f"score kept drifting on a 3rd identical pass: {pass3_updates}"
 
 
-class TestNegativeRoeRoceFloor:
-    def test_deeply_negative_roe_and_roce_does_not_inflate_quality_score(self) -> None:
-        """GLIBK-shaped case: ROE/ROCE both deeply negative alongside otherwise-mediocre
-        inputs must NOT land anywhere near 100 - the exact live-observed failure mode."""
+class TestNegativeRoeFloor:
+    def test_deeply_negative_roe_does_not_inflate_quality_score(self) -> None:
+        """A company with deeply negative ROE (and the ROA sign-flip guard both negative)
+        must NOT land anywhere near a strong peer's score."""
         rows = [
-            # a genuinely strong peer
-            ("GOOD", "Technology", None, 25.0, 15.0, 20.0, 12.0, 0.2, 3.0, 90.0, 35.0, 0.0),
-            ("GLIBK", "Technology", None, -18.31, -9.55, -11.99, 11.66, 0.72, None, 32.34, -10.73, 0.0),
+            _row("GOOD", roe=25.0, roa=15.0, debt_to_equity=0.2, earnings_variability=3.0),
+            _row("BAD", roe=-18.31, roa=-9.55, debt_to_equity=0.72, earnings_variability=11.66),
         ]
         updates = dict(_run_with_mocked_rows(rows))
-        assert "GLIBK" in updates
-        assert updates["GLIBK"] < 60.0, (
-            f"a company with negative ROE/ROCE/gross-profitability scored {updates['GLIBK']}, "
-            "expected well below a mediocre-quality threshold"
-        )
+        assert "BAD" in updates
+        assert updates["BAD"] < updates["GOOD"]
+        assert updates["BAD"] < 40.0, f"a company with negative ROE scored {updates['BAD']}, expected clearly low"
 
-    def test_negative_roe_contributes_zero_not_a_lenient_percentile(self) -> None:
-        """Direct unit-level check: a negative-ROE symbol's ROE term must compute as if it
-        were curve-scored at 0, not ranked among the (non-negative-only) percentile universe -
-        verified by comparing two universes where the only difference is whether a very-bad
-        (but not literally most-negative) ROE symbol would otherwise rank favorably.
-
-        The 2026-09-07 sign-flip-distress fix (see
-        test_quality_roe_sign_flip_distress_artifact_excluded_20260907.py) made the ROE
-        component require `roa` to be present at all (omitted, not floored, when roa is
-        missing). Both rows below now also set a negative `roa` (consistent with the
-        deeply-negative-ROE distress shape this test is modeling) so the ROE component is
-        actually included and its floor-at-0-for-negative-values behavior gets exercised,
-        instead of being omitted entirely (total_weight=0, no update issued).
-
-        Both rows also carry identical margin_volatility/gross_profitability values (weight
-        roe 15.0 + roa 15.0 + margin_vol 25.0 + gross_prof 15.0 = 70.0, under the 2026-09-15
-        asset_turnover+ROCE removal - see vqg_quality_score.py's "ASSET_TURNOVER + ROCE
-        REMOVED ENTIRELY" comment - clears the 40.0 completeness floor) so an update
-        actually fires - with matching values across both rows, those two components (margin_
-        vol/gross_prof) pool as ties and z-score to neutral percentile 50.0 for both symbols.
-        roce_pct is None in both rows below and asset_turnover=50.0 in both, but neither
-        contributes to a component any more either way.
-
-        ROE's floor-to-0-for-negative-roa (the sign-flip guard) is unchanged and still
-        applies to both rows here. ROA's OWN component floor was REMOVED 2026-09-13 (see
-        vqg_quality_batch.py's "FLOOR REMOVED" docstring note) - roa now scores continuously,
-        so WORST_NEG (roa=-30, the more deeply negative of the pair) and MID_NEG (roa=-3)
-        no longer tie at a floored 0; they z-score against each other within their 2-symbol
-        residual pool (below sector_neutral_zscore's min_sector_size=15) and WORST_NEG
-        correctly scores LOWER than MID_NEG - continuous scoring preserving real magnitude
-        information the old floor discarded, not a bug in this test."""
+    def test_negative_roe_floors_to_worst_not_a_lenient_percentile(self) -> None:
+        """Direct check: a negative-ROE (sign-flip-distress) symbol's ROE leg must compute as
+        the WORST z-score (-3.0, MSCI's own winsorization bound), not get ranked among the
+        real population the way a plain percentile-of-all-values might rank a merely-bad (not
+        literally worst) raw value favorably."""
         rows = [
-            ("WORST_NEG", "Technology", None, -40.0, -30.0, None, None, None, 10.0, 50.0, 25.0, 99.0),
-            ("MID_NEG", "Technology", None, -5.0, -3.0, None, None, None, 10.0, 50.0, 25.0, 99.0),
+            _row("WORST_NEG", roe=-40.0, roa=-30.0, debt_to_equity=None, earnings_variability=None),
+            _row("MID_NEG", roe=-5.0, roa=-3.0, debt_to_equity=None, earnings_variability=None),
         ]
         updates = dict(_run_with_mocked_rows(rows))
-        # ROE floors to 0 for both (sign-flip guard, roa<0); roa is continuous and WORST_NEG's
-        # more deeply negative roa scores a lower percentile than MID_NEG's; the other 2 tied
-        # components (margin_vol/gross_prof) z-score to neutral 50.0 each. Exact values pinned
-        # via the real sector_neutral_zscore/zscore_to_percentile_scale computation (2-element
-        # residual pool), recomputed 2026-09-15 for the asset_turnover+ROCE removal's new
-        # weights.
-        assert updates.get("WORST_NEG") == 31.97
-        assert updates.get("MID_NEG") == 46.6
-        assert updates["WORST_NEG"] < updates["MID_NEG"]
+        # Both sign-flip-floor to the same worst z-score (-3.0) on the ROE leg (their only
+        # scored leg - D/E and Earnings Variability are both missing for both) - with no
+        # differentiating leg, they must tie, both at the sector-relative floor.
+        assert updates["WORST_NEG"] == updates["MID_NEG"]
