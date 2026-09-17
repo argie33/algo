@@ -187,7 +187,20 @@ def curve_score(label: str, val: float) -> float | None:
     if label in ("mom_3m_pct", "mom_12_1_pct"):
         return StockScoresLoader._pct_to_score(val)
     if label == "rsi_14":
-        return StockScoresLoader._rsi_to_score(val)
+        # Inlined from momentum_scoring.py's former _rsi_to_score (deleted from production
+        # 2026-09-17 as confirmed dead: no live caller since RSI/MACD were demoted to
+        # informational-only 2026-09-15). Kept here verbatim so this completed sweep still
+        # reproduces if re-run.
+        rsi = max(0.0, min(100.0, val))
+        if rsi <= 30:
+            return (rsi / 30) * 30
+        if rsi <= 50:
+            return 30 + ((rsi - 30) / 20) * 20
+        if rsi <= 70:
+            return 50 + ((rsi - 50) / 20) * 35
+        if rsi <= 85:
+            return 85 + ((rsi - 70) / 15) * 15
+        return max(60.0, 100 - (rsi - 85) * 3)
     if label == "log_market_cap":
         if val <= 8.48:
             return 100.0

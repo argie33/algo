@@ -729,31 +729,6 @@ class MomentumScoringMixin:
         return max(0, min(100, score))
 
     @staticmethod
-    def _rsi_to_score(rsi: float) -> float:
-        """Map RSI(14) to a momentum-following 0-100 score (higher RSI = more bullish).
-
-        This is deliberately NOT a mean-reversion mapping (which would penalize high RSI as
-        "overbought"). For a momentum factor, sustained strength (RSI 50-85) should score
-        well; only extreme overbought (>85) gets a mild pullback for reversal risk.
-
-        NO LIVE SCORING CALLER since RSI/MACD were demoted to informational-only 2026-09-15
-        (see update_momentum_sector_relative_mom_12_1's own docstring). Kept only because
-        algo/research/all_pillars_curve_vs_percentile_sweep_20260828.py still calls it
-        directly as StockScoresLoader._rsi_to_score - verify that script no longer needs it
-        before deleting this.
-        """
-        rsi = max(0.0, min(100.0, rsi))
-        if rsi <= 30:
-            return (rsi / 30) * 30
-        if rsi <= 50:
-            return 30 + ((rsi - 30) / 20) * 20
-        if rsi <= 70:
-            return 50 + ((rsi - 50) / 20) * 35
-        if rsi <= 85:
-            return 85 + ((rsi - 70) / 15) * 15
-        return max(60.0, 100 - (rsi - 85) * 3)
-
-    @staticmethod
     def _components_with_corrected_momentum(components_old: Any, momentum_score_new: float | None) -> str:
         """Return components (the Pass-1 JSON breakdown dict) re-serialized with its 'momentum'
         key set to momentum_score_new, every other pillar untouched. Mirrors
