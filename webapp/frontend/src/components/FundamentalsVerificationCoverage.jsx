@@ -35,11 +35,11 @@ const fmtPct = (n) => (n == null ? "—" : `${n}%`);
 
 // Order matters - matches the stacked-bar segment order below.
 const BUCKETS = [
-  { key: "confident", label: "Confident (matches yfinance)", color: "#22ab84", icon: CheckCircle2 },
-  { key: "unreviewed", label: "Flagged, unreviewed", color: "#7a8aa3", icon: HelpCircle },
-  { key: "reviewed_not_error", label: "Reviewed - legitimate difference", color: "#3987e5", icon: CheckCircle2 },
-  { key: "reviewed_needs_fix", label: "Reviewed - confirmed wrong, open", color: "#e2645f", icon: AlertTriangle },
-  { key: "reviewed_fixed", label: "Reviewed - confirmed wrong, fixed", color: "#d1a336", icon: Wrench },
+  { key: "confident", label: "Confident (matches yfinance)", shortLabel: "confident", color: "#22ab84", icon: CheckCircle2 },
+  { key: "unreviewed", label: "Flagged, unreviewed", shortLabel: "unreviewed", color: "#7a8aa3", icon: HelpCircle },
+  { key: "reviewed_not_error", label: "Reviewed - legitimate difference", shortLabel: "legit diff", color: "#3987e5", icon: CheckCircle2 },
+  { key: "reviewed_needs_fix", label: "Reviewed - confirmed wrong, open", shortLabel: "open", color: "#e2645f", icon: AlertTriangle },
+  { key: "reviewed_fixed", label: "Reviewed - confirmed wrong, fixed", shortLabel: "fixed", color: "#d1a336", icon: Wrench },
 ];
 
 function StackedBar({ row, total }) {
@@ -66,6 +66,132 @@ function StackedBar({ row, total }) {
   );
 }
 
+// Numeric breakdown, always visible under the bar - the bar alone only shows relative widths,
+// which makes small-but-nonzero buckets (like a handful of open bugs) invisible against 5,000+
+// confident matches. Only prints buckets that are actually nonzero for that row.
+function BucketCounts({ row }) {
+  const nonzero = BUCKETS.filter((b) => (row[b.key] || 0) > 0);
+  if (!nonzero.length) return null;
+  return (
+    <div className="flex gap-2 t-2xs" style={{ flexWrap: "wrap", marginTop: 4 }}>
+      {nonzero.map((b) => (
+        <span
+          key={b.key}
+          className="flex items-center gap-1"
+          style={{ color: b.key === "reviewed_needs_fix" ? b.color : "var(--text-muted)" }}
+        >
+          <span className="dot" style={{ background: b.color, width: 6, height: 6 }} />
+          {fmtInt(row[b.key])} {b.shortLabel}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function fmtVal(n) {
+  if (n == null) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `${(n / 1e3).toFixed(2)}K`;
+  return `${n}`;
+}
+
+const REVIEW_STATUS_LABEL = {
+  reviewed_needs_fix: "Open - confirmed wrong",
+  unreviewed: "Unreviewed",
+  reviewed_not_error: "Legitimate difference",
+  reviewed_fixed: "Fixed",
+};
+
+// Drill-down for one (table, field): the per-field row only ever showed counts - there was no
+// way to see which (symbol, fiscal_year) rows actually make up an "open" or "unreviewed" bucket.
+// Backed by GET /api/data-coverage?table=...&field=... (get_fundamentals_verification_field_detail).
+function FieldDetailPanel({ table, field }) {
+  const { data, loading, error } = useApiQuery(
+    ["data-coverage-field-detail", table, field],
+    () => api.get(COVERAGE_URL, { params: { table, field } }),
+    { timeout: 20000, retry: 1 }
+  );
+
+  const detail = data?.data || data;
+  const rows = detail?.rows || [];
+
+  if (loading) {
+    return (
+      <div className="t-2xs muted" style={{ padding: "var(--space-2) var(--space-3)" }}>
+        Loading divergent rows for {table}.{field}…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="t-2xs" style={{ padding: "var(--space-2) var(--space-3)", color: "var(--danger, #e2645f)" }}>
+        Failed to load detail: {error?.message || "unknown error"}
+      </div>
+    );
+  }
+  if (!rows.length) {
+    return (
+      <div className="t-2xs muted" style={{ padding: "var(--space-2) var(--space-3)" }}>
+        No divergent rows recorded for {table}.{field} - every comparison on record matched
+        yfinance within the materiality band.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "var(--space-2) var(--space-3)" }}>
+      {detail?.truncated && (
+        <div className="t-2xs faint" style={{ marginBottom: 6 }}>
+          Showing the first {rows.length} divergent rows (open bugs and unreviewed first) - more
+          exist. Use{" "}
+          <code className="mono t-2xs">
+            python scripts/xbrl_line_item_report.py --divergent-only --unreviewed-only
+          </code>{" "}
+          for the full list.
+        </div>
+      )}
+      <table className="data-table" style={{ fontSize: "var(--t-2xs)" }}>
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Period</th>
+            <th>Ours</th>
+            <th>yfinance</th>
+            <th>Ratio</th>
+            <th>Status</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={`${r.symbol}-${r.fiscal_year}-${r.fiscal_quarter}-${i}`}>
+              <td className="mono">{r.symbol}</td>
+              <td className="mono">{r.fiscal_quarter ? `FY${r.fiscal_year}Q${r.fiscal_quarter}` : `FY${r.fiscal_year}`}</td>
+              <td className="mono num">{fmtVal(r.our_value)}</td>
+              <td className="mono num">{fmtVal(r.yfinance_value)}</td>
+              <td className="mono num">{r.ratio != null ? r.ratio.toFixed(3) : "—"}</td>
+              <td>
+                <span
+                  className="t-2xs"
+                  style={{
+                    color: r.review_status === "reviewed_needs_fix" ? "#e2645f" : "var(--text-muted)",
+                    fontWeight: r.review_status === "reviewed_needs_fix" ? 600 : 400,
+                  }}
+                >
+                  {REVIEW_STATUS_LABEL[r.review_status] || r.review_status}
+                </span>
+              </td>
+              <td className="t-2xs faint">{r.review_note || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function FundamentalsVerificationCoverage({ active }) {
   const { data, loading, error, isFetching, refetch } = useApiQuery(
     ["data-coverage", "fundamentals-verification"],
@@ -74,6 +200,7 @@ export default function FundamentalsVerificationCoverage({ active }) {
   );
 
   const [sortMode, setSortMode] = useState("unreviewed_desc");
+  const [expandedField, setExpandedField] = useState(null); // `${table}.${field}` or null
 
   if (!active) return null;
 
@@ -230,20 +357,40 @@ export default function FundamentalsVerificationCoverage({ active }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
-                    <tr key={`${r.table}.${r.field}`}>
-                      <td>
-                        <div className="dbl">
-                          <span className="dbl-main mono t-sm">{r.field}</span>
-                          <span className="dbl-sub mono t-2xs faint">{r.table}</span>
-                        </div>
-                      </td>
-                      <td className="mono t-sm num">{fmtInt(r.checked)}</td>
-                      <td>
-                        <StackedBar row={r} total={r.checked} />
-                      </td>
-                    </tr>
-                  ))}
+                  {rows.map((r) => {
+                    const key = `${r.table}.${r.field}`;
+                    const isOpen = expandedField === key;
+                    return (
+                      <React.Fragment key={key}>
+                        <tr
+                          onClick={() => setExpandedField(isOpen ? null : key)}
+                          style={{ cursor: "pointer" }}
+                          title="Click to see the underlying divergent rows"
+                        >
+                          <td>
+                            <div className="dbl">
+                              <span className="dbl-main mono t-sm">
+                                {isOpen ? "▾" : "▸"} {r.field}
+                              </span>
+                              <span className="dbl-sub mono t-2xs faint">{r.table}</span>
+                            </div>
+                          </td>
+                          <td className="mono t-sm num">{fmtInt(r.checked)}</td>
+                          <td>
+                            <StackedBar row={r} total={r.checked} />
+                            <BucketCounts row={r} />
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <tr>
+                            <td colSpan={3} style={{ padding: 0, background: "var(--surface-2)" }}>
+                              <FieldDetailPanel table={r.table} field={r.field} />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

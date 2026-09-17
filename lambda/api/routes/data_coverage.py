@@ -26,6 +26,7 @@ from psycopg2.extensions import cursor
 from routes.utils import (
     error_response,
     execute_with_timeout,
+    extract_param,
     handle_db_error,
     json_response,
     success_response,
@@ -474,6 +475,75 @@ def get_fundamentals_verification_coverage(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
+# ADDED same goal session as the per-field breakdown above: the dashboard could show bucket
+# *counts* per field but had no way to see which actual (symbol, fiscal_year) rows sit in a
+# bucket - "open" (reviewed_needs_fix) rows in particular were uninspectable, so even once one
+# exists there was no path from "1 open" to "which symbol". This is the row-level drill-down for
+# one (table, field) pair, capped and ordered so the highest-priority rows (open bugs first,
+# then unreviewed) surface without paging.
+_REVIEW_STATUS_PRIORITY_SQL = """
+    CASE review_status
+        WHEN 'reviewed_needs_fix' THEN 0
+        WHEN 'unreviewed' THEN 1
+        WHEN 'reviewed_not_error' THEN 2
+        WHEN 'reviewed_fixed' THEN 3
+        ELSE 4
+    END
+"""
+
+
+def get_fundamentals_verification_field_detail(cur: cursor, table: str, field: str) -> Any:
+    try:
+        cur.execute("SET LOCAL statement_timeout = '15s'")
+        cur.execute(
+            f"""
+            SELECT symbol, fiscal_year, fiscal_quarter, our_value, yfinance_value, ratio,
+                   divergent, review_status, review_note, reviewed_by, reviewed_at, checked_at
+            FROM xbrl_yfinance_line_item_report
+            WHERE our_table = %s AND our_field = %s AND divergent
+            ORDER BY {_REVIEW_STATUS_PRIORITY_SQL},
+                     GREATEST(ratio, 1.0 / NULLIF(ratio, 0)) DESC NULLS LAST
+            LIMIT 200
+            """,
+            (table, field),
+        )
+        rows = [
+            {
+                "symbol": r[0],
+                "fiscal_year": r[1],
+                "fiscal_quarter": r[2],
+                "our_value": float(r[3]) if r[3] is not None else None,
+                "yfinance_value": float(r[4]) if r[4] is not None else None,
+                "ratio": float(r[5]) if r[5] is not None else None,
+                "divergent": r[6],
+                "review_status": r[7],
+                "review_note": r[8],
+                "reviewed_by": r[9],
+                "reviewed_at": str(r[10]) if r[10] else None,
+                "checked_at": str(r[11]) if r[11] else None,
+            }
+            for r in cur.fetchall()
+        ]
+        return success_response(
+            {
+                "table": table,
+                "field": field,
+                "rows": rows,
+                "row_count": len(rows),
+                "truncated": len(rows) == 200,
+            }
+        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "get fundamentals verification field detail")
+        return error_response(code, error_type, message)
+
+
 def _safe_call(cur: cursor, fn: Any) -> Any:
     """Call fn(cur) with SAVEPOINT isolation so a failed query doesn't abort the outer tx.
 
@@ -569,6 +639,18 @@ def handle(
         return error_response(405, "method_not_allowed", "Method not allowed. Only GET is supported.")
 
     try:
+        # ?table=...&field=... drills into one line item's row-level detail instead of the
+        # full coverage summary - see get_fundamentals_verification_field_detail.
+        table = extract_param(params, "table")
+        field = extract_param(params, "field")
+        if table and field:
+            # get_fundamentals_verification_field_detail already returns a fully-shaped
+            # response ({statusCode, data} on success, {statusCode, errorType, message} on
+            # error via success_response()/error_response()) - passing it through json_response
+            # here would wrap it a second time, putting `rows` at data.data.rows instead of
+            # data.rows. Return it as-is, same as error_response() results elsewhere in this file.
+            return get_fundamentals_verification_field_detail(cur, table, field)
+
         summary = get_overall_coverage_summary(cur)
         # Return data wrapped in standard response format
         return json_response(200, summary)
