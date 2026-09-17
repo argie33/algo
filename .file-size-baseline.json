@@ -437,7 +437,7 @@
   "lambda/api/routes/audit.py": 176,
   "lambda/api/routes/auth_guard.py": 73,
   "lambda/api/routes/contact.py": 281,
-  "lambda/api/routes/data_coverage.py": 583,
+  "lambda/api/routes/data_coverage.py": 665,
   "lambda/api/routes/decorators.py": 111,
   "lambda/api/routes/diagnostics.py": 122,
   "lambda/api/routes/earnings.py": 155,
