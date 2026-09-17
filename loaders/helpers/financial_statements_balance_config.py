@@ -378,6 +378,13 @@ _BALANCE_FIELD_MAPPING = {
     # _DEBT_FALLBACK_ONLY_FIELDS below), must never win over the standard concept.
     "public_utilities_property_plant_and_equipment_net": "ppe_net",
     "property_plant_and_equipment_and_finance_lease_right_of_use_asset_after_accumulated_depreciation_and_amortization": "ppe_net",
+    # ADDED 2026-09-17 (goal: divergence-repair trend-break sweep): mining/O&G sector real
+    # net-property concepts, genuinely ADDITIVE to a small remaining corporate PP&E balance
+    # (not fallback-only) - see sec_zero_component_guards.py's ADDITIVE_CONCEPT_PAIRS
+    # docstring and sec_balance_sheet.py's get_balance_sheet() comment for the live evidence
+    # (THM/PZG/RRC/HPK).
+    "mineral_properties_net": "ppe_net",
+    "oil_and_gas_property_successful_effort_method_net": "ppe_net",
     "property_plant_and_equipment_net": "ppe_net",
     "goodwill": "goodwill",
     "long_term_debt": "long_term_debt",

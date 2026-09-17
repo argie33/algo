@@ -523,6 +523,22 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # post-2019 (ASC 842 adoption). Fallback-only, same before-the-standard-concept
         # ordering as the utility fallback above.
         "PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization",
+        # ADDED 2026-09-17 (goal: divergence-repair trend-break sweep, ppe_net systematic
+        # under-reporting found for mining/O&G filers): live-confirmed via real companyfacts
+        # JSON - THM (International Tower Hill Mines, CIK 0001134115) tags its entire real
+        # net mineral-property asset ($55,375,124 FY2025) under this concept while
+        # PropertyPlantAndEquipmentNet is only $7,465 (office equipment); PZG (Paramount
+        # Gold Nevada, CIK 0001629210) same pattern ($49,137,478 vs $12,028 FY2025).
+        # Genuinely ADDITIVE to the plain concept, not an alternate - see
+        # sec_zero_component_guards.py's ADDITIVE_CONCEPT_PAIRS docstring for the exact-match
+        # proof (THM: $55,375,124 + $7,465 = $55,382,589, exactly yfinance's flagged value).
+        "MineralPropertiesNet",
+        # ADDED 2026-09-17 (same sweep): oil & gas producers' real net property asset -
+        # live-confirmed via real companyfacts JSON: RRC (Range Resources, CIK 0000315852)
+        # tags $6,708,366,000 FY2025 here vs $4,935,000 under PropertyPlantAndEquipmentNet;
+        # HPK (HighPeak Energy, CIK 0001792849) same pattern ($2,930,436,000 vs $3,012,000
+        # FY2025). Also additive, same ADDITIVE_CONCEPT_PAIRS mechanism.
+        "OilAndGasPropertySuccessfulEffortMethodNet",
         "PropertyPlantAndEquipmentNet",
         "Goodwill",
         # FIXED 2026-08-17 (loader-review goal continuation): fallback long-term-debt

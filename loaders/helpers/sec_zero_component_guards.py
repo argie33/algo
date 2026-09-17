@@ -166,6 +166,24 @@ def is_zero_overwrite_blocking_field(db_field: str, existing: Any, value: Any) -
 # - interest_expense: financing_interest_expense (mapped to interest_expense) +
 #   interest_expense_other (TITN FY2026: $24,109,000 + $18,974,000 = $43,083,000, exactly
 #   matching yfinance; FY2025: $34,710,000 + $15,105,000 = $49,815,000).
+# - ppe_net: property_plant_and_equipment_net + mineral_properties_net (mining filers'
+#   sector-specific real net property asset, distinct from and additive to a small remaining
+#   corporate PP&E balance) / property_plant_and_equipment_net + oil_and_gas_property_
+#   successful_effort_method_net (O&G filers' equivalent). ADDED 2026-09-17 (goal:
+#   divergence-repair trend-break sweep) - live-confirmed via real SEC companyfacts JSON:
+#   THM (International Tower Hill Mines, CIK 0001134115) FY2025: MineralPropertiesNet
+#   $55,375,124 + PropertyPlantAndEquipmentNet $7,465 = $55,382,589, an EXACT match to
+#   yfinance's flagged $55,382,589 - proves these are genuinely additive components (mineral
+#   rights vs. corporate office equipment), not alternates. PZG (Paramount Gold Nevada, CIK
+#   0001629210) same pattern. RRC (Range Resources, CIK 0000315852) FY2025:
+#   OilAndGasPropertySuccessfulEffortMethodNet $6,708,366,000 + PropertyPlantAndEquipmentNet
+#   $4,935,000 = $6,713,301,000, same ballpark as yfinance's $6,886,743,000 (small residual
+#   gap plausibly right-of-use/other assets yfinance includes that we don't track here). HPK
+#   (HighPeak Energy, CIK 0001792849) same pattern. Initially wired as fallback-only, which
+#   was wrong (the plain concept legitimately has real, small data for these filers, so
+#   fallback-only's "only fill if nothing else found" ordering let the standard concept
+#   silently overwrite the larger sector value on later processing) - corrected to additive
+#   same session, before landing, after a reload produced zero DB change and exposed the bug.
 # sec_base.py's transform() has no per-field summing mechanism for _aggregate_concepts (each
 # concept keeps its own distinct snake_case key there) - the collision happens where
 # field_mapping resolves both concepts onto the same db_field, and ordinary last-listed-wins
@@ -175,6 +193,7 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         ("capex", "payments_to_acquire_oil_and_gas_property"),
         ("capex", "payments_to_explore_and_develop_oil_and_gas_properties"),
         ("interest_expense", "interest_expense_other"),
+        ("ppe_net", "property_plant_and_equipment_net"),
     }
 )
 
