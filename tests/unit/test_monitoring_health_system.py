@@ -576,15 +576,53 @@ class TestDataPatrolBase:
         assert patrol is not None
 
     def test_data_patrol_runs_checks(self):
-        """Test that data patrol runs quality checks."""
+        """Test that data patrol runs quality checks.
+
+        BUG FOUND 2026-09-17 (this session's full-suite verification pass): DataPatrol.run()
+        unconditionally opens a REAL database connection (`get_db_connection(max_retries=2,
+        timeout=30)`, no mock anywhere in this test) and runs the entire live 19-checker patrol
+        suite against whatever DB is configured - not a unit test at all despite living in
+        tests/unit/. On top of that, TWO of those 19 checkers (NewXbrlConceptChecker,
+        XbrlConceptContinuityChecker) each gate on `iter_companyfacts_cache()`
+        (utils/external/xbrl_concept_coverage.py) before scanning/JSON-parsing EVERY file in the
+        real on-disk SEC companyfacts cache via `find_gaps`/`find_continuity_gaps` - by design in
+        production (see each checker's own module docstring), but a second, independent reason
+        this "unit" test isn't fast/deterministic: it's genuinely disk-I/O-bound proportional to
+        however many companyfacts JSON files happen to be cached on whatever machine runs it.
+        Live-reproduced hanging well past 30s under real DB connection-pool contention from other
+        concurrent processes on this dev machine (confirmed via faulthandler.dump_traceback_later
+        - the stack was sitting in `scan_cache`/`find_continuity_gaps`'s own json.loads, not
+        actually deadlocked, just slow). Mocked the DB the same way
+        test_pipeline_health_get_pipeline_status above mocks DatabaseContext, and
+        `iter_companyfacts_cache` to return [] (patched on EACH checker module's own imported
+        name - both did `from ...xbrl_concept_coverage import ... iter_companyfacts_cache` at
+        module level, so each holds its own separate bound reference, not a shared one patchable
+        in a single place) - exercises both checkers' real "no cache available" early-exit path,
+        not a fabricated bypass, and run()'s real control flow (checker dispatch, result
+        aggregation) without touching a real database or a real, unbounded filesystem scan.
+        """
         from algo.monitoring.data_patrol.base import DataPatrol
         from algo.monitoring.data_patrol.config import PatrolConfig
 
         config = PatrolConfig()
         patrol = DataPatrol(config)
 
+        mock_conn = MagicMock()
+        mock_cur = MagicMock()
+        mock_cur.fetchall.return_value = []
+        mock_cur.fetchone.return_value = None
+        mock_conn.cursor.return_value = mock_cur
+
         if hasattr(patrol, "run"):
-            result = patrol.run()
+            with (
+                patch("utils.db.connection.get_db_connection", return_value=mock_conn),
+                patch("algo.monitoring.data_patrol.checks.xbrl_new_concepts.iter_companyfacts_cache", return_value=[]),
+                patch(
+                    "algo.monitoring.data_patrol.checks.xbrl_concept_continuity.iter_companyfacts_cache",
+                    return_value=[],
+                ),
+            ):
+                result = patrol.run()
             assert result is not None
 
     def test_data_patrol_reports_issues(self):

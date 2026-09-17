@@ -603,11 +603,22 @@ class TestSchedulerInvocationLogDatedFilesAndRetention:
     """
 
     def test_dated_path_uses_todays_utc_date(self, tmp_path: Path) -> None:
-        module = _load_scheduler_module()
-        real_datetime = module.datetime
-        fixed_now = real_datetime(2026, 9, 15, 3, 0, 0, tzinfo=module.timezone.utc)
-        with patch.object(module, "datetime") as mock_dt:
+        # BUG FOUND 2026-09-17 (this test silently passed for 2 days on a no-op mock):
+        # `module._dated_scheduler_log_path` is a direct function-object import from
+        # scripts/scheduler_log_management.py (`from scripts.scheduler_log_management import
+        # _dated_scheduler_log_path`, see local_loader_scheduler.py's own imports) - its
+        # `datetime.now(...)` call resolves against THAT module's own globals, not
+        # local_loader_scheduler's. Patching `module.datetime` (local_loader_scheduler's own,
+        # unrelated `datetime` attribute) never touched the real call site - this test only
+        # ever "passed" because it was authored on 2026-09-15, the same date the real
+        # (unmocked) `datetime.now()` happened to return. Patch the real source module instead.
+        from scripts import scheduler_log_management
+
+        real_datetime = scheduler_log_management.datetime
+        fixed_now = real_datetime(2026, 9, 15, 3, 0, 0, tzinfo=scheduler_log_management.timezone.utc)
+        with patch.object(scheduler_log_management, "datetime") as mock_dt:
             mock_dt.now.return_value = fixed_now
+            module = _load_scheduler_module()
             path = module._dated_scheduler_log_path(tmp_path)
         assert path == tmp_path / "scheduler_invocations_20260915.log"
 
