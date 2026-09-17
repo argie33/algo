@@ -38,6 +38,11 @@ from loaders.helpers.sec_revenue_total_resolution import (
     resolve_revenue_total_candidate,
 )
 from loaders.helpers.sec_statement_field_bookkeeping import is_bookkeeping_key
+from loaders.helpers.sec_zero_component_guards import (
+    is_zero_first_write_blocking_field,
+    is_zero_overwrite_blocking_field,
+    redirect_secured_debt_for_reit,
+)
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
 from utils.external.sec_ticker_cache import cik_not_found_reason
@@ -1503,6 +1508,11 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     continue
 
                 db_field = field_mapping[sec_field]
+                # OLP live evidence (REIT SecuredDebt is long-term mortgage debt, not
+                # short-term) - see sec_zero_component_guards.py's own docstring.
+                db_field = redirect_secured_debt_for_reit(
+                    sec_field, db_field, r.get("symbol"), self._get_reit_symbols()
+                )
                 if sec_field in _REVENUE_TOTAL_CANDIDATE_FIELDS and db_field == "revenue":
                     # See sec_revenue_total_resolution.py's own docstring for the magnitude/
                     # priority rules this applies (incl. the 2026-09-13 AMP/SF fix).
@@ -1517,28 +1527,10 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and (
                     db_field in row or revenue_total_source.get(db_field) == "negative_total_rejected"
                 ):
-                    # FIXED 2026-09-16 (same sweep, MYFW live-confirmed via real SEC
-                    # companyfacts JSON, CIK 0001327607): a plain (non-fallback) concept's
-                    # own real "$0 of this narrow instrument category" fact (MYFW's
-                    # LongTermDebt=0 FY2024) was permanently blocking a LATER, genuinely
-                    # nonzero fallback-only concept (FederalHomeLoanBankAdvancesLongTerm=
-                    # $10,000,000, same fiscal year, same filing) from ever writing - the
-                    # `db_field in row` check above treats an already-stored exact 0 the
-                    # same as "a real total already resolved," which is wrong for these
-                    # multi-instrument debt/capex fields (same "component, not total"
-                    # ambiguity already documented on _DEBT_FALLBACK_ONLY_FIELDS/
-                    # _CAPEX_FALLBACK_ONLY_FIELDS - a filer can report one instrument at
-                    # $0 and another, real one nonzero, simultaneously). Scoped to exactly
-                    # the fields this ambiguity applies to; does not touch revenue/EPS/
-                    # anything else routed through fallback_only_fields.
-                    existing = row.get(db_field)
-                    zero_blocking_real_value = (
-                        db_field in ("long_term_debt", "short_term_debt", "capex")
-                        and isinstance(existing, (int, float, Decimal))
-                        and float(existing) == 0.0
-                        and isinstance(value, (int, float, Decimal))
-                        and float(value) != 0.0
-                    )
+                    # MYFW-class case (a plain concept's own real $0 for one narrow
+                    # instrument permanently blocking a later, genuinely nonzero fallback
+                    # concept) - see sec_zero_component_guards.py's own docstring.
+                    zero_blocking_real_value = is_zero_first_write_blocking_field(db_field, row.get(db_field), value)
                     # See should_override_fallback_field_for_depository_institution's docstring.
                     if not zero_blocking_real_value and not should_override_fallback_field_for_depository_institution(
                         sec_field, db_field, value, row, r, _eligible_interest_income_symbols
@@ -1755,37 +1747,11 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # out a later, genuinely nonzero capex concept the same way a debt
                     # instrument's real $0 must not lock out a later debt concept.
                     continue
-                elif (
-                    db_field in ("long_term_debt", "short_term_debt", "capex", "dividends_paid")
-                    and db_field in row
-                    and isinstance(row[db_field], (int, float, Decimal))
-                    and float(row[db_field]) != 0.0
-                    and isinstance(value, (int, float, Decimal))
-                    and float(value) == 0.0
-                ):
-                    # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-
-                    # vs-real-yfinance-value audit): the mirror image of the fallback-only
-                    # zero-write guard above - this one fires regardless of fallback_only
-                    # status, for a concept (fallback-only OR plain) that would overwrite an
-                    # ALREADY-resolved, genuinely nonzero total with its own real "$0 of this
-                    # one narrow sub-category" fact. Live-confirmed via CMCT (Creative Media &
-                    # Community Trust, a REIT): "PaymentsOfDividendsPreferredStockAndPreference
-                    # Stock" (fallback-only, processed first) correctly resolves
-                    # dividends_paid=$21,959,000 (its real preferred distribution, exactly
-                    # matching the yfinance-flagged value - CMCT paid no common dividend that
-                    # year), but "PaymentsOfDividendsCommonStock" - a PLAIN, non-fallback
-                    # concept processed later - then unconditionally overwrote it with its own
-                    # real $0 common-dividend fact via ordinary last-processed-wins, since a
-                    # plain concept's write was never gated by fallback-only membership at
-                    # all. Common and preferred dividends are genuinely ADDITIVE (a filer can
-                    # pay both, or either alone), not either/or alternatives like the
-                    # CommercialPaper/ShortTermBorrowings pattern this field_mapping otherwise
-                    # assumes - this loader has no per-field summing mechanism (same
-                    # structural gap already documented for O&G capex above), so preserving
-                    # the larger, already-resolved figure rather than zeroing it out is the
-                    # safer of the two available options. Never fires the reverse direction
-                    # (a real nonzero value always still overwrites an existing 0, since 0 was
-                    # never a case this guard blocks writing FROM).
+                elif is_zero_overwrite_blocking_field(db_field, row.get(db_field), value):
+                    # CMCT-class case (a later concept's own real $0 for one narrow
+                    # sub-category overwriting an already-resolved nonzero total, regardless
+                    # of fallback_only status) - see sec_zero_component_guards.py's own
+                    # docstring.
                     continue
                 else:
                     precision_scale = self._get_field_precision_scale(db_field)

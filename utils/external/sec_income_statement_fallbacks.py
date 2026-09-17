@@ -190,6 +190,23 @@ def _fill_income_tax_expense_from_current_deferred_split(rows: list[dict[str, An
     absent" convention - a missing current-or-deferred component is not safely assumed to be
     zero the way an untagged current-debt-maturity often genuinely is). Mutates rows in
     place and always strips both raw keys.
+
+    NOTE 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): investigated whether this
+    should also check `row.get("income_tax_expense_benefit")` before firing, since this
+    runs INSIDE get_income_statement() before transform() remaps that raw concept key onto
+    the "income_tax_expense" DB column, so the existing guard never actually sees it. Live
+    evidence cuts both ways, so left unchanged: QS (QuantumScape) - real
+    "IncomeTaxExpenseBenefit"=$1,544,000 FY2025, yfinance agrees - would benefit from that
+    extra check; but MAIN (Main Street Capital, a BDC) - real
+    "IncomeTaxExpenseBenefit"=$0 FY2024, yfinance instead agrees with THIS function's
+    current+deferred sum ($30,633,000, likely a taxable-subsidiary provision the top-level
+    $0 tag doesn't capture) - would regress under the same check. Which concept is the
+    real total is genuinely per-filer ambiguous, the same class of ambiguity
+    _fill_pretax_income_from_results_of_operations_when_validated below resolves via
+    cross-validation against the net_income+tax identity - a similar validation here
+    would need pretax_income/net_income already resolved at this point in the pipeline,
+    which they may not be. Left as a real, understood, follow-up gap rather than trading
+    one wrong symbol for another with no net improvement.
     """
     for row in rows:
         current = row.pop("current_income_tax_expense_benefit", None)

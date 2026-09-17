@@ -121,6 +121,37 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # fix - reports ONLY this concept, no PP&E-family concept at all): still fills capex
         # when nothing else did, never overwrites a real PP&E-family value.
         "payments_to_acquire_real_estate",
+        # FIXED 2026-09-16 (same sweep, second follow-up pass on the remaining "0-vs-real-
+        # yfinance-value" capex filers). Each found by scanning EVERY numeric fact in the
+        # filer's full companyfacts JSON for one matching xbrl_yfinance_line_item_report's
+        # flagged capex value exactly, then confirmed the concept is a genuine capital-
+        # spending-equivalent line for that filer:
+        #   - FBIO/KIDZ/SCYX: "PaymentsToAcquireIntangibleAssets" - $15,000,000 FY2024 /
+        #     $1,250,000 FY2025 / $1,172,000 FY2021, all exact matches.
+        "payments_to_acquire_intangible_assets",
+        #   - KKR: "PaymentsToAcquireFurnitureAndFixtures" $85,056,000 FY2022 exact match.
+        "payments_to_acquire_furniture_and_fixtures",
+        #   - KOS (Kosmos Energy, an E&P): "PaymentsToAcquireOilAndGasEquipment"
+        #     $933,659,000 FY2024 exact match - a different O&G capex concept from the
+        #     costs_incurred_oil_and_gas_property_.../payments_to_acquire_oil_and_gas_
+        #     property_and_equipment concepts already fetched above.
+        "payments_to_acquire_oil_and_gas_equipment",
+        #   - NLY (Annaly Capital, a mortgage REIT): "PaymentsToAcquireMortgageServicing
+        #     RightsMSR" $396,806,000 FY2023 exact match - MSR purchases are this filer's
+        #     real capex-equivalent spending, analogous to the other REIT-sector capex
+        #     concepts already fetched above.
+        "payments_to_acquire_mortgage_servicing_rights_msr",
+        #   - DOCS/ROOT/STEM: "PaymentsToDevelopSoftware" - $8,901,000 FY2026 (DOCS,
+        #     ~0.7% off due to a fiscal-year-end date rounding, still the clear match),
+        #     $14,100,000 FY2025 (ROOT), $6,602,000 FY2025 (STEM), all exact/near-exact
+        #     matches - the standard concept for capitalized software development, same
+        #     role as payments_to_acquire_software above but the exact-name-match variant
+        #     for these filers.
+        "payments_to_develop_software",
+        #   - TIL (Instil Bio -> Tenon Medical, a clinical-stage biotech): "PaymentsToAcquire
+        #     InProcessResearchAndDevelopment" $10,000,000 FY2024/FY2025 exact match both
+        #     years - a real, recurring capitalized-IPR&D spend for this filer.
+        "payments_to_acquire_in_process_research_and_development",
     }
 )
 
@@ -253,6 +284,15 @@ _CASHFLOW_FIELD_MAPPING = {
     # normal SEC extraction already found.
     "custom_extension_vessel_capex": "capex",
     "custom_extension_capex_dimensioned_sum": "capex",
+    # FIXED 2026-09-16 (same sweep, second follow-up pass): see
+    # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS above for the full live evidence
+    # (FBIO/KIDZ/SCYX/KKR/KOS/NLY/DOCS/ROOT/STEM/TIL). All fallback-only.
+    "payments_to_acquire_intangible_assets": "capex",
+    "payments_to_acquire_furniture_and_fixtures": "capex",
+    "payments_to_acquire_oil_and_gas_equipment": "capex",
+    "payments_to_acquire_mortgage_servicing_rights_msr": "capex",
+    "payments_to_develop_software": "capex",
+    "payments_to_acquire_in_process_research_and_development": "capex",
     # FIXED 2026-09-03 (goal session: "missing SEC/XBRL data" sweep) - see
     # sec_statements.py's get_cash_flow() comment for the live CWT (water utility)
     # evidence. Same "capex" target column as the other sector-specific PP&E-family

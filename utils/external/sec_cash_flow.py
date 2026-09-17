@@ -691,6 +691,25 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # only fills FY2023+ (where the standard concept is genuinely absent) and never
         # overwrites the standard concept's more complete figure in years both exist.
         "PaymentsForConstructionInProcess",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, second follow-up pass):
+        # 6 more genuine capex-equivalent concepts found by scanning EVERY numeric fact in
+        # the filer's full companyfacts JSON for one matching xbrl_yfinance_line_item_report's
+        # flagged capex value exactly - see load_financial_statements.py's
+        # _CASHFLOW_FIELD_MAPPING/_SBC_BUYBACK_FALLBACK_ONLY_FIELDS comments for the full
+        # live evidence (FBIO/KIDZ/SCYX/KKR/KOS/NLY/DOCS/ROOT/STEM/TIL). All fallback-only.
+        # "PaymentsToDevelopSoftware" listed BEFORE "PaymentsToAcquireIntangibleAssets"
+        # (fallback-only vs. fallback-only ordering matters: first-to-claim-the-empty-slot
+        # wins): DOCS tags BOTH a real, larger PaymentsToDevelopSoftware ($8,901,000
+        # FY2026, the yfinance-matching figure) AND a real, smaller PaymentsToAcquire
+        # IntangibleAssets ($62,000 FY2026) simultaneously - live-confirmed neither FBIO/
+        # KIDZ/SCYX (the filers PaymentsToAcquireIntangibleAssets was added for) tags
+        # PaymentsToDevelopSoftware at all, so this ordering is a no-op for them.
+        "PaymentsToDevelopSoftware",
+        "PaymentsToAcquireIntangibleAssets",
+        "PaymentsToAcquireFurnitureAndFixtures",
+        "PaymentsToAcquireOilAndGasEquipment",
+        "PaymentsToAcquireMortgageServicingRightsMSR",
+        "PaymentsToAcquireInProcessResearchAndDevelopment",
         # RESTORED 2026-08-29 (worktree growth-multi-input-blend reconciliation): main's commit
         # 3152939f7 (SIC 700/7200 mapping fix) accidentally dropped these 3 lines - a
         # concurrent-editing collision, not an intentional removal (its own commit message never

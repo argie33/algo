@@ -478,6 +478,21 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # trade-only figure.
         "ReceivablesNetCurrent",
         "AccountsReceivableNetCurrent",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-vs-real-
+        # yfinance-value audit): PED (Predictive Oncology) tags its real receivables under
+        # plain "AccountsReceivableNet" (no "Current" suffix, a distinct concept from
+        # "AccountsReceivableNetCurrent" above) - live-confirmed via real SEC companyfacts
+        # JSON: $25,666,000 FY2025, exactly matching the yfinance-flagged value - while its
+        # own "ReceivablesNetCurrent" fact is a real $0 that resolved first and, before the
+        # zero_blocking_real_value guard in sec_base.py's transform(), would have
+        # permanently blocked this fallback-only concept's real value from ever writing.
+        # DNLI (Denali Therapeutics) tags its real receivables under
+        # "AccountsAndOtherReceivablesNetCurrent" instead ($2,177,000 FY2025, also exactly
+        # matching) - live-confirmed via real companyfacts JSON no other receivables concept
+        # is tagged at all that year. Fallback-only, same never-overwrite-a-more-specific-
+        # concept convention as ReceivablesNetCurrent above.
+        "AccountsReceivableNet",
+        "AccountsAndOtherReceivablesNetCurrent",
         # FIXED 2026-09-03 (same sweep): long-term-contract manufacturers (aerospace/defense
         # primes with real physical inventory) tag it under this concept instead of the
         # plain one below. Live-confirmed via real companyfacts JSON: BA/Boeing ($78.8B
@@ -914,6 +929,43 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # ever tags AdvancesFromFederalHomeLoanBanks or any of the standard debt concepts.
         # Same fallback-only, single-figure convention (target: long_term_debt).
         "FederalHomeLoanBankAdvancesLongTerm",
+        # ADDED 2026-09-16 (same sweep, second follow-up pass on the remaining "0-vs-real-
+        # yfinance-value" long_term_debt filers). Each of these 7 concepts was found by
+        # scanning EVERY numeric fact in the filer's full companyfacts JSON for one that
+        # matches xbrl_yfinance_line_item_report's flagged value exactly (not from a
+        # predefined candidate list), then confirmed the concept's own name/semantics are
+        # a genuine debt/borrowed-funds instrument for that filer's industry:
+        #   - CPIX/NSYS/QTTB (small-caps across pharma/electronics/telecom, all with a
+        #     revolving credit facility): "LongTermLineOfCredit" - CPIX $5,240,733 FY2025,
+        #     NSYS $8,959,000 FY2021, QTTB $9,556,000 FY2024, all exact matches.
+        #   - FFIN (First Financial Bankshares, a bank holding company): "OtherBorrowings"
+        #     $21,055,000 FY2025 exact match - a real, non-FHLB borrowed-funds line some
+        #     banks use instead of any FHLB-family concept above.
+        "LongTermLineOfCredit",
+        "OtherBorrowings",
+        # - LNZA (Lanzatech): "LongTermLoansPayable" $10,900,000 FY2025 exact match.
+        "LongTermLoansPayable",
+        # - UE (Urban Edge Properties, an equity REIT): "NotesAndLoansPayable"
+        #   $1,606,774,000 FY2025 exact match - their real mortgage-note debt total,
+        #   analogous to the SecuredDebt-as-long-term-debt REIT pattern fixed earlier this
+        #   same sweep for OLP, just a different concept name for this filer.
+        "NotesAndLoansPayable",
+        # - UFCS (United Fire Group, a P&C insurer): "SurplusNotes" $146,200,000 FY2025
+        #   exact match - surplus notes are a real subordinated-debt-like instrument
+        #   specific to insurance-company statutory accounting, not tagged by any concept
+        #   already fetched above.
+        "SurplusNotes",
+        # - IBKR (Interactive Brokers, a broker-dealer): "SecuritiesLoaned" $11,347,000,000
+        #   FY2023 exact match (also cross-confirmed via the sibling
+        #   "SecuritiesLoanedGross" tag, same value) - a real collateralized-borrowing
+        #   liability broker-dealers use as a financing source, analogous in role to
+        #   FHLB advances for a bank.
+        "SecuritiesLoaned",
+        # - GPMT (Granite Point Mortgage Trust, a commercial-mortgage REIT):
+        #   "BeneficialInterest" $991,698,000 FY2023 exact match - GPMT's real
+        #   securitization-vehicle debt (CLO notes issued to third parties), consistent
+        #   with a commercial mortgage REIT's typical financing structure.
+        "BeneficialInterest",
         # ADDED 2026-08-26 (Quality pillar literature audit): needed for Altman Z''-Score's
         # Retained Earnings/Total Assets term (the one term not derivable from concepts
         # already fetched above). Standard, near-universal US-GAAP concept - every filer with

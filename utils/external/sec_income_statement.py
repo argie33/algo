@@ -1186,6 +1186,15 @@ def get_income_statement(
         # that fiscal year - never overwrites a real value.
         "CurrentIncomeTaxExpenseBenefit",
         "DeferredIncomeTaxExpenseBenefit",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-vs-real-
+        # yfinance-value audit): BCSF (Bain Capital Specialty Finance, a BDC) tags its real
+        # tax provision under this investment-company-specific concept instead of plain
+        # "IncomeTaxExpenseBenefit" (never tagged at all) - live-confirmed via real SEC
+        # companyfacts JSON: $4,475,000 FY2024, exactly matching the yfinance-flagged
+        # value. Fallback-only (see _REVENUE_FALLBACK_ONLY_FIELDS' comment - despite the
+        # set's name, it's the shared income-statement fallback-only bucket), never
+        # overwrites a real IncomeTaxExpenseBenefit-sourced value.
+        "InvestmentIncomeOperatingTaxExpenseBenefit",
         # Pretax income: the taxonomy migrated concepts over time (older filings/filers use
         # the MinorityInterest variant, current filers use the ExtraordinaryItems variant -
         # live-confirmed AAPL/MSFT both report ONLY the newer variant for fiscal years after

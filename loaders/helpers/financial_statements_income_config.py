@@ -267,14 +267,19 @@ _INCOME_FIELD_MAPPING = {
     # Henry & Associates) taxonomy-relabeled concept - see sec_statements.py's
     # get_income_statement() comment on InterestExpenseOperating for the live evidence
     # (identical value to plain InterestExpense in the one overlap year). Not fallback-
-    # only, same "plain relabel" convention as interest_expense_nonoperating/
-    # interest_expense_debt below.
+    # only, same "plain relabel" convention as interest_expense_nonoperating below
+    # (interest_expense_debt made fallback-only 2026-09-16 - see its own comment near
+    # _REVENUE_FALLBACK_ONLY_FIELDS below - it turned out to be a genuinely separate,
+    # narrower "interest on debt instruments only" component for some filers, not a
+    # plain relabel of the total, unlike this concept and interest_expense_nonoperating).
     "interest_expense_operating": "interest_expense",
     # FIXED 2026-08-03: real, live-confirmed concepts some filers use INSTEAD of plain
     # "InterestExpense" - see sec_statements.py's comment above these concepts. WMT never
     # reports "InterestExpense" at all (only "InterestExpenseDebt"); JNJ's taxonomy migrated
     # to "InterestExpenseNonoperating" starting FY2024.
     "interest_expense_nonoperating": "interest_expense",
+    # Fallback-only since 2026-09-16 - see _REVENUE_FALLBACK_ONLY_FIELDS below for the
+    # live TER/TRUG/SIF/PVLA/TITN overwrite evidence.
     "interest_expense_debt": "interest_expense",
     # FIXED 2026-08-18 (goal: "no SEC data"/loader audit): see sec_statements.py's
     # get_income_statement() comment for the live evidence (TXN/BA use
@@ -319,6 +324,9 @@ _INCOME_FIELD_MAPPING = {
     # For roic_pct real effective-tax-rate computation (see sec_statements.py's comment
     # above these concepts for the live-verification note).
     "income_tax_expense_benefit": "income_tax_expense",
+    # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): see
+    # _REVENUE_FALLBACK_ONLY_FIELDS above for why this is fallback-only (BCSF).
+    "investment_income_operating_tax_expense_benefit": "income_tax_expense",
     # CNX-class filers (E&P/domestic-only) report pretax income under this concept instead -
     # see sec_statements.py's get_income_statement() comment for the live-verification note.
     "income_loss_from_continuing_operations_before_income_taxes_domestic": "pretax_income",
@@ -393,6 +401,11 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # FIXED 2026-09-03: BDC gross-investment-income fallback - see
         # _INCOME_FIELD_MAPPING's comment on "gross_investment_income_operating" above.
         "gross_investment_income_operating",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): BCSF real tax-provision
+        # concept - see sec_statements.py's get_income_statement() comment on
+        # "InvestmentIncomeOperatingTaxExpenseBenefit" for the live evidence. Never
+        # overwrites a real IncomeTaxExpenseBenefit-sourced value.
+        "investment_income_operating_tax_expense_benefit",
         # FIXED 2026-08-22 (goal session: "Insufficient history"/revenue-gap audit): IFRS 7
         # requires ALL filers with financial instruments (not just banks with no other
         # revenue tag) to disclose interest revenue/expense, so a filer that already reports
@@ -486,6 +499,24 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # concept list, so a filer with a rare real interest_and_debt_expense value keeps
         # it.
         "financing_interest_expense",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-vs-real-
+        # yfinance-value audit): live-confirmed via real SEC companyfacts JSON across
+        # multiple filers (TER/Teradyne CIK 0000097210, TRUG CIK 0001857086, SIF/SIFCO CIK
+        # 0000090168, PVLA CIK 0001583648, TITN CIK 0001409171) - each tags a real "$0 of
+        # interest specifically on debt instruments" fact under InterestExpenseDebt for the
+        # SAME fiscal year it also reports a real, nonzero total under plain
+        # InterestExpense/InterestExpenseNonoperating (TER FY2025: InterestExpenseDebt=$0
+        # vs. InterestExpense=$6,846,000). InterestExpenseDebt was a PLAIN (non-fallback)
+        # concept, so whichever of the two got processed last in sec_statements.py's
+        # concept-list order won unconditionally - for these filers InterestExpenseDebt is
+        # listed after the real total, so its real $0 silently clobbered the correct
+        # figure via ordinary last-processed-wins. Same "narrower component, not a total"
+        # bug class as this session's earlier long_term_debt/capex fixes (senior_notes/
+        # payments_to_acquire_land/FederalHomeLoanBankAdvancesLongTerm) - fallback-only
+        # closes it without touching filers (like WMT) that report ONLY
+        # InterestExpenseDebt and nothing else, since fallback-only still fills an empty
+        # db_field.
+        "interest_expense_debt",
         "interest_paid_net",
         # FIXED 2026-09-03 (same reasoning as interest_paid_net just above - see
         # _INCOME_FIELD_MAPPING's comment on "interest_paid" above, ARW live-verified).

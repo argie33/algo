@@ -171,6 +171,12 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "ReceivablesNetCurrent" (WMT/COST/RTX live evidence).
         "receivables_net_current",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): PED/DNLI real
+        # receivables concepts - see sec_balance_sheet.py's get_balance_sheet() comment on
+        # "AccountsReceivableNet"/"AccountsAndOtherReceivablesNetCurrent" for the live
+        # evidence. Must never win over a more specific concept already resolved.
+        "accounts_receivable_net",
+        "accounts_and_other_receivables_net_current",
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "InventoryNetOfAllowancesCustomerAdvancesAndProgressBillings"
         # (BA/Boeing, HII/Huntington Ingalls live evidence).
@@ -202,6 +208,19 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # the live evidence. Same fallback-only convention as
         # advances_from_federal_home_loan_banks above.
         "federal_home_loan_bank_advances_long_term",
+        # FIXED 2026-09-16 (same sweep, second follow-up pass): 7 more genuine debt
+        # concepts found by full-companyfacts numeric scan against
+        # xbrl_yfinance_line_item_report's flagged values (CPIX/NSYS/QTTB/FFIN/LNZA/UE/
+        # UFCS/IBKR/GPMT) - see sec_balance_sheet.py's get_balance_sheet() comment near
+        # "LongTermLineOfCredit" for the full live evidence. All fallback-only, same
+        # single-figure convention as every concept above.
+        "long_term_line_of_credit",
+        "other_borrowings",
+        "long_term_loans_payable",
+        "notes_and_loans_payable",
+        "surplus_notes",
+        "securities_loaned",
+        "beneficial_interest",
         # FIXED 2026-09-05 (same continuation): KBDC (Kayne Anderson BDC) real fair-value
         # credit-facility concept - see sec_statements.py's get_balance_sheet() comment on
         # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and
@@ -292,6 +311,10 @@ _BALANCE_FIELD_MAPPING = {
     # _DEBT_FALLBACK_ONLY_FIELDS below), must never win over the standard concept.
     "receivables_net_current": "accounts_receivable",
     "accounts_receivable_net_current": "accounts_receivable",
+    # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): see
+    # _DEBT_FALLBACK_ONLY_FIELDS above for why these are fallback-only (PED/DNLI).
+    "accounts_receivable_net": "accounts_receivable",
+    "accounts_and_other_receivables_net_current": "accounts_receivable",
     "inventory_net": "inventory",
     # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comment
     # on "InventoryNetOfAllowancesCustomerAdvancesAndProgressBillings" - fallback-only
@@ -500,6 +523,17 @@ _BALANCE_FIELD_MAPPING = {
     # "FederalHomeLoanBankAdvancesLongTerm" for the live evidence (CBNK/MYFW).
     # Fallback-only, single-figure convention as above.
     "federal_home_loan_bank_advances_long_term": "long_term_debt",
+    # FIXED 2026-09-16 (same sweep, second follow-up pass): see sec_balance_sheet.py's
+    # get_balance_sheet() comment near "LongTermLineOfCredit" for the full live evidence
+    # (CPIX/NSYS/QTTB/FFIN/LNZA/UE/UFCS/IBKR/GPMT). All fallback-only, single-figure
+    # convention as every other concept in this family.
+    "long_term_line_of_credit": "long_term_debt",
+    "other_borrowings": "long_term_debt",
+    "long_term_loans_payable": "long_term_debt",
+    "notes_and_loans_payable": "long_term_debt",
+    "surplus_notes": "long_term_debt",
+    "securities_loaned": "long_term_debt",
+    "beneficial_interest": "long_term_debt",
     # FIXED 2026-09-05 (same sweep): KBDC (Kayne Anderson BDC) real fair-value credit-
     # facility balance - see sec_statements.py's get_balance_sheet() comment on
     # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and
