@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Regression test for RiskMetricsLoader._calculate_volatility using sample variance
-(N-1, Bessel's correction) rather than population variance (N) - consistent with this
-same loader's beta calculation (_get_beta_from_db uses np.var(..., ddof=1)/np.cov(), both
-sample-variance conventions). Population variance systematically understates volatility.
+"""Regression test for RiskMetricsLoader._calculate_volatility using Barra USE4's real
+EWMA-weighted (42-trading-day half-life) DASTD construction, REPLACING the equal-weighted
+sample-variance (N-1, Bessel's correction) calculation this file used to lock in (factor-purity
+sweep follow-up, 2026-09-17 - see _calculate_volatility's own docstring for the full citation:
+Barra US Equity Model USE4 Methodology Notes, Volatility descriptor). An equal-weighted window
+treats a 41-day-old return identically to yesterday's; the real descriptor deliberately weights
+recent observations more heavily via exponential decay.
 """
 
 import math
@@ -11,7 +14,19 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from loaders.load_risk_metrics_daily import RiskMetricsLoader
+from loaders.load_risk_metrics_daily import DASTD_DECAY_FACTOR, RiskMetricsLoader
+
+
+def _reference_ewma_volatility(returns: list[float]) -> float:
+    """Independent reference implementation of the same EWMA construction
+    _calculate_volatility implements, written directly against numpy rather than copying that
+    method's own arithmetic, so this test can't pass merely by mirroring a shared bug."""
+    n = len(returns)
+    weights = np.array([DASTD_DECAY_FACTOR ** (n - 1 - i) for i in range(n)])
+    weights = weights / weights.sum()
+    weighted_mean = np.average(returns, weights=weights)
+    weighted_variance = np.average((np.asarray(returns) - weighted_mean) ** 2, weights=weights)
+    return float(math.sqrt(weighted_variance) * math.sqrt(252))
 
 
 def _patch_now(as_of: date):
@@ -25,39 +40,52 @@ def _patch_now(as_of: date):
     )
 
 
-class TestCalculateVolatilityUsesSampleVariance:
-    def test_matches_numpy_ddof_1_reference(self):
+class TestCalculateVolatilityUsesEwmaWeighting:
+    def test_matches_independent_ewma_reference(self):
         rng = np.random.default_rng(17)
         returns = list(rng.normal(0, 0.02, 30))
 
         actual = RiskMetricsLoader._calculate_volatility(returns)
-        expected = float(np.std(returns, ddof=1) * math.sqrt(252))
+        expected = _reference_ewma_volatility(returns)
 
         assert actual is not None
         assert abs(actual - expected) < 1e-9, f"expected {expected}, got {actual}"
 
-    def test_does_not_match_population_variance_ddof_0(self):
-        """Regression guard: population variance (ddof=0, dividing by N) is a
-        systematically different, lower number - if reintroduced, this test fails."""
+    def test_does_not_match_equal_weighted_sample_variance(self):
+        """Regression guard: equal-weighted sample variance (every return weighted
+        identically regardless of recency) is the OLD, now-replaced construction - if
+        reintroduced, this test fails."""
         rng = np.random.default_rng(3)
         returns = list(rng.normal(0, 0.02, 30))
 
         actual = RiskMetricsLoader._calculate_volatility(returns)
-        population_variance_result = float(np.std(returns, ddof=0) * math.sqrt(252))
+        equal_weighted_result = float(np.std(returns, ddof=1) * math.sqrt(252))
 
         assert actual is not None
-        assert abs(actual - population_variance_result) > 1e-4, (
-            "compute_volatility should diverge from the population-variance (ddof=0) calculation"
+        assert abs(actual - equal_weighted_result) > 1e-4, (
+            "compute_volatility should diverge from the equal-weighted sample-variance calculation"
         )
-        # Sample variance (N-1) is always >= population variance (N) for the same data
-        assert actual > population_variance_result
 
-    def test_two_return_minimum_matches_sample_variance_not_population(self):
-        """At the minimum viable sample size (2 returns), N vs N-1 diverges the most
-        (~41% relative difference) - the sharpest possible regression signal."""
+    def test_recent_return_weighted_more_than_old_return(self):
+        """The whole point of EWMA weighting: a large move placed at the RECENT end of the
+        window must move annualized volatility more than the identical move placed at the
+        OLD end - an equal-weighted calculation would score both placements identically."""
+        base = [0.001] * 29
+        recent_shock = [*base, 0.05]
+        old_shock = [0.05, *base]
+
+        vol_recent_shock = RiskMetricsLoader._calculate_volatility(recent_shock)
+        vol_old_shock = RiskMetricsLoader._calculate_volatility(old_shock)
+
+        assert vol_recent_shock is not None and vol_old_shock is not None
+        assert vol_recent_shock > vol_old_shock
+
+    def test_two_return_minimum_matches_ewma_reference(self):
+        """At the minimum viable sample size (2 returns), verify against the same
+        independent reference implementation used above."""
         returns = [0.01, -0.01]
         actual = RiskMetricsLoader._calculate_volatility(returns)
-        expected = float(np.std(returns, ddof=1) * math.sqrt(252))
+        expected = _reference_ewma_volatility(returns)
         assert actual is not None
         assert abs(actual - expected) < 1e-9
 

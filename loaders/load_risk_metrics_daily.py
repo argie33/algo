@@ -38,6 +38,13 @@ from utils.type_conversion import safe_float  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
+# DASTD_HALFLIFE_DAYS: Barra USE4's own published half-life for its Volatility descriptor's
+# EWMA (exponentially weighted daily standard deviation) input - 42 trading days. See
+# _calculate_volatility's own docstring for the full citation and rationale; not a value
+# tuned against this repo's data, it's the literature's own published constant.
+DASTD_HALFLIFE_DAYS = 42.0
+DASTD_DECAY_FACTOR = 0.5 ** (1.0 / DASTD_HALFLIFE_DAYS)
+
 # STALE_PRICE FIX 2026-09-01 (/goal session - user live-questioned FBRX ranking #1 in
 # Momentum despite, per the user, apparently not even trading). Root cause: FBRX was
 # acquired by argenx via a $77/share tender offer that completed 2026-08-27 (8-K on file:
@@ -820,19 +827,52 @@ class RiskMetricsLoader(OptimalLoader):
 
     @staticmethod
     def _calculate_volatility(returns: list[float]) -> float | None:
+        """EWMA-weighted annualized volatility, applying Barra USE4's real DASTD (Daily
+        Standard Deviation) half-life - 42 trading days, per the Barra US Equity Model USE4
+        Methodology Notes' Volatility descriptor ("the exponentially weighted standard
+        deviation of daily excess returns") - to REPLACE the equal-weighted sample stdev this
+        previously computed (factor-purity sweep follow-up, 2026-09-17: flagged as
+        NOT-YET-ADDRESSED in risk_scoring.py's own module docstring, "none of which
+        volatility_60d/252d actually compute"). An equal-weighted window treats a return from
+        41 trading days ago identically to yesterday's; Barra's construction (and every other
+        major vendor's realized-vol estimate - RiskMetrics/J.P. Morgan's original EWMA
+        methodology uses the same exponential-decay principle) deliberately weights recent
+        observations more heavily, since volatility clusters and decays.
+
+        TWO HONEST DEVIATIONS FROM A LITERAL BARRA DASTD, disclosed rather than glossed over:
+        (1) Computed on raw daily returns, not "excess returns" (return minus that day's
+        risk-free rate) - this repo has no risk-free-rate time series wired into this loader,
+        and at daily frequency (risk-free rate / 252) the subtraction is immaterial to several
+        decimal places; genuinely different from Barra's literal formula, not claimed to be
+        identical. (2) Barra's own 42-day half-life is published specifically for a 252-DAY
+        window; applying that same half-life to the 30d/60d windows here is this codebase's
+        own consistent extension of the recency-weighting PRINCIPLE (recent observations
+        should count more, at every window length this pillar scores), not a literal Barra
+        spec for those shorter windows - Barra itself does not define a 30d/60d DASTD variant.
+
+        `returns` must be chronological ascending (oldest first) - callers already rely on
+        this ordering via `returns[-N:]` slicing to take the most recent N returns.
+
+        Weights are normalized to sum to 1 (a proper weighted average/variance), so no
+        separate Bessel's-correction (N-1) term applies here - that correction exists to
+        de-bias an EQUAL-weighted sample estimator; an exponentially-weighted estimator's
+        "effective sample size" is already baked into the decay parameter itself, and Barra's
+        own published formula does not apply a separate small-sample correction on top of it.
+        """
         if not returns or len(returns) < 2:
             return None
 
-        # Sample variance (Bessel's correction, N-1), not population variance (N): this is
-        # a sample of returns used to estimate the population's true volatility, and N-1 is
-        # the standard unbiased estimator convention for financial volatility - matches
-        # _get_beta_from_db's np.var(..., ddof=1)/np.cov() a few lines below in this same
-        # file. N alone systematically understates volatility (~1.7% low at the 30-day
-        # minimum window this is normally called with, i.e. sqrt(30/29)), the same direction
-        # of error as computing risk too optimistically.
-        mean_return = sum(returns) / len(returns)
-        variance = sum((r - mean_return) ** 2 for r in returns) / (len(returns) - 1)
-        daily_std = math.sqrt(variance)
+        n = len(returns)
+        decay = DASTD_DECAY_FACTOR
+        # returns[-1] is the most recent observation (see docstring) -> weight decay**0;
+        # returns[0] is the oldest -> weight decay**(n-1).
+        raw_weights = [decay ** (n - 1 - i) for i in range(n)]
+        total_weight = sum(raw_weights)
+        weights = [w / total_weight for w in raw_weights]
+
+        weighted_mean = sum(w * r for w, r in zip(weights, returns, strict=True))
+        weighted_variance = sum(w * (r - weighted_mean) ** 2 for w, r in zip(weights, returns, strict=True))
+        daily_std = math.sqrt(weighted_variance)
         return daily_std * math.sqrt(252)
 
     @staticmethod
