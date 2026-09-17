@@ -803,6 +803,16 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "PaymentsOfDistributionsToAffiliates",
         "PaymentsOfDividendsMinorityInterest",
         "DividendsCommonStockPaidinkind",
+        # ADDED 2026-09-17 (goal: data-coverage-metrics accuracy sweep, xbrl_yfinance_line_
+        # item_report dividends_paid audit): AESI (Atlas Energy Solutions) real, cash-paid
+        # return-of-capital-in-excess-of-earnings distribution - live-confirmed via real SEC
+        # companyfacts JSON: $92,281,000 FY2025, EXACT match to the yfinance-flagged value,
+        # consistent with the filer's own CommonStockDividendsPerShareCashPaid=$0.75/share
+        # fact on file the same year. No DividendsCommonStock*/PaymentsOfDividends* concept
+        # tagged at all for this filer - this is its only dividend-shaped cash outflow
+        # concept. Fallback-only, same never-overwrite-a-real-standard-dividend-total
+        # convention as every other entry in this block.
+        "AdjustmentsToAdditionalPaidInCapitalDividendsInExcessOfRetainedEarnings",
         "DividendsCommonStockCash",
         "DividendsCommonStock",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,

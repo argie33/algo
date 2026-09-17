@@ -101,6 +101,13 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         #     not tagged by any of the cash-basis DividendsCommonStock*/PaymentsOfDividends*
         #     concepts already fetched above.
         "dividends_common_stock_paidinkind",
+        # ADDED 2026-09-17 (goal: data-coverage-metrics accuracy sweep): AESI real return-of-
+        # capital-in-excess-of-earnings distribution - see sec_cash_flow.py's get_cash_flow()
+        # comment on "AdjustmentsToAdditionalPaidInCapitalDividendsInExcessOfRetainedEarnings"
+        # for the live evidence ($92,281,000 FY2025, exact yfinance match). Fallback-only,
+        # same never-overwrite-a-real-standard-dividend-total convention as every other entry
+        # in this set.
+        "adjustments_to_additional_paid_in_capital_dividends_in_excess_of_retained_earnings",
         # ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 500" push, dcf_fcf
         # missing_cash_flow_data investigation): TALK's capitalized-software-development
         # concept - see sec_cash_flow.py's get_cash_flow() comment for the live evidence.
@@ -410,6 +417,9 @@ _CASHFLOW_FIELD_MAPPING = {
     "payments_of_distributions_to_affiliates": "dividends_paid",
     "payments_of_dividends_minority_interest": "dividends_paid",
     "dividends_common_stock_paidinkind": "dividends_paid",
+    # ADDED 2026-09-17 (goal: data-coverage-metrics accuracy sweep): see
+    # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS above for why this is fallback-only (AESI).
+    "adjustments_to_additional_paid_in_capital_dividends_in_excess_of_retained_earnings": "dividends_paid",
     # ADDED 2026-09-07 (goal: "SEC/XBRL missing data" + tie-out sweep): net_change_cash was
     # a declared schema column with zero rows ever populated (0/66,580) - fetched by none of
     # sec_cash_flow.py's concepts and mapped by no entry here. See that file's get_cash_flow()

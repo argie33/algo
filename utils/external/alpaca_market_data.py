@@ -34,6 +34,7 @@ key pair as the trading API; the data host is data.alpaca.markets).
 
 import logging
 import os
+import re
 import threading
 import time
 from collections import deque
@@ -48,6 +49,28 @@ logger = logging.getLogger(__name__)
 
 # Alpaca uses "." for class shares (BRK.B) - same as the DB convention here;
 # no symbol translation needed (yfinance is the one that wants "-").
+#
+# FIXED 2026-09-17 (goal session: "ensure all records loaded" data-completeness sweep):
+# this repo's own '$'-suffix preferred-share convention (e.g. "SCE$L") was never translated
+# for Alpaca, unlike yfinance's parallel fix in utils/external/yfinance_symbol.py ('$' -> '-P').
+# Alpaca's bars endpoint 400s "invalid symbol" on the raw '$' form and drops it from the whole
+# batch - and since 2026-09-15's equity-yfinance-fallback removal (source_router.py), a dropped
+# equity symbol now has NO fallback source at all, not even a degraded one. SCE$L (active=true,
+# the only currently-active '$'-suffix symbol in this DB) was silently missing 9 trading days of
+# price history as a result. Live-confirmed via Alpaca's own `/v2/assets?search=SCE` (paper
+# trading API, same key pair as market data): Alpaca's real symbol is "SCE.PRL" - '.PR' + the
+# series letter, NOT yfinance's '-P' + letter. Translated at the request boundary only; results
+# are mapped back to the internal '$' symbol before being returned to callers, so nothing
+# downstream (DB writes, watermarks) needs to know Alpaca's own spelling.
+_ALPACA_PREFERRED_RE = re.compile(r"\$([A-Z]+)$")
+
+
+def _to_alpaca_symbol(symbol: str) -> str:
+    """Translate this repo's '$'-suffix preferred-share ticker (e.g. "SCE$L") to Alpaca's
+    own '.PR' + series-letter form (e.g. "SCE.PRL"). No-op for every other symbol shape
+    (class-share '.' tickers like "BRK.B" already match Alpaca's convention as-is).
+    """
+    return _ALPACA_PREFERRED_RE.sub(r".PR\1", symbol)
 
 
 class AlpacaDataError(RuntimeError):
@@ -231,9 +254,10 @@ class AlpacaMarketData:
         out: dict[tuple[str, str], float] = {}
         for chunk_start in range(0, len(symbols), self.symbols_per_request):
             chunk = symbols[chunk_start : chunk_start + self.symbols_per_request]
+            alpaca_to_internal = {_to_alpaca_symbol(s): s for s in chunk}
             url = f"{get_alpaca_data_url()}/v2/stocks/bars"
             params: dict[str, Any] = {
-                "symbols": ",".join(chunk),
+                "symbols": ",".join(alpaca_to_internal),
                 "timeframe": "1Day",
                 "start": start.isoformat(),
                 "end": self._sip_safe_end(end),
@@ -257,9 +281,12 @@ class AlpacaMarketData:
                     continue
                 if resp.status_code == 400 and "invalid symbol" in resp.text.lower():
                     bad = resp.json().get("message", "").split(":")[-1].strip()
-                    remaining = [s for s in chunk if s != bad]
+                    remaining = [s for s in chunk if _to_alpaca_symbol(s) != bad]
                     if bad and len(remaining) < len(chunk):
-                        logger.warning(f"[ALPACA_DATA] Dropping invalid symbol {bad!r} from adjusted-close pass")
+                        logger.warning(
+                            f"[ALPACA_DATA] Dropping invalid symbol {bad!r} "
+                            f"({alpaca_to_internal.get(bad, bad)!r} internally) from adjusted-close pass"
+                        )
                         if remaining:
                             out.update(self._fetch_adjusted_close(remaining, start, end))
                         break
@@ -277,11 +304,12 @@ class AlpacaMarketData:
                         f"Response keys: {list(payload.keys())}."
                     )
                 for symbol, bars in bars_by_symbol.items():
+                    internal_symbol = alpaca_to_internal.get(symbol, symbol)
                     for bar in bars:
                         ts = bar.get("t")
                         if not ts:
                             continue
-                        out[(symbol, str(ts)[:10])] = float(bar["c"])
+                        out[(internal_symbol, str(ts)[:10])] = float(bar["c"])
 
                 pages += 1
                 page_token = payload.get("next_page_token")
@@ -301,9 +329,10 @@ class AlpacaMarketData:
         end: date,
         results: dict[str, list[dict[str, Any]]],
     ) -> None:
+        alpaca_to_internal = {_to_alpaca_symbol(s): s for s in chunk}
         url = f"{get_alpaca_data_url()}/v2/stocks/bars"
         params: dict[str, Any] = {
-            "symbols": ",".join(chunk),
+            "symbols": ",".join(alpaca_to_internal),
             "timeframe": "1Day",
             "start": start.isoformat(),
             "end": self._sip_safe_end(end),
@@ -339,9 +368,12 @@ class AlpacaMarketData:
                 # named symbol and retry the chunk without it (it will be absent from
                 # the result, i.e. left to the yfinance path / unavailable marker).
                 bad = resp.json().get("message", "").split(":")[-1].strip()
-                remaining = [s for s in chunk if s != bad]
+                remaining = [s for s in chunk if _to_alpaca_symbol(s) != bad]
                 if bad and len(remaining) < len(chunk):
-                    logger.warning(f"[ALPACA_DATA] Dropping invalid symbol {bad!r} and retrying chunk")
+                    logger.warning(
+                        f"[ALPACA_DATA] Dropping invalid symbol {bad!r} "
+                        f"({alpaca_to_internal.get(bad, bad)!r} internally) and retrying chunk"
+                    )
                     if remaining:
                         self._fetch_chunk(remaining, start, end, results)
                     return
@@ -359,14 +391,15 @@ class AlpacaMarketData:
             for symbol, bars in bars_by_symbol.items():
                 if not bars:
                     continue
-                rows = results.setdefault(symbol, [])
+                internal_symbol = alpaca_to_internal.get(symbol, symbol)
+                rows = results.setdefault(internal_symbol, [])
                 for bar in bars:
                     ts = bar.get("t")
                     if not ts:
                         continue
                     rows.append(
                         {
-                            "symbol": symbol,
+                            "symbol": internal_symbol,
                             "date": str(ts)[:10],
                             "open": float(bar["o"]),
                             "high": float(bar["h"]),

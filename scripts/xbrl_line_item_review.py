@@ -52,6 +52,23 @@ def main() -> None:
 
     symbol = args.symbol.strip().upper()
 
+    # 2026-09-17: found 6,879 rows marked reviewed_not_error by scratch scripts (never checked
+    # into the repo, reviewed_by like "sweep_batch2_20260917") whose only "evidence" was
+    # "consistent with this symbol's own multi-year trend" - that checks a number against its
+    # own history, not against SEC or against why yfinance disagrees. It doesn't meet migration
+    # 1302's own bar of a human-investigated verdict, and it happened by writing raw SQL instead
+    # of going through this tool. Reverted (see scripts/xbrl_line_item_report.py output). This
+    # tool can't stop a determined script from doing raw SQL again, but it can at least refuse to
+    # rubber-stamp a verdict with no real justification when it IS used correctly.
+    if args.status != "unreviewed" and (not args.note or len(args.note.strip()) < 20):
+        parser.error(
+            "--note is required (>=20 chars) for any status other than 'unreviewed' - state what "
+            "you actually checked (e.g. reloaded from SEC XBRL and got X, or found the real "
+            "filed concept yfinance is using). 'consistent with its own trend' alone is not "
+            "evidence the value is correct - it doesn't check against SEC or explain the "
+            "yfinance mismatch."
+        )
+
     from utils.db.connection import get_db_connection
 
     conn = get_db_connection(max_retries=2, timeout=30)

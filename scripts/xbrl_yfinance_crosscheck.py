@@ -27,9 +27,12 @@ previously only 5 headline fields (revenue, net_income, total_assets, stockholde
 operating_cash_flow) were compared, and only flagged/divergent examples were persisted, capped
 at 15 per field, as a JSONB blob inside data_patrol_log. Now every field mappable between our
 schema and utils/external/yfinance_financials.py's own field maps is compared (_FIELDS below -
-29 fields across the three statements, driven off _INCOME_FIELD_MAP/_BALANCE_FIELD_MAP/
-_CASHFLOW_FIELD_MAP so this can't silently drift from what the fallback fetch actually
-supports), and EVERY comparison - match or divergence - is upserted into
+29 fields across the three statements as of 2026-09-16, expanded to 39 on 2026-09-17 after
+live-verifying 10 more line items against real AAPL/JPM/KO yfinance DataFrames - see
+utils/external/yfinance_financials.py's field-map comments for what's covered and why a couple
+of tempting-looking yfinance labels were deliberately NOT used), driven off
+_INCOME_FIELD_MAP/_BALANCE_FIELD_MAP/_CASHFLOW_FIELD_MAP so this can't silently drift from what
+the fallback fetch actually supports, and EVERY comparison - match or divergence - is upserted into
 xbrl_yfinance_line_item_report (migration 1300), not just the flagged ones. That gives a
 durable, queryable, per-symbol/per-field/per-fiscal-year record of exactly where our SEC data
 and yfinance's independent parse agree or disagree - see scripts/xbrl_line_item_report.py for
@@ -126,6 +129,15 @@ _FIELDS: list[tuple[str, str, str, str]] = [
         "income",
         "income_loss_from_continuing_operations_before_income_taxes_extraordinary_items_noncontrolling_interest",
     ),
+    # ADDED 2026-09-17 (goal: "fully thorough through all the line items" coverage push) -
+    # see utils/external/yfinance_financials.py's _INCOME_FIELD_MAP comment for the live
+    # AAPL/JPM/KO verification behind these three, including why operating_expenses maps to
+    # yfinance's "Selling General And Administration" and NOT "Operating Expense" (the latter
+    # bundles in R&D, which would make every R&D-reporting filer look divergent for a
+    # definitional reason, not a bug).
+    ("annual_income_statement", "research_development_expense", "income", "research_and_development_expense"),
+    ("annual_income_statement", "operating_expenses", "income", "operating_expenses"),
+    ("annual_income_statement", "net_income_attributable_to_common", "income", "net_income_attributable_to_common"),
     # annual_balance_sheet
     ("annual_balance_sheet", "total_assets", "balance", "assets"),
     ("annual_balance_sheet", "current_assets", "balance", "assets_current"),
@@ -138,12 +150,24 @@ _FIELDS: list[tuple[str, str, str, str]] = [
     ("annual_balance_sheet", "ppe_net", "balance", "property_plant_and_equipment_net"),
     ("annual_balance_sheet", "goodwill", "balance", "goodwill"),
     ("annual_balance_sheet", "long_term_debt", "balance", "long_term_debt"),
+    # ADDED 2026-09-17 (same coverage push) - live-confirmed on AAPL/JPM/KO real balance sheets.
+    ("annual_balance_sheet", "short_term_debt", "balance", "short_term_debt"),
+    ("annual_balance_sheet", "retained_earnings", "balance", "retained_earnings"),
+    ("annual_balance_sheet", "accounts_payable", "balance", "accounts_payable"),
     # annual_cash_flow
     ("annual_cash_flow", "operating_cash_flow", "cashflow", "net_cash_provided_by_used_in_operating_activities"),
     ("annual_cash_flow", "investing_cash_flow", "cashflow", "net_cash_provided_by_used_in_investing_activities"),
     ("annual_cash_flow", "financing_cash_flow", "cashflow", "net_cash_provided_by_used_in_financing_activities"),
     ("annual_cash_flow", "capex", "cashflow", "payments_to_acquire_property_plant_and_equipment"),
     ("annual_cash_flow", "dividends_paid", "cashflow", "payments_of_dividends"),
+    # ADDED 2026-09-17 (same coverage push) - see utils/external/yfinance_financials.py's
+    # _CASHFLOW_FIELD_MAP comment for the "Free Cash Flow" definitional caveat and the
+    # "Repurchase Of Capital Stock" sign-flip (_ABS_MAGNITUDE_FIELDS handles it, same as
+    # capex/dividends above).
+    ("annual_cash_flow", "free_cash_flow", "cashflow", "free_cash_flow"),
+    ("annual_cash_flow", "net_change_cash", "cashflow", "net_change_cash"),
+    ("annual_cash_flow", "stock_based_compensation", "cashflow", "stock_based_compensation"),
+    ("annual_cash_flow", "common_stock_repurchased", "cashflow", "common_stock_repurchased"),
 ]
 
 # Per-share and share-count fields live on a completely different scale than dollar-magnitude

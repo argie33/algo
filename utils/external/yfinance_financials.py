@@ -165,6 +165,24 @@ _INCOME_FIELD_MAP = {
     "Pretax Income": (
         "income_loss_from_continuing_operations_before_income_taxes_extraordinary_items_noncontrolling_interest"
     ),
+    # ADDED 2026-09-17 (goal: "fully thorough through all the line items" - xbrl/yfinance
+    # crosscheck coverage push). Live-confirmed against AAPL/JPM/KO real DataFrames before
+    # wiring in, same discipline as the original 2026-08-16 verification:
+    # - "Research And Development": present for AAPL (34.55B), MISSING for JPM/KO (no R&D
+    #   line for those filers - expected absence, not a gap in this map).
+    # - "Selling General And Administration" (SG&A-only), deliberately NOT "Operating
+    #   Expense": live-confirmed AAPL "Operating Expense"=62.151B = R&D(34.55B) + SG&A
+    #   (27.601B) combined, while our operating_expenses column is SG&A-only (loaders/
+    #   helpers/financial_statements_income_config.py maps only
+    #   selling_general_and_administrative_expense to it). Mapping to "Operating Expense"
+    #   instead would manufacture a spurious divergence for every R&D-reporting filer -
+    #   not a bug, just two different lines being compared.
+    # - "Net Income Common Stockholders": live-confirmed differs from "Net Income" for JPM
+    #   (55.681B vs 57.048B, preferred-dividend deduction) - the two are NOT
+    #   interchangeable, matching why this codebase already tracks them as separate columns.
+    "Research And Development": "research_and_development_expense",
+    "Selling General And Administration": "operating_expenses",
+    "Net Income Common Stockholders": "net_income_attributable_to_common",
 }
 
 _BALANCE_FIELD_MAP = {
@@ -179,6 +197,11 @@ _BALANCE_FIELD_MAP = {
     "Net PPE": "property_plant_and_equipment_net",
     "Goodwill": "goodwill",
     "Long Term Debt": "long_term_debt",
+    # ADDED 2026-09-17 (same coverage push as _INCOME_FIELD_MAP above) - live-confirmed
+    # present with sane values on AAPL/JPM/KO real balance sheets.
+    "Current Debt": "short_term_debt",
+    "Retained Earnings": "retained_earnings",
+    "Accounts Payable": "accounts_payable",
 }
 
 # yfinance reports these as signed outflows/contra-items (negative) for some filers; the
@@ -197,6 +220,11 @@ _ABS_MAGNITUDE_FIELDS = frozenset(
         "payments_to_acquire_property_plant_and_equipment",
         "payments_of_dividends",
         "depreciation",
+        # ADDED 2026-09-17: live-confirmed "Repurchase Of Capital Stock" is a signed outflow
+        # (AAPL -90.711B, JPM -34.591B, KO -746M - negative on every filer checked, same
+        # consistent-outflow convention as capex/dividends above), while our
+        # common_stock_repurchased column stores a positive magnitude.
+        "common_stock_repurchased",
     }
 )
 
@@ -206,6 +234,16 @@ _CASHFLOW_FIELD_MAP = {
     "Financing Cash Flow": "net_cash_provided_by_used_in_financing_activities",
     "Capital Expenditure": "payments_to_acquire_property_plant_and_equipment",
     "Cash Dividends Paid": "payments_of_dividends",
+    # ADDED 2026-09-17 (same coverage push) - live-confirmed present with sane values on
+    # AAPL/JPM/KO. "Free Cash Flow" note: yfinance's own FCF definition may not exactly match
+    # ours (operating_cash_flow - capex) for every filer (e.g. JPM shows a large negative
+    # "Free Cash Flow" driven by financing-heavy bank cash flows) - a real definitional
+    # difference, not necessarily a bug; the crosscheck's review workflow is exactly where
+    # that distinction gets made, not assumed away here.
+    "Free Cash Flow": "free_cash_flow",
+    "Changes In Cash": "net_change_cash",
+    "Stock Based Compensation": "stock_based_compensation",
+    "Repurchase Of Capital Stock": "common_stock_repurchased",
 }
 
 _FIELD_MAPS = {

@@ -93,6 +93,18 @@ _FIELDS: list[tuple[str, str, str, str]] = [
         "income",
         "income_loss_from_continuing_operations_before_income_taxes_extraordinary_items_noncontrolling_interest",
     ),
+    # ADDED 2026-09-17 - same 10-field coverage push as the annual script (scripts/
+    # xbrl_yfinance_crosscheck.py), same live-verified mappings from utils/external/
+    # yfinance_financials.py's field maps - column presence confirmed on quarterly_*
+    # via information_schema before wiring these in.
+    ("quarterly_income_statement", "research_development_expense", "income", "research_and_development_expense"),
+    ("quarterly_income_statement", "operating_expenses", "income", "operating_expenses"),
+    (
+        "quarterly_income_statement",
+        "net_income_attributable_to_common",
+        "income",
+        "net_income_attributable_to_common",
+    ),
     # quarterly_balance_sheet
     ("quarterly_balance_sheet", "total_assets", "balance", "assets"),
     ("quarterly_balance_sheet", "current_assets", "balance", "assets_current"),
@@ -105,12 +117,19 @@ _FIELDS: list[tuple[str, str, str, str]] = [
     ("quarterly_balance_sheet", "ppe_net", "balance", "property_plant_and_equipment_net"),
     ("quarterly_balance_sheet", "goodwill", "balance", "goodwill"),
     ("quarterly_balance_sheet", "long_term_debt", "balance", "long_term_debt"),
+    ("quarterly_balance_sheet", "short_term_debt", "balance", "short_term_debt"),
+    ("quarterly_balance_sheet", "retained_earnings", "balance", "retained_earnings"),
+    ("quarterly_balance_sheet", "accounts_payable", "balance", "accounts_payable"),
     # quarterly_cash_flow
     ("quarterly_cash_flow", "operating_cash_flow", "cashflow", "net_cash_provided_by_used_in_operating_activities"),
     ("quarterly_cash_flow", "investing_cash_flow", "cashflow", "net_cash_provided_by_used_in_investing_activities"),
     ("quarterly_cash_flow", "financing_cash_flow", "cashflow", "net_cash_provided_by_used_in_financing_activities"),
     ("quarterly_cash_flow", "capex", "cashflow", "payments_to_acquire_property_plant_and_equipment"),
     ("quarterly_cash_flow", "dividends_paid", "cashflow", "payments_of_dividends"),
+    ("quarterly_cash_flow", "free_cash_flow", "cashflow", "free_cash_flow"),
+    ("quarterly_cash_flow", "net_change_cash", "cashflow", "net_change_cash"),
+    ("quarterly_cash_flow", "stock_based_compensation", "cashflow", "stock_based_compensation"),
+    ("quarterly_cash_flow", "common_stock_repurchased", "cashflow", "common_stock_repurchased"),
 ]
 
 _PER_SHARE_FIELDS = frozenset({"earnings_per_share", "diluted_eps"})

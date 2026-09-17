@@ -40,7 +40,9 @@ from loaders.helpers.sec_revenue_total_resolution import (
 from loaders.helpers.sec_statement_field_bookkeeping import is_bookkeeping_key
 from loaders.helpers.sec_zero_component_guards import (
     is_additive_concept_pair,
-    is_zero_first_write_blocking_field,
+    is_fallback_only_write_permitted_by_documented_override,
+    is_immaterial_standard_debt_overwriting_combined_total,
+    is_other_borrowings_additive_to_subordinated_debt,
     is_zero_overwrite_blocking_field,
     redirect_secured_debt_for_reit,
 )
@@ -54,53 +56,27 @@ logger = logging.getLogger(__name__)
 # Configure socket timeout to prevent indefinite hangs
 configure_socket_timeout(30)
 
-# FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit):
-# these 4 sec_fields are the only concepts that can each independently BE a filer's
-# entire consolidated revenue (as opposed to a narrower ASC-606 fee line, REIT lease
-# income, or bank-thrift interest-income concept, all of which have their own established
-# SIC/fallback-only carve-outs elsewhere in this function and are deliberately NOT
-# included here). For these 4 specifically, "first-populated wins" (the general rule
-# everywhere else in this function) is provably wrong: live-confirmed via real SEC
-# companyfacts JSON that BBVA (a bank with a minority insurance subsidiary) tags a real
-# but small, sometimes NEGATIVE "insurance_revenue" fact (its segment's net result, not a
-# revenue total) that shares the EXACT SAME filed date as its own real ~EUR26B total
-# (tagged "interest_revenue_expense") - _aggregate_concepts's tiebreak in
-# sec_statements.py keeps whichever fact was inserted first on an exact filed-date tie,
-# so the file's own "last-listed wins" convention silently never fires for same-filing
-# collisions like this one. HSBC independently confirmed the same bug in its less
-# obviously-wrong positive form: its real ~$65-68B total ("revenues", sourced from
-# RevenueAndOperatingIncome) lost to its own ~$2-3B insurance-segment figure the same
-# way. Since which candidate is the TRUE total varies per filer (BBVA needs
-# interest_revenue_expense, HSBC/UBS need revenues, AEG - a genuine insurer with no
-# bank-interest concepts at all - needs insurance_revenue), no fixed concept-priority
-# ordering works for all of them; magnitude does, because a real consolidated total can
-# never be smaller than a genuine sub-line of itself, and is never negative when a
-# positive alternative exists.
+# FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit): these 4
+# sec_fields are the only concepts that can each independently BE a filer's entire
+# consolidated revenue - "first-populated wins" (the general rule elsewhere in this
+# function) is provably wrong for them: live-confirmed via real SEC companyfacts JSON that
+# BBVA/HSBC each tag a real but small (BBVA's sometimes negative) segment-revenue fact that
+# collides on filed date with their own much larger real total, and which candidate is the
+# TRUE total varies per filer (BBVA needs interest_revenue_expense, HSBC/UBS need revenues,
+# AEG needs insurance_revenue) - no fixed concept-priority ordering works for all of them,
+# magnitude does (a real consolidated total is never smaller than a genuine sub-line of
+# itself, and never negative when a positive alternative exists).
 #
-# WIDENED 2026-08-31 (goal session, real-money-readiness audit - recovered from a stranded
-# unmerged worktree commit, d175737e3, found never reached main despite memory citing it as
-# FIXED; live-reverified against current main before porting): added sales_revenue_net/
+# WIDENED 2026-08-31 (real-money-readiness audit): added sales_revenue_net/
 # sales_revenue_goods_net, previously fallback-only (see _REVENUE_FALLBACK_ONLY_FIELDS in
-# load_financial_statements.py - that set's own comment documents why they were made
-# fallback-only in the first place: KARO/AGCO-style filers where a much-larger real total
-# already sits in "revenue" from a normal concept and these two must never clobber it).
-# Fallback-only cuts only one way ("never overwrite an already-populated value") -
-# live-confirmed that's wrong when the ALREADY-populated value is itself the broken one.
-# ANDE (Andersons, SIC 5153): FY2013-2015 "Revenues" tags a small, wrong sub-line
-# ($882K/$6.159M/$5.447M) while "SalesRevenueNet" correctly holds the real total
-# ($5.605B/$4.540B/$4.198B, confirmed via real SEC companyconcept JSON) - "revenues" (a
-# magnitude-candidate field, so it wins "revenue" first) permanently blocked
-# sales_revenue_net's correct, much larger figure from ever being considered. PRGO
-# (Perrigo, SIC 2834) independently confirmed the identical shape for FY2013: real
-# "Revenues"=$800,000 vs real "SalesRevenueGoodsNet"/"SalesRevenueNet"=$3,539,800,000.
-# TKR (Timken, SIC 3562) independently reconfirms it again FY2015: DB showed $20.6M vs real
-# SalesRevenueGoodsNet=$2,872,300,000 (139x understated) - live-verified via SEC
-# companyconcept JSON before this port. Moving both into this magnitude-resolved group
-# fixes all three (whichever total-candidate concept has the LARGEST value now wins,
-# regardless of processing order) while provably not regressing KARO/OLDCO
-# (test_sec_sales_revenue_net_not_overwritten.py): the "revenue" seed-from-existing-row-
-# value step below still protects a real, larger, already-written total from a smaller
-# candidate exactly the same as it always has for the original 4 fields.
+# load_financial_statements.py) - fallback-only cuts only one way ("never overwrite an
+# already-populated value"), wrong when the already-populated value is itself the broken
+# one. ANDE/PRGO/TKR each independently live-confirmed the same shape: a small, wrong
+# "Revenues"/"SalesRevenueGoodsNet"-family concept processed first permanently blocked the
+# correct, much larger total (TKR: $20.6M stored vs real $2,872,300,000, 139x understated).
+# Moving both into this magnitude-resolved group fixes all three without regressing KARO/
+# OLDCO (test_sec_sales_revenue_net_not_overwritten.py) - the "revenue" seed-from-existing-
+# row-value step below still protects an already-written total the same as always.
 _REVENUE_TOTAL_CANDIDATE_FIELDS = frozenset(
     {
         "revenues",
@@ -1429,46 +1405,35 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # smaller value that excluding_assessed_tax is SUPPOSED to override regardless
             # of magnitude" (must NOT protect it - see that guard's own comment).
             _revenue_source_sec_field: str | None = None
-            # FIXED 2026-09-07 (PCG live-confirmed, goal session: stock_scores factor audit
-            # + tie-out sweep): tracks the rank (see sec_statements_shared.py's
-            # _PRIMARY_STATEMENT_FORMS/_ANNUAL_REPORT_FORMS) of whichever sec_field most
-            # recently wrote "net_income", so the guard below can refuse to let a
-            # non-primary-form-sourced concept (a DEF 14A Pay vs Performance re-tag, kept
-            # only as _aggregate_concepts's documented "last resort when no primary-form
-            # entry exists" fallback - see test_sec_statements_primary_form_outranks_
-            # def14a_scale_error.py) silently overwrite an already-correct value a
-            # DIFFERENT, real 10-K-sourced concept already wrote. Live-confirmed via PG&E
-            # Corp (PCG) FY2025: "ProfitLoss" (10-K, real $2,703,000,000, rank 2) wrote
-            # net_income correctly, then "NetIncomeLoss" (PG&E's real 10-K never tags this
-            # concept at all - only a DEF 14A proxy does, mistagged in thousands as raw
-            # "2593" instead of $2,593,000,000, rank 0) was processed later in the concepts
-            # list and unconditionally overwrote it via the ordinary last-listed-wins rule,
-            # producing a ~1,042,265x understatement with no data_unavailable/reason flag -
-            # caught by algo/monitoring/data_patrol/checks/tie_out.py's
-            # pretax_to_net_income identity check (WARN, not previously root-caused).
-            # GENERALIZED 2026-09-07 (real-money-readiness audit): the net_income-only guard
-            # above was a single db_field special case. Every other multi-concept db_field
-            # (pretax_income, total_assets, stockholders_equity, gross_profit,
-            # operating_income, income_tax_expense, interest_expense,
-            # shares_outstanding_diluted, diluted_eps, ...) fell through to the generic
-            # last-listed-wins `else` branch below with NO rank check at all - the exact same
-            # unguarded shape that produced the PCG net_income bug, just not yet caught live
-            # on one of these other fields. Track rank per db_field instead of only for
-            # net_income so the same protection applies uniformly.
+            # Same "which sec_field last wrote this db_field" tracking as
+            # _revenue_source_sec_field above, one per db_field the documented fallback-write
+            # overrides in is_fallback_only_write_permitted_by_documented_override
+            # (sec_zero_component_guards.py) need to distinguish "an earlier fallback concept
+            # already legitimately won" from "the documented override case applies" - see each
+            # guard's own docstring there for its specific live evidence (DPZ/MAR/BALL/PPC/
+            # LNTH/CRL, TITN, PED, DTST).
+            _long_term_debt_source_sec_field: str | None = None
+            _interest_expense_source_sec_field: str | None = None
+            _accounts_receivable_source_sec_field: str | None = None
+            _dividends_paid_source_sec_field: str | None = None
+            # FIXED 2026-09-07 (PCG live-confirmed, then GENERALIZED same day to every
+            # multi-concept db_field, not just net_income): tracks the rank (see
+            # sec_statements_shared.py's _PRIMARY_STATEMENT_FORMS/_ANNUAL_REPORT_FORMS) of
+            # whichever sec_field most recently wrote each db_field, so the guard below can
+            # refuse to let a non-primary-form-sourced concept (e.g. a DEF 14A re-tag) silently
+            # overwrite an already-correct value a real 10-K-sourced concept already wrote -
+            # live-confirmed via PG&E (PCG) FY2025's ~1,042,265x net_income understatement,
+            # caught by tie_out.py's pretax_to_net_income identity check.
             _field_source_rank: dict[str, int] = {}
 
             field_mapping = self._field_mapping
             # FIXED 2026-08-22 ("Implausible/rejected value" audit): REIT-only-fallback
             # concepts (revenue_from_contract_with_customer_*, the minor ASC-606 fee-income
             # line) only skip when "revenue" is already populated - order-dependent on `r`'s
-            # incidental insertion order, not a deliberate priority signal. Live-confirmed via
-            # CPT (Camden Property Trust, SIC 6798): its small ASC-606 fee-income fact
-            # ($12.967M) happened to sit earlier in `r` than the correct, much larger real
-            # lease-revenue figure under operating_lease_lease_income ($1.574B) and
-            # permanently blocked it from ever writing - a ~121x understatement corrupting
-            # every downstream margin/ratio. Process `_reit_only_fallback_fields` keys LAST
-            # (stable sort) so the real REIT lease-revenue concept always gets first claim on
-            # "revenue", regardless of incidental dict-insertion order.
+            # incidental insertion order. Live-confirmed via CPT: a small ASC-606 fee-income
+            # fact sat earlier in `r` than the real, much larger lease-revenue figure and
+            # permanently blocked it (~121x understatement). Process these keys LAST (stable
+            # sort) so the real REIT revenue concept always gets first claim.
             _reit_only_fallback: frozenset[str] = getattr(self, "_reit_only_fallback_fields", frozenset())
             ordered_fields = sorted(r.items(), key=lambda kv: kv[0] in _reit_only_fallback)
             # See _REVENUE_TOTAL_CANDIDATE_FIELDS's module-level comment for why these 4
@@ -1528,12 +1493,22 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and (
                     db_field in row or revenue_total_source.get(db_field) == "negative_total_rejected"
                 ):
-                    # MYFW-class case (a plain concept's own real $0 for one narrow
-                    # instrument permanently blocking a later, genuinely nonzero fallback
-                    # concept) - see sec_zero_component_guards.py's own docstring.
-                    zero_blocking_real_value = is_zero_first_write_blocking_field(db_field, row.get(db_field), value)
-                    # See should_override_fallback_field_for_depository_institution's docstring.
-                    if not zero_blocking_real_value and not should_override_fallback_field_for_depository_institution(
+                    # Whether this fallback-only write should proceed despite the ordinary
+                    # "higher-priority concept already populated this field" default - see
+                    # is_fallback_only_write_permitted_by_documented_override's own docstring
+                    # (sec_zero_component_guards.py) for the 6 individual documented exceptions
+                    # this consolidates (MYFW/DPZ-MAR-BALL-PPC-LNTH-CRL/TITN/RAVE/PED/DTST/ABCB
+                    # live evidence, each in its own guard function's docstring there).
+                    if not is_fallback_only_write_permitted_by_documented_override(
+                        db_field,
+                        sec_field,
+                        row.get(db_field),
+                        value,
+                        _long_term_debt_source_sec_field,
+                        _interest_expense_source_sec_field,
+                        _accounts_receivable_source_sec_field,
+                        _dividends_paid_source_sec_field,
+                    ) and not should_override_fallback_field_for_depository_institution(
                         sec_field, db_field, value, row, r, _eligible_interest_income_symbols
                     ):
                         continue  # A higher-priority concept already populated this field
@@ -1560,49 +1535,26 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     )
                 ):
                     continue
-                # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage
-                # audit): the REIT/insurance/depository gate above assumes "IncludingAssessedTax
-                # as a narrow sub-line, not the real total" is an industry-specific (SIC-coded)
-                # failure mode - false. Live-confirmed via three ordinary, non-REIT/insurance/
-                # bank filers: CHTR (Charter Communications, SIC 4841 cable) tags a real,
-                # current, correct "Revenues" every year through FY2025 ($54.607B/$55.085B/
-                # $54.774B for FY2023-2025) while ALSO tagging
-                # RevenueFromContractWithCustomerIncludingAssessedTax with a much narrower
-                # same-year figure ($993M/$941M/$889M); HTLD (Heartland Express, SIC 4213
-                # trucking) shows the identical shape via the same concept ($58.1M FY2025 vs. a
-                # real ~$863M total); ANDE (Andersons, SIC 5153 grain/agribusiness) shows the
-                # SAME shape via the sibling ExcludingAssessedTax concept instead ($1.531B
-                # FY2025 vs. real "Revenues"=$11.009B, a ~7x understatement). None of these
-                # filers are REIT/insurer/depository, so the SIC-gated branch above never fires,
-                # and the general "last-listed-wins" priority let the narrow figure silently
-                # clobber the correct total - up to a ~61x understatement with no
-                # data_unavailable/reason flag anywhere, corrupting every downstream revenue-
-                # based metric (P/S, revenue growth, all margin ratios) for these and up to 63
-                # other real symbols sharing this fingerprint (see the DB-wide "latest fiscal
-                # year revenue present but cost_of_revenue/gross_profit both NULL" scan this
-                # goal session ran). A real consolidated revenue total can never be smaller than
-                # a genuine sub-line of itself, so if a field a normal-priority concept already
-                # wrote to "revenue" is LARGER than either ASC-606 concept's incoming value, the
-                # incoming value is never allowed to shrink it, regardless of SIC code. This does
-                # NOT weaken the AAPL case (test_sec_reit_lease_revenue_not_overwritten.py's
-                # test_non_insurer_still_uses_normal_priority_asc606_wins): there the ASC-606
-                # figure is LARGER than the legacy "Revenues" figure (391B > 300B), so neither
-                # guard below fires and normal overwrite still applies.
+                # FIXED 2026-08-31 (full-coverage audit): the REIT/insurance/depository gate
+                # above assumes "IncludingAssessedTax as a narrow sub-line, not the real total"
+                # is SIC-specific - false. Live-confirmed via 3 ordinary, non-REIT/insurance/
+                # bank filers (CHTR/HTLD/ANDE - up to ~61x understatement, no data_unavailable
+                # flag) that the general last-listed-wins priority lets a narrow ASC-606 concept
+                # silently clobber the correct total. A real consolidated revenue total can
+                # never be smaller than a genuine sub-line of itself, so if a normal-priority
+                # concept already wrote a LARGER "revenue" than either ASC-606 concept's
+                # incoming value, that incoming value is never allowed to shrink it, regardless
+                # of SIC code - doesn't weaken the AAPL case
+                # (test_sec_reit_lease_revenue_not_overwritten.py), where the ASC-606 figure is
+                # genuinely larger and still wins normally.
                 #
-                # The excluding_assessed_tax guard (added same pass, ANDE fix) additionally
-                # checks `_revenue_source_sec_field` (tracked at every "revenue" write site
-                # above) is NOT the including_assessed_tax concept: excluding_assessed_tax is
-                # always processed strictly AFTER including_assessed_tax (concept-list order in
-                # sec_statements.py), so it may see "revenue" already holding including_assessed_
-                # tax's own (smaller, by definition) value -
-                # test_load_financial_statements_revenue_precedence.py's
-                # test_tax_exclusive_revenue_wins_when_both_concepts_reported requires
-                # excluding_assessed_tax to keep unconditionally overwriting THAT specific value
-                # even though it's smaller (excluding tax is deliberately preferred as "the
-                # standard net-revenue measure most filers use" - a precedence rule, not a
-                # magnitude one). The source check lets that precedence stand while still
-                # protecting a genuinely different, larger, earlier-written total like ANDE's
-                # "Revenues".
+                # The excluding_assessed_tax guard (same pass, ANDE fix) additionally checks
+                # `_revenue_source_sec_field` is NOT the including_assessed_tax concept:
+                # excluding_assessed_tax always processes strictly AFTER including_assessed_tax,
+                # so it must keep unconditionally overwriting THAT specific (smaller-by-
+                # definition) value per test_tax_exclusive_revenue_wins_when_both_concepts_
+                # reported (a precedence rule, not a magnitude one) while still protecting a
+                # genuinely different, larger, earlier-written total like ANDE's "Revenues".
                 # FIXED 2026-09-13 (MKZR): see asc606_existing_value_outranks_candidate's docstring.
                 if asc606_existing_value_outranks_candidate(row.get(db_field), value) and (
                     sec_field == "revenue_from_contract_with_customer_including_assessed_tax"
@@ -1673,6 +1625,16 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # evidence. Sum instead of overwrite.
                     row[db_field] = row[db_field] + value
                     continue
+                elif db_field in row and is_other_borrowings_additive_to_subordinated_debt(
+                    db_field, sec_field, row.get(db_field), value, _long_term_debt_source_sec_field
+                ):
+                    # ABCB-class case: SubordinatedDebt + OtherBorrowings are genuinely
+                    # distinct, simultaneously-outstanding bank borrowed-funds instruments -
+                    # see is_other_borrowings_additive_to_subordinated_debt's own docstring
+                    # (sec_zero_component_guards.py) for the live evidence. Sum instead of
+                    # overwrite.
+                    row[db_field] = row[db_field] + value
+                    continue
                 elif (
                     db_field == "shares_outstanding_basic"
                     and sec_field in ("common_stock_shares_issued", "common_stock_shares_outstanding")
@@ -1695,45 +1657,32 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     and isinstance(value, (int, float, Decimal))
                     and float(value) == 0.0
                 ):
-                    # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, our_value=0-
-                    # vs-real-yfinance-value audit): the fallback-only guard above (db_field
-                    # in row) only protects a value ALREADY written from being overwritten -
-                    # it does nothing when a fallback concept is the FIRST one processed and
-                    # its own real value happens to be 0. Several _DEBT_FALLBACK_ONLY_FIELDS
-                    # concepts (subordinated_debt, advances_from_federal_home_loan_banks,
-                    # senior_notes, notes_payable, unsecured_debt, ...) represent ONE
-                    # instrument type among several a filer may report simultaneously, not
-                    # the filer's total debt - a real "$0 of this particular instrument" fact
-                    # was silently claiming the whole long_term_debt/short_term_debt slot and
-                    # permanently blocking every later, genuinely nonzero alternative concept
-                    # from ever being considered (the existing `db_field in row` fallback
-                    # guard treats 0 as "already resolved", same class of bug as this
-                    # session's earlier LongTermDebtCurrent=0 fix in
-                    # sec_balance_sheet.py's _fill_long_term_debt_from_noncurrent_current_
-                    # split, just at this transform-level layer instead). Live-confirmed via
-                    # BANR/AMTB/IBCP/MPB (all bank holding companies): each tags
-                    # "SubordinatedDebt"=0 (processed first, dict-insertion order) alongside a
-                    # real, nonzero "AdvancesFromFederalHomeLoanBanks" fact ($150,000,000 for
-                    # BANR FY2025) that never got a chance to write. Skipping this write (not
-                    # marking data_unavailable) lets a later concept still claim the field; if
-                    # nothing ever does, long_term_debt honestly stays None rather than a
-                    # confidently-wrong 0 - the more holistic "confirmed structurally
-                    # debt-free" determination (never tagged ANY debt component across full
-                    # history AND no interest_expense) already lives downstream in
-                    # load_value_quality_growth_metrics.py, unaffected by this change.
-                    #
-                    # EXTENDED to "capex" same day: identical shape via
-                    # financial_statements_cashflow_config.py's fallback-only capex concepts
-                    # (payments_to_acquire_land, payments_to_acquire_other_productive_assets,
-                    # ...) - a filer's real "$0 spent on land this year" fact must not lock
-                    # out a later, genuinely nonzero capex concept the same way a debt
-                    # instrument's real $0 must not lock out a later debt concept.
+                    # FIXED 2026-09-16 (SEC-vs-yfinance divergence sweep): the fallback-only
+                    # guard above only protects an ALREADY-written value - it does nothing when
+                    # a fallback concept is the FIRST one processed and its own real value is 0
+                    # (one instrument among several, not the filer's total). Live-confirmed via
+                    # BANR/AMTB/IBCP/MPB: real "SubordinatedDebt"=0 processed first permanently
+                    # blocked a later, real, nonzero "AdvancesFromFederalHomeLoanBanks" fact.
+                    # Skip (don't mark data_unavailable) so a later concept can still claim the
+                    # field; if none ever does, it honestly stays None rather than a
+                    # confidently-wrong 0. Extended to "capex" same day (identical shape via
+                    # financial_statements_cashflow_config.py's fallback-only capex concepts).
                     continue
                 elif is_zero_overwrite_blocking_field(db_field, row.get(db_field), value):
                     # CMCT-class case (a later concept's own real $0 for one narrow
                     # sub-category overwriting an already-resolved nonzero total, regardless
                     # of fallback_only status) - see sec_zero_component_guards.py's own
                     # docstring.
+                    continue
+                elif is_immaterial_standard_debt_overwriting_combined_total(
+                    db_field, sec_field, row.get(db_field), value, _long_term_debt_source_sec_field
+                ):
+                    # DPZ/MAR/BALL/PPC/LNTH/CRL-class case: the plain "long_term_debt" concept
+                    # is not fallback-gated at all, so it would otherwise unconditionally
+                    # overwrite an already-resolved, dramatically larger combined-debt-total
+                    # value with its own real-but-immaterial figure - see
+                    # is_immaterial_standard_debt_overwriting_combined_total's own docstring
+                    # (sec_zero_component_guards.py) for the live evidence.
                     continue
                 else:
                     precision_scale = self._get_field_precision_scale(db_field)
@@ -1751,6 +1700,14 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         row[db_field] = value
                         if db_field == "revenue":
                             _revenue_source_sec_field = sec_field
+                        if db_field == "long_term_debt":
+                            _long_term_debt_source_sec_field = sec_field
+                        if db_field == "interest_expense":
+                            _interest_expense_source_sec_field = sec_field
+                        if db_field == "accounts_receivable":
+                            _accounts_receivable_source_sec_field = sec_field
+                        if db_field == "dividends_paid":
+                            _dividends_paid_source_sec_field = sec_field
                         _field_source_rank[db_field] = r.get(f"_rank_{sec_field}", 2)
 
             # free_cash_flow has no direct XBRL concept (FCF is a non-GAAP measure SEC
