@@ -322,37 +322,69 @@ def get_fundamentals_verification_coverage(cur: cursor) -> Any:
         row = cur.fetchone()
         symbols_checked = row[0] if row and row[0] is not None else 0
 
+        # review_status (migration 1302): `divergent` alone is just "SEC and yfinance disagree by
+        # more than X this run" - it does NOT mean anyone confirmed which source is wrong. Calling
+        # a divergent row "known_issue" is exactly the mislabeling that caused the 2026-09-16
+        # corruption incident (scripts/DIVERGENCE_REPAIR_POSTMORTEM.md): downstream scripts
+        # treated "flagged" as "confirmed wrong, safe to overwrite." So this is a genuine 5-way
+        # split now: confident (not divergent), unreviewed (flagged, nobody's looked), and the
+        # three review outcomes for whatever HAS been looked at via scripts/
+        # xbrl_line_item_review.py. "known_issue"/"verified_accurate" keys are kept alongside the
+        # new ones for existing API consumers, but callers should prefer the new fields - they
+        # were never an accurate name for what this data actually shows.
         cur.execute(
             """
             SELECT
-                COUNT(*) FILTER (WHERE NOT divergent) AS verified_accurate,
-                COUNT(*) FILTER (WHERE divergent) AS known_issue,
+                COUNT(*) FILTER (WHERE NOT divergent) AS confident,
+                COUNT(*) FILTER (WHERE divergent AND review_status = 'unreviewed') AS unreviewed,
+                COUNT(*) FILTER (WHERE divergent AND review_status = 'reviewed_not_error') AS reviewed_not_error,
+                COUNT(*) FILTER (WHERE divergent AND review_status = 'reviewed_needs_fix') AS reviewed_needs_fix,
+                COUNT(*) FILTER (WHERE divergent AND review_status = 'reviewed_fixed') AS reviewed_fixed,
+                COUNT(*) FILTER (WHERE divergent) AS flagged,
                 COUNT(*) AS total
             FROM xbrl_yfinance_line_item_report
             """
         )
         row = cur.fetchone()
-        verified_accurate, known_issue, total_compared = (row[0] or 0, row[1] or 0, row[2] or 0) if row else (0, 0, 0)
+        (
+            confident,
+            unreviewed,
+            reviewed_not_error,
+            reviewed_needs_fix,
+            reviewed_fixed,
+            flagged,
+            total_compared,
+        ) = tuple(v or 0 for v in row) if row else (0, 0, 0, 0, 0, 0, 0)
 
         cur.execute(
             """
             SELECT our_table, our_field,
-                   COUNT(*) FILTER (WHERE NOT divergent) AS verified_accurate,
-                   COUNT(*) FILTER (WHERE divergent) AS known_issue,
+                   COUNT(*) FILTER (WHERE NOT divergent) AS confident,
+                   COUNT(*) FILTER (WHERE divergent AND review_status = 'unreviewed') AS unreviewed,
+                   COUNT(*) FILTER (WHERE divergent AND review_status = 'reviewed_not_error') AS reviewed_not_error,
+                   COUNT(*) FILTER (WHERE divergent AND review_status = 'reviewed_needs_fix') AS reviewed_needs_fix,
+                   COUNT(*) FILTER (WHERE divergent AND review_status = 'reviewed_fixed') AS reviewed_fixed,
+                   COUNT(*) FILTER (WHERE divergent) AS flagged,
                    COUNT(*) AS checked
             FROM xbrl_yfinance_line_item_report
             GROUP BY our_table, our_field
-            ORDER BY known_issue DESC, our_table, our_field
+            ORDER BY unreviewed DESC, our_table, our_field
             """
         )
         per_field = [
             {
                 "table": r[0],
                 "field": r[1],
+                "confident": r[2],
+                "unreviewed": r[3],
+                "reviewed_not_error": r[4],
+                "reviewed_needs_fix": r[5],
+                "reviewed_fixed": r[6],
+                "flagged": r[7],
+                "checked": r[8],
                 "verified_accurate": r[2],
-                "known_issue": r[3],
-                "checked": r[4],
-                "known_issue_rate_pct": round(r[3] / r[4] * 100, 1) if r[4] else None,
+                "known_issue": r[7],
+                "known_issue_rate_pct": round(r[7] / r[8] * 100, 1) if r[8] else None,
             }
             for r in cur.fetchall()
         ]
@@ -412,9 +444,18 @@ def get_fundamentals_verification_coverage(cur: cursor) -> Any:
                     "symbols_checked": symbols_checked,
                     "symbols_unknown": max(universe - symbols_checked, 0),
                     "coverage_pct": round(symbols_checked / universe * 100, 1) if universe else None,
-                    "comparisons_verified_accurate": verified_accurate,
-                    "comparisons_known_issue": known_issue,
+                    # honest breakdown - see the comment above the query this comes from
+                    "comparisons_confident": confident,
+                    "comparisons_unreviewed": unreviewed,
+                    "comparisons_reviewed_not_error": reviewed_not_error,
+                    "comparisons_reviewed_needs_fix": reviewed_needs_fix,
+                    "comparisons_reviewed_fixed": reviewed_fixed,
+                    "comparisons_flagged": flagged,
                     "comparisons_total": total_compared,
+                    # deprecated aliases, kept for existing consumers - "known_issue" never
+                    # meant "confirmed wrong", it meant "flagged"; prefer the fields above
+                    "comparisons_verified_accurate": confident,
+                    "comparisons_known_issue": flagged,
                     "sweep_cursor": sweep_cursor,
                     "per_field": per_field,
                 },

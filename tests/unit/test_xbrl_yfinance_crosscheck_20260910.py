@@ -11,28 +11,38 @@ robust to future _FIELDS changes than counting exact call positions.
 
 from unittest.mock import MagicMock, patch
 
-from scripts.xbrl_yfinance_crosscheck import _our_latest_value, run
+from scripts.xbrl_yfinance_crosscheck import _our_all_values, run
 
 
 def _make_cur(is_fpi: bool, our_values: dict[tuple[str, str], tuple[int, float]]):
     """our_values: {(table, field): (fiscal_year, value)} - any (table, field) not present
-    behaves as "no comparable row for this symbol/field", same as a real NULL/missing row."""
+    behaves as "no comparable row for this symbol/field", same as a real NULL/missing row.
+
+    _our_all_values (CHANGED 2026-09-17 - compares every fiscal year on file, not just the
+    latest) reads via fetchall(), not fetchone() - is_foreign_private_issuer still uses
+    fetchone() so both need wiring here.
+    """
     cur = MagicMock()
 
     def _fetchone():
         query = cur.execute.call_args[0][0]
         if "is_foreign_private_issuer" in query:
             return (is_fpi,)
+        return None
+
+    def _fetchall():
+        query = cur.execute.call_args[0][0]
         for (table, field), value in our_values.items():
             if f"FROM {table}" not in query:
                 continue
             # Composite fields (e.g. depreciation_expense + amortization_expense) select
             # "(field + COALESCE(extra, 0))" instead of a bare "field" - match either shape.
             if f", {field}\n" in query or f"({field} + COALESCE(" in query:
-                return value
-        return None
+                return [value]
+        return []
 
     cur.fetchone.side_effect = _fetchone
+    cur.fetchall.side_effect = _fetchall
     return cur
 
 
@@ -53,20 +63,20 @@ class TestOurLatestValueComposite:
     # false-divergence rate on the first real batch.
     def test_depreciation_expense_sums_amortization_expense(self):
         cur = MagicMock()
-        cur.fetchone.return_value = (2025, 150.0)
+        cur.fetchall.return_value = [(2025, 150.0), (2024, 140.0)]
 
-        result = _our_latest_value(cur, "annual_income_statement", "depreciation_expense", "AAA")
+        result = _our_all_values(cur, "annual_income_statement", "depreciation_expense", "AAA")
 
         query = cur.execute.call_args[0][0]
         assert "amortization_expense" in query
         assert "COALESCE" in query
-        assert result == (2025, 150.0)
+        assert result == [(2025, 150.0), (2024, 140.0)]
 
     def test_other_fields_are_not_summed(self):
         cur = MagicMock()
-        cur.fetchone.return_value = (2025, 100.0)
+        cur.fetchall.return_value = [(2025, 100.0)]
 
-        _our_latest_value(cur, "annual_income_statement", "revenue", "AAA")
+        _our_all_values(cur, "annual_income_statement", "revenue", "AAA")
 
         query = cur.execute.call_args[0][0]
         assert "amortization_expense" not in query
@@ -109,6 +119,41 @@ class TestXbrlYfinanceCrosscheck:
         for field in ("net_income", "total_assets", "stockholders_equity", "operating_cash_flow"):
             clean_result = results_by_check[f"yfinance_independent_crosscheck_{field}"]
             assert clean_result["severity"] == "info"
+
+    def test_compares_every_fiscal_year_on_file_not_just_the_latest(self):
+        # ADDED 2026-09-17: _our_all_values replaced _our_latest_value (which was ORDER BY
+        # fiscal_year DESC LIMIT 1) precisely because live data showed the report table averaged
+        # only 1.26 distinct fiscal years/symbol despite 4-5+ years typically on file. A single
+        # symbol with 3 years of revenue on our side and matching yfinance rows for all 3 must
+        # produce 3 recorded comparisons, not 1.
+        cur = _make_cur(is_fpi=False, our_values={})
+        cur.fetchall.side_effect = None
+        # Values must clear _DIVERGENCE_FLOOR_DOLLARS (1,000,000) or the comparison is skipped
+        # as "too small to check" before a row is ever recorded.
+        cur.fetchall.return_value = [(2025, 100_000_000.0), (2024, 90_000_000.0), (2023, 80_000_000.0)]
+        conn = MagicMock()
+        conn.cursor.return_value = cur
+
+        fetch_fn = _yf_side_effect(
+            income=[
+                {"fiscal_year": 2025, "revenues": 100_000_000.0},
+                {"fiscal_year": 2024, "revenues": 90_000_000.0},
+                {"fiscal_year": 2023, "revenues": 80_000_000.0},
+            ]
+        )
+
+        with (
+            patch("utils.db.connection.get_db_connection", return_value=conn),
+            patch("utils.external.yfinance_financials.fetch_financial_statement", side_effect=fetch_fn),
+            patch("algo.monitoring.data_patrol.logger.PatrolLogger"),
+        ):
+            run(limit=25, symbols_override=["AAA"], dry_run=False, delay_seconds=0)
+
+        record_calls = [
+            c for c in cur.execute.call_args_list if "INSERT INTO xbrl_yfinance_line_item_report" in c[0][0]
+        ]
+        revenue_years = {c[0][1][3] for c in record_calls if c[0][1][2] == "revenue"}
+        assert revenue_years == {2025, 2024, 2023}
 
     def test_dry_run_never_writes_to_data_patrol_log(self):
         cur = _make_cur(is_fpi=False, our_values={})

@@ -966,6 +966,16 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         #   securitization-vehicle debt (CLO notes issued to third parties), consistent
         #   with a commercial mortgage REIT's typical financing structure.
         "BeneficialInterest",
+        # ADDED 2026-09-17 (divergence-repair follow-up, trend-break reload pass): DDS
+        # (Dillard's) tags its real long-term debt under this MORE SPECIFIC sibling of
+        # "OtherLongTermDebt" above - live-confirmed via SEC companyfacts JSON, CIK
+        # 0000028917: "OtherLongTermDebtNoncurrent" $225,674,000 as of 2026-01-31 (their
+        # FY2025 10-K, fiscal year ending late January). Never tags LongTermDebt/
+        # NotesPayable/SubordinatedDebt/OtherLongTermDebt/SecuredLongTermDebt for this
+        # period - same "bank/retailer uses its own specific concept name" pattern as the
+        # FHLB-family and LongTermLineOfCredit concepts above. Fallback-only, same
+        # single-figure convention (target: long_term_debt).
+        "OtherLongTermDebtNoncurrent",
         # ADDED 2026-08-26 (Quality pillar literature audit): needed for Altman Z''-Score's
         # Retained Earnings/Total Assets term (the one term not derivable from concepts
         # already fetched above). Standard, near-universal US-GAAP concept - every filer with

@@ -793,6 +793,16 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # distributor convention as DividendsPreferredStockCash immediately above - never
         # overwrites a real common-dividend total.
         "PaymentsOfDividendsPreferredStockAndPreferenceStock",
+        # FIXED 2026-09-16 (same sweep, second follow-up pass): 4 more genuine dividend-
+        # equivalent concepts found by full-companyfacts numeric scan against
+        # xbrl_yfinance_line_item_report's flagged dividends_paid values - see
+        # load_financial_statements.py's _CASHFLOW_FIELD_MAPPING/_SBC_BUYBACK_FALLBACK_
+        # ONLY_FIELDS comments for the full live evidence (DTST/EVEX/HE/SEAT). All
+        # fallback-only.
+        "DividendsShareBasedCompensationCash",
+        "PaymentsOfDistributionsToAffiliates",
+        "PaymentsOfDividendsMinorityInterest",
+        "DividendsCommonStockPaidinkind",
         "DividendsCommonStockCash",
         "DividendsCommonStock",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,

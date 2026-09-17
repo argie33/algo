@@ -39,6 +39,7 @@ from loaders.helpers.sec_revenue_total_resolution import (
 )
 from loaders.helpers.sec_statement_field_bookkeeping import is_bookkeeping_key
 from loaders.helpers.sec_zero_component_guards import (
+    is_additive_concept_pair,
     is_zero_first_write_blocking_field,
     is_zero_overwrite_blocking_field,
     redirect_secured_debt_for_reit,
@@ -1665,30 +1666,11 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # later list position - the ordinary last-listed-wins rule only ever
                     # intended to arbitrate between comparable-quality concepts.
                     continue
-                elif (
-                    db_field == "capex"
-                    and sec_field
-                    in (
-                        "payments_to_acquire_oil_and_gas_property",
-                        "payments_to_explore_and_develop_oil_and_gas_properties",
-                    )
-                    and db_field in row
-                    and isinstance(row[db_field], (int, float, Decimal))
-                    and isinstance(value, (int, float, Decimal))
-                ):
-                    # BUG FOUND 2026-09-07 (real-money-readiness audit): see
-                    # utils/external/sec_cash_flow.py's concepts-list comment on these two
-                    # concepts - CRGY (Crescent Energy) tags BOTH as genuinely distinct,
-                    # additive investing-activity lines in the same fiscal year
-                    # (PaymentsToExploreAndDevelopOilAndGasProperties $951.0M E&D +
-                    # PaymentsToAcquireOilAndGasProperty $818.9M acquisition, FY2025), not
-                    # alternates for the same fact. _aggregate_concepts has no summing
-                    # mechanism (both keep their own distinct snake_case keys there), so the
-                    # collision happens here: field_mapping maps both to db_field "capex",
-                    # and the ordinary last-listed-wins rule silently discarded whichever one
-                    # processed first - understating total capex (and correspondingly
-                    # overstating free_cash_flow/fcf_margin) by the other line's amount for
-                    # any O&G filer tagging both in the same year. Sum instead of overwrite.
+                elif db_field in row and is_additive_concept_pair(db_field, sec_field, row.get(db_field), value):
+                    # Genuinely distinct, additive components of the same total (CRGY
+                    # capex, TITN interest_expense) - see ADDITIVE_CONCEPT_PAIRS'
+                    # docstring in sec_zero_component_guards.py for the live-confirmed
+                    # evidence. Sum instead of overwrite.
                     row[db_field] = row[db_field] + value
                     continue
                 elif (

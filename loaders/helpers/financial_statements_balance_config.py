@@ -221,6 +221,11 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         "surplus_notes",
         "securities_loaned",
         "beneficial_interest",
+        # ADDED 2026-09-17 (divergence-repair follow-up): DDS's more-specific sibling of
+        # "other_long_term_debt" above - see sec_balance_sheet.py's get_balance_sheet()
+        # comment on "OtherLongTermDebtNoncurrent" for the live evidence. Must never win
+        # over a more specific standard concept.
+        "other_long_term_debt_noncurrent",
         # FIXED 2026-09-05 (same continuation): KBDC (Kayne Anderson BDC) real fair-value
         # credit-facility concept - see sec_statements.py's get_balance_sheet() comment on
         # "LineOfCreditFacilityFairValueOfAmountOutstanding" for the live evidence and
@@ -518,6 +523,11 @@ _BALANCE_FIELD_MAPPING = {
     # comment on "AdvancesFromFederalHomeLoanBanks" for the live evidence (BANR FY2025
     # $150,000,000). Fallback-only, single-figure convention as above.
     "advances_from_federal_home_loan_banks": "long_term_debt",
+    # ADDED 2026-09-17 (divergence-repair follow-up): DDS's own more-specific sibling of
+    # "OtherLongTermDebt" above - see sec_balance_sheet.py's get_balance_sheet() comment
+    # on "OtherLongTermDebtNoncurrent" for the live evidence ($225,674,000 FY2025).
+    # Fallback-only, single-figure convention as above.
+    "other_long_term_debt_noncurrent": "long_term_debt",
     # FIXED 2026-09-16 (same sweep, follow-up pass): sibling FHLB concept - see
     # sec_balance_sheet.py's get_balance_sheet() comment on
     # "FederalHomeLoanBankAdvancesLongTerm" for the live evidence (CBNK/MYFW).

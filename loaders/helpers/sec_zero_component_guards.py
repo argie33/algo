@@ -44,7 +44,38 @@ from typing import Any
 # nonzero fallback concept still gets a chance; if nothing ever writes a nonzero value, the
 # field honestly stays None rather than a confidently-wrong 0.
 ZERO_FIRST_WRITE_GUARD_FIELDS = frozenset(
-    {"long_term_debt", "short_term_debt", "capex", "accounts_receivable", "income_tax_expense"}
+    {
+        "long_term_debt",
+        "short_term_debt",
+        "capex",
+        "accounts_receivable",
+        "income_tax_expense",
+        # ADDED 2026-09-16 (same sweep, second follow-up pass): RAVE (Rave Restaurant
+        # Group, a franchisor) tags a real "CostOfRevenue" fact at $0/$1,000 (an
+        # unrelated, near-zero line item for this filer) alongside a real, much larger
+        # "FranchisorCosts" fact ($3,956,000 FY2023, exactly matching the yfinance-
+        # flagged value) for the same fiscal year - same "unrelated concept's real $0/
+        # near-0 permanently blocks a later, genuinely nonzero fallback concept" bug as
+        # every other field in this set.
+        "cost_of_revenue",
+        # ADDED 2026-09-16 (same sweep): DTST tags a real "Dividends" bare-concept fact
+        # at $0 (processed FIRST in sec_cash_flow.py's concept list, well before the
+        # DividendsPreferredStock family) alongside real, nonzero
+        # "DividendsPreferredStock" ($63,683) and "DividendsShareBasedCompensationCash"
+        # ($1,179,357, the yfinance-matching figure) facts for the same fiscal year -
+        # both later fallback-only concepts were permanently blocked by the earlier
+        # real-$0 write, same bug shape as every other field in this set.
+        "dividends_paid",
+        # ADDED 2026-09-16 (same sweep): TITN tags a real "InterestAndDebtExpense" fact
+        # at $0 (processed FIRST, fallback-only) alongside a real, nonzero
+        # "FinancingInterestExpense" ($24,109,000 FY2026) - the earlier real-$0 write
+        # blocked financing_interest_expense from ever populating interest_expense, which
+        # in turn meant the interest_expense_other dual-concept sum (see sec_base.py's
+        # transform()) summed against 0 instead of the real $24,109,000, silently
+        # understating interest_expense by that whole amount. Same bug shape as every
+        # other field in this set.
+        "interest_expense",
+    }
 )
 
 # Fields where a LATER write of exactly 0 (fallback-only OR plain) must never overwrite an
@@ -58,6 +89,17 @@ ZERO_OVERWRITE_GUARD_FIELDS = frozenset(
         "dividends_paid",
         "cash_and_equivalents",
         "stockholders_equity",
+        # ADDED 2026-09-16 (same sweep, second follow-up pass): QS (QuantumScape) - the
+        # real "IncomeTaxExpenseBenefit" concept correctly writes $1,544,000 FY2025
+        # (matching the yfinance-flagged value), but sec_statements.py's
+        # _fill_income_tax_expense_from_current_deferred_split() then computes a real $0
+        # from CurrentIncomeTaxExpenseBenefit + DeferredIncomeTaxExpenseBenefit for this
+        # filer and writes it directly to the SAME "income_tax_expense" identity key,
+        # processed LAST in dict order, unconditionally overwriting the correct total via
+        # plain (non-fallback) last-write-wins - same "component/derived-$0 blocks a real
+        # total" bug shape as every other field in this set, just with a computed value
+        # instead of a raw XBRL concept as the offending $0.
+        "income_tax_expense",
     }
 )
 
@@ -109,4 +151,42 @@ def is_zero_overwrite_blocking_field(db_field: str, existing: Any, value: Any) -
         and float(existing) != 0.0
         and isinstance(value, (int, float, Decimal))
         and float(value) == 0.0
+    )
+
+
+# (db_field, sec_field) pairs where the two concepts are genuinely distinct, additive
+# components of the same total rather than alternates for the same fact - extracted here
+# 2026-09-17 (moved out of sec_base.py to stay under the file-size ratchet's hard ceiling
+# after the TITN addition, mechanical extraction only, no behavior change). Both pairs were
+# live-confirmed via real SEC companyfacts JSON to co-occur in the same fiscal year for the
+# named filer, each under its own distinct XBRL concept, summing to (or very near) the
+# yfinance-flagged total:
+# - capex: payments_to_acquire_oil_and_gas_property + payments_to_explore_and_develop_oil_
+#   and_gas_properties (CRGY FY2025: $818.9M acquisition + $951.0M E&D).
+# - interest_expense: financing_interest_expense (mapped to interest_expense) +
+#   interest_expense_other (TITN FY2026: $24,109,000 + $18,974,000 = $43,083,000, exactly
+#   matching yfinance; FY2025: $34,710,000 + $15,105,000 = $49,815,000).
+# sec_base.py's transform() has no per-field summing mechanism for _aggregate_concepts (each
+# concept keeps its own distinct snake_case key there) - the collision happens where
+# field_mapping resolves both concepts onto the same db_field, and ordinary last-listed-wins
+# would otherwise silently discard whichever processed first, understating the total.
+ADDITIVE_CONCEPT_PAIRS = frozenset(
+    {
+        ("capex", "payments_to_acquire_oil_and_gas_property"),
+        ("capex", "payments_to_explore_and_develop_oil_and_gas_properties"),
+        ("interest_expense", "interest_expense_other"),
+    }
+)
+
+
+def is_additive_concept_pair(db_field: str, sec_field: str, existing: Any, value: Any) -> bool:
+    """True if `sec_field` is a known-additive component for `db_field` (see
+    ADDITIVE_CONCEPT_PAIRS) and both the already-resolved `existing` value and the incoming
+    `value` are real numbers - i.e. this is a genuine sum-instead-of-overwrite case, not a
+    first write.
+    """
+    return (
+        (db_field, sec_field) in ADDITIVE_CONCEPT_PAIRS
+        and isinstance(existing, (int, float, Decimal))
+        and isinstance(value, (int, float, Decimal))
     )

@@ -78,6 +78,16 @@ _DIVERGENCE_FLOOR = 1_000_000.0
 _MAX_EXAMPLES_PER_FIELD = 15
 _MAX_CONSECUTIVE_AUTH_ERRORS = 3
 
+# FIXED 2026-09-16 (ARMK/KELYB/SPCE live-confirmed): `fact.ultimus=true` only means
+# "latest-filed fact for this concept/period wins" - it doesn't restrict which FILING TYPE
+# that fact came from. SEC's pay-vs-performance proxy rules require certain DEF 14A tables to
+# reuse real financial-statement concept names (e.g. us-gaap:NetIncomeLoss) for an unrelated,
+# much smaller figure tagged for the same period - live-confirmed for ARMK ($263, from a
+# DEF 14A that "ultimus" preferred over the real 10-K's $326.87M) and KELYB (-$600,000 from a
+# DEF 14A vs the real 10-K's -$254.1M). Restrict to actual financial-statement filing types so
+# a later proxy/8-K can't shadow the real annual-report fact.
+_COMPARABLE_FORM_TYPES = {"10-K", "10-K/A", "10-Q", "10-Q/A", "20-F", "20-F/A", "40-F", "40-F/A"}
+
 
 def _select_symbols(cur: Any, limit: int) -> list[str]:
     """Daily-rotating pseudo-random sample of active symbols with real SEC-audited annual
@@ -191,9 +201,26 @@ def run(limit: int, symbols_override: list[str] | None, dry_run: bool) -> dict[s
                 # review-queue check has no currency-conversion logic of its own (unlike
                 # utils/external/sec_statements_aggregate.py's MAJOR_CURRENCIES handling for our
                 # own extraction, which this check doesn't need to duplicate here).
-                if concept_facts[0].get("unit.unit-of-measure") not in (None, "USD"):
+                #
+                # RE-FIXED 2026-09-16 (later same day, WIMI/LI live-confirmed): the field name
+                # requested/read above was "unit.unit-of-measure", which this API never actually
+                # returns (confirmed live against /api/v1/fact/search - the real field is just
+                # "unit", e.g. "USD"/"CNY"). `.get(...)` on the wrong key always returned None,
+                # which the `(None, "USD")` allowlist treats as "assumed USD" - so this guard has
+                # silently never filtered anything since it was written a few hours earlier.
+                # Also fixed a second bug this exposed: dual-currency 20-F filers (LI Auto, WIMI)
+                # return TWO "ultimus" facts for the same concept/period - one in the home
+                # currency, one a USD convenience-translation - and the old code always read
+                # concept_facts[0] regardless of which one that was (here, the non-USD one),
+                # rather than searching the returned facts for a USD one.
+                usd_facts = [
+                    f
+                    for f in concept_facts
+                    if f.get("unit") in (None, "USD") and f.get("report.form-type") in (None, *_COMPARABLE_FORM_TYPES)
+                ]
+                if not usd_facts:
                     continue
-                candidate = float(concept_facts[0]["fact.value"])
+                candidate = float(usd_facts[0]["fact.value"])
                 if best_value is None or abs(candidate) > abs(best_value):
                     best_value = candidate
 

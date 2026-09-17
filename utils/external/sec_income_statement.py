@@ -700,6 +700,16 @@ def get_income_statement(
         # booking case for any filer - the two tags serve different business models
         # (services vs. product/retail) and haven't been seen co-reported.
         "CostOfGoodsAndServicesSold",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, second follow-up
+        # pass): RAVE (Rave Restaurant Group, a franchisor) tags its real cost-of-revenue-
+        # equivalent under this franchise-specific concept - live-confirmed via real SEC
+        # companyfacts JSON, FranchisorCosts $3,956,000 for the fiscal year ending
+        # 2023-06-25, exactly matching the yfinance-flagged value. Fallback-only (see
+        # _REVENUE_FALLBACK_ONLY_FIELDS in load_financial_statements.py) since a
+        # franchisor's direct franchise-support costs are a narrower, sector-specific
+        # figure that must never overwrite a real cost_of_revenue/
+        # cost_of_goods_and_services_sold value for a filer that reports one.
+        "FranchisorCosts",
         # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit):
         # industrial/materials filers that break out D&A as its own income-statement line
         # (rather than folding it into cost of sales) tag this DD&A-excluded COGS variant

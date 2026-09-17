@@ -267,7 +267,18 @@ _COMPOSITE_SUM_FIELDS: dict[tuple[str, str], str] = {
 }
 
 
-def _our_latest_value(cur: Any, table: str, field: str, symbol: str) -> tuple[int, float] | None:
+def _our_all_values(cur: Any, table: str, field: str, symbol: str) -> list[tuple[int, float]]:
+    """Every fiscal year on file for this (table, field, symbol), not just the latest.
+
+    CHANGED 2026-09-17: previously LIMIT 1 / ORDER BY fiscal_year DESC - only ever compared each
+    symbol's single newest filing. Live-confirmed this meant the accumulated report table averaged
+    only 1.26 distinct fiscal years per symbol despite most symbols having 4-5+ years of annual
+    statements loaded - a "per-fiscal-year matrix" that in practice never audited history, just a
+    repeatedly-reconfirmed snapshot of the newest year. No extra yfinance network calls result from
+    this - fetch_financial_statement already returns every available annual period in one call
+    (cached per statement_type per symbol below); this just stops throwing away all but one of them
+    on our side of the comparison.
+    """
     extra = _COMPOSITE_SUM_FIELDS.get((table, field))
     select_expr = f"({field} + COALESCE({extra}, 0))" if extra else field
     cur.execute(
@@ -276,14 +287,10 @@ def _our_latest_value(cur: Any, table: str, field: str, symbol: str) -> tuple[in
         FROM {table}
         WHERE symbol = %s AND data_source = 'sec_audited' AND data_unavailable = FALSE AND {field} IS NOT NULL
         ORDER BY fiscal_year DESC
-        LIMIT 1
         """,
         (symbol,),
     )
-    row = cur.fetchone()
-    if row is None:
-        return None
-    return int(row[0]), float(row[1])
+    return [(int(fy), float(val)) for fy, val in cur.fetchall()]
 
 
 def _is_foreign_private_issuer(cur: Any, symbol: str) -> bool:
@@ -303,23 +310,53 @@ def _record_line_item(
     ratio: float,
     divergent: bool,
 ) -> None:
+    # review_status (migration 1302) tracks a human's verdict on a row, independent of this
+    # script's own divergent flag - only reset it back to 'unreviewed' when the underlying
+    # comparison actually changed (our_value/yfinance_value moved since it was last reviewed).
+    # A re-upsert that reproduces the exact same numbers (e.g. a routine re-sweep) must NOT wipe
+    # out prior review work just because the row got touched again.
     cur.execute(
         """
         INSERT INTO xbrl_yfinance_line_item_report
-            (symbol, our_table, our_field, fiscal_year, our_value, yfinance_value, ratio, divergent, checked_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-        ON CONFLICT (symbol, our_table, our_field, fiscal_year) DO UPDATE SET
+            (symbol, our_table, our_field, fiscal_year, fiscal_quarter, period_type,
+             our_value, yfinance_value, ratio, divergent, checked_at)
+        VALUES (%s, %s, %s, %s, 0, 'annual', %s, %s, %s, %s, CURRENT_TIMESTAMP)
+        ON CONFLICT (symbol, our_table, our_field, fiscal_year, fiscal_quarter) DO UPDATE SET
             our_value = EXCLUDED.our_value,
             yfinance_value = EXCLUDED.yfinance_value,
             ratio = EXCLUDED.ratio,
             divergent = EXCLUDED.divergent,
-            checked_at = EXCLUDED.checked_at
+            checked_at = EXCLUDED.checked_at,
+            review_status = CASE
+                WHEN xbrl_yfinance_line_item_report.our_value IS DISTINCT FROM EXCLUDED.our_value
+                  OR xbrl_yfinance_line_item_report.yfinance_value IS DISTINCT FROM EXCLUDED.yfinance_value
+                THEN 'unreviewed'
+                ELSE xbrl_yfinance_line_item_report.review_status
+            END,
+            review_note = CASE
+                WHEN xbrl_yfinance_line_item_report.our_value IS DISTINCT FROM EXCLUDED.our_value
+                  OR xbrl_yfinance_line_item_report.yfinance_value IS DISTINCT FROM EXCLUDED.yfinance_value
+                THEN NULL
+                ELSE xbrl_yfinance_line_item_report.review_note
+            END,
+            reviewed_at = CASE
+                WHEN xbrl_yfinance_line_item_report.our_value IS DISTINCT FROM EXCLUDED.our_value
+                  OR xbrl_yfinance_line_item_report.yfinance_value IS DISTINCT FROM EXCLUDED.yfinance_value
+                THEN NULL
+                ELSE xbrl_yfinance_line_item_report.reviewed_at
+            END,
+            reviewed_by = CASE
+                WHEN xbrl_yfinance_line_item_report.our_value IS DISTINCT FROM EXCLUDED.our_value
+                  OR xbrl_yfinance_line_item_report.yfinance_value IS DISTINCT FROM EXCLUDED.yfinance_value
+                THEN NULL
+                ELSE xbrl_yfinance_line_item_report.reviewed_by
+            END
         """,
         (symbol, table, field, fiscal_year, our_value, yfinance_value, ratio, divergent),
     )
 
 
-def run(
+def run(  # noqa: C901
     limit: int,
     symbols_override: list[str] | None,
     dry_run: bool,
@@ -362,10 +399,9 @@ def run(
         statement_cache: dict[str, list[dict[str, Any]] | None] = {}
 
         for table, field, statement_type, target_key in _FIELDS:
-            ours = _our_latest_value(cur, table, field, symbol)
-            if ours is None:
+            our_rows = _our_all_values(cur, table, field, symbol)
+            if not our_rows:
                 continue
-            fiscal_year, our_value = ours
 
             if statement_type not in statement_cache:
                 try:
@@ -382,32 +418,35 @@ def run(
             yf_rows = statement_cache.get(statement_type)
             if not yf_rows:
                 continue
-            yf_row = next((r for r in yf_rows if r.get("fiscal_year") == fiscal_year), None)
-            if yf_row is None or target_key not in yf_row:
-                continue
-            yf_value = float(yf_row[target_key])
+            yf_rows_by_year = {r.get("fiscal_year"): r for r in yf_rows}
 
-            field_key = f"{table}:{field}"
-            sampled_count[field_key] += 1
-            floor = _floor_for_field(field)
-            if max(abs(our_value), abs(yf_value)) < floor or yf_value == 0:
-                continue
-            ratio = abs(our_value) / abs(yf_value)
-            divergent = not (_DIVERGENCE_RATIO > ratio > (1.0 / _DIVERGENCE_RATIO))
+            for fiscal_year, our_value in our_rows:
+                yf_row = yf_rows_by_year.get(fiscal_year)
+                if yf_row is None or target_key not in yf_row:
+                    continue
+                yf_value = float(yf_row[target_key])
 
-            if not dry_run:
-                _record_line_item(cur, symbol, table, field, fiscal_year, our_value, yf_value, ratio, divergent)
+                field_key = f"{table}:{field}"
+                sampled_count[field_key] += 1
+                floor = _floor_for_field(field)
+                if max(abs(our_value), abs(yf_value)) < floor or yf_value == 0:
+                    continue
+                ratio = abs(our_value) / abs(yf_value)
+                divergent = not (_DIVERGENCE_RATIO > ratio > (1.0 / _DIVERGENCE_RATIO))
 
-            if divergent:
-                flagged[field_key].append(
-                    {
-                        "symbol": symbol,
-                        "fiscal_year": fiscal_year,
-                        "our_value": our_value,
-                        "yfinance_value": yf_value,
-                        "ratio": round(ratio, 4),
-                    }
-                )
+                if not dry_run:
+                    _record_line_item(cur, symbol, table, field, fiscal_year, our_value, yf_value, ratio, divergent)
+
+                if divergent:
+                    flagged[field_key].append(
+                        {
+                            "symbol": symbol,
+                            "fiscal_year": fiscal_year,
+                            "our_value": our_value,
+                            "yfinance_value": yf_value,
+                            "ratio": round(ratio, 4),
+                        }
+                    )
 
         last_symbol_checked = symbol
 

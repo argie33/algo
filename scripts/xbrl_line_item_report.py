@@ -39,16 +39,46 @@ def _print_coverage(cur: Any) -> None:
     checked = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) FROM xbrl_yfinance_line_item_report")
     total_rows = cur.fetchone()[0]
-    cur.execute("SELECT last_symbol, updated_at FROM xbrl_yfinance_crosscheck_progress WHERE id = 1")
-    row = cur.fetchone()
     print("=== Coverage ===")
     pct = (checked / universe * 100.0) if universe else 0.0
     print(f"Symbols with at least one recorded comparison: {checked}/{universe} ({pct:.1f}%)")
-    print(f"Total (symbol, field, fiscal_year) comparisons on record: {total_rows}")
-    if row and row[0]:
-        print(f"Sweep cursor: last symbol checked = {row[0]} (updated {row[1]})")
-    else:
-        print("Sweep cursor: not yet initialized (no --sweep run yet)")
+    print(f"Total (symbol, field, fiscal_year/quarter) comparisons on record: {total_rows}")
+    # id=1 is the annual sweep cursor, id=2 the quarterly one (migration 1303/1304 -
+    # scripts/xbrl_yfinance_quarterly_crosscheck.py) - print both rather than assuming id=1.
+    cur.execute(
+        "SELECT id, last_symbol, updated_at FROM xbrl_yfinance_crosscheck_progress WHERE id IN (1, 2) ORDER BY id"
+    )
+    cursor_rows = {r[0]: r for r in cur.fetchall()}
+    for cid, label in ((1, "annual"), (2, "quarterly")):
+        row = cursor_rows.get(cid)
+        if row and row[1]:
+            print(f"Sweep cursor ({label}): last symbol checked = {row[1]} (updated {row[2]})")
+        else:
+            print(f"Sweep cursor ({label}): not yet initialized (no --sweep run yet)")
+    print()
+
+    # review_status (migration 1302): divergent alone doesn't say whether anyone has confirmed
+    # which side is actually wrong - see scripts/DIVERGENCE_REPAIR_POSTMORTEM.md for why that
+    # distinction matters. This is the honest three-way split: confident (not divergent),
+    # flagged-but-unreviewed, and the review outcomes for whatever HAS been looked at.
+    cur.execute(
+        """
+        SELECT
+            COUNT(*) FILTER (WHERE NOT divergent) AS confident,
+            COUNT(*) FILTER (WHERE divergent AND review_status = 'unreviewed') AS unreviewed,
+            COUNT(*) FILTER (WHERE divergent AND review_status = 'reviewed_not_error') AS not_error,
+            COUNT(*) FILTER (WHERE divergent AND review_status = 'reviewed_needs_fix') AS needs_fix,
+            COUNT(*) FILTER (WHERE divergent AND review_status = 'reviewed_fixed') AS fixed
+        FROM xbrl_yfinance_line_item_report
+        """
+    )
+    confident, unreviewed, not_error, needs_fix, fixed = cur.fetchone()
+    print("=== Confidence breakdown ===")
+    print(f"Confident (matches yfinance):        {confident}")
+    print(f"Flagged, not yet reviewed:            {unreviewed}")
+    print(f"Reviewed - legitimate difference:     {not_error}")
+    print(f"Reviewed - confirmed wrong, open:     {needs_fix}")
+    print(f"Reviewed - confirmed wrong, fixed:    {fixed}")
     print()
 
 
@@ -78,10 +108,11 @@ def _print_field_summary(cur: Any) -> None:
 def _print_symbol_detail(cur: Any, symbol: str) -> None:
     cur.execute(
         """
-        SELECT our_table, our_field, fiscal_year, our_value, yfinance_value, ratio, divergent, checked_at
+        SELECT our_table, our_field, fiscal_year, fiscal_quarter, our_value, yfinance_value, ratio, divergent,
+               review_status, checked_at
         FROM xbrl_yfinance_line_item_report
         WHERE symbol = %s
-        ORDER BY divergent DESC, our_table, our_field, fiscal_year DESC
+        ORDER BY divergent DESC, our_table, our_field, fiscal_year DESC, fiscal_quarter DESC
         """,
         (symbol,),
     )
@@ -90,18 +121,24 @@ def _print_symbol_detail(cur: Any, symbol: str) -> None:
         print(f"No recorded comparisons for {symbol} yet.")
         return
     print(f"=== Line-item detail for {symbol} ===")
-    for table, field, fy, ours, yf, ratio, divergent, checked_at in rows:
+    for table, field, fy, fq, ours, yf, ratio, divergent, review_status, checked_at in rows:
         flag = "DIVERGENT" if divergent else "ok"
-        print(f"[{flag:>9}] {table}.{field} FY{fy}: ours={ours} yfinance={yf} ratio={ratio:.3f} (checked {checked_at})")
+        review = f" [{review_status}]" if divergent else ""
+        period = f"FY{fy}" if fq == 0 else f"FY{fy}Q{fq}"
+        print(
+            f"[{flag:>9}] {table}.{field} {period}: ours={ours} yfinance={yf} ratio={ratio:.3f}"
+            f"{review} (checked {checked_at})"
+        )
     print()
 
 
-def _print_worst_offenders(cur: Any, limit: int) -> None:
+def _print_worst_offenders(cur: Any, limit: int, unreviewed_only: bool) -> None:
     cur.execute(
-        """
-        SELECT symbol, our_table, our_field, fiscal_year, our_value, yfinance_value, ratio, checked_at
+        f"""
+        SELECT symbol, our_table, our_field, fiscal_year, fiscal_quarter, our_value, yfinance_value, ratio,
+               review_status, checked_at
         FROM xbrl_yfinance_line_item_report
-        WHERE divergent
+        WHERE divergent {"AND review_status = 'unreviewed'" if unreviewed_only else ""}
         ORDER BY GREATEST(ratio, 1.0 / NULLIF(ratio, 0)) DESC
         LIMIT %s
         """,
@@ -111,9 +148,14 @@ def _print_worst_offenders(cur: Any, limit: int) -> None:
     if not rows:
         print("No divergent line items recorded.")
         return
-    print(f"=== Top {len(rows)} divergent line items (by ratio distance from 1.0) ===")
-    for symbol, table, field, fy, ours, yf, ratio, checked_at in rows:
-        print(f"{symbol:<8} {table}.{field} FY{fy}: ours={ours} yfinance={yf} ratio={ratio:.3f} (checked {checked_at})")
+    label = "unreviewed divergent" if unreviewed_only else "divergent"
+    print(f"=== Top {len(rows)} {label} line items (by ratio distance from 1.0) ===")
+    for symbol, table, field, fy, fq, ours, yf, ratio, review_status, checked_at in rows:
+        period = f"FY{fy}" if fq == 0 else f"FY{fy}Q{fq}"
+        print(
+            f"{symbol:<8} {table}.{field} {period}: ours={ours} yfinance={yf} ratio={ratio:.3f} "
+            f"[{review_status}] (checked {checked_at})"
+        )
     print()
 
 
@@ -124,6 +166,11 @@ def main() -> None:
         "--divergent-only", action="store_true", help="Show the worst divergent line items across the whole universe"
     )
     parser.add_argument("--limit", type=int, default=50, help="Row limit for --divergent-only (default 50)")
+    parser.add_argument(
+        "--unreviewed-only",
+        action="store_true",
+        help="With --divergent-only, exclude rows someone has already reviewed (any review_status)",
+    )
     args = parser.parse_args()
 
     from utils.db.connection import get_db_connection
@@ -134,7 +181,7 @@ def main() -> None:
     if args.symbol:
         _print_symbol_detail(cur, args.symbol.strip().upper())
     elif args.divergent_only:
-        _print_worst_offenders(cur, args.limit)
+        _print_worst_offenders(cur, args.limit, args.unreviewed_only)
     else:
         _print_coverage(cur)
         _print_field_summary(cur)

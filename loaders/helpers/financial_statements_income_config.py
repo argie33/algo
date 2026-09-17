@@ -154,6 +154,16 @@ _INCOME_FIELD_MAPPING = {
     # comment above the concept for the live-verified AMZN/COST/CI/JD/SHEL/TTE cases this
     # recovers. Same target column as "cost_of_revenue" above.
     "cost_of_goods_and_services_sold": "cost_of_revenue",
+    # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, second follow-up pass):
+    # RAVE (Rave Restaurant Group, a franchisor) tags its real cost-of-revenue-equivalent
+    # under this franchise-specific concept - live-confirmed via real SEC companyfacts
+    # JSON, FranchisorCosts $3,956,000 for the fiscal year ending 2023-06-25, exactly
+    # matching the yfinance-flagged value. A franchisor's "cost of revenue" is its direct
+    # franchise-support costs, not a traditional COGS line, so no PP&E-family concept
+    # above ever tagged anything for this filer. Fallback-only (see
+    # _REVENUE_FALLBACK_ONLY_FIELDS below) so it never overwrites a real
+    # cost_of_revenue/cost_of_goods_and_services_sold value for a filer that reports one.
+    "franchisor_costs": "cost_of_revenue",
     # FIXED 2026-08-31 (goal session: "get all the data we need" full-coverage audit): see
     # sec_statements.py's comment on these two concepts for the live-verified LIN case -
     # industrial/materials filers that break out D&A separately tag this DD&A-excluded COGS
@@ -295,6 +305,17 @@ _INCOME_FIELD_MAPPING = {
     # "only fills an already-empty db_field" bucket for the whole income-statement
     # config) so it never overwrites InterestAndDebtExpense's rare real value for EPAC.
     "financing_interest_expense": "interest_expense",
+    # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, second follow-up pass):
+    # TITN (Titan Machinery) tags BOTH "FinancingInterestExpense" ($24,109,000 FY2026)
+    # AND "InterestExpenseOther" ($18,974,000 FY2026) as genuinely distinct, additive
+    # interest-expense line items every fiscal year (FY2025: $34,710,000 + $15,105,000 =
+    # $49,815,000) - live-confirmed via real SEC companyfacts JSON, sum
+    # $24,109,000+$18,974,000=$43,083,000 exactly matches the yfinance-flagged value. See
+    # sec_base.py's transform() for the actual sum-instead-of-overwrite fix (same pattern
+    # as the payments_to_acquire_oil_and_gas_property/payments_to_explore_and_develop_
+    # oil_and_gas_properties capex sum). Fallback-only mapping here so a filer that tags
+    # ONLY InterestExpenseOther (no FinancingInterestExpense) still gets it filled.
+    "interest_expense_other": "interest_expense",
     "interest_paid_net": "interest_expense",
     # FIXED 2026-09-03 (same "cash paid" fallback tier as interest_paid_net above - see
     # sec_statements.py's get_income_statement() comment on "InterestPaid", ARW).
@@ -466,6 +487,11 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # only fills cost_of_revenue when CostOfRevenue/CostOfSales didn't already set it,
         # same as this set's existing entries, so AMZN-style filers are unaffected.
         "cost_of_goods_and_services_sold",
+        # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep, second follow-up
+        # pass): see _INCOME_FIELD_MAPPING's comment on "franchisor_costs" above (RAVE
+        # live evidence). Fallback-only so it never overwrites a real cost_of_revenue/
+        # cost_of_goods_and_services_sold value for a filer that reports one.
+        "franchisor_costs",
         # FIXED 2026-08-31: see sec_statements.py's comment on these two concepts (LIN
         # live-verified) - same "fills only an already-empty db_field" reasoning as
         # cost_of_goods_and_services_sold just above, since excluding D&A makes this a

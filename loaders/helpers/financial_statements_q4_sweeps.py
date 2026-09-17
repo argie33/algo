@@ -1140,6 +1140,23 @@ class Q4DerivationSweepMixin:
         not new unverified data, just removing values already known to be confidently wrong
         by the same rule the fresh-fetch path uses. Same 10,000 floor as
         _reject_implausible_eps() (BRK.A/BSAC/EC all clear it comfortably).
+
+        EXTENDED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): added the SYMMETRIC
+        upper-bound check this rule was missing - implied shares implausibly LARGE (a
+        near-zero EPS given real, nonzero net_income), not just implausibly small. Live-
+        confirmed via ELVA (CIK 1844450, an IFRS filer): FY2022/FY2023 both tag
+        "WeightedAverageShares" ~1000x too large (33,832,784,000 vs. the filer's own
+        correctly-scaled FY2024 fact of 34,012,383 for the same concept - a classic filer-
+        side "extra zeros" XBRL tagging error, same bug class this file's
+        frame_magnitude_scale_guard already corrects elsewhere, just for a case with no
+        PRIOR same-concept fact to compare against at write time). Implied shares of
+        33.8 BILLION for a company with ~$44M revenue is implausible for any real filer -
+        no company on Earth has that share count. 50 billion implied shares is a generous
+        ceiling (comfortably above any real mega-cap's actual share count) chosen to avoid
+        false positives on genuinely large filers, while still catching ELVA's ~34 billion
+        implied-shares outlier. Nulls rather than guesses a "corrected" value (dividing by
+        1000 and writing it back would be a plausible guess, not a verified fact) - same
+        "no cheats, no confidently-wrong data" discipline as the rest of this sweep.
         """
         with _database_context()("write") as cur:
             cur.execute(
@@ -1148,20 +1165,24 @@ class Q4DerivationSweepMixin:
                 SET earnings_per_share = CASE
                         WHEN earnings_per_share IS NOT NULL AND earnings_per_share != 0
                              AND net_income IS NOT NULL AND net_income != 0
-                             AND abs(net_income / earnings_per_share) < 10000
+                             AND (abs(net_income / earnings_per_share) < 10000
+                                  OR abs(net_income / earnings_per_share) > 50000000000)
                         THEN NULL ELSE earnings_per_share END,
                     diluted_eps = CASE
                         WHEN diluted_eps IS NOT NULL AND diluted_eps != 0
                              AND net_income IS NOT NULL AND net_income != 0
-                             AND abs(net_income / diluted_eps) < 10000
+                             AND (abs(net_income / diluted_eps) < 10000
+                                  OR abs(net_income / diluted_eps) > 50000000000)
                         THEN NULL ELSE diluted_eps END
                 WHERE net_income IS NOT NULL AND net_income != 0
                   AND (
                         (earnings_per_share IS NOT NULL AND earnings_per_share != 0
-                         AND abs(net_income / earnings_per_share) < 10000)
+                         AND (abs(net_income / earnings_per_share) < 10000
+                              OR abs(net_income / earnings_per_share) > 50000000000))
                         OR
                         (diluted_eps IS NOT NULL AND diluted_eps != 0
-                         AND abs(net_income / diluted_eps) < 10000)
+                         AND (abs(net_income / diluted_eps) < 10000
+                              OR abs(net_income / diluted_eps) > 50000000000))
                       )
                 """
             )

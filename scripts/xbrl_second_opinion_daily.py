@@ -114,6 +114,7 @@ def main(argv: list[str] | None = None) -> None:
     from scripts.xbrl_unavailable_reason_audit import run as run_reason_audit
     from scripts.xbrl_us_crosscheck import run as run_xbrl_us_crosscheck
     from scripts.xbrl_yfinance_crosscheck import run as run_yfinance_crosscheck
+    from scripts.xbrl_yfinance_quarterly_crosscheck import run as run_yfinance_quarterly_crosscheck
 
     # BUG FIX (2026-09-13): this wrapper had NO argument parsing at all - `--dry-run` was
     # silently ignored (sys.argv untouched) and every layer call below hardcoded
@@ -146,8 +147,22 @@ def main(argv: list[str] | None = None) -> None:
         # only the selection mechanism changed.
         return run_yfinance_crosscheck(limit=limit, symbols_override=symbols_override, dry_run=dry_run, sweep=True)
 
+    def _run_yfinance_quarterly_crosscheck_sweep(
+        *, limit: int, symbols_override: list[str] | None, dry_run: bool
+    ) -> dict[str, Any]:
+        # ADDED 2026-09-17: quarterly counterpart to _run_yfinance_crosscheck_sweep above -
+        # quarterly_income_statement/quarterly_balance_sheet/quarterly_cash_flow had ZERO
+        # yfinance cross-check coverage until scripts/xbrl_yfinance_quarterly_crosscheck.py
+        # was added (a real blind spot found while working the 2026-09-16 divergence-repair
+        # incident, not a hypothetical gap). Own sweep cursor (id=2, migration 1303/1304),
+        # never collides with the annual sweep's id=1.
+        return run_yfinance_quarterly_crosscheck(
+            limit=limit, symbols_override=symbols_override, dry_run=dry_run, sweep=True
+        )
+
     layers = (
         ("yfinance_crosscheck", _run_yfinance_crosscheck_sweep, 25),
+        ("yfinance_quarterly_crosscheck", _run_yfinance_quarterly_crosscheck_sweep, 25),
         ("calculation_linkbase_check", run_calc_linkbase, 15),
         ("dqc_arelle_check", _run_dqc_layer, 10),
         # ADDED 2026-09-13 (goal: "question our own assumptions" audit, "is 8 layers ai

@@ -78,6 +78,29 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # never-overwrite-a-real-common-dividend-total convention as
         # dividends_preferred_stock_cash above.
         "payments_of_dividends_preferred_stock_and_preference_stock",
+        # FIXED 2026-09-16 (same sweep, second follow-up pass on the remaining "0-vs-real-
+        # yfinance-value" dividends_paid filers). Each found by scanning EVERY numeric fact
+        # in the filer's full companyfacts JSON for one matching xbrl_yfinance_line_item_
+        # report's flagged dividends_paid value exactly:
+        #   - DTST: "DividendsShareBasedCompensationCash" $1,179,357 FY2021 exact match -
+        #     cash dividend-equivalents paid on outstanding share-based comp awards, a real
+        #     cash dividend outflow this filer reports under no other dividend concept.
+        "dividends_share_based_compensation_cash",
+        #   - EVEX: "PaymentsOfDistributionsToAffiliates" $1,372,633 FY2022 (~0.03% off,
+        #     clear match) - a real cash distribution to a related-party/sponsor entity,
+        #     this filer's only dividend-shaped cash outflow.
+        "payments_of_distributions_to_affiliates",
+        #   - HE (Hawaiian Electric): "PaymentsOfDividendsMinorityInterest" - a fixed
+        #     $1,890,000 EVERY fiscal year 2008-2025 (live-confirmed across the filer's
+        #     full companyfacts history), consistent with a static-rate preferred-unit
+        #     distribution to a minority/noncontrolling interest holder, not a one-off or
+        #     stale figure.
+        "payments_of_dividends_minority_interest",
+        #   - SEAT (Vivid Seats via a de-SPAC structure): "DividendsCommonStockPaidinkind"
+        #     $17,698,000 FY2021 exact match - a real paid-in-kind common dividend, a form
+        #     not tagged by any of the cash-basis DividendsCommonStock*/PaymentsOfDividends*
+        #     concepts already fetched above.
+        "dividends_common_stock_paidinkind",
         # ADDED 2026-09-10 (goal: "missing SEC/XBRL data under 500" push, dcf_fcf
         # missing_cash_flow_data investigation): TALK's capitalized-software-development
         # concept - see sec_cash_flow.py's get_cash_flow() comment for the live evidence.
@@ -380,6 +403,13 @@ _CASHFLOW_FIELD_MAPPING = {
     # FIXED 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): see
     # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS above for why this is fallback-only (CMCT).
     "payments_of_dividends_preferred_stock_and_preference_stock": "dividends_paid",
+    # FIXED 2026-09-16 (same sweep, second follow-up pass): see
+    # _SBC_BUYBACK_FALLBACK_ONLY_FIELDS above for the full live evidence
+    # (DTST/EVEX/HE/SEAT). All fallback-only.
+    "dividends_share_based_compensation_cash": "dividends_paid",
+    "payments_of_distributions_to_affiliates": "dividends_paid",
+    "payments_of_dividends_minority_interest": "dividends_paid",
+    "dividends_common_stock_paidinkind": "dividends_paid",
     # ADDED 2026-09-07 (goal: "SEC/XBRL missing data" + tie-out sweep): net_change_cash was
     # a declared schema column with zero rows ever populated (0/66,580) - fetched by none of
     # sec_cash_flow.py's concepts and mapped by no entry here. See that file's get_cash_flow()

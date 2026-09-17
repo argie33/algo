@@ -200,19 +200,34 @@ def fact_search(
     dimensional fact history (use `dimensions.count=0` explicitly if a caller needs to widen
     this later for a dimensional/segment query instead).
 
-    `unit.unit-of-measure` is always requested (ADDED 2026-09-16, SKM live-confirmed): a
+    `unit` is always requested (ADDED 2026-09-16, SKM live-confirmed; field name corrected
+    same day after WIMI/LI live-confirmed the original "unit.unit-of-measure" key doesn't
+    exist in this API's response at all - see scripts/xbrl_us_crosscheck.py's fix comment): a
     foreign private issuer files in its home-market currency (SK Telecom/SKM reports in KRW),
     and this endpoint returns the raw filed value with no USD conversion - a caller comparing
     the returned value directly against a USD figure without checking this field will see an
     apparent ~1370x (or whatever the FX rate is) divergence that is a units mismatch, not a
     data or extraction bug. See scripts/xbrl_us_crosscheck.py's own USD-only filter, which
     consumes this field.
+
+    `report.form-type` is also always requested (ADDED 2026-09-16, ARMK/KELYB/SPCE
+    live-confirmed): `fact.ultimus=true` means "latest-filed fact for this concept/period
+    wins," with no restriction on the FILING TYPE that fact came from. SEC's pay-vs-performance
+    proxy disclosure rules require certain DEF 14A tables to be XBRL-tagged, and they sometimes
+    reuse a real financial-statement concept name (e.g. `us-gaap:NetIncomeLoss`) for an
+    unrelated, much smaller "Company Selected Measure" figure, tagged for the same
+    period - live-confirmed for ARMK ($263) and KELYB (-$600,000), both traced to a DEF 14A
+    filed after the real 10-K, both wildly diverging from the 10-K's real figure that our own
+    SEC-XBRL loader correctly extracted. A caller must restrict to actual financial-statement
+    filing types (10-K/10-Q/20-F/40-F), not trust "ultimus" alone. See
+    scripts/xbrl_us_crosscheck.py's own form-type filter, which consumes this field.
     """
     default_fields = [
         "fact.value",
         "fact.decimals",
         "fact.ultimus",
-        "unit.unit-of-measure",
+        "unit",
+        "report.form-type",
         "period.fiscal-year",
         "period.fiscal-period",
         "report.filing-date",

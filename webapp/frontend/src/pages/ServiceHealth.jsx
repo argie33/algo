@@ -32,6 +32,7 @@ import { api } from "../services/api";
 import ErrorBoundary from "../components/ErrorBoundary";
 import ScoresDataCoverage from "../components/ScoresDataCoverage";
 import ScoresCorrectnessCoverage from "../components/ScoresCorrectnessCoverage";
+import FundamentalsVerificationCoverage from "../components/FundamentalsVerificationCoverage";
 import SymbolQuarantinePanel from "../components/SymbolQuarantinePanel";
 import FindingExamples from "../components/DataPatrolFindingExamples";
 
@@ -647,6 +648,7 @@ function ServiceHealthContent() {
           <SymbolQuarantinePanel active={tab === "coverage"} />
           <ScoresDataCoverage active={tab === "coverage"} />
           <ScoresCorrectnessCoverage active={tab === "coverage"} />
+          <FundamentalsVerificationCoverage active={tab === "coverage"} />
         </>
       )}
 
