@@ -539,6 +539,19 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # HPK (HighPeak Energy, CIK 0001792849) same pattern ($2,930,436,000 vs $3,012,000
         # FY2025). Also additive, same ADDITIVE_CONCEPT_PAIRS mechanism.
         "OilAndGasPropertySuccessfulEffortMethodNet",
+        # ADDED 2026-09-17 (ppe_net cluster follow-up, ppe_net divergence sample): IFRS
+        # mining-explorer equivalent of MineralPropertiesNet above - live-confirmed via real
+        # SEC companyfacts JSON, WRN (Western Alaska Minerals / West Red Lake Gold Mines,
+        # CIK 0001063341, 40-F filer): tags its entire real mineral-exploration asset under
+        # this ifrs-full concept every fiscal year on file (FY2022 CAD 66,347,266, FY2023 CAD
+        # 83,441,561, FY2024 CAD 85,339,409, FY2025 CAD 105,590,591) while
+        # PropertyPlantAndEquipmentNet is only a tiny residual corporate-equipment balance
+        # (FY2025 CAD 33,809) - same "sector-specific real asset, distinct from and additive
+        # to a small remaining corporate PP&E balance" shape as MineralPropertiesNet, just
+        # IFRS's own taxonomy name for pre-production mineral-resource exploration/evaluation
+        # spend rather than us-gaap's post-acquisition "MineralProperties". Genuinely additive,
+        # not an alternate - see sec_zero_component_guards.py's ADDITIVE_CONCEPT_PAIRS.
+        "AssetsArisingFromExplorationForAndEvaluationOfMineralResources",
         "PropertyPlantAndEquipmentNet",
         "Goodwill",
         # FIXED 2026-08-17 (loader-review goal continuation): fallback long-term-debt

@@ -385,6 +385,10 @@ _BALANCE_FIELD_MAPPING = {
     # (THM/PZG/RRC/HPK).
     "mineral_properties_net": "ppe_net",
     "oil_and_gas_property_successful_effort_method_net": "ppe_net",
+    # ADDED 2026-09-17 (ppe_net cluster follow-up): IFRS mining-explorer equivalent of
+    # mineral_properties_net above - see sec_zero_component_guards.py's ADDITIVE_CONCEPT_PAIRS
+    # for the live WRN evidence. Also genuinely additive, not fallback-only.
+    "assets_arising_from_exploration_for_and_evaluation_of_mineral_resources": "ppe_net",
     "property_plant_and_equipment_net": "ppe_net",
     "goodwill": "goodwill",
     "long_term_debt": "long_term_debt",

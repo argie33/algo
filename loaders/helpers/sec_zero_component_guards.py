@@ -222,6 +222,12 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         ("capex", "payments_to_acquire_oil_and_gas_property_and_equipment"),
         ("interest_expense", "interest_expense_other"),
         ("ppe_net", "property_plant_and_equipment_net"),
+        # ADDED 2026-09-17 (ppe_net cluster follow-up): WRN, IFRS mining-explorer equivalent
+        # of the THM/PZG MineralPropertiesNet pattern above - see this pair's own comment on
+        # utils/external/sec_balance_sheet.py's concept-fetch list (search
+        # "AssetsArisingFromExplorationForAndEvaluationOfMineralResources") for the live
+        # companyfacts evidence.
+        ("ppe_net", "assets_arising_from_exploration_for_and_evaluation_of_mineral_resources"),
         # ADDED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up): RAVE
         # (Rave Restaurant Group) FY2022 (period 2021-06-28 to 2022-06-26) live-confirmed via
         # real SEC companyfacts JSON: real, nonzero "CostOfRevenue" ($1,000, an immaterial
