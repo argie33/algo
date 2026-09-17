@@ -263,6 +263,18 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         # cost_of_revenue/franchisor_costs above - needs the same sec_base.py transform()
         # exception inside the fallback-only skip block.
         ("capex", "payments_to_acquire_software"),
+        # ADDED 2026-09-17 (cash_and_equivalents cluster follow-up): ABCB (Ameris Bancorp,
+        # CIK 0000351569) live-confirmed via real SEC companyfacts JSON, every fiscal year in
+        # xbrl_yfinance_line_item_report - CashAndDueFromBanks (a bank's non-interest-bearing
+        # vault/till cash) + InterestBearingDepositsInBanks (its interest-bearing deposits at
+        # other banks) are two genuinely distinct, simultaneously-real components of a bank's
+        # total cash, not alternates:
+        #   FY2022: $284,567,000 + $833,565,000 = $1,118,132,000 (exact yfinance match)
+        # Before this fix, our stored cash_and_equivalents for every one of these years was
+        # exactly CashAndDueFromBanks alone - InterestBearingDepositsInBanks was never fetched
+        # at all. See utils/external/sec_balance_sheet.py's concept-fetch list comment (search
+        # "InterestBearingDepositsInBanks") for the full evidence.
+        ("cash_and_equivalents", "interest_bearing_deposits_in_banks"),
     }
 )
 

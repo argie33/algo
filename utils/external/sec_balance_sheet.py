@@ -468,6 +468,16 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # cash_and_equivalents; ZION's balance sheet was reloaded the same day this was
         # found and still came back NULL, ruling out staleness for this subset.
         "CashAndDueFromBanks",
+        # ADDED 2026-09-17 (cash_and_equivalents cluster follow-up): ABCB (Ameris Bancorp,
+        # CIK 0000351569) live-confirmed via real SEC companyfacts JSON, FY2022:
+        # CashAndDueFromBanks $284,567,000 + InterestBearingDepositsInBanks $833,565,000 =
+        # $1,118,132,000 - an EXACT match to both yfinance's flagged value and ABCB's own
+        # CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents fact for the same
+        # period. Genuinely additive to CashAndDueFromBanks (a bank's non-interest-bearing
+        # vault/till cash vs. its interest-bearing deposits at other banks), not an alternate -
+        # same "narrow standard concept only captures part of a bank's real total cash"
+        # shape as the concept above.
+        "InterestBearingDepositsInBanks",
         "CashAndCashEquivalentsAtCarryingValue",
         # FIXED 2026-09-03 (same sweep): WMT/RTX/COST all live-confirmed (via real
         # companyfacts JSON) reporting the primary balance-sheet "Receivables, net" line

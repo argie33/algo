@@ -310,6 +310,10 @@ _BALANCE_FIELD_MAPPING = {
     # This dict is a flat lookup, not a priority order - actual overwrite precedence comes
     # from sec_statements.py's get_balance_sheet() concept list order (see its comment).
     "cash_and_due_from_banks": "cash_and_equivalents",
+    # ADDED 2026-09-17 (cash_and_equivalents cluster follow-up): ABCB live-confirmed - see
+    # sec_zero_component_guards.py's ADDITIVE_CONCEPT_PAIRS for the evidence. Genuinely
+    # additive to cash_and_due_from_banks, not fallback-only.
+    "interest_bearing_deposits_in_banks": "cash_and_equivalents",
     "cash_cash_equivalents_restricted_cash_and_restricted_cash_equivalents": "cash_and_equivalents",
     # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comment
     # on "ReceivablesNetCurrent" (WMT/COST/RTX live evidence) - fallback-only (see
