@@ -604,7 +604,7 @@
   "loaders/load_naaim.py": 187,
   "loaders/load_positioning_metrics.py": 478,
   "loaders/load_prices.py": 3607,
-  "loaders/load_risk_metrics_daily.py": 1064,
+  "loaders/load_risk_metrics_daily.py": 1114,
   "loaders/load_sec_segment_info.py": 634,
   "loaders/load_sec_segment_metrics.py": 183,
   "loaders/load_sec_valuations.py": 1994,
