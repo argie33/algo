@@ -207,6 +207,19 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
     {
         ("capex", "payments_to_acquire_oil_and_gas_property"),
         ("capex", "payments_to_explore_and_develop_oil_and_gas_properties"),
+        # ADDED 2026-09-17 (xbrl_yfinance_line_item_report capex cluster follow-up): SM (SM
+        # Energy, CIK 0000893538) FY2022 live-confirmed via real SEC companyfacts JSON -
+        # "PaymentsToAcquireOilAndGasPropertyAndEquipment" (a near-zero $7,000 residual
+        # instrument that fiscal year) is a DIFFERENT concept from the already-additive
+        # "payments_to_acquire_oil_and_gas_property" (no "_and_equipment" suffix) above, so it
+        # fell through to the ordinary last-listed-wins else-branch and unconditionally
+        # overwrote the already-resolved, much larger
+        # "payments_to_explore_and_develop_oil_and_gas_properties" ($879,934,000) with its own
+        # tiny $7,000 value. $879,934,000 + $7,000 = $879,941,000, an EXACT match to
+        # yfinance's flagged $879,941,000 - proves these are genuinely additive components
+        # (development spend vs. a separate small property/equipment acquisition), not
+        # alternates, same shape as the sibling concept already in this set.
+        ("capex", "payments_to_acquire_oil_and_gas_property_and_equipment"),
         ("interest_expense", "interest_expense_other"),
         ("ppe_net", "property_plant_and_equipment_net"),
         # ADDED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up): RAVE
