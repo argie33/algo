@@ -11,7 +11,8 @@ Two complementary SEC data patterns:
 2. PATTERN B: Read from already-loaded SEC tables (metrics computation)
    - Used by: load_quality_growth_metrics.py
    - Flow: DB tables → Compute metrics (ROE, growth) → Output tables
-   - Base class: SecFinancialsLoader
+   - Base class: SecFinancialsLoader (loaders/helpers/sec_financials_loader.py - extracted
+     2026-09-17, file-size ratchet)
 
 Both patterns share:
 - NaN Decimal handling (SEC XBRL data quality issue)
@@ -42,9 +43,11 @@ from loaders.helpers.sec_zero_component_guards import (
     is_additive_concept_pair,
     is_fallback_only_write_permitted_by_documented_override,
     is_immaterial_standard_debt_overwriting_combined_total,
+    is_narrow_cash_due_from_banks_overwriting_combined_cash,
     is_other_borrowings_additive_to_subordinated_debt,
     is_zero_overwrite_blocking_field,
     redirect_secured_debt_for_reit,
+    redirect_secured_debt_for_utility_long_term_financing,
 )
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
@@ -1416,6 +1419,10 @@ class SecEdgarStatementLoader(SecLoaderBase):
             _interest_expense_source_sec_field: str | None = None
             _accounts_receivable_source_sec_field: str | None = None
             _dividends_paid_source_sec_field: str | None = None
+            # ADDED 2026-09-17 (AUID live-confirmed) - see
+            # is_narrow_cash_due_from_banks_overwriting_combined_cash's own docstring
+            # (sec_zero_component_guards.py) for the live evidence.
+            _cash_source_sec_field: str | None = None
             # FIXED 2026-09-07 (PCG live-confirmed, then GENERALIZED same day to every
             # multi-concept db_field, not just net_income): tracks the rank (see
             # sec_statements_shared.py's _PRIMARY_STATEMENT_FORMS/_ANNUAL_REPORT_FORMS) of
@@ -1479,6 +1486,9 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 db_field = redirect_secured_debt_for_reit(
                     sec_field, db_field, r.get("symbol"), self._get_reit_symbols()
                 )
+                # AVA live evidence (regulated utility, not a REIT, whose SecuredDebt is also
+                # real long-term financing) - see sec_zero_component_guards.py's own docstring.
+                db_field = redirect_secured_debt_for_utility_long_term_financing(sec_field, db_field, r.get("symbol"))
                 if sec_field in _REVENUE_TOTAL_CANDIDATE_FIELDS and db_field == "revenue":
                     # See sec_revenue_total_resolution.py's own docstring for the magnitude/
                     # priority rules this applies (incl. the 2026-09-13 AMP/SF fix).
@@ -1684,6 +1694,15 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # is_immaterial_standard_debt_overwriting_combined_total's own docstring
                     # (sec_zero_component_guards.py) for the live evidence.
                     continue
+                elif is_narrow_cash_due_from_banks_overwriting_combined_cash(
+                    db_field, sec_field, row.get(db_field), value, _cash_source_sec_field
+                ):
+                    # AUID-class case: "cash_and_due_from_banks" is not fallback-gated at all,
+                    # so it would otherwise unconditionally overwrite an already-resolved,
+                    # dramatically larger combined-cash total with its own real-but-immaterial
+                    # figure - see is_narrow_cash_due_from_banks_overwriting_combined_cash's
+                    # own docstring (sec_zero_component_guards.py) for the live evidence.
+                    continue
                 else:
                     precision_scale = self._get_field_precision_scale(db_field)
                     if precision_scale is not None and not self._validate_numeric_precision(
@@ -1708,6 +1727,8 @@ class SecEdgarStatementLoader(SecLoaderBase):
                             _accounts_receivable_source_sec_field = sec_field
                         if db_field == "dividends_paid":
                             _dividends_paid_source_sec_field = sec_field
+                        if db_field == "cash_and_equivalents":
+                            _cash_source_sec_field = sec_field
                         _field_source_rank[db_field] = r.get(f"_rank_{sec_field}", 2)
 
             # free_cash_flow has no direct XBRL concept (FCF is a non-GAAP measure SEC
@@ -1880,112 +1901,3 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 )
 
         return list(seen.values())
-
-
-class SecFinancialsLoader(SecLoaderBase):
-    """Pattern B: Read SEC data from already-loaded DB tables (metrics computation).
-
-    Used by: load_quality_growth_metrics.py
-    Reads from annual_income_statement and annual_balance_sheet tables.
-    """
-
-    def _fetch_annual_income_statement(self, symbol: str) -> tuple[Any, Any, Any] | None:
-        """Fetch latest annual income statement for a symbol.
-
-        Returns:
-            Tuple of (revenue, operating_income, net_income) or None if not available.
-            All NaN Decimal values are cleaned to None.
-        """
-        from utils.loaders import fetch_one
-
-        try:
-            row = fetch_one(
-                """
-                SELECT revenue, operating_income, net_income
-                FROM annual_income_statement
-                WHERE symbol = %s AND data_unavailable = FALSE
-                ORDER BY fiscal_year DESC
-                LIMIT 1
-            """,
-                (symbol,),
-            )
-            if row:
-                return self._clean_row(row)
-            logger.debug(
-                f"[{self.table_name}] No annual income statement for {symbol}: "
-                "SEC filing data not available (micro-cap, OTC, ADR, new IPO, or non-US company)"
-            )
-            return None
-        except Exception as e:
-            logger.error(f"[{self.table_name}] Failed to fetch income statement for {symbol}: {e}")
-            raise RuntimeError(f"Cannot fetch income statement for {symbol}: {e}") from e
-
-    def _fetch_annual_balance_sheet(self, symbol: str) -> tuple[Any, ...] | None:
-        """Fetch latest annual balance sheet for a symbol.
-
-        Returns:
-            Tuple of (total_assets, stockholders_equity, current_assets,
-                     total_liabilities, current_liabilities, inventory)
-            or None if not available. All NaN Decimal values are cleaned to None.
-        """
-        from utils.loaders import fetch_one
-
-        try:
-            row = fetch_one(
-                """
-                SELECT total_assets, stockholders_equity, current_assets,
-                       total_liabilities, current_liabilities, inventory
-                FROM annual_balance_sheet
-                WHERE symbol = %s AND data_unavailable = FALSE
-                ORDER BY fiscal_year DESC
-                LIMIT 1
-            """,
-                (symbol,),
-            )
-            if row:
-                return self._clean_row(row)
-            logger.debug(
-                f"[{self.table_name}] No annual balance sheet for {symbol}: "
-                "SEC filing data not available (micro-cap, OTC, ADR, new IPO, or non-US company)"
-            )
-            return None
-        except Exception as e:
-            logger.error(f"[{self.table_name}] Failed to fetch balance sheet for {symbol}: {e}")
-            raise RuntimeError(f"Cannot fetch balance sheet for {symbol}: {e}") from e
-
-    def _fetch_annual_income_statement_history(self, symbol: str, years: int = 10) -> list[tuple[Any, ...]] | None:
-        """Fetch historical annual income statements for multi-year analysis.
-
-        Args:
-            symbol: Stock symbol
-            years: Number of years to fetch (default 10 for 1Y/3Y/5Y lookback)
-
-        Returns:
-            List of tuples (revenue, operating_income, net_income, earnings_per_share) ordered by fiscal_year DESC.
-            Omits fiscal_year to allow _compute_growth_metrics to treat row[0] as revenue (matching quality metrics).
-            All NaN Decimal values are cleaned to None.
-            Returns None if no data found.
-        """
-        from utils.loaders import execute_query
-
-        try:
-            rows = execute_query(
-                f"""
-                SELECT revenue, operating_income, net_income, earnings_per_share
-                FROM annual_income_statement
-                WHERE symbol = %s AND data_unavailable = FALSE
-                ORDER BY fiscal_year DESC
-                LIMIT {years}
-            """,
-                (symbol,),
-            )
-            if rows:
-                return [self._clean_row(row) for row in rows]
-            logger.debug(
-                f"[{self.table_name}] No income statement history for {symbol}: "
-                "SEC filing data not available or insufficient history (young company, new IPO, or lack of coverage)"
-            )
-            return None
-        except Exception as e:
-            logger.error(f"[{self.table_name}] Failed to fetch income statement history for {symbol}: {e}")
-            raise RuntimeError(f"Cannot fetch income statement history for {symbol}: {e}") from e

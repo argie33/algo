@@ -324,6 +324,9 @@ _BALANCE_FIELD_MAPPING = {
     # _DEBT_FALLBACK_ONLY_FIELDS above for why these are fallback-only (PED/DNLI).
     "accounts_receivable_net": "accounts_receivable",
     "accounts_and_other_receivables_net_current": "accounts_receivable",
+    # ADDED 2026-09-17 (HGTY live-confirmed): additive component, not an alternate concept -
+    # see ADDITIVE_CONCEPT_PAIRS in sec_zero_component_guards.py for the live evidence.
+    "premiums_receivable_at_carrying_value": "accounts_receivable",
     "inventory_net": "inventory",
     # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet() comment
     # on "InventoryNetOfAllowancesCustomerAdvancesAndProgressBillings" - fallback-only
@@ -393,6 +396,9 @@ _BALANCE_FIELD_MAPPING = {
     # mineral_properties_net above - see sec_zero_component_guards.py's ADDITIVE_CONCEPT_PAIRS
     # for the live WRN evidence. Also genuinely additive, not fallback-only.
     "assets_arising_from_exploration_for_and_evaluation_of_mineral_resources": "ppe_net",
+    # ADDED 2026-09-17 (NVA live-confirmed): IFRS's alternate taxonomy name for the same
+    # pre-production mineral-exploration concept - see ADDITIVE_CONCEPT_PAIRS.
+    "tangible_exploration_and_evaluation_assets": "ppe_net",
     "property_plant_and_equipment_net": "ppe_net",
     "goodwill": "goodwill",
     "long_term_debt": "long_term_debt",

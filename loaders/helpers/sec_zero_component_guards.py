@@ -228,6 +228,11 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         # "AssetsArisingFromExplorationForAndEvaluationOfMineralResources") for the live
         # companyfacts evidence.
         ("ppe_net", "assets_arising_from_exploration_for_and_evaluation_of_mineral_resources"),
+        # ADDED 2026-09-17 (ppe_net cluster follow-up): NVA (Nova Minerals Corp, CIK
+        # 0001852551), IFRS's alternate taxonomy name for the same pre-production mineral-
+        # exploration concept - see utils/external/sec_balance_sheet.py's concept-fetch list
+        # (search "TangibleExplorationAndEvaluationAssets") for the live companyfacts evidence.
+        ("ppe_net", "tangible_exploration_and_evaluation_assets"),
         # ADDED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up): RAVE
         # (Rave Restaurant Group) FY2022 (period 2021-06-28 to 2022-06-26) live-confirmed via
         # real SEC companyfacts JSON: real, nonzero "CostOfRevenue" ($1,000, an immaterial
@@ -263,6 +268,15 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         # cost_of_revenue/franchisor_costs above - needs the same sec_base.py transform()
         # exception inside the fallback-only skip block.
         ("capex", "payments_to_acquire_software"),
+        # ADDED 2026-09-17 (xbrl_yfinance_line_item_report accounts_receivable cluster
+        # follow-up): HGTY (Hagerty, Inc., CIK 0001840776, an insurance MGA) live-confirmed
+        # via real SEC companyfacts JSON, every fiscal year present in
+        # xbrl_yfinance_line_item_report: a real, distinct "PremiumsReceivableAtCarryingValue"
+        # fact ADDITIVE to plain "AccountsReceivableNetCurrent" - FY2022: $58,255,000 +
+        # $100,700,000 = $158,955,000, an EXACT match to yfinance's flagged value. Insurance-
+        # specific premiums receivable is a genuinely separate balance-sheet component, not an
+        # alternate concept for ordinary trade AR.
+        ("accounts_receivable", "premiums_receivable_at_carrying_value"),
         # ADDED 2026-09-17 (cash_and_equivalents cluster follow-up): ABCB (Ameris Bancorp,
         # CIK 0000351569) live-confirmed via real SEC companyfacts JSON, every fiscal year in
         # xbrl_yfinance_line_item_report - CashAndDueFromBanks (a bank's non-interest-bearing
@@ -682,6 +696,43 @@ def is_immaterial_standard_debt_overwriting_combined_total(
     )
 
 
+# ADDED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up, AVA live-
+# confirmed via real SEC companyfacts JSON, CIK 0000104918): Avista Corp, a regulated
+# electric/gas utility (NOT a REIT - redirect_secured_debt_for_reit above never fires for it),
+# stopped tagging "LongTermDebtNoncurrent" after FY2022 (last real fact 2022-12-31:
+# $2,281,013,000) and "LongTermDebtCurrent" after FY2023 ($15,000,000); its real, ongoing
+# first-mortgage-bond debt is tagged exclusively under "SecuredDebt" from then on
+# ($2,619,000,000 FY2024, $2,759,000,000 FY2025), tracking total_assets growth ($7.70B ->
+# $8.36B) the way a utility's real long-term mortgage-bond book should - not a short-term
+# instrument the way this loader's default secured_debt -> short_term_debt mapping (added on
+# DE's evidence, see redirect_secured_debt_for_reit's own docstring) assumes. Without a
+# redirect, AVA's long_term_debt fell through to whatever smaller fallback concept (e.g.
+# LineOfCredit, fetched later in sec_balance_sheet.py's concept list) happened to claim the
+# slot instead - live-confirmed $3,000,000 stored for FY2025 vs SecuredDebt's real
+# $2,759,000,000.
+#
+# Deliberately narrow to this one live-confirmed symbol, not a general utility-SIC-code rule:
+# SecuredDebt's real-world meaning varies by filer (DE's own SecuredDebt genuinely is a small
+# short-term-debt-adjacent sibling of DebtCurrent), so a blanket redirect risks reproducing
+# DE's false-positive case for some other utility this session hasn't individually verified.
+_UTILITY_SECURED_DEBT_LONG_TERM_SYMBOLS = frozenset({"AVA"})
+
+
+def redirect_secured_debt_for_utility_long_term_financing(sec_field: str, db_field: str, symbol: str | None) -> str:
+    """Mirrors redirect_secured_debt_for_reit's shape for the one live-confirmed non-REIT case
+    (AVA) where SecuredDebt is genuinely a filer's real long-term financing rather than a
+    short-term instrument - see _UTILITY_SECURED_DEBT_LONG_TERM_SYMBOLS' own comment above for
+    the live evidence this closes. Returns db_field unchanged for every other symbol.
+    """
+    if (
+        sec_field == "secured_debt"
+        and db_field == "short_term_debt"
+        and symbol in _UTILITY_SECURED_DEBT_LONG_TERM_SYMBOLS
+    ):
+        return "long_term_debt"
+    return db_field
+
+
 def is_fallback_only_write_permitted_by_documented_override(
     db_field: str,
     sec_field: str,
@@ -727,4 +778,100 @@ def is_fallback_only_write_permitted_by_documented_override(
         or is_other_borrowings_additive_to_subordinated_debt(
             db_field, sec_field, existing, value, long_term_debt_source_sec_field
         )
+    )
+
+
+# ADDED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up, long_term_debt
+# cluster sweep) - REBUILT same day after a multi-session working-tree collision (another
+# session's subagent manually reconciling a concurrent capex edit to this file dropped this
+# function, its wiring in utils/external/sec_balance_sheet.py, and its regression test entirely;
+# every other guard added this session survived intact - confirmed via a full function-by-
+# function audit - so this was an isolated casualty, not a broader corruption).
+#
+# Live-confirmed via real SEC companyfacts JSON: AJG (Arthur J. Gallagher, all 3 fiscal years in
+# xbrl_yfinance_line_item_report) and EMPD (FY2025) tag a real but immaterial plain "LongTermDebt"
+# fact alongside a real, dramatically larger "LongTermDebtNoncurrent" fact in the SAME 10-K - a
+# taxonomy switch, same shape as this session's earlier DPZ/MAR/BALL/PPC/LNTH/CRL combined-total
+# fix, but via a different concept pair. AJG FY2022: plain LongTermDebt=$16,800,000 vs.
+# LongTermDebtNoncurrent=$5,562,800,000 (exact yfinance match). FY2023: $23,600,000 vs.
+# $7,006,000,000 (exact match). FY2024: $23,000,000 vs. $12,732,000,000 (exact match).
+#
+# utils/external/sec_balance_sheet.py's _fill_long_term_debt_from_noncurrent_current_split()
+# runs on the raw row BEFORE sec_base.py's transform() field-mapping guards ever see it, and its
+# primary branch only fills from the noncurrent split when "long_term_debt" is still None for
+# that fiscal year - so the real LongTermDebtNoncurrent total was silently discarded whenever
+# ANY plain LongTermDebt value existed already, however immaterial. This guard lets that branch
+# also fire when the existing plain value is real but narrow relative to the noncurrent+current
+# sum, mirroring is_narrow_standard_debt_blocking_combined_total's shape one layer up.
+_NONCURRENT_CURRENT_SUM_MIN_MULTIPLE = 50
+
+
+def is_narrow_long_term_debt_blocking_noncurrent_current_sum(existing: Any, noncurrent: Any, current: Any) -> bool:
+    """True if `existing` (long_term_debt's already-populated plain-concept value) is a real
+    but immaterial figure that should be overridden by `noncurrent` + `current` (the
+    LongTermDebtNoncurrent/LongTermDebtCurrent split) - see this module's own comment above for
+    the live AJG/EMPD evidence. Deliberately narrow: only fires when the combined
+    noncurrent+current total is at least _NONCURRENT_CURRENT_SUM_MIN_MULTIPLE times larger than
+    the existing plain value, so an ordinary filer where the plain concept genuinely is close to
+    the real total (a modest gap from timing/rounding) is never touched.
+    """
+    if not isinstance(existing, (int, float, Decimal)) or float(existing) <= 0:
+        return False
+    if not isinstance(noncurrent, (int, float, Decimal)):
+        return False
+    total = float(noncurrent) + float(current or 0)
+    if total <= 0:
+        return False
+    return total >= float(existing) * _NONCURRENT_CURRENT_SUM_MIN_MULTIPLE
+
+
+# ADDED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up, cash_and_
+# equivalents cluster) - live-confirmed via real SEC companyfacts JSON: AUID (authID Inc.,
+# CIK 0001534154) FY2023/FY2024 tags a real, immaterial "CashAndDueFromBanks" fact ($700 /
+# $600 - not a bank, this looks like a stray escrow/petty-cash line the filer mis-tagged under
+# a bank-specific concept) alongside a real, dramatically larger
+# "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents" combined-cash fact
+# ($10,177,099 / $8,471,561, exact yfinance match for both years).
+#
+# Root cause: sec_balance_sheet.py's concept-fetch list intentionally lists the combined
+# concept BEFORE "CashAndDueFromBanks" (see that list's own comment - "least preferred...
+# listed BEFORE the standard concept to keep it authoritative"), and sec_base.py's transform()
+# processes raw concepts in the RAW ROW's own key order (from _aggregate_concepts, i.e. the
+# concept-fetch list order), NOT field_mapping's dict order - confirmed empirically via
+# SecEdgarStatementLoader.transform() called directly on AUID's real raw row. Since
+# "CashAndDueFromBanks" is a plain concept (not fallback-gated - see its own comment: banks
+# like ZION never tag any other cash concept at all, so it's meant to be directly
+# authoritative for them), it unconditionally overwrote the earlier-processed, correct
+# combined-cash total via ordinary last-processed-wins - the exact same failure shape as
+# is_immaterial_standard_debt_overwriting_combined_total above, just for cash_and_equivalents
+# instead of long_term_debt, and via CashAndDueFromBanks instead of the plain LongTermDebt
+# concept.
+_CASH_DUE_FROM_BANKS_MIN_MULTIPLE = 10
+
+
+def is_narrow_cash_due_from_banks_overwriting_combined_cash(
+    db_field: str, sec_field: str, existing: Any, value: Any, cash_source_sec_field: str | None
+) -> bool:
+    """True if `value` (an incoming "cash_and_due_from_banks" concept write) should be
+    REJECTED to protect `existing` (cash_and_equivalents's already-resolved value, sourced
+    specifically from the combined cash+restricted-cash concept) - see this module's own
+    comment above for the live AUID evidence. Deliberately narrow: only fires when (1)
+    db_field is cash_and_equivalents, (2) the incoming concept is specifically
+    "cash_and_due_from_banks", (3) the field's current value came from the combined
+    cash+restricted-cash concept (not some other, unrelated already-resolved figure - this
+    guard is not about re-litigating other priority contests), and (4) the existing value is
+    at least _CASH_DUE_FROM_BANKS_MIN_MULTIPLE times larger than the incoming one, so a real
+    bank filer (ZION-class) whose CashAndDueFromBanks genuinely IS the authoritative, large
+    total never gets blocked here - only fires when the incoming value is real but immaterial
+    relative to an already-resolved, dramatically larger combined total.
+    """
+    return (
+        db_field == "cash_and_equivalents"
+        and sec_field == "cash_and_due_from_banks"
+        and cash_source_sec_field == "cash_cash_equivalents_restricted_cash_and_restricted_cash_equivalents"
+        and isinstance(existing, (int, float, Decimal))
+        and float(existing) > 0
+        and isinstance(value, (int, float, Decimal))
+        and float(value) > 0
+        and float(existing) >= float(value) * _CASH_DUE_FROM_BANKS_MIN_MULTIPLE
     )

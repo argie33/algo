@@ -9,6 +9,7 @@ wins" merge can't express.
 import logging
 from typing import Any
 
+from loaders.helpers.sec_zero_component_guards import is_narrow_long_term_debt_blocking_noncurrent_current_sum
 from utils.external.sec_statements_aggregate import _aggregate_concepts
 
 logger = logging.getLogger(__name__)
@@ -503,6 +504,16 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # concept convention as ReceivablesNetCurrent above.
         "AccountsReceivableNet",
         "AccountsAndOtherReceivablesNetCurrent",
+        # ADDED 2026-09-17 (xbrl_yfinance_line_item_report accounts_receivable cluster
+        # follow-up): HGTY (Hagerty, Inc., CIK 0001840776, an insurance MGA) live-confirmed
+        # via real SEC companyfacts JSON - tags a real, distinct "PremiumsReceivableAtCarrying
+        # Value" fact ($100,700,000 FY2022) ADDITIVE to its plain "AccountsReceivableNetCurrent"
+        # ($58,255,000 FY2022) - sum is $158,955,000, an EXACT match to yfinance's flagged
+        # value. Insurance-specific premiums receivable is a genuinely separate balance-sheet
+        # component from ordinary trade AR, not an alternate concept for the same fact - see
+        # is_additive_concept_pair's own ADDITIVE_CONCEPT_PAIRS entry in
+        # sec_zero_component_guards.py.
+        "PremiumsReceivableAtCarryingValue",
         # FIXED 2026-09-03 (same sweep): long-term-contract manufacturers (aerospace/defense
         # primes with real physical inventory) tag it under this concept instead of the
         # plain one below. Live-confirmed via real companyfacts JSON: BA/Boeing ($78.8B
@@ -562,6 +573,16 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # spend rather than us-gaap's post-acquisition "MineralProperties". Genuinely additive,
         # not an alternate - see sec_zero_component_guards.py's ADDITIVE_CONCEPT_PAIRS.
         "AssetsArisingFromExplorationForAndEvaluationOfMineralResources",
+        # ADDED 2026-09-17 (xbrl_yfinance_line_item_report ppe_net cluster follow-up): NVA
+        # (Nova Minerals Corp, CIK 0001852551, AUD-denominated, FYE June 30) live-confirmed via
+        # real SEC companyfacts JSON - tags its real mineral-exploration asset under this
+        # DIFFERENT ifrs-full concept name (FY2022 AUD 56,702,626, FY2023 AUD 81,070,075) while
+        # PropertyPlantAndEquipment is only a small residual corporate-equipment balance
+        # (FY2022 AUD 3,118,808) - sum (59,821,434 AUD) converts to ~$41.28M, matching
+        # yfinance's flagged $41,153,986 closely. Same additive shape as
+        # AssetsArisingFromExplorationForAndEvaluationOfMineralResources above, IFRS's
+        # alternate taxonomy name for the identical pre-production mineral-exploration concept.
+        "TangibleExplorationAndEvaluationAssets",
         "PropertyPlantAndEquipmentNet",
         "Goodwill",
         # FIXED 2026-08-17 (loader-review goal continuation): fallback long-term-debt
@@ -1740,6 +1761,15 @@ def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]
             row["long_term_debt"] = noncurrent + (current or 0)
         elif noncurrent is not None and current is not None and row.get("long_term_debt") == noncurrent:
             row["long_term_debt"] = noncurrent + current
+        # FIXED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up, AJG/
+        # EMPD live-confirmed via real SEC companyfacts JSON): the primary branch above only
+        # fires when "long_term_debt" is still None - a real but immaterial plain "LongTermDebt"
+        # fact (AJG FY2022: $16,800,000) permanently blocked the real, dramatically larger
+        # "LongTermDebtNoncurrent" total ($5,562,800,000, exact yfinance match) from ever
+        # overriding it. See is_narrow_long_term_debt_blocking_noncurrent_current_sum's own
+        # docstring (sec_zero_component_guards.py) for the full evidence and magnitude gate.
+        elif is_narrow_long_term_debt_blocking_noncurrent_current_sum(row.get("long_term_debt"), noncurrent, current):
+            row["long_term_debt"] = noncurrent + (current or 0)
         # FIXED 2026-09-10 (goal: "under 500" push, total_debt_not_itemized investigation):
         # a filer that tags ONLY "LongTermDebtCurrent" for a fiscal year (no
         # "LongTermDebtNoncurrent" sibling at all that year) fell through every branch above
@@ -1768,7 +1798,28 @@ def _fill_long_term_debt_from_noncurrent_current_split(rows: list[dict[str, Any]
         # total - restrict this fallback to a genuinely nonzero current figure (the DCX case
         # this was written for), and leave long_term_debt None on 0 so a later, more
         # specific fallback concept (or an honest NULL) isn't clobbered.
-        elif row.get("long_term_debt") is None and current:
+        # FIXED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up, RYZ
+        # live-confirmed via real SEC companyfacts JSON): RYZ (Ryerson Holding, CIK
+        # 0001481582) FY2024 (period end 2024-12-31) tags no plain "LongTermDebt"/
+        # "LongTermDebtNoncurrent" at all, only "LongTermDebtCurrent"=$700,000 AND the real,
+        # much larger fallback-only combined concept "DebtLongtermAndShorttermCombinedAmount"
+        # =$467,400,000 (yfinance-flagged $466,700,000, same order of magnitude - the real
+        # total). Before this fix, this branch unconditionally claimed the "long_term_debt"
+        # raw key with just the $700,000 current-portion figure - since this function runs
+        # BEFORE sec_base.py's transform() ever processes the fallback-only combined concept,
+        # that premature claim meant "long_term_debt" was already non-None by the time
+        # "debt_longterm_and_shortterm_combined_amount" reached transform()'s fallback-only
+        # "db_field in row" check, permanently blocking the real total from ever winning -
+        # same "narrow instrument claims the slot before a better fallback gets a chance" bug
+        # shape as every guard in sec_zero_component_guards.py, just at this earlier,
+        # raw-concept-assembly layer instead of transform()'s field_mapping layer. Skip
+        # claiming the slot here when the real combined-total concept is also present in the
+        # same row - let it win normally downstream instead.
+        elif (
+            row.get("long_term_debt") is None
+            and current
+            and row.get("debt_longterm_and_shortterm_combined_amount") is None
+        ):
             row["long_term_debt"] = current
 
         combined_current = row.pop("long_term_debt_and_capital_lease_obligations_current", None)
