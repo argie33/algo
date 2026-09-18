@@ -115,6 +115,49 @@ def reject_reit_exclusive_scale_mismatch(
     return value
 
 
+# A REIT's real lease/rental total can legitimately be somewhat smaller than a stray residual
+# already occupying "revenue" (e.g. a partial-period fact), but never smaller by 2+ orders of
+# magnitude while the residual and the real total both come from the SAME filing - see
+# reit_exclusive_value_outranks_existing's own NYC docstring for the live-confirmed case this
+# threshold rejects with wide margin.
+_REIT_EXCLUSIVE_OVERRIDE_PLAUSIBLE_RATIO = 0.05
+
+
+def reit_exclusive_value_outranks_existing(existing: Any, candidate: Any) -> bool:
+    """True if a REIT-exclusive concept's `candidate` value should be allowed to overwrite an
+    already-populated "revenue" (`existing`), despite `_reit_exclusive_fields`' normal
+    fallback-only ("never overwrite once populated") rule.
+
+    BUG FOUND 2026-09-18 (quarantine-backlog continuation, NYC/New York City REIT live-
+    confirmed via real SEC companyfacts JSON): the fallback-only rule assumes whatever
+    populated "revenue" first for a confirmed REIT is always at least as authoritative as
+    this REIT-exclusive concept - true for the CLDT/MKZR cases this file's own history
+    documents (a real, larger total already on file, correctly protected from a smaller
+    ASC-606/scale-tagging-error fallback), but backwards for NYC's FY2022-2024: its "Revenues"
+    concept itself (in `_REVENUE_TOTAL_CANDIDATE_FIELDS`'s magnitude-resolved group, processed
+    BEFORE this REIT-exclusive field) reports a residual near-zero fee line ($800,000/
+    $700,000/$0) for those same 3 years, while OperatingLeaseLeaseIncome - tagged in the SAME
+    10-K, SAME periods - reports the real, much larger, quarter-consistent lease-revenue total
+    ($64,005,000/$62,710,000/$61,570,000, exactly matching the sum of NYC's own real discrete
+    quarterly Revenues facts). Unconditionally protecting "revenue's" first-write let this
+    ~80x-11,000x understatement (and an outright $0 for FY2024, when real lease revenue was
+    $61.57M) stand, then fed the resulting quarterly-vs-annual mismatch into
+    quarterly_revenue_sum_vs_annual_extreme's >10x quarantine gate. Only overrides when the
+    candidate is drastically LARGER than the existing residual - a genuinely larger, real
+    already-populated total (CLDT/MKZR's own shape) is never at risk, since this only ever
+    lets a bigger, more complete figure win, mirroring _NET_OF_INTEREST_PLAUSIBLE_RATIO's and
+    _ABANDONED_REVENUES_SUCCESSOR_PLAUSIBLE_RATIO's identical "smaller-by-orders-of-magnitude
+    is the anomaly, not a real business figure" precedent for this exact revenue-resolution
+    problem elsewhere in this codebase.
+    """
+    if not (isinstance(existing, (int, float, Decimal)) and isinstance(candidate, (int, float, Decimal))):
+        return False
+    c = float(candidate)
+    if c <= 0:
+        return False
+    return abs(float(existing)) < _REIT_EXCLUSIVE_OVERRIDE_PLAUSIBLE_RATIO * abs(c)
+
+
 def should_override_fallback_field_for_depository_institution(
     sec_field: str,
     db_field: str,

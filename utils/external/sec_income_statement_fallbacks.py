@@ -781,6 +781,13 @@ _ASC606_REVENUE_SUCCESSOR_CONCEPTS = (
 # for a "Revenues" concept the filer has visibly, durably stopped using, not one that's merely
 # a quarter or two stale.
 _ABANDONED_REVENUES_CONCEPT_MIN_GAP_DAYS = 300
+# A genuine ASC-606 transition can shrink reported revenue (narrower recognition basis,
+# excluded pass-through amounts) but not by orders of magnitude relative to this same
+# filer's own other fiscal years - see _null_abandoned_revenues_concept_when_asc606_
+# supersedes's 2026-09-18 GNE plausibility-gate comment for the live-confirmed anomaly
+# (170000 vs a ~$280M peer-year median, ratio ~0.0006) this threshold rejects with wide
+# margin while still allowing a real multi-fold ASC-606 narrowing through.
+_ABANDONED_REVENUES_SUCCESSOR_PLAUSIBLE_RATIO = 0.05
 
 
 def _max_filed_date(concept_facts: dict[str, Any] | None) -> str | None:
@@ -866,14 +873,49 @@ def _null_abandoned_revenues_concept_when_asc606_supersedes(
         return
     if gap_days < _ABANDONED_REVENUES_CONCEPT_MIN_GAP_DAYS:
         return
+    # PLAUSIBILITY-GATED (2026-09-18, quarantine-backlog continuation, GNE live-confirmed):
+    # unconditionally popping "revenues" removes asc606_existing_value_outranks_candidate's
+    # magnitude protection for every row this fires on, not just the genuinely-abandoned
+    # ones. GNE's real FY2018 "Revenues" ($280,309,000, tagged in its own FY2018 10-K) was
+    # correctly identified as abandoned (its successor concept keeps filing for years after),
+    # but the ONLY RevenueFromContractWithCustomerIncludingAssessedTax fact available for
+    # that same fiscal year is a $170,000 anomaly that exists ONLY in the FY2019 10-K's
+    # comparative column (never in GNE's own FY2018 10-K) - not a real restated total, a
+    # stray/inconsistent comparative-column fact. Popping "revenues" let this ~1,649x-too-
+    # small value become GNE's stored annual revenue, then quarantined the symbol entirely
+    # once quarterly_revenue_sum_vs_annual_extreme caught the resulting >10x mismatch against
+    # GNE's own real quarterly filings. A real ASC-606 transition can legitimately shrink
+    # reported revenue (narrower recognition basis, excluded pass-through amounts), but never
+    # by 3 orders of magnitude while every other fiscal year's own trend stays in a normal
+    # band - median across this SAME symbol's OTHER "revenues" values (unaffected by this
+    # fallback, since it's computed before any row is popped) is a robust per-filer scale
+    # reference that doesn't depend on trusting the very row being evaluated.
+    _revenues_by_year = {r.get("fiscal_year"): r.get("revenues") for r in rows if r.get("revenues") is not None}
     for row in rows:
-        if row.get("revenues") is not None and any(
-            row.get(k) is not None
-            for k in (
-                "revenue_from_contract_with_customer_excluding_assessed_tax",
-                "revenue_from_contract_with_customer_including_assessed_tax",
-            )
-        ):
-            row.pop("revenues", None)
-            row.pop("_rank_revenues", None)
-            row.pop("_concept_revenues", None)
+        if row.get("revenues") is None:
+            continue
+        successor_val = next(
+            (
+                row.get(k)
+                for k in (
+                    "revenue_from_contract_with_customer_excluding_assessed_tax",
+                    "revenue_from_contract_with_customer_including_assessed_tax",
+                )
+                if row.get(k) is not None
+            ),
+            None,
+        )
+        if successor_val is None:
+            continue
+        _other_revenues: list[float] = [
+            float(v) for fy, v in _revenues_by_year.items() if fy != row.get("fiscal_year") and v is not None
+        ]
+        if _other_revenues and not isinstance(successor_val, str):
+            _reference = sorted(_other_revenues)[len(_other_revenues) // 2]
+            if _reference and abs(float(successor_val)) < _ABANDONED_REVENUES_SUCCESSOR_PLAUSIBLE_RATIO * abs(
+                _reference
+            ):
+                continue  # successor's own value for this year is an implausible anomaly - keep "revenues"
+        row.pop("revenues", None)
+        row.pop("_rank_revenues", None)
+        row.pop("_concept_revenues", None)

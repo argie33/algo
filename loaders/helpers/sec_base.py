@@ -29,6 +29,7 @@ from decimal import Decimal
 from typing import Any, cast
 
 from loaders.helpers.sec_reit_exclusive_scale_guard import (
+    reit_exclusive_value_outranks_existing,
     reject_reit_exclusive_scale_mismatch,
     should_override_fallback_field_for_depository_institution,
     should_skip_reit_only_fallback_field,
@@ -1597,7 +1598,13 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 # symbol that isn't a confirmed REIT, and behaves as fallback-only
                 # (skip if already populated) for symbols that are.
                 if sec_field in getattr(self, "_reit_exclusive_fields", frozenset()):
-                    if r.get("symbol") not in self._get_reit_symbols() or db_field in row:
+                    if r.get("symbol") not in self._get_reit_symbols():
+                        continue
+                    # NYC FIX (2026-09-18): fallback-only normally means "never overwrite
+                    # once populated", but see reit_exclusive_value_outranks_existing's own
+                    # docstring - a REIT-exclusive concept's real, larger total must still be
+                    # allowed to correct a drastically smaller residual already in row[db_field].
+                    if db_field in row and not reit_exclusive_value_outranks_existing(row[db_field], value):
                         continue
                     # Scale-sanity check - see sec_reit_exclusive_scale_guard.py (MKZR case).
                     value = reject_reit_exclusive_scale_mismatch(
