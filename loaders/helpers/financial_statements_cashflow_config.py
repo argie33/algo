@@ -182,6 +182,10 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         #     InProcessResearchAndDevelopment" $10,000,000 FY2024/FY2025 exact match both
         #     years - a real, recurring capitalized-IPR&D spend for this filer.
         "payments_to_acquire_in_process_research_and_development",
+        # MADE FALLBACK-ONLY 2026-09-18 (goal session, xbrl_yfinance_line_item_report capex
+        # remediation) - see this field's own comment in _CASHFLOW_FIELD_MAPPING below for
+        # the live AMT/SKT evidence.
+        "real_estate_improvements",
     }
 )
 
@@ -256,6 +260,17 @@ _CASHFLOW_FIELD_MAPPING = {
     # follow-up beyond the earlier REIT capex sweep) - see sec_cash_flow.py's get_cash_flow()
     # comment for the live SKT (Tanger Inc) evidence: a standard REIT property-improvement
     # capex concept, never fetched at all.
+    # MADE FALLBACK-ONLY 2026-09-18 (goal session, xbrl_yfinance_line_item_report capex
+    # remediation): SKT tags ONLY this concept (no PaymentsToAcquirePropertyPlantAndEquipment
+    # at all), so the fix above was correct for SKT - but AMT (a much larger REIT) tags BOTH,
+    # and "RealEstateImprovements" there is a genuinely narrower property-improvement
+    # sub-line-item, not its total capex (live-confirmed via SEC companyfacts: AMT FY2022
+    # RealEstateImprovements=$155.4M vs PaymentsToAcquirePropertyPlantAndEquipment=$1,873.6M,
+    # yfinance's real figure). Unconditional "last-listed-wins" let this narrower concept
+    # overwrite AMT's real, much larger total every year - same bug shape as the
+    # long_term_debt narrow-vs-combined-concept fix, on the cash-flow side. Fallback-only
+    # (added to _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below) preserves SKT's fix (no other capex
+    # concept present, so this still wins) while no longer overwriting AMT's real total.
     "real_estate_improvements": "capex",
     # FIXED 2026-09-02 (goal: "missing SEC/XBRL data" audit, live SEC EDGAR verification of
     # the 2026-08-24 fix's "pending separate verification" exclusion) - see sec_statements.py's
