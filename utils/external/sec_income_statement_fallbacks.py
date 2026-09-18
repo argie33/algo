@@ -191,27 +191,29 @@ def _fill_income_tax_expense_from_current_deferred_split(rows: list[dict[str, An
     zero the way an untagged current-debt-maturity often genuinely is). Mutates rows in
     place and always strips both raw keys.
 
-    NOTE 2026-09-16 (goal: SEC-vs-yfinance divergence sweep): investigated whether this
-    should also check `row.get("income_tax_expense_benefit")` before firing, since this
-    runs INSIDE get_income_statement() before transform() remaps that raw concept key onto
-    the "income_tax_expense" DB column, so the existing guard never actually sees it. Live
-    evidence cuts both ways, so left unchanged: QS (QuantumScape) - real
-    "IncomeTaxExpenseBenefit"=$1,544,000 FY2025, yfinance agrees - would benefit from that
-    extra check; but MAIN (Main Street Capital, a BDC) - real
-    "IncomeTaxExpenseBenefit"=$0 FY2024, yfinance instead agrees with THIS function's
-    current+deferred sum ($30,633,000, likely a taxable-subsidiary provision the top-level
-    $0 tag doesn't capture) - would regress under the same check. Which concept is the
-    real total is genuinely per-filer ambiguous, the same class of ambiguity
-    _fill_pretax_income_from_results_of_operations_when_validated below resolves via
-    cross-validation against the net_income+tax identity - a similar validation here
-    would need pretax_income/net_income already resolved at this point in the pipeline,
-    which they may not be. Left as a real, understood, follow-up gap rather than trading
-    one wrong symbol for another with no net improvement.
+    FIXED 2026-09-18 (goal session, xbrl_yfinance_line_item_report income_tax_expense
+    remediation): a 2026-09-16 pass investigated adding a `row.get("income_tax_expense_
+    benefit")` check here and rejected it as "genuinely ambiguous" (QS wanted it, MAIN
+    didn't) - but that comparison used `is not None` alone, which can't distinguish "no
+    top-level tag at all" from "top-level tag is a real filed zero", and those two cases
+    need OPPOSITE treatment. Live-confirmed via SEC companyfacts: ALLT (Allot Ltd) tags a
+    real, current, nonzero "IncomeTaxExpenseBenefit"=$1,895,000 FY2022 (exact yfinance
+    match) while ALSO tagging CurrentIncomeTaxExpenseBenefit=$391,000 + Deferred...=$0 -
+    this function fired anyway (the old `row.get("income_tax_expense")` check reads a DB
+    column name that doesn't exist yet at this point in the pipeline, so it was always
+    None, i.e. this fallback ALWAYS overwrote a real top-level value whenever both split
+    components happened to be present) and clobbered $1,895,000 down to $391,000. Fixed by
+    checking the REAL raw key ("income_tax_expense_benefit") but only skipping when that
+    value is present AND NONZERO - MAIN's real filed $0 top-level tag (a taxable-subsidiary
+    provision the top-line doesn't capture, per the 2026-09-16 evidence) still correctly
+    falls through to the current+deferred sum, while ALLT/QS's real nonzero top-level tags
+    now correctly win.
     """
     for row in rows:
         current = row.pop("current_income_tax_expense_benefit", None)
         deferred = row.pop("deferred_income_tax_expense_benefit", None)
-        if row.get("income_tax_expense") is not None or current is None or deferred is None:
+        existing = row.get("income_tax_expense_benefit")
+        if (existing is not None and existing != 0) or current is None or deferred is None:
             continue
         row["income_tax_expense"] = current + deferred
 

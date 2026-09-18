@@ -40,11 +40,19 @@ class TestIncomeTaxExpenseCurrentDeferredSplitFixed:
         assert "deferred_income_tax_expense_benefit" not in rows[0]
 
     def test_split_never_overwrites_a_real_income_tax_expense_value(self) -> None:
+        # FIXED 2026-09-18 (goal session, xbrl_yfinance_line_item_report income_tax_expense
+        # remediation): this test originally checked "income_tax_expense" - a DB column
+        # name that doesn't exist yet at this point in the pipeline (this function runs
+        # INSIDE get_income_statement(), before transform() remaps the raw
+        # "income_tax_expense_benefit" concept key onto that column) - so the guard it was
+        # meant to exercise was actually a no-op in production (live-confirmed via ALLT:
+        # a real, nonzero IncomeTaxExpenseBenefit=$1,895,000 got silently overwritten to
+        # $391,000 by this exact fallback). Uses the REAL raw key now.
         rows = [
             {
                 "symbol": "CNS",
                 "fiscal_year": 2024,
-                "income_tax_expense": 46_749_000.0,
+                "income_tax_expense_benefit": 46_749_000.0,
                 "current_income_tax_expense_benefit": 1.0,
                 "deferred_income_tax_expense_benefit": 1.0,
             }
@@ -52,7 +60,28 @@ class TestIncomeTaxExpenseCurrentDeferredSplitFixed:
 
         _fill_income_tax_expense_from_current_deferred_split(rows)
 
-        assert rows[0]["income_tax_expense"] == 46_749_000.0
+        assert rows[0]["income_tax_expense_benefit"] == 46_749_000.0
+        assert "income_tax_expense" not in rows[0]
+
+    def test_real_filed_zero_still_falls_through_to_the_split_sum(self) -> None:
+        # MAIN (Main Street Capital, a BDC) real-world case: the top-level
+        # "IncomeTaxExpenseBenefit" tag is a real, filed $0 (doesn't capture a taxable
+        # subsidiary's own tax provision), and yfinance agrees with the current+deferred
+        # sum instead ($30,633,000) - a real filed zero must NOT be treated the same as a
+        # real nonzero value here.
+        rows = [
+            {
+                "symbol": "MAIN",
+                "fiscal_year": 2024,
+                "income_tax_expense_benefit": 0.0,
+                "current_income_tax_expense_benefit": 30_000_000.0,
+                "deferred_income_tax_expense_benefit": 633_000.0,
+            }
+        ]
+
+        _fill_income_tax_expense_from_current_deferred_split(rows)
+
+        assert rows[0]["income_tax_expense"] == 30_633_000.0
 
     def test_requires_both_halves_present_unlike_debt_current_zero_default(self) -> None:
         # Unlike LongTermDebtCurrent (defaults to 0 when absent), a missing current-or-
