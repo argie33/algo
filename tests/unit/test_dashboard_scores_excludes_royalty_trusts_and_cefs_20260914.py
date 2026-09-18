@@ -49,8 +49,16 @@ class TestDashboardScoresExcludesRoyaltyTrustsAndCefs:
         cursor = _mock_cursor()
         _get_dashboard_scores(cursor, limit=50)
 
+        # 2026-09-17 (migration 1308 - tilt weight computed at request time, not a stored
+        # column): this endpoint now runs a population query FIRST (fetching the eligible
+        # universe's scores/market caps to compute tilted weights - see algo/signals/
+        # market_cap_tilt.py) before the old single "filtered_scores" enrichment query, which
+        # only runs at all if that population is non-empty (empty here - the mocked cursor
+        # returns [] for everything but the algo_config lookup). The investable-universe
+        # filter now lives in the population query, so check there instead of requiring the
+        # (in this mock, never-executed) enrichment query to exist.
         executed_queries = [c.args[0] for c in cursor.execute.call_args_list]
-        main_query = next(sql for sql in executed_queries if "filtered_scores" in sql)
+        main_query = next(sql for sql in executed_queries if "sy.active = true" in sql)
         assert "JOIN stock_symbols sy ON sy.symbol = s.symbol" in main_query
         # investable_universe_conditions() output - the SIC-based royalty-trust/SPAC/CEF
         # exclusions - must actually be spliced into the executed SQL, not just imported.

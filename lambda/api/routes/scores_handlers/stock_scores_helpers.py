@@ -21,7 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 def _build_stock_scores_query(
-    where_clause: str, market_cap_join: str, sort_col: str, sort_direction: str, fallback_col: str = "composite_score"
+    where_clause: str,
+    market_cap_join: str,
+    sort_col: str,
+    sort_direction: str,
+    fallback_col: str = "composite_score",
+    page_symbols: list[str] | None = None,
 ) -> str:
     """Build the paginated stock-scores listing query.
 
@@ -32,17 +37,28 @@ def _build_stock_scores_query(
     of per-symbol index scans - this was the root cause of the endpoint's 7+ second
     latency (and the dashboard's 3s client timeout hiding it as "no data").
 
-    `fallback_col` (2026-09-15, market-cap tilt fix): secondary ORDER BY key, normally the
-    raw score column `sort_col`'s *_tilted_weight was derived from. Every tilted weight is
-    NULL until the batch pass (loaders/stock_scores/market_cap_tilt.py) has run at least once
-    after migration 1294 - without this, `sort_col`'s own NULLS LAST would degrade ordering to
-    database-arbitrary for that entire window, not just "untilted".
+    `page_symbols` (2026-09-17, tilt-weight-no-longer-a-column fix): when the caller has
+    already ranked the full eligible population in Python (weighting="tilted" - tilted
+    weight is computed at request time now, see algo/signals/market_cap_tilt.py, and is a
+    function of the WHOLE population's mean/stdev so it can't be an ORDER BY column inside
+    a LIMIT'd query), this filters to exactly that page's symbols instead of doing
+    ORDER BY/LIMIT/OFFSET in SQL - `sort_col`/`sort_direction`/`fallback_col` are ignored in
+    that case (the caller's own Python-side ranking already determined page membership and
+    order; see stock_scores.py's own ordering-by-`page_symbols` reindex after fetch).
     """
     interval_52w = get_interval_sql("52w")
-    query = f"""
-            WITH max_price_date AS (
-                SELECT MAX(date) AS max_date FROM price_daily
-            ),
+    filtered_scores_cte = (
+        f"""
+            filtered_scores AS (
+                SELECT sc.*, ss.security_name, ss.is_sp500
+                FROM stock_scores sc
+                JOIN stock_symbols ss ON ss.symbol = sc.symbol
+                {market_cap_join}
+                {where_clause}
+                AND sc.symbol = ANY(%s)
+            )"""
+        if page_symbols is not None
+        else f"""
             filtered_scores AS (
                 SELECT sc.*, ss.security_name, ss.is_sp500
                 FROM stock_scores sc
@@ -51,7 +67,14 @@ def _build_stock_scores_query(
                 {where_clause}
                 ORDER BY sc.{sort_col} {sort_direction} NULLS LAST, sc.{fallback_col} {sort_direction} NULLS LAST
                 LIMIT %s OFFSET %s
-            )
+            )"""
+    )
+    query = f"""
+            WITH max_price_date AS (
+                SELECT MAX(date) AS max_date FROM price_daily
+            ),
+            {filtered_scores_cte}"""
+    query += f"""
             SELECT
                 fs.symbol,
                 COALESCE(fs.security_name, fs.symbol) AS company_name,
@@ -59,8 +82,6 @@ def _build_stock_scores_query(
                 cp.industry,
                 fs.composite_score, fs.momentum_score, fs.quality_score,
                 fs.value_score, fs.growth_score, fs.risk_score,
-                fs.composite_tilted_weight, fs.momentum_tilted_weight, fs.quality_tilted_weight,
-                fs.value_tilted_weight, fs.growth_tilted_weight, fs.risk_tilted_weight,
                 fs.rs_percentile, fs.data_completeness,
                 fs.updated_at AS last_updated,
                 pl.close AS current_price,
@@ -692,24 +713,38 @@ def _build_stock_score_factor_inputs(d: dict[str, Any]) -> None:
     }
 
 
-def _build_stock_score_items(scores: Any) -> list[dict[str, Any]]:
+def _build_stock_score_items(
+    scores: Any, tilted_weights_by_pillar: dict[str, dict[str, float]] | None = None
+) -> list[dict[str, Any]]:
     """Turn the raw query rows into the response `items` list.
 
     Applies the data-unavailable score-nulling rules, builds each row's factor input
     objects, and flags rows with no current price - the exact per-row transformation the
     inline loop in _get_stock_scores used to do.
+
+    `tilted_weights_by_pillar` (2026-09-17, migration 1308 dropped the *_tilted_weight
+    columns): {"composite": {symbol: weight}, "momentum": {...}, ...} computed at request
+    time by stock_scores.py via algo/signals/market_cap_tilt.py's compute_tilted_weights()
+    over the full eligible population - see that module's docstring for the formula. Merged
+    in here (before the same nulling-on-unavailable rules below) so a row whose underlying
+    score is nulled for staleness/unavailability gets its tilted weight nulled the same way,
+    same "kept in sync" invariant migration 1294 originally established for the stored-
+    column version.
     """
     items: list[dict[str, Any]] = []
     for row in scores:
         d = dict(row)
+        if tilted_weights_by_pillar:
+            symbol = d.get("symbol")
+            for pillar, weights in tilted_weights_by_pillar.items():
+                d[f"{pillar}_tilted_weight"] = weights.get(symbol) if symbol else None
         # CRITICAL FIX: Explicit data_unavailable flags for each metric
         # If a score metric is marked unavailable, include it as None (not synthetic value)
         # Dashboard will see explicit unavailability markers
         #
         # MARKET-CAP TILTED WEIGHT KEPT IN SYNC (2026-09-15): nulling a raw score without
         # also nulling its *_tilted_weight would let the response show e.g. growth_score=None
-        # next to a real numeric growth_tilted_weight computed by the batch pass before this
-        # per-request staleness override fired - same display-inconsistency class the
+        # next to a real numeric growth_tilted_weight - same display-inconsistency class the
         # data_completeness/data_unavailable resync fixes elsewhere in this codebase exist to
         # prevent.
         if d.get("_growth_data_unavailable"):

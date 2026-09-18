@@ -36,9 +36,14 @@ def _mock_cursor(rows):
     # scores" path, not _get_incomplete_stocks (which never joins that query and only ever
     # makes one fetchall call). Returning [] for that first call falls back to this function's
     # own hardcoded defaults (see its except KeyError/TypeError/ValueError branches) rather
-    # than crashing on a dict row's `[0]` access; `rows` (the real payload, possibly dict rows)
-    # is then returned on the actual results fetchall.
-    cursor.fetchall.side_effect = [[], rows]
+    # than crashing on a dict row's `[0]` access.
+    #
+    # SECOND fetchall added 2026-09-17 (migration 1308 - tilt weight computed at request time,
+    # not a stored column): the tilt-weight population query (algo/signals/market_cap_tilt.py)
+    # runs between the count query and the main results query - empty population here is fine,
+    # it just means every *_tilted_weight comes back None (compute_tilted_weights({}, {})).
+    # `rows` (the real payload, possibly dict rows) is returned on the actual results fetchall.
+    cursor.fetchall.side_effect = [[], [], rows]
     return cursor
 
 

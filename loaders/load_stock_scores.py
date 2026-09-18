@@ -61,7 +61,6 @@ from loaders.stock_scores.growth_scoring import (  # noqa: E402
     GROWTH_SCORE_FIELDS,
     GrowthScoringMixin,
 )
-from loaders.stock_scores.market_cap_tilt import MarketCapTiltMixin  # noqa: E402
 from loaders.stock_scores.momentum_scoring import MomentumScoringMixin  # noqa: E402
 from loaders.stock_scores.pillar_weights import (  # noqa: E402
     BASE_PILLAR_WEIGHTS,
@@ -116,7 +115,6 @@ class StockScoresLoader(
     ValueMetricsMixin,
     RiskScoringMixin,
     MomentumScoringMixin,
-    MarketCapTiltMixin,
 ):
     table_name = "stock_scores"
     primary_key = ("symbol",)
@@ -1410,20 +1408,15 @@ class StockScoresLoader(
         self.update_rs_percentiles()
         # update_size_percentiles() REMOVED 2026-08-28 (Size retired as a composite pillar -
         # see BASE_PILLAR_WEIGHTS for the full evidence trail).
-        # Market-cap tilted display weights (2026-09-15, migration 1294 - see
-        # market_cap_tilt.py's own docstring for the full "compute once, not per-consumer"
-        # rationale). MUST run LAST of the pillar-affecting passes, after composite_score and
-        # every pillar score is fully settled - tilting off a provisional score would produce
-        # a stale weight the instant a later pass changed that pillar.
-        #
-        # REMOVED then RESTORED same-day 2026-09-17: this session's earlier pass deleted the
-        # tilt mixin/columns entirely on the theory that composite_score alone should drive
-        # ranking. User reversed that: cap-weighted (MSCI Tilt Index-style) display is wanted
-        # back as its own display-only layer, explicitly separate from composite_score - the
-        # two are not the same feature and shouldn't have been conflated. composite_score's own
-        # weighting (now 5 pillars incl. Growth - see pillar_weights.py) is being handled as a
-        # distinct decision, not coupled to this tilt display.
-        self.update_market_cap_tilted_weights()
+        # Market-cap tilted display weights: REMOVED as a stored/batch-computed column here
+        # 2026-09-17 (migration 1308 drops the 6 *_tilted_weight columns migration 1294 added).
+        # User directive: a display-only derived weight shouldn't be persisted as its own
+        # column reading like a duplicate/parallel score next to the real pillar scores. The
+        # MSCI Tilt Index formula itself is unchanged and still the single shared
+        # implementation (now algo/signals/market_cap_tilt.py's compute_tilted_weights) -
+        # every API endpoint that displays a tilted weight computes it at request time from
+        # that one function, over the same eligible population it already queries, instead of
+        # a batch pass writing 6 columns nothing but display ever reads.
         self.snapshot_score_history()
         self.audit_upstream_coverage()
 

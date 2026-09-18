@@ -24,6 +24,7 @@ from routes.utils import (
 )
 
 from algo.signals.investable_universe import investable_universe_conditions
+from algo.signals.market_cap_tilt import compute_tilted_weights
 
 from .stock_scores_helpers import (
     _build_stock_score_items,
@@ -49,19 +50,22 @@ def _get_stock_scores(
 ) -> Any:
     """Get stock scores with multi-factor ranking."""
     try:
-        # WEIGHTING (default "raw", opt-in "tilted" - 2026-09-15, see loaders/stock_scores/
-        # market_cap_tilt.py's own module docstring for the *_tilted_weight rationale): tilted
-        # weight exists to make a ranking resemble a real cap-weighted fund's HOLDINGS
-        # composition (verified vs LRGF/GSLC at 84%/80% top-25/bottom-25 overlap - see
-        # MEMORY.md goal_top25_bottom25_achieved_production_verified_20260915). That is NOT
-        # what "who scores best on this factor" callers want (SectorAnalysis.jsx's "Top
-        # Companies", any per-pillar leaderboard) - defaulting every sort_by to tilted weight
-        # silently market-cap-dominated every one of them (same symptom independently caught
-        # in ScoresDashboard.jsx's Leaders/Laggards tabs - see MEMORY.md
-        # leaders_laggards_wrongly_tilted_by_cap_fixed_20260915). Raw score is the default;
-        # a caller that specifically wants fund-holdings-style ordering passes
-        # ?weighting=tilted. "symbol" sort is untouched either way (alphabetical has no
-        # tilted-weight analog).
+        # WEIGHTING (default "raw", opt-in "tilted" - 2026-09-15): tilted weight exists to
+        # make a ranking resemble a real cap-weighted fund's HOLDINGS composition (verified
+        # vs LRGF/GSLC at 84%/80% top-25/bottom-25 overlap - see MEMORY.md
+        # goal_top25_bottom25_achieved_production_verified_20260915). That is NOT what "who
+        # scores best on this factor" callers want (SectorAnalysis.jsx's "Top Companies", any
+        # per-pillar leaderboard) - defaulting every sort_by to tilted weight silently
+        # market-cap-dominated every one of them. Raw score is the default; a caller that
+        # specifically wants fund-holdings-style ordering passes ?weighting=tilted. "symbol"
+        # sort is untouched either way (alphabetical has no tilted-weight analog).
+        #
+        # TILTED WEIGHT COMPUTED AT REQUEST TIME, NOT A STORED COLUMN (2026-09-17, migration
+        # 1308 - see algo/signals/market_cap_tilt.py's module docstring for the full
+        # rationale/formula). sort_col below is always a REAL stock_scores column now -
+        # pillar_by_sort_by maps a sort_by value to which pillar's tilted-weight dict to rank
+        # by when weighting="tilted" (population-relative, so it can't be an ORDER BY column
+        # inside a LIMIT'd SQL query - see the ranking logic below).
         raw_sorts = {
             "composite_score": "composite_score",
             "momentum_score": "momentum_score",
@@ -71,25 +75,18 @@ def _get_stock_scores(
             "risk_score": "risk_score",
             "symbol": "symbol",
         }
-        tilted_sorts = {
-            "composite_score": "composite_tilted_weight",
-            "momentum_score": "momentum_tilted_weight",
-            "quality_score": "quality_tilted_weight",
-            "value_score": "value_tilted_weight",
-            "growth_score": "growth_tilted_weight",
-            "risk_score": "risk_tilted_weight",
-            "symbol": "symbol",
+        pillar_by_sort_by = {
+            "composite_score": "composite",
+            "momentum_score": "momentum",
+            "quality_score": "quality",
+            "value_score": "value",
+            "growth_score": "growth",
+            "risk_score": "risk",
         }
-        allowed_sorts = tilted_sorts if weighting == "tilted" else raw_sorts
-        sort_col = allowed_sorts.get(sort_by, "composite_score" if weighting == "raw" else "composite_tilted_weight")
+        sort_col = raw_sorts.get(sort_by, "composite_score")
         sort_direction = "DESC" if sort_order == "desc" else "ASC"
-        # Secondary sort key: the raw score column the tilted weight was derived from (or
-        # "symbol" itself, which has no tilted-weight column to begin with). Every tilted
-        # weight is NULL until the batch pass has run at least once after migration 1294 -
-        # without this fallback, ordering degrades to database-arbitrary (not just "less
-        # tilted") for that entire window instead of gracefully matching this endpoint's
-        # pre-fix raw-score-DESC behavior.
-        fallback_col = sort_by if sort_by in allowed_sorts else "composite_score"
+        fallback_col = sort_by if sort_by in raw_sorts else "composite_score"
+        pillar_key = pillar_by_sort_by.get(sort_by)
 
         # ETF FILTERING (GOVERNANCE compliance): Stock scores are for equity trading signals.
         # Exclude ETFs per GOVERNANCE.md: "financial data loaders and trading signals are stocks only".
@@ -158,7 +155,10 @@ def _get_stock_scores(
         # the one escape hatch that disables this screen too (internal tooling, tests,
         # non-ranking use cases) - a caller wanting the fully raw universe shouldn't need two
         # separate params to get it, and `0` was never a meaningful market-cap floor anyway.
-        if min_market_cap != 0 and not symbol:
+        liquidity_screen_active = min_market_cap != 0 and not symbol
+        min_stock_price = 5.0
+        min_adv_dollars = 500_000.0
+        if liquidity_screen_active:
             cur.execute("SELECT key, value FROM algo_config WHERE key IN ('min_stock_price', 'min_adv_dollars')")
             liquidity_config = {row[0]: row[1] for row in cur.fetchall()}
             try:
@@ -207,6 +207,66 @@ def _get_stock_scores(
         cur.execute(count_query, params_list)
         real_total = cur.fetchone()[0]
 
+        # TILT WEIGHT POPULATION (2026-09-17, migration 1308 - see algo/signals/
+        # market_cap_tilt.py's module docstring). Computed over the same eligible universe
+        # this request's own default investability screen defines - investable_universe_
+        # conditions + data_unavailable filter, plus the IBD-style liquidity screen IF this
+        # request has it active (liquidity_screen_active, computed above - honors the exact
+        # same min_market_cap=0/symbol-lookup opt-outs the main query respects, so
+        # ?minMarketCap=0 or a symbol lookup really does mean "no liquidity screening
+        # anywhere in this request", not just in the returned rows). Reuses min_stock_price/
+        # min_adv_dollars already fetched above rather than a second algo_config round trip.
+        _population_liquidity_cte = (
+            """
+            WITH liquidity AS (
+                SELECT symbol, AVG(volume * close) AS avg_dollar_volume_20d,
+                       (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
+                FROM (
+                    SELECT symbol, volume, close, date,
+                           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                    FROM price_daily
+                    WHERE date >= CURRENT_DATE - INTERVAL '45 days'
+                      AND COALESCE(data_unavailable, false) = false
+                      AND volume IS NOT NULL AND close IS NOT NULL
+                ) ranked
+                WHERE rn <= 20
+                GROUP BY symbol
+            )
+            """
+            if liquidity_screen_active
+            else ""
+        )
+        _population_liquidity_join = (
+            "LEFT JOIN liquidity liq ON liq.symbol = sc.symbol" if liquidity_screen_active else ""
+        )
+        _population_liquidity_filter = (
+            "AND liq.latest_close >= %s AND liq.avg_dollar_volume_20d >= %s" if liquidity_screen_active else ""
+        )
+        cur.execute(
+            _population_liquidity_cte
+            + f"""
+            SELECT sc.symbol, sc.composite_score, sc.momentum_score, sc.quality_score,
+                   sc.value_score, sc.growth_score, sc.risk_score, vm.market_cap
+            FROM stock_scores sc
+            JOIN stock_symbols ss ON ss.symbol = sc.symbol
+            LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
+            {_population_liquidity_join}
+            WHERE """
+            + investable_universe_conditions("sc", "ss")
+            + f"""
+              AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)
+              {_population_liquidity_filter}
+            """,
+            (min_stock_price, min_adv_dollars) if liquidity_screen_active else (),
+        )
+        population_rows = cur.fetchall()
+        market_cap_by_symbol = {r[0]: float(r[7]) for r in population_rows if r[7] is not None}
+        pillar_score_idx = {"composite": 1, "momentum": 2, "quality": 3, "value": 4, "growth": 5, "risk": 6}
+        tilted_weights_by_pillar: dict[str, dict[str, float]] = {}
+        for pillar, idx in pillar_score_idx.items():
+            score_by_symbol = {r[0]: float(r[idx]) for r in population_rows if r[idx] is not None}
+            tilted_weights_by_pillar[pillar] = compute_tilted_weights(score_by_symbol, market_cap_by_symbol)
+
         # PERFORMANCE: filter/sort/limit to the target page FIRST in a CTE, then run the
         # per-symbol LATERAL lookups (price_daily/technical_data_daily) only against that
         # small row set. Previously the LATERAL joins ran against every row of stock_scores
@@ -215,8 +275,34 @@ def _get_stock_scores(
         # latency (and the dashboard's 3s client timeout hiding it as "no data"). Query
         # construction itself lives in stock_scores_helpers.py (_build_stock_scores_query) -
         # see that function's docstring for the same detail.
-        query = _build_stock_scores_query(where_clause, market_cap_join, sort_col, sort_direction, fallback_col)
-        params_list.extend([limit, offset])
+        #
+        # weighting="tilted" ranks in Python off the population computed above (tilted
+        # weight can't be an ORDER BY column inside a LIMIT'd SQL query any more - see
+        # pillar_by_sort_by comment above) and passes the resulting page's symbols to
+        # _build_stock_scores_query's page_symbols filter instead of SQL ORDER BY/LIMIT/
+        # OFFSET. A symbol lookup (single row) or weighting="raw" both use the plain SQL
+        # sort path unchanged - sort_col is always a real column either way.
+        page_symbols: list[str] | None = None
+        if weighting == "tilted" and pillar_key is not None and not symbol:
+            tilted_dict = tilted_weights_by_pillar[pillar_key]
+            raw_score_by_symbol = {
+                r[0]: float(r[pillar_score_idx[pillar_key]])
+                for r in population_rows
+                if r[pillar_score_idx[pillar_key]] is not None
+            }
+            ranked_symbols = sorted(
+                raw_score_by_symbol.keys(),
+                key=lambda sym: (tilted_dict.get(sym, -1.0), raw_score_by_symbol[sym]),
+                reverse=(sort_direction == "DESC"),
+            )
+            page_symbols = ranked_symbols[offset : offset + limit]
+            query = _build_stock_scores_query(
+                where_clause, market_cap_join, sort_col, sort_direction, fallback_col, page_symbols=page_symbols
+            )
+            params_list.append(page_symbols)
+        else:
+            query = _build_stock_scores_query(where_clause, market_cap_join, sort_col, sort_direction, fallback_col)
+            params_list.extend([limit, offset])
 
         # Try with data_unavailable columns first (preferred)
         # timeout_sec=20 ensures DB cancels before Lambda's 25s timeout, allowing proper error response
@@ -240,10 +326,15 @@ def _get_stock_scores(
             else:
                 raise
 
+        if page_symbols is not None:
+            # ANY(%s) doesn't preserve order - reindex to match the Python-side ranking.
+            _rows_by_symbol = {row["symbol"]: row for row in scores}
+            scores = [_rows_by_symbol[sym] for sym in page_symbols if sym in _rows_by_symbol]
+
         # Row/factor-input transformation (data_unavailable-driven score nulling, factor
         # input objects, current_price data-quality flag) - see
         # stock_scores_helpers._build_stock_score_items's docstring.
-        items = _build_stock_score_items(scores)
+        items = _build_stock_score_items(scores, tilted_weights_by_pillar)
 
         # Check data freshness
         freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=7)

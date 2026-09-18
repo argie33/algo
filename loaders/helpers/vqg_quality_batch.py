@@ -194,8 +194,8 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
         this codebase already uses to bound every other z-score-based pillar/leg to [0,100]),
         not MSCI's own "Quality Score" piecewise transform (1+Z / (1-Z)^-1) - see Value's own
         rebuild docstring for why: that transform is a PORTFOLIO-WEIGHTING construction, not a
-        rating scale, and stays reserved for loaders/stock_scores/market_cap_tilt.py's
-        *_tilted_weight columns, its correct domain.
+        rating scale, and stays reserved for algo/signals/market_cap_tilt.py's tilted-weight
+        formula, its correct domain.
 
         DROPPED to match MSCI exactly: roa/fcf_margin/gross_profitability/accruals/CFOA (AQR
         QMJ Profitability-leg additions, not part of MSCI's 3-variable index), net_payout_yield

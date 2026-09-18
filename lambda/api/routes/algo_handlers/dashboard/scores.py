@@ -25,6 +25,7 @@ from routes.utils import (
 )
 
 from algo.signals.investable_universe import investable_universe_conditions
+from algo.signals.market_cap_tilt import compute_tilted_weights
 
 logger = logging.getLogger(__name__)
 
@@ -65,22 +66,22 @@ logger = logging.getLogger(__name__)
 # weight * Final Value Score." Real MSCI/iShares factor index holdings tables are published
 # ordered by that resulting WEIGHT, never by the raw factor score alone - this is not a style
 # preference, it is the actual, stated construction of the real products this system is
-# modeling itself on. composite_tilted_weight (this same formula, computed once by
-# loaders/stock_scores/market_cap_tilt.py's update_market_cap_tilted_weights() batch pass and
-# stored, migration 1294) is therefore the industry-correct default ordering for a "top
-# stocks" leaderboard, not raw composite_score - the earlier "sorted highest to lowest by the
-# visible badge" UX concern doesn't apply here the same way it does in a React page with an
-# interactive toggle (this is a fixed TUI panel), and in any case matches how real fund fact
-# sheets already work: holdings ordered by weight, with the underlying factor exposure shown
-# as a separate, non-ordering column.
+# modeling itself on. composite_tilted_weight is therefore the industry-correct default
+# ordering for a "top stocks" leaderboard, not raw composite_score - the earlier "sorted
+# highest to lowest by the visible badge" UX concern doesn't apply here the same way it does
+# in a React page with an interactive toggle (this is a fixed TUI panel), and in any case
+# matches how real fund fact sheets already work: holdings ordered by weight, with the
+# underlying factor exposure shown as a separate, non-ordering column.
 #
-# MOVED OUT OF THIS ENDPOINT 2026-09-15: computing the tilt at request time here via
-# _apply_market_cap_tilt() (removed) was a live-caught bug - that Python computation only ever
-# reached this endpoint, not /api/scores/stockscores, so the tilt silently never applied to
-# what the user was looking at. Now computed ONCE by loaders/stock_scores/market_cap_tilt.py's
-# update_market_cap_tilted_weights() batch pass and stored, available to any consumer that
-# wants it - the exact same column both endpoints now order by, so they can't silently
-# disagree on ordering again.
+# COMPUTED AT REQUEST TIME AGAIN 2026-09-17 (migration 1308 dropped the stored
+# composite_tilted_weight column migration 1294 added 2026-09-15 - see
+# algo/signals/market_cap_tilt.py's module docstring for the full rationale). The original
+# 2026-09-15 move to a stored column existed to fix a real "one endpoint got the tilt fix,
+# the other didn't" bug from request-time computation duplicated ad hoc in two places -
+# that risk is addressed differently now: compute_tilted_weights() is the ONE shared
+# implementation both this endpoint and lambda/api/routes/scores_handlers/stock_scores.py
+# import and call, so there is still exactly one formula, it's just not persisted as a
+# column read like a duplicate/parallel score next to the real pillar scores.
 
 
 @db_route_handler("fetch dashboard scores")
@@ -120,16 +121,17 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         except (KeyError, TypeError, ValueError):
             min_adv_dollars = 500_000.0
 
-        # PERFORMANCE: filter/sort/limit in a CTE first, then run per-symbol LATERAL
-        # lookups (price_daily/technical_data_daily) only against that small row set -
-        # joining before the LIMIT would pay for a per-symbol index scan on every row
-        # of stock_scores. See lambda/api/routes/scores.py for the same pattern.
+        # TILT WEIGHT IS NOW COMPUTED HERE, NOT READ FROM A STORED COLUMN (2026-09-17,
+        # migration 1308 dropped stock_scores.composite_tilted_weight - see
+        # algo/signals/market_cap_tilt.py's module docstring for the full rationale/formula).
+        # Fetch the full eligible population's (symbol, composite_score, market_cap) first -
+        # tilt weight is a function of the WHOLE population's mean/stdev, so it can't be
+        # computed per-row inside a LIMIT'd query - then rank/limit in Python before running
+        # the existing per-symbol LATERAL enrichment query only against that small top-N set
+        # (same "filter/sort/limit first, enrich after" performance pattern as before).
         cur.execute(
             """
-            WITH max_price_date AS (
-                SELECT MAX(date) AS max_date FROM price_daily
-            ),
-            liquidity AS (
+            WITH liquidity AS (
                 SELECT symbol, AVG(volume * close) AS avg_dollar_volume_20d,
                        (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
                 FROM (
@@ -142,62 +144,92 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 ) ranked
                 WHERE rn <= 20
                 GROUP BY symbol
-            ),
-            filtered_scores AS (
-                SELECT s.*, COALESCE(c.short_name, s.symbol) as company_name, c.sector
-                FROM stock_scores s
-                JOIN stock_symbols sy ON sy.symbol = s.symbol
-                LEFT JOIN company_profile c ON s.symbol = c.symbol
-                LEFT JOIN liquidity liq ON liq.symbol = s.symbol
-                WHERE """
+            )
+            SELECT s.symbol, s.composite_score, vm.market_cap
+            FROM stock_scores s
+            JOIN stock_symbols sy ON sy.symbol = s.symbol
+            LEFT JOIN value_metrics vm ON vm.symbol = s.symbol
+            LEFT JOIN liquidity liq ON liq.symbol = s.symbol
+            WHERE """
             + investable_universe_conditions("s", "sy")
             + """
                 AND s.data_completeness >= 70
                 AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
                 AND COALESCE(liq.latest_close, 0) >= %s
                 AND COALESCE(liq.avg_dollar_volume_20d, 0) >= %s
-                ORDER BY s.composite_tilted_weight DESC NULLS LAST, s.composite_score DESC
-                LIMIT %s
-            )
-            SELECT
-                fs.symbol, fs.composite_score, fs.growth_score, fs.momentum_score,
-                fs.quality_score, fs.value_score, fs.risk_score,
-                fs.rs_percentile, fs.data_completeness, fs.updated_at, fs.company_name, fs.sector,
-                pl.close AS current_price,
-                ROUND(CASE
-                    WHEN pp.close IS NOT NULL THEN ((pl.close - pp.close) / NULLIF(pp.close, 0)) * 100
-                    ELSE NULL
-                END, 2) AS change_percent,
-                ROUND(CASE WHEN tl.sma_50 IS NOT NULL AND tl.sma_50 > 0
-                    THEN ((pl.close - tl.sma_50) / tl.sma_50 * 100) ELSE NULL END, 2) AS price_vs_sma_50,
-                ROUND(CASE WHEN tl.sma_200 IS NOT NULL AND tl.sma_200 > 0
-                    THEN ((pl.close - tl.sma_200) / tl.sma_200 * 100) ELSE NULL END, 2) AS price_vs_sma_200
-            FROM filtered_scores fs
-            LEFT JOIN LATERAL (
-                SELECT close FROM price_daily
-                WHERE symbol = fs.symbol
-                ORDER BY date DESC LIMIT 1
-            ) pl ON true
-            LEFT JOIN LATERAL (
-                SELECT close FROM price_daily
-                WHERE symbol = fs.symbol
-                  AND date < (SELECT max_date FROM max_price_date)
-                ORDER BY date DESC LIMIT 1
-            ) pp ON true
-            LEFT JOIN LATERAL (
-                SELECT sma_50, sma_200 FROM technical_data_daily
-                WHERE symbol = fs.symbol
-                ORDER BY date DESC LIMIT 1
-            ) tl ON true
-            ORDER BY fs.composite_tilted_weight DESC NULLS LAST, fs.composite_score DESC
-        """,
-            (min_stock_price, min_adv_dollars, limit),
+            """,
+            (min_stock_price, min_adv_dollars),
         )
-        rows = cur.fetchall()
-        logger.debug(f"[SCORES_DASHBOARD] Query returned {len(rows)} rows for /api/algo/scores endpoint")
+        population_rows = cur.fetchall()
+        score_by_symbol = {r[0]: float(r[1]) for r in population_rows if r[1] is not None}
+        market_cap_by_symbol = {r[0]: float(r[2]) for r in population_rows if r[2] is not None}
+        tilted_weight_by_symbol = compute_tilted_weights(score_by_symbol, market_cap_by_symbol)
 
-        # Rows already arrive ordered by composite_tilted_weight (see this module's own
-        # "DEFAULT SORT ORDER" comment above for why) - no further Python-side filtering.
+        ranked_symbols = sorted(
+            score_by_symbol.keys(),
+            key=lambda sym: (tilted_weight_by_symbol.get(sym, -1.0), score_by_symbol[sym]),
+            reverse=True,
+        )[:limit]
+
+        if not ranked_symbols:
+            rows: list[Any] = []
+        else:
+            cur.execute(
+                """
+                WITH max_price_date AS (
+                    SELECT MAX(date) AS max_date FROM price_daily
+                ),
+                filtered_scores AS (
+                    SELECT s.*, COALESCE(c.short_name, s.symbol) as company_name, c.sector
+                    FROM stock_scores s
+                    LEFT JOIN company_profile c ON s.symbol = c.symbol
+                    WHERE s.symbol = ANY(%s)
+                )
+                SELECT
+                    fs.symbol, fs.composite_score, fs.growth_score, fs.momentum_score,
+                    fs.quality_score, fs.value_score, fs.risk_score,
+                    fs.rs_percentile, fs.data_completeness, fs.updated_at, fs.company_name, fs.sector,
+                    pl.close AS current_price,
+                    ROUND(CASE
+                        WHEN pp.close IS NOT NULL THEN ((pl.close - pp.close) / NULLIF(pp.close, 0)) * 100
+                        ELSE NULL
+                    END, 2) AS change_percent,
+                    ROUND(CASE WHEN tl.sma_50 IS NOT NULL AND tl.sma_50 > 0
+                        THEN ((pl.close - tl.sma_50) / tl.sma_50 * 100) ELSE NULL END, 2) AS price_vs_sma_50,
+                    ROUND(CASE WHEN tl.sma_200 IS NOT NULL AND tl.sma_200 > 0
+                        THEN ((pl.close - tl.sma_200) / tl.sma_200 * 100) ELSE NULL END, 2) AS price_vs_sma_200
+                FROM filtered_scores fs
+                LEFT JOIN LATERAL (
+                    SELECT close FROM price_daily
+                    WHERE symbol = fs.symbol
+                    ORDER BY date DESC LIMIT 1
+                ) pl ON true
+                LEFT JOIN LATERAL (
+                    SELECT close FROM price_daily
+                    WHERE symbol = fs.symbol
+                      AND date < (SELECT max_date FROM max_price_date)
+                    ORDER BY date DESC LIMIT 1
+                ) pp ON true
+                LEFT JOIN LATERAL (
+                    SELECT sma_50, sma_200 FROM technical_data_daily
+                    WHERE symbol = fs.symbol
+                    ORDER BY date DESC LIMIT 1
+                ) tl ON true
+            """,
+                (ranked_symbols,),
+            )
+            rows_by_symbol = {row[0]: row for row in cur.fetchall()}
+            rows = [rows_by_symbol[sym] for sym in ranked_symbols if sym in rows_by_symbol]
+            logger.debug(f"[SCORES_DASHBOARD] Query returned {len(rows)} rows for /api/algo/scores endpoint")
+
+        top_scores: list[Any] = []
+        for row in rows:
+            score_dict = safe_json_serialize(safe_dict_convert(row))
+            row_symbol = score_dict.get("symbol")
+            score_dict["composite_tilted_weight"] = tilted_weight_by_symbol.get(row_symbol) if row_symbol else None
+            # SESSION 255: rs_percentile COALESCE fallback removed - now selected directly without synthetic 50.0 default
+            # NULL values are preserved and tracked in the audit query below
+            # positioning_score REMOVED from the API contract 2026-08-27 (Positioning retired
 
         top_scores = []
         for row in rows:
