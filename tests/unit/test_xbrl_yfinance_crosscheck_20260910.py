@@ -205,6 +205,36 @@ class TestXbrlYfinanceCrosscheck:
         mock_logger_cls.return_value.log_results.assert_called_once()
         conn.commit.assert_called_once()
 
+    def test_below_floor_value_still_refreshes_a_stale_prior_row(self):
+        # FIXED 2026-09-18 (goal session, live-confirmed via CPSS/ARMP depreciation_expense):
+        # a value that drops below the divergence floor used to just `continue`, leaving any
+        # already-recorded row (from back when the value was above the floor and wrong) frozen
+        # at its last stored divergent/reviewed_needs_fix verdict forever. It must now still be
+        # recorded, forced non-divergent, so the ON CONFLICT clause's change-detection can reset
+        # a stale prior review verdict.
+        cur = _make_cur(
+            is_fpi=False,
+            our_values={("annual_income_statement", "depreciation_expense"): (2025, 100_000.0)},
+        )
+        conn = MagicMock()
+        conn.cursor.return_value = cur
+
+        fetch_fn = _yf_side_effect(income=[{"fiscal_year": 2025, "depreciation": 400_000.0}])
+
+        with (
+            patch("utils.db.connection.get_db_connection", return_value=conn),
+            patch("utils.external.yfinance_financials.fetch_financial_statement", side_effect=fetch_fn),
+        ):
+            run(limit=25, symbols_override=["AAA"], dry_run=False, delay_seconds=0)
+
+        insert_calls = [
+            call for call in cur.execute.call_args_list if "INSERT INTO xbrl_yfinance_line_item_report" in call[0][0]
+        ]
+        assert len(insert_calls) == 1
+        params = insert_calls[0][0][1]
+        # (symbol, table, field, fiscal_year, our_value, yfinance_value, ratio, divergent)
+        assert params[-1] is False  # never divergent when below the floor, however wide the ratio
+
     def test_aborts_batch_after_consecutive_shared_ip_ban_errors(self):
         # Every symbol has a comparable revenue row, but every yfinance fetch raises a
         # shared-IP-ban RuntimeError - after 3 consecutive such errors the batch must stop

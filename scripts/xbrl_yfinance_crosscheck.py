@@ -466,8 +466,33 @@ def run(  # noqa: C901
 
                 field_key = f"{table}:{field}"
                 sampled_count[field_key] += 1
+                if yf_value == 0:
+                    continue
                 floor = _floor_for_field(field)
-                if max(abs(our_value), abs(yf_value)) < floor or yf_value == 0:
+                if max(abs(our_value), abs(yf_value)) < floor:
+                    # FIXED 2026-09-18 (goal session, live-confirmed via CPSS/ARMP
+                    # depreciation_expense post the composite-sum fix): values this small are
+                    # too noisy to classify as divergent (a tiny absolute difference produces a
+                    # huge relative ratio), so this case must never flag - but simply `continue`-
+                    # ing left any ALREADY-recorded row (from back when the value was still above
+                    # the floor and wrong) permanently stuck at its last stored divergent/
+                    # reviewed_needs_fix verdict, since nothing ever upserts it again once the
+                    # real value drops under the floor. Still record it (forced non-divergent) so
+                    # a stale prior verdict gets refreshed to the current, correct values - the
+                    # ON CONFLICT clause's own change-detection already resets review_status back
+                    # to 'unreviewed' whenever our_value/yfinance_value actually moved.
+                    if not dry_run:
+                        _record_line_item(
+                            cur,
+                            symbol,
+                            table,
+                            field,
+                            fiscal_year,
+                            our_value,
+                            yf_value,
+                            abs(our_value) / abs(yf_value),
+                            False,
+                        )
                     continue
                 ratio = abs(our_value) / abs(yf_value)
                 divergent = not (_DIVERGENCE_RATIO > ratio > (1.0 / _DIVERGENCE_RATIO))

@@ -32,6 +32,7 @@ from utils.external.fx_rates import MAJOR_CURRENCIES, FxRateCache
 from utils.external.yfinance_analyst_ratings import _get_module_worker
 from utils.external.yfinance_circuit_breaker import YFinanceStillBannedError, get_circuit_breaker
 from utils.external.yfinance_symbol import to_yfinance_symbol
+from utils.loaders.retry_helper import retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -337,6 +338,26 @@ def _build_period_row(
     return row if has_data else None
 
 
+def _fetch_statement_df(circuit_breaker: Any, yf_symbol: str, attr: str, timeout_sec: float, symbol: str) -> Any:
+    """One attempt at the worker fetch `fetch_financial_statement` retries on - split out to a
+    module-level function (not a nested closure) so it doesn't sit between that function's own
+    `def` and its later `return None` lines - see the retry call site's comment for why that
+    matters."""
+    try:
+        circuit_breaker.wait_or_raise()
+    except YFinanceStillBannedError as e:
+        raise RuntimeError(f"yfinance shared IP ban active: {e}") from e
+
+    try:
+        return _get_module_worker().fetch(yf_symbol, attr, timeout_seconds=timeout_sec)
+    except TimeoutError as e:
+        raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from e
+    except Exception as e:
+        if _is_rate_limit_error(e):
+            circuit_breaker.report_rate_limit_error()
+        raise RuntimeError(f"yfinance {attr} fetch failed for {symbol}: {e}") from e
+
+
 def fetch_financial_statement(
     symbol: str,
     statement_type: str,
@@ -388,21 +409,30 @@ def fetch_financial_statement(
         raise ValueError(f"Unsupported statement_type/period combo for yfinance fallback: {statement_type}/{period}")
 
     circuit_breaker = get_circuit_breaker()
-    try:
-        circuit_breaker.wait_or_raise()
-    except YFinanceStillBannedError as e:
-        raise RuntimeError(f"yfinance shared IP ban active: {e}") from e
-
     yf_symbol = to_yfinance_symbol(symbol)
-    try:
-        df = _get_module_worker().fetch(yf_symbol, attr, timeout_seconds=timeout_sec)
-    except TimeoutError as e:
-        raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from e
-    except Exception as e:
-        if _is_rate_limit_error(e):
-            circuit_breaker.report_rate_limit_error()
-        raise RuntimeError(f"yfinance {attr} fetch failed for {symbol}: {e}") from e
 
+    # FIXED 2026-09-18 (goal session, live-confirmed via CPSS/ARMP/CAPR/ALKS): unlike this
+    # module's sibling `_fetch_with_circuit_breaker` in yfinance_analyst_ratings.py (which has
+    # carried a one-retry-with-backoff wrapper since 2026-08-19 for exactly this reason), this
+    # function called the worker directly with zero retry - a single transient hiccup (observed
+    # live: the shared worker's circuit breaker logging "Successful request after 4 failures"
+    # moments after this same call had already raised) silently drops EVERY fiscal year for that
+    # statement_type, and xbrl_yfinance_crosscheck.py's caller catches the resulting RuntimeError
+    # as "non-fatal" and just skips the symbol for that run - leaving stale divergent rows in
+    # xbrl_yfinance_line_item_report that look like unrefreshed/flaky data even after the
+    # underlying bug they flagged was already fixed and reloaded. One retry with backoff, same
+    # as the sibling call site, gives a transient failure a real chance to clear. A module-level
+    # helper (not a nested `def`) - a closure here would sit between this function's own `def`
+    # and its later `return None` lines, breaking .pre-commit-scripts/check-silent-fallbacks.py's
+    # backward search for the enclosing signature (it would find the closure's `-> Any` instead
+    # of this function's real `-> list[dict[str, Any]] | None`), a false positive already
+    # documented as a recurring whack-a-mole in that script's own PATTERN 5 comments.
+    df = retry_with_backoff(
+        lambda: _fetch_statement_df(circuit_breaker, yf_symbol, attr, timeout_sec, symbol),
+        context=f"{symbol} yfinance {attr}",
+        max_retries=1,
+        backoff_seconds=3.0,
+    )
     circuit_breaker.report_success()
 
     if df is None or df.empty:

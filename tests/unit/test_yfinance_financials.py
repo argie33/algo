@@ -365,7 +365,10 @@ class TestFetchFinancialStatementErrors:
             with pytest.raises(RuntimeError):
                 fetch_financial_statement("TEST", "income", "annual")
 
-        _patch_circuit_breaker.report_rate_limit_error.assert_called_once()
+        # 2026-09-18: fetch_financial_statement now retries once (see its own docstring/comment)
+        # on a transient failure, same as its sibling _fetch_with_circuit_breaker - a persistent
+        # rate limit is therefore reported once per attempt, not once total.
+        assert _patch_circuit_breaker.report_rate_limit_error.call_count == 2
 
     def test_non_rate_limit_error_not_reported_to_circuit_breaker(self, _patch_circuit_breaker):
         with patch(_WORKER_PATCH_TARGET, return_value=_failing_worker(RuntimeError("connection reset"))):
@@ -373,3 +376,21 @@ class TestFetchFinancialStatementErrors:
                 fetch_financial_statement("TEST", "income", "annual")
 
         _patch_circuit_breaker.report_rate_limit_error.assert_not_called()
+
+    def test_transient_failure_recovers_on_retry(self, _patch_circuit_breaker):
+        """2026-09-18 fix: live-confirmed CPSS/ARMP/CAPR/ALKS crosscheck rows stayed stale
+        because a single transient worker hiccup dropped the whole statement fetch with no
+        retry. One retry (mirroring _fetch_with_circuit_breaker) must let a fetch that fails
+        once then succeeds return real data instead of raising."""
+        df = pd.DataFrame({pd.Timestamp("2025-12-31"): {"Total Revenue": 1000.0}})
+        worker = MagicMock()
+        worker.fetch.side_effect = [RuntimeError("connection reset"), df]
+        with patch(_WORKER_PATCH_TARGET, return_value=worker):
+            rows = fetch_financial_statement("TEST", "income", "annual")
+
+        assert rows is not None
+        assert rows[0]["revenues"] == 1000.0
+        # income_stmt fetch: 1 failure + 1 success retry; a further currency-lookup ("info")
+        # fetch happens afterward, so just confirm the retry actually ran, not an exact total.
+        assert worker.fetch.call_count >= 2
+        _patch_circuit_breaker.report_success.assert_called_once()
