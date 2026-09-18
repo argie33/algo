@@ -304,7 +304,21 @@ def _our_all_values(cur: Any, table: str, field: str, symbol: str) -> list[tuple
     on our side of the comparison.
     """
     extra = _COMPOSITE_SUM_FIELDS.get((table, field))
-    select_expr = f"({field} + COALESCE({extra}, 0))" if extra else field
+    # GUARD added 2026-09-18 (goal session, live-confirmed via ALAB/CPSS/BEAM/ARMP/BCYC and
+    # ~15 more symbols): the plain sum above double-counts whenever `amortization_expense`
+    # was itself populated via financial_statements_income_config.py's
+    # "depreciation_and_amortization"/"depreciation_depletion_and_amortization" fallback -
+    # those hold a COMBINED D&A total (per that config's own docstring), not incremental
+    # amortization, and for a filer whose real amortization is ~0 that fallback total lands
+    # within noise of `depreciation_expense` itself (ALAB FY2023: both columns = 1,781,000,
+    # SEC's real "Depreciation" concept - yfinance's combined-D&A figure is also 1,781,000,
+    # not 3,562,000). Summing then double-counts the shared value. A genuinely separate
+    # amortization figure (BAND/MO/POWI/etc., live-confirmed the plain sum DOES match
+    # yfinance there) is never anywhere near equal to that year's depreciation_expense in
+    # practice, so "within 1% of each other" cleanly separates the two populations without
+    # touching the legitimate composite-sum cases this field was added for.
+    extra_expr = f"CASE WHEN ABS({extra} - {field}) <= 0.01 * ABS({field}) THEN 0 ELSE {extra} END" if extra else None
+    select_expr = f"({field} + COALESCE({extra_expr}, 0))" if extra_expr else field
     cur.execute(
         f"""
         SELECT fiscal_year, {select_expr}

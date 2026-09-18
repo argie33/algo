@@ -82,6 +82,26 @@ class TestOurLatestValueComposite:
         assert "amortization_expense" not in query
         assert "COALESCE" not in query
 
+    # ADDED 2026-09-18 (goal session, live-confirmed via ALAB/CPSS/BEAM/ARMP/BCYC and ~15
+    # more symbols): the plain sum above double-counts when amortization_expense was itself
+    # populated via the "combined D&A total" fallback (financial_statements_income_config.py's
+    # "depreciation_and_amortization"/"depreciation_depletion_and_amortization" keys) rather
+    # than a genuinely separate amortization figure - for a filer with ~0 real amortization
+    # that fallback total lands within noise of depreciation_expense itself (ALAB FY2023: both
+    # columns = 1,781,000, SEC's real "Depreciation" concept and yfinance's combined-D&A figure
+    # are also 1,781,000, not the summed 3,562,000). The query must guard against summing when
+    # the two columns are within 1% of each other, while still summing in the legitimate case
+    # (BAND/MO/POWI etc., live-confirmed the plain sum DOES match yfinance there).
+    def test_depreciation_amortization_guard_present_in_query(self):
+        cur = MagicMock()
+        cur.fetchall.return_value = [(2025, 150.0)]
+
+        _our_all_values(cur, "annual_income_statement", "depreciation_expense", "AAA")
+
+        query = cur.execute.call_args[0][0]
+        assert "CASE WHEN ABS(amortization_expense - depreciation_expense)" in query
+        assert "<= 0.01 * ABS(depreciation_expense)" in query
+
 
 class TestXbrlYfinanceCrosscheck:
     def test_flags_diverging_field_and_leaves_matching_fields_clean(self):
