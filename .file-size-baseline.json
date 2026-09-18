@@ -572,7 +572,7 @@
   "loaders/helpers/vqg_growth.py": 456,
   "loaders/helpers/vqg_inserts.py": 492,
   "loaders/helpers/vqg_quality.py": 1989,
-  "loaders/helpers/vqg_quality_batch.py": 497,
+  "loaders/helpers/vqg_quality_batch.py": 378,
   "loaders/helpers/vqg_quality_debt_fallback.py": 117,
   "loaders/helpers/vqg_quality_inputs.py": 346,
   "loaders/helpers/vqg_quality_reasons_profitability.py": 585,
