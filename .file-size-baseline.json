@@ -541,7 +541,7 @@
   "loaders/helpers/company_info_sec_reason_cleanup.py": 92,
   "loaders/helpers/factor_normalization.py": 225,
   "loaders/helpers/financial_statements_balance_config.py": 709,
-  "loaders/helpers/financial_statements_cashflow_config.py": 517,
+  "loaders/helpers/financial_statements_cashflow_config.py": 532,
   "loaders/helpers/financial_statements_config_shared.py": 24,
   "loaders/helpers/financial_statements_custom_extension_fallbacks.py": 154,
   "loaders/helpers/financial_statements_fye_flip_reconcile.py": 231,
