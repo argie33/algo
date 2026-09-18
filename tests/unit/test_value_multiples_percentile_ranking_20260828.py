@@ -1,17 +1,17 @@
-"""Tests for StockScoresLoader._percent_rank_cheap_high and the update_value_multiples_
-percentiles() reconciliation math (loaders/load_stock_scores.py).
+"""Tests for update_value_multiples_percentiles() (loaders/stock_scores/value_metrics.py).
 
 Goal session 2026-08-28: user directive "what does IBD/the best and brightest do... rethink
-what we're doing and do it that way". Every credible external methodology checked (IBD's
-1-99 percentile SmartSelect ratings, MSCI's cross-sectional z-score factor construction) scores
-value/quality via CROSS-SECTIONAL RANKING against the current universe, never a fixed absolute
-threshold - and algo/research/value_absolute_curve_vs_relative_ranking_20260828.py directly
-confirmed cross-sectional percentile beats this repo's own live fixed P/E/P/B/P/S curves in
-every era tested. P/E/P/B/P/S now use a two-phase provisional-then-corrected pattern (mirroring
-this file's own update_rs_percentiles() precedent for Momentum's rs_percentile): Pass 1's fixed
-curve is a placeholder only; update_value_multiples_percentiles() (post_run(), batch pass)
-overwrites value_score/composite_score with the true percentile-based score. These tests pin
-the percentile helper's correctness and the reconciliation arithmetic's exactness.
+what we're doing and do it that way" - P/E/P/B/P/S moved off Pass 1's fixed curves onto a
+cross-sectional construction, corrected in post_run() the same way update_rs_percentiles()
+already does for Momentum's rs_percentile.
+
+DEAD-CODE TESTS REMOVED 2026-09-18 (see value_metrics.py's own "DEAD-CODE REMOVAL" module
+docstring note): TestPercentRankCheapHigh/TestPercentRankCheapHighSectorRelative tested
+`_percent_rank_cheap_high`/`_percent_rank_cheap_high_sector_relative`, the PERCENTILE-RANK
+construction this cross-sectional correction used until 2026-09-15. Live-confirmed zero
+production callers remained - update_value_multiples_percentiles() has used MSCI's real 3-leg
+z-score construction (TestMsciThreeLegConstruction below) exclusively since that date. Removed
+rather than left to describe a retired mechanism as if it were still live.
 """
 
 from typing import Any
@@ -21,97 +21,6 @@ from loaders.load_stock_scores import (
     BASE_PILLAR_WEIGHTS,
     StockScoresLoader,
 )
-
-
-class TestPercentRankCheapHigh:
-    def test_empty_input_returns_empty(self) -> None:
-        assert StockScoresLoader._percent_rank_cheap_high({}) == {}
-
-    def test_single_symbol_gets_midpoint(self) -> None:
-        assert StockScoresLoader._percent_rank_cheap_high({"AAPL": 15.0}) == {"AAPL": 50.0}
-
-    def test_lowest_raw_value_gets_highest_percentile(self) -> None:
-        result = StockScoresLoader._percent_rank_cheap_high({"CHEAP": 5.0, "MID": 15.0, "EXPENSIVE": 40.0})
-        assert result["CHEAP"] == 100.0
-        assert result["MID"] == 50.0
-        assert result["EXPENSIVE"] == 0.0
-
-    def test_ties_share_the_same_percentile(self) -> None:
-        result = StockScoresLoader._percent_rank_cheap_high({"A": 10.0, "B": 10.0, "C": 20.0})
-        assert result["A"] == result["B"]
-        assert result["A"] > result["C"]
-
-    def test_percentiles_are_monotonic_in_raw_value(self) -> None:
-        values = {"A": 1.0, "B": 5.0, "C": 10.0, "D": 50.0, "E": 100.0}
-        result = StockScoresLoader._percent_rank_cheap_high(values)
-        ordered = sorted(values, key=lambda k: values[k])
-        percentiles = [result[k] for k in ordered]
-        assert percentiles == sorted(percentiles, reverse=True)
-
-    def test_all_percentiles_in_valid_range(self) -> None:
-        values = {f"SYM{i}": float(i) for i in range(1, 51)}
-        result = StockScoresLoader._percent_rank_cheap_high(values)
-        assert all(0.0 <= v <= 100.0 for v in result.values())
-        assert len(result) == len(values)
-
-
-class TestPercentRankCheapHighSectorRelative:
-    """Tests for _percent_rank_cheap_high_sector_relative (added 2026-09-04 - see
-    update_value_multiples_percentiles' "SECTOR-RELATIVE RANKING ADOPTED 2026-09-04" docstring
-    note for the full Fama-MacBeth evidence trail behind this adoption)."""
-
-    def test_empty_input_returns_empty(self) -> None:
-        assert StockScoresLoader._percent_rank_cheap_high_sector_relative({}, {}) == {}
-
-    def test_ranks_within_sector_not_across(self) -> None:
-        # Two 20-symbol sectors (meets _MIN_SECTOR_SLICE) - a mid-priced Tech stock should NOT
-        # be penalized just because Financials is cheaper on average.
-        values = {}
-        sector_map = {}
-        for i in range(20):
-            values[f"TECH{i}"] = 20.0 + i  # 20..39
-            sector_map[f"TECH{i}"] = "Technology"
-        for i in range(20):
-            values[f"FIN{i}"] = 5.0 + i  # 5..24
-            sector_map[f"FIN{i}"] = "Financial Services"
-
-        result = StockScoresLoader._percent_rank_cheap_high_sector_relative(values, sector_map)
-        # Cheapest Tech stock (TECH0=20.0) should rank near 100 WITHIN Technology, even though
-        # it's more expensive than most Financials stocks in raw terms.
-        assert result["TECH0"] == 100.0
-        assert result["FIN0"] == 100.0
-        # A universe-wide ranking would have put TECH0 far below FIN-sector stocks; sector-
-        # relative ranking keeps them on separate, comparable scales instead.
-        assert result["TECH0"] == result["FIN0"] == 100.0
-
-    def test_thin_sector_falls_back_to_universe_wide_pool(self) -> None:
-        # A 3-symbol sector (below _MIN_SECTOR_SLICE=20) should NOT get its own tiny-n
-        # percentile - it's folded into the residual pool with everything else unmapped.
-        values = {"A": 5.0, "B": 10.0, "C": 15.0, "X": 100.0, "Y": 200.0}
-        sector_map = {"A": "Utilities", "B": "Utilities", "C": "Utilities"}  # only 3, thin
-        result = StockScoresLoader._percent_rank_cheap_high_sector_relative(values, sector_map)
-        # All 5 symbols pooled together (3 thin-sector + 2 unmapped) - A is cheapest of all 5.
-        assert result["A"] == 100.0
-        assert result["Y"] == 0.0
-
-    def test_unmapped_symbols_pooled_into_residual_group(self) -> None:
-        values = {"A": 5.0, "B": 50.0}
-        result = StockScoresLoader._percent_rank_cheap_high_sector_relative(values, {})
-        assert result["A"] == 100.0
-        assert result["B"] == 0.0
-
-    def test_large_sector_ranked_independently_of_residual_pool(self) -> None:
-        values = {}
-        sector_map = {}
-        for i in range(25):
-            values[f"RE{i}"] = float(i + 1)  # 1..25
-            sector_map[f"RE{i}"] = "Real Estate"
-        values["UNMAPPED"] = 0.5  # cheaper than every Real Estate symbol, but not in that sector
-        result = StockScoresLoader._percent_rank_cheap_high_sector_relative(values, sector_map)
-        # UNMAPPED is alone in the residual pool (n=1) -> midpoint 50.0, NOT percentile 100 just
-        # because it's numerically the cheapest across all symbols.
-        assert result["UNMAPPED"] == 50.0
-        assert result["RE0"] == 100.0  # cheapest within its own 25-symbol sector
 
 
 class TestPeCurveScoreUnchanged:

@@ -116,6 +116,14 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         t.add_column("#", style="dim", justify="right", no_wrap=True, width=3)
     t.add_column("Symbol", style="bold white", no_wrap=True, width=6)
     t.add_column("Company", style="white", no_wrap=True, width=40)
+    # WEIGHT COLUMN (2026-09-18, /goal "comp scores filtered out of order"): this list is
+    # ranked by composite_tilted_weight (MSCI-style market-cap tilt), not raw composite_score
+    # - see lambda/api/routes/algo_handlers/dashboard/scores.py's "DEFAULT SORT ORDER" note.
+    # Without showing the actual sort key, consecutive Comp values look scrambled (a bigger
+    # cap with a lower score can rank above a smaller cap with a higher score) with no visual
+    # explanation. Only in the expanded view (show_company=True) where there's room.
+    if show_company:
+        t.add_column("Wt%", justify="right", no_wrap=True, width=5)
     t.add_column("Comp", justify="right", no_wrap=True, width=5)
     t.add_column("Mom", justify="right", no_wrap=True, width=4)
     t.add_column("Qual", justify="right", no_wrap=True, width=5)
@@ -141,6 +149,9 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         # response anymore; this panel shows the current 5 pillars only.
         sector = safe_get_field(sc, "sector", "--")
         comp_v: float | None = safe_float(comp)
+        tilted_wt = safe_float(
+            safe_get_field(sc, "composite_tilted_weight"), field_name="composite_tilted_weight", allow_none=True
+        )
         completeness = safe_float(safe_get_field(sc, "data_completeness"), field_name="completeness", allow_none=True)
         sc_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
 
@@ -153,6 +164,8 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
                 Text(company, style="dim"),
             ]
         )
+        if show_company:
+            row_cells.append(Text(f"{tilted_wt:.1f}" if tilted_wt is not None else "--", style="dim"))
 
         # TRANSPARENCY (2026-08-05): Show completeness indicator with score
         # Scores <70% complete are marked with ⚠ (less reliable due to missing metrics)

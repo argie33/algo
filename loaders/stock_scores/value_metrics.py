@@ -6,8 +6,24 @@ why it's separate). Moved verbatim - no behavior change - except `DatabaseContex
 `_owner()` (see that helper's own docstring for why).
 
 Mixed into StockScoresLoader alongside the other stock_scores/*.py pillar mixins - every
-`self.`/`cls.` reference here (including `_MIN_SECTOR_SLICE`) resolves normally through the
-instance regardless of which mixin file defines it.
+`self.`/`cls.` reference here resolves normally through the instance regardless of which mixin
+file defines it.
+
+DEAD-CODE REMOVAL, 2026-09-18 (factor-purity follow-up to the same day's two-step MSCI
+winsorization fix in loaders/helpers/factor_normalization.py). `_percent_rank_cheap_high`/
+`_winsorize_group_values`/`_percent_rank_cheap_high_sector_relative` (the pre-MSCI-rebuild
+cross-sectional PERCENTILE RANK Value used before 2026-09-15) were removed - live-confirmed zero
+production callers: `update_value_multiples_percentiles()` below has used MSCI's real 3-leg
+z-score construction (`universe_wide_zscore`/`sector_neutral_zscore`) exclusively since that
+date, never this rank machinery. The only surviving callers were `tests/unit/
+test_value_multiples_percentile_ranking_20260828.py`/`test_stock_scores_value_rank_
+winsorization_20260907.py` (testing the dead code directly, not anything live) and
+`algo/research/fama_macbeth_composite_weights.py`'s `_sector_relative_cheap_high_pct` (whose own
+docstring falsely claimed to call "production's exact" method - it hadn't, since the 2026-09-15
+rebuild). Fixed by inlining a standalone copy into that research script (same "kept here so a
+completed sweep still reproduces" precedent already used elsewhere in this codebase, e.g.
+risk_scoring.py's own note on `_vol_curve_score`) and deleting the dead-code-only tests. See git
+history for the removed implementation if a future session wants the old rank formula back.
 """
 
 import json
@@ -217,142 +233,6 @@ class ValueMetricsMixin:
         except Exception as e:
             logger.warning(f"[STOCK_SCORES] Could not compute FPI-excluded value_metrics coverage: {e}")
             return None
-
-    @staticmethod
-    def _percent_rank_cheap_high(values: dict[str, float]) -> dict[str, float]:
-        """symbol -> percentile in [0, 100], where the LOWEST raw value gets the HIGHEST
-        percentile (100) - matches this pillar's "cheap is good" convention for P/E, P/B, P/S.
-        Ties share the same percentile (RANK()-style, not average-rank - matches PostgreSQL's
-        own PERCENT_RANK() tie behavior, the same window function `update_rs_percentiles()`
-        already uses for rs_percentile). A universe of 1 symbol gets 50.0 (no peer to rank
-        against); no candidates to rank (empty input) returns {} - not an error, there is
-        nothing to process.
-        """
-        n = len(values)
-        if n == 0:
-            return {}
-        if n == 1:
-            return dict.fromkeys(values, 50.0)
-        sorted_items = sorted(values.items(), key=lambda kv: kv[1])
-        result: dict[str, float] = {}
-        i = 0
-        while i < n:
-            j = i
-            while j < n and sorted_items[j][1] == sorted_items[i][1]:
-                j += 1
-            pct = 100.0 * (n - 1 - i) / (n - 1)
-            for sym, _ in sorted_items[i:j]:
-                result[sym] = pct
-            i = j
-        return result
-
-    _MIN_SECTOR_SLICE = 20
-    _WINSORIZE_MIN_GROUP_SIZE = 5
-
-    @staticmethod
-    def _winsorize_group_values(values: dict[str, float]) -> dict[str, float]:
-        """Clip a group's raw values to its own [1st, 99th] percentile before ranking.
-
-        FIX (2026-09-07, real-money-readiness leaderboard audit): `_percent_rank_cheap_high`/
-        `_percent_rank_cheap_high_sector_relative` are pure rank transforms with no cross-check
-        between metrics - the single most extreme raw value in a group always monopolized
-        percentile 100 alone, even when the extremeness was a data/accounting artifact rather
-        than genuine mispricing. Live-confirmed: VCIG's pb_ratio=0.01/ps_ratio=0.02, each the
-        single cheapest in the whole 4,500+-symbol universe, won percentile 100/99.8 outright
-        off that one observation.
-
-        Below `_WINSORIZE_MIN_GROUP_SIZE`, an empirical quantile isn't a trustworthy clip
-        boundary (too few points to estimate one reliably) - values pass through unchanged,
-        same "too small to trust" precedent as `_MIN_SECTOR_SLICE`'s residual-pool fallback.
-        Since this only clips, never reorders, non-extreme values are always untouched and
-        ranking is otherwise rank-order-preserving except at the newly-shared boundary - two
-        near-tied extreme peers now SHARE the top percentile instead of one arbitrarily
-        winning it alone.
-
-        Validated in `algo/research/value_percentile_rank_winsorization_test_20260907.py`
-        (Fama-MacBeth + Spearman IC, fit 2017-2021 / holdout 2022-2026): winsorized-then-ranked
-        is statistically indistinguishable from raw-then-ranked on every aggregate spec - this
-        closes a real correctness gap at zero measured aggregate cost, not because it improved
-        predictive power.
-        """
-        n = len(values)
-        if n < ValueMetricsMixin._WINSORIZE_MIN_GROUP_SIZE:
-            return dict(values)
-
-        sorted_vals = sorted(values.values())
-
-        def _percentile(pct: float) -> float:
-            # Linear-interpolation percentile (matches numpy's default 'linear' method) -
-            # no numpy dependency needed for a single-array quantile.
-            rank = pct / 100.0 * (n - 1)
-            lo = int(rank)
-            hi = min(lo + 1, n - 1)
-            frac = rank - lo
-            return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * frac
-
-        low = _percentile(1.0)
-        high = _percentile(99.0)
-        return {symbol: min(max(val, low), high) for symbol, val in values.items()}
-
-    @classmethod
-    def _percent_rank_cheap_high_sector_relative(
-        cls,
-        values: dict[str, float],
-        sector_map: dict[str, str],
-        is_foreign_private_issuer: dict[str, bool] | None = None,
-    ) -> dict[str, float]:
-        """Sector-relative counterpart to `_percent_rank_cheap_high` - same "lowest raw value ->
-        highest percentile" convention, but each symbol is ranked ONLY against same-sector peers
-        (`sector_map[symbol]`, GICS via company_profile.sector) instead of the full cross-sector
-        universe. Symbols with no sector_map entry, or belonging to a sector with fewer than
-        `_MIN_SECTOR_SLICE` members among `values`, are pooled into one residual group and ranked
-        via the plain universe-wide `_percent_rank_cheap_high` instead - never dropped, never
-        left unranked. Each group (per-sector and the residual pool) is winsorized via
-        `_winsorize_group_values` before ranking - see that method's docstring for why.
-
-        ADDED 2026-09-04 (real-money-readiness review, "always do what is best" directive - see
-        this method's caller, `update_value_multiples_percentiles()`, for the full evidence
-        trail and citations). Ties/single-sector/empty-input edge cases all delegate to
-        `_percent_rank_cheap_high`'s own already-tested handling, per sector group.
-
-        FPI PEER-GROUP SPLIT (added 2026-09-14) - same fix, same rationale, as
-        `sector_neutral_zscore`'s own docstring in factor_normalization.py (this is Value's
-        percentile-rank analog of that z-score primitive, and suffered the identical defect):
-        a Foreign Private Issuer's P/E, P/B, P/S structurally run lower than US GICS-sector
-        peers for country/currency-risk-discount reasons that have nothing to do with genuine
-        relative cheapness - live-verified before this fix, FPIs were 44-52% of Value's own
-        top-25 lists across every cap band despite being ~15-19% of the underlying universe.
-        FPIs are pooled into one global cross-sector group (not dropped, not excluded from
-        scoring) exactly as that z-score function's own FPI pool works.
-        """
-        fpi = is_foreign_private_issuer or {}
-        groups: dict[str, list[str]] = {}
-        residual: dict[str, float] = {}
-        fpi_pool: dict[str, float] = {}
-        for symbol, val in values.items():
-            if fpi.get(symbol):
-                fpi_pool[symbol] = val
-                continue
-            sector = sector_map.get(symbol)
-            if sector is None:
-                residual[symbol] = val
-            else:
-                groups.setdefault(sector, []).append(symbol)
-
-        result: dict[str, float] = {}
-        for symbols in groups.values():
-            if len(symbols) < cls._MIN_SECTOR_SLICE:
-                for symbol in symbols:
-                    residual[symbol] = values[symbol]
-                continue
-            sector_values = {symbol: values[symbol] for symbol in symbols}
-            result.update(cls._percent_rank_cheap_high(cls._winsorize_group_values(sector_values)))
-
-        if fpi_pool:
-            result.update(cls._percent_rank_cheap_high(cls._winsorize_group_values(fpi_pool)))
-        if residual:
-            result.update(cls._percent_rank_cheap_high(cls._winsorize_group_values(residual)))
-        return result
 
     @staticmethod
     def _components_with_corrected_value(components_old: Any, value_score_new: float | None) -> str:

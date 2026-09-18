@@ -246,8 +246,32 @@ class QualityScoringMixin:
         Runs FIRST in post_run() (before Risk/Value/Growth/Momentum) so their own composite
         recomputes see the corrected quality_score, not the stale cached one.
 
+        RECOMPUTES quality_metrics.quality_score ITSELF FIRST, 2026-09-18 (live-caught same
+        day as the two-step MSCI winsorization fix in loaders/helpers/factor_normalization.py,
+        commit 2f4f8feef): unlike Risk/Value/Growth/Momentum, whose real z-score batch-correction
+        lives in THIS file (load_stock_scores.py, the `signals` pipeline stage) and therefore
+        picks up a factor_normalization.py fix the next time `signals` runs, Quality's real
+        z-score batch-correction (`update_quality_sector_neutral_scores()`) lives in a
+        DIFFERENT loader, `load_value_quality_growth_metrics.py`'s post_run() - the `metrics`
+        pipeline stage, which only runs on its own ~4.6h cadence. Before this fix, this method
+        only re-synced FROM quality_metrics.quality_score as it happened to already stand - if
+        `metrics` hadn't re-run since a scoring-formula fix landed, this pass just faithfully
+        propagated the stale, pre-fix value into stock_scores every time, making a
+        `signals`-only reload look complete while Quality never actually corrected (live-
+        verified: 3,169/3,319 symbols' quality_score was still computed by the pre-fix
+        single-pass winsorize-then-clip logic hours after the fix commit, because `metrics`
+        hadn't re-run). Calling the real recompute directly here removes the dependency on
+        `metrics`'s own schedule entirely - it's a pure function of already-stored raw ratio
+        columns (see that method's own docstring), so re-running it here is idempotent and
+        cheap (~0.3s locally), not a duplicate side effect to worry about co-running with
+        `metrics`'s own scheduled call to the same method.
+
         Raises on failure, same as every other post_run() batch pass.
         """
+        from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
+
+        ValueQualityGrowthMetricsLoader().update_quality_sector_neutral_scores()
+
         try:
             with _owner().DatabaseContext("write") as cur:
                 cur.execute(

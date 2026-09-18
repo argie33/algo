@@ -286,6 +286,19 @@ from loaders.load_stock_scores and must keep working unchanged.
 # and [[risk_pillar_sector_neutralized_20260913]] for the full reversal. The literature-citation
 # argument alone was not sufficient evidence; a live re-test was.
 #
+# STALE CLAIM FIXED 2026-09-18 (factor-purity follow-up): the paragraph below this one used to
+# end "Value remains the one deliberate exception (sector-relativized, but only at the
+# COMPOSITE stage, per MSCI Enhanced Value Appendix II)". That stopped being true the very next
+# day it was written - value_metrics.py's own "STEP 3 SECTOR RELATIVIZATION REMOVED" docstring
+# note (2026-09-17, "we are not trying to create indices... measure the factor itself"
+# directive) switched Value's composite step to `universe_wide_zscore`, the same primitive
+# Quality/Growth/Momentum/Risk all converged on - live-confirmed via grep: value_metrics.py has
+# zero remaining `sector_neutral_zscore(` call sites. Value is no longer an exception to this
+# policy at all; all 5 pillars are universe-wide at every stage. Left uncorrected for a day
+# because this file and value_metrics.py were edited the same day without the claim being
+# re-checked against the sibling file's own change - exactly the "docstring lied, code was
+# already right" gap this file's own history repeatedly flags elsewhere.
+#
 # GOING FORWARD: a pillar/component's sector-neutrality classification (sector-relative vs.
 # absolute/universe-wide) may only be set or changed based on a NON-CIRCULAR, point-in-time panel
 # test - the fama_macbeth_quality_factors.py / fama_macbeth_value_factors.py /
@@ -316,9 +329,12 @@ from loaders.load_stock_scores and must keep working unchanged.
 # rather than citing the right document's own literature argument, the way Risk's original mistake
 # did). Reverted to `universe_wide_zscore`, matching Quality/Momentum/Risk's own converged
 # position - see update_growth_sector_neutral_scores()'s own "REVERSED TO UNIVERSE-WIDE" docstring
-# note for the full detail. Value remains the one deliberate exception (sector-relativized, but
-# only at the COMPOSITE stage, per MSCI Enhanced Value Appendix II - a different, cited, real
-# document describing a different index family from the other four pillars' plain style indexes).
+# note for the full detail. Value was ALSO believed to be one deliberate exception at the time
+# this paragraph was written (sector-relativized at the COMPOSITE stage only, per MSCI Enhanced
+# Value Appendix II) - that stopped being true the very next day (2026-09-17, see
+# value_metrics.py's own "STEP 3 SECTOR RELATIVIZATION REMOVED" docstring note) without this
+# paragraph being updated to match. All 5 pillars are universe-wide at every stage now - there
+# is no remaining sector-relative exception anywhere in this file's live formulas.
 # ============================================================================================
 # TWO-LAYER VALIDATION POLICY (added 2026-09-15, user directive - supersedes the implicit
 # assumption behind the SECTOR-NEUTRALITY GOVERNANCE POLICY above and every pillar-level

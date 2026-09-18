@@ -175,11 +175,8 @@ class TestIdempotentAcrossRepeatedRuns:
         assert pass3 == {}, f"score kept drifting on a 3rd identical pass: {pass3}"
 
 
-class TestNoWinsorizationOutlierDomination:
-    """NOTE-only test: documents (does not fix - see update_value_multiples_percentiles()'s own
-    "NOTE (separate, NOT fixed by this pass)" docstring) that a single universe-extreme raw
-    ratio still wins percentile 100/0 outright, same as the live VCIG/BMA behavior."""
-
-    def test_single_most_extreme_raw_ratio_wins_top_percentile_outright(self) -> None:
-        result = L._percent_rank_cheap_high({"EXTREME": 0.0001, "NORMAL_A": 1.0, "NORMAL_B": 2.0})
-        assert result["EXTREME"] == 100.0
+# TestNoWinsorizationOutlierDomination REMOVED 2026-09-18 (see value_metrics.py's own
+# "DEAD-CODE REMOVAL" module docstring note): documented `_percent_rank_cheap_high`'s
+# outlier-domination behavior, a percentile-rank construction with zero production callers
+# since Value's 2026-09-15 rebuild onto MSCI's real z-score formula (which winsorizes at
+# +/-3 sigma, no single-outlier-monopolizes-100 failure mode to document).

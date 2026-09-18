@@ -225,19 +225,17 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         top_scores: list[Any] = []
         for row in rows:
             score_dict = safe_json_serialize(safe_dict_convert(row))
-            row_symbol = score_dict.get("symbol")
-            score_dict["composite_tilted_weight"] = tilted_weight_by_symbol.get(row_symbol) if row_symbol else None
-            # SESSION 255: rs_percentile COALESCE fallback removed - now selected directly without synthetic 50.0 default
-            # NULL values are preserved and tracked in the audit query below
-            # positioning_score REMOVED from the API contract 2026-08-27 (Positioning retired
-
-        top_scores = []
-        for row in rows:
-            score_dict = safe_json_serialize(safe_dict_convert(row))
             # SESSION 255: rs_percentile COALESCE fallback removed - now selected directly without synthetic 50.0 default
             # NULL values are preserved and tracked in the audit query below
             # positioning_score REMOVED from the API contract 2026-08-27 (Positioning retired
             # as a composite pillar - see loaders/load_stock_scores.py's BASE_PILLAR_WEIGHTS).
+            # composite_tilted_weight IS the sort key this list is actually ranked by (see
+            # "DEFAULT SORT ORDER" note above) - exposing it on every row so a consumer can
+            # show/explain why row order doesn't track raw composite_score 1:1 (this was
+            # previously computed and then silently dropped by a duplicate-loop merge
+            # artifact - fixed 2026-09-18, /goal "comp scores filtered out of order").
+            row_symbol = score_dict.get("symbol")
+            score_dict["composite_tilted_weight"] = tilted_weight_by_symbol.get(row_symbol) if row_symbol else None
             top_scores.append(score_dict)
 
         # AUDIT: Add monitoring for COALESCE fallback usage in RS percentile

@@ -40,17 +40,21 @@ class _Loader:
 
     update_value_multiples_percentiles = ValueMetricsMixin.update_value_multiples_percentiles
     _components_with_corrected_value = staticmethod(ValueMetricsMixin._components_with_corrected_value)
-    _percent_rank_cheap_high_sector_relative = staticmethod(ValueMetricsMixin._percent_rank_cheap_high_sector_relative)
+    # _percent_rank_cheap_high_sector_relative binding REMOVED 2026-09-18 (see
+    # value_metrics.py's own "DEAD-CODE REMOVAL" module docstring note) - deleted from
+    # production, and update_value_multiples_percentiles() never actually called it (confirmed
+    # via grep before removal): this stand-in bound it defensively but nothing here invokes it.
     # _withhold_value_below_floor (added 2026-09-16, factor-purity sweep) is called
     # unconditionally at the end of update_value_multiples_percentiles() now - this stand-in
     # needs it bound too, same reason as every other method above.
     _withhold_value_below_floor = ValueMetricsMixin._withhold_value_below_floor
-    # MSCI Z-SCORE REBUILD 2026-09-16 (see update_value_multiples_percentiles' own "MSCI
-    # ENHANCED VALUE Z-SCORE CONSTRUCTION" docstring note): the rebuilt method reads
-    # `self._MIN_SECTOR_SLICE` directly (not just through a bound helper method) when calling
-    # `sector_neutral_zscore` on the composite - this minimal stand-in needs the plain class
-    # constant bound too, not just methods, or `self._MIN_SECTOR_SLICE` raises AttributeError.
-    _MIN_SECTOR_SLICE = ValueMetricsMixin._MIN_SECTOR_SLICE
+    # _MIN_SECTOR_SLICE binding REMOVED 2026-09-18: the comment that used to justify this
+    # ("the rebuilt method reads self._MIN_SECTOR_SLICE... when calling sector_neutral_zscore
+    # on the composite") was itself stale - STEP 3's sector-relativization was removed
+    # 2026-09-17 (see update_value_multiples_percentiles' own "STEP 3 SECTOR RELATIVIZATION
+    # REMOVED" docstring note), so the composite step has used universe_wide_zscore, not
+    # sector_neutral_zscore, since before this comment was last touched. Confirmed via grep
+    # before removal: value_metrics.py has zero live `sector_neutral_zscore(` call sites.
 
 
 def _make_mock_cursor(rows: list[tuple[Any, ...]]) -> MagicMock:

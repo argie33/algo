@@ -169,7 +169,6 @@ from algo.research.growth_quarterly_earnings_quality_candidates import (
 from loaders.helpers.factor_normalization import sector_neutral_zscore, zscore_to_percentile_scale
 from loaders.helpers.vqg_shared import apply_mortgage_reit_sector_override
 from loaders.load_stock_scores import BASE_PILLAR_WEIGHTS
-from loaders.stock_scores.value_metrics import ValueMetricsMixin
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -551,17 +550,85 @@ def _sector_neutral_zscore_pct(s: pd.Series, sector_map: dict[str, str], min_sec
     return pd.Series(pct, index=s.index)
 
 
-def _sector_relative_cheap_high_pct(s: pd.Series, sector_map: dict[str, str]) -> pd.Series:
-    """pandas-Series wrapper around production's exact sector-relative Value rank
-    (`ValueMetricsMixin._percent_rank_cheap_high_sector_relative`) - calls the real classmethod
-    directly rather than reimplementing its winsorize/rank/residual-pool logic a second time.
+def _retired_percent_rank_cheap_high(values: dict[str, float]) -> dict[str, float]:
+    """Standalone copy of Value's RETIRED percentile-rank construction (deleted from production
+    2026-09-18, see loaders/stock_scores/value_metrics.py's own "DEAD-CODE REMOVAL" module
+    docstring note - `_percent_rank_cheap_high` had zero production callers since Value's
+    2026-09-15 rebuild onto MSCI's real 3-leg z-score formula, `universe_wide_zscore`/
+    `sector_neutral_zscore` above). Inlined here (not imported - the production classmethod is
+    gone) so this script's own historical value_proxy construction keeps reproducing, same
+    "kept here so a completed sweep still reproduces" precedent already used elsewhere in this
+    codebase for a deleted production formula (e.g. risk_scoring.py's `_vol_curve_score` note).
+    NOT a description of current production - see `universe_wide_zscore`/`sector_neutral_zscore`
+    calls elsewhere in this file for what Value/Quality/Growth/Momentum actually compute today.
+    """
+    n = len(values)
+    if n == 0:
+        return {}  # no candidates to rank (empty input) - not an error, there is nothing to process
+    if n == 1:
+        return dict.fromkeys(values, 50.0)
+    sorted_items = sorted(values.items(), key=lambda kv: kv[1])
+    result: dict[str, float] = {}
+    i = 0
+    while i < n:
+        j = i
+        while j < n and sorted_items[j][1] == sorted_items[i][1]:
+            j += 1
+        pct = 100.0 * (n - 1 - i) / (n - 1)
+        for sym, _ in sorted_items[i:j]:
+            result[sym] = pct
+        i = j
+    return result
+
+
+def _retired_winsorize_group_values(values: dict[str, float]) -> dict[str, float]:
+    """Standalone copy of the RETIRED [1st, 99th] winsorization that used to precede
+    `_retired_percent_rank_cheap_high` in production - see that function's own docstring."""
+    n = len(values)
+    if n < 5:
+        return dict(values)
+    sorted_vals = sorted(values.values())
+
+    def _percentile(pct: float) -> float:
+        rank = pct / 100.0 * (n - 1)
+        lo = int(rank)
+        hi = min(lo + 1, n - 1)
+        frac = rank - lo
+        return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * frac
+
+    low, high = _percentile(1.0), _percentile(99.0)
+    return {symbol: min(max(val, low), high) for symbol, val in values.items()}
+
+
+def _sector_relative_cheap_high_pct(s: pd.Series, sector_map: dict[str, str], min_sector_size: int = 20) -> pd.Series:
+    """pandas-Series wrapper around Value's RETIRED sector-relative percentile rank (see
+    `_retired_percent_rank_cheap_high`'s own docstring - this is NOT what production computes
+    today; kept only so this script's own historical value_proxy construction still
+    reproduces).
     """
     present = s.dropna()
     if present.empty:
         return pd.Series(np.nan, index=s.index)
     values = {str(sym): float(val) for sym, val in present.items()}
-    pct = ValueMetricsMixin._percent_rank_cheap_high_sector_relative(values, sector_map)
-    return pd.Series(pct, index=s.index)
+    groups: dict[str, list[str]] = {}
+    residual: dict[str, float] = {}
+    for symbol, val in values.items():
+        sector = sector_map.get(symbol)
+        if sector is None:
+            residual[symbol] = val
+        else:
+            groups.setdefault(sector, []).append(symbol)
+    result: dict[str, float] = {}
+    for symbols in groups.values():
+        if len(symbols) < min_sector_size:
+            for symbol in symbols:
+                residual[symbol] = values[symbol]
+            continue
+        sector_values = {symbol: values[symbol] for symbol in symbols}
+        result.update(_retired_percent_rank_cheap_high(_retired_winsorize_group_values(sector_values)))
+    if residual:
+        result.update(_retired_percent_rank_cheap_high(_retired_winsorize_group_values(residual)))
+    return pd.Series(result, index=s.index)
 
 
 def build_value_panel_raw() -> pd.DataFrame:
