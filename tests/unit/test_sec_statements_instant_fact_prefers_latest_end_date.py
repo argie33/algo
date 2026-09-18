@@ -235,3 +235,105 @@ class TestInstantFactPrefersLatestEndDate:
         assert by_year_quarter[(2023, "Q1")]["assets"] == 15_357_229_000
 
         assert by_year_quarter[(2022, "Q1")]["assets"] == 12_387_515_000
+
+    def test_frame_tagged_restatement_in_a_later_filings_comparative_column_is_recovered(self):
+        """FIXED 2026-09-18 (goal session, xbrl_yfinance_line_item_report stockholders_equity
+        remediation): live-confirmed via APO (Apollo Global Management) real SEC companyfacts -
+        the original FY2022 10-K (filed 2023-03-01) reports StockholdersEquity=$397,000,000, but
+        EVERY subsequent filing starting just 2 months later restates the SAME 2022-12-31 period
+        to $6,640,000,000 (frame="CY2022Q4I" confirming it as SEC's canonical value - a real
+        post-merger consolidation restatement). The restated fact is never the max end-date
+        within the later filing that carries it (that filing's own current period, 2023-12-31,
+        is more recent) - without the frame exception to _max_end_by_accn's rejection, this
+        restatement could never be picked up at all, permanently keeping the stale $397M."""
+        facts = {
+            "us-gaap": {
+                "StockholdersEquity": _concept(
+                    [
+                        {
+                            "end": "2022-12-31",
+                            "val": 397_000_000,
+                            "accn": "0001858681-23-000007",
+                            "filed": "2023-03-01",
+                            "fp": "FY",
+                            "fy": 2022,
+                            "form": "10-K",
+                        },
+                        {
+                            "end": "2022-12-31",
+                            "val": 6_640_000_000,  # restated, re-cited as comparative column
+                            "accn": "0001858681-24-000031",
+                            "filed": "2024-02-27",
+                            "fp": "FY",
+                            "fy": 2023,
+                            "form": "10-K",
+                            "frame": "CY2022Q4I",
+                        },
+                        {
+                            "end": "2023-12-31",
+                            "val": 8_000_000_000,  # that same filing's own current period
+                            "accn": "0001858681-24-000031",
+                            "filed": "2024-02-27",
+                            "fp": "FY",
+                            "fy": 2023,
+                            "form": "10-K",
+                        },
+                    ]
+                ),
+            },
+            "ifrs-full": {},
+        }
+        client = _FakeClient(facts)
+
+        rows = get_balance_sheet(client, "APO", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+
+        assert by_year[2022]["stockholders_equity"] == 6_640_000_000
+        assert by_year[2023]["stockholders_equity"] == 8_000_000_000
+
+    def test_non_frame_tagged_comparative_echo_is_still_dropped(self):
+        """The frame exception must not reopen the original rollforward/comparative-echo hole
+        this guard exists to close - a non-frame-tagged comparative re-citation (the ordinary,
+        overwhelming-majority case) is still rejected exactly as before."""
+        facts = {
+            "us-gaap": {
+                "StockholdersEquity": _concept(
+                    [
+                        {
+                            "end": "2022-12-31",
+                            "val": 100_000_000,
+                            "accn": "A1",
+                            "filed": "2023-03-01",
+                            "fp": "FY",
+                            "fy": 2022,
+                            "form": "10-K",
+                        },
+                        {
+                            "end": "2022-12-31",
+                            "val": 999_000_000,  # NOT frame-tagged - must not win
+                            "accn": "A2",
+                            "filed": "2024-02-27",
+                            "fp": "FY",
+                            "fy": 2023,
+                            "form": "10-K",
+                        },
+                        {
+                            "end": "2023-12-31",
+                            "val": 200_000_000,
+                            "accn": "A2",
+                            "filed": "2024-02-27",
+                            "fp": "FY",
+                            "fy": 2023,
+                            "form": "10-K",
+                        },
+                    ]
+                ),
+            },
+            "ifrs-full": {},
+        }
+        client = _FakeClient(facts)
+
+        rows = get_balance_sheet(client, "TEST2", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+
+        assert by_year[2022]["stockholders_equity"] == 100_000_000

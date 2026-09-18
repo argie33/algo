@@ -279,9 +279,29 @@ def _aggregate_concepts_resolve_entry_period(  # noqa: C901 -- inherits pre-exis
     # See the _max_end_by_accn comment above this loop: drop any instant fact
     # that isn't the latest-end-date one within its own filing - a comparative/
     # rollforward echo of a period whose real value comes from its own filing.
+    #
+    # EXCEPTION added 2026-09-18 (goal session, xbrl_yfinance_line_item_report
+    # stockholders_equity remediation): a frame-tagged non-max-end fact is exempted.
+    # Live-confirmed via ABTC and APO (independent SEC companyfacts examples): when a filer
+    # materially restates a PAST fiscal year-end figure in a LATER filing's comparative
+    # column (common after a merger/consolidation event - APO's real FY2022
+    # StockholdersEquity went from $397M in its original 10-K to $6.64B in every filing
+    # starting 2 months later, SEC's own frame="CY2022Q4I" confirming $6.64B as canonical),
+    # that restated value is BY DEFINITION never the max end-date within the later filing
+    # that carries it - the filing's own current period is always more recent. Without this
+    # exception, the restatement can never be picked up: it's rejected here before ever
+    # reaching the rank/frame-preference tiebreak below that would otherwise correctly
+    # prefer it. SEC's "frame" key is the reliable signal to allow past this specific
+    # guard - per this file's own extensive prior history (PMT/CVE), it's only ever assigned
+    # to the single canonical, non-dimensional fact for a standardized calendar period, never
+    # to a dimensional/footnote/rollforward-schedule entry, so it does not reopen the
+    # rollforward/comparative-echo hole this guard exists to close. The downstream tiebreak's
+    # own decimals-tag-error guard (_is_power_of_ten_scale_outlier) still applies normally to
+    # whatever gets through here, so a corrupted frame-tagged entry is no more dangerous here
+    # than it already is anywhere else this function runs.
     if not start_date:
         _accn, _e_end = entry.get("accn"), entry.get("end")
-        if _accn and _e_end and _max_end_by_accn.get(_accn) not in (None, _e_end):
+        if _accn and _e_end and _max_end_by_accn.get(_accn) not in (None, _e_end) and not entry.get("frame"):
             return None
 
     # FIXED 2026-08-18 (no-SEC-data audit continuation): see the
