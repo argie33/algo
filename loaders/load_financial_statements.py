@@ -1439,6 +1439,31 @@ class ConsolidatedFinancialStatementsLoader(
                 if row.get(field) is not None:
                     row[field] = abs(row[field])
 
+    def _normalize_balance_sheet_magnitude_signs(self, rows: list[dict[str, Any]]) -> None:
+        """abs() the balance-sheet fields that are always a magnitude under GAAP, never a
+        real negative value: accounts_receivable, goodwill, operating_lease_liability,
+        accounts_payable, current_liabilities, total_liabilities.
+
+        Same debit/credit-balance XBRL sign-flip bug as
+        _normalize_income_statement_magnitude_signs above, on the balance-sheet side - live-
+        confirmed via data_patrol_backlog_report.py's *_nonnegative checks (goal session
+        2026-09-17): 25 rows total across annual_balance_sheet/quarterly_balance_sheet
+        (accounts_receivable, goodwill, operating_lease_liability, accounts_payable,
+        current_liabilities, total_liabilities), including well-covered large filers (ETR,
+        RELX) where a sign-tagging error is far more plausible than the underlying economics.
+        """
+        for row in rows:
+            for field in (
+                "accounts_receivable",
+                "goodwill",
+                "operating_lease_liability",
+                "accounts_payable",
+                "current_liabilities",
+                "total_liabilities",
+            ):
+                if row.get(field) is not None:
+                    row[field] = abs(row[field])
+
     def _is_foreign_private_issuer(self, symbol: str) -> bool:
         if symbol not in self._fpi_symbol_cache:
             with DatabaseContext("read") as cur:
@@ -1659,6 +1684,13 @@ class ConsolidatedFinancialStatementsLoader(
         self._reject_known_bad_filing_scale_errors(transformed)
         # Single-field sibling - see KNOWN_BAD_SINGLE_FIELD_CONCEPT_ERRORS's own docstring.
         self._reject_known_bad_single_field_concept_errors(transformed)
+
+        # Sign normalization runs before any subtotal/magnitude comparison below (e.g.
+        # _reject_implausible_asset_liability_subtotals) - a sign-flipped raw value must be
+        # corrected first, or a downstream check comparing magnitudes/subtotals sees mismatched
+        # signs and wrongly concludes the figures are for different entities.
+        if self.statement_type == "balance":
+            self._normalize_balance_sheet_magnitude_signs(transformed)
 
         # FIXED 2026-08-21 (goal session - broad shares_outstanding cross-check audit,
         # follow-up to the BRK.A/HEI dual-class fix): SEC's companyfacts REST API does NOT

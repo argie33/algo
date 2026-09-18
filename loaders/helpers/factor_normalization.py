@@ -16,16 +16,30 @@ behavior mirror) rather than introducing a pandas dependency into loaders/helper
 
 import math
 
+Z_CLIP_BOUND = 3.0
+
 
 def _winsorize_group(values: dict[str, float]) -> dict[str, float]:
-    """Clip a single group's raw values to its own [5th, 95th] percentile.
+    """Clip a single group's raw values to its own [5th, 95th] percentile - used ONLY to
+    compute a robust reference mean/stdev in `_zscore_group`, never as the value that gets
+    z-scored (see that function's docstring for why the distinction matters).
 
-    FIXED 2026-09-17 (factor-purity MSCI-fidelity audit): this was [1st, 99th] - not MSCI's
-    real bound. MSCI's published methodology (e.g. MSCI Enhanced Value Index Methodology
-    Appendix II, Section 2.2.1's explicit worked example) winsorizes raw z-scores at the
-    [5th, 95th] percentile before the final z-score step, not [1st, 99th]. No pillar in this
-    codebase had a documented reason to deviate from that bound - this was an unexamined
-    holdover, not a deliberate choice.
+    CORRECTED 2026-09-18 (live-verified against real MSCI methodology docs - MSCI Enhanced
+    Value Index Methodology, MSCI Quality Indexes Methodology, Barra USE4 Methodology Notes):
+    this module previously used the winsorized (clipped) value as BOTH the robust-stats input
+    AND the value actually z-scored - confirmed live against production data to collapse ~10%
+    of a ~3,150-symbol universe (5% each tail) onto two exact scores per pillar (e.g. 15+
+    distinct symbols all landing on Quality=78.3, Value=99.9, Risk=93.8, Momentum~98.2),
+    because every symbol beyond the 5th/95th percentile boundary was scored off the SAME
+    clipped boundary value. Real MSCI methodology is a two-step procedure that never does
+    this: (1) winsorize the RAW descriptor only to get an outlier-resistant mean/stdev - this
+    function's actual job, unchanged; (2) z-score every security's ORIGINAL, unclipped raw
+    value against those robust stats; (3) winsorize the RESULTING z-score at +/-3 standard
+    deviations (`Z_CLIP_BOUND` in `_zscore_group`) - the only clip that touches the final
+    output. A raw-value PERCENTILE clip (guaranteed 10% of the universe every run) and a
+    Z-SCORE SIGMA clip (typically <1% under a roughly normal distribution - only genuine
+    outliers) are not interchangeable; conflating them was the actual defect, not the choice
+    of 5/95 vs 1/99 the previous revision addressed.
 
     Below 5 points an empirical quantile isn't a trustworthy clip boundary - values pass
     through unchanged (same "too few peers to trust" precedent as the sector-size floor in
@@ -49,10 +63,25 @@ def _winsorize_group(values: dict[str, float]) -> dict[str, float]:
 
 
 def _zscore_group(values: dict[str, float], market_caps: dict[str, float] | None = None) -> dict[str, float]:
-    """Z-score a single (already-winsorized) group. A group of 1 has no variance to
-    standardize against - returns 0.0 (the neutral/mean score), matching the "no peer to rank
-    against" convention `_percent_rank_cheap_high`'s single-symbol case already uses elsewhere
-    in this codebase.
+    """Z-score a single group of RAW (unwinsorized) values, using a winsorized reference
+    mean/stdev, then clip the resulting z-score to +/-3 (`Z_CLIP_BOUND`). A group of 1 has no
+    variance to standardize against - returns 0.0 (the neutral/mean score), matching the "no
+    peer to rank against" convention `_percent_rank_cheap_high`'s single-symbol case already
+    uses elsewhere in this codebase.
+
+    TWO-STEP WINSORIZATION, NOT ONE (CORRECTED 2026-09-18 - see `_winsorize_group`'s own
+    docstring for the live-verified defect this replaces): `values` here are the caller's
+    ORIGINAL raw inputs, never pre-clipped. `_winsorize_group` is applied ONLY to compute a
+    robust mean/stdev immune to a handful of extreme raw values distorting the reference
+    distribution - real MSCI methodology (Barra USE4 Methodology Notes: "legitimate but large
+    values are trimmed... remaining observations... left unadjusted" when computing reference
+    stats). Every security's z-score numerator then uses its ORIGINAL, unclipped raw value
+    against those robust stats, preserving real rank order among non-extreme values that a
+    single-pass clip-then-zscore would flatten. The z-score ITSELF is winsorized to
+    [-3, +3] as the final step (MSCI Enhanced Value/Quality Index Methodology: "winsorized at
+    +/- 3" after standardization) - this only ties symbols that are genuinely 3+ standard
+    deviations out, not an entire fixed 5%/95% percentile band every run regardless of the
+    population's actual shape.
 
     MARKET-CAP-WEIGHTED MEAN/STDEV (added 2026-09-17, factor-purity MSCI-fidelity audit): MSCI's
     real z-score formula (MSCI Enhanced Value Index Methodology, Appendix II - "the mean and
@@ -71,15 +100,16 @@ def _zscore_group(values: dict[str, float], market_caps: dict[str, float] | None
     """
     if len(values) < 2:
         return dict.fromkeys(values, 0.0)
+    winsorized = _winsorize_group(values)
     weights = {symbol: (market_caps or {}).get(symbol) or 1.0 for symbol in values}
     weights = {symbol: (w if w > 0 else 1.0) for symbol, w in weights.items()}
     total_weight = sum(weights.values())
-    mean = sum(val * weights[symbol] for symbol, val in values.items()) / total_weight
-    variance = sum(weights[symbol] * (val - mean) ** 2 for symbol, val in values.items()) / total_weight
+    mean = sum(winsorized[symbol] * weights[symbol] for symbol in values) / total_weight
+    variance = sum(weights[symbol] * (winsorized[symbol] - mean) ** 2 for symbol in values) / total_weight
     stdev = math.sqrt(variance)
     if stdev <= 0:
         return dict.fromkeys(values, 0.0)
-    return {symbol: (val - mean) / stdev for symbol, val in values.items()}
+    return {symbol: max(-Z_CLIP_BOUND, min(Z_CLIP_BOUND, (val - mean) / stdev)) for symbol, val in values.items()}
 
 
 def sector_neutral_zscore(
@@ -150,22 +180,23 @@ def sector_neutral_zscore(
                 residual[symbol] = values[symbol]
             continue
         sector_values = {symbol: values[symbol] for symbol in symbols}
-        result.update(_zscore_group(_winsorize_group(sector_values), market_caps))
+        result.update(_zscore_group(sector_values, market_caps))
 
     if fpi_pool:
-        result.update(_zscore_group(_winsorize_group(fpi_pool), market_caps))
+        result.update(_zscore_group(fpi_pool, market_caps))
     if residual:
-        result.update(_zscore_group(_winsorize_group(residual), market_caps))
+        result.update(_zscore_group(residual, market_caps))
     return result
 
 
 def universe_wide_zscore(values: dict[str, float], market_caps: dict[str, float] | None = None) -> dict[str, float]:
-    """Winsorize to [5th, 95th] percentile across the WHOLE population, then z-score against
-    that same single population - the correct transform for a factor whose real index
+    """Z-score raw values against the WHOLE population's robust (winsorized) mean/stdev, then
+    clip the resulting z-score to +/-3 - the correct transform for a factor whose real index
     construction standardizes momentum/quality/etc. against the full eligible universe, not
     per-sector peer groups (unlike `sector_neutral_zscore` above, which IS what MSCI Barra-style
-    Quality/Value ratios call for). Market-cap-weighted mean/stdev if `market_caps` is supplied -
-    see `_zscore_group`'s own docstring; optional, backward-compatible for callers not yet
+    Quality/Value ratios call for). See `_zscore_group`'s own docstring for the two-step
+    winsorization detail (robust-stats clip vs. final z-score clip) and the market-cap-weighted
+    mean/stdev behavior; `market_caps` is optional, backward-compatible for callers not yet
     passing cap data.
 
     ADDED 2026-09-15 (fix for momentum_pillar_sector_relative_conflated_construction_vs_
@@ -180,7 +211,7 @@ def universe_wide_zscore(values: dict[str, float], market_caps: dict[str, float]
     (risk_pillar_sector_neutral_vs_real_minvol_construction_20260915) - a real, recurring
     methodology-translation error in this codebase, not a one-off.
     """
-    return _zscore_group(_winsorize_group(values), market_caps)
+    return _zscore_group(values, market_caps)
 
 
 def zscore_to_percentile_scale(zscores: dict[str, float]) -> dict[str, float]:

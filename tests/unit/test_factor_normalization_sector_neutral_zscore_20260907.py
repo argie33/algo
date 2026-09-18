@@ -39,6 +39,39 @@ class TestZscoreGroup:
         assert result["HIGH"] > 0.0
         assert result["LOW"] < 0.0
 
+    def test_zscore_clipped_to_plus_minus_3(self) -> None:
+        # A genuine outlier (1000 vs a tight 1-19 cluster) must not blow past the MSCI-real
+        # +/-3 sigma clip, even though it's far more than 3 raw-value sigma from the mean.
+        values = {f"S{i}": float(i) for i in range(1, 20)}
+        values["OUTLIER"] = 1000.0
+        result = _zscore_group(values)
+        assert result["OUTLIER"] == 3.0
+        assert all(-3.0 <= z <= 3.0 for z in result.values())
+
+    def test_non_extreme_values_beyond_winsorize_bound_still_differentiated(self) -> None:
+        # REGRESSION for the 2026-09-18 fix: before the fix, every value >= the 95th
+        # percentile boundary was clipped to the SAME raw value before z-scoring, so they all
+        # produced the exact same z-score. Real MSCI z-scores the ORIGINAL value against a
+        # robust mean/stdev - two different top-tail values must still get different z-scores,
+        # not tie, as long as neither is extreme enough to hit the final +/-3 clip.
+        values = {f"S{i}": float(i) for i in range(1, 21)}  # 1..20, evenly spaced, no outliers
+        result = _zscore_group(values)
+        # S19 and S20 both sit above any reasonable 95th percentile of this population but are
+        # genuinely different raw values - they must score differently, not tie.
+        assert result["S19"] != result["S20"]
+        assert result["S20"] > result["S19"]
+
+    def test_market_cap_extreme_tie_bug_reproduction_fixed(self) -> None:
+        # Directly reproduces the live-verified production symptom (15+ distinct symbols tied
+        # at the exact same pillar score) on a synthetic population and confirms it's gone:
+        # a broad, continuous distribution's top ~10% (which used to all collapse onto the
+        # winsorize boundary) must now show real spread, with ties only among the genuinely
+        # 3+ sigma outliers (if any).
+        values = {f"S{i}": float(i) for i in range(1, 101)}  # 1..100
+        result = _zscore_group(values)
+        top_15_scores = sorted(result.values(), reverse=True)[:15]
+        assert len(set(top_15_scores)) > 1, "top 15 must not all tie at one clipped value"
+
 
 class TestSectorNeutralZscore:
     def test_empty_input_returns_empty(self) -> None:
