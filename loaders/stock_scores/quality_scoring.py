@@ -127,25 +127,25 @@ class QualityScoringMixin:
         STALE SUMMARY FIXED (this pass, /goal factor-purity audit) - this paragraph used to
         describe an intermediate 8-component and then 6-component (15/15/15/15/25/15
         ROE/ROA/FCF Margin/Debt-to-Equity/Margin Volatility/Gross Profitability) AQR/MSCI
-        synthesis blend, then a since-superseded MSCI-only 3-variable rebuild (see
-        vqg_quality_score.py's own "REBUILT TO MSCI'S EXACT 3-VARIABLE QUALITY INDEX" note,
-        history only as of the pivot below).
+        synthesis blend, then a since-superseded MSCI-only 3-variable rebuild, then a brief
+        AQR Quality-Minus-Junk pivot the same day - see below for the current, restored state.
 
-        REBUILT AGAIN 2026-09-17 (factor-purity pivot, user directive: "get rid of the MSCI...
-        use industry standard AQR"). `vqg_quality_score.py`'s per-symbol Pass 1 is PROVISIONAL
-        SCAFFOLDING ONLY - every sub-score there (roe_score/debt_to_equity_score/earnings_
-        variability_score/etc.) is a flat NEUTRAL_PLACEHOLDER_SCORE (50.0) when its input is
-        present, same inert-placeholder pattern already used for Value's `_pe_curve_score`/
-        `_pb_curve_score` (see value_metrics.py's own NEUTRAL_PLACEHOLDER_SCORE docstring) -
-        its historical MSCI-3-variable-weighting comments describe dead scaffolding, not a
-        live formula. The REAL, live quality_score is computed by `vqg_quality_batch.py`'s
-        `update_quality_sector_neutral_scores()` (post_run(), overwrites quality_score/
-        composite_score after every symbol has a Pass-1 placeholder) using AQR's real
-        Quality-Minus-Junk composite (Asness, Frazzini, Pedersen 2019) - four legs
-        (Profitability, Growth, Safety, Payout), each a re-standardized sum of z-scored
-        sub-components - see that method's own docstring for the citation and full
-        construction detail, including which QMJ sub-components this schema can and can't
-        compute.
+        RESTORED TO MSCI 2026-09-17 (reverts the same-day AQR Quality-Minus-Junk pivot -
+        explicit user decision after a fresh audit compared this pillar against MSCI's real
+        published Quality Indexes Methodology and found the AQR pivot had silently replaced
+        it; see pillar_weights.py's governance-comment block for the full record).
+        `vqg_quality_score.py`'s per-symbol Pass 1 is PROVISIONAL SCAFFOLDING ONLY - every
+        sub-score there (roe_score/debt_to_equity_score/earnings_variability_score/etc.) is a
+        flat NEUTRAL_PLACEHOLDER_SCORE (50.0) when its input is present, same inert-placeholder
+        pattern already used for Value's `_pe_curve_score`/`_pb_curve_score` (see
+        value_metrics.py's own NEUTRAL_PLACEHOLDER_SCORE docstring, kept flattened - that
+        decision is independent of the MSCI/AQR question) - its historical curve-weighting
+        comments describe dead scaffolding, not a live formula. The REAL, live quality_score is
+        computed by `vqg_quality_batch.py`'s `update_quality_sector_neutral_scores()`
+        (post_run(), overwrites quality_score/composite_score after every symbol has a Pass-1
+        placeholder) using MSCI's real 3-variable Quality Index (Return on Equity, Debt to
+        Equity, Earnings Variability) - see that method's own docstring for the citation and
+        full construction detail.
 
         Interest Coverage/Payout Ratio REMOVED 2026-08-27: both were live at 5% each on
         nothing but legacy assumption - properly isolated FM re-testing (own dropna scope, not
@@ -289,9 +289,11 @@ class QualityScoringMixin:
                 data_completeness_old = float(data_completeness_old) if data_completeness_old is not None else None
                 data_unavailable_old = bool(data_unavailable_old) if data_unavailable_old is not None else False
 
-                # GROWTH REMOVED FROM COMPOSITE 2026-09-17 (factor-purity pivot: MSCI -> AQR
-                # only - see pillar_weights.py's BASE_PILLAR_WEIGHTS docstring).
-                del growth_score
+                # GROWTH RESTORED TO COMPOSITE 2026-09-17 (same-day reversal - see
+                # pillar_weights.py's BASE_PILLAR_WEIGHTS "ABOVE DECISION SUPERSEDED" note).
+                # This pass runs FIRST in post_run(), before Growth's own batch pass, so
+                # ss.growth_score here is last run's value, same staleness every sibling pillar
+                # already accepts for the OTHER pillars it reads in this same loop.
                 weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
                 for pillar_name, pillar_score in (
@@ -299,6 +301,7 @@ class QualityScoringMixin:
                     ("value", value_score),
                     ("risk", risk_score),
                     ("momentum", momentum_score),
+                    ("growth", growth_score),
                 ):
                     if pillar_score is not None:
                         composite_val += float(pillar_score) * weights[pillar_name]
@@ -309,6 +312,7 @@ class QualityScoringMixin:
                     "value": float(value_score) if value_score is not None else None,
                     "risk": float(risk_score) if risk_score is not None else None,
                     "momentum": float(momentum_score) if momentum_score is not None else None,
+                    "growth": float(growth_score) if growth_score is not None else None,
                 }
                 available_weight = sum(
                     BASE_PILLAR_WEIGHTS[pillar] for pillar, score in all_scores_new.items() if score is not None

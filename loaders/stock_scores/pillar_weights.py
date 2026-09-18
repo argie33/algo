@@ -405,11 +405,60 @@ from loaders.load_stock_scores and must keep working unchanged.
 # momentum_scoring.py, risk_scoring.py, value_metrics.py, growth_scoring.py's OWN pass,
 # algo/monitoring/data_patrol/checks/composite_score_reconciliation.py) must exclude "growth"
 # from BASE_PILLAR_WEIGHTS-keyed lookups.
+# ============================================================================================
+# ABOVE DECISION SUPERSEDED, SAME DAY (2026-09-17, explicit user directive: "we need to get the
+# growth back that one got dropped"). The user reversed the "GROWTH: VISIBLE, NOT DOUBLE-WEIGHTED"
+# choice directly above and picked option (a) from that same 3-option menu instead: Growth
+# restored as a 5th equal-weighted top-level pillar (quality/value/risk/momentum/growth, 0.20
+# each), with Quality's QMJ Growth leg DROPPED from vqg_quality_batch.py's
+# update_quality_sector_neutral_scores (at the time, a 3-leg Profitability/Safety/Payout
+# composite) so growth-ness is only counted once across the composite instead of twice.
+# growth_score itself (GrowthScoringMixin/_score_growth, update_growth_sector_neutral_scores) is
+# unchanged - it was already fully computed; it is now also one of the weighted pillars again.
+# Every "must exclude growth from BASE_PILLAR_WEIGHTS-keyed lookups" call site listed in the
+# paragraph above this one no longer applies - growth is back in the loop at every one of those
+# call sites. NOTE: the "Quality's QMJ Growth leg DROPPED" detail above is now itself superseded
+# by the MSCI-REVERSION note directly below - Quality no longer uses QMJ's leg structure AT ALL,
+# so there is no QMJ Growth leg left to drop; this paragraph is kept for the audit trail of why
+# Growth came back, not as a description of Quality's current construction.
+# ============================================================================================
+# MSCI-REVERSION FOR VALUE/MOMENTUM/QUALITY, SAME DAY (2026-09-17, explicit user decision after
+# a fresh session-initiated audit). Earlier the same day, a separate "factor-purity pivot" (user
+# directive: "we are not using industry standard AQR yet for all the factors... get rid of the
+# msci and all this other shit", commit 4beaf7f1c) had replaced:
+#   - Value: MSCI Enhanced Value's 3-leg blend -> AQR's single book-to-market measure
+#   - Momentum: MSCI's risk-adjusted 6m+12-1 blend -> AQR's single raw 12-1 skip-month return
+#   - Quality: MSCI's 3-variable Quality Index (ROE/Debt-to-Equity/Earnings-Variability) ->
+#     AQR's Quality Minus Junk (QMJ) 4-leg (later 3-leg, after Growth was restored above)
+#     Profitability/Safety/Payout composite
+# An independent audit (6 parallel sub-agents, each re-fetching and reading the real MSCI/AQR
+# primary-source documents rather than trusting this file's own docstrings) confirmed the pivot
+# had genuinely happened as described - not a docstring inaccuracy - and surfaced it as a direct
+# conflict with the user's later, explicit request to "make sure they are perfectly implemented
+# the MSCI style for all the factors ... showing the right MSCI style with the market cap
+# weighting". Given that direct choice, the user chose MSCI fidelity over AQR-purism for these
+# 3 pillars: Value, Momentum, and Quality were all REVERTED to their real, pre-pivot MSCI
+# constructions (see value_metrics.py's update_value_multiples_percentiles(), momentum_scoring.py's
+# update_momentum_sector_relative_mom_12_1()/module docstring, and vqg_quality_batch.py's
+# update_quality_sector_neutral_scores() for each pillar's own restored construction and
+# citation). Risk was NOT part of this reversion - Risk was never MSCI to begin with (it's
+# Frazzini-Pedersen Betting-Against-Beta either way, same audit confirmed this pillar's AQR
+# construction is a legitimate, correctly-cited implementation, independent of the MSCI question)
+# - so Risk stays on its 2026-09-17 AQR beta_bab construction. Growth was also unaffected - it
+# was never touched by the AQR pivot and remains MSCI GIMIVG-style (confirmed correct by the same
+# audit). market_caps (free-float market-cap-weighted z-scoring, matching MSCI's real z-score
+# formula) was wired into all 3 reverted pillars' universe_wide_zscore calls as part of this same
+# pass - see factor_normalization.py's own docstring for the shared-engine side of that fix.
+# BASE_PILLAR_WEIGHTS itself (5 keys, 0.20 each) is UNCHANGED by this reversion - this note is
+# about pillar CONSTRUCTION (how each score is computed), not pillar WEIGHT (how much each score
+# counts toward composite_score).
+# ============================================================================================
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
-    "quality": 0.25,
-    "value": 0.25,
-    "risk": 0.25,
-    "momentum": 0.25,
+    "quality": 0.20,
+    "value": 0.20,
+    "risk": 0.20,
+    "momentum": 0.20,
+    "growth": 0.20,
 }
 # VALUE x RISK INTERACTION - REMOVED ENTIRELY 2026-09-15 (user directive: "get rid of all the
 # extra shit beyond the barra and the industry guys" - real Barra-style multi-factor models

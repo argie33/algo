@@ -3,8 +3,10 @@ vqg_quality_batch.py): idempotency and the negative-ROE floor.
 
 REBUILT 2026-09-17 (factor-purity pivot: MSCI -> AQR only - see vqg_quality_batch.py's own
 docstring for the full citation, Asness/Frazzini/Pedersen 2019 "Quality Minus Junk") to use
-the new row shape and the real 4-leg construction (Profitability/Growth/Safety/Payout), but
-the two properties this file pins are unchanged by that rewrite and remain load-bearing:
+the new row shape and the real 3-leg construction (Profitability/Safety/Payout - the Growth
+leg was dropped the same day Growth was restored as its own top-level BASE_PILLAR_WEIGHTS
+pillar, see pillar_weights.py's "ABOVE DECISION SUPERSEDED" note), but the two properties this
+file pins are unchanged by that rewrite and remain load-bearing:
 
 1. IDEMPOTENCY: this pass is a pure function of the raw stored ratio columns - quality_score
    is only ever a WRITE target, never also a read input (see git history, commit fixing the
@@ -16,8 +18,7 @@ the two properties this file pins are unchanged by that rewrite and remain load-
 
 Row shape (matches the real SELECT in update_quality_sector_neutral_scores() exactly):
 (symbol, roe, roa, debt_to_equity, quality_score_old, earnings_variability,
- gross_profitability, gross_margin, accruals_ratio, roe_trend, gross_margin_trend,
- net_payout_yield).
+ gross_profitability, gross_margin, accruals_ratio, net_payout_yield).
 """
 
 from unittest.mock import MagicMock, patch
@@ -46,8 +47,6 @@ def _row(
         gross_profitability,
         gross_margin,
         accruals_ratio,
-        None,  # roe_trend
-        None,  # gross_margin_trend
         None,  # net_payout_yield
     )
 

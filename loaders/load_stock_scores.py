@@ -783,19 +783,20 @@ class StockScoresLoader(
             # Count data completeness: only float scores count as "real data"
             # Markers (dicts with data_unavailable=True) are excluded from count
             # Session 260: Momentum loader now fixed and included in completeness calculation
-            # 4 pillars are evaluated in the composite: quality, value, risk, momentum
+            # 5 pillars are evaluated in the composite: quality, value, risk, momentum, growth
             # (Positioning retired as a composite pillar 2026-08-27; Size retired 2026-08-28;
-            # Growth retired 2026-09-17, factor-purity pivot to AQR-only - see
-            # pillar_weights.py's BASE_PILLAR_WEIGHTS docstring. growth_score is still computed
-            # above and shown in components/data_sources below for display, it just no longer
-            # counts toward data_completeness/composite_score - AQR's real factor set has no
-            # standalone Growth factor).
-            # Minimum 70% completeness (3/4 metrics) required per GOVERNANCE.md
+            # Growth retired as a composite pillar 2026-09-17 then RESTORED the same day - see
+            # pillar_weights.py's BASE_PILLAR_WEIGHTS docstring/"ABOVE DECISION SUPERSEDED" note
+            # for the full flip-flop history. growth_score counts toward data_completeness/
+            # composite_score again; Quality's own QMJ Growth leg was dropped in the same change
+            # so growth-ness isn't counted twice).
+            # Minimum 70% completeness (4/5 metrics) required per GOVERNANCE.md
             all_scores = {
                 "quality": quality_score,
                 "value": value_score,
                 "risk": risk_score,
                 "momentum": momentum_score,
+                "growth": growth_score,
             }
             real_scores = [s for s in all_scores.values() if is_real_score(s)]
             data_count = len(real_scores)
@@ -805,17 +806,17 @@ class StockScoresLoader(
 
             # CRITICAL FIX 2026-07-19: Log when scores computed with <5 metrics for visibility.
             # Traders need to see completeness % in dashboards to filter based on GOVERNANCE entry gates.
-            if data_count < 4 and data_count >= 3:
+            if data_count < 5 and data_count >= 4:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.info(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/4 metrics ({100.0 * data_count / 4:.1f}% complete). "
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/5 metrics ({100.0 * data_count / 5:.1f}% complete). "
                     f"Missing: {', '.join(missing)}. Trading filter gate: completeness >= 70% per GOVERNANCE."
                 )
-            elif data_count < 3:
+            elif data_count < 4:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.warning(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/4 metrics ({100.0 * data_count / 4:.1f}% complete). "
-                    f"Minimum 3 metrics ensures diversity against single-metric bias."
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/5 metrics ({100.0 * data_count / 5:.1f}% complete). "
+                    f"Minimum 4 metrics ensures diversity against single-metric bias."
                 )
 
             # NUMERIC(4,2) schema constraint: max 99.99 (not 100.0)
@@ -853,7 +854,7 @@ class StockScoresLoader(
             if data_count < min_required_metrics:
                 raise RuntimeError(
                     f"[STOCK_SCORES] {symbol}: CRITICAL - zero metrics available. "
-                    f"Got {data_count}/4 metrics. Cannot compute score with no metric data."
+                    f"Got {data_count}/5 metrics. Cannot compute score with no metric data."
                 )
 
             # GOVERNANCE COMPLIANCE: Compute scores with 4+/5 metrics (sufficient diversity).
@@ -866,6 +867,7 @@ class StockScoresLoader(
                 "value": is_real_score(value_score),
                 "risk": is_real_score(risk_score),
                 "momentum": is_real_score(momentum_score),
+                "growth": is_real_score(growth_score),
             }
 
             real_metric_count = sum(1 for v in score_availability.values() if v)
@@ -880,7 +882,7 @@ class StockScoresLoader(
                 missing_metrics = [k for k, v in score_availability.items() if not v]
                 logger.error(
                     f"[STOCK_SCORES] {symbol}: CRITICAL - zero real metrics available. "
-                    f"Available {real_metric_count}/4. "
+                    f"Available {real_metric_count}/5. "
                     f"Missing: {', '.join(missing_metrics)}. "
                     f"Cannot compute even degraded score without any real data."
                 )
@@ -1012,6 +1014,7 @@ class StockScoresLoader(
                 ("value", clamped_value),
                 ("risk", clamped_risk),
                 ("momentum", clamped_momentum),
+                ("growth", clamped_growth),
             ]:
                 # Only use base weight if metric is available
                 # CRITICAL: Require explicit availability flag for each metric (fail-fast if missing)
@@ -1412,6 +1415,14 @@ class StockScoresLoader(
         # rationale). MUST run LAST of the pillar-affecting passes, after composite_score and
         # every pillar score is fully settled - tilting off a provisional score would produce
         # a stale weight the instant a later pass changed that pillar.
+        #
+        # REMOVED then RESTORED same-day 2026-09-17: this session's earlier pass deleted the
+        # tilt mixin/columns entirely on the theory that composite_score alone should drive
+        # ranking. User reversed that: cap-weighted (MSCI Tilt Index-style) display is wanted
+        # back as its own display-only layer, explicitly separate from composite_score - the
+        # two are not the same feature and shouldn't have been conflated. composite_score's own
+        # weighting (now 5 pillars incl. Growth - see pillar_weights.py) is being handled as a
+        # distinct decision, not coupled to this tilt display.
         self.update_market_cap_tilted_weights()
         self.snapshot_score_history()
         self.audit_upstream_coverage()

@@ -621,11 +621,12 @@ class GrowthScoringMixin:
                     SELECT ss.symbol, ss.growth_score, ss.composite_score, ss.quality_score,
                            ss.value_score, ss.risk_score, ss.momentum_score, ss.components,
                            ss.data_completeness, ss.data_unavailable,
-                           {growth_field_columns}
+                           {growth_field_columns}, vm.market_cap
                     FROM stock_scores ss
                     JOIN growth_metrics gm ON gm.symbol = ss.symbol
                     JOIN stock_symbols su ON su.symbol = ss.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                    LEFT JOIN value_metrics vm ON vm.symbol = ss.symbol
                     """
                     + LIQUIDITY_FLOOR_JOIN_SQL
                     + """
@@ -676,6 +677,19 @@ class GrowthScoringMixin:
             # groups to build, so `company_profile`'s JOIN and the is_foreign_private_issuer
             # column this pass used to fetch are both gone, not just unused.
             field_col_offset = {field: 10 + i for i, field in enumerate(GROWTH_SCORE_FIELDS)}
+            # market_cap re-added 2026-09-17 (MSCI-fidelity audit) - NOT the same dead column
+            # removed above: that one fed the now-gone Barra-style size-NEUTRALIZATION step
+            # (regressing out a size effect); this one feeds the z-score's own mean/stdev
+            # WEIGHTING (MSCI Enhanced Value Index Methodology Appendix II: "the mean and
+            # standard deviation are calculated using the free-float market-cap-weighted values")
+            # - a different, still-live part of the real MSCI formula. Trailing column, so it
+            # doesn't disturb field_col_offset's GROWTH_SCORE_FIELDS-width assumption above.
+            market_cap_col = 10 + len(GROWTH_SCORE_FIELDS)
+            market_caps: dict[str, float] = {
+                row[0]: float(row[market_cap_col])
+                for row in rows
+                if len(row) > market_cap_col and row[market_cap_col] is not None
+            }
 
             raw_by_field: dict[str, dict[str, float]] = {field: {} for field in GROWTH_SCORE_FIELDS}
             for row in rows:
@@ -707,7 +721,7 @@ class GrowthScoringMixin:
             # "REVERSED TO UNIVERSE-WIDE" docstring note): matches the same primitive Quality/
             # Momentum/Risk all converged on for a plain (non-"Enhanced") MSCI-style factor.
             pct_by_field: dict[str, dict[str, float]] = {
-                field: zscore_to_percentile_scale(universe_wide_zscore(values))
+                field: zscore_to_percentile_scale(universe_wide_zscore(values, market_caps))
                 for field, values in raw_by_field.items()
             }
             logger.info(
@@ -742,11 +756,13 @@ class GrowthScoringMixin:
                         )
                     growth_score_new = None
 
-                # GROWTH REMOVED FROM COMPOSITE 2026-09-17 (factor-purity pivot: MSCI -> AQR
-                # only - see pillar_weights.py's BASE_PILLAR_WEIGHTS docstring). growth_score_new
-                # is still computed/persisted above (diagnostic/display field, GrowthScoreFIELDS
-                # tab in the frontend still shows it) - it just no longer votes in composite_score
-                # or data_completeness.
+                # GROWTH RESTORED TO COMPOSITE 2026-09-17 (same-day reversal of the earlier
+                # "removed from composite" decision - see pillar_weights.py's BASE_PILLAR_WEIGHTS
+                # "ABOVE DECISION SUPERSEDED" note). growth_score_new votes in composite_score
+                # and data_completeness again, using THIS pass's own freshly-recomputed value
+                # (not the stale growth_score_old fetched above) - same "use the just-computed
+                # value, not the pre-pass DB value" pattern quality_scoring.py/momentum_scoring.py/
+                # risk_scoring.py/value_metrics.py already use for their own just-recomputed pillar.
                 weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
                 for pillar_name, pillar_score in (
@@ -754,6 +770,7 @@ class GrowthScoringMixin:
                     ("value", value_score),
                     ("risk", risk_score),
                     ("momentum", momentum_score),
+                    ("growth", growth_score_new),
                 ):
                     if pillar_score is not None:
                         composite_val += float(pillar_score) * weights[pillar_name]
@@ -764,6 +781,7 @@ class GrowthScoringMixin:
                     "value": float(value_score) if value_score is not None else None,
                     "risk": float(risk_score) if risk_score is not None else None,
                     "momentum": float(momentum_score) if momentum_score is not None else None,
+                    "growth": growth_score_new,
                 }
                 available_weight = sum(
                     BASE_PILLAR_WEIGHTS[pillar] for pillar, score in all_scores_new.items() if score is not None

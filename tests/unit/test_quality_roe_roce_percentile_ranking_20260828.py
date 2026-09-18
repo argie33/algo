@@ -1,20 +1,24 @@
 """Tests for QualityBatchMixin.update_quality_sector_neutral_scores() and its supporting
 _margin_curve (loaders/helpers/vqg_quality_batch.py).
 
-REBUILT 2026-09-17 (factor-purity pivot: MSCI -> AQR only, user directive - "we are not
-using industry standard AQR yet for all the factors... get rid of the msci and all this
-other shit") to match Asness/Frazzini/Pedersen 2019 "Quality Minus Junk" (see
-vqg_quality_batch.py's own docstring for the full citation and the real 4-leg construction:
-Profitability/Growth/Safety/Payout, each a re-standardized sum of z-scored sub-components,
-then a re-standardized sum of the available legs, +/-3 winsorize, percentile scale).
-SUPERSEDES the prior version of this file, which pinned the reconciliation arithmetic of the
-MSCI 3-variable Quality Index (ROE/Debt-to-Equity/Earnings-Variability) that construction has
-replaced - that construction no longer exists in the live code.
+RESTORED 2026-09-17 (MSCI-fidelity reversion - see vqg_quality_batch.py's own
+"RESTORED TO MSCI'S REAL 3-VARIABLE QUALITY INDEX" docstring for the full record). This
+SUPERSEDES a same-day intermediate version of this file that had been rebuilt for an AQR
+Quality Minus Junk (QMJ) 4/3-leg pivot; that pivot was itself reverted the same day in favor
+of MSCI fidelity for Value/Momentum/Quality, so the QMJ leg-based construction this file used
+to describe no longer exists in the live code.
+
+Construction is now MSCI's real 3-variable Quality Index: z-score ROE, Debt-to-Equity and
+Earnings-Variability UNIVERSE-WIDE (market-cap-weighted), equal-weighted composite of the
+available variables (ROE mandatory - Appendix II Cases 1/4; D/E or Earnings-Variability alone
+still scores per Cases 2/3), re-standardize the composite universe-wide, +/-3 winsorize,
+percentile scale. gross_profitability/net_payout_yield/accruals_ratio are QMJ-era fields kept
+in the row shape for backward-compat fixture shape only - they are not read by the current
+construction.
 
 Row shape (matches the real SELECT in update_quality_sector_neutral_scores() exactly):
 (symbol, roe, roa, debt_to_equity, quality_score_old, earnings_variability,
- gross_profitability, gross_margin, accruals_ratio, roe_trend, gross_margin_trend,
- net_payout_yield).
+ gross_profitability, gross_margin, accruals_ratio, net_payout_yield).
 """
 
 from unittest.mock import MagicMock, patch
@@ -46,8 +50,6 @@ def _row(
     gross_profitability: float | None = None,
     gross_margin: float | None = None,
     accruals_ratio: float | None = None,
-    roe_trend: float | None = None,
-    gross_margin_trend: float | None = None,
     net_payout_yield: float | None = None,
     quality_score_old: float = 1.0,
 ) -> tuple:
@@ -61,8 +63,6 @@ def _row(
         gross_profitability,
         gross_margin,
         accruals_ratio,
-        roe_trend,
-        gross_margin_trend,
         net_payout_yield,
     )
 
@@ -88,11 +88,12 @@ def _run_with_mocked_rows(rows: list[tuple]) -> list[tuple[str, float]]:
 
 
 class TestUpdateQualitySectorNeutralScoresReconciliation:
-    """End-to-end test against a fully mocked DB, driving the real AQR QMJ construction
-    (universe-wide sub-component z-scores -> per-leg re-standardized sum -> composite
-    re-standardized sum -> +/-3 winsorize -> percentile scale)."""
+    """End-to-end test against a fully mocked DB, driving the real MSCI 3-variable Quality
+    Index construction (universe-wide ROE/Debt-to-Equity/Earnings-Variability z-scores ->
+    equal-weighted composite (ROE mandatory) -> re-standardized universe-wide -> +/-3
+    winsorize -> percentile scale)."""
 
-    def test_single_symbol_all_legs_reconciles_to_neutral_50(self) -> None:
+    def test_single_symbol_all_variables_reconciles_to_neutral_50(self) -> None:
         # A lone symbol, no peers anywhere: every universe-wide z-score is 0.0 for lack of
         # anything to compare against (singleton pool) -> zscore_to_percentile_scale maps
         # 0.0 to neutral 50.0.
@@ -105,16 +106,14 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
             gross_profitability=20.0,
             gross_margin=40.0,
             accruals_ratio=1.0,
-            roe_trend=1.0,
-            gross_margin_trend=1.0,
             net_payout_yield=2.0,
         )
         updates = dict(_run_with_mocked_rows([row]))
         assert updates["ONLY"] == 50.0
 
     def test_two_peers_higher_roe_scores_higher(self) -> None:
-        # Every other sub-component identical for both - only ROE (a Profitability leg
-        # sub-component) differs. The symbol with the higher ROE must score higher.
+        # Every other variable identical for both - only ROE differs. The symbol with the
+        # higher ROE must score higher.
         rows = [
             _row(
                 "HIGH_ROE",
@@ -143,7 +142,7 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
     def test_roe_sign_flip_distress_floors_to_worst(self) -> None:
         # Positive ROE but negative ROA is the classic double-negative-sign-flip artifact
         # (negative equity, negative net income) - floored to the worst z-score contribution
-        # (-3.0) within the Profitability leg, not scored as if it were genuinely excellent.
+        # (-3.0) for ROE, not scored as if it were genuinely excellent.
         rows = [
             _row(
                 "DISTRESS",
@@ -169,28 +168,27 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
         updates = dict(_run_with_mocked_rows(rows))
         assert updates["DISTRESS"] < updates["HEALTHY"]
 
-    def test_thin_single_leg_produces_no_score(self) -> None:
-        # QUALITY_MIN_LEGS_AVAILABLE=2 - a symbol with only the Payout leg available (net_
-        # payout_yield alone) is a thinner sample than one scored off multiple legs and must
-        # not renormalize up to a full-confidence score, same principle as GROWTH_MIN_FIELDS_
-        # AVAILABLE / VALUE_MIN_WEIGHT elsewhere in this codebase.
+    def test_roe_missing_produces_no_score(self) -> None:
+        # ROE IS MANDATORY (MSCI Appendix II Cases 1/4) - a symbol with only non-scored
+        # QMJ-era fields (net_payout_yield) populated, and no ROE, gets no score at all
+        # regardless of what else is present.
         row = _row("THIN", net_payout_yield=2.0)
         assert _run_with_mocked_rows([row]) == []
 
-    def test_two_legs_available_still_scores(self) -> None:
-        # Profitability (via gross_profitability) + Safety (via earnings_variability) is 2
-        # legs - clears QUALITY_MIN_LEGS_AVAILABLE even with ROE/debt_to_equity/growth/payout
-        # all missing.
+    def test_roe_plus_one_variable_still_scores(self) -> None:
+        # ROE + Earnings-Variability (Debt-to-Equity missing) is one of MSCI's Appendix II
+        # 2-of-3 substitution cases (Case 2/3) - still scores off an equal-weighted average
+        # of the 2 available variables.
         rows = [
-            _row("TWO_LEGS", gross_profitability=20.0, earnings_variability=10.0),
-            _row("PEER", gross_profitability=5.0, earnings_variability=30.0),
+            _row("ROE_PLUS_ONE", roe=20.0, roa=10.0, earnings_variability=10.0),
+            _row("PEER", roe=5.0, roa=10.0, earnings_variability=30.0),
         ]
         updates = dict(_run_with_mocked_rows(rows))
-        assert "TWO_LEGS" in updates
+        assert "ROE_PLUS_ONE" in updates
 
     def test_negative_debt_to_equity_floors_to_worst(self) -> None:
-        # Negative D/E (negative book equity) is real distress, floored to -3.0 within the
-        # Safety leg like Value's own negative-book-value treatment - not treated as
+        # Negative D/E (negative book equity) is real distress, floored to -3.0 for that
+        # variable, like Value's own negative-book-value treatment - not treated as
         # spuriously "great, zero leverage".
         rows = [
             _row(
@@ -234,8 +232,6 @@ class TestUpdateQualitySectorNeutralScoresReconciliation:
             gross_profitability=20.0,
             gross_margin=40.0,
             accruals_ratio=1.0,
-            roe_trend=1.0,
-            gross_margin_trend=1.0,
             net_payout_yield=2.0,
             quality_score_old=50.0,
         )

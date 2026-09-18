@@ -60,11 +60,17 @@ class TestCompositeScoreReconciliation:
     def test_fixed_base_weights_not_flagged(self) -> None:
         # Fixed BASE_PILLAR_WEIGHTS, no cross-pillar interaction shift (removed 2026-09-15 - real
         # Barra-style factor models don't shift one factor's weight based on another's score).
+        # growth is a real BASE_PILLAR_WEIGHTS key again (2026-09-17 restore) - included at
+        # _row's default growth=50.0.
         from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS
 
         weights = BASE_PILLAR_WEIGHTS
         composite = (
-            weights["quality"] * 50.0 + weights["value"] * 100.0 + weights["risk"] * 0.0 + weights["momentum"] * 50.0
+            weights["quality"] * 50.0
+            + weights["value"] * 100.0
+            + weights["risk"] * 0.0
+            + weights["momentum"] * 50.0
+            + weights["growth"] * 50.0
         )
         cur = _mock_cursor([_row("RISKY", composite_score=round(composite, 2), value=100.0, risk=0.0)])
         results = _checker().run(cur)
@@ -73,13 +79,15 @@ class TestCompositeScoreReconciliation:
 
     def test_missing_pillar_contributes_zero_not_flagged(self) -> None:
         # momentum missing (None) - contributes 0 to the weighted sum, not redistributed to the
-        # other pillars (GOVERNANCE: no weight redistribution). growth is not a BASE_PILLAR_WEIGHTS
-        # key at all (2026-09-17 "visible, not double-weighted" decision - growth_score is real
-        # and still on the row, but must not factor into the expected composite here either).
+        # other pillars (GOVERNANCE: no weight redistribution). growth IS a BASE_PILLAR_WEIGHTS
+        # key again (2026-09-17 restore, same-day reversal of the earlier "visible, not
+        # double-weighted" decision) - included here at _row's default growth=50.0.
         from loaders.stock_scores.pillar_weights import BASE_PILLAR_WEIGHTS
 
         weights = BASE_PILLAR_WEIGHTS
-        composite = weights["quality"] * 50.0 + weights["value"] * 50.0 + weights["risk"] * 50.0
+        composite = (
+            weights["quality"] * 50.0 + weights["value"] * 50.0 + weights["risk"] * 50.0 + weights["growth"] * 50.0
+        )
         cur = _mock_cursor([_row("NOMOM", composite_score=round(composite, 2), momentum=None)])
         results = _checker().run(cur)
         assert len(results) == 1

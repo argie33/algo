@@ -155,159 +155,78 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
         )
         return withheld
 
-    @staticmethod
-    def _accumulate_qmj_leg_sums(
-        rows: list[tuple[Any, ...]],
-        z_gpoa: dict[str, float],
-        z_gmar: dict[str, float],
-        z_acc: dict[str, float],
-        z_cfoa: dict[str, float],
-        z_roa: dict[str, float],
-        z_roe: dict[str, float],
-        z_roe_trend: dict[str, float],
-        z_gmar_trend: dict[str, float],
-        z_leverage: dict[str, float],
-        z_earnings_var: dict[str, float],
-        z_payout: dict[str, float],
-    ) -> tuple[dict[str, float], dict[str, float], dict[str, float], dict[str, float]]:
-        """Extracted from update_quality_sector_neutral_scores (2026-09-17, C901 complexity
-        gate) - pure extraction, no behavior change. STEP 1's per-symbol leg-summing loop: for
-        each of the 4 QMJ legs (Profitability/Growth/Safety/Payout), sum whichever raw z-scored
-        sub-components that symbol has (see the caller's own docstring for the sign-flip-
-        distress/negative-book-equity floor handling on the Profitability/Safety legs).
-        Returns (profitability_sum, growth_sum, safety_sum, payout_sum).
-        """
-
-        def _leg_sum_z(symbol: str, components: list[dict[str, float]]) -> float | None:
-            vals = [c[symbol] for c in components if symbol in c]
-            if not vals:
-                return None
-            return sum(vals)
-
-        profitability_sum: dict[str, float] = {}
-        growth_sum: dict[str, float] = {}
-        safety_sum: dict[str, float] = {}
-        payout_sum: dict[str, float] = {}
-        for row in rows:
-            symbol, roe, roa = row[0], row[1], row[2]
-            roe_is_sign_flip_distress = roe is not None and roa is not None and (float(roe) < 0.0 or float(roa) < 0.0)
-            profitability_components = [z_gpoa, z_gmar, z_acc, z_cfoa, z_roa]
-            p_sum = _leg_sum_z(symbol, profitability_components) or 0.0
-            p_count = sum(1 for c in profitability_components if symbol in c)
-            if roe_is_sign_flip_distress:
-                p_sum += -3.0
-                p_count += 1
-            elif symbol in z_roe:
-                p_sum += z_roe[symbol]
-                p_count += 1
-            if p_count > 0:
-                profitability_sum[symbol] = p_sum
-
-            g_sum = _leg_sum_z(symbol, [z_roe_trend, z_gmar_trend])
-            if g_sum is not None:
-                growth_sum[symbol] = g_sum
-
-            d2e = row[3]
-            s_sum = _leg_sum_z(symbol, [z_earnings_var]) or 0.0
-            s_count = 1 if symbol in z_earnings_var else 0
-            if d2e is not None and float(d2e) < 0.0:
-                s_sum += -3.0  # negative book equity - real distress, not "zero leverage"
-                s_count += 1
-            elif symbol in z_leverage:
-                s_sum += z_leverage[symbol]
-                s_count += 1
-            if s_count > 0:
-                safety_sum[symbol] = s_sum
-
-            if symbol in z_payout:
-                payout_sum[symbol] = z_payout[symbol]
-
-        return profitability_sum, growth_sum, safety_sum, payout_sum
-
     def update_quality_sector_neutral_scores(self) -> None:
         """Batch pass: FULLY RECOMPUTE quality_score from scratch off the raw stored ratio
         columns (not patched relative to whatever quality_score currently holds), for every
         scored symbol - mirrors `update_rs_percentiles()`'s pure-overwrite pattern, NOT
         `update_value_multiples_percentiles()`'s additive-delta one.
 
-        REBUILT TO AQR'S REAL QUALITY MINUS JUNK (QMJ) FRAMEWORK 2026-09-17 (factor-purity
-        pivot: MSCI -> AQR only, user directive - "we are not using industry standard AQR
-        yet for all the factors... get rid of the msci and all this other shit"). SUPERSEDES
-        the MSCI 3-variable Quality Index rebuild (ROE/Debt-to-Equity/Earnings-Variability,
-        2026-09-16 - see git history for that version, itself a real, correctly-cited MSCI
-        construction, just MSCI rather than AQR). Fetched and read Asness/Frazzini/Pedersen
-        2019 "Quality Minus Junk" directly this session (papers.ssrn.com/abstract=2312432;
-        econ.yale.edu/~shiller/behfin/2013_04-10/asness-frazzini-pedersen.pdf) - not recalled/
-        paraphrased: "we...use a broad set of proxies to define four composite proxies:
-        Profitability, Growth, Safety and Payout... Quality is defined by means of variables
-        motivated by the Gordon growth model." Construction (mirrors this codebase's own
-        established z-of-z pattern - see e.g. Value's update_value_multiples_percentiles()):
-          1. z-score EACH available raw sub-component UNIVERSE-WIDE (`universe_wide_zscore`) -
-             "lower is better" ones (leverage, earnings variability, accruals) negated first so
-             a higher z always means higher quality.
-          2. Each of the 4 legs (Profitability/Growth/Safety/Payout) = SUM of its available
-             sub-component z-scores, re-standardized universe-wide once more - the paper's own
-             two-stage construction (z-score raw variables, sum, re-standardize to form each
-             composite proxy), not a simple average.
-          3. quality_score = SUM of the available leg z-scores, re-standardized universe-wide
-             ONE more time, winsorized at +/-3 (kept as a real published normalization tail
-             treatment, not MSCI-index-specific - every z-score pillar in this codebase does
-             this), then mapped to [0,100] via zscore_to_percentile_scale (same normal-CDF
-             transform every other pillar uses, not the QMJ paper's own portfolio-sort
-             mechanics - see Value's rebuild docstring for why a rating scale and a portfolio
-             weight are different domains).
+        RESTORED TO MSCI'S REAL 3-VARIABLE QUALITY INDEX 2026-09-17 (reverts the same-day AQR
+        Quality Minus Junk (QMJ) pivot - see git history commit 4beaf7f1c for that version.
+        Explicit user decision after a fresh audit compared this file against MSCI's real
+        published Quality Indexes Methodology and found the AQR pivot had silently replaced it;
+        user chose MSCI fidelity over AQR-purism for Value/Momentum/Quality, see
+        pillar_weights.py's governance-comment block for the full record). MSCI's real
+        3-step construction (identical shape to Value's own MSCI-formula rebuild - see
+        loaders/stock_scores/value_metrics.py's update_value_multiples_percentiles() for the
+        sibling implementation), fetched from msci.com/eqb/methodology/meth_docs/
+        MSCI_Quality_Indexes_Methodology_May2022.pdf, Section 2.2 + Appendix I/II:
+          1. z-score EACH of the 3 fundamental variables (Return on Equity, Debt to Equity,
+             Earnings Variability - see loaders/helpers/quality_variability.py for the 3rd)
+             UNIVERSE-WIDE (within the whole eligible universe, "the MSCI Parent Index" - NOT
+             per-sector - see universe_wide_zscore below), market-cap-weighted per MSCI's real
+             z-score formula. "Lower is better" variables (Debt to Equity, Earnings Variability)
+             are negated before z-scoring so a higher z always means better quality, matching
+             ROE's own direction.
+          2. composite = equal-weighted average of the available variable z-scores (1/3 each,
+             or 1/2 for the 2-of-3 substitution cases MSCI's Appendix II states - Cases 2/3).
+             ROE IS MANDATORY (Appendix II Cases 1/4: missing ROE means no score at all, even
+             if the other two are both present) - enforced explicitly, not just via a
+             completeness floor.
+          3. Re-standardize the COMPOSITE universe-wide (not per-sector - "measure the factor
+             itself" directive, same choice already applied to Value's own rebuild the same
+             session, see that method's own "STEP 3 SECTOR RELATIVIZATION REMOVED" docstring
+             note for the full reasoning: MSCI's own sector step controls tracking error for a
+             licensable ETF product, a portfolio-construction constraint, not a factor-
+             measurement one), then winsorize at +/-3 - MSCI's own explicitly stated output
+             bound.
+        Final 0-100 conversion uses zscore_to_percentile_scale (the same normal-CDF transform
+        this codebase already uses to bound every other z-score-based pillar/leg to [0,100]),
+        not MSCI's own "Quality Score" piecewise transform (1+Z / (1-Z)^-1) - see Value's own
+        rebuild docstring for why: that transform is a PORTFOLIO-WEIGHTING construction, not a
+        rating scale, and stays reserved for loaders/stock_scores/market_cap_tilt.py's
+        *_tilted_weight columns, its correct domain.
 
-        LEG COMPONENTS - what's genuinely available in this schema, what isn't (see this
-        method's own precedent for "no substitute shipped for a descriptor this system can't
-        actually compute" - growth_scoring.py's forward_eps_growth_next_fy note):
-          - PROFITABILITY (paper: GPOA, ROE, ROA, CFOA, GMAR, low accruals) - FULLY available:
-            gross_profitability (GPOA, gross_profit/assets), roe, roa, gross_margin (GMAR),
-            and CFOA (operating_cash_flow/assets) derived algebraically from two already-
-            stored ratios - roa - accruals_ratio = (NI/Assets) - (NI-OCF)/Assets = OCF/Assets -
-            no new query needed. Accruals (ACC, NI-OCF over assets) is negated (low ACC =
-            good, matching the paper's "low accruals" framing).
-          - GROWTH (paper: 5-year CHANGE in each Profitability measure) - PARTIAL: this
-            schema has no stored 5-year GPOA/ROA/CFOA/ACC growth series, only two real 5-year-
-            style OLS trend fields already computed for the (now-retired, see
-            pillar_weights.py) Growth pillar - growth_metrics.roe_trend (trend in ROE) and
-            growth_metrics.gross_margin_trend (trend in GMAR). Used as-is; GPOA-growth/ROA-
-            growth/CFOA-growth/ACC-growth are NOT computed anywhere in this DB and are
-            genuinely omitted, not faked with a substitute.
-          - SAFETY (paper: low beta, low leverage, low earnings volatility, low bankruptcy
-            risk) - beta DELIBERATELY EXCLUDED: this repo's own Risk pillar (risk_scoring.py)
-            is ALREADY Frazzini-Pedersen's own Betting-Against-Beta shrinkage beta, computed
-            the same session - reusing (or re-deriving) the identical beta signal here would
-            double-count the same information across 2 of only 4 top-level pillars, which is a
-            real, deliberate architecture choice, not an oversight. Uses debt_to_equity
-            (negated, low leverage) and earnings_variability (negated, low vol) - both already
-            computed for the prior MSCI construction. Bankruptcy risk (Altman Z''/Ohlson
-            O-score) is NOT scored here either - same reasoning vqg_quality_score.py's own
-            comment already gives for Altman Z: a discrete distress-triage classifier in the
-            literature, not meant to be continuously averaged into a magnitude-weighted
-            composite (a genuinely-computed continuous distress score isn't in this DB anyway).
-          - PAYOUT (paper: -net equity issuance, -net debt issuance, dividend/net-income
-            payout ratio, averaged) - PARTIAL: this schema doesn't track multi-year net
-            share-count or net-debt CHANGE (issuance/buyback deltas), so the paper's exact
-            3-component average can't be built. value_metrics.net_payout_yield (dividends +
-            buybacks, market-cap-scaled - a real, already-computed "returns capital to
-            shareholders" measure, just yield-scaled rather than the paper's book-value-scaled
-            issuance measure) is used as the sole Payout leg component - the closest genuinely
-            real proxy available, not an invented one.
+        DROPPED to match MSCI exactly: roa/fcf_margin/gross_profitability/accruals/CFOA (AQR
+        QMJ Profitability-leg additions, not part of MSCI's 3-variable index), net_payout_yield
+        (AQR QMJ Payout-leg stand-in) and growth_metrics.roe_trend/gross_margin_trend (AQR QMJ
+        Growth-leg stand-in - moot anyway now that Growth is its own top-level
+        BASE_PILLAR_WEIGHTS pillar again, see pillar_weights.py). All raw values stay
+        computed/persisted/displayed - same "computed but unscored" convention as every other
+        removed-from-scoring input elsewhere in this codebase - only their vote in
+        quality_score is removed. The FS-bank/insurance/utility industry-split peer groups this
+        method used at various points are not needed: MSCI's real construction z-scores each
+        variable universe-wide (step 1), not per-sector at all.
 
-        Sign-flip distress guard (unchanged from the prior MSCI version, still the correct
-        data-quality gate regardless of which factor model consumes ROE): a negative-ROA
-        (loss-making) company can only show a POSITIVE ROE when shareholders_equity is ALSO
-        negative - not genuine profitability. ROE's own z-contribution is floored to -3.0 (the
-        same winsorization bound used everywhere else in this codebase as the "worst"
-        sentinel) when roe<0 OR roa<0; roa itself is not separately scored beyond this guard.
+        MUST be a pure function of the raw stored ratio columns, never reading quality_score
+        itself as an input: an earlier additive-delta design read/wrote the same mutable
+        column every run, so the same delta re-applied on top of an already-corrected value
+        each pipeline cycle with no convergence except the 0/100 clamp - over time this
+        pinned ~30% of the universe at exactly 100.00.
+
+        Sign-flip distress guard (live-confirmed 2026-09-07, 274 universe symbols, e.g. ROC
+        roe=915.88%/roa=-38.43%): a negative-ROA (loss-making) company can only show a
+        POSITIVE ROE when shareholders_equity is ALSO negative - a double-negative sign
+        flip, not genuine profitability. roa is READ here purely as this data-quality gate on
+        ROE (not itself scored, per the DROPPED note above) - the ROE component is omitted
+        entirely if roa is missing, and floored to the worst z-score (-3, MSCI's own
+        winsorization bound, the natural "worst" sentinel - same convention Value's rebuild
+        established) if roe<0 OR roa<0, unchanged reasoning from every prior version of this
+        method.
 
         INVESTABILITY FLOOR: same liquidity-floor mechanism (`liq_floor.latest_close`/
         `liq_floor.avg_dollar_volume_20d`) every sibling pillar's batch pass uses - sub-floor
         symbols aren't included in this pass and keep whatever Pass-1 already gave them.
-
-        MUST be a pure function of the raw stored ratio columns, never reading quality_score
-        itself as an input - same non-negotiable idempotency property as every sibling batch
-        pass (see this method's own prior "additive-delta" bug history in git for why).
 
         Raises on failure, same as every other post_run() batch pass - an inconsistent
         quality_score is a live-trading-relevant correctness issue.
@@ -320,14 +239,12 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                 cur.execute(
                     """
                     SELECT qm.symbol, qm.roe, qm.roa, qm.debt_to_equity, qm.quality_score,
-                           qm.earnings_variability, qm.gross_profitability, qm.gross_margin,
-                           qm.accruals_ratio, gm.roe_trend, gm.gross_margin_trend,
-                           vm.net_payout_yield
+                           qm.earnings_variability, COALESCE(cis.is_foreign_private_issuer, false),
+                           vm.market_cap
                     FROM quality_metrics qm
                     JOIN stock_scores ss ON ss.symbol = qm.symbol
                     JOIN stock_symbols su ON su.symbol = qm.symbol
                     LEFT JOIN company_info_sec cis ON cis.symbol = qm.symbol
-                    LEFT JOIN growth_metrics gm ON gm.symbol = qm.symbol
                     LEFT JOIN value_metrics vm ON vm.symbol = qm.symbol
                     """
                     + LIQUIDITY_FLOOR_JOIN_SQL
@@ -352,107 +269,71 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                 )
                 return
 
-            def _raw(idx: int, *, negate: bool = False) -> dict[str, float]:
-                sign = -1.0 if negate else 1.0
-                return {row[0]: sign * float(row[idx]) for row in rows if row[idx] is not None}
+            # market_caps: MSCI's real z-score formula weights by free-float market cap, not
+            # equal-weighted (see factor_normalization.py's universe_wide_zscore docstring).
+            market_caps: dict[str, float] = {row[0]: float(row[7]) for row in rows if row[7] is not None}
 
-            # PROFITABILITY sub-components (indices per the SELECT above: 6=gross_profitability,
-            # 7=gross_margin, 8=accruals_ratio; roe/roa handled separately below for the
-            # sign-flip guard; cfoa derived algebraically, not a stored column).
-            gpoa_raw = _raw(6)
-            gmar_raw = _raw(7)
-            acc_raw = _raw(8, negate=True)  # low accruals = good
-            cfoa_raw = {
-                row[0]: float(row[2]) - float(row[8]) for row in rows if row[2] is not None and row[8] is not None
-            }
-            # roe requires roa present/non-negative (sign-flip distress guard - see docstring).
+            def _negated_raw(idx: int) -> dict[str, float]:
+                # "Lower is better" variables (Debt to Equity, Earnings Variability): negate
+                # before z-scoring so a higher z always means better quality, matching ROE's
+                # own direction.
+                return {row[0]: -float(row[idx]) for row in rows if row[idx] is not None}
+
+            # roe additionally requires roa present/non-negative (sign-flip distress guard,
+            # see this method's own docstring) - roa itself is NOT a scored MSCI variable, read
+            # here purely as that data-quality gate.
             roe_raw = {
                 row[0]: float(row[1])
                 for row in rows
                 if row[1] is not None and row[2] is not None and float(row[1]) >= 0.0 and float(row[2]) >= 0.0
             }
-            roa_raw = {row[0]: float(row[2]) for row in rows if row[2] is not None}
+            d2e_raw = _negated_raw(3)
+            earnings_var_raw = _negated_raw(5)
 
-            # GROWTH sub-components (9=roe_trend, 10=gross_margin_trend).
-            roe_trend_raw = _raw(9)
-            gmar_trend_raw = _raw(10)
-
-            # SAFETY sub-components (3=debt_to_equity, 5=earnings_variability) - both negated,
-            # "lower is better". Beta deliberately excluded - see docstring.
-            #
-            # Negative debt_to_equity (negative book equity - real financial distress, not
-            # "great, zero leverage") is EXCLUDED from the normal negate-and-z-score treatment
-            # and instead floored to -3.0 directly in the per-symbol loop below - same
-            # distress-floor pattern the prior MSCI construction used and Value's own
-            # negative-book-value floor uses. Only non-negative D/E values are z-scored here.
-            leverage_raw = {row[0]: -float(row[3]) for row in rows if row[3] is not None and float(row[3]) >= 0.0}
-            earnings_var_raw = _raw(5, negate=True)
-
-            # PAYOUT sub-component (11=net_payout_yield, from value_metrics).
-            payout_raw = _raw(11)
-
-            # STEP 1: z-score every raw sub-component UNIVERSE-WIDE.
-            z_gpoa = universe_wide_zscore(gpoa_raw)
-            z_gmar = universe_wide_zscore(gmar_raw)
-            z_acc = universe_wide_zscore(acc_raw)
-            z_cfoa = universe_wide_zscore(cfoa_raw)
-            z_roe = universe_wide_zscore(roe_raw)
-            z_roa = universe_wide_zscore(roa_raw)
-            z_roe_trend = universe_wide_zscore(roe_trend_raw)
-            z_gmar_trend = universe_wide_zscore(gmar_trend_raw)
-            z_leverage = universe_wide_zscore(leverage_raw)
-            z_earnings_var = universe_wide_zscore(earnings_var_raw)
-            z_payout = universe_wide_zscore(payout_raw)
-
-            profitability_sum, growth_sum, safety_sum, payout_sum = self._accumulate_qmj_leg_sums(
-                rows,
-                z_gpoa,
-                z_gmar,
-                z_acc,
-                z_cfoa,
-                z_roa,
-                z_roe,
-                z_roe_trend,
-                z_gmar_trend,
-                z_leverage,
-                z_earnings_var,
-                z_payout,
-            )
-
-            # STEP 2: re-standardize each leg's raw sum universe-wide to form the leg's own
-            # z-score composite (the paper's own two-stage construction).
-            leg_profitability_z = universe_wide_zscore(profitability_sum)
-            leg_growth_z = universe_wide_zscore(growth_sum)
-            leg_safety_z = universe_wide_zscore(safety_sum)
-            leg_payout_z = universe_wide_zscore(payout_sum)
+            # STEP 1 (MSCI Appendix I/II): z-score EACH variable UNIVERSE-WIDE (within the
+            # whole eligible universe, "the MSCI Parent Index" - NOT per-sector), market-cap-
+            # weighted.
+            leg_roe_z = universe_wide_zscore(roe_raw, market_caps)
+            leg_d2e_z = universe_wide_zscore(d2e_raw, market_caps)
+            leg_earnings_var_z = universe_wide_zscore(earnings_var_raw, market_caps)
             logger.info(
-                f"[QUALITY_METRICS] AQR QMJ legs: profitability={len(leg_profitability_z)} "
-                f"growth={len(leg_growth_z)} safety={len(leg_safety_z)} payout={len(leg_payout_z)}"
+                f"[QUALITY_METRICS] MSCI z-score universe: roe={len(leg_roe_z)} "
+                f"debt_to_equity={len(leg_d2e_z)} earnings_variability={len(leg_earnings_var_z)}"
             )
 
-            # quality_min_legs_available: same thin-sample-extrapolation principle as every
-            # other minimum-coverage floor in this codebase (GROWTH_MIN_FIELDS_AVAILABLE,
-            # VALUE_MIN_WEIGHT, min_quality_weight_pct in vqg_quality_score.py) - a symbol
-            # scored off a single QMJ leg (of 4) is a thinner sample than one scored off all 4,
-            # and shouldn't renormalize up to a full-confidence score.
-            quality_min_legs_available = 2
-            composite_sum_by_symbol: dict[str, float] = {}
-            legs_available_by_symbol: dict[str, int] = {}
+            # STEP 2: equal-weighted composite, ROE MANDATORY (Appendix II Cases 1/4 - see this
+            # method's own docstring), D/E or Earnings Variability alone still scores (Cases
+            # 2/3). Distress floors use -3.0 (MSCI's own winsorization bound, the natural
+            # "worst" sentinel) rather than an arbitrary number - same convention Value's
+            # rebuild established.
+            composite_z_by_symbol: dict[str, float] = {}
             for row in rows:
                 symbol = row[0]
-                legs = [leg_profitability_z, leg_growth_z, leg_safety_z, leg_payout_z]
-                available = [leg[symbol] for leg in legs if symbol in leg]
-                if len(available) >= quality_min_legs_available:
-                    composite_sum_by_symbol[symbol] = sum(available)
-                    legs_available_by_symbol[symbol] = len(available)
+                roe, roa, d2e = row[1], row[2], row[3]
+                roe_is_sign_flip_distress = (
+                    roe is not None and roa is not None and (float(roe) < 0.0 or float(roa) < 0.0)
+                )
+                if roe_is_sign_flip_distress:
+                    roe_z: float | None = -3.0
+                elif symbol in leg_roe_z:
+                    roe_z = leg_roe_z[symbol]
+                else:
+                    roe_z = None  # ROE genuinely missing (not just sign-flip-floored) -> no score at all
+                if roe_z is None:
+                    continue
+                legs: list[float] = [roe_z]
+                if symbol in leg_d2e_z:
+                    legs.append(-3.0 if float(d2e) < 0.0 else leg_d2e_z[symbol])  # negative D/E = real distress
+                if symbol in leg_earnings_var_z:
+                    legs.append(leg_earnings_var_z[symbol])
+                composite_z_by_symbol[symbol] = sum(legs) / len(legs)
 
-            # STEP 3: re-standardize the composite universe-wide ONE more time, winsorize at
-            # +/-3 (real published normalization tail treatment, applied by every z-score
-            # pillar in this codebase), map to [0,100].
-            universe_z = universe_wide_zscore(composite_sum_by_symbol)
+            # STEP 3: re-standardize the COMPOSITE universe-wide (not per-sector - see this
+            # method's own docstring), then winsorize at +/-3, MSCI's own stated output bound.
+            universe_z = universe_wide_zscore(composite_z_by_symbol, market_caps)
             universe_z = {symbol: max(-3.0, min(3.0, z)) for symbol, z in universe_z.items()}
             quality_pct = zscore_to_percentile_scale(universe_z)
-            logger.info(f"[QUALITY_METRICS] AQR QMJ composite scored, universe-wide: {len(quality_pct)} symbols")
+            logger.info(f"[QUALITY_METRICS] MSCI composite scored, universe-wide: {len(quality_pct)} symbols")
 
             updates: list[tuple[str, float | None]] = []
             for row in rows:

@@ -1256,17 +1256,16 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   // backtest-tuned 20/24/27/19/10 split. The Value x Safety(risk) per-symbol interaction shift
   // described above is retired along with it - Value and Safety are both fixed for every
   // symbol, no more risk_score-conditioned shift.
-  // GROWTH RETIRED AS A COMPOSITE PILLAR 2026-09-17 (factor-purity pivot: MSCI/homegrown ->
-  // AQR-only - see loaders/stock_scores/pillar_weights.py's BASE_PILLAR_WEIGHTS docstring).
-  // AQR's real factor taxonomy (Value, Momentum, Quality-Minus-Junk, Betting-Against-Beta) has
-  // no standalone Growth factor - its signal now lives inside Quality's QMJ Growth sub-score.
-  // growth_score is still computed/displayed elsewhere on this page for transparency, it just
-  // no longer earns points toward the composite here - 4 pillars at 0.25 each.
+  // GROWTH RETIRED AS A COMPOSITE PILLAR 2026-09-17, THEN RESTORED THE SAME DAY (see
+  // loaders/stock_scores/pillar_weights.py's BASE_PILLAR_WEIGHTS "ABOVE DECISION SUPERSEDED"
+  // note for the full history). Growth is back as a 5th equal-weighted pillar; Quality's own
+  // QMJ Growth leg was dropped in the same change so growth-ness isn't double-counted.
   const FACTOR_WEIGHTS = [
-    ["Quality", "quality_score", 0.25],
-    ["Value", "value_score", 0.25],
-    ["Safety", "risk_score", 0.25],
-    ["Momentum", "momentum_score", 0.25],
+    ["Quality", "quality_score", 0.2],
+    ["Value", "value_score", 0.2],
+    ["Safety", "risk_score", 0.2],
+    ["Momentum", "momentum_score", 0.2],
+    ["Growth", "growth_score", 0.2],
   ];
   const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
     const score = scoreRow?.[key];

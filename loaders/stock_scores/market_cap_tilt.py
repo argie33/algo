@@ -54,11 +54,18 @@ logger = logging.getLogger("loaders.load_stock_scores")
 # with no separate floor constant needed, unlike the old max(0.1, ...) clamp that existed only
 # to patch the old symmetric formula's ability to go negative below z=-4.5 (an artifact of the
 # old formula, not something the real one needs). No fitted scaling constant anywhere - the
-# z-score itself (after winsorization) IS the tilt strength, exactly as published. Renormalizing
-# to 100% doesn't change relative ORDER (a uniform divisor across every row) - these columns are
-# read only via ORDER BY, never as real portfolio weights, so renormalization is correctly
-# omitted here, same simplification already applied to the pre-existing market_cap multiplication
-# (also not divided by total universe market cap for the same reason).
+# z-score itself (after winsorization) IS the tilt strength, exactly as published.
+#
+# RENORMALIZATION ADDED 2026-09-17 (MSCI-fidelity audit): MSCI's real Tilt Weight step doesn't
+# stop at `Score * Market-Cap-Weight-in-Parent-Index` - it renormalizes the result so weights
+# sum to 100% (confirmed via MSCI's own published index factsheet/methodology language:
+# "the re-weighting process normalizes the weights to sum to 100%"). Previously omitted here on
+# the reasoning that these columns are read only via ORDER BY, and a uniform divisor across
+# every row can't change relative order - true for ranking, but these columns are literally
+# named/typed as "weight" (`*_tilted_weight`) and a future consumer could reasonably read one
+# as a real percentage-of-index figure, where an un-normalized raw `market_cap * tilt` product
+# would be silently wrong. Normalized to percentage points (sum to 100.0 per column, per run's
+# eligible population) rather than a 0-1 fraction, matching MSCI's own "sum to 100%" framing.
 TILT_ZSCORE_WINSORIZE_BOUND = 3.0
 
 
@@ -106,13 +113,14 @@ def _owner() -> Any:
 
 class MarketCapTiltMixin:
     def update_market_cap_tilted_weights(self) -> None:
-        """Batch pass: compute market_cap * _tilt_score_from_zscore(z) (MSCI's real published
-        Tilt Index piecewise formula - see this module's own top-of-file comment, replacing the
-        old fitted `max(0.1, 1 + k*z)` damping constant 2026-09-16) for composite_score and each
-        of the 5 pillar scores, over the same eligible universe convention every sibling
-        sector-neutral pass already uses (investability floor, non-ETF, non-operating-company
-        exclusion), and store the result in stock_scores' 6 *_tilted_weight columns (migration
-        1294). Pure overwrite every run (same "restart-only, not incremental" pattern as
+        """Batch pass: compute market_cap * _tilt_score_from_zscore(z), then renormalize to sum
+        to 100% per column (MSCI's real published Tilt Index piecewise formula - see this
+        module's own top-of-file comment, replacing the old fitted `max(0.1, 1 + k*z)` damping
+        constant 2026-09-16) for composite_score and each of the 5 pillar scores, over the same
+        eligible universe convention every sibling sector-neutral pass already uses
+        (investability floor, non-ETF, non-operating-company exclusion), and store the result in
+        stock_scores' 6 *_tilted_weight columns (migration 1294). Pure overwrite every run (same
+        "restart-only, not incremental" pattern as
         update_momentum_sector_relative_mom_12_1/update_growth_sector_neutral_scores) - a
         symbol's tilted weight is a function of the CURRENT run's whole population (mean/stdev
         of that score), so it must be fully recomputed whenever any pillar's scores change, not
@@ -200,6 +208,11 @@ class MarketCapTiltMixin:
                     z = (float(score) - mean) / stdev
                     tilt = _tilt_score_from_zscore(z)
                     weights[symbol] = float(market_cap) * tilt
+                # Renormalize to sum to 100% (MSCI's real Tilt Weight step - see this module's
+                # own top-of-file "RENORMALIZATION ADDED" comment).
+                total_weight = sum(weights.values())
+                if total_weight > 0:
+                    weights = {symbol: (w / total_weight) * 100.0 for symbol, w in weights.items()}
                 tilted_by_column[score_col] = weights
 
             updates: list[tuple[Any, ...]] = []

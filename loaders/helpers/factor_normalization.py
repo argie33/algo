@@ -14,11 +14,18 @@ in loaders/stock_scores/value_metrics.py's `_percent_rank_cheap_high_sector_rela
 behavior mirror) rather than introducing a pandas dependency into loaders/helpers.
 """
 
-import statistics
+import math
 
 
 def _winsorize_group(values: dict[str, float]) -> dict[str, float]:
-    """Clip a single group's raw values to its own [1st, 99th] percentile.
+    """Clip a single group's raw values to its own [5th, 95th] percentile.
+
+    FIXED 2026-09-17 (factor-purity MSCI-fidelity audit): this was [1st, 99th] - not MSCI's
+    real bound. MSCI's published methodology (e.g. MSCI Enhanced Value Index Methodology
+    Appendix II, Section 2.2.1's explicit worked example) winsorizes raw z-scores at the
+    [5th, 95th] percentile before the final z-score step, not [1st, 99th]. No pillar in this
+    codebase had a documented reason to deviate from that bound - this was an unexamined
+    holdover, not a deliberate choice.
 
     Below 5 points an empirical quantile isn't a trustworthy clip boundary - values pass
     through unchanged (same "too few peers to trust" precedent as the sector-size floor in
@@ -37,20 +44,39 @@ def _winsorize_group(values: dict[str, float]) -> dict[str, float]:
         frac = rank - lo
         return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * frac
 
-    low, high = _percentile(1.0), _percentile(99.0)
+    low, high = _percentile(5.0), _percentile(95.0)
     return {symbol: min(max(val, low), high) for symbol, val in values.items()}
 
 
-def _zscore_group(values: dict[str, float]) -> dict[str, float]:
+def _zscore_group(values: dict[str, float], market_caps: dict[str, float] | None = None) -> dict[str, float]:
     """Z-score a single (already-winsorized) group. A group of 1 has no variance to
     standardize against - returns 0.0 (the neutral/mean score), matching the "no peer to rank
     against" convention `_percent_rank_cheap_high`'s single-symbol case already uses elsewhere
     in this codebase.
+
+    MARKET-CAP-WEIGHTED MEAN/STDEV (added 2026-09-17, factor-purity MSCI-fidelity audit): MSCI's
+    real z-score formula (MSCI Enhanced Value Index Methodology, Appendix II - "the mean and
+    standard deviation are calculated using the free-float market-cap-weighted values of all
+    securities in the parent index") weights the mean/stdev by each constituent's market cap,
+    not equal-weighted across symbols - a large-cap outlier's ratio pulls the reference
+    distribution more than a micro-cap's, mirroring how MSCI's real cap-weighted parent index
+    is itself constructed. `market_caps` is optional and additive-only: omitted (None), or a
+    symbol missing from it, falls back to equal-weighting (weight=1.0) for that symbol - so
+    every existing caller that doesn't pass market cap data keeps its exact prior behavior,
+    and a caller can adopt cap-weighting incrementally per pillar. A symbol with a non-positive
+    or missing market cap falls back to weight=1.0 (mean influence) - a symbol with no market
+    cap is not silently dropped from the reference population, matching this codebase's "fix
+    don't exclude" precedent (see sector_neutral_zscore's own FPI docstring) for the same kind
+    of gap.
     """
     if len(values) < 2:
         return dict.fromkeys(values, 0.0)
-    mean = statistics.fmean(values.values())
-    stdev = statistics.pstdev(values.values())
+    weights = {symbol: (market_caps or {}).get(symbol) or 1.0 for symbol in values}
+    weights = {symbol: (w if w > 0 else 1.0) for symbol, w in weights.items()}
+    total_weight = sum(weights.values())
+    mean = sum(val * weights[symbol] for symbol, val in values.items()) / total_weight
+    variance = sum(weights[symbol] * (val - mean) ** 2 for symbol, val in values.items()) / total_weight
+    stdev = math.sqrt(variance)
     if stdev <= 0:
         return dict.fromkeys(values, 0.0)
     return {symbol: (val - mean) / stdev for symbol, val in values.items()}
@@ -61,8 +87,11 @@ def sector_neutral_zscore(
     sectors: dict[str, str],
     min_sector_size: int = 15,
     is_foreign_private_issuer: dict[str, bool] | None = None,
+    market_caps: dict[str, float] | None = None,
 ) -> dict[str, float]:
-    """Winsorize to [1st, 99th] percentile WITHIN each sector, then z-score WITHIN each sector.
+    """Winsorize to [5th, 95th] percentile WITHIN each sector, then z-score WITHIN each sector
+    (market-cap-weighted mean/stdev if `market_caps` is supplied - see `_zscore_group`'s own
+    docstring; optional and backward-compatible, same as `universe_wide_zscore`).
 
     This is the peer-group step published methodology calls for (MSCI Barra: "a sector-relative
     score is derived from the combined score by standardizing within each sector"; AQR QMJ:
@@ -121,21 +150,23 @@ def sector_neutral_zscore(
                 residual[symbol] = values[symbol]
             continue
         sector_values = {symbol: values[symbol] for symbol in symbols}
-        result.update(_zscore_group(_winsorize_group(sector_values)))
+        result.update(_zscore_group(_winsorize_group(sector_values), market_caps))
 
     if fpi_pool:
-        result.update(_zscore_group(_winsorize_group(fpi_pool)))
+        result.update(_zscore_group(_winsorize_group(fpi_pool), market_caps))
     if residual:
-        result.update(_zscore_group(_winsorize_group(residual)))
+        result.update(_zscore_group(_winsorize_group(residual), market_caps))
     return result
 
 
-def universe_wide_zscore(values: dict[str, float]) -> dict[str, float]:
-    """Winsorize to [1st, 99th] percentile across the WHOLE population, then z-score against
+def universe_wide_zscore(values: dict[str, float], market_caps: dict[str, float] | None = None) -> dict[str, float]:
+    """Winsorize to [5th, 95th] percentile across the WHOLE population, then z-score against
     that same single population - the correct transform for a factor whose real index
     construction standardizes momentum/quality/etc. against the full eligible universe, not
     per-sector peer groups (unlike `sector_neutral_zscore` above, which IS what MSCI Barra-style
-    Quality/Value ratios call for).
+    Quality/Value ratios call for). Market-cap-weighted mean/stdev if `market_caps` is supplied -
+    see `_zscore_group`'s own docstring; optional, backward-compatible for callers not yet
+    passing cap data.
 
     ADDED 2026-09-15 (fix for momentum_pillar_sector_relative_conflated_construction_vs_
     diversification_cap_20260915): `sector_neutral_zscore` was applied to momentum's mom_12_1
@@ -149,7 +180,7 @@ def universe_wide_zscore(values: dict[str, float]) -> dict[str, float]:
     (risk_pillar_sector_neutral_vs_real_minvol_construction_20260915) - a real, recurring
     methodology-translation error in this codebase, not a one-off.
     """
-    return _zscore_group(_winsorize_group(values))
+    return _zscore_group(_winsorize_group(values), market_caps)
 
 
 def zscore_to_percentile_scale(zscores: dict[str, float]) -> dict[str, float]:

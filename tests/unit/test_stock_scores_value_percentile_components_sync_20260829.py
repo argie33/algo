@@ -37,17 +37,21 @@ class TestValuePercentileComponentsSync:
     def test_components_value_key_updated_alongside_value_score(self):
         loader = _loader()
 
-        # value_score_old simulates whatever Pass-1 last stored, deliberately different from
-        # the real MSCI z-score composite this test's single-symbol universe will compute
-        # (which lands at exactly 50.0 - see _percent_rank_cheap_high's own documented
-        # single-symbol behavior) - guaranteeing this symbol hits the update path.
-        # _pe_curve_score/_pb_curve_score are a flat NEUTRAL_PLACEHOLDER_SCORE (50.0) as of
-        # 2026-09-17 (factor-purity follow-up - see that constant's own docstring in
-        # value_metrics.py), so this fixture no longer derives value_score_old FROM them - a
-        # flat curve can't produce a "deliberately expensive-looking" old value on its own.
-        # Hardcoded to a value clearly different from the new pass's 50.0 instead.
+        # Deliberately expensive-looking multiples so the fixed-curve Pass-1 score and the
+        # (single-symbol-universe, always-50.0 per _percent_rank_cheap_high's own documented
+        # behavior) percentile score disagree - guaranteeing this symbol hits the update path.
+        # P/S dropped 2026-09-16 (factor-purity sweep, _ps_curve_score deleted - see
+        # value_score.py's VALUE_MIN_WEIGHT docstring); this fixture no longer includes it.
         pe, pb, fwd_pe, dividend_yield = 24.10, 5.98, 17.04, 0.0037
-        value_score_old = 75.0
+        # value_score_old: Pass-1's _pe_curve_score/_pb_curve_score are flat NEUTRAL_PLACEHOLDER_
+        # SCORE (50.0) placeholders (2026-09-17, independent of the MSCI/AQR pillar-construction
+        # question - see value_metrics.py's own NEUTRAL_PLACEHOLDER_SCORE docstring), and this
+        # test's single-symbol universe also makes the real percentile pass land on 50.0 (see
+        # _percent_rank_cheap_high's own documented single-symbol-universe midpoint behavior) -
+        # so deriving value_score_old FROM those curve functions would coincidentally collide
+        # with value_score_new and defeat this test's whole point. Picked deliberately distinct
+        # instead, same "guaranteed to hit the update path" intent the original derivation had.
+        value_score_old = 12.34
         composite_score_old = 34.11
         risk_score = 40.55
         components_old = {

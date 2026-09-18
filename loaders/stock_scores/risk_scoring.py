@@ -827,12 +827,13 @@ class RiskScoringMixin:
                 SELECT ss.symbol, ss.risk_score, ss.composite_score, ss.quality_score,
                        ss.growth_score, ss.value_score, ss.momentum_score, ss.components,
                        ss.data_completeness, ss.data_unavailable,
-                       liq.avg_dollar_volume_20d, sm.beta_bab
+                       liq.avg_dollar_volume_20d, sm.beta_bab, vm.market_cap
                 FROM stock_scores ss
                 JOIN stability_metrics sm ON sm.symbol = ss.symbol
                 JOIN liquidity liq ON liq.symbol = ss.symbol
                 JOIN stock_symbols su ON su.symbol = ss.symbol
                 LEFT JOIN company_info_sec cis ON cis.symbol = ss.symbol
+                LEFT JOIN value_metrics vm ON vm.symbol = ss.symbol
                 WHERE ss.risk_score IS NOT NULL
                   AND COALESCE(sm.data_unavailable, false) = false
                   AND liq.latest_close >= %s
@@ -882,10 +883,14 @@ class RiskScoringMixin:
         # volatility_60d/cmra_12m are computed/persisted informational only, matching
         # `_score_risk`'s own Pass-1 formula. Population is a single dict, not three.
         raw_beta_bab: dict[str, float] = {}
+        market_caps: dict[str, float] = {}
 
         for row in rows:
             symbol = row[0]
             adv20, beta_bab = row[10], row[11]
+            market_cap = row[12] if len(row) > 12 else None
+            if market_cap is not None:
+                market_caps[symbol] = float(market_cap)
             price_stats_unreliable = adv20 is not None and 0 <= float(adv20) < NEAR_ZERO_LIQUIDITY_THRESHOLD
             if not price_stats_unreliable and beta_bab is not None:
                 # Negated, not clamped to >=0, since a negative beta_bab is a real signed
@@ -906,8 +911,13 @@ class RiskScoringMixin:
         # own top-of-file docstring evidence (live USMV N-PORT crosscheck) that the low-beta
         # anomaly is harvested on an absolute, not sector-relative, basis in the literature this
         # pillar is now built directly from (Frazzini & Pedersen 2014).
+        # market-cap-weighted mean/stdev (2026-09-17, MSCI-fidelity audit - see
+        # factor_normalization.py's `_zscore_group` docstring): market_caps re-added via a new
+        # `vm.market_cap` JOIN above, distinct from the `vm.market_cap` column removed earlier
+        # today as dead weight (that one fed a since-retired investability-floor gate, not
+        # z-score weighting).
         return {
-            "beta_bab": zscore_to_percentile_scale(universe_wide_zscore(raw_beta_bab)),
+            "beta_bab": zscore_to_percentile_scale(universe_wide_zscore(raw_beta_bab, market_caps)),
         }
 
     def _recompute_risk_row(
@@ -966,9 +976,8 @@ class RiskScoringMixin:
                 )
             risk_score_new = None
 
-        # GROWTH REMOVED FROM COMPOSITE 2026-09-17 (factor-purity pivot: MSCI -> AQR only - see
-        # pillar_weights.py's BASE_PILLAR_WEIGHTS docstring).
-        del growth_score
+        # GROWTH RESTORED TO COMPOSITE 2026-09-17 (same-day reversal - see pillar_weights.py's
+        # BASE_PILLAR_WEIGHTS "ABOVE DECISION SUPERSEDED" note).
         weights = BASE_PILLAR_WEIGHTS
         composite_val = 0.0
         for pillar_name, pillar_score in (
@@ -976,6 +985,7 @@ class RiskScoringMixin:
             ("value", value_score),
             ("risk", risk_score_new),
             ("momentum", momentum_score),
+            ("growth", growth_score),
         ):
             if pillar_score is not None:
                 composite_val += float(pillar_score) * weights[pillar_name]
@@ -986,6 +996,7 @@ class RiskScoringMixin:
             "value": float(value_score) if value_score is not None else None,
             "risk": risk_score_new,
             "momentum": float(momentum_score) if momentum_score is not None else None,
+            "growth": float(growth_score) if growth_score is not None else None,
         }
         available_weight = sum(
             BASE_PILLAR_WEIGHTS[pillar] for pillar, score in all_scores_new.items() if score is not None
@@ -1259,14 +1270,14 @@ class RiskScoringMixin:
             _dc_old,
             _du_old,
         ) in rows:
-            # GROWTH REMOVED FROM COMPOSITE 2026-09-17 (factor-purity pivot - see
-            # pillar_weights.py's BASE_PILLAR_WEIGHTS docstring).
-            del growth_score
+            # GROWTH RESTORED TO COMPOSITE 2026-09-17 (same-day reversal - see
+            # pillar_weights.py's BASE_PILLAR_WEIGHTS "ABOVE DECISION SUPERSEDED" note).
             weights = BASE_PILLAR_WEIGHTS
             pillar_scores = (
                 ("quality", quality_score),
                 ("value", value_score),
                 ("momentum", momentum_score),
+                ("growth", growth_score),
             )
             composite_val = sum(float(s) * weights[p] for p, s in pillar_scores if s is not None)
             composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)

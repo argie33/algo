@@ -19,14 +19,13 @@ pillar_weights.py - real Barra-style factor models don't do ad hoc cross-factor 
 with a missing pillar contributing 0 (no redistribution, per GOVERNANCE). The only legitimate
 slack is float/rounding noise.
 
-GROWTH: VISIBLE, NOT DOUBLE-WEIGHTED (decided 2026-09-17, explicit user choice - see
-pillar_weights.py's own BASE_PILLAR_WEIGHTS docstring for the full reasoning and the note that
-this exact decision flip-flopped a few times the same day due to concurrent editing). growth_score
-is still computed/stored/displayed, but BASE_PILLAR_WEIGHTS has no "growth" key - its real
-predictive content lives in Quality's own QMJ Growth sub-score instead, and double-counting it
-here would inflate growth's effective composite weight. This checker's `pillar_scores` dict must
-NOT include "growth" - `weights["growth"]` would raise KeyError against the real 4-key
-BASE_PILLAR_WEIGHTS on every row with a non-null growth_score (every real production row).
+GROWTH RESTORED AS 5TH PILLAR (2026-09-17, same-day reversal - see pillar_weights.py's own
+BASE_PILLAR_WEIGHTS "ABOVE DECISION SUPERSEDED" note for the full history, including the note
+that this exact decision flip-flopped a few times the same day due to concurrent editing).
+BASE_PILLAR_WEIGHTS is a 5-key dict again (quality/value/risk/momentum/growth); this checker's
+`pillar_scores` dict now includes "growth" to match - omitting it would make every real
+production row with a non-null growth_score look like it under-reconciles by growth_score's own
+20% weight share, a false-positive flood, not a real bug.
 """
 
 import logging
@@ -69,6 +68,7 @@ class CompositeScoreReconciliationChecker(BaseCheck):
                     "value": row["value_score"],
                     "risk": row["risk_score"],
                     "momentum": row["momentum_score"],
+                    "growth": row["growth_score"],
                 }
                 weights = BASE_PILLAR_WEIGHTS
                 recomputed = sum(

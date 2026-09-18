@@ -470,11 +470,12 @@ class TestRebalanceLogic:
     """Verify weight redistribution when metrics missing."""
 
     def test_weight_redistribution_two_of_four_pillars(self) -> None:
-        """When 2 of 4 AQR pillars (quality/value/risk/momentum) are available, redistribute
-        weights. Growth was retired as a standalone composite pillar 2026-09-17 (AQR's real
-        factor taxonomy - Value, Momentum, Quality-Minus-Junk, Betting-Against-Beta - has no
-        separate Growth factor; its signal now lives inside Quality's QMJ Growth sub-score) -
-        see loaders/stock_scores/pillar_weights.py's BASE_PILLAR_WEIGHTS docstring.
+        """When 2 of 5 pillars (quality/value/risk/momentum/growth) are available, redistribute
+        weights. Growth was retired as a standalone composite pillar 2026-09-17 then RESTORED
+        the same day - see loaders/stock_scores/pillar_weights.py's BASE_PILLAR_WEIGHTS "ABOVE
+        DECISION SUPERSEDED" note. This test only exercises quality/value (2 of the now-5
+        pillars) so it's unaffected by Growth's key count either way - kept as a general
+        no-redistribution-beyond-selected-subset sanity check.
         """
         available = ["quality", "value"]
         available_weight = sum(BASE_PILLAR_WEIGHTS[m] for m in available)
