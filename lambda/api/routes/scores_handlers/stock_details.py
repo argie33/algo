@@ -749,10 +749,10 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "avg_dollar_volume_20d": data.get("avg_dollar_volume_20d"),
                 "beta": data.get("beta_val"),
                 "beta_unavailable_reason": data.get("beta_unavailable_reason"),
-                # AQR PIVOT 2026-09-17 (see loaders/stock_scores/risk_scoring.py's own module
-                # docstring): beta_bab (Frazzini & Pedersen 2014 Betting-Against-Beta shrinkage
-                # estimator) is now the pillar's sole SCORED input - cmra_12m stays
-                # computed/persisted informational only, same as volatility_60d/beta above.
+                # STALE COMMENT CORRECTED 2026-09-19 (/goal factor-purity audit): used to claim
+                # beta_bab was "the sole SCORED input" and cmra_12m "informational only" - true
+                # only during the 2026-09-17 AQR pivot, REVERTED 2026-09-19 (see risk_scoring.py's
+                # RISK_COMPONENT_WEIGHT docstring). cmra_12m is scored again; beta_bab is display-only.
                 "cmra_12m": data.get("cmra_12m"),
                 "cmra_12m_unavailable_reason": data.get("cmra_12m_unavailable_reason"),
                 "beta_bab": data.get("beta_bab"),
