@@ -111,67 +111,19 @@ const SORT_FIELDS = [
   { value: "risk_score", label: "Safety" },
 ];
 
-// Maps each raw score field to its batch-computed market-cap-tilted weight (2026-09-15,
-// migration 1294 - see loaders/stock_scores/market_cap_tilt.py's own module docstring for
-// the full rationale). The API already returns both alongside each other - this page ranks
-// by the tilted weight (matching real cap-weighted-parent + factor-tilt index construction)
-// while still DISPLAYING the raw 0-100 score in every table cell/badge. Live-caught bug this
-// closes: this page's Rankings table and all 5 Leaders/Laggards tabs sorted purely by the raw
-// field with no cap-weighting at all - the tilt fix that landed on /api/algo/scores earlier
-// the same day never reached this page, because this page calls a different endpoint
-// (/api/scores/stockscores). No formula is duplicated here - both fields are already
-// computed server-side and returned in the same API response; this is just picking which one
-// to sort by.
-const TILTED_WEIGHT_FIELD = {
-  composite_score: "composite_tilted_weight",
-  momentum_score: "momentum_tilted_weight",
-  quality_score: "quality_tilted_weight",
-  value_score: "value_tilted_weight",
-  growth_score: "growth_tilted_weight",
-  risk_score: "risk_tilted_weight",
-};
-
+// TILTED_WEIGHT_FIELD / fundWeighted toggle REMOVED 2026-09-18 (reapplied after a
+// concurrent-session git operation reverted this page mid-session): this page's default
+// fetch (limit=10000, sortBy=composite_score) never passes weighting=tilted, so the backend
+// (lambda/api/routes/scores_handlers/stock_scores.py) never populates *_tilted_weight fields
+// on the response - a toggle sorting by those fields would have silently ranked by
+// `undefined` on every row. One score per pillar, one ranking, no toggle referencing fields
+// the fetch doesn't request.
 const FACTORS = [
-  {
-    key: "quality",
-    label: "Quality",
-    scoreKey: "quality_score",
-    sortKey: "quality_tilted_weight",
-    icon: Star,
-    tone: "var(--brand)",
-  },
-  {
-    key: "momentum",
-    label: "Momentum",
-    scoreKey: "momentum_score",
-    sortKey: "momentum_tilted_weight",
-    icon: Activity,
-    tone: "var(--amber)",
-  },
-  {
-    key: "value",
-    label: "Value",
-    scoreKey: "value_score",
-    sortKey: "value_tilted_weight",
-    icon: DollarSign,
-    tone: "var(--cyan)",
-  },
-  {
-    key: "growth",
-    label: "Growth",
-    scoreKey: "growth_score",
-    sortKey: "growth_tilted_weight",
-    icon: TrendingUp,
-    tone: "var(--success)",
-  },
-  {
-    key: "risk",
-    label: "Safety",
-    scoreKey: "risk_score",
-    sortKey: "risk_tilted_weight",
-    icon: Shield,
-    tone: "var(--text-2)",
-  },
+  { key: "quality", label: "Quality", scoreKey: "quality_score", icon: Star, tone: "var(--brand)" },
+  { key: "momentum", label: "Momentum", scoreKey: "momentum_score", icon: Activity, tone: "var(--amber)" },
+  { key: "value", label: "Value", scoreKey: "value_score", icon: DollarSign, tone: "var(--cyan)" },
+  { key: "growth", label: "Growth", scoreKey: "growth_score", icon: TrendingUp, tone: "var(--success)" },
+  { key: "risk", label: "Safety", scoreKey: "risk_score", icon: Shield, tone: "var(--text-2)" },
 ];
 
 const TOOLTIP_STYLE = {
@@ -189,17 +141,6 @@ function ScoresDashboardPage() {
   const [sector, setSector] = useState("");
   const [sortBy, setSortBy] = useState("composite_score");
   const [sortOrder, setSortOrder] = useState("desc");
-  // FUND-WEIGHTED VIEW TOGGLE (2026-09-15, re-defaulted OFF 2026-09-15 per explicit user
-  // direction: "i want scores sorted highest to lowest" - the displayed badge in every row is
-  // the raw 0-100 composite_score, so the row order must match that field by default or the
-  // list visibly looks unsorted (e.g. 68.5, 65.4, 67.2, 67.3 - not descending). A same-day
-  // earlier attempt defaulted this ON specifically to resemble a real cap-weighted fund
-  // (LRGF/GSLC, see MEMORY.md goal_top25_bottom25_achieved_production_verified_20260915) - a
-  // real, still-available comparison, but it must be an explicit opt-in via this same
-  // checkbox, not silently override what "sorted by the number you see" means by default.
-  // Per-pillar Leaders/Laggards tabs are unaffected either way - they correctly always use raw
-  // score (see MEMORY.md leaders_laggards_wrongly_tilted_by_cap_fixed_20260915).
-  const [fundWeighted, setFundWeighted] = useState(false);
   const [minScore, setMinScore] = useState(0);
   // Investability screen (2026-09-01, un-defaulted then RE-DEFAULTED same session 2026-09-13
   // after live comparison against real institutional factor products - MSCI/iShares QUAL/
@@ -259,7 +200,7 @@ function ScoresDashboardPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, sector, sortBy, sortOrder, minScore, minMarketCap, fundWeighted]);
+  }, [search, sector, sortBy, sortOrder, minScore, minMarketCap]);
 
   const sectors = useMemo(() => {
     if (!items || items.length === 0) return [];
@@ -292,17 +233,12 @@ function ScoresDashboardPage() {
       }
       return true;
     });
-    // Sort by raw score by default (matches what's DISPLAYED, see fundWeighted's own comment
-    // above) - only switch to the market-cap-tilted weight when the user explicitly opts into
-    // the fund-weighted view. Deliberately NOT falling back to raw score for a row missing its
-    // tilted weight when fundWeighted is on - the two are different scales (tilted weight is
-    // market-cap-dollars, the raw score is 0-100), so mixing them per-row would produce a
-    // meaningless comparison. A missing tilted weight sorts to the end instead, same NULLS
-    // LAST behavior the backend's own ORDER BY already uses.
-    const rankField = fundWeighted ? TILTED_WEIGHT_FIELD[sortBy] || sortBy : sortBy;
+    // Sort by whichever raw score field is selected - one score per pillar, one ranking,
+    // matching what's displayed in every row (see FACTORS' own module comment for why there's
+    // no second "tilted" ranking to toggle to any more).
     arr.sort((a, b) => {
-      const av = a[rankField],
-        bv = b[rankField];
+      const av = a[sortBy],
+        bv = b[sortBy];
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;
@@ -311,7 +247,7 @@ function ScoresDashboardPage() {
         : Number(av) - Number(bv);
     });
     return arr;
-  }, [items, search, sector, sortBy, sortOrder, minScore, minMarketCap, fundWeighted]);
+  }, [items, search, sector, sortBy, sortOrder, minScore, minMarketCap]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageStart = (page - 1) * pageSize;
@@ -432,7 +368,6 @@ function ScoresDashboardPage() {
     setSortOrder("desc");
     setMinScore(0);
     setMinMarketCap(0);
-    setFundWeighted(false);
   };
 
   const detailStock = selectedSymbol
@@ -527,18 +462,6 @@ function ScoresDashboardPage() {
                 </option>
               ))}
             </select>
-            <label
-              className="flex items-center gap-2"
-              title="Off (default): ranked by the score shown in the table. On: ranked by estimated market-cap-tilted $ weight (matches how a real cap-weighted multi-factor fund like LRGF/GSLC allocates), which can differ from the displayed score order."
-              style={{ fontSize: "var(--t-xs)", whiteSpace: "nowrap" }}
-            >
-              <input
-                type="checkbox"
-                checked={fundWeighted}
-                onChange={(e) => setFundWeighted(e.target.checked)}
-              />
-              Fund-weighted rank
-            </label>
             <select
               className="select"
               value={sortOrder}
@@ -807,11 +730,9 @@ function RankingsTab({
                     }}
                   >
                     {s.company_name || "—"}
-                    {/* Market cap shown next to every row (2026-09-15) - when the fund-weighted
-                    toggle is on (default), the row order is driven by market_cap x factor tilt,
-                    not the displayed score alone, so a smaller-cap name can rank below a bigger
-                    one with a lower score. Showing the cap here makes that self-explanatory
-                    instead of the ranking looking arbitrary/wrong. */}
+                    {/* Market cap shown next to every row for reference (informational only -
+                    2026-09-18: ranking is by the selected score field alone, no market-cap
+                    tilt applied to row order). */}
                     {s.market_cap != null && (
                       <span
                         style={{
@@ -955,8 +876,9 @@ function RankingsTab({
 }
 
 // ─── tabs: leaders/laggards/sectors ────────────────────────────────────────
-// Leaders/Laggards rank by each factor's RAW 0-100 score, not its *_tilted_weight (2026-09-15
-// fix - see this file's TILTED_WEIGHT_FIELD comment for what the tilt is FOR: matching a real
+// Leaders/Laggards rank by each factor's RAW 0-100 score, not a market-cap-tilted weight
+// (2026-09-15 fix; the tilted-weight toggle this comment used to reference was removed
+// entirely 2026-09-18 - see FACTORS' own module comment above). Tilt is for matching a real
 // cap-weighted multi-factor fund's overall composite holdings, e.g. LRGF/GSLC, verified at
 // 84%/80% top-25/bottom-25 overlap - see MEMORY.md goal_top25_bottom25_achieved_production_
 // verified_20260915). market_cap varies across the universe by 1000x+ while the tilt itself

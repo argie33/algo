@@ -1,23 +1,16 @@
-"""Regression test: /api/algo/scores excludes royalty trusts and closed-end funds via the
-shared `investable_universe_conditions()` helper.
+"""Regression test: /api/algo/scores returns raw, unfiltered stock_scores rows.
 
-Found 2026-09-14 (`/goal` session, adversarial leaderboard audit - "poke holes, find the real
-stench"): this endpoint's own investability filter (added 2026-09-07, see
-test_dashboard_scores_tradability_floor_20260907.py) only checked market cap/liquidity/
-`etf_symbols` - it never adopted `algo/signals/investable_universe.py`'s shared
-`investable_universe_conditions()` helper (extracted 2026-09-13 for exactly this class of
-drift, and already used by `lambda/api/routes/scores_handlers/stock_scores.py` and
-`loaders/load_sector_industry_daily.py`). Live-verified: oil/gas royalty trusts (PBT, TPL, SBR)
-ranked #2/#4/#6 of the entire quality_score leaderboard - their near-zero invested-capital
-balance sheets mechanically produce ROE/ROCE/asset-turnover ratios in the 100-200%+ range,
-not genuine business quality. Closed-end funds (BlackRock/Invesco/Gabelli trusts, `sector`
-'Other'/`industry` 'Unknown') also passed through with meaningless "revenue"/"net_income"
-figures mapped from investment-company financial statement shapes.
-
-Fixed by joining `stock_symbols` and using `investable_universe_conditions()`, which already
-excludes SIC 6792/6770/6189 (oil royalty traders/blank-check SPACs/asset-backed securities)
-and non-10-K-filing closed-end funds (`has_annual_report_filing = FALSE`) - the same filter
-already relied on by the separate `/api/scores` endpoint and sector/industry rankings.
+SUPERSEDED 2026-09-18 (user directive: "it should not filter it should show the raw results
+from the table"). This test file originally asserted the OPPOSITE - that this endpoint joined
+`stock_symbols` and spliced in `investable_universe_conditions()` (SIC-based royalty-trust/
+SPAC/CEF exclusion) to keep bad-quality names like PBT/TPL/SBR off the leaderboard (see git
+history on this file for that original regression's full writeup, 2026-09-14). That filter,
+along with every other default eligibility screen this endpoint used to apply, was removed
+2026-09-18: a stock_scores row that fails an investability/data-quality check is still a REAL
+row in the table, and hiding it from this endpoint by default is exactly the "why don't I see
+this symbol" confusion the newer directive rejects. A caller who specifically wants an
+investable-only view can apply that filtering client-side or via a future explicit opt-in
+param - it is no longer this endpoint's default behavior.
 """
 
 import sys
@@ -30,38 +23,22 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api" / 
 
 def _mock_cursor():
     cursor = Mock()
-
-    def fake_fetchall():
-        sql = cursor.execute.call_args.args[0]
-        if "FROM algo_config" in sql:
-            return [("min_market_cap_millions", "300.0"), ("min_adv_dollars", "500000")]
-        return []
-
-    cursor.fetchall.side_effect = fake_fetchall
+    cursor.fetchall.return_value = []
     cursor.fetchone.side_effect = lambda: None
     return cursor
 
 
-class TestDashboardScoresExcludesRoyaltyTrustsAndCefs:
-    def test_query_joins_stock_symbols_and_uses_shared_investable_universe_helper(self):
+class TestDashboardScoresNoDefaultInvestabilityFilter:
+    def test_main_query_has_no_investable_universe_filter(self):
         from routes.algo_handlers.dashboard.scores import _get_dashboard_scores
 
         cursor = _mock_cursor()
         _get_dashboard_scores(cursor, limit=50)
 
-        # 2026-09-17 (migration 1308 - tilt weight computed at request time, not a stored
-        # column): this endpoint now runs a population query FIRST (fetching the eligible
-        # universe's scores/market caps to compute tilted weights - see algo/signals/
-        # market_cap_tilt.py) before the old single "filtered_scores" enrichment query, which
-        # only runs at all if that population is non-empty (empty here - the mocked cursor
-        # returns [] for everything but the algo_config lookup). The investable-universe
-        # filter now lives in the population query, so check there instead of requiring the
-        # (in this mock, never-executed) enrichment query to exist.
         executed_queries = [c.args[0] for c in cursor.execute.call_args_list]
-        main_query = next(sql for sql in executed_queries if "sy.active = true" in sql)
-        assert "JOIN stock_symbols sy ON sy.symbol = s.symbol" in main_query
+        main_query = next(sql for sql in executed_queries if "FROM stock_scores s" in sql and "filtered_scores" in sql)
         # investable_universe_conditions() output - the SIC-based royalty-trust/SPAC/CEF
-        # exclusions - must actually be spliced into the executed SQL, not just imported.
-        assert "company_info_sec" in main_query
-        assert "6792" in main_query, "SIC 6792 (Oil Royalty Traders) exclusion must be present"
-        assert "has_annual_report_filing" in main_query
+        # exclusion this file used to require - must NOT be present any more.
+        assert "6792" not in main_query, "SIC 6792 (Oil Royalty Traders) exclusion should be gone"
+        assert "has_annual_report_filing" not in main_query
+        assert "company_info_sec" not in main_query

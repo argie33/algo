@@ -88,19 +88,16 @@ def _get_stock_scores(
         fallback_col = sort_by if sort_by in raw_sorts else "composite_score"
         pillar_key = pillar_by_sort_by.get(sort_by)
 
-        # ETF FILTERING (GOVERNANCE compliance): Stock scores are for equity trading signals.
-        # Exclude ETFs per GOVERNANCE.md: "financial data loaders and trading signals are stocks only".
-        # Use etf_symbols table (definitive source). Note: ss.etf column does not exist in stock_scores.
-        # This pattern is mirrored in /api/market/breadth and Phase 7 signal generation.
-        #
-        # EXTRACTED 2026-09-13 to algo/signals/investable_universe.py, along with every
-        # filter's own detailed rationale (SPAC/royalty-trust/structured-note/CEF/gold-trust/
-        # ETN/active-universe history) - loaders/load_sector_industry_daily.py needed the
-        # identical definition for its sector/industry rankings and was silently missing all
-        # of it (414 non-tradeable symbols, live-counted, were skewing those averages). Only
-        # this endpoint's own request-specific conditions (sp500_only, symbol lookup,
-        # data_unavailable, market_cap floor) stay inline below.
-        where_clause = "WHERE " + investable_universe_conditions("sc", "ss")
+        # RAW, UNFILTERED TABLE ROWS (2026-09-18 user directive: "it should not filter it
+        # should show the raw results from the table" - reapplied after a concurrent-session
+        # git operation reverted this endpoint back to its pre-directive state, see this
+        # file's own history for that incident). No default ETF/investable-universe exclusion,
+        # no default data_unavailable gate: every stock_scores row is a candidate. A row that
+        # fails any data-quality/investability check is still a REAL row in the table, and
+        # hiding it here is exactly the "why don't I see this symbol" confusion the directive
+        # was about. `sp500_only`, `symbol` lookup, and `min_market_cap` stay as explicit,
+        # caller-requested filters (opt-in, not default).
+        where_clause = "WHERE 1=1"
         params_list: list[Any] = []
 
         if sp500_only:
@@ -113,13 +110,6 @@ def _get_stock_scores(
                 return error_response(400, "bad_request", "Invalid symbol format")
             where_clause += " AND sc.symbol = %s"
             params_list.append(symbol.upper())
-        else:
-            # Bulk queries: filter by data availability status computed by loader.
-            # Loader marks data_unavailable=false for scores with 4+/6 metrics (sufficient diversity).
-            # Loader marks data_unavailable=true for scores with <4/6 metrics or data_completeness < 70%.
-            # API: Return all scores where loader marked available; dashboard filters on completeness %.
-            # This gives traders full visibility: completeness % shown for all scores >= 50%.
-            where_clause += " AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)"
 
         # MARKET-CAP ELIGIBILITY FLOOR - REMOVED as the default screen 2026-09-15 (user
         # directive, correcting the same-day change below that kept this floor "alongside, not
@@ -140,21 +130,16 @@ def _get_stock_scores(
             where_clause += " AND mcf.market_cap >= %s"
             params_list.append(min_market_cap)
 
-        # IBD-STYLE LIQUIDITY SCREEN (added 2026-09-15, /goal: "get our scores right" - closer
-        # to IBD's real methodology, which screens on liquidity, not market cap). IBD's own
-        # published screens are a minimum share price (~$10) and minimum average daily volume
-        # (~250k-500k shares) - NOT a market-cap dollar threshold. Checked IBD's own published
-        # methodology directly: the IBD 50 explicitly spans small/mid/large-cap companies by
-        # design and has no market-cap floor at all. Reuses the exact thresholds already
-        # governing real trade EXECUTION (algo_config min_stock_price/min_adv_dollars,
-        # algo/risk/liquidity_checks.py) so this "top stocks" list doesn't surface names Phase
-        # 8 entry would reject anyway. THIS is the default investability screen now
-        # (2026-09-15) - independent of min_market_cap, which is opt-in-only per the comment
-        # above. `symbol` lookups stay exempt (you should always be able to look up any
-        # specific symbol regardless of size/liquidity). Explicit `?minMarketCap=0` is kept as
-        # the one escape hatch that disables this screen too (internal tooling, tests,
-        # non-ranking use cases) - a caller wanting the fully raw universe shouldn't need two
-        # separate params to get it, and `0` was never a meaningful market-cap floor anyway.
+        # IBD-STYLE LIQUIDITY SCREEN REMOVED as a default on the MAIN query 2026-09-18 (same
+        # "raw, unfiltered table rows" directive as above) - previously applied unconditionally
+        # (min price $5, min 20d avg dollar volume $500k) to every bulk request's where_clause.
+        # A row failing this screen is still a real stock_scores row; gating it out of this
+        # endpoint's default results is the same class of hidden filter the directive rejected.
+        # liquidity_screen_active/min_stock_price/min_adv_dollars are still computed here
+        # because the opt-in `?weighting=tilted` population query below deliberately restricts
+        # its ranking population to investable names (see that query's own comment) - that's a
+        # scoped, opt-in design choice for a fund-resemblance feature, not a default filter on
+        # what rows this endpoint returns.
         liquidity_screen_active = min_market_cap != 0 and not symbol
         min_stock_price = 5.0
         min_adv_dollars = 500_000.0
@@ -169,27 +154,6 @@ def _get_stock_scores(
                 min_adv_dollars = float(liquidity_config["min_adv_dollars"])
             except (KeyError, TypeError, ValueError):
                 min_adv_dollars = 500_000.0
-
-            market_cap_join += """
-                JOIN (
-                    SELECT symbol,
-                           AVG(volume * close) AS avg_dollar_volume_20d,
-                           (ARRAY_AGG(close ORDER BY date DESC))[1] AS latest_close
-                    FROM (
-                        SELECT symbol, volume, close, date,
-                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-                        FROM price_daily
-                        WHERE date >= CURRENT_DATE - INTERVAL '45 days'
-                          AND COALESCE(data_unavailable, false) = false
-                          AND volume IS NOT NULL AND close IS NOT NULL
-                    ) ranked
-                    WHERE rn <= 20
-                    GROUP BY symbol
-                ) liq ON liq.symbol = sc.symbol
-            """
-            where_clause += " AND liq.latest_close >= %s AND liq.avg_dollar_volume_20d >= %s"
-            params_list.append(min_stock_price)
-            params_list.append(min_adv_dollars)
 
         # Real universe count (goal: dashboard/API were reporting "only ~1000 stocks
         # screened" - traced to `estimated_total` below being a page-size heuristic instead

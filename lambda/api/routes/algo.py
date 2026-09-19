@@ -340,7 +340,14 @@ def _dispatch(  # noqa: C901
         # Alias for dashboard-signals (declared in PUBLIC_PREFIXES)
         return _get_dashboard_signals(cur)
     elif path == "/api/algo/scores":
-        limit = safe_limit(extract_param(params, "limit"), max_val=100, default=50)
+        # max_val RAISED from 100 to 10000 (2026-09-18, matches /api/scores/stockscores' own
+        # cap) - dashboard.py TUI's per-factor "Category Leaders" tables re-rank whatever
+        # population this endpoint returns; capped at 100 they were only ever the best-of-
+        # top-100-by-composite, not universe-wide leaders per factor, unlike React's Leaders/
+        # Laggards tab (a different endpoint, ranks the full ~5000+ universe). Default stays
+        # 50 (existing callers untouched); dashboard/fetchers_signals.py requests the full
+        # universe explicitly.
+        limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=50)
         return _get_dashboard_scores(cur, limit)
     elif path == "/api/algo/performance":
         return _get_algo_performance(cur)

@@ -300,6 +300,15 @@ def fetch_scores(c: None) -> dict[str, Any]:
     DASHBOARD TIMEOUT: Raise error after 8s to prevent hanging. The /api/algo/scores query
     (filter+limit before per-symbol LATERAL lookups) should return in <1s steady-state.
     8s timeout is for cold Lambda/RDS-Proxy connections. If exceeded, fail-fast.
+
+    LIMIT RAISED from 50 to 6000 (2026-09-18, full universe - see lambda/api/routes/algo.py's
+    matching comment): the compact/expanded scores panel's own leaderboard
+    (_build_scores_table) still only shows the first 15/50 rows (ORDER BY composite_score
+    DESC), unaffected - but _build_factor_top5_tables re-ranks whatever population this fetch
+    returns by each of the 5 pillar factors, and React's Leaders/Laggards tab does the
+    identical re-ranking over the FULL universe. Fetching only the top 50 by composite_score
+    meant dashboard.py's "Category Leaders" were best-of-top-50, not universe-wide leaders per
+    factor. Live-verified ~0.3s for a 5000-row fetch locally, well inside the 8s budget.
     """
     import threading
 
@@ -313,7 +322,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
         def fetch_with_timeout() -> None:
             try:
                 top_data_container[0] = api_call(
-                    "/api/algo/scores", params={"limit": 50, "sortOrder": "desc", "offset": 0}
+                    "/api/algo/scores", params={"limit": 6000, "sortOrder": "desc", "offset": 0}
                 )
             except Exception as e:
                 error[0] = e
