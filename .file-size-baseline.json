@@ -555,7 +555,7 @@
   "loaders/helpers/price_batch_fetch_retry.py": 557,
   "loaders/helpers/price_loader_reporting.py": 341,
   "loaders/helpers/quality_variability.py": 84,
-  "loaders/helpers/sec_base.py": 1991,
+  "loaders/helpers/sec_base.py": 2003,
   "loaders/helpers/sec_dual_class_eps.py": 270,
   "loaders/helpers/sec_financials_loader.py": 124,
   "loaders/helpers/sec_reit_exclusive_scale_guard.py": 240,
