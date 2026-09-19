@@ -186,6 +186,29 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # remediation) - see this field's own comment in _CASHFLOW_FIELD_MAPPING below for
         # the live AMT/SKT evidence.
         "real_estate_improvements",
+        # MADE FALLBACK-ONLY 2026-09-19 (/goal data-confidence audit, QTRX/PACK live-
+        # confirmed via real SEC companyfacts JSON, 2 unrelated filers, zero counter-
+        # examples found): was a plain always-overwrite mapping (added for LLY/ADP, which
+        # tag ONLY this concept - see _CASHFLOW_FIELD_MAPPING's own comment on this key),
+        # but ordinary last-listed-wins let it unconditionally clobber a real, complete
+        # "PaymentsToAcquirePropertyPlantAndEquipment" for filers that report BOTH -
+        # QTRX FY2022-2025 understated by 4x-76x, PACK FY2023 understated ~2.3x
+        # ($23,900,000 stored vs. real $55,300,000, exact yfinance match). Fallback-only
+        # preserves the LLY/ADP recovery (neither reports the plain concept at all) while
+        # no longer clobbering QTRX/PACK's real, more complete total.
+        "payments_to_acquire_other_property_plant_and_equipment",
+        # MADE FALLBACK-ONLY 2026-09-19 (same PACK live evidence, same pass): PACK ALSO
+        # separately tags "PaymentsToAcquireMachineryAndEquipment" ($31,400,000 FY2023) -
+        # this concept was ALSO a plain always-overwrite mapping (added for AAON, which has
+        # "zero overlap" with PaymentsToAcquireProductiveAssets specifically per this key's
+        # own _CASHFLOW_FIELD_MAPPING comment, not necessarily zero overlap with the plain
+        # PP&E concept), and being listed after "payments_to_acquire_property_plant_and_
+        # equipment" let it also clobber PACK's real $55,300,000 total via ordinary
+        # last-listed-wins - even after making the "Other" sibling above fallback-only,
+        # this THIRD competing concept still won. Fallback-only here too so AAON's recovery
+        # (still fills when nothing else populated capex) is preserved while PACK's real
+        # total is no longer clobbered by either narrower sibling concept.
+        "payments_to_acquire_machinery_and_equipment",
     }
 )
 
