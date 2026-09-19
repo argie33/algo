@@ -22,6 +22,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_operating_income_from_revenue_minus_benefits_losses_and_expenses,
     _fill_operating_income_from_revenue_minus_cogs_and_opex,
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
+    _fill_operating_income_from_revenue_minus_costs_and_expenses_and_msr_valuation,
     _fill_operating_income_from_revenue_minus_ifrs_by_nature_expenses,
     _fill_operating_income_from_revenue_minus_operating_expenses_only,
     _fill_operating_income_from_revenue_minus_single_cogs_and_opex,
@@ -886,6 +887,24 @@ def get_income_statement(
         # OperatingIncomeLoss/CostsAndExpenses-derived value.
         "OperatingExpenses",
         "CostsAndExpenses",
+        # ADDED 2026-09-19 (goal: data-confidence session, ONIT (Onity Group, formerly
+        # Ocwen Financial - mortgage servicer) operating_income investigation): live-
+        # confirmed via ONIT's real FY2023 10-K income statement (CIK 0000873860, R5.htm):
+        # "MSR valuation adjustments, net" ($(232,200,000) FY2023) sits BETWEEN "Total
+        # revenue" and "Total operating expenses" on the face of the statement - a real,
+        # separately-disclosed cost line for mortgage servicers whose servicing-rights
+        # asset fair value swings with rate movements, tagged under this standard us-gaap
+        # concept (positive magnitude in XBRL, representing a deduction). Not previously
+        # fetched at all - the generic revenue-minus-CostsAndExpenses fallback
+        # (_fill_operating_income_from_revenue_minus_costs_and_expenses) ignored it
+        # entirely, overstating operating_income (FY2023: our $654,600,000 vs a real
+        # $422,400,000 = Revenue - this concept - CostsAndExpenses; yfinance's own figure,
+        # $226,700,000, is lower still, suggesting yfinance also nets some further
+        # non-operating servicing-related item this fix doesn't - not an exact
+        # reconciliation, but a meaningful improvement). See
+        # _fill_operating_income_from_revenue_minus_costs_and_expenses_and_msr_valuation in
+        # sec_income_statement_fallbacks.py.
+        "ServicingAssetAtFairValueChangesInFairValueResultingFromChangesInValuationInputs",
         "GrossProfit",
         "OperatingIncomeLoss",
         # ADDED 2026-09-09 (goal: "SEC/XBRL missing data under 500" sweep,
@@ -1338,6 +1357,7 @@ def get_income_statement(
     _fill_pretax_income_from_results_of_operations_when_validated(rows)
     _fill_operating_income_from_revenue_minus_benefits_losses_and_expenses(rows)
     _fill_operating_income_from_revenue_minus_ifrs_by_nature_expenses(rows)
+    _fill_operating_income_from_revenue_minus_costs_and_expenses_and_msr_valuation(rows)
     _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
     _fill_operating_income_from_revenue_minus_operating_expenses_only(rows)
     _fill_operating_income_from_revenue_minus_single_cogs_and_opex(rows)

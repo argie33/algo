@@ -485,6 +485,54 @@ def _fill_operating_income_from_revenue_minus_costs_and_expenses(rows: list[dict
         row["operating_income_loss"] = revenue - costs_and_expenses
 
 
+def _fill_operating_income_from_revenue_minus_costs_and_expenses_and_msr_valuation(
+    rows: list[dict[str, Any]],
+) -> None:
+    """Fallback-only: operating_income = Revenues - CostsAndExpenses -
+    ServicingAssetAtFairValueChangesInFairValueResultingFromChangesInValuationInputs, for
+    mortgage-servicer filers whose real income statement has a separate "MSR valuation
+    adjustments" line sitting between revenue and their "Total operating expenses" subtotal.
+
+    ADDED 2026-09-19 (goal session: data-confidence sweep, ONIT (Onity Group, formerly Ocwen
+    Financial) operating_income investigation). See get_income_statement()'s own comment on
+    "ServicingAssetAtFairValueChangesInFairValueResultingFromChangesInValuationInputs" for the
+    live ONIT evidence (FY2023: Revenue $1,066,700,000 - MSR valuation adjustments
+    $232,200,000 - CostsAndExpenses $412,100,000 = $422,400,000, vs the plain revenue-minus-
+    CostsAndExpenses fallback's $654,600,000 - not an exact match to yfinance's $226,700,000,
+    but meaningfully closer).
+
+    Must run BEFORE _fill_operating_income_from_revenue_minus_costs_and_expenses in
+    get_income_statement()'s fallback chain, since that function has no awareness of this
+    concept and would otherwise consume CostsAndExpenses first. Only fires when both
+    costs_and_expenses AND the MSR concept are present (a mortgage-servicer-specific
+    combination unlikely to appear for an ordinary single-step filer); when the MSR concept
+    is absent, "costs_and_expenses" is left untouched for the sibling function to consume
+    normally. Never overwrites a real operating_income_loss value already present.
+    """
+    for row in rows:
+        msr_valuation_adjustments = row.pop(
+            "servicing_asset_at_fair_value_changes_in_fair_value_resulting_from_changes_in_valuation_inputs", None
+        )
+        if row.get("operating_income_loss") is not None or msr_valuation_adjustments is None:
+            continue
+        costs_and_expenses = row.get("costs_and_expenses")
+        if costs_and_expenses is None:
+            continue
+        revenue = None
+        for revenue_key in (
+            "revenues",
+            "revenue_from_contract_with_customer_excluding_assessed_tax",
+            "revenue_from_contract_with_customer_including_assessed_tax",
+        ):
+            if row.get(revenue_key) is not None:
+                revenue = row[revenue_key]
+                break
+        if revenue is None:
+            continue
+        row.pop("costs_and_expenses", None)
+        row["operating_income_loss"] = revenue - costs_and_expenses - msr_valuation_adjustments
+
+
 def _fill_operating_income_from_revenue_minus_cogs_and_opex(rows: list[dict[str, Any]]) -> None:
     """Fallback-only: operating_income = Revenues - (COGS ex-D&A) - (COGS D&A) -
     OperatingExpenses, for single-step-format filers that split cost of revenue into two
