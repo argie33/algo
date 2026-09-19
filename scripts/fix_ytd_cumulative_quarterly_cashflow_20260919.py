@@ -70,6 +70,12 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--apply", action="store_true", help="Write corrections; default is dry-run")
+    parser.add_argument(
+        "--min-fields",
+        type=int,
+        default=3,
+        help="Minimum simultaneously-divergent quarterly_cash_flow fields to consider a symbol/quarter a candidate",
+    )
     args = parser.parse_args()
 
     conn = get_connection()
@@ -80,11 +86,11 @@ def main() -> None:
         FROM xbrl_yfinance_line_item_report
         WHERE divergent AND review_status = 'unreviewed' AND our_table = 'quarterly_cash_flow'
         GROUP BY symbol, fiscal_year, fiscal_quarter
-        HAVING count(*) >= 3
+        HAVING count(*) >= %s
         ORDER BY count(*) DESC
         LIMIT %s
         """,
-        (args.limit,),
+        (args.min_fields, args.limit),
     )
     candidates = cur.fetchall()
     print(f"Checking {len(candidates)} candidate (symbol, fiscal_year, fiscal_quarter) group(s)...")
