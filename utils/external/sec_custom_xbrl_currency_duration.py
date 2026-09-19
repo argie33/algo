@@ -188,6 +188,20 @@ CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE: dict[str, list[tuple[str, str]]] = {
     "SQNS": [("sqns", "PurchaseOfPropertyPlantAndEquipmentAndIntangibleAssetsClassifiedAsInvestingActivities")],
 }
 
+# ADDED 2026-09-19 (goal: data-confidence session, SRAD (Sportradar) operating_income
+# investigation): SRAD's "Sport rights expenses" custom concept (see
+# CUSTOM_OPERATING_EXPENSE_CONCEPTS in sec_custom_xbrl_concepts.py for the full live
+# evidence) is EUR-denominated, unlike every existing CUSTOM_OPERATING_EXPENSE_CONCEPTS-
+# style registry so far (all USD filers) - the plain, non-currency-aware
+# `_extract_values_for_concepts` would treat the raw EUR numeral as USD, understating the
+# true USD cost by the EUR/USD rate (~1.04x for FY2024, but foreign-exchange rates drift
+# significantly across SRAD's multi-year history, so a single hardcoded factor would be
+# wrong for other years). Needs this module's proper historical-FX-rate conversion, same
+# reason SU/JF/NCTY/SQNS above do.
+CUSTOM_OPERATING_EXPENSE_CONCEPTS_CURRENCY_AWARE: dict[str, list[tuple[str, str]]] = {
+    "SRAD": [("srad", "SportRightsExpenses")],
+}
+
 
 def extract_custom_capex_currency_aware_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
     """Parse a filing's raw XBRL instance document for `symbol`'s known currency-aware
@@ -206,4 +220,28 @@ def fetch_custom_capex_currency_aware(symbol: str, sec_client: Any) -> dict[int,
     """
     return _fetch_custom_concept(
         symbol, sec_client, CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE, extract_custom_capex_currency_aware_from_xbrl_xml
+    )
+
+
+def extract_custom_operating_expense_currency_aware_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known currency-aware
+    custom operating-expense concept(s) (see
+    CUSTOM_OPERATING_EXPENSE_CONCEPTS_CURRENCY_AWARE), returning
+    {fiscal_year: summed_value_in_usd}. Returns {} for any unregistered symbol.
+    """
+    return _extract_duration_values_for_concepts_with_currency(
+        xml_content, CUSTOM_OPERATING_EXPENSE_CONCEPTS_CURRENCY_AWARE.get(symbol)
+    )
+
+
+def fetch_custom_operating_expense_currency_aware(symbol: str, sec_client: Any) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known
+    CUSTOM_OPERATING_EXPENSE_CONCEPTS_CURRENCY_AWARE concept(s). Returns {} if symbol isn't
+    registered, the filing can't be found, or the XML can't be parsed.
+    """
+    return _fetch_custom_concept(
+        symbol,
+        sec_client,
+        CUSTOM_OPERATING_EXPENSE_CONCEPTS_CURRENCY_AWARE,
+        extract_custom_operating_expense_currency_aware_from_xbrl_xml,
     )

@@ -362,6 +362,74 @@ def _fill_operating_income_from_revenue_minus_benefits_losses_and_expenses(rows:
         row["operating_income_loss"] = revenue - benefits_losses_and_expenses
 
 
+def _fill_operating_income_from_revenue_minus_ifrs_by_nature_expenses(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: operating_income = Revenue - CostOfSales - EmployeeBenefitsExpense -
+    DepreciationAndAmortisationExpense + OtherOperatingIncomeExpense (already signed: a real
+    IFRS net-expense fact is negative), for IFRS filers that present their income statement
+    "by nature" (expenses grouped as personnel costs / D&A / other operating costs, rather
+    than "by function" cost-of-sales/SG&A/R&D).
+
+    ADDED 2026-09-19 (goal session: data-confidence sweep, SRAD (Sportradar) operating_income
+    investigation). Live-confirmed via real SEC companyfacts JSON and the actual filed R2.htm
+    income statement (CIK 0001836470, FY2024 10-K accession 0001410578-25-000399): SRAD tags
+    "Personnel expenses" (EUR 349,669,000) under ifrs-full:EmployeeBenefitsExpense and "Other
+    operating expenses" (EUR 93,537,000, tagged as -93,537,000) under ifrs-full:
+    OtherOperatingIncomeExpense - see sec_income_statement.py's own comment on these two
+    concepts. Neither was previously fetched at all, so the pre-existing revenue-minus-
+    operating-expenses-only fallback silently ignored ~85% of SRAD's real operating costs,
+    overstating operating_income up to 23.7x vs yfinance (FY2022: our $637,005,632 vs
+    yfinance's real $26,913,478). Must run BEFORE
+    _fill_operating_income_from_revenue_minus_operating_expenses_only in get_income_statement()'s
+    fallback chain, since that function has no awareness of employee_benefits_expense and
+    would otherwise consume the AdministrativeExpense-derived narrow SG&A concept first.
+
+    Deliberately narrow: only fires when employee_benefits_expense, cost_of_revenue, AND
+    depreciation_and_amortization are ALL present for the same row - this specific three-
+    concept combination is a strong signal of the by-nature presentation style and unlikely
+    to appear by coincidence for a filer using a different structure. other_operating_income_
+    expense defaults to 0 when absent. Never overwrites a real operating_income_loss value
+    already present. Always strips both raw keys (never mapped to a DB column on their own).
+
+    NOTE: SRAD's filer-specific "Sport rights expenses" custom-XBRL-extension concept
+    (srad:SportRightsExpenses, its single largest cost line) is deliberately NOT handled
+    here - apply_custom_income_extensions() (financial_statements_custom_extension_
+    fallbacks.py) stages it onto "custom_extension_sport_rights_expenses" AFTER this
+    function already ran (fetch_incremental() calls super().fetch_incremental() - which
+    runs this fallback chain - BEFORE apply_custom_income_extensions()), so it can't be
+    consumed here. It's registered instead as a NEGATIVE-valued ADDITIVE_CONCEPT_PAIRS
+    entry against "operating_income" (see that constant's own comment in
+    sec_zero_component_guards.py) so it subtracts from the operating_income this function
+    computes, once transform() runs later in the pipeline.
+    """
+    for row in rows:
+        employee_benefits_expense = row.pop("employee_benefits_expense", None)
+        other_operating_income_expense = row.pop("other_operating_income_expense", None)
+        if row.get("operating_income_loss") is not None or employee_benefits_expense is None:
+            continue
+        cost_of_revenue = row.get("cost_of_revenue")
+        depreciation_and_amortization = row.get("depreciation_and_amortization")
+        if cost_of_revenue is None or depreciation_and_amortization is None:
+            continue
+        revenue = None
+        for revenue_key in (
+            "revenues",
+            "revenue_from_contract_with_customer_excluding_assessed_tax",
+            "revenue_from_contract_with_customer_including_assessed_tax",
+        ):
+            if row.get(revenue_key) is not None:
+                revenue = row[revenue_key]
+                break
+        if revenue is None:
+            continue
+        row["operating_income_loss"] = (
+            revenue
+            - cost_of_revenue
+            - employee_benefits_expense
+            - depreciation_and_amortization
+            + (other_operating_income_expense or 0)
+        )
+
+
 def _fill_operating_income_from_revenue_minus_costs_and_expenses(rows: list[dict[str, Any]]) -> None:
     """Fallback-only: operating_income = Revenues - CostsAndExpenses, for single-step-format
     filers that report both totals but never tag OperatingIncomeLoss at all.

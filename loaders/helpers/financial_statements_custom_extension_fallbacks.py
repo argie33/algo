@@ -53,7 +53,9 @@ from utils.external.sec_custom_xbrl_concepts import (
 )
 from utils.external.sec_custom_xbrl_currency_duration import (
     CUSTOM_CAPEX_CONCEPTS_CURRENCY_AWARE,
+    CUSTOM_OPERATING_EXPENSE_CONCEPTS_CURRENCY_AWARE,
     fetch_custom_capex_currency_aware,
+    fetch_custom_operating_expense_currency_aware,
 )
 
 
@@ -109,6 +111,23 @@ def apply_custom_income_extensions(
             fiscal_year = row.get("fiscal_year")
             if fiscal_year in custom_cost_of_revenue_by_year:
                 row["custom_extension_cost_of_revenue_additive"] = custom_cost_of_revenue_by_year[fiscal_year]
+
+    if symbol in CUSTOM_OPERATING_EXPENSE_CONCEPTS_CURRENCY_AWARE:
+        # ADDED 2026-09-19 (SRAD Sport rights expenses, EUR-denominated - see
+        # sec_custom_xbrl_currency_duration.py's own comment on this registry for why the
+        # currency-aware extractor is needed here, unlike CUSTOM_DEPRECIATION_CONCEPTS/
+        # CUSTOM_COST_OF_REVENUE_CONCEPTS above which are all USD filers). Staged NEGATED
+        # (a cost, to be subtracted) onto "custom_extension_sport_rights_expenses", picked
+        # up by ADDITIVE_CONCEPT_PAIRS against "operating_income" in transform() - runs
+        # AFTER _fill_operating_income_from_revenue_minus_ifrs_by_nature_expenses already
+        # computed a base operating_income from the OTHER by-nature expense lines (this
+        # function - apply_custom_income_extensions - only runs once fetch_incremental()'s
+        # own get_income_statement() call, and that fallback chain, have already returned).
+        custom_operating_expense_by_year = fetch_custom_operating_expense_currency_aware(symbol, sec_client)
+        for row in _annual_rows(rows):
+            fiscal_year = row.get("fiscal_year")
+            if fiscal_year in custom_operating_expense_by_year:
+                row["custom_extension_sport_rights_expenses"] = -custom_operating_expense_by_year[fiscal_year]
 
 
 def apply_custom_cashflow_extensions(symbol: str, rows: list[dict[str, Any]], sec_client: Any) -> None:

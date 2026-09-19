@@ -820,7 +820,7 @@
   "utils/external/sec_balance_sheet.py": 1848,
   "utils/external/sec_calculation_linkbase.py": 171,
   "utils/external/sec_cash_flow.py": 950,
-  "utils/external/sec_custom_xbrl_concepts.py": 1476,
+  "utils/external/sec_custom_xbrl_concepts.py": 1474,
   "utils/external/sec_custom_xbrl_currency_duration.py": 247,
   "utils/external/sec_edgar.py": 10,
   "utils/external/sec_edgar_client.py": 905,

@@ -22,6 +22,7 @@ from utils.external.sec_income_statement_fallbacks import (
     _fill_operating_income_from_revenue_minus_benefits_losses_and_expenses,
     _fill_operating_income_from_revenue_minus_cogs_and_opex,
     _fill_operating_income_from_revenue_minus_costs_and_expenses,
+    _fill_operating_income_from_revenue_minus_ifrs_by_nature_expenses,
     _fill_operating_income_from_revenue_minus_operating_expenses_only,
     _fill_operating_income_from_revenue_minus_single_cogs_and_opex,
     _fill_pretax_income_from_domestic_foreign_split,
@@ -121,6 +122,23 @@ _INCOME_IFRS_ALIASES = [
     # convention.
     ("InterestRevenueExpense", "interest_revenue_expense"),
     ("CostOfSales", "cost_of_revenue"),
+    # ADDED 2026-09-19 (goal: data-confidence session, SRAD (Sportradar) operating_income
+    # investigation): live-confirmed IFRS "by nature" income-statement filers (SRAD's real
+    # FY2024 20-F, CIK 0001836470, R2.htm) report their two dominant cost lines under these
+    # concepts - "Personnel expenses" (EUR 349,669,000 FY2024) under
+    # ifrs-full:EmployeeBenefitsExpense and "Other operating expenses" (EUR 93,537,000
+    # FY2024) under ifrs-full:OtherOperatingIncomeExpense - neither previously fetched at
+    # all. Without them, our operating_income fallback (revenue - cost_of_revenue - a tiny
+    # unrelated AdministrativeExpense sliver) ignored ~85% of SRAD's real operating costs,
+    # overstating operating_income up to 23.7x vs yfinance. See
+    # _fill_operating_income_from_revenue_minus_ifrs_by_nature_expenses in
+    # sec_income_statement_fallbacks.py for the fallback that consumes these (also sums in
+    # srad:SportRightsExpenses, a filer-specific custom XBRL extension concept - see
+    # CUSTOM_OPERATING_EXPENSE_CONCEPTS in sec_custom_xbrl_concepts.py). Fetch-only here
+    # (own raw keys, never field-mapped directly) - a filer without this by-nature
+    # presentation is completely unaffected.
+    ("EmployeeBenefitsExpense", "employee_benefits_expense"),
+    ("OtherOperatingIncomeExpense", "other_operating_income_expense"),
     ("GrossProfit", "gross_profit"),
     ("ProfitLossFromOperatingActivities", "operating_income_loss"),
     ("ProfitLoss", "net_income_loss"),
@@ -1319,6 +1337,7 @@ def get_income_statement(
     _fill_pretax_income_from_domestic_foreign_split(rows)
     _fill_pretax_income_from_results_of_operations_when_validated(rows)
     _fill_operating_income_from_revenue_minus_benefits_losses_and_expenses(rows)
+    _fill_operating_income_from_revenue_minus_ifrs_by_nature_expenses(rows)
     _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
     _fill_operating_income_from_revenue_minus_operating_expenses_only(rows)
     _fill_operating_income_from_revenue_minus_single_cogs_and_opex(rows)

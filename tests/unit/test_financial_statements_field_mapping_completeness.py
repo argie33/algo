@@ -144,6 +144,14 @@ _FALLBACK_ONLY_ALIAS_KEYS = {
     "sales_and_marketing_expense",
     "marketing_expense",
     "distribution_costs",
+    # ADDED 2026-09-19 (goal: data-confidence session, SRAD (Sportradar) operating_income
+    # investigation): "EmployeeBenefitsExpense"/"OtherOperatingIncomeExpense" ifrs-full
+    # aliases - popped and combined into the already-mapped "operating_income" column by
+    # _fill_operating_income_from_revenue_minus_ifrs_by_nature_expenses() in
+    # utils/external/sec_income_statement_fallbacks.py, same fallback-only-key pattern as
+    # the G&A/selling-type concepts above.
+    "employee_benefits_expense",
+    "other_operating_income_expense",
 }
 
 

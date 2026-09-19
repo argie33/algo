@@ -178,6 +178,17 @@ _INCOME_FIELD_MAPPING = {
     # _REVENUE_FALLBACK_ONLY_FIELDS below purely to reach the fallback-only branch of
     # transform()'s per-field loop at all.
     "custom_extension_cost_of_revenue_additive": "cost_of_revenue",
+    # ADDED 2026-09-19 (SRAD Sport rights expenses): identity key
+    # ConsolidatedFinancialStatementsLoader.fetch_incremental() sets directly on rows for
+    # symbols in CUSTOM_OPERATING_EXPENSE_CONCEPTS_CURRENCY_AWARE (SRAD's "Sport rights
+    # expenses", its single largest cost line, tagged under a filer-specific custom XBRL
+    # extension concept - same structural gap as the cost_of_revenue entry above). Staged
+    # NEGATED (it's a cost) so this fallback-only ADDITIVE write subtracts from, rather than
+    # inflates, the operating_income
+    # _fill_operating_income_from_revenue_minus_ifrs_by_nature_expenses already computed from
+    # SRAD's other by-nature expense lines. See ADDITIVE_CONCEPT_PAIRS in
+    # sec_zero_component_guards.py.
+    "custom_extension_sport_rights_expenses": "operating_income",
     "cost_of_revenue": "cost_of_revenue",
     # FIXED 2026-08-17 (goal: "no SEC data" audit): "CostOfGoodsAndServicesSold" concept
     # added to sec_statements.py's get_income_statement() concepts list - see that file's
@@ -615,6 +626,11 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # "custom_extension_cost_of_revenue_additive" above (HRI live evidence) - additive via
         # ADDITIVE_CONCEPT_PAIRS, reached through this same fallback-only branch.
         "custom_extension_cost_of_revenue_additive",
+        # ADDED 2026-09-19: see _INCOME_FIELD_MAPPING's comment on
+        # "custom_extension_sport_rights_expenses" above (SRAD live evidence) - additive
+        # (staged negated) via ADDITIVE_CONCEPT_PAIRS, reached through this same
+        # fallback-only branch.
+        "custom_extension_sport_rights_expenses",
         # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data" sweep): ESOA-class filers
         # that stop tagging NetIncomeLoss/ProfitLoss - see _INCOME_FIELD_MAPPING's comment on
         # this key above.

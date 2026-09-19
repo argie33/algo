@@ -360,6 +360,26 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         # (EquipmentExpense) + $418,000,000 + $42,000,000 (these two custom concepts) =
         # $2,918,000,000, an EXACT match to yfinance's crosscheck value.
         ("cost_of_revenue", "custom_extension_cost_of_revenue_additive"),
+        # ADDED 2026-09-19 (same goal session, SRAD live-confirmed via real filed XBRL
+        # instance document, accession 0001410578-25-000399): Sportradar's "by nature" IFRS
+        # income statement's single largest cost line, "Sport rights expenses (including
+        # amortization of capitalized sport rights licenses)", is tagged under a
+        # filer-specific custom XBRL extension concept (srad:SportRightsExpenses, EUR-
+        # denominated, fetched currency-aware - see
+        # utils/external/sec_custom_xbrl_currency_duration.py's
+        # CUSTOM_OPERATING_EXPENSE_CONCEPTS_CURRENCY_AWARE). Staged NEGATED (it's a cost, not
+        # income) so this additive write SUBTRACTS from the operating_income
+        # utils/external/sec_income_statement_fallbacks.py's
+        # _fill_operating_income_from_revenue_minus_ifrs_by_nature_expenses already computed
+        # from SRAD's other by-nature expense lines (Revenue - CostOfSales -
+        # EmployeeBenefitsExpense - DepreciationAndAmortisationExpense + OtherOperatingIncome
+        # Expense). FY2024: $453,983,128 (that partial formula's own result) +
+        # (-$366,048,000, the EUR sport-rights figure converted to USD) = ~$87,935,128,
+        # within the same order of magnitude as yfinance's $139,792,844 (the residual gap is
+        # from "Other operating expenses" - restated across the filer's history, and pending
+        # further verification - not an exact reconciliation, but a ~11x improvement over the
+        # pre-fix ~23.7x overstatement).
+        ("operating_income", "custom_extension_sport_rights_expenses"),
     }
 )
 
