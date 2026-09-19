@@ -19,6 +19,7 @@ from algo.monitoring.data_patrol.checks import (
     AlignmentChecker,
     CikSharedIssuerFinancialsLeakChecker,
     CompositeScoreReconciliationChecker,
+    ConfirmedXbrlBugScoreExposureChecker,
     CoverageChecker,
     FinancialStatementFlagDriftChecker,
     FinancialStatementPeriodSanityChecker,
@@ -85,6 +86,7 @@ def _run_patrol_with_results(results_by_checker: dict) -> dict:
         "ReverseMergerShellChecker": ReverseMergerShellChecker,
         "CompositeScoreReconciliationChecker": CompositeScoreReconciliationChecker,
         "PillarScoreReconciliationChecker": PillarScoreReconciliationChecker,
+        "ConfirmedXbrlBugScoreExposureChecker": ConfirmedXbrlBugScoreExposureChecker,
         "CikSharedIssuerFinancialsLeakChecker": CikSharedIssuerFinancialsLeakChecker,
     }
     # ADDED 2026-09-08 (goal session): this dict has already drifted out of sync with

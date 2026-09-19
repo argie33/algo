@@ -75,6 +75,7 @@
   "algo/monitoring/data_patrol/checks/alignment.py": 551,
   "algo/monitoring/data_patrol/checks/cik_shared_issuer_financials_leak.py": 171,
   "algo/monitoring/data_patrol/checks/composite_score_reconciliation.py": 145,
+  "algo/monitoring/data_patrol/checks/confirmed_xbrl_bug_score_exposure.py": 115,
   "algo/monitoring/data_patrol/checks/coverage.py": 447,
   "algo/monitoring/data_patrol/checks/financial_statement_flag_drift.py": 104,
   "algo/monitoring/data_patrol/checks/financial_statement_period_sanity.py": 178,

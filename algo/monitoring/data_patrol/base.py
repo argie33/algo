@@ -126,6 +126,7 @@ class DataPatrol:
             AlignmentChecker,
             CikSharedIssuerFinancialsLeakChecker,
             CompositeScoreReconciliationChecker,
+            ConfirmedXbrlBugScoreExposureChecker,
             CoverageChecker,
             FinancialStatementFlagDriftChecker,
             FinancialStatementPeriodSanityChecker,
@@ -172,6 +173,7 @@ class DataPatrol:
                 ReverseMergerShellChecker(self.config),
                 CompositeScoreReconciliationChecker(self.config),
                 PillarScoreReconciliationChecker(self.config),
+                ConfirmedXbrlBugScoreExposureChecker(self.config),
                 CikSharedIssuerFinancialsLeakChecker(self.config),
             ]
 

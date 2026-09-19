@@ -4,6 +4,7 @@
 from .alignment import AlignmentChecker
 from .cik_shared_issuer_financials_leak import CikSharedIssuerFinancialsLeakChecker
 from .composite_score_reconciliation import CompositeScoreReconciliationChecker
+from .confirmed_xbrl_bug_score_exposure import ConfirmedXbrlBugScoreExposureChecker
 from .coverage import CoverageChecker
 from .financial_statement_flag_drift import FinancialStatementFlagDriftChecker
 from .financial_statement_period_sanity import FinancialStatementPeriodSanityChecker
@@ -25,6 +26,7 @@ __all__ = [
     "AlignmentChecker",
     "CikSharedIssuerFinancialsLeakChecker",
     "CompositeScoreReconciliationChecker",
+    "ConfirmedXbrlBugScoreExposureChecker",
     "CoverageChecker",
     "FinancialStatementFlagDriftChecker",
     "FinancialStatementPeriodSanityChecker",
