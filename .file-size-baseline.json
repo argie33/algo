@@ -692,6 +692,7 @@
   "scripts/fix_shares_outstanding_scale_errors.py": 136,
   "scripts/fix_stuck_available_but_null_financial_statement_flags.py": 236,
   "scripts/fix_ytd_cumulative_quarterly_cashflow_20260919.py": 202,
+  "scripts/fix_ytd_cumulative_quarterly_income_statement_20260919.py": 203,
   "scripts/flatten_all_positions.py": 384,
   "scripts/force_null_confirmed_corrupted_cells.py": 100,
   "scripts/full_history_reload_corrupted.py": 149,
