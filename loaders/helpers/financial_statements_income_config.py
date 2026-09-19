@@ -585,6 +585,21 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # eps_never_tagged_in_filings investigation): see _INCOME_FIELD_MAPPING's comment on
         # "earnings_per_share_basic_and_diluted" above.
         "earnings_per_share_basic_and_diluted",
+        # FIXED 2026-09-19 (/goal data-confidence audit, RKT/CTRM/HLLY/TEAD live-confirmed via
+        # real SEC companyfacts JSON, 4 unrelated filers/6 rows, zero counter-examples found):
+        # basic and diluted "net income available to common" (the NUMERATOR, not the per-share
+        # EPS) are usually IDENTICAL for a plain capital structure - only the diluted SHARE
+        # COUNT differs. When a filer's two XBRL facts genuinely diverge, the Diluted fact has
+        # consistently reflected some NCI/if-converted adjustment that is NOT representative of
+        # the real total attributable to common (RKT: Up-C if-converted NCI gross-up; CTRM/
+        # HLLY/TEAD: same shape, mechanism not individually traced). Basic was already listed
+        # first in _INCOME_FIELD_MAPPING above, but neither key was fallback-only, so ordinary
+        # last-listed-wins let Diluted (processed second) unconditionally overwrite the correct
+        # Basic value whenever a filer reports both - live-confirmed wrong by up to ~14x (HLLY
+        # FY2022: Diluted $16,753,000 vs. real/yfinance-matching Basic $73,774,000). Fallback-
+        # only here so Basic always wins when both are present; Diluted still fills the field
+        # for the (also real, e.g. some earlier-era filers) case where only Diluted is tagged.
+        "net_income_loss_available_to_common_stockholders_diluted",
     }
 )
 
