@@ -1533,7 +1533,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         _dividends_paid_source_sec_field,
                         r.get("symbol"),
                     ) and not should_override_fallback_field_for_depository_institution(
-                        sec_field, db_field, value, row, r, _eligible_interest_income_symbols
+                        sec_field, db_field, value, row, r, _eligible_interest_income_symbols, _revenue_source_sec_field
                     ):
                         continue  # A higher-priority concept already populated this field
                 # See should_skip_reit_only_fallback_field's own docstring

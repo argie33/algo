@@ -158,6 +158,30 @@ def reit_exclusive_value_outranks_existing(existing: Any, candidate: Any) -> boo
     return abs(float(existing)) < _REIT_EXCLUSIVE_OVERRIDE_PLAUSIBLE_RATIO * abs(c)
 
 
+# FIXED 2026-09-19 (/goal data-confidence audit, ACR/ACRES Commercial Realty live-confirmed via
+# real SEC companyfacts JSON): this override was magnitude-gated only - "genuinely larger wins" -
+# on the assumption that a smaller existing "revenue" is always a minor sub-line (an ASC-606
+# fee-income concept, or a REIT-exclusive concept like operating_lease_lease_income) for a bank/
+# mortgage-REIT filer. That assumption breaks when the existing value came from "Revenues"/
+# "RevenuesNetOfInterestExpense" itself - for some mortgage REITs (ACR FY2023: Revenues=
+# $91,131,000, exact yfinance match) that concept IS the real, complete NET revenue total
+# (interest income net of interest expense on the filer's own borrowings and provisions), and
+# gross InterestAndDividendIncomeOperating ($187,466,000, ~2x larger) is a genuinely different,
+# larger, but WRONG figure for "revenue" - net revenue is by definition smaller than its own
+# gross-interest component, so "larger wins" silently clobbered a correct total with an incorrect
+# one. Deny-listing the known genuine-total concepts (rather than allow-listing the known-narrow
+# ones) preserves every other documented case - AX (existing sourced from
+# revenue_from_contract_with_customer_excluding_assessed_tax) and ABR/TRTX (existing sourced from
+# operating_lease_lease_income, a REIT-exclusive minor line, not a real revenue total for a
+# mortgage REIT) - while no longer misfiring for ACR.
+_REVENUE_GENUINE_TOTAL_SOURCE_FIELDS = frozenset(
+    {
+        "revenues",
+        "revenues_net_of_interest_expense",
+    }
+)
+
+
 def should_override_fallback_field_for_depository_institution(
     sec_field: str,
     db_field: str,
@@ -165,12 +189,19 @@ def should_override_fallback_field_for_depository_institution(
     row: dict[str, Any],
     r: dict[str, Any],
     depository_institution_symbols: frozenset[str],
+    existing_source_sec_field: str | None = None,
 ) -> bool:
     """True if a bank/depository-institution's (or a mortgage REIT's) real interest-income
     revenue concept - processed as plain fallback-only, LATE in sec_income_statement.py's
     concept list - should be allowed to OVERWRITE an already-populated "revenue" set earlier
     by a smaller concept (typically an ASC-606 contract-revenue concept, but not exclusively -
     magnitude-gated regardless of which field wrote first).
+
+    Never fires when `existing_source_sec_field` is a known genuine-total concept (see
+    _REVENUE_GENUINE_TOTAL_SOURCE_FIELDS's own comment, ACR live evidence) - a smaller "revenue"
+    sourced from "Revenues"/"RevenuesNetOfInterestExpense" is never assumed to be a narrow
+    sub-line just because it's smaller than gross interest income, which is smaller than its own
+    gross-interest component by definition for a real net-revenue total.
 
     FIXED 2026-09-13 (goal session: "patrols and checks" comprehensiveness audit, AX/Axos
     Financial live-confirmed via real SEC companyfacts JSON): ASC 606 explicitly excludes
@@ -205,6 +236,8 @@ def should_override_fallback_field_for_depository_institution(
     if sec_field not in ("interest_and_dividend_income_operating", "interest_income_operating"):
         return False
     if r.get("symbol") not in depository_institution_symbols:
+        return False
+    if db_field == "revenue" and existing_source_sec_field in _REVENUE_GENUINE_TOTAL_SOURCE_FIELDS:
         return False
     existing = row.get(db_field)
     if not (
