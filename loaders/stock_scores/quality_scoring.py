@@ -268,7 +268,7 @@ class QualityScoringMixin:
 
             min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
 
-            updates: list[tuple[str, float, float, bool]] = []
+            updates: list[tuple[str, float | None, float, bool]] = []
             for row in rows:
                 (
                     symbol,
@@ -292,6 +292,7 @@ class QualityScoringMixin:
                 # already accepts for the OTHER pillars it reads in this same loop.
                 weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
+                any_pillar_available = False
                 for pillar_name, pillar_score in (
                     ("quality", quality_score),
                     ("value", value_score),
@@ -301,7 +302,10 @@ class QualityScoringMixin:
                 ):
                     if pillar_score is not None:
                         composite_val += float(pillar_score) * weights[pillar_name]
-                composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+                        any_pillar_available = True
+                # NULL (not a fabricated 0.0) when zero pillars are available - see
+                # load_stock_scores.py's _compute_stock_score, same fix, same rationale.
+                composite_score_new = round(max(0.0, min(100.0, composite_val)), 2) if any_pillar_available else None
 
                 all_scores_new: dict[str, float | None] = {
                     "quality": quality_score,

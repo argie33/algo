@@ -795,7 +795,7 @@ class MomentumScoringMixin:
     @staticmethod
     def _recompute_composite_for_row(
         quality_score: Any, growth_score: Any, value_score: Any, risk_score: Any, momentum_score_new: float | None
-    ) -> tuple[float, float]:
+    ) -> tuple[float | None, float]:
         """Recompute composite_score + data_completeness for one row, given the pillar scores
         as they currently stand plus the new momentum_score - split out purely to keep
         update_momentum_sector_relative_mom_12_1()'s complexity within this repo's ruff C901
@@ -806,6 +806,7 @@ class MomentumScoringMixin:
         # composite_score/data_completeness again.
         weights = BASE_PILLAR_WEIGHTS
         composite_val = 0.0
+        any_pillar_available = False
         for pillar_name, pillar_score in (
             ("quality", quality_score),
             ("value", value_score),
@@ -815,7 +816,10 @@ class MomentumScoringMixin:
         ):
             if pillar_score is not None:
                 composite_val += float(pillar_score) * weights[pillar_name]
-        composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+                any_pillar_available = True
+        # NULL (not a fabricated 0.0) when zero pillars are available - see
+        # load_stock_scores.py's _compute_stock_score, same fix, same rationale.
+        composite_score_new = round(max(0.0, min(100.0, composite_val)), 2) if any_pillar_available else None
 
         all_scores_new: dict[str, float | None] = {
             "quality": float(quality_score) if quality_score is not None else None,
@@ -832,7 +836,7 @@ class MomentumScoringMixin:
 
     def _withhold_momentum_below_floor(
         self,
-    ) -> list[tuple[str, float | None, float, str | None, float, bool]]:
+    ) -> list[tuple[str, float | None, float | None, str | None, float, bool]]:
         """Companion to update_momentum_sector_relative_mom_12_1(): finds the COMPLEMENT of
         that method's own correction population - symbols with a real momentum_score and real
         (non-data_unavailable) momentum_metrics, but ineligible for correction (below the
@@ -897,7 +901,7 @@ class MomentumScoringMixin:
             return []
 
         min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
-        withheld: list[tuple[str, float | None, float, str | None, float, bool]] = []
+        withheld: list[tuple[str, float | None, float | None, str | None, float, bool]] = []
         for (
             symbol,
             _composite_score_old,
@@ -1122,7 +1126,7 @@ class MomentumScoringMixin:
 
             min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
 
-            updates: list[tuple[str, float | None, float, str | None, float, bool]] = []
+            updates: list[tuple[str, float | None, float | None, str | None, float, bool]] = []
             for row in rows:
                 (
                     symbol,

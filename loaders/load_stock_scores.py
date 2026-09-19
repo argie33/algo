@@ -1010,6 +1010,7 @@ class StockScoresLoader(
             # Do NOT redistribute weights (GOVERNANCE rule: no weight redistribution)
             # If metric unavailable, its weight is skipped (contributes 0), not given to other metrics
             composite_score_value = 0.0
+            any_metric_contributed = False
             for metric_name, clamped_value_score in [
                 ("quality", clamped_quality),
                 ("value", clamped_value),
@@ -1047,6 +1048,7 @@ class StockScoresLoader(
                     )
                 elif isinstance(clamped_value_score, float):
                     composite_score_value += clamped_value_score * weight
+                    any_metric_contributed = True
                 else:
                     raise RuntimeError(
                         f"[{symbol}] Metric '{metric_name}' returned unexpected type {type(clamped_value_score).__name__}. "
@@ -1056,7 +1058,14 @@ class StockScoresLoader(
             # Clamp to 0-100: raw composite value (may be <100 if metrics missing).
             # No rescaling per GOVERNANCE (no weight redistribution).
             # Traders see completeness % to understand data quality.
-            composite_score = max(0.0, min(100.0, round(composite_score_value, 2)))
+            # NULL (not a fabricated 0.0) when zero pillars contributed - same rationale as
+            # rs_percentile above: a real 0.0 composite is indistinguishable from "no data at
+            # all" unless we make the no-data case NULL instead. Confirmed live 2026-09-19:
+            # 1435 rows had composite_score=0.00 with every pillar score NULL, all correctly
+            # flagged data_unavailable=True but still storing a misleading numeric floor that
+            # anything querying composite_score without the data_unavailable filter would see
+            # as a pile-up at 0 (dashboard/API bunching investigation).
+            composite_score = max(0.0, min(100.0, round(composite_score_value, 2))) if any_metric_contributed else None
 
             def extract_score_value(score_result: float | dict[str, Any] | None) -> float | None:
                 """Extract numeric score from result (float or marker dict)."""

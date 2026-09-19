@@ -760,7 +760,7 @@ class GrowthScoringMixin:
 
             min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
 
-            updates: list[tuple[str, float | None, float, str | None, float, bool]] = []
+            updates: list[tuple[str, float | None, float | None, str | None, float, bool]] = []
             for row in rows:
                 symbol = row[0]
                 growth_score_old = float(row[1])
@@ -794,6 +794,7 @@ class GrowthScoringMixin:
                 # risk_scoring.py/value_metrics.py already use for their own just-recomputed pillar.
                 weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
+                any_pillar_available = False
                 for pillar_name, pillar_score in (
                     ("quality", quality_score),
                     ("value", value_score),
@@ -803,7 +804,10 @@ class GrowthScoringMixin:
                 ):
                     if pillar_score is not None:
                         composite_val += float(pillar_score) * weights[pillar_name]
-                composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+                        any_pillar_available = True
+                # NULL (not a fabricated 0.0) when zero pillars are available - see
+                # load_stock_scores.py's _compute_stock_score, same fix, same rationale.
+                composite_score_new = round(max(0.0, min(100.0, composite_val)), 2) if any_pillar_available else None
 
                 all_scores_new: dict[str, float | None] = {
                     "quality": float(quality_score) if quality_score is not None else None,
@@ -888,7 +892,7 @@ class GrowthScoringMixin:
 
     def _withhold_growth_below_floor(
         self,
-    ) -> list[tuple[str, float | None, float, str | None, float, bool]]:
+    ) -> list[tuple[str, float | None, float | None, str | None, float, bool]]:
         """Companion to update_growth_sector_neutral_scores(): finds the COMPLEMENT of that
         method's own correction population - symbols with a real growth_score but ineligible for
         correction (below the liquidity floor, or excluded by
@@ -957,7 +961,7 @@ class GrowthScoringMixin:
             return []
 
         min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
-        withheld: list[tuple[str, float | None, float, str | None, float, bool]] = []
+        withheld: list[tuple[str, float | None, float | None, str | None, float, bool]] = []
         for (
             symbol,
             _composite_score_old,
@@ -971,6 +975,7 @@ class GrowthScoringMixin:
         ) in rows:
             weights = BASE_PILLAR_WEIGHTS
             composite_val = 0.0
+            any_pillar_available = False
             for pillar_name, pillar_score in (
                 ("quality", quality_score),
                 ("value", value_score),
@@ -979,7 +984,10 @@ class GrowthScoringMixin:
             ):
                 if pillar_score is not None:
                     composite_val += float(pillar_score) * weights[pillar_name]
-            composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+                    any_pillar_available = True
+            # NULL (not a fabricated 0.0) when zero pillars are available - see
+            # load_stock_scores.py's _compute_stock_score, same fix, same rationale.
+            composite_score_new = round(max(0.0, min(100.0, composite_val)), 2) if any_pillar_available else None
             available_weight = sum(
                 weights[p]
                 for p, s in (

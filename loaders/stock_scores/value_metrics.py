@@ -911,7 +911,7 @@ class ValueMetricsMixin:
             # reading (2026-09-07 real-money-readiness audit).
             min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
 
-            updates: list[tuple[str, float | None, float, str | None, float, bool, str, str | None]] = []
+            updates: list[tuple[str, float | None, float | None, str | None, float, bool, str, str | None]] = []
             for row in rows:
                 symbol, value_score_old, composite_score_old, risk_score = row[0], row[1], row[2], row[3]
                 quality_score, growth_score, momentum_score = row[4], row[5], row[6]
@@ -966,6 +966,7 @@ class ValueMetricsMixin:
                 # pillar_weights.py's BASE_PILLAR_WEIGHTS "ABOVE DECISION SUPERSEDED" note).
                 weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
+                any_pillar_available = False
                 for pillar_name, pillar_score in (
                     ("quality", quality_score),
                     ("value", value_score_new),
@@ -975,7 +976,10 @@ class ValueMetricsMixin:
                 ):
                     if pillar_score is not None:
                         composite_val += float(pillar_score) * weights[pillar_name]
-                composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+                        any_pillar_available = True
+                # NULL (not a fabricated 0.0) when zero pillars are available - see
+                # load_stock_scores.py's _compute_stock_score, same fix, same rationale.
+                composite_score_new = round(max(0.0, min(100.0, composite_val)), 2) if any_pillar_available else None
 
                 # data_completeness/data_unavailable resync (2026-09-07, same audit as the
                 # VALUE_MIN_WEIGHT gate above): nulling value_score here without also updating
@@ -1098,7 +1102,7 @@ class ValueMetricsMixin:
 
     def _withhold_value_below_floor(
         self,
-    ) -> list[tuple[str, float | None, float, str | None, float, bool, str, str | None]]:
+    ) -> list[tuple[str, float | None, float | None, str | None, float, bool, str, str | None]]:
         """Companion to update_value_multiples_percentiles(): finds the COMPLEMENT of that
         method's own correction population - symbols with a real value_score but ineligible for
         correction (below the liquidity floor, or excluded by
@@ -1167,7 +1171,7 @@ class ValueMetricsMixin:
             return []
 
         min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
-        withheld: list[tuple[str, float | None, float, str | None, float, bool, str, str | None]] = []
+        withheld: list[tuple[str, float | None, float | None, str | None, float, bool, str, str | None]] = []
         for (
             symbol,
             _composite_score_old,
@@ -1190,7 +1194,11 @@ class ValueMetricsMixin:
                 ("growth", growth_score),
             )
             composite_val = sum(float(s) * weights[p] for p, s in pillar_scores if s is not None)
-            composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+            # NULL (not a fabricated 0.0) when zero pillars are available - see
+            # load_stock_scores.py's _compute_stock_score, same fix, same rationale.
+            composite_score_new = (
+                round(max(0.0, min(100.0, composite_val)), 2) if any(s is not None for _, s in pillar_scores) else None
+            )
             available_weight = sum(weights[p] for p, s in pillar_scores if s is not None)
             data_completeness_new = min(99.99, round(available_weight * 100, 2))
             data_unavailable_new = data_completeness_new < min_completeness_threshold

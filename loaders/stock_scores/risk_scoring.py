@@ -971,7 +971,7 @@ class RiskScoringMixin:
         row: tuple[Any, ...],
         pct_by_field: dict[str, dict[str, float]],
         min_completeness_threshold: float,
-    ) -> tuple[str, float | None, float, str | None, float, bool] | None:
+    ) -> tuple[str, float | None, float | None, str | None, float, bool] | None:
         """Recompute one symbol's risk_score/composite_score from the absolute z-score
         percentiles of Risk's 3 equal-weighted Barra-descriptor inputs (Volatility 60D/DASTD,
         CMRA 12M, raw OLS beta - see `_compute_risk_absolute_zscore_percentiles`'s own
@@ -1024,6 +1024,7 @@ class RiskScoringMixin:
         # BASE_PILLAR_WEIGHTS "ABOVE DECISION SUPERSEDED" note).
         weights = BASE_PILLAR_WEIGHTS
         composite_val = 0.0
+        any_pillar_available = False
         for pillar_name, pillar_score in (
             ("quality", quality_score),
             ("value", value_score),
@@ -1033,7 +1034,10 @@ class RiskScoringMixin:
         ):
             if pillar_score is not None:
                 composite_val += float(pillar_score) * weights[pillar_name]
-        composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+                any_pillar_available = True
+        # NULL (not a fabricated 0.0) when zero pillars are available - see
+        # load_stock_scores.py's _compute_stock_score, same fix, same rationale.
+        composite_score_new = round(max(0.0, min(100.0, composite_val)), 2) if any_pillar_available else None
 
         all_scores_new: dict[str, float | None] = {
             "quality": float(quality_score) if quality_score is not None else None,
@@ -1165,7 +1169,7 @@ class RiskScoringMixin:
 
             min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
 
-            updates: list[tuple[str, float | None, float, str | None, float, bool]] = []
+            updates: list[tuple[str, float | None, float | None, str | None, float, bool]] = []
             for row in rows:
                 update = self._recompute_risk_row(row, pct_by_field, min_completeness_threshold)
                 if update is not None:
@@ -1233,7 +1237,7 @@ class RiskScoringMixin:
 
     def _withhold_risk_below_floor(
         self,
-    ) -> list[tuple[str, float | None, float, str | None, float, bool]]:
+    ) -> list[tuple[str, float | None, float | None, str | None, float, bool]]:
         """Companion to update_risk_absolute_zscore_scores(): finds the COMPLEMENT of that
         method's own correction population - symbols with a real risk_score but ineligible for
         correction (below the liquidity floor, missing/data_unavailable stability_metrics, or
@@ -1302,7 +1306,7 @@ class RiskScoringMixin:
             return []
 
         min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
-        withheld: list[tuple[str, float | None, float, str | None, float, bool]] = []
+        withheld: list[tuple[str, float | None, float | None, str | None, float, bool]] = []
         for (
             symbol,
             _composite_score_old,
@@ -1324,7 +1328,11 @@ class RiskScoringMixin:
                 ("growth", growth_score),
             )
             composite_val = sum(float(s) * weights[p] for p, s in pillar_scores if s is not None)
-            composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
+            # NULL (not a fabricated 0.0) when zero pillars are available - see
+            # load_stock_scores.py's _compute_stock_score, same fix, same rationale.
+            composite_score_new = (
+                round(max(0.0, min(100.0, composite_val)), 2) if any(s is not None for _, s in pillar_scores) else None
+            )
             available_weight = sum(weights[p] for p, s in pillar_scores if s is not None)
             data_completeness_new = min(99.99, round(available_weight * 100, 2))
             data_unavailable_new = data_completeness_new < min_completeness_threshold
