@@ -86,9 +86,33 @@ class TestRrcArdtOperatingIncomeFromRevenueMinusCosts:
         assert rows[0]["operating_income_loss"] == 120_000_000_000.0
         assert "costs_and_expenses" not in rows[0]
 
-    def test_requires_revenues_concept_specifically(self) -> None:
+    def test_requires_some_revenue_concept(self) -> None:
         rows = [{"symbol": "XYZ", "fiscal_year": 2025, "costs_and_expenses": 1_000_000.0}]
 
         _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
 
         assert rows[0].get("operating_income_loss") is None
+
+    def test_bh_style_falls_back_to_revenue_from_contract_with_customer_key(self) -> None:
+        """FIXED 2026-09-19: BH (Bristow Group's predecessor CIK, live-confirmed) tags a real
+        "CostsAndExpenses" total every year but its revenue concept is
+        "RevenueFromContractWithCustomerExcludingAssessedTax", not "Revenues" - the original
+        `row.get("revenues")`-only check always returned None for BH, so this fallback silently
+        never fired and a weaker downstream fallback (revenue - cost_of_revenue - SG&A) produced
+        an inflated operating_income instead. FY2022 live values: Revenue=$368,231,000 /
+        CostsAndExpenses=$331,912,000 (real operating_income=$36,319,000, close to yfinance's
+        independently-parsed $45,731,000 - vs. the old wrong $157,359,000).
+        """
+        rows = [
+            {
+                "symbol": "BH",
+                "fiscal_year": 2022,
+                "revenue_from_contract_with_customer_excluding_assessed_tax": 368_231_000.0,
+                "costs_and_expenses": 331_912_000.0,
+            }
+        ]
+
+        _fill_operating_income_from_revenue_minus_costs_and_expenses(rows)
+
+        assert rows[0]["operating_income_loss"] == 36_319_000.0
+        assert "costs_and_expenses" not in rows[0]

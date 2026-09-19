@@ -327,18 +327,39 @@ def _fill_operating_income_from_revenue_minus_costs_and_expenses(rows: list[dict
     load_financial_statements.py's _INCOME_FIELD_MAPPING) rather than a bare "operating_income"
     key - see income_tax_expense_pretax_income_wiring_gap_fixed_20260905 in memory for why a
     fallback that invents its own bare final-column key instead of reusing an already-mapped
-    one silently never reaches the database. Only fires when "Revenues" specifically (RRC/ARDT's
-    own primary revenue concept) is present - deliberately narrow rather than trying to
-    reconstruct a fully-resolved "revenue" figure from every possible revenue concept alias at
-    this pre-transform() aggregation stage, where that resolution hasn't happened yet. Never
-    overwrites a real operating_income_loss value. Mutates rows in place and always strips the
-    raw costs_and_expenses key.
+    one silently never reaches the database. Never overwrites a real operating_income_loss
+    value. Mutates rows in place and always strips the raw costs_and_expenses key.
+
+    FIXED 2026-09-19 (BH/BH.A live-confirmed, CIK 0001759655): originally only checked the raw
+    "revenues" key (from RRC/ARDT's own "Revenues" concept), a narrower check than the sibling
+    _fill_operating_income_from_revenue_minus_single_cogs_and_opex's revenue-key list above ever
+    got applied here - same bug shape as that function's own 2026-09-11 fix (AMPL). BH tags a
+    real "CostsAndExpenses" total every year but its revenue concept is
+    "RevenueFromContractWithCustomerExcludingAssessedTax", not "Revenues", so `row.get(
+    "revenues")` always returned None and this fallback silently never fired for BH despite
+    having everything it needed - "costs_and_expenses" got popped anyway (per this function's
+    own unconditional-strip contract) and the weaker
+    _fill_operating_income_from_revenue_cost_and_opex (financial_statements_value_validation.py,
+    revenue - cost_of_revenue - operating_expenses using SG&A as the operating_expenses proxy)
+    fired instead, omitting BH's real OtherUnderwritingExpense/ProductionCosts/RestructuringCosts
+    expense lines (~$121M/yr) and inflating operating_income by roughly that amount every year
+    (FY2022: stored $157,359,000 vs. real Revenue-CostsAndExpenses $36,319,000, close to
+    yfinance's independently-parsed $45,731,000). Now checks the same 3-key revenue fallback
+    order as that sibling function.
     """
     for row in rows:
         costs_and_expenses = row.pop("costs_and_expenses", None)
         if row.get("operating_income_loss") is not None or costs_and_expenses is None:
             continue
-        revenue = row.get("revenues")
+        revenue = None
+        for revenue_key in (
+            "revenues",
+            "revenue_from_contract_with_customer_excluding_assessed_tax",
+            "revenue_from_contract_with_customer_including_assessed_tax",
+        ):
+            if row.get(revenue_key) is not None:
+                revenue = row[revenue_key]
+                break
         if revenue is None:
             continue
         row["operating_income_loss"] = revenue - costs_and_expenses
