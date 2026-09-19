@@ -57,6 +57,57 @@ _CLEAN_ADS_RATIO_CANDIDATES = (
 _ADS_RATIO_TOLERANCE = 0.015
 
 
+def derive_total_assets_or_liabilities(
+    known_liabilities_or_assets: Any,
+    stockholders_equity: Any,
+    temporary_equity: Any,
+    *,
+    solving_for_assets: bool,
+) -> Any:
+    """One direction of the balance-sheet identity Assets = Liabilities +
+    Temporary Equity + Stockholders' Equity, used to fill in whichever of
+    total_assets/total_liabilities a filer left untagged.
+
+    FIXED 2026-09-19 (SOUN FY2020 total_assets=-276M live-confirmed): both
+    directions previously assumed only two components (dropping a SPAC's
+    `temporary_equity` - redeemable shares in trust, neither a liability nor
+    permanent equity) and stored a mathematically impossible negative result.
+    Returns None (leave the column NULL) rather than a still-negative value -
+    that signals an incomplete period (e.g. a pre-IPO SPAC formation stub),
+    not a real total_assets/total_liabilities figure.
+    """
+    temp_equity = temporary_equity or 0
+    if solving_for_assets:
+        result = known_liabilities_or_assets + stockholders_equity + temp_equity
+    else:
+        result = known_liabilities_or_assets - stockholders_equity - temp_equity
+    return result if result >= 0 else None
+
+
+def apply_balance_sheet_identity_fallbacks(row: dict[str, Any], statement_type: str) -> None:
+    """Fill in total_assets/total_liabilities from the other two via the balance-sheet
+    identity when a filer left one of them untagged - both directions, mutating `row`
+    in place. See derive_total_assets_or_liabilities for the identity itself. Moved out
+    of ConsolidatedFinancialStatementsLoader.transform() as one call (2026-09-19) so
+    that method's branching doesn't grow with this fallback's own conditions.
+    """
+    if statement_type != "balance":
+        return
+    equity = row.get("stockholders_equity")
+    if row.get("total_liabilities") is None and row.get("total_assets") is not None and equity is not None:
+        derived = derive_total_assets_or_liabilities(
+            row["total_assets"], equity, row.get("temporary_equity"), solving_for_assets=False
+        )
+        if derived is not None:
+            row["total_liabilities"] = derived
+    if row.get("total_assets") is None and row.get("total_liabilities") is not None and equity is not None:
+        derived = derive_total_assets_or_liabilities(
+            row["total_liabilities"], equity, row.get("temporary_equity"), solving_for_assets=True
+        )
+        if derived is not None:
+            row["total_assets"] = derived
+
+
 class FinancialStatementsValueValidationMixin:
     """EPS/net_income/gross_profit/debt/goodwill/revenue plausibility checks for
     ConsolidatedFinancialStatementsLoader. Not usable standalone - relies on attributes/methods
