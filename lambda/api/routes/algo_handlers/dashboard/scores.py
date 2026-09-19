@@ -40,6 +40,21 @@ logger = logging.getLogger(__name__)
 # the React scores page can no longer silently disagree about which stocks even appear. See
 # git history on this file for the composite_tilted_weight-based design this replaces if that
 # context is ever needed again - not reproduced here since it's no longer live behavior.
+#
+# KNOWN ARCHITECTURE DEBT (flagged 2026-09-19, /goal scores audit, not fixed here - too risky
+# to merge blind): this endpoint (dashboard.py TUI) and scores_handlers/stock_scores.py's
+# `/api/scores/stockscores` (React) are two SEPARATE, hand-written SQL queries that are only
+# kept in sync by developer discipline, not shared code - this file's own history above
+# documents that sync already silently drifting and being "reapplied" once. Concretely found
+# drifted again in the same audit that added this note: this endpoint's ORDER BY had NO
+# secondary tiebreak column at all (fixed below, +`s.symbol`/`fs.symbol` DESC), while
+# stock_scores.py's had a secondary column that evaluated to the SAME column as the primary
+# sort (also fixed, separately, same audit) - two different manifestations of the identical
+# underlying defect (no real tiebreak) because there's no shared query-building code between
+# them to fix once. They also return different column sets (this endpoint adds
+# current_price/change_percent/price_vs_sma_50/200 via extra LATERAL joins that
+# stock_scores.py doesn't have) so a straight merge isn't a small change - flagging as a real
+# consolidation candidate for a dedicated pass, not attempting it inline here.
 
 
 @db_route_handler("fetch dashboard scores")
@@ -65,7 +80,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 FROM stock_scores s
                 JOIN stock_symbols sy ON sy.symbol = s.symbol
                 LEFT JOIN company_profile c ON s.symbol = c.symbol
-                ORDER BY s.composite_score DESC NULLS LAST
+                ORDER BY s.composite_score DESC NULLS LAST, s.symbol DESC NULLS LAST
                 LIMIT %s
             )
             SELECT
@@ -98,7 +113,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 WHERE symbol = fs.symbol
                 ORDER BY date DESC LIMIT 1
             ) tl ON true
-            ORDER BY fs.composite_score DESC NULLS LAST
+            ORDER BY fs.composite_score DESC NULLS LAST, fs.symbol DESC NULLS LAST
         """,
             (limit,),
         )
@@ -200,7 +215,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             JOIN stock_symbols ss ON ss.symbol = s.symbol
             LEFT JOIN company_profile c ON s.symbol = c.symbol
             WHERE ss.is_sp500 = TRUE
-            ORDER BY s.composite_score DESC NULLS LAST
+            ORDER BY s.composite_score DESC NULLS LAST, s.symbol DESC NULLS LAST
             LIMIT 15
             """
         )

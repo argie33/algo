@@ -42,6 +42,51 @@ def _owner() -> Any:
 
 logger = logging.getLogger("loaders.load_value_quality_growth_metrics")
 
+# QUALITY_MIN_TOTAL_ASSETS (added 2026-09-19, /goal scores audit): materiality floor on
+# invested capital for Quality's ROE-driven z-score population. Live-confirmed root cause:
+# BUUU Group (quality_score=98.49, ranked #7 universe-wide alongside AAPL/LLY/MA/ADP/KLAC)
+# has total_assets=$2.54M/stockholders_equity=$1.01M - 2-3 orders of magnitude below every
+# other top-25 quality name (smallest peer, STRW, still has $878M total_assets) - against a
+# $538M market cap, itself a thin-float pricing artifact, not a real large-scale operation.
+# roe=78.7%/roa=31.25% are real arithmetic (net income / a near-worthless balance sheet), so
+# the existing sign-flip distress guard (roe<0 or roa<0) never catches it - both legs are
+# genuinely positive, just mechanically inflated by a denominator too small to be a
+# meaningful "invested capital" base. This is the identical failure mode already fixed for
+# royalty trusts/SPACs via NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE (a near-zero
+# invested-capital balance sheet mechanically produces ratios no real operating company can
+# match) - except BUUU is a genuine operating company (Cayman micro-cap, real SEC 10-K
+# filer), so that SIC/name-based exclusion structurally can't catch it; this needs a direct
+# materiality floor on the balance sheet itself instead.
+# THRESHOLD: live-checked against the full quality-scored universe sorted by total_assets
+# ascending - almost every symbol below $15M total_assets already scores quality_score<35
+# on the merits (genuinely thin/distressed small caps, correctly low already) with BUUU the
+# sole outlier landing near the top of the universe. $10M sits with wide margin below the
+# smallest legitimate top-25 name (STRW $878M) and wide margin above BUUU's $2.54M, so it
+# cleanly separates the one confirmed artifact from the rest of the real universe without
+# touching genuinely-scored small/micro-caps whose low scores already reflect real weak
+# fundamentals. Applied to total_assets specifically (not stockholders_equity) since a highly
+# leveraged but real operating company can have small/negative equity on a large asset base -
+# total_assets is the more robust "is this a real invested-capital base at all" gate.
+QUALITY_MIN_TOTAL_ASSETS = 10_000_000.0
+
+# Reusable LATERAL join fetching each symbol's latest total_assets - same "most recent fiscal
+# year on file" convention already used throughout vqg_quality.py's own per-symbol fetch.
+# NULL total_assets (data genuinely unavailable, e.g. some ADRs/foreign filers - see APAM/ITW
+# in the live top-25 quality leaderboard, both real large caps with no total_assets on file)
+# is NOT treated as a materiality failure - benefit of the doubt goes to "we don't have this
+# data" rather than silently excluding a symbol this floor was never meant to catch. Only an
+# EXPLICIT, present total_assets below the floor excludes a symbol.
+QUALITY_MATERIALITY_JOIN_SQL = """
+    LEFT JOIN LATERAL (
+        SELECT total_assets
+        FROM annual_balance_sheet
+        WHERE symbol = qm.symbol
+        ORDER BY fiscal_year DESC
+        LIMIT 1
+    ) qual_mat ON true
+"""
+QUALITY_MATERIALITY_FILTER_SQL = "(qual_mat.total_assets IS NULL OR qual_mat.total_assets >= %s)"
+
 
 class QualityBatchMixin(DebtComponentsFallbackMixin):
     """See module docstring. Also carries DebtComponentsFallbackMixin so
@@ -122,6 +167,7 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                 LEFT JOIN company_info_sec cis ON cis.symbol = qm.symbol
                 """
                 + LIQUIDITY_FLOOR_JOIN_SQL
+                + QUALITY_MATERIALITY_JOIN_SQL
                 + """
                 WHERE qm.quality_score IS NOT NULL
                   AND COALESCE(qm.data_unavailable, false) = false
@@ -131,6 +177,9 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                         OR liq_floor.avg_dollar_volume_20d IS NULL
                         OR liq_floor.avg_dollar_volume_20d < %s
                         OR NOT ("""
+                + QUALITY_MATERIALITY_FILTER_SQL
+                + """)
+                        OR NOT ("""
                 + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
                 + """)
                   )
@@ -138,6 +187,7 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                 (
                     getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
                     getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                    QUALITY_MIN_TOTAL_ASSETS,
                 ),
             )
             rows = cur.fetchall()
@@ -228,6 +278,13 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
         `liq_floor.avg_dollar_volume_20d`) every sibling pillar's batch pass uses - sub-floor
         symbols aren't included in this pass and keep whatever Pass-1 already gave them.
 
+        MATERIALITY FLOOR (added 2026-09-19, /goal scores audit): total_assets >=
+        QUALITY_MIN_TOTAL_ASSETS ($10M), NULLs exempted - see that constant's own docstring
+        for the BUUU Group live finding (quality_score=98.49 off a $2.54M balance sheet,
+        genuinely positive ROE/ROA so the sign-flip distress guard above never catches it).
+        Same "sub-floor symbols excluded from this pass, withheld rather than left stale by
+        _withhold_quality_below_floor()" treatment as the liquidity floor.
+
         Raises on failure, same as every other post_run() batch pass - an inconsistent
         quality_score is a live-trading-relevant correctness issue.
         """
@@ -248,17 +305,22 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                     LEFT JOIN value_metrics vm ON vm.symbol = qm.symbol
                     """
                     + LIQUIDITY_FLOOR_JOIN_SQL
+                    + QUALITY_MATERIALITY_JOIN_SQL
                     + """
                     WHERE qm.quality_score IS NOT NULL
                       AND COALESCE(qm.data_unavailable, false) = false
                       AND liq_floor.latest_close >= %s
                       AND liq_floor.avg_dollar_volume_20d >= %s
+                      AND """
+                    + QUALITY_MATERIALITY_FILTER_SQL
+                    + """
                       AND ("""
                     + NON_OPERATING_COMPANY_EXCLUSION_SQL_TEMPLATE.format(symbols_alias="su", company_info_alias="cis")
                     + ")",
                     (
                         getattr(self, "_min_stock_price", None) or DEFAULT_MIN_STOCK_PRICE,
                         getattr(self, "_min_adv_dollars", None) or DEFAULT_MIN_ADV_DOLLARS,
+                        QUALITY_MIN_TOTAL_ASSETS,
                     ),
                 )
                 rows = cur.fetchall()

@@ -47,6 +47,7 @@ from loaders.helpers.sec_zero_component_guards import (
     is_narrow_cash_due_from_banks_overwriting_combined_cash,
     is_narrow_intangible_amortization_overwriting_combined_dda,
     is_other_borrowings_additive_to_subordinated_debt,
+    is_standard_debt_overwriting_convertible_notes,
     is_wvvi_current_debt_component_additive,
     is_zero_overwrite_blocking_field,
     redirect_line_of_credit_for_current_classification,
@@ -1721,6 +1722,16 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # overwrite an already-resolved, dramatically larger combined-debt-total
                     # value with its own real-but-immaterial figure - see
                     # is_immaterial_standard_debt_overwriting_combined_total's own docstring
+                    # (sec_zero_component_guards.py) for the live evidence.
+                    continue
+                elif is_standard_debt_overwriting_convertible_notes(
+                    db_field, sec_field, row.get(db_field), value, _long_term_debt_source_sec_field
+                ):
+                    # AAOI-class case: the plain "long_term_debt" concept is not fallback-gated
+                    # at all, so it would otherwise unconditionally overwrite an already-
+                    # resolved ConvertibleNotesPayable/ConvertibleLongTermNotesPayable value with
+                    # its own real-but-smaller, DIFFERENT-instrument figure - see
+                    # is_standard_debt_overwriting_convertible_notes's own docstring
                     # (sec_zero_component_guards.py) for the live evidence.
                     continue
                 elif is_narrow_intangible_amortization_overwriting_combined_dda(

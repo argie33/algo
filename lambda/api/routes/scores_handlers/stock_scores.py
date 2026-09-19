@@ -85,7 +85,28 @@ def _get_stock_scores(
         }
         sort_col = raw_sorts.get(sort_by, "composite_score")
         sort_direction = "DESC" if sort_order == "desc" else "ASC"
-        fallback_col = sort_by if sort_by in raw_sorts else "composite_score"
+        # TIE-BREAK BUG FIX (2026-09-19, /goal scores audit): this used to be
+        # `sort_by if sort_by in raw_sorts else "composite_score"`, which for every
+        # recognized sort_by (the overwhelmingly common case - it's only NOT recognized for a
+        # malformed/unknown sort_by param) evaluates to the exact SAME column as sort_col
+        # itself. _build_stock_scores_query's ORDER BY then reads
+        # `sc.{sort_col} DESC, sc.{fallback_col} DESC` with both placeholders identical -
+        # a no-op secondary sort key, not a real tiebreak. Live-confirmed via /goal audit:
+        # momentum_score is z-score-winsorized at +/-3SD (Phi(3)*100 = 99.865, rounds to
+        # 99.87), and 11 real symbols (CLMT/JAN/MGRT/MSBI/MXL/NINE/OPI/TTRX/TWST/TXG/VLO)
+        # all clip to that exact same ceiling value - with no real secondary sort key,
+        # Postgres' tie order among those 11 is plan-dependent/arbitrary (not derived from
+        # any real ranking signal), so "top 10 by momentum_score" silently drops one of the
+        # 11 tied names essentially at random, and can even reorder between requests. Same
+        # defect applies to any other sort_by wherever ties occur (composite_score ties are
+        # just rarer since it's a continuous weighted average, not a clipped z-score).
+        # Fixed by always tiebreaking on `symbol` (unique, so page contents/order become
+        # fully deterministic) instead of duplicating sort_col - this does not change the
+        # true ranking of tied rows (there is no real data to rank them by additionally),
+        # it only replaces "arbitrary" with "fixed and reproducible" so the same page/tie
+        # group always renders the same way instead of silently dropping members between
+        # requests.
+        fallback_col = "symbol" if sort_col != "symbol" else "composite_score"
         pillar_key = pillar_by_sort_by.get(sort_by)
 
         # RAW, UNFILTERED TABLE ROWS (2026-09-18 user directive: "it should not filter it

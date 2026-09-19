@@ -727,6 +727,59 @@ def is_immaterial_standard_debt_overwriting_combined_total(
     )
 
 
+# ADDED 2026-09-19 (/goal scores-accuracy audit, AAOI live-confirmed via real SEC companyfacts
+# JSON, closing generic_concept_overwrite_bugs_20260919's "neither fixed in code" gap for the
+# AAOI shape specifically - CBAN's separate additive-fallback shape is intentionally NOT
+# touched here, still needs its own per-filer verification per that memory note). AAOI
+# (Applied Optoelectronics, CIK 1158114) FY2025 10-K: "ConvertibleNotesPayable"/
+# "ConvertibleLongTermNotesPayable" both tag the real $129,829,000 debt (exact yfinance match),
+# processed first and correctly stored - but the plain "LongTermDebt" concept, unlike its
+# fallback-gated siblings (see _DEBT_FALLBACK_ONLY_FIELDS), is NOT fallback-only at all, so its
+# own real-but-different $33,975,000 (a distinct, smaller instrument - not additive: yfinance's
+# flagged value matches the convertible-notes figure ALONE, not the sum) unconditionally
+# overwrote the already-resolved, correct value via ordinary last-listed-wins. Same failure
+# shape as is_immaterial_standard_debt_overwriting_combined_total above (an unguarded plain
+# "LongTermDebt" write clobbering an already-resolved, more-specific concept), just against a
+# different source-concept family and a different magnitude relationship (AAOI's ratio is only
+# ~3.8x, below _COMBINED_DEBT_TOTAL_MIN_MULTIPLE's 5x bar - reusing that threshold would miss
+# this exact live case) - so this checks DIRECTION instead of magnitude: a real debt increase
+# would show the plain concept's value at or above the already-resolved figure (a filer that
+# genuinely refinanced/grew its convertible debt and started tagging it under the generic
+# concept too), which this guard correctly leaves alone; only a SMALLER incoming plain value
+# (provably a different, lesser instrument per the AAOI evidence, not a corrected larger total)
+# is rejected. Deliberately narrow to the convertible-notes concept family specifically (not a
+# blanket "generic beats specific" rule across the whole concept list - the CBAN/broader
+# investigation memory note explicitly flagged that a blanket rule needs its own dedicated
+# audit first) - only fires for filers whose long_term_debt is currently sourced from one of
+# these two concepts.
+_CONVERTIBLE_NOTES_FAMILY_CONCEPTS = frozenset(
+    {
+        "convertible_notes_payable",
+        "convertible_long_term_notes_payable",
+    }
+)
+
+
+def is_standard_debt_overwriting_convertible_notes(
+    db_field: str, sec_field: str, existing: Any, value: Any, existing_source_sec_field: str | None
+) -> bool:
+    """True if `value` (an incoming plain "long_term_debt" concept write) should be REJECTED
+    to protect `existing` (long_term_debt's currently-stored value, already resolved from a
+    _CONVERTIBLE_NOTES_FAMILY_CONCEPTS concept) - see this module's own comment above
+    (AAOI live evidence) for the full rationale and why this checks direction, not magnitude.
+    """
+    return (
+        db_field == "long_term_debt"
+        and sec_field == "long_term_debt"
+        and existing_source_sec_field in _CONVERTIBLE_NOTES_FAMILY_CONCEPTS
+        and isinstance(existing, (int, float, Decimal))
+        and float(existing) > 0
+        and isinstance(value, (int, float, Decimal))
+        and float(value) > 0
+        and float(value) < float(existing)
+    )
+
+
 # ADDED 2026-09-18 (goal session, data-issue reduction, GM live-confirmed via real SEC
 # companyfacts JSON): same shape as is_immaterial_standard_debt_overwriting_combined_total
 # above, for amortization_expense instead of long_term_debt. sec_income_statement.py's
