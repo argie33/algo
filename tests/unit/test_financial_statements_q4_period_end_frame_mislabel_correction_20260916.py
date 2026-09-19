@@ -19,6 +19,16 @@ period_end to Q3's period_end + 3 months whenever the stored Q4 period_end falls
 month as that fiscal year's own Q3 period_end, one calendar year later - the specific
 frame-mislabeling signature, live-verified to resolve exactly the 881-row DB-wide backlog
 this fix shipped with (re-running the detection query afterward returned zero matches).
+
+WIDENED 2026-09-19 (goal: data-quality-issue reduction): the narrow month/year-match signature
+above only caught one specific historical seeding bug. Live DB-wide check found the same
+underlying defect (derived Q4 row, wrong period_end) in other shapes too - ABM's Q4 period_end
+exactly equalling that year's own Q1 date, and SWKS/POWW/RVTY's Q4 dated chronologically
+BEFORE that year's Q3 by 6-9 months. Generalized to a structural invariant instead: a real
+fiscal quarter is ~13 weeks, so any derived Q4 row whose period_end isn't 85-95 days after that
+year's own Q3 has a provably wrong date, regardless of which bug shape put it there. A
+collision guard skips a row if another row already sits at the corrected date, so this never
+manufactures a NEW true duplicate out of a metadata fix.
 """
 
 from unittest.mock import MagicMock, patch
@@ -53,11 +63,15 @@ class TestCorrectQ4PeriodEndFrameMislabel:
         sql = correction_sqls[0]
         assert "fiscal_quarter = 3" in sql
         assert "fiscal_quarter = 4" in sql
-        # Narrow signature: same month, one calendar year later - never a blanket "any
-        # mismatched Q4 date" rewrite, to avoid corrupting genuinely irregular (52/53-week)
-        # fiscal calendars.
-        assert "EXTRACT(MONTH FROM q4.period_end) = EXTRACT(MONTH FROM q3.period_end)" in sql
-        assert "EXTRACT(YEAR FROM q4.period_end) = EXTRACT(YEAR FROM q3.period_end) + 1" in sql
+        # Generalized signature (2026-09-19): a real fiscal quarter is ~13 weeks, so any
+        # derived Q4 more than a few days off from Q3+3mo has a provably wrong date -
+        # never a blanket "any mismatched Q4 date" rewrite (still scoped to
+        # data_source='derived_fy_minus_9m' rows only), but no longer limited to one
+        # specific historical mislabeling shape.
+        assert "(q4.period_end - q3.period_end) NOT BETWEEN 85 AND 95" in sql
+        assert "q4.data_source = 'derived_fy_minus_9m'" in sql
+        # Collision guard: never overwrite into a date another row already occupies.
+        assert "NOT EXISTS" in sql
         # data_source value must fit the column's varchar(20) limit (StringDataRightTruncation
         # live-hit during this fix's own testing with a longer value).
         assert "data_source = 'derived_fy_minus_9m'" in sql

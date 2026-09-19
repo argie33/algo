@@ -735,14 +735,21 @@ class Q4DerivationSweepMixin:
         re-trigger entry-resolution for those years at all (US GAAP filers never file a
         discrete Q4 10-Q - see _sweep_derive_missing_q4()'s own docstring).
 
-        Signature (same heuristic used to scope the DB-wide backfill this fix shipped with):
-        a Q4 row whose period_end falls in the SAME MONTH as that fiscal year's own Q3
-        period_end, one calendar year later - i.e. Q4 was seeded from a frame-mislabeled
-        Oct-Dec-shaped fact instead of the filer's real ~3-months-after-Q3 Q4. Deliberately
-        narrow (not "any Q4 date that looks unusual") to avoid touching genuinely correct
-        52/53-week or otherwise irregular fiscal calendars - the month-match-plus-one-year
-        pattern is specific to this exact bug shape, live-verified to not occur for a
-        December-FYE filer's normal Q3(Sep30)->Q4(Dec31 same year) cadence.
+        WIDENED 2026-09-19 (goal: data-quality-issue reduction, ABM/SWKS/POWW/RVTY live-
+        confirmed): the original month-match-plus-one-year signature only caught ONE specific
+        seeding shape. Live DB-wide check found the same underlying defect (a derived Q4 row's
+        period_end left wrong by whatever process originally seeded that row, before this
+        symbol's revenue/net_income ever got derived) in other shapes too - some Q4 dates
+        exactly equal to the SAME fiscal year's own Q1 period_end (ABM), some chronologically
+        BEFORE that year's Q3 by 6-9 months (SWKS/POWW/RVTY - impossible for a real Q4).
+        Generalized the detection to a structural invariant true for ANY real fiscal calendar
+        instead of one specific mislabeling shape: a fiscal quarter is ~13 weeks, so a real Q4
+        must fall 85-95 days after that same fiscal year's own Q3 - a derived Q4 row outside
+        that window has a provably wrong period_end, regardless of which historical bug put it
+        there. Added a collision guard (skip if another row already sits at the corrected
+        date) so this never creates a NEW true duplicate out of a metadata fix - those cases
+        need per-row merge judgment, not a blind date correction (see
+        [[q4_derived_row_period_end_mislabel_20260919]]).
 
         Corrected period_end is derived as Q3's own period_end + 3 months (the same quarterly
         cadence _sweep_derive_missing_q4()'s FY-9mo identity already assumes), not trusted
@@ -760,8 +767,14 @@ class Q4DerivationSweepMixin:
                    AND q3.fiscal_year = q4.fiscal_year
                    AND q3.fiscal_quarter = 3
                    AND q4.fiscal_quarter = 4
-                   AND EXTRACT(MONTH FROM q4.period_end) = EXTRACT(MONTH FROM q3.period_end)
-                   AND EXTRACT(YEAR FROM q4.period_end) = EXTRACT(YEAR FROM q3.period_end) + 1
+                   AND q4.data_source = 'derived_fy_minus_9m'
+                   AND (q4.period_end - q3.period_end) NOT BETWEEN 85 AND 95
+                   AND NOT EXISTS (
+                       SELECT 1 FROM quarterly_income_statement other
+                        WHERE other.symbol = q4.symbol
+                          AND other.id != q4.id
+                          AND other.period_end = (q3.period_end + INTERVAL '3 months')::date
+                   )
                 """
             )
             if cur.rowcount:
