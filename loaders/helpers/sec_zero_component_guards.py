@@ -240,6 +240,19 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         # exploration concept - see utils/external/sec_balance_sheet.py's concept-fetch list
         # (search "TangibleExplorationAndEvaluationAssets") for the live companyfacts evidence.
         ("ppe_net", "tangible_exploration_and_evaluation_assets"),
+        # ADDED 2026-09-19 (goal: data-quality-issue reduction, NVA capex live-confirmed):
+        # cash-flow sibling of the ppe_net pair immediately above, same filer (NVA, Nova
+        # Minerals Corp, CIK 1852551) and same root shape as the oil-and-gas capex pairs
+        # further up this set - "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvesting
+        # Activities" (a small, genuine equipment-purchase line, AUD 1,055,878 FY2022) and
+        # "PurchaseOfExplorationAndEvaluationAssets" (the dominant real capex line for a
+        # pre-production explorer, AUD 24,799,177 FY2022) both mapped onto the same "capex"
+        # db_field, so ordinary last-listed-wins silently discarded the dominant exploration
+        # figure and left capex stuck at the equipment-only value - understating NVA's real
+        # capex by ~24x (matching xbrl_yfinance_line_item_report's flagged "our value 25-100x
+        # smaller than yfinance"). Summed: AUD 25,855,055, consistent with the same
+        # AUD->USD conversion already validated for this filer's ppe_net pair above.
+        ("capex", "purchase_of_exploration_and_evaluation_assets"),
         # ADDED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up): RAVE
         # (Rave Restaurant Group) FY2022 (period 2021-06-28 to 2022-06-26) live-confirmed via
         # real SEC companyfacts JSON: real, nonzero "CostOfRevenue" ($1,000, an immaterial
