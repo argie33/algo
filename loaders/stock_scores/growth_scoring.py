@@ -708,6 +708,35 @@ class GrowthScoringMixin:
                     # observation outright). A hand-picked absolute cutoff (150%) on top of
                     # that standard winsorization was genuinely redundant machinery, not a
                     # second layer of protection.
+                    #
+                    # RE-APPLIED, SCOPED TO sustainable_growth_rate ONLY (2026-09-19, /goal
+                    # leaderboard dig-in, same failure class as Value's fcf_yield-fallback fix
+                    # this session): the 2026-09-15 removal's premise - that `_winsorize_group`'s
+                    # own [5th,95th] percentile clip already handles this population - assumed
+                    # the extreme tail stays a normal-sized minority. Live-verified it no longer
+                    # is: 339/4,611 symbols (7.35%) now sit beyond +/-150% (up from the 37/5,164
+                    # (0.7%) this constant's own docstring measured when the removal landed),
+                    # with a fat, wildly asymmetric tail (p1=-560%, p99=+111%, extremes to
+                    # SMX -1971%/VSA +1675%) - a near-zero-or-negative stockholders_equity
+                    # denominator blowing up ROE x retention rate (see vqg_quality.py's own
+                    # MAX_PLAUSIBLE_GROWTH_PCT=2000 upstream guard - loose enough to let exactly
+                    # this shape of value through to this table). At 7.35% the extreme tail is
+                    # now bigger than the 5% window `_winsorize_group` robustifies against, so
+                    # the "duplicated machinery" premise is gone - this is no longer a second
+                    # layer of protection over an already-small tail, it's the only thing that
+                    # keeps a majority-larger-than-the-clip-window tail from pulling this field's
+                    # reference mean/stdev around for every OTHER symbol scored on it. Scoped to
+                    # sustainable_growth_rate specifically, not all 4 fields: eps_growth_trend_5y/
+                    # sps_growth_trend_5y/forward_eps_growth_current_fy remain live-verified
+                    # naturally bounded (max/min within +/-120%, well under this threshold) - see
+                    # this file's own GROWTH_INPUT_IMPLAUSIBLE_PCT docstring - so reintroducing
+                    # the exclusion for those would in fact be the redundant machinery the
+                    # 2026-09-15 removal correctly objected to. A symbol excluded here drops this
+                    # leg entirely (renormalizes onto its other available GROWTH_SCORE_FIELDS
+                    # candidates, subject to GROWTH_MIN_FIELDS_AVAILABLE), same "no plausible
+                    # measurement -> omit, don't fabricate" pattern as Value's analogous fix.
+                    if field == "sustainable_growth_rate" and abs(val_f) > GROWTH_INPUT_IMPLAUSIBLE_PCT:
+                        continue
                     raw_by_field[field][symbol] = val_f
 
             # SIZE NEUTRALIZATION REMOVED 2026-09-16 (factor-purity sweep - this leftover was

@@ -29,6 +29,25 @@ MAX_YEARS_FOR_VARIABILITY = 5
 # stdev to be a real (not trivially zero) dispersion measure.
 MIN_YEARS_FOR_VARIABILITY = 3
 
+# MAX_YOY_GROWTH_RATE_ABS (added 2026-09-19, /goal factor-purity leaderboard dig-in, same
+# session as the Value cash-yield fallback-guard fix): this module's ORIGINAL `prior_eps == 0`
+# check only rejected an EXACT zero denominator, unlike every other ratio in this codebase's
+# quality/value pipeline (vqg_quality.py's own `_ratio_with_implausible_fallback`/inline
+# `abs(...) > 1000` margin guards), which all reject NEAR-zero denominators too, not just exact
+# zero. Live-confirmed real damage: quality_metrics.earnings_variability ranges up to 808,304%
+# (TRUG) with a population stdev of 16,859 across 4,571 scored symbols (p99=13,417) - a single
+# near-zero prior-year diluted_eps (e.g. $0.001 during a turnaround year) produces a
+# multi-hundred-thousand-percent "YoY growth" observation that then dominates a 2-4-observation
+# population stdev, feeding a fabricated extreme value straight into
+# vqg_quality_batch.py's MSCI Earnings-Variability z-score leg for the whole universe, not just
+# the affected symbol. Same 1000 (percentage-point) implausibility bound this codebase already
+# uses everywhere else (MAX_MARGIN_ABS_PCT in vqg_quality.py) - expressed here as a raw fraction
+# (10.0 = 1000%) since `growth_rates` entries are fractions, not yet multiplied by 100. An
+# individual implausible YoY pair is dropped (same "no plausible measurement -> omit, don't
+# fabricate" pattern as this codebase's other implausible-ratio guards), not the whole symbol -
+# the remaining plausible pairs (if >= 2) still produce a real variability reading.
+MAX_YOY_GROWTH_RATE_ABS = 10.0
+
 
 def earnings_variability(fiscal_year_values: list[tuple[int, float]]) -> float | None:
     """MSCI's Earnings Variability: standard deviation of year-over-year EPS growth rates over
@@ -54,7 +73,12 @@ def earnings_variability(fiscal_year_values: list[tuple[int, float]]) -> float |
     for (_, prior_eps), (_, curr_eps) in pairwise(recent):
         if prior_eps == 0:
             continue
-        growth_rates.append((curr_eps - prior_eps) / abs(prior_eps))
+        growth_rate = (curr_eps - prior_eps) / abs(prior_eps)
+        # NEAR-ZERO-DENOMINATOR GUARD - see MAX_YOY_GROWTH_RATE_ABS's own docstring above for
+        # the live-confirmed TRUG/CDT/LGHL-class damage this prevents.
+        if abs(growth_rate) > MAX_YOY_GROWTH_RATE_ABS:
+            continue
+        growth_rates.append(growth_rate)
 
     if len(growth_rates) < 2:
         return None

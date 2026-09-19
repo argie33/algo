@@ -247,6 +247,40 @@ class TestMsciThreeLegConstruction:
         updates = self._updates_by_symbol(self._run(rows))
         assert updates["GENUINELYMISSING"][1] is not None
 
+    def test_implausible_fcf_yield_fallback_dropped_not_scored(self) -> None:
+        # NEARZEROMCAP has no EV/CFO data at all (falls through to the fcf_yield fallback) and a
+        # fcf_yield far past the |value| <= 3.0 plausibility bound added 2026-09-19 (GWH-shaped:
+        # a near-zero-market-cap denominator producing a fake multi-hundred-percent "cash yield",
+        # not a genuine reading) - the cash-yield leg must be dropped entirely for this symbol
+        # (renormalized onto its other legs), not scored on the implausible number. NORMALCASH
+        # has an ordinary, plausible fcf_yield and should keep its cash-yield leg.
+        rows = [
+            self._row(
+                symbol="NEARZEROMCAP",
+                pb_ratio=2.0,
+                forward_pe=15.0,
+                fcf_yield=-493.45,  # GWH's own live-cited value, from the fallback guard's docstring
+            ),
+            self._row(
+                symbol="NORMALCASH",
+                pb_ratio=2.0,
+                forward_pe=15.0,
+                fcf_yield=0.08,  # ordinary, plausible cash yield
+            ),
+        ]
+        updates = self._updates_by_symbol(self._run(rows))
+        # NEARZEROMCAP's cash-yield leg is dropped -> its score is driven by P/B + Forward P/E
+        # only, identical to NORMALCASH's non-cash-yield legs. If the implausible fcf_yield were
+        # scored instead, its extreme negative value would pull NEARZEROMCAP's score to the low
+        # end of the distribution relative to NORMALCASH's plausible positive cash yield.
+        assert updates["NEARZEROMCAP"][1] is not None
+        assert updates["NORMALCASH"][1] is not None
+        assert updates["NEARZEROMCAP"][1] >= updates["NORMALCASH"][1], (
+            "an implausible fcf_yield fallback value must be dropped, not scored - a genuinely "
+            "cheap plausible cash yield (NORMALCASH) should not outrank a symbol whose cash-yield "
+            "leg was correctly excluded (NEARZEROMCAP) on identical P/B + Forward P/E legs"
+        )
+
     def test_double_unprofitable_symbol_floors_earnings_leg(self) -> None:
         # Both trailing P/E (unprofitable) AND forward P/E (negative forecast) unusable - the
         # worst possible Earnings/Price outcome, floored at 0.0, not excluded/renormalized.

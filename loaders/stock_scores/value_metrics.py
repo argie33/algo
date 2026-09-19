@@ -731,11 +731,32 @@ class ValueMetricsMixin:
                     # p99 (0.60) - same "exclude only genuinely implausible, not the general
                     # spread" precedent as GROWTH_INPUT_IMPLAUSIBLE_PCT. Falls back to fcf_yield
                     # (existing fallback path below) rather than dropping the leg outright.
+                    #
+                    # FALLBACK GUARD ADDED 2026-09-19 (same /goal leaderboard dig-in, follow-up
+                    # finding): the near-zero-EV guard above only screens the cfo/ev branch - a
+                    # symbol that trips it (or has no EV/CFO data at all) fell through to
+                    # fcf_yield_raw with NO equivalent implausibility check, live-confirmed to
+                    # reintroduce the exact same failure mode one field over: GWH (the guard's
+                    # own cited example) still shows fcf_yield=-493.45 (-49,345% "cash yield") -
+                    # a near-zero-market-cap denominator, not a genuine cash-yield reading -
+                    # because fcf_yield = FCF/market_cap has the identical near-zero-denominator
+                    # vulnerability EV/CFO does. 185 symbols hit this fallback path; their raw
+                    # values range -928.04 to 526.85 (PMT/TCRX/BNRG/etc.), which single-handedly
+                    # inflated this leg's population stdev enough to leave 84/4,814 symbols
+                    # (1.7%) still winsorized-3-sigma-clipped even after the log-transform fix
+                    # above - this fallback, not the primary EV/CFO branch, is the actual
+                    # remaining source. Same |value| <= 3.0 bound applied identically; a symbol
+                    # failing both checks drops this leg entirely (renormalizes onto its other
+                    # available legs), matching this file's established "no plausible measurement
+                    # -> omit the leg, don't score it on a number that isn't measuring what it
+                    # claims to" pattern (is_cfo_nonsense_industry, negative_book_value, etc.)
+                    # rather than persisting to invent a same-shape bug in the fallback.
                     if ev is not None and ev > 0 and cfo is not None and abs(cfo / ev) <= 3.0:
                         cash_yield_raw_map[symbol] = cfo / ev
-                    elif fcf_yield_raw is not None:
-                        # Fallback: EV/CFO inputs missing for this symbol - use the old
-                        # price-basis fcf_yield proxy rather than dropping the leg entirely.
+                    elif fcf_yield_raw is not None and abs(float(fcf_yield_raw)) <= 3.0:
+                        # Fallback: EV/CFO inputs missing/implausible for this symbol - use the
+                        # old price-basis fcf_yield proxy, still bounded to the same plausibility
+                        # threshold rather than dropping the leg outright.
                         cash_yield_raw_map[symbol] = float(fcf_yield_raw)
 
             # MSCI ENHANCED VALUE Z-SCORE CONSTRUCTION (REBUILT 2026-09-16, factor-purity sweep -

@@ -554,13 +554,16 @@ class StockScoresLoader(
             # CLEANUP 2026-08-16 (later): debt_to_assets dropped from this SELECT - Stability no
             # longer scores it (moved to Quality, which reads its own debt_to_assets directly
             # from quality_metrics), so fetching it here was dead weight.
-            # cmra_12m (added 2026-09-17): Barra US-E3's real Cumulative Range descriptor -
-            # computed/persisted as informational only (see risk_scoring.py's own docstring for
-            # the 2026-09-17 AQR pivot: Barra descriptors no longer carry Risk-pillar scoring
-            # weight). Appended after data_unavailable (index 9), not interleaved with the
-            # original 9 columns, so _get_stability_metrics's existing row[0..8] indices stay
-            # unchanged. beta_bab (index 10, same pivot) is AQR's real Betting-Against-Beta
-            # shrinkage beta (Frazzini & Pedersen 2014) - the actual scored Risk-pillar input now.
+            # cmra_12m (added 2026-09-17): Barra US-E3's real Cumulative Range descriptor.
+            # Appended after data_unavailable (index 9), not interleaved with the original 9
+            # columns, so _get_stability_metrics's existing row[0..8] indices stay unchanged.
+            # beta_bab (index 10) is AQR's real Betting-Against-Beta shrinkage beta (Frazzini &
+            # Pedersen 2014) - both fields' own STALE COMMENT CORRECTED 2026-09-19 note in
+            # risk_scoring.py's `_get_stability_metrics` has the current, accurate status: the
+            # 2026-09-17 AQR pivot this comment described was REVERTED 2026-09-19. CMRA 12M IS
+            # a live scored Risk input again (not "informational only"); beta_bab is NOT scored
+            # (not "the actual scored Risk-pillar input") - it stays fetched here for other
+            # consumers/display only.
             cur.execute(
                 "SELECT symbol, volatility_252d, volatility_60d, volatility_30d, beta, "
                 "downside_volatility_252d, downside_volatility_60d, downside_volatility_30d, max_drawdown_1y, "

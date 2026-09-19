@@ -78,6 +78,27 @@ BAB's own real construction: one low-beta-anomaly factor, not a multi-descriptor
 The naive-OLS `beta` column is unchanged and still fetched for other consumers (dashboard,
 coverage reports) - only `_score_risk`'s scoring input changed, not that column's computation.
 
+*** THE ABOVE "AQR PIVOT 2026-09-17" PARAGRAPH IS STALE - SUPERSEDED 2026-09-19 ***
+(REVERTED same day as a /goal factor-purity audit found this exact paragraph still describing
+itself as the live state days after being reverted in the actual code below - the precise
+"stale doc contradicts live code, looks like AQR is still mixed into MSCI scores" confusion this
+audit exists to catch. It was NOT re-pivoted back to AQR by accident; it is a documentation gap
+in a module docstring that predates `RISK_COMPONENT_WEIGHT`'s own, already-correct 2026-09-19
+docstring further down this file - that constant's docstring is the authoritative current state,
+always was; this paragraph just never got a pointer to it). User directive that triggered the
+revert: "we have lot of aqr shit mixed in with the msci shit... do the msci the best measures of
+each factor using the purest of the methodology no extra homegrown shit" - Risk was the one
+pillar 346fef543 (the prior day's Value/Momentum/Quality revert) explicitly carved out, leaving
+it alone on AQR while its 4 siblings ran MSCI/Barra. CURRENT LIVE STATE, verified by grep (zero
+`beta_bab` references in `_score_risk`'s weighted_sum loop or `update_risk_absolute_zscore_scores`):
+Risk scores Volatility 60D (Barra DASTD), CMRA 12M (Barra Cumulative Range), and the raw OLS
+`beta` column - NOT `beta_bab` - equal-weighted 1/3 each, on the same winsorize+z-score pipeline
+every other pillar uses. `beta_bab` stays computed/persisted on `stability_metrics` and displayed
+via the stock-details API (informational only, unscored) - same "compute it, don't score it"
+treatment this file already gives `amihud_illiquidity_60d`. See `RISK_COMPONENT_WEIGHT`'s own
+docstring for the fully-current account; do not act on the AQR PIVOT paragraph above as if it
+describes live behavior.
+
 SECTOR-NEUTRAL z-score batch pass for Volatility 60D/252D/Max Drawdown, REVERSING an earlier
 2026-09-13 decision to leave them universe-wide (see the git history/memory trail below for the
 full reasoning arc - kept for context, not because the conclusion still stands).
@@ -437,14 +458,31 @@ class RiskScoringMixin:
                 # Volatility descriptor, see loaders/load_risk_metrics_daily.py's
                 # `_calculate_cmra` for the full citation. Index 8 is data_unavailable (checked
                 # above), so this is appended after it, not interleaved with the original 9.
-                # Computed/persisted informational only (AQR PIVOT, see _score_risk's docstring)
-                # - no scoring weight.
+                # STALE COMMENT CORRECTED 2026-09-19 (factor-purity dig, own-file consistency
+                # check): this used to say "informational only, no scoring weight" from the
+                # 2026-09-17 AQR pivot era. That pivot was REVERTED 2026-09-19 (see
+                # RISK_COMPONENT_WEIGHT's own docstring) - CMRA 12M is one of Risk's 3 live
+                # scored inputs again (Volatility 60D/CMRA 12M/Beta, equal-weighted 1/3 each,
+                # both here in _score_risk's Pass-1 loop and in the real batch pass,
+                # update_risk_absolute_zscore_scores). Leaving the old comment as-is would
+                # mislead a future reader into thinking AQR beta_bab is still the scored input
+                # here - the exact "leftover stale doc contradicts live code" residue this
+                # session's audit is hunting for, even though it never affected the actual
+                # computed score (the code itself was already correct; only this comment lagged).
                 "cmra_12m": safe_float(row[9], f"{symbol}.cmra_12m", allow_none=True) if len(row) > 9 else None,
                 # beta_bab (index 10, added 2026-09-17, AQR PIVOT) - Frazzini & Pedersen (2014)
                 # "Betting Against Beta" shrinkage beta, see loaders/load_risk_metrics_daily.py's
-                # `_calculate_beta_bab` for the full formula/citation - the real, scored
-                # Risk-pillar low-beta-anomaly input, replacing the naive-OLS `beta` field below
-                # for scoring purposes (that field is unchanged/still fetched for other consumers).
+                # `_calculate_beta_bab` for the full formula/citation.
+                # STALE COMMENT CORRECTED 2026-09-19 (same pass as cmra_12m's own note above):
+                # this used to claim beta_bab was "the real, scored Risk-pillar...input,
+                # replacing the naive-OLS beta field...for scoring purposes" - true only during
+                # the 2026-09-17 AQR pivot, REVERTED 2026-09-19. beta_bab is fetched here and
+                # stays computed/persisted on stability_metrics for other consumers/display, but
+                # is NOT scored anywhere in risk_score - confirmed via grep, zero references in
+                # _score_risk's weighted_sum loop or update_risk_absolute_zscore_scores. The raw
+                # OLS `beta` field below IS the scored input (winsorize+z-scored, lower=better
+                # per the same real Frazzini-Pedersen/MSCI Min-Vol low-beta anomaly beta_bab
+                # itself cites - just the plain OLS estimate, not the BAB shrinkage formula).
                 "beta_bab": safe_float(row[10], f"{symbol}.beta_bab", allow_none=True) if len(row) > 10 else None,
             }
             return metrics
