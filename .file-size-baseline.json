@@ -569,7 +569,7 @@
   "loaders/helpers/sec_valuations_ratios.py": 432,
   "loaders/helpers/sec_valuations_shares.py": 587,
   "loaders/helpers/sec_valuations_yield_dcf.py": 522,
-  "loaders/helpers/sec_zero_component_guards.py": 1124,
+  "loaders/helpers/sec_zero_component_guards.py": 1167,
   "loaders/helpers/vqg_growth.py": 456,
   "loaders/helpers/vqg_inserts.py": 492,
   "loaders/helpers/vqg_quality.py": 1989,
