@@ -963,6 +963,27 @@ class FinancialStatementsValueValidationMixin:
                 row["revenue"] = None
                 self._record_explicit_null_rejection(row, "revenue", "revenue_scale_mismatch_vs_cogs_plus_gp")
 
+    # FOUND 2026-09-19 (/goal data-confidence audit, XBRL crosscheck backlog triage): both
+    # symbols are oil majors whose real income statement has multiple additional, separately-
+    # tagged operating cost lines (production/operating costs, exploration expenses, DD&A,
+    # impairments, taxes-other-than-income, accretion) that this pipeline has no canonical
+    # column for and that _fill_operating_income_from_revenue_cost_and_opex's narrow
+    # revenue-cost_of_revenue-operating_expenses(SG&A-only) formula silently omits. Live-verified
+    # against each filer's own raw income statement (COP R3.htm, accession 0001163165-26-000009;
+    # PSX R3.htm, same-year 10-K): COP's fallback overstates operating_income by ~$24.8B/year
+    # (revenue minus all 7 real cost lines lands within 0.3% of yfinance); PSX overstates by a
+    # smaller but still material ~8-33% depending on whether taxes-other-than-income/accretion
+    # count as operating. See cop_operating_income_narrow_fallback_gap_20260919 memory note for
+    # full mechanism. Correctly summing the missing lines needs new raw-concept extraction this
+    # pipeline doesn't have yet (a design decision, not a quick patch) - until then, abstaining
+    # (NULL) is safer than storing a confidently-wrong inflated value that feeds Quality/Value
+    # scores, same doctrine as _reject_scale_mismatched_revenue/_reject_partial_cost_of_revenue
+    # above. BP/PBR were also suspected but ruled out: both are IFRS 20-F filers whose
+    # operating_expenses is NULL (so this fallback never fires for them) and whose stored value
+    # instead exactly matches their own directly-tagged ifrs-full:ProfitLossFromOperatingActivities
+    # concept - not this bug.
+    _INCOMPLETE_COST_LINES_FOR_OPERATING_INCOME_FALLBACK_SYMBOLS = frozenset({"COP", "PSX"})
+
     def _fill_operating_income_from_revenue_cost_and_opex(self, transformed: list[dict[str, Any]]) -> None:
         """Fallback-only: operating_income = revenue - cost_of_revenue - operating_expenses,
         for filers whose final, fully-mapped row has all three real values but no
@@ -998,6 +1019,8 @@ class FinancialStatementsValueValidationMixin:
         """
         for row in transformed:
             if row.get("operating_income") is not None:
+                continue
+            if row.get("symbol") in self._INCOMPLETE_COST_LINES_FOR_OPERATING_INCOME_FALLBACK_SYMBOLS:
                 continue
             revenue = row.get("revenue")
             cost_of_revenue = row.get("cost_of_revenue")
