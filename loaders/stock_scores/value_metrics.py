@@ -28,6 +28,7 @@ history for the removed implementation if a future session wants the old rank fo
 
 import json
 import logging
+import math
 from typing import TYPE_CHECKING, Any
 
 import psycopg2
@@ -569,7 +570,23 @@ class ValueMetricsMixin:
             # and standard deviation of the inverse of the corresponding variable") so that a
             # higher value consistently means "cheaper" across all 3 legs, matching earnings_
             # yield_raw/cash_yield_raw_map's own already-inverted (E/P, CFO/EV) convention -
-            # stored as book-to-price here, not raw pb_ratio, for that reason.
+            # stored as book-to-price here, not raw pb_ratio, for that reason. Values are
+            # log-transformed before z-scoring (see the log() call at the assignment site below) -
+            # LOG-TRANSFORM ADDED 2026-09-19 (/goal session: "factor scores have real issues with
+            # the logic", live leaderboard dig-in). 1/pb is a right-skewed multiplicative ratio
+            # (near-zero pb -> explosive book-to-price) - live-verified against this universe's
+            # actual value_metrics (4,392 symbols with pb_ratio>0): 4.76% of the universe landed
+            # >=3 winsorized-sigma from the reference mean on the raw scale (209/4,392), versus
+            # <1% expected under a roughly-normal distribution (the assumption
+            # factor_normalization.py's Z_CLIP_BOUND=3 clip is calibrated for) - this is the
+            # direct, confirmed mechanism behind value_score's leaderboard showing 312/3,265
+            # scored symbols (9.6%) pinned at >=99.5 (the z=+3 ceiling, normal-CDF(3)=99.87), most
+            # of them tied/indistinguishable micro-cap value-trap names rather than a real top-10.
+            # log(1/pb) on the same population dropped the >=3-sigma rate to 1.84% (81/4,392) -
+            # closer to the intended tail-only clip, not a full population fix (this is one of
+            # three legs feeding the composite) but the largest single confirmed lever. log() is
+            # monotonic increasing on the pb>0 domain already enforced below, so "higher = cheaper"
+            # ordering is unchanged - only the SCALE fed to z-scoring changes.
             book_to_price_raw: dict[str, float] = {}
             # cash_yield_raw_map: MSCI Enhanced Value's real third leg is Enterprise
             # Value-to-Cash-Flow-from-Operations (EV/CFO), not a price/equity-basis metric -
@@ -652,7 +669,7 @@ class ValueMetricsMixin:
                 if pe_reason == "unprofitable_stock":
                     unprofitable_symbols.add(symbol)
                 if pb is not None and float(pb) > 0:
-                    book_to_price_raw[symbol] = 1.0 / float(pb)
+                    book_to_price_raw[symbol] = math.log(1.0 / float(pb))
                 elif pb_reason == "negative_book_value":
                     negative_book_value_symbols.add(symbol)
                 if fwd_pe_reason == "negative_forward_eps":
@@ -672,10 +689,14 @@ class ValueMetricsMixin:
                 # P/E leg's own direction was never actually asserted. Inverted to match MSCI's
                 # real Earnings/Price ("Fwd E/P") descriptor and book_to_price_raw's own
                 # convention.
+                # LOG-TRANSFORM ADDED 2026-09-19 (same fix/evidence as book_to_price_raw above -
+                # 1/fwd_pe and 1/pe are the same right-skewed near-zero-denominator shape;
+                # log() is monotonic on the pe>0 domain already enforced here, so direction is
+                # unchanged).
                 if fwd_pe is not None and float(fwd_pe) > 0:
-                    earnings_yield_raw[symbol] = 1.0 / float(fwd_pe)
+                    earnings_yield_raw[symbol] = math.log(1.0 / float(fwd_pe))
                 elif pe is not None and float(pe) > 0:
-                    earnings_yield_raw[symbol] = 1.0 / float(pe)
+                    earnings_yield_raw[symbol] = math.log(1.0 / float(pe))
                 # FINANCIALS-SECTOR-WIDE EXCLUSION (originally added 2026-09-15 as a narrower
                 # bank/insurer-industry-only carve-out; BROADENED 2026-09-16 to the whole GICS
                 # Financials sector - see `is_cfo_nonsense_industry`'s own comment above for the
@@ -697,7 +718,20 @@ class ValueMetricsMixin:
                 else:
                     ev = float(enterprise_value_raw) if enterprise_value_raw is not None else None
                     cfo = float(operating_cash_flow_raw) if operating_cash_flow_raw is not None else None
-                    if ev is not None and ev > 0 and cfo is not None:
+                    # NEAR-ZERO-EV DENOMINATOR GUARD (added 2026-09-19, same /goal leaderboard
+                    # dig-in as the log-transform fix above, a DIFFERENT mechanism feeding the
+                    # same value_score ceiling-saturation symptom). Live-caught: GWH has
+                    # enterprise_value=$39,010 (not a typo - thirty-nine thousand dollars) against
+                    # operating_cash_flow=-$50.28M, producing cfo/ev=-1289.0 (a -128,900% "cash
+                    # yield") - a near-zero-EV measurement-validity failure, the same class of bug
+                    # NEAR_ZERO_LIQUIDITY_THRESHOLD/MIN_VOL_252D_FOR_RISK_ADJUSTMENT already guard
+                    # elsewhere in this codebase, not a genuinely extreme cheapness reading.
+                    # Live-verified bound: |cfo/ev| > 3.0 (300% cash yield in one year) affects
+                    # only 45/4,674 symbols (0.96%) with real ev/cfo data, comfortably past the
+                    # p99 (0.60) - same "exclude only genuinely implausible, not the general
+                    # spread" precedent as GROWTH_INPUT_IMPLAUSIBLE_PCT. Falls back to fcf_yield
+                    # (existing fallback path below) rather than dropping the leg outright.
+                    if ev is not None and ev > 0 and cfo is not None and abs(cfo / ev) <= 3.0:
                         cash_yield_raw_map[symbol] = cfo / ev
                     elif fcf_yield_raw is not None:
                         # Fallback: EV/CFO inputs missing for this symbol - use the old

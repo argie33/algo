@@ -178,7 +178,35 @@ class RiskMetricsLoader(OptimalLoader):
                         period_null_reasons[f"momentum_{period_name}"] = "insufficient_price_history"
                         continue
 
-                    price_old = prices[sorted_dates[target_idx]]
+                    anchor_date = sorted_dates[target_idx]
+
+                    # STALE-ANCHOR GAP GUARD (added 2026-09-19, /goal: factor-score audit -
+                    # live-caught via OPI/JAN topping Momentum Leaders at fake +6604%/+4878%
+                    # "returns"). target_idx is a ROW offset into whatever dates actually exist
+                    # in price_daily_split_adjusted, not a calendar-date lookback - if a symbol
+                    # has a multi-month/multi-year gap in its price history (thin trading, a
+                    # halt, a data-collection gap), "126 rows back" can land on a date over a
+                    # year stale instead of ~6 calendar months back, pairing today's price with
+                    # a long-dead anchor and producing an enormous fake return. Live-verified:
+                    # OPI's "126 rows back" landed 444 calendar days back (should be ~182); JAN's
+                    # "252 rows back" landed 989 days back (should be ~365) - both from real gaps
+                    # in the underlying price series, not a windowing edge case. Guard by
+                    # requiring the anchor actually fall within a generous tolerance of the
+                    # expected calendar distance (1.5x, accounts for weekends/holidays/normal
+                    # short data gaps) - same "extreme value found anomalous, null it with a
+                    # visible reason" convention as the ROC_OVERFLOW_SKIP/9999% guard below, just
+                    # catching it at the root (bad anchor) instead of only the symptom (bad %).
+                    expected_calendar_days = days_back * (365.25 / 252)
+                    actual_calendar_days = (today - anchor_date).days
+                    if actual_calendar_days > expected_calendar_days * 1.5:
+                        momentum[f"momentum_{period_name}"] = None
+                        period_null_reasons[f"momentum_{period_name}"] = (
+                            f"stale_anchor_price_gap(expected~{expected_calendar_days:.0f}d,"
+                            f"actual={actual_calendar_days}d,anchor={anchor_date})"
+                        )
+                        continue
+
+                    price_old = prices[anchor_date]
                     price_new = prices[today]
 
                     if price_old is None or price_old == 0:

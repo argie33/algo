@@ -285,25 +285,33 @@ class TestPositioningScoreRemoved:
 
 
 class TestRiskScoreWeightBadges:
-    def test_beta_bab_weight_matches_code(self):
-        """AQR PIVOT 2026-09-17 (see risk_scoring.py's own module docstring): beta_bab
-        (Frazzini & Pedersen 2014's Betting-Against-Beta shrinkage estimator) is now the
-        pillar's SOLE scored input, `RISK_COMPONENT_WEIGHT` = 1.0 (100%) - a shared named
-        constant rather than a per-line literal, so this checks the JSX badge against that
-        constant directly instead of `_weight_for_score_var`'s literal-`0.NN` regex."""
+    def test_three_component_weights_match_code(self):
+        """AQR PIVOT 2026-09-17, then REVERTED 2026-09-19 (see risk_scoring.py's own module
+        docstring, RISK_COMPONENT_WEIGHT's "REVERTED 2026-09-19" note, for the full evidence
+        trail). Risk is back to its pre-pivot 3-component construction - volatility_60d/
+        cmra_12m/beta, UNIFORM EQUAL-WEIGHT (1/3 each, `RISK_COMPONENT_WEIGHT`) - a shared
+        named constant rather than a per-line literal, so this checks the JSX badges against
+        that constant directly instead of `_weight_for_score_var`'s literal-`0.NN` regex."""
         from loaders.stock_scores.risk_scoring import RISK_COMPONENT_WEIGHT
 
-        _assert_pct_matches("beta_bab", RISK_COMPONENT_WEIGHT)
+        for key in ("volatility_60d", "cmra_12m", "beta"):
+            _assert_pct_matches(key, RISK_COMPONENT_WEIGHT)
 
-    def test_volatility_beta_and_max_drawdown_no_longer_scored(self):
-        """volatility_60d/cmra_12m/raw beta/max_drawdown_1y are informational-only now
-        (used:false) - beta_bab is the pillar's only scored input, see this class's own
-        docstring above."""
-        for key in ("volatility_60d", "cmra_12m", "beta", "max_drawdown_1y"):
-            match = re.search(r"key:\s*[\"']" + re.escape(key) + r"[\"'].*?\n\s*\},", _JSX_SOURCE, re.DOTALL)
-            assert match, f"expected a {key} RISK_SCHEMA entry"
-            assert "used: false" in match.group(0), f"{key} must be used: false"
-            assert "weight: null" in match.group(0), f"{key} must be weight: null"
+    def test_beta_bab_no_longer_scored(self):
+        """beta_bab is informational-only post-revert (used:false) - not a scored Risk input any
+        more, see this class's own docstring above."""
+        match = re.search(r"key:\s*[\"']beta_bab[\"'].*?\n\s*\},", _JSX_SOURCE, re.DOTALL)
+        assert match, "expected a beta_bab RISK_SCHEMA entry"
+        assert "used: false" in match.group(0), "beta_bab must be used: false"
+        assert "weight: null" in match.group(0), "beta_bab must be weight: null"
+
+    def test_max_drawdown_no_longer_scored(self):
+        """max_drawdown_1y is informational-only (used:false) - never a real Barra/MSCI risk
+        descriptor, see _score_risk's own docstring."""
+        match = re.search(r"key:\s*[\"']max_drawdown_1y[\"'].*?\n\s*\},", _JSX_SOURCE, re.DOTALL)
+        assert match, "expected a max_drawdown_1y RISK_SCHEMA entry"
+        assert "used: false" in match.group(0), "max_drawdown_1y must be used: false"
+        assert "weight: null" in match.group(0), "max_drawdown_1y must be weight: null"
 
     def test_liquidity_no_longer_scored(self):
         """Liquidity is fetched/displayed informationally only - no longer a weight-badged

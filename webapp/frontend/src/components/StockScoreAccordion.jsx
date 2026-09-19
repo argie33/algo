@@ -1551,30 +1551,30 @@ const POSITIONING_SCHEMA = [
 // stays displayed. Volatility 60D/252D and Beta now split the full weight equally, 1/3 each.
 const RISK_SCHEMA = [
   {
-    key: "beta_bab",
-    label: "Beta (BAB, shrunk)",
-    fmt: (v) => num(v, 3),
-    used: true,
-    weight: "100%",
-  },
-  {
     key: "volatility_60d",
     label: "Volatility (60D)",
     fmt: (v) => pct(v == null ? null : v * 100, 2),
-    used: false,
-    weight: null,
+    used: true,
+    weight: "33%",
   },
   {
     key: "cmra_12m",
     label: "CMRA (12M)",
     fmt: (v) => num(v, 3),
-    used: false,
-    weight: null,
+    used: true,
+    weight: "33%",
   },
   {
     key: "beta",
     label: "Beta vs Market (raw)",
     fmt: (v) => num(v, 2),
+    used: true,
+    weight: "33%",
+  },
+  {
+    key: "beta_bab",
+    label: "Beta (BAB, shrunk)",
+    fmt: (v) => num(v, 3),
     used: false,
     weight: null,
   },
@@ -1592,13 +1592,16 @@ const RISK_SCHEMA = [
     used: false,
     weight: null,
   },
-  // AQR PIVOT 2026-09-17 (see loaders/stock_scores/risk_scoring.py's own module docstring):
-  // beta_bab (Frazzini & Pedersen 2014's Betting-Against-Beta shrinkage estimator) is now the
-  // pillar's SOLE scored input (RISK_COMPONENT_WEIGHT=1.0). volatility_60d/cmra_12m/raw beta/
-  // max_drawdown_1y/avg_dollar_volume_20d stay displayed informationally (still
+  // AQR PIVOT 2026-09-17, then REVERTED 2026-09-19 (see loaders/stock_scores/risk_scoring.py's
+  // own module docstring, RISK_COMPONENT_WEIGHT's "REVERTED 2026-09-19" note, for the full
+  // evidence trail: live TOP/BVC bad-print Safety-leaderboard inversion, explicit user
+  // directive to put every pillar back on one consistent MSCI/Barra methodology). Risk is back
+  // to its pre-pivot 3-component construction: volatility_60d (Barra's real DASTD), cmra_12m
+  // (Barra's real Cumulative Range descriptor), and raw beta, each UNIFORM EQUAL-WEIGHT (1/3
+  // each). beta_bab/max_drawdown_1y/avg_dollar_volume_20d stay displayed informationally (still
   // computed/persisted, avg_dollar_volume_20d still gates the NEAR_ZERO_LIQUIDITY_THRESHOLD
-  // measurement-validity check and remains the system's real trade-eligibility floor
-  // elsewhere) but none of them contribute to risk_score any more.
+  // measurement-validity check and remains the system's real trade-eligibility floor elsewhere)
+  // but don't contribute to risk_score.
   // segment_count/largest_segment_revenue_pct/is_diversified also stay off this tab - the
   // underlying XBRL segment-dimension extraction always comes back empty.
 ];

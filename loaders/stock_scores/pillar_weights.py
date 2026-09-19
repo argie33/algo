@@ -460,7 +460,8 @@ from loaders.load_stock_scores and must keep working unchanged.
 # citation). Risk was NOT part of this reversion - Risk was never MSCI to begin with (it's
 # Frazzini-Pedersen Betting-Against-Beta either way, same audit confirmed this pillar's AQR
 # construction is a legitimate, correctly-cited implementation, independent of the MSCI question)
-# - so Risk stays on its 2026-09-17 AQR beta_bab construction. Growth was also unaffected - it
+# - so Risk stays on its 2026-09-17 AQR beta_bab construction [STALE, see the 2026-09-19 update
+# below - Risk was later reverted too]. Growth was also unaffected - it
 # was never touched by the AQR pivot and remains MSCI GIMIVG-style (confirmed correct by the same
 # audit). market_caps (free-float market-cap-weighted z-scoring, matching MSCI's real z-score
 # formula) was wired into all 3 reverted pillars' universe_wide_zscore calls as part of this same
@@ -468,6 +469,17 @@ from loaders.load_stock_scores and must keep working unchanged.
 # BASE_PILLAR_WEIGHTS itself (5 keys, 0.20 each) is UNCHANGED by this reversion - this note is
 # about pillar CONSTRUCTION (how each score is computed), not pillar WEIGHT (how much each score
 # counts toward composite_score).
+# ============================================================================================
+# RISK REVERTED TOO, 2026-09-19 (/goal: "we have lot of aqr shit mixed in with the msci shit...
+# do the msci the best measures of each factor using the purest of the methodology no extra
+# homegrown shit" - the same "every pillar on one consistent methodology" directive this file's
+# note above already applied to Value/Momentum/Quality). The "Risk was never MSCI to begin with"
+# carve-out above no longer describes the live code: risk_scoring.py's RISK_COMPONENT_WEIGHT/
+# _compute_risk_absolute_zscore_percentiles were reverted off AQR's beta_bab back to the pure
+# Barra 3-descriptor construction (Volatility 60D/DASTD, CMRA 12M, raw OLS beta, equal-weighted
+# 1/3 each) - see risk_scoring.py's own RISK_COMPONENT_WEIGHT docstring for the live evidence
+# (TOP/BVC bad-print Safety-leaderboard inversion) that motivated it. All 5 pillars now share one
+# consistent MSCI/Barra-style construction; none are on a bespoke AQR-only formula any more.
 # ============================================================================================
 BASE_PILLAR_WEIGHTS: dict[str, float] = {
     "quality": 0.20,
