@@ -46,6 +46,7 @@ from loaders.helpers.sec_zero_component_guards import (
     is_immaterial_standard_debt_overwriting_combined_total,
     is_narrow_cash_due_from_banks_overwriting_combined_cash,
     is_narrow_intangible_amortization_overwriting_combined_dda,
+    is_narrow_intangible_amortization_overwriting_da_total,
     is_other_borrowings_additive_to_subordinated_debt,
     is_standard_debt_overwriting_convertible_notes,
     is_wvvi_current_debt_component_additive,
@@ -1742,6 +1743,16 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # resolved, dramatically larger combined DD&A total with its own real-but-
                     # immaterial figure - see
                     # is_narrow_intangible_amortization_overwriting_combined_dda's own docstring
+                    # (sec_zero_component_guards.py) for the live evidence.
+                    continue
+                elif is_narrow_intangible_amortization_overwriting_da_total(
+                    db_field, sec_field, row.get(db_field), value, _amortization_expense_source_sec_field
+                ):
+                    # ADSK-class case: "amortization_of_intangible_assets" is not fallback-gated
+                    # at all, so it would otherwise unconditionally overwrite an already-
+                    # resolved, larger combined DepreciationAndAmortization total with its own
+                    # real-but-narrower footnote figure - see
+                    # is_narrow_intangible_amortization_overwriting_da_total's own docstring
                     # (sec_zero_component_guards.py) for the live evidence.
                     continue
                 elif is_narrow_cash_due_from_banks_overwriting_combined_cash(

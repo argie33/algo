@@ -817,6 +817,51 @@ def is_narrow_intangible_amortization_overwriting_combined_dda(
     )
 
 
+# ADDED 2026-09-19 (/goal data-confidence audit, ADSK live-confirmed via real SEC filing R.htm):
+# same failure shape as is_narrow_intangible_amortization_overwriting_combined_dda above, but for
+# the plain "DepreciationAndAmortization" concept (sec_income_statement.py's fetch list has it
+# BEFORE "AmortizationOfIntangibleAssets", listed at line ~1167 vs ~1186, same "more-precise
+# concept processed later can normally win" intent as the DDA sibling) instead of
+# "DepreciationDepletionAndAmortization". ADSK (Autodesk, CIK 0000769397) FY2026 10-K: the FACE
+# of the cash flow statement tags "Depreciation, amortization, and accretion" = $195,000,000
+# under us-gaap:DepreciationAndAmortization - the filer's own authoritative combined total,
+# confirmed via the filing's own R8.htm - but its separate footnote-level
+# "AmortizationOfIntangibleAssets" fact ($53,000,000, a real but narrower subset that doesn't
+# even sum with Depreciation's $43,000,000 to reach $195,000,000) is not fallback-gated and
+# unconditionally overwrote the correct combined total via ordinary last-listed-wins, cutting
+# stored amortization_expense from $195,000,000 to $53,000,000 - explaining a ~0.49 crosscheck
+# ratio (see depreciation_expense_generic_overwrite_and_multi_mechanism_cluster_20260919 memory
+# note, which also found this ratio band has AT LEAST two other unrelated mechanisms mixed in -
+# this guard deliberately does not attempt to fix those).
+#
+# Direction-only, same shape as is_standard_debt_overwriting_convertible_notes above rather than
+# the DDA sibling's 5x magnitude floor: ADSK's ratio (~3.7x) falls below
+# _COMBINED_DEBT_TOTAL_MIN_MULTIPLE's 5x bar, so reusing that threshold would miss this exact
+# live case - and a face-of-statement combined total should never be overwritten by a smaller
+# footnote component, regardless of magnitude.
+_DA_COMBINED_TOTAL_SOURCE_CONCEPTS = frozenset({"depreciation_and_amortization"})
+
+
+def is_narrow_intangible_amortization_overwriting_da_total(
+    db_field: str, sec_field: str, existing: Any, value: Any, existing_source_sec_field: str | None
+) -> bool:
+    """True if `value` (an incoming plain intangible-amortization concept write) should be
+    REJECTED to protect `existing` (amortization_expense's currently-stored value, already
+    resolved from a combined DepreciationAndAmortization total) - see this function's own module
+    comment above for the live ADSK evidence.
+    """
+    return (
+        db_field == "amortization_expense"
+        and sec_field in ("amortization_of_intangible_assets", "amortization_of_intangibles")
+        and existing_source_sec_field in _DA_COMBINED_TOTAL_SOURCE_CONCEPTS
+        and isinstance(existing, (int, float, Decimal))
+        and float(existing) > 0
+        and isinstance(value, (int, float, Decimal))
+        and float(value) > 0
+        and float(value) < float(existing)
+    )
+
+
 # ADDED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up, AVA live-
 # confirmed via real SEC companyfacts JSON, CIK 0000104918): Avista Corp, a regulated
 # electric/gas utility (NOT a REIT - redirect_secured_debt_for_reit above never fires for it),
