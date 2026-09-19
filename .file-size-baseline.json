@@ -559,7 +559,7 @@
   "loaders/helpers/sec_base.py": 2003,
   "loaders/helpers/sec_dual_class_eps.py": 270,
   "loaders/helpers/sec_financials_loader.py": 124,
-  "loaders/helpers/sec_reit_exclusive_scale_guard.py": 240,
+  "loaders/helpers/sec_reit_exclusive_scale_guard.py": 273,
   "loaders/helpers/sec_revenue_total_resolution.py": 172,
   "loaders/helpers/sec_segment_debt.py": 213,
   "loaders/helpers/sec_statement_field_bookkeeping.py": 25,
