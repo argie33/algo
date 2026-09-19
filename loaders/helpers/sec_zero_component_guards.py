@@ -486,7 +486,13 @@ _COMBINED_DEBT_TOTAL_MIN_MULTIPLE = 5
 
 
 def is_narrow_standard_debt_blocking_combined_total(
-    db_field: str, sec_field: str, existing: Any, value: Any, existing_source_sec_field: str | None
+    db_field: str,
+    sec_field: str,
+    existing: Any,
+    value: Any,
+    existing_source_sec_field: str | None,
+    symbol: str | None = None,
+    depository_institution_symbols: frozenset[str] | None = None,
 ) -> bool:
     """True if `value` (an incoming _COMBINED_DEBT_TOTAL_CONCEPTS concept) should override
     `existing` (long_term_debt's currently-stored value) despite `_fallback_only_fields`
@@ -512,7 +518,32 @@ def is_narrow_standard_debt_blocking_combined_total(
     standard-concept-always-wins default being wrong, not about re-litigating fallback-vs-
     fallback ordering), and (4) the incoming value is at least
     _COMBINED_DEBT_TOTAL_MIN_MULTIPLE times larger, so this can't fire on ordinary noise.
+
+    DEPOSITORY-INSTITUTION EXCLUSION (added 2026-09-19, /goal data-confidence backlog, small-
+    bank long_term_debt cluster flagged by [[buse_bank_subordinated_debt_partial_lead_20260919]]
+    as "worth checking as a group next" - HTB/FCCO/BHB live-confirmed via real SEC companyfacts
+    JSON): the "structural superset" premise this guard relies on does NOT hold for bank/thrift
+    holding companies. BHB (CIK 0000743367) tags both a real plain "LongTermDebt" (subordinated
+    debentures/trust-preferred, e.g. FY2023 $60,740,000 - exact yfinance match) AND a real
+    "DebtAndCapitalLeaseObligations" (FY2023 $331,505,000, ~5.5x larger - roughly LongTermDebt +
+    AdvancesFromFederalHomeLoanBanks($232,579,000) + other wholesale borrowings). For an
+    industrial filer like DPZ that combined concept genuinely IS "all of the filer's long-term
+    debt, just also counting capital leases" - a strict superset of the same underlying
+    liability. For a bank, "DebtAndCapitalLeaseObligations" instead conflates two economically
+    distinct funding sources: genuine long-term debt (subordinated notes/trust preferred, what
+    yfinance and this codebase's own methodology call "long-term debt") and FHLB advances
+    (variable-maturity wholesale funding banks report as a separate line item, not part of
+    long-term debt in any standard financial-data-provider convention - same category
+    _DEBT_FALLBACK_ONLY_FIELDS' "advances_from_federal_home_loan_banks" entry already treats as
+    fallback-only for exactly this reason). Applying the 5x-multiplier heuristic to this
+    conflated total silently swapped in the wrong, much larger figure for BHB across all 3
+    flagged fiscal years. HTB/FCCO show the same underlying shape one level up (their real
+    "long-term debt" concept, JuniorSubordinatedNotes, isn't mapped to any field at all yet -
+    separate gap, not this guard - but the same "generic FHLB-inclusive concept looks like the
+    'total' but isn't the yfinance-comparable figure" root cause).
     """
+    if symbol is not None and depository_institution_symbols and symbol in depository_institution_symbols:
+        return False
     return (
         db_field == "long_term_debt"
         and sec_field in _COMBINED_DEBT_TOTAL_CONCEPTS
@@ -756,7 +787,13 @@ def is_other_borrowings_additive_to_subordinated_debt(
 
 
 def is_immaterial_standard_debt_overwriting_combined_total(
-    db_field: str, sec_field: str, existing: Any, value: Any, existing_source_sec_field: str | None
+    db_field: str,
+    sec_field: str,
+    existing: Any,
+    value: Any,
+    existing_source_sec_field: str | None,
+    symbol: str | None = None,
+    depository_institution_symbols: frozenset[str] | None = None,
 ) -> bool:
     """True if `value` (an incoming plain "long_term_debt" concept write) should be REJECTED
     to protect `existing` (long_term_debt's currently-stored value, already resolved from a
@@ -774,7 +811,15 @@ def is_immaterial_standard_debt_overwriting_combined_total(
     incoming plain-concept value is smaller than the existing combined-total value by at least
     _COMBINED_DEBT_TOTAL_MIN_MULTIPLE - an ordinary, more-precise plain LongTermDebt update
     that's merely somewhat smaller (e.g. after a real debt paydown) still wins normally.
+
+    DEPOSITORY-INSTITUTION EXCLUSION: same bank/thrift carve-out as this module's sibling guard
+    is_narrow_standard_debt_blocking_combined_total above (see that function's own docstring
+    for the live BHB/HTB/FCCO evidence) - for a bank filer, the plain "LongTermDebt" concept IS
+    the correct, yfinance-comparable figure and the combined concept is the wrong, FHLB-
+    inclusive one, so the plain concept must be allowed to win here, not blocked.
     """
+    if symbol is not None and depository_institution_symbols and symbol in depository_institution_symbols:
+        return False
     return (
         db_field == "long_term_debt"
         and sec_field == "long_term_debt"
@@ -1048,6 +1093,7 @@ def is_fallback_only_write_permitted_by_documented_override(
     accounts_receivable_source_sec_field: str | None,
     dividends_paid_source_sec_field: str | None,
     symbol: str | None = None,
+    depository_institution_symbols: frozenset[str] | None = None,
 ) -> bool:
     """Extracted 2026-09-17 (file-size ratchet: sec_base.py hit the 2000-line hard ceiling,
     no baseline raise accepted for that file - see this repo's own .file-size-baseline.json
@@ -1069,7 +1115,13 @@ def is_fallback_only_write_permitted_by_documented_override(
     return (
         is_zero_first_write_blocking_field(db_field, existing, value)
         or is_narrow_standard_debt_blocking_combined_total(
-            db_field, sec_field, existing, value, long_term_debt_source_sec_field
+            db_field,
+            sec_field,
+            existing,
+            value,
+            long_term_debt_source_sec_field,
+            symbol,
+            depository_institution_symbols,
         )
         or is_financing_interest_expense_overriding_narrow_interest_and_debt_expense(
             db_field, sec_field, existing, value, interest_expense_source_sec_field

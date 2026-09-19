@@ -1052,20 +1052,18 @@ class SecEdgarStatementLoader(SecLoaderBase):
     def _get_depository_institution_symbols(self) -> frozenset[str]:
         """Bulk-fetch bank/depository-institution symbols once per loader run, not per-row.
 
-        FIXED 2026-08-22 (goal session: "Missing SEC/XBRL data" coverage audit): banks never
-        tag a "CapitalExpenditures" XBRL concept in any fiscal year - live-confirmed via JPM,
-        BAC, MS, WFC, PNC's real companyfacts JSON (capex NULL across every year 2007-2026).
-        Same SIC codes as load_sec_valuations.py's DEPOSITORY_INSTITUTION_SIC_CODES - see that
-        class attribute's comment for the full rationale (a bank's capital allocation is
-        fundamentally different from an industrial filer's, so treating its genuinely-absent
-        capex as 0 for the free_cash_flow computation just below is the standard equity-
-        research convention for this sector, not a guess).
+        FIXED 2026-08-22 (goal session: "Missing SEC/XBRL data" coverage audit): banks never tag a
+        "CapitalExpenditures" XBRL concept in any fiscal year - live-confirmed via JPM, BAC, MS, WFC, PNC's real
+        companyfacts JSON (capex NULL across every year 2007-2026). Same SIC codes as load_sec_valuations.py's
+        DEPOSITORY_INSTITUTION_SIC_CODES - see that class attribute's comment for the full rationale (a bank's
+        capital allocation is fundamentally different from an industrial filer's, so treating its genuinely-absent
+        capex as 0 for the free_cash_flow computation just below is the standard equity-research convention for
+        this sector, not a guess). Also used by the combined-debt-total guards below.
         """
         # getattr (not a direct self._depository_institution_symbols read): mirrors the
-        # _fallback_only_fields/_reit_only_fallback_fields defensive-getattr pattern used
-        # elsewhere in this file - some existing test fixtures construct this loader via
-        # __new__, bypassing __init__ entirely, so the attribute this method's own __init__
-        # assignment sets may not exist yet.
+        # _fallback_only_fields/_reit_only_fallback_fields defensive-getattr pattern used elsewhere in this file -
+        # some existing test fixtures construct this loader via __new__, bypassing __init__ entirely, so the
+        # attribute this method's own __init__ assignment sets may not exist yet.
         cached: frozenset[str] | None = getattr(self, "_depository_institution_symbols", None)
         if cached is None:
             from utils.db.context import DatabaseContext
@@ -1516,12 +1514,11 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and (
                     db_field in row or revenue_total_source.get(db_field) == "negative_total_rejected"
                 ):
-                    # Whether this fallback-only write should proceed despite the ordinary
-                    # "higher-priority concept already populated this field" default - see
-                    # is_fallback_only_write_permitted_by_documented_override's own docstring
-                    # (sec_zero_component_guards.py) for the 6 individual documented exceptions
-                    # this consolidates (MYFW/DPZ-MAR-BALL-PPC-LNTH-CRL/TITN/RAVE/PED/DTST/ABCB
-                    # live evidence, each in its own guard function's docstring there).
+                    # Whether this fallback-only write should proceed despite the ordinary "higher-priority concept
+                    # already populated this field" default - see is_fallback_only_write_permitted_by_documented_
+                    # override's own docstring (sec_zero_component_guards.py) for the individual documented
+                    # exceptions this consolidates (MYFW/DPZ-MAR-BALL-PPC-LNTH-CRL/TITN/RAVE/PED/DTST/ABCB/bank-
+                    # depository-institution live evidence, each in its own guard function's docstring there).
                     if not is_fallback_only_write_permitted_by_documented_override(
                         db_field,
                         sec_field,
@@ -1532,6 +1529,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         _accounts_receivable_source_sec_field,
                         _dividends_paid_source_sec_field,
                         r.get("symbol"),
+                        self._get_depository_institution_symbols(),
                     ) and not should_override_fallback_field_for_depository_institution(
                         sec_field, db_field, value, row, r, _eligible_interest_income_symbols, _revenue_source_sec_field
                     ):
@@ -1716,14 +1714,19 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # docstring.
                     continue
                 elif is_immaterial_standard_debt_overwriting_combined_total(
-                    db_field, sec_field, row.get(db_field), value, _long_term_debt_source_sec_field
+                    db_field,
+                    sec_field,
+                    row.get(db_field),
+                    value,
+                    _long_term_debt_source_sec_field,
+                    r.get("symbol"),
+                    self._get_depository_institution_symbols(),
                 ):
-                    # DPZ/MAR/BALL/PPC/LNTH/CRL-class case: the plain "long_term_debt" concept
-                    # is not fallback-gated at all, so it would otherwise unconditionally
-                    # overwrite an already-resolved, dramatically larger combined-debt-total
-                    # value with its own real-but-immaterial figure - see
-                    # is_immaterial_standard_debt_overwriting_combined_total's own docstring
-                    # (sec_zero_component_guards.py) for the live evidence.
+                    # DPZ/MAR/BALL/PPC/LNTH/CRL-class case: the plain "long_term_debt" concept is not fallback-gated
+                    # at all, so it would otherwise unconditionally overwrite an already-resolved, dramatically
+                    # larger combined-debt-total value with its own real-but-immaterial figure - see
+                    # is_immaterial_standard_debt_overwriting_combined_total's own docstring (sec_zero_component_
+                    # guards.py) for the live evidence and the bank/thrift depository-institution exclusion.
                     continue
                 elif is_standard_debt_overwriting_convertible_notes(
                     db_field, sec_field, row.get(db_field), value, _long_term_debt_source_sec_field
@@ -1841,16 +1844,13 @@ class SecEdgarStatementLoader(SecLoaderBase):
             if self.statement_type == "cashflow":
                 ocf = row.get("operating_cash_flow")
                 capex = row.get("capex")
-                # FIXED 2026-08-22 (goal session: "Missing SEC/XBRL data" coverage audit):
-                # depository institutions (banks) never tag a "CapitalExpenditures" concept
-                # at all - see _get_depository_institution_symbols's docstring for the full
-                # rationale. Without this, free_cash_flow (and everything derived from it:
-                # fcf_yield, margin_of_safety, intrinsic_value_per_share) was structurally
-                # uncomputable forever for the entire banking sector, not a transient
-                # extraction gap a future fetch could fix.
-                # FIXED 2026-08-24 (same audit, insurance-sector continuation): see
-                # _INSURANCE_CAPEX_EXEMPT_SYMBOLS's docstring above for why this is a
-                # verified symbol allowlist, not a SIC-code check like the bank case.
+                # FIXED 2026-08-22 (goal session: "Missing SEC/XBRL data" coverage audit): depository institutions
+                # (banks) never tag a "CapitalExpenditures" concept at all - see _get_depository_institution_
+                # symbols's docstring for the full rationale. Without this, free_cash_flow (and everything derived
+                # from it: fcf_yield, margin_of_safety, intrinsic_value_per_share) was structurally uncomputable
+                # forever for the entire banking sector, not a transient extraction gap a future fetch could fix.
+                # FIXED 2026-08-24 (insurance-sector continuation): see _INSURANCE_CAPEX_EXEMPT_SYMBOLS's docstring
+                # above for why this is a verified symbol allowlist, not a SIC-code check like the bank case.
                 # FIXED 2026-09-04 (mortgage REIT / consumer finance continuation): see
                 # _FINANCIAL_CAPEX_EXEMPT_SYMBOLS's own docstring above.
                 if capex is None and (
