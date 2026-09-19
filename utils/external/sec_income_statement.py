@@ -12,6 +12,7 @@ current+deferred split, validated pretax-income promotion, and derived operating
 from typing import Any
 
 from utils.external.sec_income_statement_fallbacks import (
+    _fill_cost_of_revenue_from_equipment_expense_component,
     _fill_cost_of_revenue_from_other_operating_cost,
     _fill_earnings_per_share_from_continuing_discontinued_split,
     _fill_eps_shares_from_dual_class_dimensional_facts,
@@ -795,6 +796,19 @@ def get_income_statement(
         # since this is a narrower, business-model-specific cost measure rather than a
         # universal COGS tag.
         "DirectOperatingCosts",
+        # ADDED 2026-09-19 (goal: data-confidence session, HRI operating_income_implausible_
+        # cluster follow-up): equipment-rental filers split their primary cost of revenue
+        # across MULTIPLE separate line items - live-confirmed Herc Holdings (HRI, CIK
+        # 0001364479) FY2025 10-K R5.htm: "Direct operating" $1,602,000,000 (DirectOperatingCosts
+        # above) PLUS a separately-tagged "Depreciation of rental equipment" $856,000,000
+        # (EquipmentExpense, confirmed via companyconcept - the concept's own definition,
+        # "equipment expense including depreciation, repairs, rentals, and service contract
+        # costs", matches this filer's actual usage). Only DirectOperatingCosts was previously
+        # fetched, understating HRI's real cost_of_revenue by ~35% every year and inflating
+        # operating_income 2.3-3.6x (see _fill_cost_of_revenue_from_equipment_expense_component
+        # below for the additive merge - fetch-only here, never field-mapped directly, same
+        # discipline as BenefitsLossesAndExpenses above).
+        "EquipmentExpense",
         # FIXED 2026-08-31 (same sweep): regulated water utilities tag their direct
         # utility-operations cost under this utility-specific concept - live-confirmed AWK
         # ($1.72B/$4.22B revenue FY2023 ~41%), WTRG, MSEX ($91.3M/$194.7M ~47%), and YORW
@@ -1299,6 +1313,7 @@ def get_income_statement(
         client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES, dei_aliases=_INCOME_DEI_ALIASES
     )
     _fill_cost_of_revenue_from_other_operating_cost(rows)
+    _fill_cost_of_revenue_from_equipment_expense_component(rows)
     _fill_earnings_per_share_from_continuing_discontinued_split(rows)
     _fill_income_tax_expense_from_current_deferred_split(rows)
     _fill_pretax_income_from_domestic_foreign_split(rows)

@@ -165,6 +165,19 @@ _INCOME_FIELD_MAPPING = {
     # is_fallback_only_write_permitted_by_documented_override's is_additive_concept_pair
     # check is what actually makes it sum instead of skip.
     "custom_extension_lease_merchandise_depreciation": "depreciation_expense",
+    # ADDED 2026-09-19 (HRI equipment-rental cost-of-revenue split): identity key
+    # ConsolidatedFinancialStatementsLoader.fetch_incremental() sets directly on rows for
+    # symbols in CUSTOM_COST_OF_REVENUE_CONCEPTS (HRI's "Cost of sales of rental equipment" +
+    # "Cost of sales of new equipment, parts and supplies", tagged under filer-specific custom
+    # XBRL extension concepts, structurally invisible to the companyfacts API - same gap
+    # CUSTOM_REVENUE_CONCEPTS' comment documents for APA). ADDITIVE (see
+    # ADDITIVE_CONCEPT_PAIRS in sec_zero_component_guards.py) for the same reason as
+    # "custom_extension_lease_merchandise_depreciation" above: HRI's DirectOperatingCosts +
+    # EquipmentExpense-derived cost_of_revenue is already populated by the time this runs, so a
+    # plain "only fill if empty" fallback would never fire. Listed in
+    # _REVENUE_FALLBACK_ONLY_FIELDS below purely to reach the fallback-only branch of
+    # transform()'s per-field loop at all.
+    "custom_extension_cost_of_revenue_additive": "cost_of_revenue",
     "cost_of_revenue": "cost_of_revenue",
     # FIXED 2026-08-17 (goal: "no SEC data" audit): "CostOfGoodsAndServicesSold" concept
     # added to sec_statements.py's get_income_statement() concepts list - see that file's
@@ -598,6 +611,10 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # "custom_extension_lease_merchandise_depreciation" above (PRG live evidence) -
         # additive via ADDITIVE_CONCEPT_PAIRS, reached through this same fallback-only branch.
         "custom_extension_lease_merchandise_depreciation",
+        # ADDED 2026-09-19: see _INCOME_FIELD_MAPPING's comment on
+        # "custom_extension_cost_of_revenue_additive" above (HRI live evidence) - additive via
+        # ADDITIVE_CONCEPT_PAIRS, reached through this same fallback-only branch.
+        "custom_extension_cost_of_revenue_additive",
         # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data" sweep): ESOA-class filers
         # that stop tagging NetIncomeLoss/ProfitLoss - see _INCOME_FIELD_MAPPING's comment on
         # this key above.

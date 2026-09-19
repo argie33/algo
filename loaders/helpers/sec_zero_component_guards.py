@@ -346,6 +346,20 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         # ~1.5%). Not an exact reconciliation (a further reserve/write-off adjustment PRG
         # doesn't separately tag), but a ~50x improvement over the pre-fix value alone.
         ("depreciation_expense", "custom_extension_lease_merchandise_depreciation"),
+        # ADDED 2026-09-19 (same goal session, HRI live-confirmed via real filed XBRL instance
+        # document, accession 0001364479-26-000050): Herc Holdings (HRI, equipment rental)
+        # splits its cost of revenue across four separate income-statement line items -
+        # DirectOperatingCosts + EquipmentExpense (both already merged additively upstream in
+        # utils/external/sec_income_statement_fallbacks.py's
+        # _fill_cost_of_revenue_from_equipment_expense_component) plus two more tagged under
+        # filer-specific custom XBRL extension concepts, invisible to companyfacts (see
+        # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_COST_OF_REVENUE_CONCEPTS):
+        # hri:CostOfRevenueEarningEquipmentSold ("Cost of sales of rental equipment") +
+        # hri:CostOfSalesOfNewEquipmentPartsAndSupplies ("Cost of sales of new equipment, parts
+        # and supplies"). FY2025: $1,602,000,000 (DirectOperatingCosts) + $856,000,000
+        # (EquipmentExpense) + $418,000,000 + $42,000,000 (these two custom concepts) =
+        # $2,918,000,000, an EXACT match to yfinance's crosscheck value.
+        ("cost_of_revenue", "custom_extension_cost_of_revenue_additive"),
     }
 )
 

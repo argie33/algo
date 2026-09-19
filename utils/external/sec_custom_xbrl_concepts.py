@@ -466,6 +466,31 @@ CUSTOM_DEPRECIATION_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     "PRG": [("prg", "DepreciationOfLeaseMerchandise")],
 }
 
+# ADDED 2026-09-19 (goal: data-confidence session, HRI operating_income_implausible_cluster
+# follow-up, same sweep as CUSTOM_DEPRECIATION_CONCEPTS/PRG above and EquipmentExpense in
+# sec_income_statement.py's concepts list): Herc Holdings (HRI, equipment rental, CIK
+# 0001364479) splits its cost of revenue across FOUR separate income-statement line items -
+# "Direct operating" (DirectOperatingCosts, already fetched) + "Depreciation of rental
+# equipment" (EquipmentExpense, already fetched+merged) + two more tagged under filer-specific
+# custom XBRL extension concepts, invisible to companyfacts (same structural gap
+# CUSTOM_CAPEX_CONCEPTS' module docstring documents for DHT/CMRE): "Cost of sales of rental
+# equipment" (hri:CostOfRevenueEarningEquipmentSold) and "Cost of sales of new equipment, parts
+# and supplies" (hri:CostOfSalesOfNewEquipmentPartsAndSupplies). Live-confirmed 2026-09-19
+# against HRI's real FY2025 10-K (CIK 0001364479, accession 0001364479-26-000050) raw XBRL
+# instance document (hri-20251231_htm.xml): FY2025 $418,000,000 + $42,000,000 = $460,000,000;
+# FY2024 $224,000,000 + $24,000,000 = $248,000,000; FY2023 $252,000,000 + $25,000,000 =
+# $277,000,000 (one clean non-dimensioned context per year, no PRG-style context cloning).
+# Combined with DirectOperatingCosts + EquipmentExpense, FY2025 cost_of_revenue reaches
+# $1,602,000,000 + $856,000,000 + $460,000,000 = $2,918,000,000, an EXACT match to yfinance's
+# crosscheck value (confirmed against the filed R5.htm income statement's own "Total expenses"
+# subtotal, which these four lines sum into along with SG&A/transaction/D&A/interest/other).
+CUSTOM_COST_OF_REVENUE_CONCEPTS: dict[str, list[tuple[str, str]]] = {
+    "HRI": [
+        ("hri", "CostOfRevenueEarningEquipmentSold"),
+        ("hri", "CostOfSalesOfNewEquipmentPartsAndSupplies"),
+    ],
+}
+
 
 def _local_name(tag: str) -> str:
     """Strip the Clark-notation namespace from an ElementTree tag."""
@@ -717,6 +742,16 @@ def extract_custom_depreciation_from_xbrl_xml(xml_content: str, symbol: str) -> 
     return _extract_values_for_concepts(xml_content, CUSTOM_DEPRECIATION_CONCEPTS.get(symbol))
 
 
+def extract_custom_cost_of_revenue_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known custom cost-of-revenue
+    concept(s) (see CUSTOM_COST_OF_REVENUE_CONCEPTS), returning {fiscal_year: summed_value}.
+
+    Only meaningful for symbols in CUSTOM_COST_OF_REVENUE_CONCEPTS - returns {} immediately for
+    any other symbol (never guesses at unregistered concept names).
+    """
+    return _extract_values_for_concepts(xml_content, CUSTOM_COST_OF_REVENUE_CONCEPTS.get(symbol))
+
+
 _ANNUAL_FILING_FORMS = frozenset({"10-K", "10-K/A", "10-KT", "10-KT/A", "20-F", "20-F/A", "40-F", "40-F/A"})
 # BASE (non-amendment) forms only - tried first. See _fetch_custom_concept's docstring.
 _BASE_ANNUAL_FILING_FORMS = frozenset({"10-K", "10-KT", "20-F", "40-F"})
@@ -815,6 +850,17 @@ def fetch_custom_depreciation(symbol: str, sec_client: Any) -> dict[int, float]:
     """
     return _fetch_custom_concept(
         symbol, sec_client, CUSTOM_DEPRECIATION_CONCEPTS, extract_custom_depreciation_from_xbrl_xml
+    )
+
+
+def fetch_custom_cost_of_revenue(symbol: str, sec_client: Any) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known custom cost-of-revenue
+    concept(s). Returns {} if symbol isn't in CUSTOM_COST_OF_REVENUE_CONCEPTS, the filing
+    can't be found, or the XML can't be parsed - callers should treat that as "no fallback
+    data", not raise.
+    """
+    return _fetch_custom_concept(
+        symbol, sec_client, CUSTOM_COST_OF_REVENUE_CONCEPTS, extract_custom_cost_of_revenue_from_xbrl_xml
     )
 
 

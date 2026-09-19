@@ -32,6 +32,7 @@ from typing import Any
 from utils.external.sec_custom_xbrl_concepts import (
     CUSTOM_CAPEX_CONCEPTS,
     CUSTOM_CAPEX_DIMENSIONED_CONCEPTS,
+    CUSTOM_COST_OF_REVENUE_CONCEPTS,
     CUSTOM_DEBT_CONCEPTS,
     CUSTOM_DEBT_LONGTERM_CONCEPTS,
     CUSTOM_DEBT_SHORTTERM_CONCEPTS,
@@ -41,6 +42,7 @@ from utils.external.sec_custom_xbrl_concepts import (
     CUSTOM_REVENUE_CONCEPTS,
     fetch_custom_capex,
     fetch_custom_capex_dimensioned_sum,
+    fetch_custom_cost_of_revenue,
     fetch_custom_debt,
     fetch_custom_debt_longterm,
     fetch_custom_debt_shortterm,
@@ -96,6 +98,17 @@ def apply_custom_income_extensions(
             fiscal_year = row.get("fiscal_year")
             if fiscal_year in custom_depreciation_by_year:
                 row["custom_extension_lease_merchandise_depreciation"] = custom_depreciation_by_year[fiscal_year]
+
+    if symbol in CUSTOM_COST_OF_REVENUE_CONCEPTS:
+        # ADDED 2026-09-19 (HRI equipment-rental cost-of-revenue split): same
+        # custom_extension_* additive convention as CUSTOM_DEPRECIATION_CONCEPTS above - HRI's
+        # DirectOperatingCosts+EquipmentExpense-derived cost_of_revenue is already populated by
+        # this point, so this must ADD (via ADDITIVE_CONCEPT_PAIRS), not merely fall back.
+        custom_cost_of_revenue_by_year = fetch_custom_cost_of_revenue(symbol, sec_client)
+        for row in _annual_rows(rows):
+            fiscal_year = row.get("fiscal_year")
+            if fiscal_year in custom_cost_of_revenue_by_year:
+                row["custom_extension_cost_of_revenue_additive"] = custom_cost_of_revenue_by_year[fiscal_year]
 
 
 def apply_custom_cashflow_extensions(symbol: str, rows: list[dict[str, Any]], sec_client: Any) -> None:

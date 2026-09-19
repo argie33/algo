@@ -703,6 +703,37 @@ def _fill_cost_of_revenue_from_other_operating_cost(rows: list[dict[str, Any]]) 
         row["cost_of_goods_and_services_sold"] = cogs + extra
 
 
+def _fill_cost_of_revenue_from_equipment_expense_component(rows: list[dict[str, Any]]) -> None:
+    """Add EquipmentExpense into direct_operating_costs (-> cost_of_revenue via
+    _REVENUE_FALLBACK_ONLY_FIELDS) - see get_income_statement()'s "EquipmentExpense" concept
+    comment for the live HRI (Herc Holdings) evidence.
+
+    ADDED 2026-09-19 (goal: data-confidence session, operating_income_implausible_cluster
+    follow-up). Only fires when a filer tags BOTH DirectOperatingCosts and EquipmentExpense for
+    the same fiscal year - equipment-rental filers report their rental-fleet cost of revenue
+    split across these two named line items ("Direct operating" + "Depreciation of rental
+    equipment" on HRI's own income statement), never as alternates for the same cost. A filer
+    without EquipmentExpense (the vast majority - this concept is rare) is unaffected. Does NOT
+    fully close HRI's own cost_of_revenue gap vs yfinance - two more filer-specific custom XBRL
+    extension concepts ("Cost of sales of rental equipment" + "Cost of sales of new equipment,
+    parts and supplies") remain unfetched (structurally invisible to companyfacts, same gap
+    CUSTOM_CAPEX_CONCEPTS' module docstring documents) - but this closes the majority of the
+    gap (FY2025: cost_of_revenue moves from $1.602B to $2.458B against a $2.918B target, ratio
+    0.55 -> 0.84) with a single well-scoped, narrowly-gated fetch.
+
+    Mutates "direct_operating_costs" in place so the existing fallback-only field_mapping still
+    applies unchanged. Always pops "equipment_expense" (never mapped to a DB column on its own).
+    """
+    for row in rows:
+        equipment_expense = row.pop("equipment_expense", None)
+        if equipment_expense is None:
+            continue
+        direct_operating_costs = row.get("direct_operating_costs")
+        if direct_operating_costs is None:
+            continue
+        row["direct_operating_costs"] = direct_operating_costs + equipment_expense
+
+
 _SELLING_TYPE_GATE_KEYS = (
     "selling_expense",
     "selling_and_marketing_expense",
