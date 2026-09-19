@@ -1025,6 +1025,9 @@ def is_fallback_only_write_permitted_by_documented_override(
             db_field, sec_field, existing, value, long_term_debt_source_sec_field
         )
         or is_wvvi_current_debt_component_additive(db_field, sec_field, existing, value, symbol)
+        or is_narrow_secured_debt_blocking_notes_payable_total(
+            db_field, sec_field, existing, value, long_term_debt_source_sec_field
+        )
     )
 
 
@@ -1121,4 +1124,44 @@ def is_narrow_cash_due_from_banks_overwriting_combined_cash(
         and isinstance(value, (int, float, Decimal))
         and float(value) > 0
         and float(existing) >= float(value) * _CASH_DUE_FROM_BANKS_MIN_MULTIPLE
+    )
+
+
+# ADDED 2026-09-19 (/goal data-confidence audit): O (Realty Income Corp, CIK 0000726728, SIC 6798
+# equity REIT) live-confirmed via real SEC companyfacts JSON - tags a real but immaterial
+# "SecuredDebt" fact (a single mortgage note: $37,761,000 FY2025) alongside a real, dramatically
+# larger "NotesPayable" fact ($25,031,947,000 FY2025, close to yfinance's flagged $26,771,323,000)
+# - O's real unsecured-notes debt program, not a duplicate of the mortgage. redirect_secured_debt_
+# for_reit above correctly routes "secured_debt" to long_term_debt for REIT filers (OLP's evidence
+# - SecuredDebt genuinely IS a REIT's primary mortgage financing for some filers), but "SecuredDebt"
+# is NOT fallback-gated at all, so for O specifically it processes first and permanently blocks
+# "NotesPayable" (fallback-only) from ever getting a chance to write the real, ~660x-larger total -
+# same failure shape as is_narrow_standard_debt_blocking_combined_total above (a narrow concept
+# blocking a fallback concept via ordinary `db_field in row` skip), just for this REIT-specific
+# concept pair. NNN (a comparable net-lease REIT) does not tag SecuredDebt at all and is
+# unaffected - this guard only fires when BOTH concepts are present for the same filer/period.
+_SECURED_DEBT_BLOCKING_NOTES_PAYABLE_MIN_MULTIPLE = 5
+
+
+def is_narrow_secured_debt_blocking_notes_payable_total(
+    db_field: str, sec_field: str, existing: Any, value: Any, long_term_debt_source_sec_field: str | None
+) -> bool:
+    """True if `value` (an incoming fallback-only "notes_payable" write) should be PERMITTED
+    despite `existing` (long_term_debt's already-populated value) being real - see this
+    function's own module comment above for the live O evidence. Deliberately narrow: only
+    fires when (1) db_field is long_term_debt, (2) the incoming concept is specifically
+    "notes_payable", (3) the field's current value came from "secured_debt" specifically (not
+    some other already-resolved figure), and (4) the incoming value is at least
+    _SECURED_DEBT_BLOCKING_NOTES_PAYABLE_MIN_MULTIPLE times larger, so a REIT whose SecuredDebt
+    genuinely is close to its real total (an ordinary, more-precise figure) is never touched.
+    """
+    return (
+        db_field == "long_term_debt"
+        and sec_field == "notes_payable"
+        and long_term_debt_source_sec_field == "secured_debt"
+        and isinstance(existing, (int, float, Decimal))
+        and float(existing) > 0
+        and isinstance(value, (int, float, Decimal))
+        and float(value) > 0
+        and float(value) >= float(existing) * _SECURED_DEBT_BLOCKING_NOTES_PAYABLE_MIN_MULTIPLE
     )
