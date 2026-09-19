@@ -1068,6 +1068,9 @@ def is_fallback_only_write_permitted_by_documented_override(
         or is_narrow_secured_debt_blocking_notes_payable_total(
             db_field, sec_field, existing, value, long_term_debt_source_sec_field
         )
+        or is_other_long_term_debt_overriding_narrow_convertible_notes_component(
+            db_field, sec_field, existing, value, long_term_debt_source_sec_field
+        )
     )
 
 
@@ -1204,4 +1207,47 @@ def is_narrow_secured_debt_blocking_notes_payable_total(
         and isinstance(value, (int, float, Decimal))
         and float(value) > 0
         and float(value) >= float(existing) * _SECURED_DEBT_BLOCKING_NOTES_PAYABLE_MIN_MULTIPLE
+    )
+
+
+# ADDED 2026-09-19 (goal: data-confidence session, HOPE (Hope Bancorp) long_term_debt
+# investigation). Live-confirmed via HOPE's real FY2025 10-K (CIK 0001128361, accession
+# 0001128361-26-000011) balance sheet parenthetical (R4.htm): the filer's single combined
+# balance-sheet line "Convertible notes and subordinated debentures, net" = $110,962,000
+# FY2025 / $109,584,000 FY2024, tagged under us-gaap:OtherLongTermDebt - EXACTLY our stored
+# other_long_term_debt raw value. us-gaap:ConvertibleNotesPayable is tagged SEPARATELY at
+# only $444,000 for FY2023-2025 (a tiny residual balance after HOPE's convertible notes
+# mostly matured/converted around FY2023 - live-confirmed its own value was $217,148,000 as
+# recently as FY2022, when it WAS the complete total and OtherLongTermDebt wasn't tagged at
+# all yet) - a component of the same combined total, not a separate simultaneous liability.
+# sec_balance_sheet.py's concept-fetch list processes ConvertibleNotesPayable (line ~616)
+# BEFORE OtherLongTermDebt (line ~975), so the fallback-only "db_field in row" skip silently
+# protected the stale $444,000 residual-component value from ever being overwritten by the
+# real $110,962,000 combined total, understating long_term_debt by ~250x for FY2023-2025.
+_OTHER_LONG_TERM_DEBT_OVERRIDING_CONVERTIBLE_NOTES_MIN_MULTIPLE = 5
+
+
+def is_other_long_term_debt_overriding_narrow_convertible_notes_component(
+    db_field: str, sec_field: str, existing: Any, value: Any, existing_source_sec_field: str | None
+) -> bool:
+    """True if `value` (an incoming fallback-only "other_long_term_debt" write) should
+    override `existing` (long_term_debt's already-populated value, sourced from
+    "convertible_notes_payable") - see this function's own module comment above for the live
+    HOPE evidence. Deliberately narrow: only fires when (1) db_field is long_term_debt, (2)
+    the incoming concept is specifically "other_long_term_debt", (3) the field's current value
+    came from "convertible_notes_payable" specifically (not some other already-resolved
+    figure that may legitimately already be a complete total), and (4) the incoming value is
+    at least _OTHER_LONG_TERM_DEBT_OVERRIDING_CONVERTIBLE_NOTES_MIN_MULTIPLE times larger, so
+    a filer whose ConvertibleNotesPayable genuinely is close to its real total (an ordinary,
+    more-precise figure, like HOPE's own FY2018-2022 history) is never touched.
+    """
+    return (
+        db_field == "long_term_debt"
+        and sec_field == "other_long_term_debt"
+        and existing_source_sec_field == "convertible_notes_payable"
+        and isinstance(existing, (int, float, Decimal))
+        and float(existing) > 0
+        and isinstance(value, (int, float, Decimal))
+        and float(value) > 0
+        and float(value) >= float(existing) * _OTHER_LONG_TERM_DEBT_OVERRIDING_CONVERTIBLE_NOTES_MIN_MULTIPLE
     )
