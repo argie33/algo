@@ -1766,7 +1766,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     continue
                 elif (
                     db_field == "amortization_expense"
-                    and sec_field == "depreciation_depletion_and_amortization"
+                    and sec_field in ("depreciation_depletion_and_amortization", "depreciation_and_amortization")
                     and isinstance(row.get("depreciation_expense"), (int, float, Decimal))
                     and float(row["depreciation_expense"]) > 0
                     and float(value) > float(row["depreciation_expense"])
@@ -1786,6 +1786,18 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # this concept, per the concept's original "not a separate depreciation-only
                     # figure" design), this branch is skipped entirely and the plain assignment
                     # below correctly stores DD&A whole, unchanged from before this fix.
+                    #
+                    # EXTENDED 2026-09-19 (/goal data-confidence audit, ADSK live-confirmed): the
+                    # plain "DepreciationAndAmortization" concept has the identical combined-total
+                    # shape (see is_narrow_intangible_amortization_overwriting_da_total's own
+                    # comment in sec_zero_component_guards.py for the full ADSK evidence) and
+                    # needs the same net-of-already-populated-depreciation treatment - without
+                    # this, fixing the overwrite guard alone left ADSK's amortization_expense
+                    # holding the RAW $195,000,000 combined total (not net of Depreciation's own
+                    # $43,000,000), which double-counted depreciation when a downstream consumer
+                    # summed depreciation_expense + amortization_expense (live-confirmed via
+                    # scripts/xbrl_yfinance_crosscheck.py: our combined value became
+                    # $238,000,000 against yfinance's real $195,000,000 before this extension).
                     row[db_field] = value - float(row["depreciation_expense"])
                     _amortization_expense_source_sec_field = sec_field
                     _field_source_rank[db_field] = r.get(f"_rank_{sec_field}", 2)
