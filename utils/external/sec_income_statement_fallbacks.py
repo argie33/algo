@@ -310,6 +310,58 @@ def _fill_pretax_income_from_domestic_foreign_split(rows: list[dict[str, Any]]) 
             row["pretax_income"] = candidate
 
 
+def _fill_operating_income_from_revenue_minus_benefits_losses_and_expenses(rows: list[dict[str, Any]]) -> None:
+    """Fallback-only: operating_income = Revenues - BenefitsLossesAndExpenses, for insurers
+    that tag this concept as their real, complete cost total but ALSO happen to tag a much
+    narrower "CostsAndExpenses" fact for a different line item.
+
+    ADDED 2026-09-19 (goal session: "confident in our data" sweep, operating_income
+    implausible-margin cluster investigation). Live-confirmed via real SEC companyfacts JSON:
+
+    - JXN (Jackson Financial, CIK 0001822993, FY2019/FY2020): tags BOTH a real
+      "BenefitsLossesAndExpenses" (FY2020 restated: $6,037,000,000 - includes the
+      variable-annuity-guarantee/hedging derivative losses that dominate an insurer's costs in
+      volatile markets) AND a much narrower "CostsAndExpenses" ($1,299,000,000 restated) for
+      the same fiscal year. Without this fallback running first,
+      _fill_operating_income_from_revenue_minus_costs_and_expenses fired on the narrower
+      concept and produced operating_income=$2,247,000,000 (a large POSITIVE figure) for a
+      year FY2020 actually posted a $2,491,000,000 pretax LOSS. Revenue($3,546,000,000) -
+      BenefitsLossesAndExpenses($6,037,000,000) = -$2,491,000,000, an exact match to the
+      filer's own tagged pretax_income.
+    - GNW (Genworth Financial, CIK 0001276520, FY2009): tags NO "CostsAndExpenses" at all,
+      only "BenefitsLossesAndExpenses" ($9,861,000,000). Revenue($9,069,000,000) -
+      BenefitsLossesAndExpenses($9,861,000,000) = -$792,000,000, exact match to pretax_income.
+
+    Must run BEFORE _fill_operating_income_from_revenue_minus_costs_and_expenses in
+    get_income_statement()'s fallback chain, since that function has no awareness of
+    "benefits_losses_and_expenses" and will happily consume a real-but-narrower
+    "costs_and_expenses" fact first if given the chance (JXN's exact failure mode). Writes to
+    "operating_income_loss" (already mapped to the "operating_income" column) - never
+    overwrites a real operating_income_loss value already present. Deliberately does NOT
+    consume "policyholder_benefits_and_claims_incurred_net" (the sibling concept the shared
+    COGS-family gate in _fill_operating_income_from_revenue_minus_operating_expenses_only also
+    checks) - not yet live-confirmed as a usable standalone total the way
+    BenefitsLossesAndExpenses is; extend this function only after finding a live filer where
+    that concept alone reconciles operating_income to pretax_income the same clean way.
+    """
+    for row in rows:
+        benefits_losses_and_expenses = row.get("benefits_losses_and_expenses")
+        if row.get("operating_income_loss") is not None or benefits_losses_and_expenses is None:
+            continue
+        revenue = None
+        for revenue_key in (
+            "revenues",
+            "revenue_from_contract_with_customer_excluding_assessed_tax",
+            "revenue_from_contract_with_customer_including_assessed_tax",
+        ):
+            if row.get(revenue_key) is not None:
+                revenue = row[revenue_key]
+                break
+        if revenue is None:
+            continue
+        row["operating_income_loss"] = revenue - benefits_losses_and_expenses
+
+
 def _fill_operating_income_from_revenue_minus_costs_and_expenses(rows: list[dict[str, Any]]) -> None:
     """Fallback-only: operating_income = Revenues - CostsAndExpenses, for single-step-format
     filers that report both totals but never tag OperatingIncomeLoss at all.

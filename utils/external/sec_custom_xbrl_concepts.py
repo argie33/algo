@@ -433,6 +433,39 @@ CUSTOM_DIVIDEND_CONCEPTS: dict[str, list[tuple[str, str]]] = {
     "PAYP": [("ifrs-full", "DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities")],
 }
 
+# ADDED 2026-09-19 (goal: data-confidence session, xbrl_yfinance_line_item_report
+# score-exposure follow-up): PRG (PROG Holdings, rent-to-own) tags its dominant
+# depreciation line - depreciation of its rental-fleet merchandise, the single largest
+# cost line for a rent-to-own business - under a filer-specific custom XBRL extension
+# concept, invisible to companyfacts/companyconcept (same structural gap CUSTOM_CAPEX_
+# CONCEPTS' module docstring documents for DHT/CMRE). Verified live 2026-09-19 against
+# PRG's real FY2025 10-K (CIK 0001808834, accession 0001808834-26-000012) raw XBRL
+# instance document: prg:DepreciationOfLeaseMerchandise = $1,590,240,000 FY2025 /
+# $1,621,101,000 FY2024 / $1,576,303,000 FY2023 (all three years' comparative contexts
+# present in the one filing, non-dimensioned, full-year duration) - identical to the
+# FY2023/FY2024 values a prior session confirmed via the FY2024 10-K's own R5.htm.
+#
+# UNLIKE every other registry above, this one is deliberately ADDITIVE to an already-
+# populated base value, not fallback-only: PRG's normal us-gaap:Depreciation/
+# DepreciationDepletionAndAmortization extraction correctly finds a real (but tiny by
+# comparison) corporate-PP&E depreciation figure - $8,500,000 FY2023 / $8,400,000 FY2024
+# / $8,000,000 FY2025 - so a fallback-only merge would never fire (the field's never
+# empty). See apply_custom_income_extensions()'s additive handling of
+# CUSTOM_DEPRECIATION_CONCEPTS in financial_statements_custom_extension_fallbacks.py.
+# Sum lands within ~1-1.5% of yfinance every year (e.g. FY2024: 8.4M + 1,621.101M =
+# 1,629.501M vs yfinance's 1,648.078M) - not an exact reconciliation (PRG's income
+# statement likely nets a smaller reserve/write-off adjustment we don't have a separate
+# concept for), but a ~50x improvement over the pre-fix value, and the closest
+# achievable without a further, separately-verified adjustment concept.
+#
+# UPBD (Upbound Group/Rent-A-Center, same rent-to-own business model) explicitly checked
+# and is NOT the same shape - do not add it here without separate verification. UPBD has
+# no equivalent named "depreciation" custom concept; its rental-fleet depreciation is
+# bundled unlabeled into "Cost of rentals and fees", not cleanly separable this way.
+CUSTOM_DEPRECIATION_CONCEPTS: dict[str, list[tuple[str, str]]] = {
+    "PRG": [("prg", "DepreciationOfLeaseMerchandise")],
+}
+
 
 def _local_name(tag: str) -> str:
     """Strip the Clark-notation namespace from an ElementTree tag."""
@@ -494,6 +527,27 @@ def _extract_values_for_concepts(xml_content: str, concepts: list[tuple[str, str
         context_periods[ctx_id] = (start_el.text.strip(), end_el.text.strip())
 
     values_by_year: dict[int, float] = {}
+    # LIVE-CONFIRMED 2026-09-19 (adding CUSTOM_DEPRECIATION_CONCEPTS/PRG): unlike
+    # _extract_instant_values_for_concepts below (which has carried an (contextRef,
+    # concept) dedup set since the 2026-09-03 AES fix), this duration-fact extractor had
+    # no deduplication at all - PRG's real filed XBRL instance document (accession
+    # 0001808834-26-000012) tags prg:DepreciationOfLeaseMerchandise's SAME fiscal-year
+    # value under THREE separate non-dimensioned full-year contexts per year (e.g. FY2023
+    # $1,576,303,000 under contexts "c-13", "c-235", AND a third - the filer's XBRL
+    # generation tool mints a fresh context id for each disclosure table/R-file section
+    # that reuses the identical fact, rather than reusing one context id across sections).
+    # Blindly summing every (element, contextRef) occurrence tripled the real value
+    # (~$4.7B instead of ~$1.58B once added to the base corporate-PP&E figure) - a bug
+    # that happened to never surface for this function's existing DHT/CMRE/APA/CMS/SPG/RS
+    # registrants, whose filings apparently don't clone contexts this way, but is a latent
+    # risk for any future registration. A genuinely different additive component (e.g.
+    # DHT's InvestmentsInVessels vs InvestmentInVesselsUnderConstruction) essentially never
+    # coincides in BOTH exact value AND exact period simultaneously - same "identical
+    # (period, value) pair implies same underlying fact, not a second real component"
+    # discriminator sec_zero_component_guards.py's is_additive_concept_pair already uses
+    # for the analogous ADT ppe_net duplicate-fact case - so dedup by (start, end, value)
+    # per concept, not by contextRef (which differs across the clones here).
+    seen_period_values: set[tuple[str, str, str, float]] = set()
     for el in root.iter():
         local_name = _local_name(el.tag)
         if local_name not in wanted_local_names:
@@ -516,6 +570,10 @@ def _extract_values_for_concepts(xml_content: str, concepts: list[tuple[str, str
             value = float(el.text.strip())
         except ValueError:
             continue
+        dedup_key = (local_name, start_str, end_str, value)
+        if dedup_key in seen_period_values:
+            continue  # Same fact re-tagged under a different contextRef - count it once.
+        seen_period_values.add(dedup_key)
         fiscal_year = end_date.year
         values_by_year[fiscal_year] = values_by_year.get(fiscal_year, 0.0) + value
 
@@ -649,6 +707,16 @@ def extract_custom_dividends_from_xbrl_xml(xml_content: str, symbol: str) -> dic
     return _extract_values_for_concepts(xml_content, CUSTOM_DIVIDEND_CONCEPTS.get(symbol))
 
 
+def extract_custom_depreciation_from_xbrl_xml(xml_content: str, symbol: str) -> dict[int, float]:
+    """Parse a filing's raw XBRL instance document for `symbol`'s known custom depreciation
+    concept(s) (see CUSTOM_DEPRECIATION_CONCEPTS), returning {fiscal_year: summed_value}.
+
+    Only meaningful for symbols in CUSTOM_DEPRECIATION_CONCEPTS - returns {} immediately for
+    any other symbol (never guesses at unregistered concept names).
+    """
+    return _extract_values_for_concepts(xml_content, CUSTOM_DEPRECIATION_CONCEPTS.get(symbol))
+
+
 _ANNUAL_FILING_FORMS = frozenset({"10-K", "10-K/A", "10-KT", "10-KT/A", "20-F", "20-F/A", "40-F", "40-F/A"})
 # BASE (non-amendment) forms only - tried first. See _fetch_custom_concept's docstring.
 _BASE_ANNUAL_FILING_FORMS = frozenset({"10-K", "10-KT", "20-F", "40-F"})
@@ -737,6 +805,17 @@ def fetch_custom_dividends(symbol: str, sec_client: Any) -> dict[int, float]:
     raise.
     """
     return _fetch_custom_concept(symbol, sec_client, CUSTOM_DIVIDEND_CONCEPTS, extract_custom_dividends_from_xbrl_xml)
+
+
+def fetch_custom_depreciation(symbol: str, sec_client: Any) -> dict[int, float]:
+    """Fetch and parse `symbol`'s latest annual filing for its known custom depreciation
+    concept(s). Returns {} if symbol isn't in CUSTOM_DEPRECIATION_CONCEPTS, the filing
+    can't be found, or the XML can't be parsed - callers should treat that as "no fallback
+    data", not raise.
+    """
+    return _fetch_custom_concept(
+        symbol, sec_client, CUSTOM_DEPRECIATION_CONCEPTS, extract_custom_depreciation_from_xbrl_xml
+    )
 
 
 # FOUND 2026-09-03 (goal session: "missing SEC/XBRL data under 6k" sweep, total_debt_not_

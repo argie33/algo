@@ -331,6 +331,21 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         # at all. See utils/external/sec_balance_sheet.py's concept-fetch list comment (search
         # "InterestBearingDepositsInBanks") for the full evidence.
         ("cash_and_equivalents", "interest_bearing_deposits_in_banks"),
+        # ADDED 2026-09-19 (goal: data-confidence session, PRG live-confirmed via real
+        # filed XBRL instance document, accession 0001808834-26-000012): PRG's dominant
+        # depreciation line - "Depreciation of Lease Merchandise", the depreciation of its
+        # rental-fleet inventory - is tagged under a filer-specific custom XBRL extension
+        # concept (prg:DepreciationOfLeaseMerchandise, fetched via the same raw-XML-
+        # instance-document mechanism as CUSTOM_CAPEX_CONCEPTS' DHT/CMRE - see
+        # utils/external/sec_custom_xbrl_concepts.py's CUSTOM_DEPRECIATION_CONCEPTS),
+        # genuinely additive to the small corporate-PP&E depreciation figure PRG's normal
+        # us-gaap:Depreciation extraction already finds every year (not an alternate/
+        # duplicate - both real, non-overlapping cost components): FY2024 $8,400,000 +
+        # $1,621,101,000 = $1,629,501,000 (yfinance $1,648,078,000, within ~1.1%); FY2023
+        # $8,500,000 + $1,576,303,000 = $1,584,803,000 (yfinance $1,608,335,000, within
+        # ~1.5%). Not an exact reconciliation (a further reserve/write-off adjustment PRG
+        # doesn't separately tag), but a ~50x improvement over the pre-fix value alone.
+        ("depreciation_expense", "custom_extension_lease_merchandise_depreciation"),
     }
 )
 

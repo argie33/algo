@@ -35,6 +35,7 @@ from utils.external.sec_custom_xbrl_concepts import (
     CUSTOM_DEBT_CONCEPTS,
     CUSTOM_DEBT_LONGTERM_CONCEPTS,
     CUSTOM_DEBT_SHORTTERM_CONCEPTS,
+    CUSTOM_DEPRECIATION_CONCEPTS,
     CUSTOM_DIVIDEND_CONCEPTS,
     CUSTOM_INCOME_DIMENSIONED_CONCEPTS,
     CUSTOM_REVENUE_CONCEPTS,
@@ -43,6 +44,7 @@ from utils.external.sec_custom_xbrl_concepts import (
     fetch_custom_debt,
     fetch_custom_debt_longterm,
     fetch_custom_debt_shortterm,
+    fetch_custom_depreciation,
     fetch_custom_dividends,
     fetch_custom_income_dimensioned,
     fetch_custom_revenue,
@@ -80,6 +82,20 @@ def apply_custom_income_extensions(
             for field_key, values_by_year in custom_income_fields.items():
                 if fiscal_year in values_by_year:
                     row[field_key] = values_by_year[fiscal_year]
+
+    if symbol in CUSTOM_DEPRECIATION_CONCEPTS:
+        # ADDED 2026-09-19 (PRG lease-merchandise depreciation): staged through the same
+        # custom_extension_* key convention as every field above - transform() (sec_base.py)
+        # hasn't run yet at this point in the pipeline, so depreciation_expense itself isn't
+        # populated on `row`; only the raw pre-transform SEC-concept-keyed fields are. Unlike
+        # its siblings, this key is registered as ADDITIVE (not merely fallback-only) via
+        # ADDITIVE_CONCEPT_PAIRS in sec_zero_component_guards.py - see
+        # financial_statements_income_config.py's field_mapping comment on this key for why.
+        custom_depreciation_by_year = fetch_custom_depreciation(symbol, sec_client)
+        for row in _annual_rows(rows):
+            fiscal_year = row.get("fiscal_year")
+            if fiscal_year in custom_depreciation_by_year:
+                row["custom_extension_lease_merchandise_depreciation"] = custom_depreciation_by_year[fiscal_year]
 
 
 def apply_custom_cashflow_extensions(symbol: str, rows: list[dict[str, Any]], sec_client: Any) -> None:

@@ -148,6 +148,23 @@ _INCOME_FIELD_MAPPING = {
     "custom_extension_net_income": "net_income",
     "custom_extension_eps_basic": "earnings_per_share",
     "custom_extension_eps_diluted": "diluted_eps",
+    # ADDED 2026-09-19 (goal: data-confidence session, PRG depreciation_expense fix):
+    # identity key ConsolidatedFinancialStatementsLoader.fetch_incremental() sets directly
+    # on rows for symbols in utils/external/sec_custom_xbrl_concepts.py's
+    # CUSTOM_DEPRECIATION_CONCEPTS (PRG's real rental-fleet "Depreciation of Lease
+    # Merchandise" figure, tagged under a filer-specific custom XBRL extension concept,
+    # structurally invisible to the companyfacts API this file's normal concept-list
+    # extraction depends on - same gap CUSTOM_REVENUE_CONCEPTS' comment above documents
+    # for APA). UNLIKE custom_extension_revenue/net_income/eps above, this one is
+    # deliberately ADDITIVE (see ADDITIVE_CONCEPT_PAIRS in sec_zero_component_guards.py)
+    # rather than fallback-only-in-the-ordinary-sense: PRG's normal us-gaap:Depreciation
+    # extraction ("depreciation" above) already finds a real but tiny corporate-PP&E
+    # figure every year, so a plain "only fill if empty" fallback would never fire. Listed
+    # in _REVENUE_FALLBACK_ONLY_FIELDS below purely so it reaches the fallback-only branch
+    # of transform()'s per-field loop at all (db_field already populated) - from there,
+    # is_fallback_only_write_permitted_by_documented_override's is_additive_concept_pair
+    # check is what actually makes it sum instead of skip.
+    "custom_extension_lease_merchandise_depreciation": "depreciation_expense",
     "cost_of_revenue": "cost_of_revenue",
     # FIXED 2026-08-17 (goal: "no SEC data" audit): "CostOfGoodsAndServicesSold" concept
     # added to sec_statements.py's get_income_statement() concepts list - see that file's
@@ -577,6 +594,10 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         "custom_extension_net_income",
         "custom_extension_eps_basic",
         "custom_extension_eps_diluted",
+        # ADDED 2026-09-19: see _INCOME_FIELD_MAPPING's comment on
+        # "custom_extension_lease_merchandise_depreciation" above (PRG live evidence) -
+        # additive via ADDITIVE_CONCEPT_PAIRS, reached through this same fallback-only branch.
+        "custom_extension_lease_merchandise_depreciation",
         # FIXED 2026-09-05 (goal session: "SEC/XBRL missing data" sweep): ESOA-class filers
         # that stop tagging NetIncomeLoss/ProfitLoss - see _INCOME_FIELD_MAPPING's comment on
         # this key above.
