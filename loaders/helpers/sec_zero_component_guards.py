@@ -253,6 +253,17 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         # smaller than yfinance"). Summed: AUD 25,855,055, consistent with the same
         # AUD->USD conversion already validated for this filer's ppe_net pair above.
         ("capex", "purchase_of_exploration_and_evaluation_assets"),
+        # Reverse direction of the pair immediately above - REQUIRED, not redundant: this
+        # file's is_additive_concept_pair() does an exact (db_field, sec_field) tuple
+        # lookup with no automatic reciprocity (same convention as the ppe_net pair's own
+        # "property_plant_and_equipment_net" entry earlier in this set). NVA's real fetch
+        # order processes the ifrs_aliases-sourced exploration concept BEFORE the
+        # concepts-list-sourced PP&E concept (live-confirmed via direct get_cash_flow()
+        # call: exploration key precedes payments_to_acquire_property_plant_and_equipment
+        # in the raw row's insertion order) - without this entry, PP&E processed second
+        # unconditionally overwrote the already-set exploration value via ordinary
+        # last-listed-wins, silently discarding the dominant figure instead of summing.
+        ("capex", "payments_to_acquire_property_plant_and_equipment"),
         # ADDED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up): RAVE
         # (Rave Restaurant Group) FY2022 (period 2021-06-28 to 2022-06-26) live-confirmed via
         # real SEC companyfacts JSON: real, nonzero "CostOfRevenue" ($1,000, an immaterial

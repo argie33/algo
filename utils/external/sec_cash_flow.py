@@ -226,6 +226,17 @@ _CASHFLOW_IFRS_ALIASES = [
     # Same target_key as the us-gaap concepts so field_mapping needs no changes.
     ("AdjustmentsForSharebasedPayments", "share_based_compensation"),
     ("PurchaseOfTreasuryShares", "payments_for_repurchase_of_common_stock"),
+    # FIXED 2026-09-19 (goal: data-quality-issue reduction, NVA capex ~24x understatement
+    # live-confirmed): "PurchaseOfExplorationAndEvaluationAssets" was already registered in
+    # the plain `concepts` list above/target_key "purchase_of_exploration_and_evaluation_
+    # assets" mapped to capex in field_mapping, and already added to ADDITIVE_CONCEPT_PAIRS
+    # (see sec_zero_component_guards.py) - but `concepts` is queried against us-gaap facts
+    # only (this function's own docstring), and NVA (Nova Minerals Corp, CIK 1852551) is a
+    # pure IFRS 20-F filer with ZERO us-gaap facts, so the concept never actually got
+    # fetched despite every other piece of the fix being wired correctly. Same target_key
+    # as the plain-concepts-list entry so field_mapping/the additive pair need no changes -
+    # this alias just makes the concept reachable via the ifrs-full taxonomy too.
+    ("PurchaseOfExplorationAndEvaluationAssets", "purchase_of_exploration_and_evaluation_assets"),
 ]
 
 
