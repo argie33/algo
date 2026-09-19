@@ -221,6 +221,13 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         # alternates, same shape as the sibling concept already in this set.
         ("capex", "payments_to_acquire_oil_and_gas_property_and_equipment"),
         ("interest_expense", "interest_expense_other"),
+        # ADDED 2026-09-18 (goal session, data-issue reduction, WBD live-confirmed): see
+        # sec_income_statement.py's concept-fetch-list comment on these two film-amortization
+        # concepts for the full reconciling math (WBD FY2023: combined depreciation +
+        # AmortizationOfIntangibleAssets $7,951,000,000 + these two concepts $10,648,000,000 +
+        # $5,165,000,000 = $23,764,000,000, within 1% of yfinance's $24,009,000,000).
+        ("amortization_expense", "film_monetized_in_film_group_amortization_expense"),
+        ("amortization_expense", "film_monetized_on_its_own_amortization_expense"),
         ("ppe_net", "property_plant_and_equipment_net"),
         # ADDED 2026-09-17 (ppe_net cluster follow-up): WRN, IFRS mining-explorer equivalent
         # of the THM/PZG MineralPropertiesNet pattern above - see this pair's own comment on
@@ -696,6 +703,43 @@ def is_immaterial_standard_debt_overwriting_combined_total(
     )
 
 
+# ADDED 2026-09-18 (goal session, data-issue reduction, GM live-confirmed via real SEC
+# companyfacts JSON): same shape as is_immaterial_standard_debt_overwriting_combined_total
+# above, for amortization_expense instead of long_term_debt. sec_income_statement.py's
+# concept-fetch list lists "DepreciationDepletionAndAmortization" (a real COMBINED
+# depreciation+amortization total) BEFORE "AmortizationOfIntangibleAssets" specifically so the
+# more-precise plain concept (processed later) can normally win - but AmortizationOfIntangible
+# Assets is not fallback-gated, so for a filer like GM whose intangible-amortization is a small,
+# genuinely separate sub-item ($146,000,000 FY2024) it unconditionally overwrote the much
+# larger, already-resolved combined DD&A total ($11,456,000,000 FY2024) instead of losing to it
+# as intended. Reusing _COMBINED_DEBT_TOTAL_MIN_MULTIPLE (5x) - same "can't fire on ordinary
+# noise" reasoning as the debt guards.
+_DDA_COMBINED_TOTAL_SOURCE_CONCEPTS = frozenset({"depreciation_depletion_and_amortization"})
+
+
+def is_narrow_intangible_amortization_overwriting_combined_dda(
+    db_field: str, sec_field: str, existing: Any, value: Any, existing_source_sec_field: str | None
+) -> bool:
+    """True if `value` (an incoming plain intangible-amortization concept write) should be
+    REJECTED to protect `existing` (amortization_expense's currently-stored value, already
+    resolved from a combined DepreciationDepletionAndAmortization total) - see this function's
+    own module comment above for the live GM evidence. Deliberately narrow: only fires when the
+    incoming value is smaller than the existing combined total by at least the same 5x
+    magnitude floor the debt-guard siblings use, so an ordinary, more-precise intangible-
+    amortization update that's merely somewhat smaller still wins normally.
+    """
+    return (
+        db_field == "amortization_expense"
+        and sec_field in ("amortization_of_intangible_assets", "amortization_of_intangibles")
+        and existing_source_sec_field in _DDA_COMBINED_TOTAL_SOURCE_CONCEPTS
+        and isinstance(existing, (int, float, Decimal))
+        and float(existing) > 0
+        and isinstance(value, (int, float, Decimal))
+        and float(value) > 0
+        and float(existing) >= float(value) * _COMBINED_DEBT_TOTAL_MIN_MULTIPLE
+    )
+
+
 # ADDED 2026-09-17 (goal: xbrl_yfinance_line_item_report remediation follow-up, AVA live-
 # confirmed via real SEC companyfacts JSON, CIK 0000104918): Avista Corp, a regulated
 # electric/gas utility (NOT a REIT - redirect_secured_debt_for_reit above never fires for it),
@@ -733,6 +777,85 @@ def redirect_secured_debt_for_utility_long_term_financing(sec_field: str, db_fie
     return db_field
 
 
+# ADDED 2026-09-18 (goal session, xbrl_yfinance_line_item_report short_term_debt remediation):
+# WVVI (Willamette Valley Vineyards) live-confirmed via its own filed SEC calculation linkbase
+# (FY2023/2024/2025 10-Ks): "LineOfCredit" is declared as a direct child of the
+# "LiabilitiesCurrent" calculation total in every one of these filings, not "Liabilities" -
+# meaning the filer itself classifies this facility as CURRENT debt on its own balance sheet.
+# `financial_statements_balance_config.py`'s blanket `"line_of_credit": "long_term_debt"`
+# mapping (added for the common case where a filer's revolver is genuinely long-term financing,
+# or where an unclassified balance sheet has no current/noncurrent split at all - see the many
+# symbols confirmed as "rolls up under total Liabilities" in this same review pass) is wrong
+# for this filer specifically. Confirmed live: WVVI's real short_term_debt was understated by
+# roughly the size of its LineOfCredit balance every year (our stored value ~$0.9-1.2M vs
+# yfinance's ~$1.9-5.0M, tracking the LineOfCredit facility's own growth).
+#
+# Deliberately narrow to this one live-confirmed symbol via calculation-linkbase evidence, not
+# a general rule - most filers checked in this same pass have LineOfCredit rolling up under
+# total Liabilities (no split) or under long-term financing, so a blanket current-classification
+# rule would misclassify those.
+_LINE_OF_CREDIT_CURRENT_SYMBOLS = frozenset({"WVVI"})
+
+
+def redirect_line_of_credit_for_current_classification(sec_field: str, db_field: str, symbol: str | None) -> str:
+    """Mirrors redirect_secured_debt_for_reit's shape for the one live-confirmed filer (WVVI)
+    whose own calculation linkbase declares LineOfCredit as a child of LiabilitiesCurrent -
+    see _LINE_OF_CREDIT_CURRENT_SYMBOLS' own comment above. Returns db_field unchanged for
+    every other symbol (the default long_term_debt mapping is correct or ambiguous-but-
+    unclassified for everyone else checked)."""
+    if sec_field == "line_of_credit" and db_field == "long_term_debt" and symbol in _LINE_OF_CREDIT_CURRENT_SYMBOLS:
+        return "short_term_debt"
+    return db_field
+
+
+# ADDED 2026-09-18 (goal session, WVVI short_term_debt investigation - direct follow-up to
+# the redirect above, which was confirmed live-correct but dormant since NotesPayableCurrent
+# always writes first and fallback-only blocks everything after it). Live-confirmed via WVVI's
+# own real SEC companyfacts JSON (CIK 0000838875): FY2025's three current-debt components -
+# NotesPayableCurrent ($884,221), LongTermDebtCurrent ($1,008,215), and LineOfCredit
+# ($3,140,140, redirected to short_term_debt above) - sum to $5,032,576, an EXACT match to
+# yfinance's own FY2025 figure for the same row (not just close - to the dollar). FY2023/2024
+# don't reconcile as cleanly (naive sum off by ~9%/~10%) but per this session's standing rule
+# a yfinance mismatch alone never overrides a live-verified primary-source SEC value - FY2025's
+# exact match is the real evidence, FY2023/2024 are presumed to be yfinance's own
+# stale/differently-vintaged historical figures, not a 4th missing SEC component (see
+# wvvi_line_of_credit_short_term_debt_finding memory note for the fuller trace of what was
+# ruled out, incl. OperatingLeaseLiabilityCurrent, before landing this).
+#
+# Deliberately narrow to this one live-confirmed symbol: summing three separate current-debt
+# concepts together is NOT a safe general rule (most filers report only one of these, or a
+# combined total, and blind stacking would double-count for them) - same reasoning as every
+# other symbol-gated guard in this module.
+_WVVI_CURRENT_DEBT_COMPONENT_SYMBOLS = frozenset({"WVVI"})
+_WVVI_CURRENT_DEBT_COMPONENT_SEC_FIELDS = frozenset(
+    {"notes_payable_current", "long_term_debt_current", "line_of_credit"}
+)
+
+
+def is_wvvi_current_debt_component_additive(
+    db_field: str, sec_field: str, existing: Any, value: Any, symbol: str | None
+) -> bool:
+    """True if `value` (an incoming current-debt-component write for WVVI specifically) should
+    be SUMMED into `existing` (short_term_debt's currently-stored value) rather than being
+    blocked by the ordinary fallback-only "db_field in row" skip - see this function's own
+    module comment above for the live evidence this closes.
+
+    Only fires for WVVI, only when db_field is short_term_debt and sec_field is one of the
+    three live-confirmed genuinely-distinct current-debt components, and only when both the
+    existing and incoming values are real, positive numbers - matches the shape of
+    is_other_borrowings_additive_to_subordinated_debt above.
+    """
+    return (
+        db_field == "short_term_debt"
+        and sec_field in _WVVI_CURRENT_DEBT_COMPONENT_SEC_FIELDS
+        and symbol in _WVVI_CURRENT_DEBT_COMPONENT_SYMBOLS
+        and isinstance(existing, (int, float, Decimal))
+        and float(existing) > 0
+        and isinstance(value, (int, float, Decimal))
+        and float(value) > 0
+    )
+
+
 def is_fallback_only_write_permitted_by_documented_override(
     db_field: str,
     sec_field: str,
@@ -742,6 +865,7 @@ def is_fallback_only_write_permitted_by_documented_override(
     interest_expense_source_sec_field: str | None,
     accounts_receivable_source_sec_field: str | None,
     dividends_paid_source_sec_field: str | None,
+    symbol: str | None = None,
 ) -> bool:
     """Extracted 2026-09-17 (file-size ratchet: sec_base.py hit the 2000-line hard ceiling,
     no baseline raise accepted for that file - see this repo's own .file-size-baseline.json
@@ -778,6 +902,7 @@ def is_fallback_only_write_permitted_by_documented_override(
         or is_other_borrowings_additive_to_subordinated_debt(
             db_field, sec_field, existing, value, long_term_debt_source_sec_field
         )
+        or is_wvvi_current_debt_component_additive(db_field, sec_field, existing, value, symbol)
     )
 
 

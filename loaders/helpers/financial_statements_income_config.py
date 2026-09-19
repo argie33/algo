@@ -316,6 +316,11 @@ _INCOME_FIELD_MAPPING = {
     # oil_and_gas_properties capex sum). Fallback-only mapping here so a filer that tags
     # ONLY InterestExpenseOther (no FinancingInterestExpense) still gets it filled.
     "interest_expense_other": "interest_expense",
+    # ADDED 2026-09-18 (goal session, ASPN interest_expense dedicated investigation): see
+    # sec_income_statement.py's get_income_statement() comment on "InterestExpenseRelatedParty"
+    # for the live ASPN evidence (FY2022 $5,110,000, exact yfinance match). Fallback-only, same
+    # convention as every other concept in this fallback tier.
+    "interest_expense_related_party": "interest_expense",
     "interest_paid_net": "interest_expense",
     # FIXED 2026-09-03 (same "cash paid" fallback tier as interest_paid_net above - see
     # sec_statements.py's get_income_statement() comment on "InterestPaid", ARW).
@@ -342,6 +347,13 @@ _INCOME_FIELD_MAPPING = {
     # 3,268/5,373 filers (61%) and was never fetched anywhere. Same target column per
     # this file's "last-listed wins" convention.
     "amortization_of_intangible_assets": "amortization_expense",
+    # FIXED 2026-09-18 (goal session, WBD live-confirmed) - see sec_income_statement.py's
+    # concept-list comment on these two concepts for the full reconciling math. Same target
+    # column as amortization_of_intangible_assets above; the two are genuinely additive
+    # (distinct line items), not alternates - see ADDITIVE_CONCEPT_PAIRS in
+    # sec_zero_component_guards.py for the actual sum-instead-of-overwrite mechanism.
+    "film_monetized_in_film_group_amortization_expense": "amortization_expense",
+    "film_monetized_on_its_own_amortization_expense": "amortization_expense",
     # For roic_pct real effective-tax-rate computation (see sec_statements.py's comment
     # above these concepts for the live-verification note).
     "income_tax_expense_benefit": "income_tax_expense",
@@ -543,6 +555,11 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
         # InterestExpenseDebt and nothing else, since fallback-only still fills an empty
         # db_field.
         "interest_expense_debt",
+        # ADDED 2026-09-18 (goal session, ASPN interest_expense dedicated investigation): see
+        # _INCOME_FIELD_MAPPING's comment on "interest_expense_related_party" above (ASPN live
+        # evidence). Same "fills only an already-empty db_field" reasoning as every other entry
+        # in this set.
+        "interest_expense_related_party",
         "interest_paid_net",
         # FIXED 2026-09-03 (same reasoning as interest_paid_net just above - see
         # _INCOME_FIELD_MAPPING's comment on "interest_paid" above, ARW live-verified).

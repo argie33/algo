@@ -45,8 +45,11 @@ from loaders.helpers.sec_zero_component_guards import (
     is_fallback_only_write_permitted_by_documented_override,
     is_immaterial_standard_debt_overwriting_combined_total,
     is_narrow_cash_due_from_banks_overwriting_combined_cash,
+    is_narrow_intangible_amortization_overwriting_combined_dda,
     is_other_borrowings_additive_to_subordinated_debt,
+    is_wvvi_current_debt_component_additive,
     is_zero_overwrite_blocking_field,
+    redirect_line_of_credit_for_current_classification,
     redirect_secured_debt_for_reit,
     redirect_secured_debt_for_utility_long_term_financing,
 )
@@ -1420,6 +1423,10 @@ class SecEdgarStatementLoader(SecLoaderBase):
             _interest_expense_source_sec_field: str | None = None
             _accounts_receivable_source_sec_field: str | None = None
             _dividends_paid_source_sec_field: str | None = None
+            # ADDED 2026-09-18 (GM live-confirmed) - see
+            # is_narrow_intangible_amortization_overwriting_combined_dda's own docstring
+            # (sec_zero_component_guards.py) for the live evidence this tracks.
+            _amortization_expense_source_sec_field: str | None = None
             # ADDED 2026-09-17 (AUID live-confirmed) - see
             # is_narrow_cash_due_from_banks_overwriting_combined_cash's own docstring
             # (sec_zero_component_guards.py) for the live evidence.
@@ -1490,6 +1497,9 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 # AVA live evidence (regulated utility, not a REIT, whose SecuredDebt is also
                 # real long-term financing) - see sec_zero_component_guards.py's own docstring.
                 db_field = redirect_secured_debt_for_utility_long_term_financing(sec_field, db_field, r.get("symbol"))
+                # WVVI live evidence (LineOfCredit filed as current per its own calc linkbase) -
+                # see sec_zero_component_guards.py's own docstring.
+                db_field = redirect_line_of_credit_for_current_classification(sec_field, db_field, r.get("symbol"))
                 if sec_field in _REVENUE_TOTAL_CANDIDATE_FIELDS and db_field == "revenue":
                     # See sec_revenue_total_resolution.py's own docstring for the magnitude/
                     # priority rules this applies (incl. the 2026-09-13 AMP/SF fix).
@@ -1519,6 +1529,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         _interest_expense_source_sec_field,
                         _accounts_receivable_source_sec_field,
                         _dividends_paid_source_sec_field,
+                        r.get("symbol"),
                     ) and not should_override_fallback_field_for_depository_institution(
                         sec_field, db_field, value, row, r, _eligible_interest_income_symbols
                     ):
@@ -1652,6 +1663,17 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # overwrite.
                     row[db_field] = row[db_field] + value
                     continue
+                elif db_field in row and is_wvvi_current_debt_component_additive(
+                    db_field, sec_field, row.get(db_field), value, r.get("symbol")
+                ):
+                    # WVVI-class case: NotesPayableCurrent/LongTermDebtCurrent/LineOfCredit are
+                    # three genuinely distinct, simultaneously-outstanding current-debt
+                    # components for this one filer - see
+                    # is_wvvi_current_debt_component_additive's own docstring
+                    # (sec_zero_component_guards.py) for the live evidence. Sum instead of
+                    # overwrite.
+                    row[db_field] = row[db_field] + value
+                    continue
                 elif (
                     db_field == "shares_outstanding_basic"
                     and sec_field in ("common_stock_shares_issued", "common_stock_shares_outstanding")
@@ -1701,6 +1723,16 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # is_immaterial_standard_debt_overwriting_combined_total's own docstring
                     # (sec_zero_component_guards.py) for the live evidence.
                     continue
+                elif is_narrow_intangible_amortization_overwriting_combined_dda(
+                    db_field, sec_field, row.get(db_field), value, _amortization_expense_source_sec_field
+                ):
+                    # GM-class case: "amortization_of_intangible_assets" is not fallback-gated
+                    # at all, so it would otherwise unconditionally overwrite an already-
+                    # resolved, dramatically larger combined DD&A total with its own real-but-
+                    # immaterial figure - see
+                    # is_narrow_intangible_amortization_overwriting_combined_dda's own docstring
+                    # (sec_zero_component_guards.py) for the live evidence.
+                    continue
                 elif is_narrow_cash_due_from_banks_overwriting_combined_cash(
                     db_field, sec_field, row.get(db_field), value, _cash_source_sec_field
                 ):
@@ -1710,6 +1742,31 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     # figure - see is_narrow_cash_due_from_banks_overwriting_combined_cash's
                     # own docstring (sec_zero_component_guards.py) for the live evidence.
                     continue
+                elif (
+                    db_field == "amortization_expense"
+                    and sec_field == "depreciation_depletion_and_amortization"
+                    and isinstance(row.get("depreciation_expense"), (int, float, Decimal))
+                    and float(row["depreciation_expense"]) > 0
+                    and float(value) > float(row["depreciation_expense"])
+                ):
+                    # FIXED 2026-09-18 (goal session, data-issue reduction, GM live-confirmed):
+                    # "DepreciationDepletionAndAmortization" is a COMBINED depreciation+
+                    # amortization total (see this concept's own fetch-list comment in
+                    # sec_income_statement.py), not a pure-amortization figure - storing it
+                    # whole into amortization_expense when depreciation_expense is ALSO
+                    # separately populated double-counts depreciation for any downstream
+                    # consumer that sums depreciation_expense + amortization_expense (e.g. the
+                    # EBITDA calculation this module's own "Session 398" comment documents, and
+                    # scripts/xbrl_yfinance_crosscheck.py's _COMPOSITE_SUM_FIELDS). GM FY2024:
+                    # DD&A $11,456,000,000 - Depreciation $4,800,000,000 = $6,656,000,000, the
+                    # genuine incremental (non-depreciation) amortization portion. When
+                    # depreciation_expense is NOT yet populated for this row (most filers using
+                    # this concept, per the concept's original "not a separate depreciation-only
+                    # figure" design), this branch is skipped entirely and the plain assignment
+                    # below correctly stores DD&A whole, unchanged from before this fix.
+                    row[db_field] = value - float(row["depreciation_expense"])
+                    _amortization_expense_source_sec_field = sec_field
+                    _field_source_rank[db_field] = r.get(f"_rank_{sec_field}", 2)
                 else:
                     precision_scale = self._get_field_precision_scale(db_field)
                     if precision_scale is not None and not self._validate_numeric_precision(
@@ -1736,6 +1793,8 @@ class SecEdgarStatementLoader(SecLoaderBase):
                             _dividends_paid_source_sec_field = sec_field
                         if db_field == "cash_and_equivalents":
                             _cash_source_sec_field = sec_field
+                        if db_field == "amortization_expense":
+                            _amortization_expense_source_sec_field = sec_field
                         _field_source_rank[db_field] = r.get(f"_rank_{sec_field}", 2)
 
             # free_cash_flow has no direct XBRL concept (FCF is a non-GAAP measure SEC

@@ -867,6 +867,22 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         # instead of a guessed or partial sum.
         "OperatingLeaseLiability",
         "FinanceLeaseLiability",
+        # FIXED 2026-09-18 (goal: data-issue-reduction session, ppe_net divergence-cluster
+        # follow-up): ppe_net was the largest unreviewed-divergent field in
+        # xbrl_yfinance_line_item_report (746 rows), ~730 of them clustered at ratio 0.1-0.5x
+        # (our value consistently smaller than yfinance's). Live-confirmed via real SEC
+        # companyfacts JSON (AAP FY2022: PropertyPlantAndEquipmentNet 1,690,139,000 +
+        # OperatingLeaseRightOfUseAsset 2,607,690,000 = 4,297,829,000, exact match to yfinance's
+        # figure; AMPG FY2023: 2,599,448 + 3,538,798 = 6,138,246, exact match) that yfinance's
+        # "ppe_net" is our PP&E plus this concept summed - a real, common post-ASC-842
+        # definitional difference, not a bug. Fetched here purely so the loader can populate the
+        # new operating_lease_right_of_use_asset column (migration 1310) for
+        # scripts/xbrl_yfinance_crosscheck.py's COMPOSITE_SUM_FIELDS comparison - deliberately
+        # NOT mapped into ppe_net itself (see financial_statements_balance_config.py's separate
+        # field_mapping entry), matching migration 1205's precedent of keeping
+        # operating_lease_liability/finance_lease_liability additive rather than folded into
+        # long_term_debt.
+        "OperatingLeaseRightOfUseAsset",
         # FIXED 2026-08-18 (no-SEC-data audit continuation, landed alongside a concurrent
         # session's "LongTermDebtNoncurrent" fallback-only addition above - see that
         # comment): live-confirmed via real SEC companyfacts JSON that PFE stopped tagging

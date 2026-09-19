@@ -1121,6 +1121,18 @@ def get_income_statement(
         # accrued interest EXPENSE (debt discount/premium amortization, capitalized
         # interest), so this is intentionally the lowest-priority, last-resort fallback -
         # listed last so any filer with a real accrual-basis concept above keeps that value.
+        #
+        # ADDED 2026-09-18 (goal session, ASPN interest_expense dedicated investigation):
+        # ASPN (Aspen Aerogels, CIK 0001145986) tags its ENTIRE real FY2022 interest expense
+        # under this related-party-specific concept ($5,110,000, an EXACT match to yfinance's
+        # own FY2022 figure) and has no other InterestExpense*/InterestAndDebtExpense/
+        # FinancingInterestExpense fact for that year at all - this concept had NO field_
+        # mapping entry anywhere before this fix, so it was fetched nowhere and the loader
+        # fell through all the way to InterestPaidNet's cash-paid figure ($153,000, a real but
+        # much smaller and less precise number) instead. Listed BEFORE InterestPaidNet (and
+        # fallback-only, same convention as every concept in this list) so a filer reporting
+        # both keeps the more precise accrual-basis related-party figure.
+        "InterestExpenseRelatedParty",
         "InterestPaidNet",
         # FIXED 2026-09-03 (same sweep, same reasoning as InterestPaidNet just above): ARW
         # (Arrow Electronics, $37B revenue) tags NEITHER InterestPaidNet nor any
@@ -1172,6 +1184,19 @@ def get_income_statement(
         # wrongly dismissed as a duplicate - never actually fetched. Listed last so it wins per
         # this file's "last-listed wins" precedence convention.
         "AmortizationOfIntangibleAssets",
+        # FIXED 2026-09-18 (goal session, data-issue reduction, WBD live-confirmed): media/
+        # content companies (ASC 926 film-cost accounting) amortize their film/TV content
+        # library under these two concepts, a genuinely separate, often much larger line item
+        # than AmortizationOfIntangibleAssets. WBD (Warner Bros Discovery) FY2023: Depreciation
+        # $1,097,000,000 + AmortizationOfIntangibleAssets $6,854,000,000 (already-summed total
+        # $7,951,000,000) + FilmMonetizedInFilmGroupAmortizationExpense $10,648,000,000 +
+        # FilmMonetizedOnItsOwnAmortizationExpense $5,165,000,000 = $23,764,000,000, within 1%
+        # of yfinance's flagged $24,009,000,000. Mapped to "amortization_expense" (same target
+        # column as AmortizationOfIntangibleAssets) and added to ADDITIVE_CONCEPT_PAIRS in
+        # sec_zero_component_guards.py so both sum instead of last-listed-wins overwriting -
+        # see that module's own comment for why this needs the additive mechanism.
+        "FilmMonetizedInFilmGroupAmortizationExpense",
+        "FilmMonetizedOnItsOwnAmortizationExpense",
         # For roic_pct (quality_metrics) = EBIT*(1-effective_tax_rate)/invested_capital.
         # Live-confirmed against AAPL/MSFT companyfacts (2026-08-03): both real GAAP
         # concepts, not guessed. IncomeTaxExpenseBenefit is the real tax provision (was

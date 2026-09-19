@@ -295,7 +295,7 @@ from loaders.helpers.financial_statements_config_shared import (  # noqa: E402
     _QUARTERLY_EXTRA,  # noqa: F401
 )
 from loaders.helpers.financial_statements_income_config import (  # noqa: E402
-    _INCOME_FIELD_MAPPING,  # noqa: F401
+    _INCOME_FIELD_MAPPING,
     _QUARTERLY_INCOME_EXTRA,  # noqa: F401
     _REIT_EXCLUSIVE_FIELDS,  # noqa: F401
     _REIT_REVENUE_FALLBACK_ONLY_FIELDS,  # noqa: F401
@@ -1359,6 +1359,13 @@ class ConsolidatedFinancialStatementsLoader(
 
     _INTEREST_EXPENSE_NET_CONCEPTS = ("InterestIncomeExpenseNet", "InterestIncomeExpenseNonoperatingNet")
 
+    # FIXED 2026-09-18 (MS live-confirmed): raw keys here are still per-concept, not yet
+    # collapsed onto "interest_expense" by transform()'s field_mapping - checking only the
+    # literal "interest_expense" key missed filers (e.g. Morgan Stanley) whose real expense
+    # arrives via an alias, overwriting a correct fact with an unrelated net line. Derived
+    # from _INCOME_FIELD_MAPPING itself so this can't drift from that mapping.
+    _INTEREST_EXPENSE_ALIAS_RAW_KEYS = tuple(k for k, v in _INCOME_FIELD_MAPPING.items() if v == "interest_expense")
+
     def _backfill_interest_expense_from_net_concept(self, symbol: str, rows: list[dict[str, Any]]) -> None:
         """Fill interest_expense for rows the normal concept list left None, from a real net
         interest income/expense fact, when the sign unambiguously means "expense dominates".
@@ -1366,7 +1373,12 @@ class ConsolidatedFinancialStatementsLoader(
         verified evidence and why this can't just be added to sec_statements.py's normal
         always-positive concept list.
         """
-        target_rows = [r for r in rows if r.get("interest_expense") is None and not r.get("data_unavailable")]
+        target_rows = [
+            r
+            for r in rows
+            if not r.get("data_unavailable")
+            and all(r.get(key) is None for key in self._INTEREST_EXPENSE_ALIAS_RAW_KEYS)
+        ]
         if not target_rows:
             return
         try:

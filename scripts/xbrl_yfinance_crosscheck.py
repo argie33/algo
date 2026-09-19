@@ -288,6 +288,16 @@ def _advance_sweep_cursor(cur: Any, last_symbol_checked: str) -> None:
 # data-quality field when it's actually a crosscheck mapping bug, not a data bug.
 _COMPOSITE_SUM_FIELDS: dict[tuple[str, str], str] = {
     ("annual_income_statement", "depreciation_expense"): "amortization_expense",
+    # ADDED 2026-09-18 (goal: data-issue-reduction session): ppe_net was the largest
+    # unreviewed-divergent field (746 rows), ~730 clustered at ratio 0.1-0.5x. Live-confirmed
+    # via real SEC companyfacts JSON (AAP, AMPG - see migration 1310's own comment) that
+    # yfinance's larger figure is our PropertyPlantAndEquipmentNet plus
+    # OperatingLeaseRightOfUseAsset summed - same post-ASC-842 definitional shape as the
+    # depreciation_expense/amortization_expense composite above. operating_lease_right_of_use_
+    # asset (migration 1310) is a fresh column that needs a reload to populate for existing
+    # symbols - rows will still show divergent=true until reloaded, this only fixes the
+    # comparison basis going forward.
+    ("annual_balance_sheet", "ppe_net"): "operating_lease_right_of_use_asset",
 }
 
 

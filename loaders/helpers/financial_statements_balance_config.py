@@ -149,6 +149,10 @@ _DEBT_FALLBACK_ONLY_FIELDS = frozenset(
         # "NotesPayableCurrent" - current-portion split of notes_payable, same generic-name
         # caution.
         "notes_payable_current",
+        # ADDED 2026-09-18 (WVVI short_term_debt investigation): current-portion split of
+        # long_term_debt, previously unmapped entirely - see the field_mapping entry's own
+        # comment above for the live evidence.
+        "long_term_debt_current",
         # FIXED 2026-09-03 (same sweep): see sec_statements.py's get_balance_sheet()
         # comment on "ShortTermBankLoansAndNotesPayable" (EXPD live evidence).
         "short_term_bank_loans_and_notes_payable",
@@ -468,6 +472,20 @@ _BALANCE_FIELD_MAPPING = {
     # for AFL/MAA, implying other filers DO report it) - same generic-name caution as
     # debt_current above.
     "notes_payable_current": "short_term_debt",
+    # ADDED 2026-09-18 (goal session, WVVI short_term_debt investigation, live-confirmed via
+    # real SEC companyfacts JSON, CIK 0000838875): "LongTermDebtCurrent" (the current-portion
+    # split of a filer's term loan/long-term debt) was previously fetched NOWHERE in this
+    # loader at all - no field_mapping entry existed for it under any name. WVVI's real
+    # short_term_debt for FY2025 is NotesPayableCurrent ($884,221) + LongTermDebtCurrent
+    # ($1,008,215) + LineOfCredit ($3,140,140, redirected to short_term_debt for WVVI - see
+    # redirect_line_of_credit_for_current_classification) = $5,032,576, an EXACT match to
+    # yfinance's FY2025 figure. Fallback-only (same generic-name caution as notes_payable_
+    # current/debt_current above) so filers where a combined concept already claims
+    # short_term_debt are unaffected; see is_wvvi_current_debt_component_additive
+    # (sec_zero_component_guards.py) for the WVVI-specific summing of this with the other two
+    # current-debt components (this repo's fallback-only mechanism only fills a NULL slot
+    # once by default, doesn't stack multiple fallback concepts together on its own).
+    "long_term_debt_current": "short_term_debt",
     # FIXED 2026-09-03 (same sweep): EXPD (Expeditors International) real short-term
     # debt - see sec_statements.py's get_balance_sheet() comment on
     # "ShortTermBankLoansAndNotesPayable" for the live evidence.
@@ -578,6 +596,12 @@ _BALANCE_FIELD_MAPPING = {
     # unambiguous debt (finance leases).
     "operating_lease_liability": "operating_lease_liability",
     "finance_lease_liability": "finance_lease_liability",
+    # ADDED 2026-09-18 (goal: data-issue-reduction session, ppe_net divergence-cluster
+    # follow-up): see sec_statements.py's get_balance_sheet() comment on
+    # "OperatingLeaseRightOfUseAsset" for the live AAP/AMPG evidence. Deliberately a separate
+    # column, NOT folded into ppe_net - same additive precedent as operating_lease_liability/
+    # finance_lease_liability above (migration 1205) not being folded into long_term_debt.
+    "operating_lease_right_of_use_asset": "operating_lease_right_of_use_asset",
     **_MARKER_FIELDS,
 }
 
@@ -637,6 +661,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "short_term_debt",
                     "operating_lease_liability",
                     "finance_lease_liability",
+                    "operating_lease_right_of_use_asset",
                     "noncontrolling_interest",
                     "temporary_equity",
                     "cash_and_restricted_cash_combined",
@@ -674,6 +699,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "short_term_debt",
                     "operating_lease_liability",
                     "finance_lease_liability",
+                    "operating_lease_right_of_use_asset",
                     "noncontrolling_interest",
                     "temporary_equity",
                     "cash_and_restricted_cash_combined",
