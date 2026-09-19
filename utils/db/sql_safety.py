@@ -72,7 +72,6 @@ SAFE_TABLES = {
     "stock_scores_history",
     "score_realized_ic_log",
     "stock_symbols",
-    "stock_fundamentals",
     "stock_ownership",
     "stock_ratings",
     "company_profile",

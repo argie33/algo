@@ -480,6 +480,34 @@ class CompanyProfileLoader(OptimalLoader):
                 (symbol,),
             )
             yf_row = cur.fetchone()
+
+            # SHARE-CLASS SIBLING FALLBACK (added, live-caught via GEF/GEF.B, HEI/HEI.A,
+            # UHAL/UHAL.B all showing a DIFFERENT sector than their own same-SIC-code,
+            # same-CIK dot-suffix sibling): yfinance_snapshot is per-ticker and, live-verified,
+            # only ever covers the base class of a dual-class company (GEF has a yfinance
+            # sector row, GEF.B does not) - same root cause the 6792/6795 royalty-trust and
+            # 4950-4955 waste-management fixes above already named ("sector split by
+            # data-availability coin flip, not real business"), just manifesting between two
+            # tickers of the literal same company instead of two different companies sharing a
+            # SIC code. Before this fix, the share class without its own yfinance row silently
+            # fell through to the SIC-derived sector instead, so a dual-class pair could show
+            # two different sectors for one business. `.` is this dataset's real share-class
+            # separator (GEF.B, HEI.A, UHAL.B, BRK.B, ...) - only try the root symbol when this
+            # symbol itself has none, so a base ticker's own yfinance data (when present) is
+            # never overridden by a suffix lookup.
+            if yf_row is None and "." in symbol:
+                root_symbol = symbol.split(".", 1)[0]
+                cur.execute(
+                    "SELECT sector FROM yfinance_snapshot "
+                    "WHERE symbol = %s AND data_available = true AND sector IS NOT NULL",
+                    (root_symbol,),
+                )
+                yf_row = cur.fetchone()
+                if yf_row is not None:
+                    logger.info(
+                        f"[{symbol}] No yfinance_snapshot row of its own; using share-class "
+                        f"sibling {root_symbol!r}'s sector ({yf_row[0]!r}) instead."
+                    )
             yfinance_sector = YFINANCE_SECTOR_NORMALIZE.get(yf_row[0], yf_row[0]) if yf_row else None
 
         if row is None:

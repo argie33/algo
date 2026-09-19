@@ -92,6 +92,51 @@ class TestYfinanceSectorOverride:
         assert result is not None
         assert result[0]["sector"] == "Materials"  # normalized, not "Basic Materials"
 
+    def test_share_class_sibling_yfinance_sector_used_when_own_row_missing(self):
+        """Live-caught 2026-09-19: GEF has a yfinance_snapshot row (sector='Consumer
+        Cyclical') but its dual-class sibling GEF.B does not - GEF.B fell through to the
+        SIC-derived sector (3412 -> 'Industrials' via major-group fallback), so the same
+        company showed two different sectors depending on which share class you looked up.
+        GEF.B's own symbol lookup misses; the root symbol ('GEF') lookup must be tried next
+        and win."""
+        loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
+        mock_cur = MagicMock()
+        mock_cur.fetchone.side_effect = [
+            self._mock_row("GEF.B", 3412, "Metal Shipping Barrels, Drums, Kegs & Pails"),
+            None,  # GEF.B has no yfinance_snapshot row of its own
+            ("Consumer Cyclical",),  # root symbol GEF's yfinance_snapshot row
+        ]
+
+        with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_db_ctx.return_value.__exit__.return_value = False
+            result = loader.fetch_incremental("GEF.B", None)
+
+        assert result is not None
+        assert result[0]["sector"] == "Consumer Cyclical"
+
+    def test_share_class_sibling_fallback_not_tried_when_own_row_exists(self):
+        """A share class WITH its own yfinance row (e.g. a hypothetical base ticker with a
+        '.' in it that happens to have real data) must use its own sector, never look up a
+        sibling - the fallback only fires on a miss."""
+        loader = CompanyProfileLoader.__new__(CompanyProfileLoader)
+        mock_cur = MagicMock()
+        mock_cur.fetchone.side_effect = [
+            self._mock_row("BRK.B", 6311),
+            ("Financial Services",),  # BRK.B has its own real yfinance row
+        ]
+
+        with patch("loaders.load_company_profile.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_db_ctx.return_value.__exit__.return_value = False
+            result = loader.fetch_incremental("BRK.B", None)
+
+        assert result is not None
+        assert result[0]["sector"] == "Financial Services"
+        # Only 2 fetchone() calls consumed (company_info_sec + BRK.B's own yfinance row) -
+        # a 3rd call would mean the sibling fallback fired when it shouldn't have.
+        assert mock_cur.fetchone.call_count == 2
+
     def test_yfinance_sector_rescues_symbol_with_no_sic_code(self):
         """A symbol with no sic_code at all (and not a BDC/bank-holding-co) would
         otherwise be marked data_unavailable - if yfinance has a real sector, use it

@@ -212,59 +212,34 @@ class QualityScoringMixin:
         return {"symbol": symbol, "data_unavailable": True, "reason": "quality_score_unavailable"}
 
     def update_quality_from_source(self) -> None:
-        """Batch pass: re-sync stock_scores.quality_score from quality_metrics.quality_score as
-        it currently stands in the DB, and recompute composite_score/data_completeness/
-        data_unavailable to match. ADDED 2026-09-15 (/goal session, live-caught bug:
-        pillar_score_reconciliation DataPatrol check found 1,369 symbols - including NVDA,
-        MSFT, WMT, XOM, V, PG, NFLX - with stock_scores.quality_score diverging from
-        quality_metrics.quality_score by up to 26+ points, quarantining them out of the
-        leaderboard entirely).
+        """Batch pass: force a fresh Quality recompute, then reconcile composite_score/
+        data_completeness/data_unavailable against the now-current quality_score.
 
-        EXTENDED 2026-09-15 (same session, quality liquidity-floor withhold fix - see
-        loaders/helpers/vqg_quality_batch.py's `_withhold_quality_below_floor()` docstring for
-        the full evidence trail): now ALSO propagates qm.quality_score transitioning to NULL
-        (a withhold), not just non-NULL corrections - the original WHERE clause required
-        `qm.quality_score IS NOT NULL`, which would silently DROP a withhold instead of syncing
-        it, leaving stock_scores.quality_score permanently stuck on the stale pre-withhold
-        value. This is a genuine re-sync-from-source in both directions now: whatever
-        quality_metrics.quality_score currently holds (a real score OR None) is what
-        stock_scores.quality_score is corrected to.
+        REWORKED 2026-09-19 (user directive: "we want only what is in stock_scores... get rid
+        of the messes" - a `stock_scores` vs `quality_metrics` two-table quality_score duplication
+        audit). `update_quality_sector_neutral_scores()` (loaders/helpers/vqg_quality_batch.py)
+        now writes `stock_scores.quality_score` DIRECTLY as its primary target (quality_metrics
+        is just a mirror) - see that method's own docstring for the full rationale. This method
+        no longer re-syncs quality_score FROM quality_metrics (there is nothing left to sync:
+        stock_scores already holds the correct value the instant the call below returns) - its
+        only remaining job is recomputing composite_score/data_completeness/data_unavailable
+        from stock_scores' own current 5 pillar columns, a pure function of that one table with
+        no other table involved at all.
 
-        ROOT CAUSE: unlike Risk/Value/Growth/Momentum (each of which has its own post_run()
-        batch-correction pass below that re-reads its source table fresh), Quality was the one
-        pillar computed ONLY from `self._quality_cache` - a single snapshot of the whole
-        quality_metrics table taken once in `_prepare_batch_context()` before the main
-        per-symbol loop runs (see load_stock_scores.py:435-443). `_score_quality` itself is a
-        pure passthrough of quality_metrics.quality_score (no independent computation - "Uses
-        only pre-computed quality_score... No fallback computation", see this file's own
-        `_score_quality` docstring), so any staleness is entirely a cache-vs-live-table gap: if
-        quality_metrics gets updated by anything else (a concurrent loader run, another
-        session) while this run is in flight, stock_scores permanently carries the stale
-        snapshot value with nothing to correct it afterward - the exact gap this pass closes,
-        mirroring the self-healing pattern every sibling pillar already has.
+        HISTORY (why this pass exists): originally added 2026-09-15 to fix a live-caught bug -
+        pillar_score_reconciliation DataPatrol check found 1,369 symbols (including NVDA, MSFT,
+        WMT, XOM, V, PG, NFLX) with stock_scores.quality_score diverging from
+        quality_metrics.quality_score by up to 26+ points, because Quality was the one pillar
+        computed from `self._quality_cache` (load_stock_scores.py's own per-symbol loop) instead
+        of a fresh post_run() batch-correction pass like every sibling pillar has - a
+        cache-vs-live-table gap with nothing to correct it. Later extended (2026-09-18) to call
+        the real recompute directly rather than trust `metrics`'s own ~4.6h schedule to have
+        already run it. Both of those fixes patched over the same root design flaw - Quality's
+        real number lived somewhere other than stock_scores - which this rework finally removes
+        instead of patching again.
 
         Runs FIRST in post_run() (before Risk/Value/Growth/Momentum) so their own composite
-        recomputes see the corrected quality_score, not the stale cached one.
-
-        RECOMPUTES quality_metrics.quality_score ITSELF FIRST, 2026-09-18 (live-caught same
-        day as the two-step MSCI winsorization fix in loaders/helpers/factor_normalization.py,
-        commit 2f4f8feef): unlike Risk/Value/Growth/Momentum, whose real z-score batch-correction
-        lives in THIS file (load_stock_scores.py, the `signals` pipeline stage) and therefore
-        picks up a factor_normalization.py fix the next time `signals` runs, Quality's real
-        z-score batch-correction (`update_quality_sector_neutral_scores()`) lives in a
-        DIFFERENT loader, `load_value_quality_growth_metrics.py`'s post_run() - the `metrics`
-        pipeline stage, which only runs on its own ~4.6h cadence. Before this fix, this method
-        only re-synced FROM quality_metrics.quality_score as it happened to already stand - if
-        `metrics` hadn't re-run since a scoring-formula fix landed, this pass just faithfully
-        propagated the stale, pre-fix value into stock_scores every time, making a
-        `signals`-only reload look complete while Quality never actually corrected (live-
-        verified: 3,169/3,319 symbols' quality_score was still computed by the pre-fix
-        single-pass winsorize-then-clip logic hours after the fix commit, because `metrics`
-        hadn't re-run). Calling the real recompute directly here removes the dependency on
-        `metrics`'s own schedule entirely - it's a pure function of already-stored raw ratio
-        columns (see that method's own docstring), so re-running it here is idempotent and
-        cheap (~0.3s locally), not a duplicate side effect to worry about co-running with
-        `metrics`'s own scheduled call to the same method.
+        recomputes see the corrected quality_score, not a stale value.
 
         Raises on failure, same as every other post_run() batch pass.
         """
@@ -276,13 +251,11 @@ class QualityScoringMixin:
             with _owner().DatabaseContext("write") as cur:
                 cur.execute(
                     """
-                    SELECT ss.symbol, ss.quality_score, ss.composite_score, ss.growth_score,
-                           ss.value_score, ss.risk_score, ss.momentum_score,
-                           ss.data_completeness, ss.data_unavailable, qm.quality_score
-                    FROM stock_scores ss
-                    JOIN quality_metrics qm ON qm.symbol = ss.symbol
-                    WHERE ss.quality_score IS NOT NULL
-                      AND COALESCE(qm.data_unavailable, false) = false
+                    SELECT symbol, quality_score, composite_score, growth_score,
+                           value_score, risk_score, momentum_score,
+                           data_completeness, data_unavailable
+                    FROM stock_scores
+                    WHERE composite_score IS NOT NULL
                     """
                 )
                 rows = cur.fetchall()
@@ -295,11 +268,11 @@ class QualityScoringMixin:
 
             min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
 
-            updates: list[tuple[str, float | None, float, float, bool]] = []
+            updates: list[tuple[str, float, float, bool]] = []
             for row in rows:
                 (
                     symbol,
-                    quality_score_old,
+                    quality_score,
                     composite_score_old,
                     growth_score,
                     value_score,
@@ -307,9 +280,8 @@ class QualityScoringMixin:
                     momentum_score,
                     data_completeness_old,
                     data_unavailable_old,
-                    quality_score_new,
                 ) = row
-                quality_score_new = float(quality_score_new) if quality_score_new is not None else None
+                quality_score = float(quality_score) if quality_score is not None else None
                 data_completeness_old = float(data_completeness_old) if data_completeness_old is not None else None
                 data_unavailable_old = bool(data_unavailable_old) if data_unavailable_old is not None else False
 
@@ -321,7 +293,7 @@ class QualityScoringMixin:
                 weights = BASE_PILLAR_WEIGHTS
                 composite_val = 0.0
                 for pillar_name, pillar_score in (
-                    ("quality", quality_score_new),
+                    ("quality", quality_score),
                     ("value", value_score),
                     ("risk", risk_score),
                     ("momentum", momentum_score),
@@ -332,7 +304,7 @@ class QualityScoringMixin:
                 composite_score_new = round(max(0.0, min(100.0, composite_val)), 2)
 
                 all_scores_new: dict[str, float | None] = {
-                    "quality": quality_score_new,
+                    "quality": quality_score,
                     "value": float(value_score) if value_score is not None else None,
                     "risk": float(risk_score) if risk_score is not None else None,
                     "momentum": float(momentum_score) if momentum_score is not None else None,
@@ -344,17 +316,14 @@ class QualityScoringMixin:
                 data_completeness_new = min(99.99, round(available_weight * 100, 2))
                 data_unavailable_new = data_completeness_new < min_completeness_threshold
 
-                quality_score_old_f = float(quality_score_old) if quality_score_old is not None else None
                 if (
-                    quality_score_new != quality_score_old_f
-                    or composite_score_new != float(composite_score_old)
+                    composite_score_new != float(composite_score_old)
                     or data_completeness_new != data_completeness_old
                     or data_unavailable_new != data_unavailable_old
                 ):
                     updates.append(
                         (
                             symbol,
-                            quality_score_new,
                             composite_score_new,
                             data_completeness_new,
                             data_unavailable_new,
@@ -363,16 +332,14 @@ class QualityScoringMixin:
 
             if not updates:
                 logger.info(
-                    "[STOCK_SCORES] update_quality_from_source: no symbol's quality_score/"
-                    "composite_score changed (expected once quality_metrics and stock_scores are back in sync)."
+                    "[STOCK_SCORES] update_quality_from_source: composite_score/data_completeness/"
+                    "data_unavailable already consistent with the current quality_score - nothing to correct."
                 )
                 return
 
             with _owner().DatabaseContext("write") as cur:
                 # ::numeric/::boolean casts on the VALUES columns (added alongside the
-                # liquidity-floor withhold fix, 2026-09-15): quality_score can now be NULL in
-                # the same batch as real floats (a withhold propagating from
-                # _withhold_quality_below_floor()) - the identical mixed-None/float
+                # liquidity-floor withhold fix, 2026-09-15) - same mixed-None/float
                 # wrong-inferred-column-type psycopg2 gotcha already hit and fixed for
                 # momentum_score (see momentum_scoring.py's update_momentum_sector_relative_
                 # mom_12_1() UPDATE, which already casts for the same reason).
@@ -380,23 +347,23 @@ class QualityScoringMixin:
                     cur,
                     """
                     UPDATE stock_scores AS ss
-                    SET quality_score = v.quality_score::numeric,
-                        composite_score = v.composite_score::numeric,
+                    SET composite_score = v.composite_score::numeric,
                         data_completeness = v.data_completeness::numeric,
                         data_unavailable = v.data_unavailable::boolean,
                         updated_at = CURRENT_TIMESTAMP
-                    FROM (VALUES %s) AS v(symbol, quality_score, composite_score,
+                    FROM (VALUES %s) AS v(symbol, composite_score,
                                            data_completeness, data_unavailable)
                     WHERE ss.symbol = v.symbol
                     """,
                     updates,
-                    template="(%s, %s, %s, %s, %s)",
+                    template="(%s, %s, %s, %s)",
                 )
             logger.info(
-                f"[STOCK_SCORES] Quality re-sync-from-source pass corrected "
-                f"{len(updates)}/{len(rows)} symbols' quality_score/composite_score (post_run completed)"
+                f"[STOCK_SCORES] Quality composite-reconciliation pass corrected "
+                f"{len(updates)}/{len(rows)} symbols' composite_score/data_completeness/data_unavailable "
+                f"(post_run completed)"
             )
         except Exception as e:
-            error_msg = f"Quality re-sync-from-source batch update failed: {e}"
+            error_msg = f"Quality composite-reconciliation batch update failed: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e

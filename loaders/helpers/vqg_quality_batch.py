@@ -355,7 +355,34 @@ class QualityBatchMixin(DebtComponentsFallbackMixin):
                 # quality_score is now NULL for withheld rows in the same batch as real floats
                 # from the correction loop above - same mixed-None/float wrong-inferred-column-
                 # type psycopg2 gotcha already hit and fixed for momentum_score/quality_score
-                # in stock_scores (see quality_scoring.py's update_quality_from_source()).
+                # in stock_scores.
+                #
+                # STOCK_SCORES IS NOW THE PRIMARY WRITE (2026-09-19 cleanup, user directive
+                # "we want only what is in stock_scores... get rid of the messes"): this used
+                # to write quality_metrics.quality_score ONLY, with a separate pass
+                # (quality_scoring.py's update_quality_from_source()) copying that value into
+                # stock_scores afterward - the one pillar computing its real score somewhere
+                # OTHER than stock_scores, unlike Value/Growth/Risk/Momentum, each of which
+                # writes stock_scores directly in their own batch pass. That backwards flow
+                # was the literal mechanism behind a real divergence incident (up to 26pt drift
+                # on 1,369 symbols incl. NVDA/MSFT/WMT/XOM/V/PG/NFLX - stock_scores kept a stale
+                # copy whenever the sync pass didn't run on the same cadence as this one).
+                # stock_scores.quality_score is now written directly here, matching every
+                # sibling pillar; quality_metrics.quality_score becomes a read-only mirror of
+                # this value (same direction loaders/stock_scores/value_metrics.py's own
+                # value_score-into-value_metrics sync already uses), not the source of truth.
+                _owner().execute_values(
+                    cur,
+                    """
+                    UPDATE stock_scores AS ss
+                    SET quality_score = v.quality_score::numeric,
+                        updated_at = CURRENT_TIMESTAMP
+                    FROM (VALUES %s) AS v(symbol, quality_score)
+                    WHERE ss.symbol = v.symbol
+                    """,
+                    updates,
+                    template="(%s, %s)",
+                )
                 _owner().execute_values(
                     cur,
                     """

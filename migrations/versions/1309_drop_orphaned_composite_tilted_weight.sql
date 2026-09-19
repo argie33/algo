@@ -1,0 +1,23 @@
+-- Migration 1309: drop stock_scores.composite_tilted_weight for real.
+--
+-- SCHEMA DRIFT FIX (found 2026-09-18): schema_version records migration 1308 ("drop the 6
+-- market-cap-tilted display weight columns") as applied on 2026-09-18, but composite_tilted_
+-- weight and the 5 pillar *_tilted_weight columns were still physically present in the live
+-- DB with real, actively-written data - live-verified via a direct query, not assumed. The
+-- most likely explanation: an earlier, since-deleted draft of a "restore the tilted weight
+-- columns" migration (referenced in old code comments as "migration 1309", never actually
+-- checked in) was run by hand directly against the DB, re-adding the columns 1308 had
+-- dropped, without going through this tracked migration runner - so schema_version kept
+-- claiming 1308's dropped state while the columns silently came back.
+--
+-- User directive 2026-09-18: "we dont want composite tilted weight we only want composite
+-- score for the composite" - the 5 pillar *_tilted_weight columns are back in real, tracked
+-- use (loaders/stock_scores/market_cap_tilt.py, restored the same day, computes/writes them
+-- every run - see that module's own docstring). composite_tilted_weight is NOT: nothing
+-- computes it, nothing reads it (confirmed via a repo-wide grep - zero real code references,
+-- only historical comments), and composite_score itself (the real, live-trading-logic column)
+-- is completely untouched by this migration or by loaders/stock_scores/market_cap_tilt.py.
+-- Drops the one orphaned column and reuses the "1309" number since nothing real ever
+-- consumed it.
+
+ALTER TABLE stock_scores DROP COLUMN IF EXISTS composite_tilted_weight;
