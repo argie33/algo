@@ -84,6 +84,20 @@ _CASHFLOW_IFRS_ALIASES = [
         "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
         "payments_to_acquire_property_plant_and_equipment",
     ),
+    # ADDED 2026-09-19 (/goal data-confidence audit, ARGX/AZN live-confirmed via real SEC
+    # companyfacts JSON, 2 unrelated IFRS 20-F filers): "PurchaseOfIntangibleAssetsClassified
+    # AsInvestingActivities" is a real, genuinely ADDITIVE component of total capex for IFRS
+    # filers that capitalize significant intangible-asset spend (licensing, IP, capitalized
+    # software) alongside physical PP&E - not an alternate/overlapping figure. ARGX FY2023:
+    # PP&E $812,000 + intangibles $43,000,000 = $43,812,000, EXACT yfinance match. AZN FY2023:
+    # PP&E $1,361,000,000 + intangibles $2,417,000,000 = $3,778,000,000, EXACT yfinance match.
+    # Own target_key (not the same as the PP&E alias above) so the two facts land in separate
+    # row keys and can be summed via ADDITIVE_CONCEPT_PAIRS in sec_zero_component_guards.py
+    # rather than colliding/overwriting at the raw-fetch step.
+    (
+        "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities",
+        "purchase_of_intangible_assets_classified_as_investing_activities",
+    ),
     # FIXED 2026-08-29 (goal: "full data" audit continuation, oil & gas E&P follow-up): the
     # two IFRS PP&E-purchase concepts above have never matched TTE (TotalEnergies, 20-F) or
     # SHEL (Shell plc, 20-F) - both real, current oil & gas majors with real capex, not a

@@ -209,6 +209,10 @@ _SBC_BUYBACK_FALLBACK_ONLY_FIELDS = frozenset(
         # (still fills when nothing else populated capex) is preserved while PACK's real
         # total is no longer clobbered by either narrower sibling concept.
         "payments_to_acquire_machinery_and_equipment",
+        # ADDED 2026-09-19: see _CASHFLOW_FIELD_MAPPING's own comment on this key (ARGX/AZN
+        # live evidence) - additive via ADDITIVE_CONCEPT_PAIRS, reached through this same
+        # fallback-only branch.
+        "purchase_of_intangible_assets_classified_as_investing_activities",
     }
 )
 
@@ -236,6 +240,13 @@ _CASHFLOW_FIELD_MAPPING = {
     # 274). Renamed to match the real column so new/incremental writes actually land;
     # existing NULL rows need a backfill (re-run with BACKFILL_DAYS or per-symbol refetch).
     "payments_to_acquire_property_plant_and_equipment": "capex",
+    # ADDED 2026-09-19 (/goal data-confidence audit, ARGX/AZN live-confirmed): a genuinely
+    # additive IFRS capex component - see this key's own alias-list comment in
+    # sec_cash_flow.py and its ADDITIVE_CONCEPT_PAIRS entry in sec_zero_component_guards.py
+    # for the live evidence. Fallback-only (see _SBC_BUYBACK_FALLBACK_ONLY_FIELDS below) so
+    # it reaches transform()'s fallback-only branch, where is_additive_concept_pair sums it
+    # into an already-populated PP&E capex instead of skipping or overwriting.
+    "purchase_of_intangible_assets_classified_as_investing_activities": "capex",
     # FIXED 2026-08-10: real capex concept some filers use INSTEAD of plain
     # "PaymentsToAcquirePropertyPlantAndEquipment" - live-confirmed via AAON, KELYB, CPS,
     # DTIL (all report ONLY "PaymentsToAcquireProductiveAssets", with real recent values -

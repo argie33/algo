@@ -299,6 +299,17 @@ ADDITIVE_CONCEPT_PAIRS = frozenset(
         # cost_of_revenue/franchisor_costs above - needs the same sec_base.py transform()
         # exception inside the fallback-only skip block.
         ("capex", "payments_to_acquire_software"),
+        # ADDED 2026-09-19 (/goal data-confidence audit, ARGX/AZN live-confirmed via real SEC
+        # companyfacts JSON, 2 unrelated IFRS 20-F filers, zero counter-examples found):
+        # "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities" is a real, genuinely
+        # additive IFRS capex component (licensing/IP/capitalized-software spend) alongside
+        # PP&E purchases, not an alternate figure - ARGX FY2023: PP&E $812,000 + intangibles
+        # $43,000,000 = $43,812,000 (exact yfinance match); AZN FY2023: PP&E $1,361,000,000 +
+        # intangibles $2,417,000,000 = $3,778,000,000 (exact yfinance match). See this
+        # concept's own comment in sec_cash_flow.py's IFRS alias list and
+        # financial_statements_cashflow_config.py's field-mapping comment for the full
+        # wiring.
+        ("capex", "purchase_of_intangible_assets_classified_as_investing_activities"),
         # ADDED 2026-09-17 (xbrl_yfinance_line_item_report accounts_receivable cluster
         # follow-up): HGTY (Hagerty, Inc., CIK 0001840776, an insurance MGA) live-confirmed
         # via real SEC companyfacts JSON, every fiscal year present in
