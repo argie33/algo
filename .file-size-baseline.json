@@ -547,7 +547,7 @@
   "loaders/helpers/financial_statements_fye_flip_reconcile.py": 231,
   "loaders/helpers/financial_statements_income_config.py": 756,
   "loaders/helpers/financial_statements_prefetch.py": 90,
-  "loaders/helpers/financial_statements_q4_sweeps.py": 1195,
+  "loaders/helpers/financial_statements_q4_sweeps.py": 1208,
   "loaders/helpers/financial_statements_share_count_validation.py": 687,
   "loaders/helpers/financial_statements_value_validation.py": 1007,
   "loaders/helpers/growth_trend.py": 105,
